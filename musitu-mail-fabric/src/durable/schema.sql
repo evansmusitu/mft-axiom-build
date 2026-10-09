@@ -23,3 +23,20 @@ CREATE TABLE IF NOT EXISTS mail_suppressions (
  created_ms INTEGER NOT NULL,
  PRIMARY KEY(tenant_id,recipient_hmac)
 ) STRICT;
+
+-- Authenticated delivery-provider observations: provider assertions, not inbox proof.
+CREATE TABLE IF NOT EXISTS mail_provider_events (
+ tenant_id TEXT NOT NULL,
+ svix_id TEXT NOT NULL,
+ message_id TEXT NOT NULL,
+ provider_id TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN ('email.delivered','email.bounced','email.complained','email.delivery_delayed')),
+ raw_sha256 TEXT NOT NULL,
+ created_ms INTEGER NOT NULL,
+ PRIMARY KEY(tenant_id,svix_id),
+ FOREIGN KEY(message_id) REFERENCES mail_messages(message_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS mail_provider_events_lookup_idx ON mail_provider_events(tenant_id,message_id,created_ms);
+CREATE INDEX IF NOT EXISTS mail_messages_provider_lookup_idx ON mail_messages(tenant_id,provider_id);
+-- Provider IDs must uniquely identify one message per tenant, or attribution is unsafe.
+CREATE UNIQUE INDEX IF NOT EXISTS mail_messages_unique_provider_idx ON mail_messages(tenant_id,provider_id) WHERE provider_id IS NOT NULL;

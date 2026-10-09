@@ -89,10 +89,9 @@ export class DurableMailFabric {
     if(result.meta?.changes!==1)return null;
     return this.get(row.message_id,row.tenant_id);
   }
-  async processNext(){
-    const pending=await this.db.prepare(`SELECT message_id FROM mail_messages WHERE tenant_id=? AND state='QUEUED' ORDER BY created_ms,message_id LIMIT 1`).bind(this.config.tenantId).first();
-    if(!pending)return null;
-    const claim=await this.claim(pending.message_id);
+  async processById(messageId){
+    if(typeof messageId!=='string'||!/^[0-9a-f-]{36}$/i.test(messageId))return null;
+    const claim=await this.claim(messageId);
     if(!claim)return null;
     const {row,token}=claim;
     let result;
@@ -105,6 +104,40 @@ export class DurableMailFabric {
     const state=outcome==='accepted'?'ACCEPTED_BY_PROVIDER':outcome==='rejected'?'REJECTED_BY_PROVIDER':'OUTCOME_UNKNOWN';
     const providerId=outcome==='accepted'&&typeof result?.providerId==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(result.providerId)?result.providerId:null;
     return this.#finalize(row,token,state,providerId);
+  }
+  async processNext(){
+    const pending=await this.db.prepare(`SELECT message_id FROM mail_messages WHERE tenant_id=? AND state='QUEUED' ORDER BY created_ms,message_id LIMIT 1`).bind(this.config.tenantId).first();
+    return pending?this.processById(pending.message_id):null;
+  }
+  async recordProviderEvent({svixId,rawSha256,type,providerId}){
+    if(typeof svixId!=='string'||!(/^[A-Za-z0-9._:-]{4,200}$/).test(svixId)||!(/^[a-f0-9]{64}$/).test(rawSha256)||!['email.delivered','email.bounced','email.complained','email.delivery_delayed'].includes(type)||!(/^[A-Za-z0-9_-]{1,120}$/).test(providerId))throw TypeError('INVALID_PROVIDER_EVENT');
+    const prior=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
+    if(prior){if(prior.raw_sha256!==rawSha256||prior.kind!==type||prior.provider_id!==providerId)throw Error('WEBHOOK_ID_CONFLICT');return {recorded:false,reason:'DUPLICATE_EVENT'};}
+    const message=await this.db.prepare(`SELECT message_id FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`).bind(this.config.tenantId,providerId).first();
+    if(!message)return {recorded:false,reason:'UNRELATED_PROVIDER_ID'};
+    const result=requireSuccess(await this.db.prepare(`INSERT OR IGNORE INTO mail_provider_events(tenant_id,svix_id,message_id,provider_id,kind,raw_sha256,created_ms) VALUES(?,?,?,?,?,?,?)`).bind(this.config.tenantId,svixId,message.message_id,providerId,type,rawSha256,this.now()).run());
+    if(result.meta?.changes!==1){
+      const existing=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
+      if(existing&&(existing.raw_sha256!==rawSha256||existing.kind!==type||existing.provider_id!==providerId))throw Error('WEBHOOK_ID_CONFLICT');
+      return {recorded:false,reason:'DUPLICATE_EVENT'};
+    }
+    return {recorded:true};
+  }
+  async getProviderEvidence(messageId,tenantId){
+    if(tenantId!==this.config.tenantId)return null;
+    const row=await this.db.prepare(`SELECT * FROM mail_messages WHERE message_id=? AND tenant_id=?`).bind(messageId,tenantId).first();
+    if(!row)return null;
+    const receipts=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE message_id=? AND tenant_id=? ORDER BY created_ms,svix_id`).bind(messageId,tenantId).all();
+    const entries=JSON.parse(row.events_json);
+    const events=[];
+    for(const r of receipts.results||[]){
+      const detail={providerId:r.provider_id,type:r.kind,rawSha256:r.raw_sha256,svixHash:hash(r.svix_id),claim:'PROVIDER_REPORTED'};
+      const previousHash=entries.at(-1).hash;
+      const data={messageId:row.message_id,tenantId:row.tenant_id,sequence:entries.length+1,at:new Date(r.created_ms).toISOString(),event:'AUTHENTICATED_PROVIDER_EVENT',detail,previousHash};
+      const event={...data,hash:hash(JSON.stringify(data))};entries.push(event);
+      events.push({type:r.kind,claim:'PROVIDER_REPORTED',eventIdHash:hash(r.svix_id)});
+    }
+    return {messageId,events,proof:this.ledger.export(entries)};
   }
   async reconcileExpired(){
     const ms=this.now();

@@ -1,0 +1,43 @@
+name: MUSITU Mail Fabric v0.3 Isolated CI
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - 'musitu-mail-fabric/**'
+      - '.github/workflows/musitu-mail-fabric-isolated-v03-ci.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mailpit:
+        image: ghcr.io/axllent/mailpit:v1.31.4
+        ports:
+          - 127.0.0.1:1025:1025
+          - 127.0.0.1:8025:8025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node syntax, safety and repository tests
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npm run check
+          npm test
+          npm run demo
+      - name: Real Mailpit loopback SMTP integration
+        working-directory: musitu-mail-fabric
+        env:
+          MAILPIT_INTEGRATION: '1'
+        run: node --test test/mailpit.test.mjs
+      - name: Bundle Cloudflare Worker for compatibility without deployment
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 src/edge/worker.mjs --bundle --format=esm --platform=neutral --target=es2022 --external:node:crypto --outfile=/tmp/musitu-mail-fabric-worker-v03.mjs
+          test -s /tmp/musitu-mail-fabric-worker-v03.mjs
+          test ! -f /tmp/musitu-mail-fabric-worker-v03.mjs.map
