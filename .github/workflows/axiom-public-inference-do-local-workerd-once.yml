@@ -40,7 +40,7 @@ jobs:
           import os,json
           x={'name':'axiom-nonpublic-do-runtime-probe-20261009',
              'main':'ops/public_inference/remote_do_probe.mjs',
-             'compatibility_date':'2026-10-09',
+             'compatibility_date':'2026-09-15',
              'workers_dev':False,'preview_urls':False,'routes':[],
              'durable_objects':{'bindings':[{'name':'AXIOM_GLOBAL_QUOTA','class_name':'ProbeAxiomQuota'}]},
              'migrations':[{'tag':'v1','new_sqlite_classes':['ProbeAxiomQuota']}]}
