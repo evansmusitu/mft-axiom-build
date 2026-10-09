@@ -2,20 +2,27 @@ name: MUSITU Axiom Cloudflare Control Plane
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/cloudflare-control-plane.yml'
 
 permissions:
   contents: read
 
 jobs:
   cloudflare-readonly-preflight:
+    # Inherited workflow exists on protected main. Dispatch the isolated branch
+    # only after no-charge included CI minutes are independently confirmed.
+    if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       CF_API: https://api.cloudflare.com/client/v4
+      AXIOM_ZERO_CASH_BUDGET_USD: '0'
+      AXIOM_CLOUDFLARE_READONLY_MODE: CONFIRMED_ISOLATED_READ
+      AXIOM_EXPECTED_CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
     steps:
+      - name: Checkout isolated repo source without persisted access token
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - name: Require protected Cloudflare credentials
         shell: bash
         env:
@@ -70,6 +77,19 @@ jobs:
             json.dump(out,f,indent=2,sort_keys=True)
           print(json.dumps({'success':True,'zone_name':out['zone_name'],'zone_status':out['zone_status'],'zone_id_present':bool(out['zone_id']),'account_id_present':bool(out['account_id'])}, sort_keys=True))
           PY
+
+      - name: Verify existing global-key path for isolated AXIOM public inference
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/public_inference -p 'test_cloudflare_readonly.py' -v
+          python3 ops/public_inference/cloudflare_readonly.py
+          echo 'CLOUDFLARE_FREE_PLAN=NOT_PROVEN'
+          echo 'WORKERS_AI_PUBLIC_INFERENCE=NOT_ENABLED'
+          echo 'CLOUDFLARE_WRITE_PERFORMED=FALSE'
 
       - name: Seal read-only evidence
         shell: bash
