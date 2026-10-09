@@ -18,6 +18,9 @@ const CASE_REOPEN_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/reopen$/;
 const CASE_EMAIL_THREAD_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/email-thread$/;
 const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
 const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
+const ENTERPRISE_ORG_CASES_PATH = /^\/enterprise\/api\/v1\/orgs\/([^/]+)\/cases$/;
+const ENTERPRISE_ORG_CASE_PATH = /^\/enterprise\/api\/v1\/orgs\/([^/]+)\/cases\/([A-Z0-9-]+)$/;
+const ENTERPRISE_ORG_MESSAGE_PATH = /^\/enterprise\/api\/v1\/orgs\/([^/]+)\/cases\/([A-Z0-9-]+)\/messages$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
 const OPERATOR_MESSAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/messages$/;
 const OPERATOR_STATE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/state$/;
@@ -30,6 +33,7 @@ const OPERATOR_ESCALATIONS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/es
 const OPERATOR_INCIDENT_CASES_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/cases$/;
 const OPERATOR_INCIDENT_STATUS_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/status$/;
 const OPERATOR_ORG_ENTITLEMENTS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/entitlements$/;
+const OPERATOR_ORG_INVITES_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/invites$/;
 const OPERATOR_WEBHOOK_DELIVERY_PATH = /^\/api\/v1\/operator\/webhooks\/([^/]+)\/delivery$/;
 const OPERATOR_QA_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/qa$/;
 const OPERATOR_TRIAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/triage$/;
@@ -103,6 +107,52 @@ export async function verifyCustomerRecoveryAccess(request, env = {}) {
     if (subject.length < 3 || subject.length > 512) return null;
 
     const fetchImpl = env.SUPPORT_RECOVERY_ACCESS_CERTS_FETCH || fetch;
+    const response = await fetchImpl(team + '/cdn-cgi/access/certs', {headers:{accept:'application/json'}});
+    if (!response?.ok) return null;
+    const certs = await response.json();
+    const jwk = (Array.isArray(certs?.keys) ? certs.keys : []).find(key => String(key?.kid || '') === String(header.kid));
+    if (!jwk || jwk.kty !== 'RSA') return null;
+    const publicKey = await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+    const signatureOk = await crypto.subtle.verify(
+      {name:'RSASSA-PKCS1-v1_5'},publicKey,base64UrlBytes(parts[2]),
+      new TextEncoder().encode(parts[0]+'.'+parts[1]),
+    );
+    if (!signatureOk) return null;
+    return Object.freeze({issuer:team,subject});
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyEnterpriseAccess(request, env = {}) {
+  try {
+    if (env.ENVIRONMENT !== 'production' && typeof env.SUPPORT_ENTERPRISE_IDENTITY_VERIFY === 'function') {
+      const injected = await env.SUPPORT_ENTERPRISE_IDENTITY_VERIFY(request, env);
+      const issuer = normalizedIssuer(injected?.issuer);
+      const subject = String(injected?.subject || '').trim();
+      if (!/^https:\/\/[a-z0-9.-]+$/i.test(issuer) || subject.length < 3 || subject.length > 512) return null;
+      return Object.freeze({issuer, subject});
+    }
+
+    const token = String(request.headers.get('cf-access-jwt-assertion') || '').trim();
+    const team = normalizedIssuer(env.SUPPORT_ENTERPRISE_ACCESS_TEAM_DOMAIN);
+    const expectedAud = String(env.SUPPORT_ENTERPRISE_ACCESS_AUD || '').trim();
+    if (!token || token.length > 16_000 || !team || !expectedAud) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const header = base64UrlJson(parts[0]);
+    const payload = base64UrlJson(parts[1]);
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(payload?.exp) || payload.exp <= now) return null;
+    if (payload?.nbf != null && (!Number.isFinite(payload.nbf) || payload.nbf > now + 30)) return null;
+    if (normalizedIssuer(payload?.iss) !== team) return null;
+    const audiences = Array.isArray(payload?.aud) ? payload.aud.map(String) : [String(payload?.aud || '')];
+    if (!audiences.includes(expectedAud)) return null;
+    const subject = String(payload?.sub || '').trim();
+    if (subject.length < 3 || subject.length > 512) return null;
+
+    const fetchImpl = env.SUPPORT_ENTERPRISE_ACCESS_CERTS_FETCH || fetch;
     const response = await fetchImpl(team + '/cdn-cgi/access/certs', {headers:{accept:'application/json'}});
     if (!response?.ok) return null;
     const certs = await response.json();
@@ -267,6 +317,67 @@ export async function handleSupportRequest(request, env = {}) {
     const publicCase = await store.create(bundle);
     return json({case: publicCase, recovery_code: bundle.recovery_code, recovery_code_notice: 'Save this code now. It is shown once and cannot be recovered by MUSITU.'}, 201);
   }
+  if (url.pathname.startsWith('/enterprise/api/v1/')) {
+    const identity = await verifyEnterpriseAccess(request, env);
+    if (!identity) return json({error:'ENTERPRISE_AUTH_REQUIRED',message:'Sign in with your verified organization identity.'},401,{'www-authenticate':'Cloudflare-Access'});
+    const store = await storeFor(env);
+
+    if (request.method === 'POST' && url.pathname === '/enterprise/api/v1/join') {
+      const body=await readJson(request);
+      const value=await store.consumeOrganizationInvite(String(body?.invite_code||''),identity);
+      if(!value)return json({error:'INVITE_NOT_AVAILABLE',message:'The invitation is invalid, expired, already used, or the organization is unavailable.'},404);
+      return json(value,201);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/enterprise/api/v1/me') {
+      return json({schema:'musitu.axiom.enterprise-support-memberships.v1',memberships:await store.getEnterpriseMemberships(identity)});
+    }
+
+    const messageMatch=url.pathname.match(ENTERPRISE_ORG_MESSAGE_PATH);
+    if(request.method==='POST'&&messageMatch){
+      const orgRef=decodeURIComponent(messageMatch[1]);
+      const body=await readJson(request);
+      const value=await store.appendEnterpriseCustomerMessage(orgRef,messageMatch[2],identity,{body:body?.body});
+      if(!value)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
+      return json(value,201);
+    }
+
+    const caseMatch=url.pathname.match(ENTERPRISE_ORG_CASE_PATH);
+    if(request.method==='GET'&&caseMatch){
+      const orgRef=decodeURIComponent(caseMatch[1]);
+      const value=await store.getEnterpriseCase(orgRef,caseMatch[2],identity);
+      if(!value)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
+      return json(value);
+    }
+
+    const casesMatch=url.pathname.match(ENTERPRISE_ORG_CASES_PATH);
+    if(casesMatch){
+      const orgRef=decodeURIComponent(casesMatch[1]);
+      const context=await store.getEnterpriseOrganizationContext(orgRef,identity);
+      if(!context)return json({error:'ENTERPRISE_ORGANIZATION_NOT_FOUND'},404);
+      if(request.method==='GET'){
+        const cases=await store.listEnterpriseCases(orgRef,identity,{limit:100});
+        return json({schema:'musitu.axiom.enterprise-support-cases.v1',organization:context,cases:cases||[]});
+      }
+      if(request.method==='POST'){
+        const rateState=await intakeRateState(env);
+        if(rateState==='UNAVAILABLE')return json({error:'SERVICE_NOT_READY'},503);
+        if(rateState==='LIMIT')return json({error:'RATE_LIMITED'},429,{'retry-after':'60'});
+        const body=await readJson(request);
+        if(!body||Array.isArray(body)||typeof body!=='object')throw new TypeError('intake must be an object');
+        const {support_plan:_ignoredPlan,requester_ref:_ignoredRequester,turnstile_token:_ignoredTurnstile,...customerIntake}=body;
+        const bundle=await createCaseRecord({...customerIntake,requester_ref:orgRef});
+        const publicCase=await store.create(bundle,{supportPlan:context.plan,language:customerIntake.language||'und'});
+        return json({
+          case:publicCase,
+          organization:{org_ref:context.org_ref,plan:context.plan,role:context.role,entitlements:context.entitlements},
+          recovery_code:bundle.recovery_code,
+          recovery_code_notice:'Save this backup recovery code now. Organization membership remains the primary shared-case access path.'
+        },201);
+      }
+    }
+  }
+
   const recoveryBindMatch = url.pathname.match(RECOVERY_BIND_PATH);
   if (request.method === 'POST' && recoveryBindMatch) {
     const identity = await verifyCustomerRecoveryAccess(request, env);
@@ -604,6 +715,15 @@ export async function handleOperatorRequest(request, env = {}) {
   if(request.method==='POST'&&entitlementsMatch){
     const body=await readJson(request);
     const value=await store.setOrganizationEntitlement(decodeURIComponent(entitlementsMatch[1]),body,principal);
+    if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const orgInviteMatch=url.pathname.match(OPERATOR_ORG_INVITES_PATH);
+  if(request.method==='POST'&&orgInviteMatch){
+    const body=await readJson(request);
+    const orgRef=decodeURIComponent(orgInviteMatch[1]);
+    const value=await store.createOrganizationInvite(orgRef,body,principal);
     if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
     return json(value,201);
   }
