@@ -1,0 +1,55 @@
+name: AXIOM D1 Free capacity and scope diagnostic read-only
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-d1-capacity-readonly-once.yml']
+permissions:
+  contents: read
+jobs:
+  native-d1-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Enumerate D1 counts and free-plan limits without writes or names
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 42
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          AID='93f395f5121954671f92fffa453d6b61'
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+AID
+          H={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          def get(path):
+              req=urllib.request.Request(BASE+path,headers=H,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      if r.status!=200:raise RuntimeError('unexpected HTTP status')
+                      data=r.read(65537)
+                      if len(data)>65536:raise RuntimeError('response oversized')
+                      x=json.loads(data)
+                      if x.get('success') is not True:raise RuntimeError('Cloudflare API unsuccessful')
+                      return x
+              except Exception:raise SystemExit('D1_READ_ONLY_CAPACITY_NOT_VERIFIED') from None
+          result=get('/d1/database?per_page=100')
+          rows=result.get('result')
+          info=result.get('result_info')
+          if not isinstance(rows,list) or (isinstance(info,dict) and info.get('total_count')!=len(rows)):
+              raise SystemExit('D1_PAGINATION_INCOMPLETE')
+          result2=get('/subscriptions')
+          subs=result2.get('result')
+          inf=result2.get('result_info')
+          if not isinstance(subs,list) or (isinstance(inf,dict) and inf.get('total_count')!=len(subs)):
+              raise SystemExit('SUBSCRIPTION_PAGINATION_INCOMPLETE')
+          paid=any(str((row.get('rate_plan') or {}).get('id') or '').upper().startswith(('WORKERS_PAID','PARTNERS_WORKERS'))
+                   for row in subs if isinstance(row,dict))
+          out={'schema':'musitu.axiom.d1.free-count-audit.v1','d1_databases_total':len(rows),
+               'cloudflare_free_database_count_limit':10,'zero_cash_free_capacity_available':len(rows)<10 and not paid,
+               'paid_workers_subscription_present':paid,
+               'native_api_read_only':True,'wrote_data':False,
+               'independent_security_review':'NOT_PROVEN','customer_launch':False}
+          print('MUSITU_AXIOM_D1_ACCOUNT_FREE_CAPACITY='+json.dumps(out,sort_keys=True))
+          PY
