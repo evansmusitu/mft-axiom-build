@@ -1,0 +1,92 @@
+name: AXIOM zero-cash native Cloudflare proof (single isolated read)
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-free-native-preflight-once.yml']
+permissions:
+  contents: read
+jobs:
+  account-native-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Exact scope and sanitized native API checks (NO checkout or writes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test -n "${CLOUDFLARE_EMAIL:-}" || { echo "AUTH_SECRET_MISSING"; exit 42; }
+          test -n "${CLOUDFLARE_GLOBAL_API_KEY:-}" || { echo "AUTH_SECRET_MISSING"; exit 42; }
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse,re,hashlib
+          API='https://api.cloudflare.com/client/v4'
+          AID='93f395f5121954671f92fffa453d6b61'
+          EMAIL=os.environ['CLOUDFLARE_EMAIL']
+          KEY=os.environ['CLOUDFLARE_GLOBAL_API_KEY']
+          if not KEY.startswith('cfk_') or '\n' in KEY or '\r' in KEY:
+              raise SystemExit('GLOBAL_API_KEY_AUTH_MODE_NOT_CONFIRMED')
+          h={'X-Auth-Email':EMAIL,'X-Auth-Key':KEY,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-Isolated-ReadOnly/1'}
+          def req(path):
+              if not path.startswith(('/accounts/'+AID,'/zones?name=mftintelligence.com&status=active')):
+                  raise RuntimeError('ROUTE_NOT_ALLOWED')
+              q=urllib.request.Request(API+path,headers=h,method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=18) as r:
+                      if r.status!=200: return {'http_ok':False,'api_ok':False,'reason':'HTTP_STATUS'}
+                      raw=r.read(65537)
+                      if len(raw)>65536:return {'http_ok':False,'api_ok':False,'reason':'RESPONSE_OVERSIZE'}
+                      x=json.loads(raw)
+                      if not isinstance(x,dict) or x.get('success') is not True:
+                          return {'http_ok':True,'api_ok':False,'reason':'API_UNSUCCESSFUL'}
+                      return {'http_ok':True,'api_ok':True,'data':x.get('result'),'meta':x.get('result_info')}
+              except urllib.error.HTTPError as err:
+                  return {'http_ok':False,'api_ok':False,'reason':'HTTP_'+str(err.code)}
+              except Exception:
+                  return {'http_ok':False,'api_ok':False,'reason':'TRANSPORT_OR_AUTH_UNAVAILABLE'}
+          zone=req('/zones?name=mftintelligence.com&status=active')
+          validzone=bool(zone.get('api_ok') and isinstance(zone.get('data'),list) and len(zone['data'])==1
+               and zone['data'][0].get('name')=='mftintelligence.com'
+               and zone['data'][0].get('status')=='active'
+               and (zone['data'][0].get('account') or {}).get('id')==AID)
+          account=req('/accounts/'+AID) if validzone else {'reason':'ZONE_MISMATCH'}
+          account_ok=bool(account.get('api_ok') and isinstance(account.get('data'),dict)
+              and account['data'].get('id')==AID)
+          result={'schema':'musitu.axiom.cf.native-readonly.v1',
+                  'zone_account_verified':bool(validzone and account_ok),
+                  'read_only':True,'cloudflare_write':False,'provider_model_call':False,
+                  'public_deployment':False,'credential_emitted':False}
+          if account_ok:
+              subs=req('/accounts/'+AID+'/subscriptions')
+              sets=req('/accounts/'+AID+'/workers/account-settings')
+              result['subscriptions_accessible']=bool(subs.get('api_ok'))
+              result['workers_settings_accessible']=bool(sets.get('api_ok'))
+              if subs.get('api_ok'):
+                  arr=subs.get('data')
+                  result['subscription_rows']=len(arr) if isinstance(arr,list) else None
+                  # API shape alone never proves Workers Free or no-billing.
+                  result['subscription_data_shape_valid']=isinstance(arr,list)
+                  result['subscription_pagination_complete']=bool(
+                      isinstance(arr,list) and (
+                        subs.get('meta') is None or
+                        (isinstance(subs.get('meta'),dict) and
+                         subs['meta'].get('total_count')==len(arr))
+                      ))
+              else:result['subscriptions_error_code']=subs.get('reason','UNKNOWN')
+              if sets.get('api_ok') and isinstance(sets.get('data'),dict):
+                  result['workers_default_usage_model']=(sets['data'].get('default_usage_model')
+                      if sets['data'].get('default_usage_model') in ('bundled','unbound') else 'UNKNOWN')
+              else:result['workers_settings_error_code']=sets.get('reason','UNKNOWN')
+          else:
+              result['identity_issue']=account.get('reason','ZONE_OR_ACCOUNT_MISMATCH')
+          result.update(workers_free_verified=False,ai_hard_stop_verified=False,
+                        independent_identity_verified=False,live_customer_inference_verified=False,
+                        s4_release_authorized=False)
+          print('MUSITU_AXIOM_CF_NATIVE_READ_ONLY_RESULT='+json.dumps(result,sort_keys=True))
+          if not result['zone_account_verified']:
+              raise SystemExit('CLOUDFLARE_ACCOUNT_NATIVE_READ_NOT_PROVEN')
+          print('MUSITU_AXIOM_CF_NATIVE_ACCOUNT_READ_PASS')
+          PY
