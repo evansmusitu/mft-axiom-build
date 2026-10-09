@@ -1,0 +1,46 @@
+name: MUSITU Axiom Resend Public DNS Proof 20261009
+on:
+  push:
+    branches: ['support/axiom-global-support-ops-production-rollout-20261008']
+    paths: ['.github/workflows/axiom-resend-public-dns-proof-20261009.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event.before == '987bec571461af1a05ba9b5515dba34ffef9416f'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify all Resend sending records at independent public DNS resolvers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const requirements=[
+            {name:'resend._domainkey.mftintelligence.com',type:'TXT',value:'p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDjSBUwRhPbZJfLkS32jp0OxvEExblhchJ5Uu4SYQ6S/faQ/L7VRArZfABBBwWE/dbR+eyzd1vWoLZi/o/RVymrOT9KLv7HQ//WL4tRC0xTdCA9aUK4q8MCwXRKMDhw99AGYeXkMly9fZBB0SoQvmxgcupXO7SAFoCCQmrLPafhNwIDAQAB'},
+            {name:'send.mftintelligence.com',type:'MX',value:'10 feedback-smtp.us-east-1.amazonses.com.'},
+            {name:'send.mftintelligence.com',type:'TXT',value:'v=spf1 include:amazonses.com ~all'},
+            {name:'rsend.mftintelligence.com',type:'CNAME',value:'send.forge.rmta.net.'},
+          ];
+          const headers={'accept':'application/dns-json'};
+          async function resolve(q,base){
+            const u=base+'?name='+encodeURIComponent(q.name)+'&type='+q.type;
+            try{const r=await fetch(u,{headers,signal:AbortSignal.timeout(11000)});const data=await r.json();return {ok:r.ok&&data.Status===0,answers:data.Answer||[]}}catch{return {ok:false,answers:[]}}
+          }
+          const providers=['https://dns.google/resolve','https://cloudflare-dns.com/dns-query'];
+          const outcome=[];
+          for(const spec of requirements){
+            let match=false,responded=0;
+            for(const base of providers){
+              const r=await resolve(spec,base);
+              if(r.ok)responded++;
+              const target=spec.value.replace(/[\s\.]+$/,'').replaceAll('"','');
+              const records=r.answers.map(a=>String(a.data||'').replaceAll('"','').replace(/[\s\.]+$/,''));
+              match ||= records.includes(target);
+            }
+            outcome.push({type:spec.type,name:spec.name,visible:match,resolvers_responded:responded});
+          }
+          const ok=outcome.every(x=>x.visible);
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_RESEND_PUBLIC_DNS',status:ok?'PASS':'WAITING_FOR_DNS_PROPAGATION',records:outcome,write_performed:false,email_sending_proven:false}));
+          if(!ok)throw Error('Public DNS proof incomplete; outbound email stays disabled');
+          NODE
