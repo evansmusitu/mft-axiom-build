@@ -1,13 +1,13 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Evidence-native provider-independent transactional communications fabric: isolated pre-production prototype",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs"
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs"
   },
   "engines": {
     "node": ">=20"
