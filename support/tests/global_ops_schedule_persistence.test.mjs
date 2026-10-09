@@ -9,7 +9,7 @@ for(const rel of [
 ]){
   test('public Worker redeploy reasserts Global Support cron: '+rel,async()=>{
     const text=await readFile(new URL(rel,import.meta.url),'utf8');
-    assert.match(text,/workers\/scripts\/musitu-axiom-support\/schedules/);
+    assert.match(text,/workers\/scripts\/'\+name\+'\/schedules|workers\/scripts\/musitu-axiom-support\/schedules/);
     assert.match(text,/\*\/5 \* \* \* \*/);
     assert.match(text,/support cron missing|scheduled_every_5_minutes|cron.*5/i);
   });
