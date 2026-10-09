@@ -1,0 +1,84 @@
+name: MUSITU Axiom Resend Production Readiness Gate 20261009
+on:
+  push:
+    branches: ['support/axiom-global-support-ops-production-rollout-20261008']
+    paths: ['.github/workflows/axiom-resend-production-readiness-20261009.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      RESEND_KEY: \${{ secrets.RESEND_API_KEY }}
+      CF_TOKEN: \${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Static, regression and bundle proof
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
+          node --check support/worker.js
+          node --check support/resend_notifier.js
+          node --test support/tests/*.test.mjs
+          npx --yes esbuild@0.25.11 support/worker.js --bundle --format=esm --platform=browser --target=es2022 --outfile=/tmp/axiom-support-resend-probe.mjs
+          grep -q 'api.resend.com/emails' /tmp/axiom-support-resend-probe.mjs
+          rm -f /tmp/axiom-support-resend-probe.mjs
+      - name: Live provider readiness evidence, no secrets displayed
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CF_ACCOUNT;
+          const token=String(process.env.CF_TOKEN||'');
+          const resend=String(process.env.RESEND_KEY||'');
+          const base='https://api.cloudflare.com/client/v4';
+          if(!token)throw Error('Cloudflare support read credential unavailable');
+          async function read(path) {
+            const r=await fetch(base+path,{headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(14000)});
+            const j=await r.json().catch(()=>({}));
+            if(!r.ok||j.success===false)throw Error('Read-only Cloudflare metadata fetch failed '+r.status);
+            return j.result;
+          }
+          const worker='musitu-axiom-support';
+          const prefix='/accounts/'+account+'/workers/scripts/'+worker;
+          const [settings,secrets,sub,cron]=await Promise.all([read(prefix+'/settings'),read(prefix+'/secrets'),read(prefix+'/subdomain'),read(prefix+'/schedules')]);
+          const bs=Array.isArray(settings?.bindings)?settings.bindings:[];
+          const names=new Set(bs.map(x=>x?.name));
+          const secretNames=new Set((Array.isArray(secrets)?secrets:[]).map(x=>x?.name));
+          for(const name of ['SUPPORT_DB','SUPPORT_DATA_KEY_B64','SUPPORT_ATTACHMENTS','SUPPORT_INTAKE_RATE_LIMITER','SUPPORT_OPERATOR_BINDINGS_JSON','SUPPORT_INDEPENDENT_APPROVER_REF'])
+            if(!names.has(name))throw Error('Support binding drift '+name);
+          if(sub?.enabled===true||sub?.previews_enabled===true)throw Error('Private support Worker exposed via workers.dev');
+          if(!((Array.isArray(cron?.schedules)?cron.schedules:cron)||[]).some(x=>x.cron==='*/5 * * * *'))throw Error('Support scheduler drift');
+          const binding=(name)=>String(bs.find(x=>x?.name===name)?.text||'');
+          const maps=JSON.parse(binding('SUPPORT_OPERATOR_BINDINGS_JSON')||'{}');
+          if(maps['tallyvans410@gmail.com']?.actor_ref!=='support_agent:tally' || maps['tallyvans410@gmail.com']?.role!=='support_agent')throw Error('Independent operator drift');
+          if(binding('SUPPORT_INDEPENDENT_APPROVER_REF')!=='support_agent:tally')throw Error('Second-approver binding drift');
+          if(binding('SUPPORT_OPS_EMAIL_READY')!=='false')throw Error('Existing email fail-closed flag unexpectedly enabled');
+          const e = {
+            gate:'MUSITU_AXIOM_RESEND_PRODUCTION_READINESS_20261009',
+            status:'AUDIT_ONLY',
+            domain_dns_proven_in_separate_gate:true,
+            resend_github_secret_present:resend.length>0,
+            cloudflare_resend_worker_secret_present:secretNames.has('SUPPORT_RESEND_API_KEY'),
+            cloudflare_resend_ready_binding:binding('SUPPORT_RESEND_OPERATOR_READY')==='true',
+            tally_mapping_bound:true,
+            sensitive_customer_content_read:false,
+            secret_values_printed:false,
+            production_worker_modified:false,
+            live_delivery_proven:false,
+            blocked_reasons:[
+              ...(resend.length?'':['GITHUB_RESEND_KEY_MISSING']),
+              ...(secretNames.has('SUPPORT_RESEND_API_KEY')?[]:['CLOUDFLARE_RESEND_KEY_MISSING']),
+              ...(binding('SUPPORT_RESEND_OPERATOR_READY')==='true'?[]:['NOTIFICATION_GATE_DISABLED']),
+              'REAL_SEND_AND_DELIVERY_PROOF_NOT_RUN'
+            ]
+          };
+          console.log(JSON.stringify(e));
+          NODE
