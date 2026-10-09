@@ -128,3 +128,46 @@ export function createOperatorLease({caseId,operatorRef,at,minutes=10}){
   return Object.freeze({case_id:String(caseId),operator_ref:String(operatorRef),acquired_at:acquired,expires_at:add(acquired,m)});
 }
 export function leaseActive(lease,now=new Date().toISOString()){return Date.parse(now)<Date.parse(lease.expires_at);}
+
+
+function parseIpv4(host){
+  const parts=String(host||'').split('.');
+  if(parts.length!==4||parts.some(p=>!/^\d{1,3}$/.test(p)))return null;
+  const nums=parts.map(Number);
+  if(nums.some(n=>n<0||n>255))return null;
+  return nums;
+}
+function blockedIpv4(nums){
+  if(!nums)return false;
+  const [a,b]=nums;
+  return a===0||a===10||a===127||
+    (a===100&&b>=64&&b<=127)||
+    (a===169&&b===254)||
+    (a===172&&b>=16&&b<=31)||
+    (a===192&&b===168)||
+    a>=224;
+}
+function blockedIpv6(host){
+  const h=String(host||'').toLowerCase().replace(/^\[/,'').replace(/\]$/,'');
+  if(!h.includes(':'))return false;
+  return h==='::'||h==='::1'||h.startsWith('fc')||h.startsWith('fd')||
+    /^fe[89ab]/.test(h)||h.startsWith('ff');
+}
+
+export function validateWebhookEndpoint(value){
+  const errors=[];
+  let url;
+  try{url=new URL(String(value||''));}catch{errors.push('webhook endpoint must be a valid URL');}
+  if(!url)return Object.freeze({ok:false,errors:Object.freeze(errors)});
+  if(url.protocol!=='https:')errors.push('webhook endpoint must use HTTPS');
+  if(url.username||url.password)errors.push('webhook endpoint must not contain userinfo');
+  if(url.port&&url.port!=='443')errors.push('webhook endpoint must use the standard HTTPS port');
+  if(url.hash)errors.push('webhook endpoint must not contain a fragment');
+  const host=String(url.hostname||'').toLowerCase().replace(/^\[/,'').replace(/\]$/,'');
+  if(!host||host==='localhost'||host.endsWith('.localhost')||host.endsWith('.local')||host.endsWith('.internal')||host.endsWith('.lan'))errors.push('webhook endpoint host is not public');
+  if(blockedIpv4(parseIpv4(host))||blockedIpv6(host))errors.push('webhook endpoint host is not public');
+  if(errors.length)return Object.freeze({ok:false,errors:Object.freeze(errors)});
+  url.hash='';
+  if(url.port==='443')url.port='';
+  return Object.freeze({ok:true,value:url.toString()});
+}
