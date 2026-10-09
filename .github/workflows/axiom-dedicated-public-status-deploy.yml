@@ -1,0 +1,133 @@
+name: MUSITU Axiom Dedicated Public Status Deploy
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-dedicated-public-status-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' && github.event.before == 'f0223f5ca206a13a52b018335e7335703340c02d'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact source and regression gate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
+          test "${{ github.event.before }}" = 'f0223f5ca206a13a52b018335e7335703340c02d'
+          node --check support/status_worker.js
+          node --test support/tests/public_status_worker.test.mjs
+
+      - name: Build status Worker
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/status_worker.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.public-status-worker.mjs
+          test -s .public-status-worker.mjs
+
+      - name: Deploy challenge-free public status Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          async function call(path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...h,...(body===undefined?{}:{'content-type':'application/json'}),...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status+' codes='+((p?.errors||[]).map(x=>x?.code).filter(Boolean).join(',')||'none'));
+            return p.result;
+          }
+          const worker='musitu-axiom-public-status';
+          const source=fs.readFileSync('.public-status-worker.mjs');
+          const metadata={
+            main_module:'index.mjs',
+            compatibility_date:'2026-10-09',
+            bindings:[{type:'service',name:'SUPPORT_API',service:'musitu-axiom-support'}],
+            annotations:{'workers/message':'MUSITU Axiom dedicated public status surface'}
+          };
+          const m=buildWorkerMultipart(source,metadata,'----MUSITUAxiomPublicStatus');
+          await call('/accounts/'+account+'/workers/scripts/'+worker,{
+            method:'PUT',rawBody:m.body,contentType:'multipart/form-data; boundary='+m.boundary
+          });
+          await call('/accounts/'+account+'/workers/scripts/'+worker+'/subdomain',{
+            method:'POST',body:{enabled:true,previews_enabled:false}
+          });
+          const [settings,subdomainCfg,accountSubdomain]=await Promise.all([
+            call('/accounts/'+account+'/workers/scripts/'+worker+'/settings'),
+            call('/accounts/'+account+'/workers/scripts/'+worker+'/subdomain'),
+            call('/accounts/'+account+'/workers/subdomain')
+          ]);
+          const bindings=Array.isArray(settings?.bindings)?settings.bindings:[];
+          if(!bindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('status service binding missing');
+          if(subdomainCfg?.enabled!==true||subdomainCfg?.previews_enabled===true)throw new Error('status workers.dev configuration mismatch');
+          const sub=String(accountSubdomain?.subdomain||'').trim();
+          if(!sub)throw new Error('account workers.dev subdomain missing');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_DEDICATED_PUBLIC_STATUS_DEPLOY',
+            status:'PASS',
+            worker,
+            service_binding:'musitu-axiom-support',
+            workers_dev:true,
+            previews:false,
+            public_url:'https://'+worker+'.'+sub+'.workers.dev/',
+            secure_support_workers_unchanged:true,
+            secret_values_recorded:false
+          }));
+          NODE
+
+      - name: Prove public status surface and metadata API
+        shell: bash
+        run: |
+          set -euo pipefail
+          sub=$(node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const r=await fetch(api+'/accounts/'+account+'/workers/subdomain',{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+          const p=await r.json();if(!r.ok||p?.success===false)process.exit(1);process.stdout.write(String(p.result?.subdomain||''));
+          NODE
+          )
+          base="https://musitu-axiom-public-status.$sub.workers.dev"
+          for path in / /api/status; do
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "$base$path" || true)
+            test "$code" = "200"
+            if [ "$path" = "/" ]; then grep -q 'MUSITU Axiom Service Status' /tmp/b; else grep -q 'musitu.axiom.public-status-edge.v1' /tmp/b; fi
+          done
+          post=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -X POST -o /tmp/b -w '%{http_code}' "$base/api/status" || true)
+          test "$post" = "405"
+          rm -f /tmp/h /tmp/b
+          echo "dedicated_public_status_live=PASS"
+
+      - name: Re-prove secure Workers remain workers.dev disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          for(const name of ['musitu-axiom-support','musitu-axiom-support-ops']){
+            const r=await fetch(api+'/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{headers:h});
+            const p=await r.json();if(!r.ok||p?.success===false)throw new Error('subdomain read failed');
+            if(p.result?.enabled===true||p.result?.previews_enabled===true)throw new Error(name+' workers.dev/previews drift');
+          }
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_SECURE_SUPPORT_SUBDOMAIN_RECHECK',status:'PASS',public_support_workers_dev:false,operator_workers_dev:false}));
+          NODE
+
+      - name: Cleanup
+        if: always()
+        run: rm -f .public-status-worker.mjs
