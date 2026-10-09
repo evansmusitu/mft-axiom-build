@@ -1,0 +1,85 @@
+name: AXIOM Workers AI real free-plan synthetic single inference
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-free-ai-synthetic-once.yml']
+permissions:
+  contents: read
+jobs:
+  one-synthetic-call:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Bound proof to Workers Free account and execute one safe model call
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 42
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,re,hashlib
+          AID='93f395f5121954671f92fffa453d6b61'
+          API='https://api.cloudflare.com/client/v4'
+          MODEL='@cf/zai-org/glm-4.7-flash'
+          H={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],
+             'Accept':'application/json','Content-Type':'application/json',
+             'User-Agent':'MUSITU-AXIOM-Zero-Cash-Synthetic-OneCall/1'}
+          def call(path,body=None):
+              request=urllib.request.Request(API+path,headers=H,
+                        data=(None if body is None else json.dumps(body).encode()),
+                        method='GET' if body is None else 'POST')
+              try:
+                  with urllib.request.urlopen(request,timeout=25) as r:
+                      data=r.read(131073)
+                      if r.status!=200 or len(data)>131072:raise RuntimeError('INVALID_STATUS_OR_SIZE')
+                      item=json.loads(data)
+                      if not isinstance(item,dict) or item.get('success') is not True:
+                          raise RuntimeError('PROVIDER_UNSUCCESSFUL')
+                      return item
+              except urllib.error.HTTPError as e:
+                  print('AXIOM_NATIVE_MODEL_HTTP_STATUS='+str(e.code))
+                  raise SystemExit('AXIOM_NATIVE_MODEL_INFERENCE_NOT_PROVEN') from None
+              except Exception:
+                  raise SystemExit('AXIOM_NATIVE_MODEL_INFERENCE_NOT_PROVEN') from None
+          subs=call('/accounts/'+AID+'/subscriptions')
+          plans=subs.get('result')
+          info=subs.get('result_info')
+          if not isinstance(plans,list) or (isinstance(info,dict) and info.get('total_count')!=len(plans)):
+              raise SystemExit('ACCOUNT_SUBSCRIPTION_COMPLETENESS_NOT_PROVEN')
+          for record in plans:
+              if not isinstance(record,dict):raise SystemExit('ACCOUNT_SUBSCRIPTION_SHAPE_NOT_PROVEN')
+              plan=str((record.get('rate_plan') or {}).get('id') or '').upper()
+              if plan.startswith('WORKERS_PAID') or plan.startswith('PARTNERS_WORKERS'):
+                  raise SystemExit('WORKERS_PAID_PLAN_BLOCKED_ZERO_CASH')
+          zone=call('/zones?name=mftintelligence.com&status=active').get('result')
+          if not isinstance(zone,list) or len(zone)!=1 or (zone[0].get('account') or {}).get('id')!=AID:
+              raise SystemExit('ACCOUNT_ZONE_MISMATCH')
+          message='Reply exactly OK for isolated zero-cost synthetic API qualification.'
+          body={'messages':[{'role':'user','content':message}],'max_tokens':8}
+          result=call('/accounts/'+AID+'/ai/run/'+MODEL,body)
+          value=result.get('result')
+          text=(value.get('response') if isinstance(value,dict) else None)
+          # A model response can vary; require bounded nonempty text only.
+          if not isinstance(text,str) or not text.strip() or len(text)>1024:
+              raise SystemExit('AXIOM_NATIVE_PROVIDER_RESPONSE_SHAPE_NOT_PROVEN')
+          receipt={
+              'schema':'musitu.axiom.workers-ai.one-synthetic-read.v1',
+              'provider':'CLOUDFLARE',
+              'model':MODEL,
+              'scope':'ISOLATED_NONPRODUCTION_SYNTHETIC',
+              'native_account_zone_proven':True,
+              'workers_paid_subscription_observed':False,
+              'inference_requests_executed':1,
+              'response_nonempty':True,
+              'response_sha256':hashlib.sha256(text.encode()).hexdigest(),
+              'credential_emitted':False,
+              'customer_data_processed':False,
+              'public_customer_inference_authorized':False,
+              'independent_s4_release_certified':False,
+              'cloudflare_write_performed':False
+          }
+          print('MUSITU_AXIOM_WORKERS_AI_NATIVE_SYNTHETIC_INFERENCE_PASS')
+          print('MUSITU_AXIOM_NATIVE_FREE_AI_EVIDENCE='+json.dumps(receipt,sort_keys=True))
+          PY
