@@ -4,6 +4,7 @@ import {importSupportDataKey} from './crypto_envelope.js';
 import {D1CaseStore} from './d1_case_store.js';
 import {verifyTurnstile} from './turnstile.js';
 import {handleInboundSupportEmail} from './email_worker.js';
+import {validateWebhookEndpoint} from './global_ops.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
@@ -29,6 +30,7 @@ const OPERATOR_ESCALATIONS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/es
 const OPERATOR_INCIDENT_CASES_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/cases$/;
 const OPERATOR_INCIDENT_STATUS_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/status$/;
 const OPERATOR_ORG_ENTITLEMENTS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/entitlements$/;
+const OPERATOR_WEBHOOK_DELIVERY_PATH = /^\/api\/v1\/operator\/webhooks\/([^/]+)\/delivery$/;
 const OPERATOR_QA_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/qa$/;
 const OPERATOR_TRIAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/triage$/;
 const OPERATOR_ATTACHMENT_SCAN_PATH = /^\/api\/v1\/operator\/attachments\/(AXF-[0-9A-HJKMNP-TV-Z]{16})\/scan$/;
@@ -484,8 +486,43 @@ export async function deliverSupportNotification(notification, env = {}) {
   return Object.freeze({delivered:true,receipt_id:String(receipt?.id||'')||null});
 }
 
+function bytesToHex(bytes){return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+
 export async function deliverSupportWebhook(delivery, env = {}) {
   if (!delivery || typeof delivery !== 'object') throw new TypeError('webhook delivery required');
+
+  if (delivery.delivery_config && typeof delivery.delivery_config === 'object') {
+    const deliveryId=String(delivery.delivery_id||'');
+    const eventType=String(delivery.event_type||'');
+    if(!/^AXW-[0-9A-HJKMNP-TV-Z]{16}$/.test(deliveryId)||!/^case\.[a-z_]+$/.test(eventType))throw new TypeError('webhook delivery metadata invalid');
+    const endpoint=validateWebhookEndpoint(delivery.delivery_config.endpoint_url);
+    const secret=String(delivery.delivery_config.signing_secret||'');
+    if(!endpoint.ok||secret.length<32||secret.length>256)return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
+    const timestamp=String(typeof env.SUPPORT_WEBHOOK_NOW==='function'?Number(env.SUPPORT_WEBHOOK_NOW()):Math.floor(Date.now()/1000));
+    if(!/^\d{9,13}$/.test(timestamp))throw new TypeError('webhook timestamp invalid');
+    const body=JSON.stringify(delivery.payload||{});
+    const signingInput=timestamp+'.'+deliveryId+'.'+body;
+    const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+    const signature=bytesToHex(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(signingInput)));
+    const fetchImpl=typeof env.SUPPORT_WEBHOOK_FETCH==='function'?env.SUPPORT_WEBHOOK_FETCH:fetch;
+    const response=await fetchImpl(endpoint.value,{
+      method:'POST',
+      redirect:'error',
+      headers:{
+        'content-type':'application/json',
+        'user-agent':'MUSITU-Axiom-Support-Webhook/1',
+        'x-musitu-timestamp':timestamp,
+        'x-musitu-delivery':deliveryId,
+        'x-musitu-event':eventType,
+        'x-musitu-signature':'v1='+signature
+      },
+      body
+    });
+    const status=Number(response?.status||0);
+    const receiptId=String(response?.headers?.get?.('x-request-id')||response?.headers?.get?.('cf-ray')||'')||null;
+    return Object.freeze({delivered:status>=200&&status<300,receipt_id:receiptId,status});
+  }
+
   if (typeof env.SUPPORT_WEBHOOK_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
   const receipt = await env.SUPPORT_WEBHOOK_SEND(Object.freeze({...delivery}));
   const status = Number(receipt?.status || 0);
@@ -576,6 +613,14 @@ export async function handleOperatorRequest(request, env = {}) {
     const value=await store.createWebhookSubscription(body,principal);
     if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
     return json(value,201);
+  }
+
+  const webhookDeliveryMatch=url.pathname.match(OPERATOR_WEBHOOK_DELIVERY_PATH);
+  if(request.method==='POST'&&webhookDeliveryMatch){
+    const body=await readJson(request);
+    const value=await store.configureWebhookDelivery(decodeURIComponent(webhookDeliveryMatch[1]),body,principal);
+    if(!value)return json({error:'WEBHOOK_NOT_FOUND'},404);
+    return json(value);
   }
 
   if(url.pathname==='/api/v1/operator/macros'){
