@@ -34,6 +34,9 @@ const OPERATOR_INCIDENT_CASES_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9
 const OPERATOR_INCIDENT_STATUS_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/status$/;
 const OPERATOR_ORG_ENTITLEMENTS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/entitlements$/;
 const OPERATOR_ORG_INVITES_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/invites$/;
+const OPERATOR_ORG_MEMBERSHIPS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/memberships$/;
+const OPERATOR_ORG_MEMBERSHIP_REVOKE_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/memberships\/(AXL-[0-9A-HJKMNP-TV-Z]{16})\/revoke$/;
+const ENTERPRISE_ORG_INVITES_PATH = /^\/enterprise\/api\/v1\/orgs\/([^/]+)\/invites$/;
 const OPERATOR_WEBHOOK_DELIVERY_PATH = /^\/api\/v1\/operator\/webhooks\/([^/]+)\/delivery$/;
 const OPERATOR_QA_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/qa$/;
 const OPERATOR_TRIAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/triage$/;
@@ -331,6 +334,17 @@ export async function handleSupportRequest(request, env = {}) {
 
     if (request.method === 'GET' && url.pathname === '/enterprise/api/v1/me') {
       return json({schema:'musitu.axiom.enterprise-support-memberships.v1',memberships:await store.getEnterpriseMemberships(identity)});
+    }
+
+    const memberInviteMatch=url.pathname.match(ENTERPRISE_ORG_INVITES_PATH);
+    if(request.method==='POST'&&memberInviteMatch){
+      const orgRef=decodeURIComponent(memberInviteMatch[1]);
+      const context=await store.getEnterpriseOrganizationContext(orgRef,identity);
+      if(!context||context.role!=='ORG_ADMIN')return json({error:'ENTERPRISE_ADMIN_REQUIRED'},403);
+      const body=await readJson(request);
+      const value=await store.createOrganizationInvite(orgRef,body,{actor_ref:'org_admin:'+context.membership_id,role:'ORG_ADMIN'});
+      if(!value)return json({error:'ENTERPRISE_ORGANIZATION_NOT_FOUND'},404);
+      return json(value,201);
     }
 
     const messageMatch=url.pathname.match(ENTERPRISE_ORG_MESSAGE_PATH);
@@ -721,6 +735,20 @@ export async function handleOperatorRequest(request, env = {}) {
     const value=await store.setOrganizationEntitlement(decodeURIComponent(entitlementsMatch[1]),body,principal);
     if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
     return json(value,201);
+  }
+
+  const orgMembershipRevokeMatch=url.pathname.match(OPERATOR_ORG_MEMBERSHIP_REVOKE_PATH);
+  if(request.method==='POST'&&orgMembershipRevokeMatch){
+    const orgRef=decodeURIComponent(orgMembershipRevokeMatch[1]);
+    const value=await store.revokeOrganizationMembership(orgRef,orgMembershipRevokeMatch[2],principal);
+    if(!value)return json({error:'MEMBERSHIP_NOT_FOUND'},404);
+    return json(value);
+  }
+
+  const orgMembershipsMatch=url.pathname.match(OPERATOR_ORG_MEMBERSHIPS_PATH);
+  if(request.method==='GET'&&orgMembershipsMatch){
+    const orgRef=decodeURIComponent(orgMembershipsMatch[1]);
+    return json({org_ref:orgRef,memberships:await store.listOrganizationMemberships(orgRef)});
   }
 
   const orgInviteMatch=url.pathname.match(OPERATOR_ORG_INVITES_PATH);
