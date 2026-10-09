@@ -1,0 +1,139 @@
+{
+  "schema": "musitu.axiom.trackb.b2_real_workspace_durable_evidence.v1",
+  "recorded_utc": "2026-10-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-trackb-openhands-selfhost-20261008",
+  "source_authority": {
+    "whole_product_handoff_outer_sha256": "86691d38f1a9ac086a0f3167fa6cf2f0dd125224be98f80da12ac33c914bb312",
+    "previous_handoff_verification_marker": "MUSITU_AXIOM_PHASE2_OPENHANDS_20261008_1610_HANDOFF_VERIFY_PASS",
+    "protected_main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": "OPEN_DRAFT_UNMERGED",
+    "evidence_scope": "ISOLATED_NONPRODUCTION_CODE_AND_GITHUB_ACTIONS"
+  },
+  "tested_commit": "d021919ff51387cb53e3036813b7aaa47d8bb5da",
+  "verified_ci": [
+    {
+      "run_id": 37882646273,
+      "job_id": 113665572951,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_REMOTE_EXECUTION_PASS",
+      "tests_passed": 55,
+      "claim": "Real authenticated OpenHands Agent Server Workspace.execute_command('pwd') executed in isolated non-container server; no model"
+    },
+    {
+      "run_id": 37882646271,
+      "job_id": 113665572824,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_TWO_CONTAINERS_PASS",
+      "tests_passed": 55,
+      "claim": "Two real isolated Docker-hosted Agent Servers executed authenticated read-only pwd via OpenHands API"
+    },
+    {
+      "run_id": 37882924976,
+      "job_id": 113666464138,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_OPENHANDS_TWO_CONTAINERS_TEN_S0_REQUESTS_PASS",
+      "tests_passed": 58,
+      "claim": "Ten bounded authenticated S0 API calls distributed over two isolated servers; NOT ten independent agents"
+    },
+    {
+      "run_id": 37883229401,
+      "job_id": 113667408547,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_TRACK_B_SIGNED_MODEL_GATEWAY_OFFLINE_CONTRACT_PASS",
+      "tests_passed": 59,
+      "claim": "S2 model gateway requires transactional budget ledger; synthetic signing and fake transport, no real provider"
+    },
+    {
+      "run_id": 37883297115,
+      "job_id": 113667771997,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_OPENHANDS_TEN_S0_REQUEST_METRICS=",
+      "tests_passed": 59,
+      "claim": "Read-only ten-request CI timing captured",
+      "measurements": {
+        "workers": 2,
+        "authenticated_s0_requests_completed": 10,
+        "max_observed_p95_ms": 5907.72,
+        "per_worker_p50_ms": [
+          5898.75,
+          5860.97
+        ],
+        "per_worker_p95_ms": [
+          5907.72,
+          5865.18
+        ]
+      }
+    },
+    {
+      "run_id": 37883594380,
+      "job_id": 113668537436,
+      "conclusion": "success",
+      "marker": "MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_REMOTE_EXECUTION_PASS",
+      "tests_passed": 66,
+      "claim": "Latest current-code self-hosted auth/S0 suite"
+    },
+    {
+      "run_id": 37883594449,
+      "job_id": 113668537574,
+      "conclusion": "success",
+      "markers": [
+        "MUSITU_AXIOM_TRACK_B_DURABLE_S0_CONTAINER_RECOVERY_PASS",
+        "MUSITU_AXIOM_OPENHANDS_TWO_CONTAINERS_TEN_S0_REQUESTS_PASS"
+      ],
+      "tests_passed": 66,
+      "claim": "Latest current-code real two-container CI with SQLite lease restart, Docker kill and independent Docker inspect absence",
+      "measurements": {
+        "workers": 2,
+        "authenticated_s0_requests_completed": 10,
+        "maximum_observed_p95_ms": 4716.39,
+        "per_worker_p50_ms": [
+          4681.08,
+          4704.4
+        ],
+        "per_worker_p95_ms": [
+          4688.17,
+          4716.39
+        ]
+      }
+    }
+  ],
+  "important_conventions": {
+    "s0_read_only_command": "pwd",
+    "ci_ledger_storage": "owner-private isolated local SQLite; single host, NOT production multiregion",
+    "budget_backend": "mandatory transactional reservation; no ephemeral fallback",
+    "foreign_credentials_accessible_to_worker": false,
+    "model_provider_calls_made": 0,
+    "actual_paid_modal_sandboxes_created": 0,
+    "external_git_mutations_by_openhands": 0,
+    "sensitive_customer_data_sent": false
+  },
+  "qualification_truth": {
+    "real_server_authentication": "PASS_ISOLATED_CI",
+    "real_workspace_read_only_command": "PASS_ISOLATED_CI",
+    "ten_authenticated_s0_requests_across_two_containers": "PASS_ISOLATED_CI",
+    "persistent_single_host_s0_lease_recovery": "PASS_ISOLATED_CI",
+    "model_gateway_signed_offline_tests": "PASS_CI_NO_REAL_PROVIDER",
+    "real_model_driven_openhands_agent": "NOT_PROVEN",
+    "modal_live_network_policy": "NOT_PROVEN",
+    "tenant_isolation_for_public_service": "NOT_PROVEN",
+    "ten_independent_agents": "NOT_TESTED",
+    "hundred_workers": "NOT_TESTED",
+    "true_massive_load": "NOT_TESTED",
+    "S3_repo_mutation_by_openhands": "NOT_PROVEN",
+    "image_supply_chain_full_attestation": "NOT_PROVEN",
+    "independent_security_and_release_certification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "next_external_authorizations_required": [
+    "Independent FA-11 human approval for one exact reversible S3 isolated Modal sandbox create operation, including region/image digest/identity/network ingress/TTL/spend ceiling and rollback",
+    "Trusted and verified real container image digest and full supply-chain scan",
+    "Nonproduction Modal account environmental scope and short-lived operation-scoped token; never long-lived owner API keys in agent prompts",
+    "Independent permitted model API credential broker and S2 exact synthetic prompt/data-egress authorization with strict spending limit",
+    "Actual OpenHands model-driven task with verifiable workspace artifact; independent verifier and rollback challenge",
+    "Ten independently isolated workers, canary, rollback, resilience and tenant security gates before public launch"
+  ],
+  "claim_status": "ENGINEERING_CI_EVIDENCE_ONLY_NOT_PRODUCT_OR_EXTERNAL_CERTIFICATION"
+}
