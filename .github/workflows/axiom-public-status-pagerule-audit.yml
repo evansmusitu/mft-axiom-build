@@ -1,0 +1,49 @@
+name: MUSITU Axiom Public Status Page Rule Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-public-status-pagerule-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == 'e831ff73ec09b31b57030de31c7c7f892bbf0d25'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read Page Rules capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const r=await fetch(api+'/zones/'+zone+'/pagerules?status=active&order=priority&direction=asc',{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+          const p=await r.json().catch(()=>({}));
+          const rules=r.ok&&p?.success!==false?(Array.isArray(p.result)?p.result:[]):[];
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_PUBLIC_STATUS_PAGERULE_AUDIT',
+            status:'PASS',
+            api_http_status:r.status,
+            api_available:r.ok&&p?.success!==false,
+            active_rule_count:rules.length,
+            result_info:p?.result_info||null,
+            rules:rules.map(x=>({
+              id_present:Boolean(x?.id),
+              status:String(x?.status||''),
+              priority:Number(x?.priority||0),
+              targets:(Array.isArray(x?.targets)?x.targets:[]).map(t=>({target:String(t?.target||''),constraint:t?.constraint||null})),
+              actions:(Array.isArray(x?.actions)?x.actions:[]).map(a=>({id:String(a?.id||''),value:a?.value}))
+            })),
+            mutation_performed:false,
+            secret_values_recorded:false
+          }));
+          NODE
