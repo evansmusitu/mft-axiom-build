@@ -1,0 +1,1 @@
+{"name":"musitu-axiom-public-inference-zero-cost-candidate","private":true,"type":"module","scripts":{"test":"node --test *.test.mjs"},"engines":{"node":">=22"}}

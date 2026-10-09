@@ -1,0 +1,47 @@
+{
+  "schema": "musitu.axiom.public_inference.zero_cash_isolated_qualification.v1",
+  "recorded_date": "2026-10-09",
+  "repo": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "base_sha": "7e5607f478a012a4f7e725e27af23cf3f9b60350",
+  "local_test_evidence": {
+    "command": "npm test",
+    "passed": 15,
+    "failed": 0,
+    "environment": "Node 22.16.0 SQLite in-memory, mocked providers",
+    "real_provider_calls": 0
+  },
+  "cost_limit_usd": 0,
+  "auto_ci_trigger": false,
+  "route_contract": {
+    "cloudflare": "@cf/zai-org/glm-4.7-flash",
+    "groq": "openai/gpt-oss-120b",
+    "fallback": "DENY"
+  },
+  "security_controls": [
+    "HMAC-signed independent request capability",
+    "exact body SHA-256",
+    "S2 external provider consent",
+    "atomic D1 quota reservation",
+    "40 global/day, 4 user/day, 3/minute",
+    "fixed provider allowlist",
+    "free-account and zero-budget attestation",
+    "fail-closed DB and missing-credential behavior"
+  ],
+  "status": {
+    "live_cloud_inference": "NOT_PROVEN",
+    "real_D1": "NOT_PROVEN",
+    "independent_token_issuer": "NOT_IMPLEMENTED",
+    "account_free_billing_verified": "NOT_PROVEN",
+    "public_release": "NOT_AUTHORIZED",
+    "provider_inference": "NOT_EXECUTED",
+    "production_authority": false,
+    "external_spend_usd": 0
+  },
+  "official_docs": [
+    "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+    "https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/",
+    "https://console.groq.com/docs/rate-limits",
+    "https://console.groq.com/docs/api-reference"
+  ]
+}
