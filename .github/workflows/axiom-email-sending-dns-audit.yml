@@ -1,0 +1,66 @@
+name: MUSITU Axiom Email Sending DNS Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-email-sending-dns-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '30f8b4f2069f24ec3c6202f90ea09be3890f1f36'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read Cloudflare sending-auth DNS only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          const r=await fetch(api+'/zones/'+zone+'/dns_records?per_page=500',{headers:h});
+          const p=await r.json();
+          if(!r.ok||p?.success===false)throw new Error('DNS read failed HTTP '+r.status);
+          const rows=Array.isArray(p.result)?p.result:[];
+          const lower=v=>String(v||'').toLowerCase();
+          const sending=rows.filter(x=>{
+            const n=lower(x?.name),c=lower(x?.content);
+            return n==='cf-bounce.mftintelligence.com'||n==='cf-bounce._domainkey.mftintelligence.com'||n==='_dmarc.mftintelligence.com'||
+              (n==='mftintelligence.com'&&String(x?.type||'').toUpperCase()==='TXT'&&c.includes('spf'));
+          });
+          const summary=sending.map(x=>({
+            type:String(x?.type||''),
+            name_class:lower(x?.name)==='cf-bounce.mftintelligence.com'?'CF_BOUNCE':
+              lower(x?.name)==='cf-bounce._domainkey.mftintelligence.com'?'CF_BOUNCE_DKIM':
+              lower(x?.name)==='_dmarc.mftintelligence.com'?'DMARC':'ROOT_SPF',
+            content_class:String(x?.type||'').toUpperCase()==='MX'&&lower(x?.content).includes('mx.cloudflare.net')?'CLOUDFLARE_MX':
+              String(x?.type||'').toUpperCase()==='TXT'&&lower(x?.content).includes('_spf.mx.cloudflare.net')?'CLOUDFLARE_SPF':
+              String(x?.type||'').toUpperCase()==='TXT'&&lower(x?.content).startsWith('v=dkim1')?'DKIM':
+              String(x?.type||'').toUpperCase()==='TXT'&&lower(x?.content).startsWith('v=dmarc1')?'DMARC':'OTHER',
+            locked:x?.locked===true
+          }));
+          const count=(nameClass,contentClass)=>summary.filter(x=>x.name_class===nameClass&&(!contentClass||x.content_class===contentClass)).length;
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_EMAIL_SENDING_DNS_AUDIT',
+            status:'PASS',
+            sending_dns:{
+              cf_bounce_cloudflare_mx:count('CF_BOUNCE','CLOUDFLARE_MX'),
+              cf_bounce_cloudflare_spf:count('CF_BOUNCE','CLOUDFLARE_SPF'),
+              cf_bounce_dkim:count('CF_BOUNCE_DKIM','DKIM'),
+              dmarc:count('DMARC','DMARC'),
+              root_spf:count('ROOT_SPF')
+            },
+            email_sending_dns_complete:count('CF_BOUNCE','CLOUDFLARE_MX')>=1&&count('CF_BOUNCE','CLOUDFLARE_SPF')>=1&&count('CF_BOUNCE_DKIM','DKIM')>=1,
+            raw_dns_values_recorded:false,
+            mutation_performed:false
+          }));
+          NODE
