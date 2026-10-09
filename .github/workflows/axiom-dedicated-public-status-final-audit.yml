@@ -1,0 +1,78 @@
+name: MUSITU Axiom Dedicated Public Status Final Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-dedicated-public-status-final-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == 'dd03bab2ea45a0d6a293e3180fd08144aebf95da'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Independent live readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          async function call(path){
+            const r=await fetch(api+path,{headers:h});let p={};try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare read failed HTTP '+r.status+' '+path);
+            return p.result;
+          }
+          const [statusSettings,statusSub,accountSub,pubSub,opsSub,pubSettings]=await Promise.all([
+            call('/accounts/'+account+'/workers/scripts/musitu-axiom-public-status/settings'),
+            call('/accounts/'+account+'/workers/scripts/musitu-axiom-public-status/subdomain'),
+            call('/accounts/'+account+'/workers/subdomain'),
+            call('/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain'),
+            call('/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/subdomain'),
+            call('/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings')
+          ]);
+          const sub=String(accountSub?.subdomain||'').trim();
+          if(!sub)throw new Error('workers.dev account subdomain missing');
+          const url='https://musitu-axiom-public-status.'+sub+'.workers.dev';
+          const root=await fetch(url+'/',{redirect:'manual'});
+          const apiResponse=await fetch(url+'/api/status',{headers:{accept:'application/json'},redirect:'manual'});
+          const post=await fetch(url+'/api/status',{method:'POST',redirect:'manual'});
+          const rootText=await root.text();
+          const statusJson=await apiResponse.json().catch(()=>({}));
+          const statusBindings=Array.isArray(statusSettings?.bindings)?statusSettings.bindings:[];
+          const pubBindings=Array.isArray(pubSettings?.bindings)?pubSettings.bindings:[];
+          if(root.status!==200||!rootText.includes('MUSITU Axiom Service Status'))throw new Error('public status HTML proof failed');
+          if(apiResponse.status!==200||statusJson?.schema!=='musitu.axiom.public-status-edge.v1'||!Array.isArray(statusJson?.incidents))throw new Error('public status API proof failed');
+          if(post.status!==405)throw new Error('status API write method was not rejected');
+          if(!statusBindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('status service binding drift');
+          if(statusSub?.enabled!==true||statusSub?.previews_enabled===true)throw new Error('status workers.dev topology drift');
+          if(pubSub?.enabled===true||pubSub?.previews_enabled===true||opsSub?.enabled===true||opsSub?.previews_enabled===true)throw new Error('secure support workers.dev drift');
+          const ready=pubBindings.find(x=>x?.name==='SUPPORT_OPS_EMAIL_READY');
+          if(String(ready?.text||'')!=='false')throw new Error('operator email fail-closed rollback did not persist');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_DEDICATED_PUBLIC_STATUS_FINAL_AUDIT',
+            status:'PASS',
+            public_url:url+'/',
+            html_status:root.status,
+            api_status:apiResponse.status,
+            post_status:post.status,
+            incident_count:statusJson.incidents.length,
+            service_binding:true,
+            public_status_workers_dev:true,
+            public_status_previews:false,
+            secure_support_workers_dev:false,
+            secure_operator_workers_dev:false,
+            operator_email_ready:false,
+            secret_values_recorded:false,
+            customer_content_read:false
+          }));
+          NODE
