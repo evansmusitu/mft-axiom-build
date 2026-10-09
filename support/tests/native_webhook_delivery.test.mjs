@@ -70,7 +70,7 @@ test('native webhook sender HMAC-signs metadata payload without external provide
   const result=await deliverSupportWebhook(delivery,{
     SUPPORT_WEBHOOK_FETCH:async(url,init)=>{
       calls.push({url,init});
-      return new Response('',{status:204,headers:{'x-request-id':'hook-receipt-1'}});
+      return new Response(null,{status:204,headers:{'x-request-id':'hook-receipt-1'}});
     },
     SUPPORT_WEBHOOK_NOW:()=>1760000000
   });
