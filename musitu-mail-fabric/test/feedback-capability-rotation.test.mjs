@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {authorizeFeedbackCapability,feedbackCapabilityConfigValid} from '../src/edge/feedback-rpc.mjs';
+import {authorizeFeedbackCapability,feedbackCapabilityConfigValid,handleFeedbackRpc} from '../src/edge/feedback-rpc.mjs';
 
 const now=Date.parse('2026-10-10T17:00:00Z');
 const original='scoped-secret-old-0000000000000000000000000';
@@ -60,4 +60,36 @@ test('authorization cannot be used on wrong tenants or disabled feedback bridge'
   assert.equal(authorizeFeedbackCapability(next,e,{nowMs:now}),false);
  }
  assert.equal(authorizeFeedbackCapability('bad-secret',cfg,{nowMs:now}),false);
+});
+
+test('private SQL RPC accepts a previous capability only within grace, then rejects without reading storage',async()=>{
+ const e=env();
+ e.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS=String(Date.now()+5*60_000);
+ let reads=0;
+ const sql={exec(){reads++;return {toArray(){return [{message_id:'stage-message'}]}}}};
+ const request=secret=>new Request('https://internal.invalid/feedback-rpc',{method:'POST',
+  headers:{'content-type':'application/json','x-mmf-feedback':secret},
+  body:JSON.stringify({sql:"SELECT message_id FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'",
+    params:['stage-tenant','provider-one']})});
+ const valid=await handleFeedbackRpc(request(original),sql,e);
+ assert.equal(valid.status,200);
+ assert.ok(reads>0);
+ const before=reads;
+ e.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS=String(Date.now()-1);
+ const expired=await handleFeedbackRpc(request(original),sql,e);
+ assert.equal(expired.status,401);
+ assert.equal(reads,before);
+ assert.equal((await handleFeedbackRpc(request(next),sql,e)).status,200);
+});
+test('malformed overlap disables the entire internal RPC before consuming SQL',async()=>{
+ let reads=0;
+ const e={...env(),MMF_FEEDBACK_RPC_PREVIOUS_SECRET:next,
+  MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS:String(Date.now()+5*60_000)};
+ const request=new Request('https://internal.invalid/feedback-rpc/recipient-match',{method:'POST',
+  headers:{'content-type':'application/json','x-mmf-feedback':next},
+  body:JSON.stringify({tenantId:'stage-tenant',providerId:'provider-one',recipient:'test@example.net'})});
+ const response=await handleFeedbackRpc(request,{exec(){reads++;throw Error('MUST_NOT_RUN')}},e);
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,'FEEDBACK_BRIDGE_DISABLED');
+ assert.equal(reads,0);
 });
