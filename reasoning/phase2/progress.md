@@ -76,3 +76,31 @@ Next:
 - MR-native pipeline/review
 - merge without squash while retaining source branch
 - post-merge main verification
+
+
+## Phase 2.5B — out-of-process deterministic certificate signing
+
+- complete: deterministic Phase-1 certificate preparation/finalization split with unchanged certificate format
+- complete: asynchronous signer-provider contract with explicit signer identity
+- complete: local Ed25519 reference provider with historical public-key keyring
+- complete: private-key-free external Ed25519 signer provider
+- complete: stable identity-bound signing-intent ID
+- complete: bounded fixed-origin HTTPS signing backend suitable for an HSM/KMS gateway
+- complete: server-pinned active/historical public-key trust
+- complete: platform-context v2 signer-identity commitment
+- complete: persisted signing-intent verification and tamper detection
+- complete: legacy v1 platform-context replay compatibility
+- complete: lost signer-response distributed retry with identical request and one durable execution intent
+- complete: P2.5B acceptance gate and explicit CI wiring
+- complete: security hardening for signer metadata self-consistency before persistence
+- complete: security hardening for replay-program hash validation at certificate finalization
+- security review: no unresolved Critical or Important findings after two Important fixes
+- last fully successful pre-hardening pipeline 2929025474 on 5e5a816a20ad4bc3310fc184c9a2f3f4eb9987ed: Phase1/P1 PASS; Phase2 172/172; all gates through P2.5B PASS; PostgreSQL PASS
+- current exact-head verification: required after hardening commits; GitLab runners began failing jobs before start with no trace, so these infrastructure failures are not accepted as verification evidence
+
+Next:
+- obtain a fresh successful exact-head feature pipeline after runner availability returns
+- update this verification evidence with exact counts
+- run MR-native pipeline/review
+- merge without squash while retaining source branch
+- post-merge main verification

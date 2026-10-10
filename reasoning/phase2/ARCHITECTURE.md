@@ -187,7 +187,7 @@ The public API exposes exact `model:dispatch` and `execution:job:read` actions. 
 
 ## Remaining distributed boundaries
 
-Phase 2.5A does not make Kafka/Redis/SQS/NATS authoritative, does not expose remote worker control APIs, and does not distribute model/evidence/explanation provider calls or external action execution. Broker-assisted wakeups, worker attestation, quotas/fair scheduling, dead-letter/operator policies, HSM/KMS idempotent signing, and distributed evaluation remain separate increments.
+Phase 2.5A does not make Kafka/Redis/SQS/NATS authoritative, does not expose remote worker control APIs, and does not distribute model/evidence/explanation provider calls or external action execution. Broker-assisted wakeups, worker attestation, quotas/fair scheduling, dead-letter/operator policies, vendor-specific HSM/KMS deployment/provisioning, and distributed evaluation remain separate increments.
 
 
 ### Worker clock and denial proof semantics
@@ -195,3 +195,44 @@ Phase 2.5A does not make Kafka/Redis/SQS/NATS authoritative, does not expose rem
 Worker claim time is not reused as completion time. Each claim, completion, terminal failure, and retry release samples the trusted worker clock independently. An expired/reclaimed worker returns `LEASE_LOST` and cannot mutate the job.
 
 A `DENIED` terminal job may represent either evidence-policy denial before Phase-1 execution or a signed Phase-1 runtime denial. The former has no execution certificate; the latter preserves paired certificate/execution-record references and remains replayable proof.
+
+
+## Phase 2.5B — external deterministic signing boundary
+
+```text
+ReasoningControlPlane
+    ↓
+validate server-owned signer identity against pinned active public key
+    ↓
+commit signer identity into platform-context v2
+    ↓
+Phase-1 compile/runtime
+    ↓
+prepareReasoningCertificate(exact program + execution + issuedAt)
+    ↓
+derive signingIntentId(identity + exact signingPayloadHash)
+    ↓
+ExternalEd25519SigningBackend
+    ↓
+fixed HTTPS HSM/KMS gateway request
+    ↓
+signature-only response with exact echoed key/algorithm/intent/payload hash
+    ↓
+verify Ed25519 signature under pinned AXIOM public key
+    ↓
+finalize unchanged Phase-1 certificate
+    ↓
+verify certificate + signing intent again at control-plane boundary
+    ↓
+persist v2 execution record
+```
+
+The external signer is a cryptographic actuator, not an authority source. It cannot choose tenant, evidence, policy, program, operation registry, issued time, key ID, algorithm, trusted public key, or signing intent. The only trusted signer inputs are server-owned configuration and the deterministic certificate payload produced after authoritative Phase-1 execution.
+
+The external provider contains no private key. The active key and historical replay keyring are public keys only. Provider output is independently verified before certificate finalization and again before execution persistence.
+
+The stable signing intent is domain-separated as `AXIOM_REASONING_CERTIFICATE_SIGNING_INTENT_V1` and commits the exact signer identity plus SHA-256 of the canonical `{core, issuedAt}` certificate payload. New platform context version 2 commits that same signer identity inside the certificate-bound `AXIOM_PLATFORM_CONTEXT_SHA256:` assumption.
+
+Replay never invokes a signing backend. A v2 replay recomputes signer identity/key hash, signing intent, platform context, policy, provenance, certificate signature, and Phase-1 execution. A record without a platform-context version follows the pre-2.5B v1 formula for backward compatibility.
+
+The Phase-1 finalizer rechecks that the embedded replay program hashes to the program hash already committed by the signed certificate core. This prevents a signature-valid certificate from being finalized with an unrelated replay program.

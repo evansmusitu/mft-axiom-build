@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
-import { createDefaultRegistry, createSigner, hashJson, issueCertificate, type AxiomProgram } from "../../phase1/src/index.ts";
+import { AxiomRuntime, compileProgram, createDefaultRegistry, createSigner, hashJson, issueCertificate, type AxiomProgram } from "../../phase1/src/index.ts";
 import {
   WorldStateStore, ExecutionStore, ReasoningControlPlane, createStaticSignerProvider, createKeyringSignerProvider,
   type SignerProvider, type TemporalFact
@@ -53,6 +53,22 @@ test("control plane binds trusted world state, persists a certificate, and repla
     assert.equal(stored.snapshotId,result.snapshotId);
     assert.match(stored.platformContextHash,/^[0-9a-f]{64}$/);
     assert.ok(stored.certificate.replay.program.assumptions.includes(`AXIOM_PLATFORM_CONTEXT_SHA256:${stored.platformContextHash}`));
+    world.close();executions.close();
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test("new execution records cryptographically identify the signer boundary and signing intent",async()=>{
+  const dir=mkdtempSync(join(tmpdir(),"axiom-p2-signer-context-")); const db=join(dir,"platform.db");
+  try{
+    const signer=createStaticSignerProvider("key:context:v1",createSigner());
+    const world=new WorldStateStore(db),executions=new ExecutionStore(db);
+    await world.putFact(tenant,riskFact());
+    const issued=await new ReasoningControlPlane({tenant,world,executions,signer,registry:createDefaultRegistry()}).execute(request());
+    const stored:any=await executions.get(tenant,issued.executionRecordId!);
+    assert.equal(stored.platformContextVersion,"2");
+    assert.deepEqual(stored.signerIdentity,signer.identity);
+    assert.equal(stored.signerKeyId,signer.identity.keyId);
+    assert.match(stored.signingIntentId,/^[0-9a-f]{64}$/);
     world.close();executions.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
@@ -171,8 +187,12 @@ test("replay rejects policy-context rewriting even if an attacker recomputes the
 test("control plane rejects a signer provider that returns a certificate outside its declared trust anchor",async()=>{
   const dir=mkdtempSync(join(tmpdir(),"axiom-p2-hostile-signer-")); const db=join(dir,"platform.db");
   try{
-    const trusted=createSigner(),attacker=createSigner(),trustedPem=trusted.publicKey.export({type:"spki",format:"pem"}).toString();
-    const hostile:SignerProvider={keyId:"key:trusted",issue:(program,execution,issuedAt)=>issueCertificate(program,execution,attacker,issuedAt),trustedPublicKeyPem:(keyId="key:trusted")=>keyId==="key:trusted"?trustedPem:undefined};
+    const trusted=createSigner(),attacker=createSigner();
+    const declared=createStaticSignerProvider("key:trusted",trusted);
+    const hostile:SignerProvider={
+      ...declared,
+      issue:async(program,execution,issuedAt)=>issueCertificate(program,execution,attacker,issuedAt)
+    };
     const world=new WorldStateStore(db),executions=new ExecutionStore(db);
     await world.putFact(tenant,riskFact());
     await assert.rejects(()=>new ReasoningControlPlane({tenant,world,executions,signer:hostile,registry:createDefaultRegistry()}).execute(request()),/signer provider issued invalid certificate/i);
@@ -256,4 +276,102 @@ test("bound execution recovery replay-verifies an existing intent before returni
     );
     world.close();executions.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test("v2 replay rejects signer identity or signing-intent rewriting after unkeyed record hashes are recomputed",async()=>{
+  for(const field of ["identity","intent"] as const){
+    const dir=mkdtempSync(join(tmpdir(),`axiom-p2-signer-tamper-${field}-`)); const db=join(dir,"platform.db");
+    try{
+      const key=createSigner(),signer=createStaticSignerProvider("key:tamper:v1",key);
+      let world=new WorldStateStore(db),executions=new ExecutionStore(db);
+      await world.putFact(tenant,riskFact());
+      const issued=await new ReasoningControlPlane({tenant,world,executions,signer,registry:createDefaultRegistry()}).execute(request());
+      const id=issued.executionRecordId!;
+      world.close();executions.close();
+
+      const raw=new DatabaseSync(db);
+      const row=raw.prepare("SELECT record_json FROM platform_executions WHERE tenant_id=? AND id=?").get(tenant.tenantId,id) as any;
+      const record=JSON.parse(String(row.record_json));
+      if(field==="identity")record.signerIdentity.providerId="forged-provider";
+      else record.signingIntentId="f".repeat(64);
+      const {recordHash:_,...core}=record;record.recordHash=hashJson(core);
+      raw.prepare("UPDATE platform_executions SET record_hash=?, record_json=? WHERE tenant_id=? AND id=?")
+        .run(record.recordHash,JSON.stringify(record),tenant.tenantId,id);
+      raw.close();
+
+      world=new WorldStateStore(db);executions=new ExecutionStore(db);
+      const replay=await new ReasoningControlPlane({tenant,world,executions,signer,registry:createDefaultRegistry()}).replayStored(id);
+      assert.equal(replay.status,"MISMATCH");
+      assert.ok(replay.diagnostics.some(x=>/platform context|signing intent|signer identity/i.test(x)),replay.diagnostics.join("; "));
+      world.close();executions.close();
+    }finally{rmSync(dir,{recursive:true,force:true});}
+  }
+});
+
+test("v2 control plane still replays a correctly signed legacy v1 execution record",async()=>{
+  const dir=mkdtempSync(join(tmpdir(),"axiom-p2-legacy-signer-context-")); const db=join(dir,"platform.db");
+  try{
+    const signingKey=createSigner(),signer=createStaticSignerProvider("key:legacy:v1",signingKey);
+    const registry=createDefaultRegistry();
+    const world=new WorldStateStore(db),executions=new ExecutionStore(db);
+    await world.putFact(tenant,riskFact());
+    const issued=await new ReasoningControlPlane({tenant,world,executions,signer,registry}).execute(request());
+    const current:any=await executions.get(tenant,issued.executionRecordId!);
+
+    const legacyContext:any={
+      tenantId:current.tenantId,snapshotId:current.snapshotId,snapshotHash:current.snapshotHash,
+      policyDecision:current.policyDecision,policyManifest:current.policyManifest,
+      requirements:current.requirements,bindings:current.bindings
+    };
+    if(current.executionIntentId){
+      legacyContext.executionIntentId=current.executionIntentId;
+      legacyContext.executionRequestHash=current.executionRequestHash;
+    }
+    const legacyContextHash=hashJson(legacyContext);
+    const legacyProgram=structuredClone(current.certificate.replay.program);
+    legacyProgram.assumptions=legacyProgram.assumptions.map((value:string)=>
+      value.startsWith("AXIOM_PLATFORM_CONTEXT_SHA256:")?`AXIOM_PLATFORM_CONTEXT_SHA256:${legacyContextHash}`:value
+    );
+    const compiled=compileProgram(legacyProgram,registry);
+    const execution=new AxiomRuntime(registry).execute(compiled);
+    const certificate=issueCertificate(compiled,execution,signingKey,current.certificate.issuedAt);
+    const legacyCore:any={
+      id:`platform:${certificate.certificateId}`,tenantId:current.tenantId,
+      snapshotId:current.snapshotId,snapshotHash:current.snapshotHash,
+      policyDecision:current.policyDecision,policyManifest:current.policyManifest,
+      requirements:current.requirements,bindings:current.bindings,
+      platformContextHash:legacyContextHash,certificate,signerKeyId:current.signerKeyId,
+      ...(current.executionIntentId?{executionIntentId:current.executionIntentId,executionRequestHash:current.executionRequestHash}:{})
+    };
+    const legacy={...legacyCore,recordHash:hashJson(legacyCore)};
+    await executions.put(tenant,legacy);
+    assert.deepEqual(
+      await new ReasoningControlPlane({tenant,world,executions,signer,registry}).replayStored(legacy.id),
+      {status:"MATCH",diagnostics:[]}
+    );
+    world.close();executions.close();
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test("control plane refuses signer identity or signing-intent inconsistency before persistence",async()=>{
+  for(const mode of ["identity","intent"] as const){
+    const dir=mkdtempSync(join(tmpdir(),`axiom-p25b-signer-consistency-${mode}-`)); const db=join(dir,"platform.db");
+    try{
+      const base=createStaticSignerProvider("key:consistency:v1",createSigner());
+      const signer:SignerProvider=mode==="identity"
+        ? {...base,identity:{...base.identity,publicKeySha256:"f".repeat(64)}}
+        : {...base,signingIntentId:()=> "e".repeat(64)};
+      const world=new WorldStateStore(db),executions=new ExecutionStore(db);
+      await world.putFact(tenant,riskFact());
+      await assert.rejects(
+        ()=>new ReasoningControlPlane({tenant,world,executions,signer,registry:createDefaultRegistry()}).execute(request()),
+        /signer identity|signing intent|trusted public key/i
+      );
+      const raw=new DatabaseSync(db);
+      assert.equal(Number((raw.prepare("SELECT COUNT(*) AS n FROM platform_executions WHERE tenant_id=?").get(tenant.tenantId) as any).n),0);
+      raw.close();world.close();executions.close();
+    }finally{rmSync(dir,{recursive:true,force:true});}
+  }
 });

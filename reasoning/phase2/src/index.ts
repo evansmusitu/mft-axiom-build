@@ -3,6 +3,7 @@ export * from "./repositories.ts";
 export * from "./world_state.ts";
 export * from "./policy.ts";
 export * from "./signer.ts";
+export * from "./signer_backend.ts";
 export * from "./execution_store.ts";
 export * from "./control_plane.ts";
 export * from "./ingestion.ts";

@@ -27,6 +27,7 @@ phase2:conformance:
     - npm run gate:phase24a
     - npm run gate:phase24b
     - npm run gate:phase25a
+    - npm run gate:phase25b
   rules:
     - changes:
         - reasoning/phase2/**/*

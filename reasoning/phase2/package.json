@@ -6,14 +6,15 @@
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "conformance": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
-    "gate": "npm run gate:phase21 && npm run gate:phase22 && npm run gate:phase23a && npm run gate:phase24a && npm run gate:phase24b && npm run gate:phase25a",
+    "gate": "npm run gate:phase21 && npm run gate:phase22 && npm run gate:phase23a && npm run gate:phase24a && npm run gate:phase24b && npm run gate:phase25a && npm run gate:phase25b",
     "test:postgres": "node --disable-warning=ExperimentalWarning --test tests/postgres.integration.ts",
     "gate:phase21": "node --disable-warning=ExperimentalWarning scripts/phase2-gate.ts",
     "gate:phase22": "node --disable-warning=ExperimentalWarning scripts/phase2-2-gate.ts",
     "gate:phase23a": "node --disable-warning=ExperimentalWarning scripts/phase2-3a-gate.ts",
     "gate:phase24a": "node --disable-warning=ExperimentalWarning scripts/phase2-4a-gate.ts",
     "gate:phase24b": "node --disable-warning=ExperimentalWarning scripts/phase2-4b-gate.ts",
-    "gate:phase25a": "node --disable-warning=ExperimentalWarning scripts/phase2-5a-gate.ts"
+    "gate:phase25a": "node --disable-warning=ExperimentalWarning scripts/phase2-5a-gate.ts",
+    "gate:phase25b": "node --disable-warning=ExperimentalWarning scripts/phase2-5b-gate.ts"
   },
   "dependencies": {
     "jose": "6.2.12",

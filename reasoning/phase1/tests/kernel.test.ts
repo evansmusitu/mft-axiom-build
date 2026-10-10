@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { sign } from "node:crypto";
 import {
   canonicalize, sha256Hex, hashJson, merkleRoot, createDefaultRegistry, compileProgram,
   ProgramValidationError, AxiomRuntime, createSigner, issueCertificate,
+  prepareReasoningCertificate, finalizeReasoningCertificate,
   verifyCertificateSignature, replayCertificate, type AxiomProgram, type TypedValue,
   OperationRegistry
 } from "../src/index.ts";
@@ -92,6 +94,40 @@ test("certificate is signed and replay is independently reproducible",()=>{
   const cert=issueCertificate(p,execution,signer,"2026-10-05T18:00:00.000Z");
   assert.equal(verifyCertificateSignature(cert),true);
   assert.equal(replayCertificate(cert,createDefaultRegistry()).status,"MATCH");
+});
+
+test("certificate preparation can be finalized from an externally produced Ed25519 signature",()=>{
+  const registry=createDefaultRegistry();
+  const p=compileProgram(program(),registry);
+  const execution=new AxiomRuntime(registry).execute(p);
+  const signer=createSigner();
+  const prepared=prepareReasoningCertificate(p,execution,"2026-10-05T18:00:00.000Z");
+  assert.equal(prepared.signingPayloadHash,sha256Hex(canonicalize(prepared.signingPayload)));
+  const signature=sign(null,Buffer.from(canonicalize(prepared.signingPayload)),signer.privateKey).toString("base64");
+  const cert=finalizeReasoningCertificate(prepared,signer.publicKey,signature);
+  assert.equal(verifyCertificateSignature(cert,signer.publicKey),true);
+  assert.equal(cert.certificateId,issueCertificate(p,execution,signer,"2026-10-05T18:00:00.000Z").certificateId);
+  assert.throws(
+    ()=>finalizeReasoningCertificate(prepared,signer.publicKey,Buffer.alloc(63).toString("base64")),
+    /64-byte Ed25519 signature/i
+  );
+  const other=createSigner();
+  const wrong=sign(null,Buffer.from(canonicalize(prepared.signingPayload)),other.privateKey).toString("base64");
+  assert.throws(()=>finalizeReasoningCertificate(prepared,signer.publicKey,wrong),/signature verification failed/i);
+});
+
+test("certificate finalization rejects a replay program mutated after the signing payload was prepared",()=>{
+  const registry=createDefaultRegistry();
+  const p=compileProgram(program(),registry);
+  const execution=new AxiomRuntime(registry).execute(p);
+  const signer=createSigner();
+  const prepared=prepareReasoningCertificate(p,execution,"2026-10-05T18:00:00.000Z");
+  prepared.replay.program.objective="mutated replay program outside signed payload";
+  const signature=sign(null,Buffer.from(canonicalize(prepared.signingPayload)),signer.privateKey).toString("base64");
+  assert.throws(
+    ()=>finalizeReasoningCertificate(prepared,signer.publicKey,signature),
+    /replay program.*hash|program hash.*replay/i
+  );
 });
 
 test("replay detects mutated inputs",()=>{

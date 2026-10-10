@@ -128,7 +128,7 @@ Worker runtimes expose only prepared-model revalidation, execution-intent lookup
 
 Public `execution:job:read` responses are projections: they omit lease owner/expiry, prepared program, profile/compiler details, submitting principal, authorization decision, and internal integrity hashes. Known job IDs do not bypass tenant authorization.
 
-Phase 2.5A does not guarantee trading profit, investment returns, model correctness, upstream factual truth, or commercial outcomes. It also does not provide remote worker attestation/control, broker-as-authority semantics, external action execution, quotas/fair scheduling, HSM/KMS deployment, or distributed provider-call ambiguity protocols.
+Phase 2.5A does not guarantee trading profit, investment returns, model correctness, upstream factual truth, or commercial outcomes. It also does not provide remote worker attestation/control, broker-as-authority semantics, external action execution, quotas/fair scheduling, vendor-specific HSM/KMS deployment, or distributed provider-call ambiguity protocols.
 
 
 ### Phase 2.5A security-review hardening
@@ -139,3 +139,29 @@ A terminal `DENIED` job has two valid proof shapes: pre-execution policy DENY ha
 
 
 Existing distributed execution intents are never trusted solely because their database record hashes verify. Recovery runs the exact stored record through network-free policy/context/certificate replay before returning its outcome. A recomputed unkeyed storage hash cannot bypass the signed platform-context and certificate checks.
+
+
+## Phase 2.5B external signer containment
+
+External signing is Ed25519-only in this increment. AXIOM pins the active public key/key ID and historical public-key keyring. A remote signer response cannot introduce or rotate a trusted public key.
+
+The signing provider prepares the exact Phase-1 certificate payload locally, derives an identity-bound signing intent, sends the canonical payload through a bounded backend, and verifies the returned 64-byte Ed25519 signature locally before certificate finalization. Protocol, key ID, algorithm, signing intent, and payload hash must echo exactly.
+
+The HTTP backend is fixed-origin/fixed-path HTTPS, redirect-denying, JSON-only, request/response bounded, and strict-schema. Credentials are resolved server-side into configured headers and are never placed in the request body, persisted certificate, execution record, or API result. Responses echoing resolved secret material fail closed.
+
+New signed platform context version 2 commits the exact signer identity. The persisted signing-intent ID is recomputed from the actual signed certificate payload during replay. The control plane validates signer identity against the pinned active public key before execution and validates the resulting signing intent against the actual certificate before persistence.
+
+Replay remains signer-network-free. Historical public keys are configuration, not discovered from the remote signer. Unknown keys, key-hash mismatch, signing-intent mismatch, certificate mismatch, or forged provider output fail closed.
+
+Distributed signing inherits Phase-2.5A fencing. A lost signer response is an infrastructure retry, never an APPROVED/DENIED reasoning result. A retry repeats the same Ed25519 key/message/signing-intent request. Lease completion still resamples trusted time and requires the current unexpired worker+epoch.
+
+### Phase 2.5B security-review hardening
+
+Two Important proof-integrity findings were fixed before merge eligibility:
+
+1. **Signer metadata self-consistency before persistence.** A custom or mutable signer provider could previously return a certificate valid under the trusted key while declaring a mismatched signer identity or signing-intent value, allowing a permanently unreplayable execution record to be persisted. Issuance now validates signer protocol/mode/algorithm/key/hash against the pinned active key and recomputes the signing intent from the actual certificate before any record is stored. Built-in signer identities are frozen.
+2. **Replay-program integrity at certificate finalization.** The new Phase-1 finalizer originally verified the signed `{core, issuedAt}` payload but did not recheck that `replay.program` still matched the signed `core.programHash`. Finalization now fails if that replay program was mutated after preparation.
+
+The execution record uses the already validated signer identity/key ID rather than rereading mutable provider metadata at persistence time.
+
+No Critical or Important finding remains unresolved in the bounded Phase-2.5B source diff after these fixes. Vendor SDK security, HSM provisioning, operator key rotation, mTLS, DNS/network perimeter policy, and hardware attestation are deployment/future-increment concerns, not properties claimed here.

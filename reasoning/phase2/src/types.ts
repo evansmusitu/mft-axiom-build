@@ -1,5 +1,6 @@
 import type { AxiomNode, AxiomProgram, CompilerManifest, ConstraintSpec, JsonValue, TypeRef, TypedValue } from "../../phase1/src/types.ts";
 import type { ReasoningCertificate } from "../../phase1/src/certificate.ts";
+import type { SignerIdentity } from "./signer.ts";
 
 export interface TenantScope { tenantId: string; }
 
@@ -173,7 +174,11 @@ export interface PlatformExecutionRecord {
   id:string; tenantId:string; snapshotId:string; snapshotHash:string;
   policyDecision:PolicyDecision; policyManifest:PolicyManifest; requirements:EvidenceRequirement[];
   bindings:AppliedBinding[]; platformContextHash:string; certificate:ReasoningCertificate;
-  signerKeyId:string; executionIntentId?:string; executionRequestHash?:string; recordHash:string;
+  signerKeyId:string;
+  platformContextVersion?:"2";
+  signerIdentity?:SignerIdentity;
+  signingIntentId?:string;
+  executionIntentId?:string; executionRequestHash?:string; recordHash:string;
 }
 export interface ControlPlaneResult {
   status:"APPROVED"|"DENIED"; snapshotId:string; policyDecision:PolicyDecision;
