@@ -1,0 +1,22 @@
+name: AXIOM Google Gemini A2A — Isolated Contract
+on:
+  push:
+    branches:
+      - distribution/google-gemini-a2a-isolated-20261010
+    paths:
+      - 'frontier_v5/distribution/google/**'
+      - '.github/workflows/axiom-google-gemini-a2a-isolated.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-isolated-a2a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Isolated A2A contract tests (no production secrets)
+        run: node --test frontier_v5/distribution/google/tests/a2a_gateway.test.mjs
