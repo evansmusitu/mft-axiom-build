@@ -10,6 +10,7 @@ import {createSimulatedProvider} from '../src/providers.mjs';
 import {generateDemonstrationKeys} from '../src/evidence.mjs';
 import {webhookHeaders} from './helpers/svix.mjs';
 import ingress from '../src/edge/webhook-only.mjs';
+import {createFeedbackSqlAdapter} from '../src/edge/feedback-rpc.mjs';
 
 function fixture(t){
  const sqlite=new DatabaseSync(':memory:');t.after(()=>sqlite.close());
@@ -48,6 +49,10 @@ test('linked webhook-only Worker reconciles signed bounce into originating outbo
   subject:'Notice',text:'Synthetic payload',kind:'ACCOUNT',idempotencyKey:'linked-outbox-1234'});
  const accepted=await f.fabric.processById(pending.messageId);
  const providerId=accepted.proof.events.at(-1).detail.providerId;
+ const bridge=createFeedbackSqlAdapter(f.outbox,f.env.MMF_OUTBOX_FEEDBACK_SECRET);
+ assert.equal(await bridge.matchRecipient('client1',providerId,'recipient@example.net'),true,
+  'sender Durable Object must authenticate correct recipient with its own key');
+
  const raw=JSON.stringify({type:'email.bounced',created_at:new Date().toISOString(),
   data:{email_id:providerId,to:['recipient@example.net']}});
  const headers={'content-type':'application/json',...webhookHeaders(f.webhookSecret,raw,'svix-linked-outbox-01')};
