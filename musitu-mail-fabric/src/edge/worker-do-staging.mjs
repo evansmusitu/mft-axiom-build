@@ -3,6 +3,7 @@
  */
 import {MmfStagingSqliteDO,createDurableSqlAdapter} from './sqlite-do.mjs';
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
+import {runSyntheticTransactionProbe} from './synthetic-transaction.mjs';
 import {createHash} from 'node:crypto';
 export {MmfStagingSqliteDO};
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
@@ -18,8 +19,19 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_TRANSACTION_PROBE'){
+      // No customer data, public endpoint, real provider adapter or network mail can be activated here.
+      const outcome=await runSyntheticTransactionProbe(db,env,input.probeId);
+      if(outcome.customerMailSent!==false||outcome.providerIsSimulation!==true||outcome.evidenceVerified!==true)throw Error('STAGE_SYNTHETIC_GATE_FAILED');
+      m.ack();
+      console.log(JSON.stringify({gate:'MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E',
+        status:'PASS',probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
+        evidenceVerified:true,providerWasSimulation:true,publicKeySha256:outcome.publicKeySha256,
+        receipt:outcome.proof,customerMailSent:false}));
+      continue;
+    }
     if(input.type==='MMF_STAGE_RETRY_PROBE'){
      // Staging-only fault injection: commit the first attempt to a real Durable Object,
      // request one genuine Queue redelivery, and prove subsequent idempotent recovery.

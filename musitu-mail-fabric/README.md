@@ -104,3 +104,7 @@ When a **properly authenticated** Resend event reports a bounce or complaint, th
 ## v0.8.1 — Dual authorization for production sending (2026-10-10)
 
 The real-delivery path now fails closed unless a matching, time-bounded authorization is Ed25519-signed by **two distinct independently pinned keys**. This gate is checked before any real provider adapter can be built. No production approval has been issued and no live email is enabled. See `docs/2026-10-10-v081-two-party-release.md`.
+
+## v0.8.2 — Synthetic complete durable delivery-path staging qualification
+
+The private synthetic-only Cloudflare stage can now exercise `DurableMailFabric` itself through its isolated SQLite Durable Object: enqueue, encryption, idempotency, simulation-only provider acknowledgement, payload erasure and signed receipts. It cannot send customer email or expose any API. See `docs/2026-10-10-v082-synthetic-durable-e2e.md`.
