@@ -1,15 +1,16 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.8.3",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
-  "description": "Isolated verifiable communications with sender DNS ownership and guarded Cloudflare staging",
+  "description": "Offline-restorable evidence-native mail transaction fabric; guarded private cloud staging only",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs",
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/ops/backup.mjs && node --check src/ops/backup-cli.mjs",
     "verify": "node src/verify-cli.mjs",
-    "verify-rotated": "node src/trust/verify-cli.mjs"
+    "verify-rotated": "node src/trust/verify-cli.mjs",
+    "test:recovery": "node --test test/backup-restore.test.mjs test/backup-outbox-recovery.test.mjs test/backup-cli.test.mjs"
   },
   "engines": {
     "node": ">=20"
