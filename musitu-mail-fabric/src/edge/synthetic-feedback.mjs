@@ -62,3 +62,55 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
   customerMailSent:false,networkProviderCalls:0
  });
 }
+
+
+/** Actual SQLite / Queue race rehearsal: signed event arrives BEFORE provider ID
+ * is recorded, receives a retryable result, then succeeds on an identical retry.
+ * Every provider send is an in-process simulation; zero network mail.
+ */
+export async function runSyntheticEarlyFeedbackProbe(db,env,probeId){
+ const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
+ const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:RECIPIENT,
+   subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
+   kind:'SERVICE_ALERT',idempotencyKey:probeId};
+ const queued=await fabric.enqueue(input);
+ if(queued.state!=='QUEUED')throw Error('STAGE_EARLY_SEND_NOT_QUEUED');
+ const secret='whsec_'+randomBytes(32).toString('base64');
+ const timestamp=String(Math.floor(Date.now()/1000));
+ const id='svix-early-'+probeId;
+ const raw=JSON.stringify({type:'email.delivered',created_at:new Date().toISOString(),data:{
+   email_id:'synthetic_'+probeId,to:[RECIPIENT]}});
+ const signature=createHmac('sha256',Buffer.from(secret.slice(6),'base64'))
+   .update(id+'.'+timestamp+'.'+raw).digest('base64');
+ const headers={'svix-id':id,'svix-timestamp':timestamp,'svix-signature':'v1,'+signature};
+ let pendingWasRetryable=false;
+ try{await processResendWebhook(fabric,raw,headers,{secret,strictRecipient:true});}
+ catch(e){if(e?.message==='PROVIDER_CORRELATION_PENDING')pendingWasRetryable=true;else throw e;}
+ if(!pendingWasRetryable)throw Error('EARLY_PROVIDER_EVENT_ACKNOWLEDGED_FALSELY');
+ const before=await db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events WHERE tenant_id=? AND message_id=?')
+  .bind('stage-tenant',queued.messageId).first();
+ if(Number(before?.n)!==0)throw Error('EARLY_PROVIDER_EVENT_WRITTEN_UNATTRIBUTED');
+ const accepted=await fabric.processById(queued.messageId);
+ if(accepted?.state!=='ACCEPTED_BY_PROVIDER'||
+    accepted?.proof?.events?.at(-1)?.detail?.providerId!=='synthetic_'+probeId)
+    throw Error('STAGE_EARLY_PROVIDER_ACCEPTANCE_MISSING');
+ const stored=await processResendWebhook(fabric,raw,headers,{secret,strictRecipient:true});
+ const again=await processResendWebhook(fabric,raw,headers,{secret,strictRecipient:true});
+ const evidence=await fabric.getProviderEvidence(queued.messageId,'stage-tenant');
+ if(stored.recorded!==true||again.reason!=='DUPLICATE_EVENT'||again.recorded!==false||
+    evidence?.providerStatus!=='DELIVERED_REPORTED'||evidence.events.length!==1||
+    !verifyProof(evidence.proof,{trustedPublicKey:publicKey.export({type:'spki',format:'pem'}).toString()}))
+   throw Error('STAGE_EARLY_FEEDBACK_RETRY_NOT_VERIFIED');
+ const count=await db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events WHERE tenant_id=? AND message_id=?')
+  .bind('stage-tenant',queued.messageId).first();
+ if(Number(count?.n)!==1)throw Error('STAGE_EARLY_FEEDBACK_NOT_DURABLE');
+ return Object.freeze({
+  status:'PASS',probeSha256:sha(probeId),
+  earlyWebhookRetryable:true,unmatchedEventNeverAcknowledged:true,
+  sameSignatureReplayed:true,eventRecordedAfterAcceptance:true,exactReplayIdempotent:true,
+  providerStatus:'DELIVERED_REPORTED',signatureEvidenceVerified:true,
+  publicKeySha256:sha(publicKey.export({format:'der',type:'spki'})),
+  providerWasSimulation:true,realResendWebhookReceived:false,
+  customerMailSent:false,networkProviderCalls:0
+ });
+}
