@@ -1,6 +1,6 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Isolated verifiable communications with sender DNS ownership and guarded Cloudflare staging",

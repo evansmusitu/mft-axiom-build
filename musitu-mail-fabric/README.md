@@ -100,3 +100,10 @@ When a **properly authenticated** Resend event reports a bounce or complaint, th
 **Migration safety:** The v0.4 table includes `recipient_hmac` as a required column. `CREATE TABLE IF NOT EXISTS` cannot update an existing v0.3 table: do not apply this schema blindly to existing D1 data. No compatible in-place migration of historical accepted messages is proven, because their encrypted envelope is erased after provider acceptance. Use a separately created fresh database for the isolated v0.4 qualification; any later migration of real data requires a reviewed reconciliation and consent plan.
 
 **Limitations:** Tenant quota controls prevent a daily *message count* overload but are not request-per-second rate limits, spam detection, marketing consent or paid-customer abuse protection. The tests currently use local SQLite and mocked provider delivery; no Cloudflare production D1/Queue or real customer domain deployment was authorized.
+
+
+## v0.6 continuation — live staging findings (2026-10-10)
+
+The v0.6 branch adds tenant-scoped expiring DNS TXT sender ownership, durable recipient limits, conservative provider-event reconciliation, and a guarded Cloudflare staging-resource provisioner. Local tests and existing isolated Cloudflare runtime CI are separate from a public production service.
+
+Cloudflare D1 create was **blocked** by free-account 10-database limit (error 7406); no AXIOM D1 was reused. An isolated Cloudflare staging Queue and a separate Neon Free PostgreSQL test project were created, but no Worker / real provider / customer-sending connection was deployed. The Neon transaction and rollback checks are not genuine cloud-outage tests. Independent security assessment is outstanding. See `docs/2026-10-10-v0.6-staging-and-external-audit.md`.

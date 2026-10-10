@@ -18,7 +18,11 @@ export async function provision({account,dbToken,queueToken,fetchImpl=fetch,sche
   async function req(path,token,{method='GET',body}={}){
     const r=await fetchImpl(API+path,{method,headers:{authorization:'Bearer '+token,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(18000)});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok||j.success===false)throw new Error('CLOUDFLARE_'+method+'_HTTP_'+r.status+'_CODES_'+(j.errors||[]).map(e=>e.code).filter(x=>typeof x==='number').join('_'));
+    if(!r.ok||j.success===false){
+      if(method==='POST'&&path==='/accounts/'+STAGE.account+'/d1/database'&&(j.errors||[]).some(e=>e.code===7406))
+        throw new Error('D1_ACCOUNT_DATABASE_LIMIT');
+      throw new Error('CLOUDFLARE_'+method+'_HTTP_'+r.status+'_CODES_'+(j.errors||[]).map(e=>e.code).filter(x=>typeof x==='number').join('_'));
+    }
     return j.result;
   }
   const path='/accounts/'+account;
