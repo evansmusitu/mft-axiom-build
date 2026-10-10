@@ -48,3 +48,5 @@ export * from "./distributed_model_execution.ts";
 export * from "./worker_authentication.ts";
 
 export * from "./worker_lease_capability.ts";
+
+export * from "./distributed_worker_control.ts";
