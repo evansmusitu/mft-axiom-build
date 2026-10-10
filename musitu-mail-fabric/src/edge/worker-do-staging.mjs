@@ -110,6 +110,17 @@ export default {
     m.ack();
     console.log(JSON.stringify({gate:'MMF_ISOLATED_QUEUE_TO_SQLITE_DO',status:'PASS',probeRecorded:true,cryptoVerified:cryptoProof?.verified===true,publicKeySha256:cryptoProof?.publicKeySha256||null,customerMailSent:false}));
    }catch(error){
+    if(input?.type==='MMF_STAGE_SACRIFICIAL_PITR_PROBE'){
+      const safe=new Set(['SACRIFICIAL_RESTORE_NOT_PROVEN','SACRIFICIAL_BOOKMARK_INVALID','SACRIFICIAL_ALTERATION_NOT_PROVEN',
+       'STAGING_PITR_GATE','SACRIFICIAL_NAMESPACE_REQUIRED','SACRIFICIAL_BINDING_REQUIRED','INVALID_SACRIFICIAL_PROBE',
+       'SACRIFICIAL_STAGE_CHECKPOINT_FAILED_409','SACRIFICIAL_STAGE_CHECKPOINT_FAILED_503',
+       'SACRIFICIAL_STAGE_MUTATE_FAILED_409','SACRIFICIAL_STAGE_MUTATE_FAILED_503',
+       'SACRIFICIAL_STAGE_INSPECT_FAILED_503']);
+      console.log(JSON.stringify({gate:'MMF_STAGE_SACRIFICIAL_PITR_DIAGNOSTIC',
+        status:'NOT_VERIFIED',reason:safe.has(error?.message)?error.message:'SACRIFICIAL_UNCLASSIFIED',
+        probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
+        noCustomerData:true,publicAccess:false,networkMail:false}));
+    }
     if(input?.type==='MMF_STAGE_TRANSACTION_PROBE'){
       const reasons=new Set(['STAGING_SECRET_INVALID','STAGING_STORAGE_REQUIRED','STAGING_ONLY',
         'STAGE_E2E_ENQUEUE_FAILED','STAGE_E2E_PROCESS_FAILED','STAGE_E2E_READ_FAILED',
