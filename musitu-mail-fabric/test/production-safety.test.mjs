@@ -68,7 +68,7 @@ test('verified complaint suppresses recipient but delivered event does not',asyn
 test('duplicate webhook repairs a suppression that failed after event storage',async t=>{
   const f=fixture(t),mail=f.make(),m=await mail.enqueue(base),sent=await mail.processById(m.messageId);
   const secret='whsec_'+randomBytes(32).toString('base64');
-  const event=makeWebhook({type:'email.complained',data:{email_id:sent.proof.events.at(-1).detail.providerId}});
+  const event=makeWebhook({type:'email.complained',data:{email_id:sent.proof.events.at(-1).detail.providerId,to:['recipient@example.net']}});
   const h=webhookHeaders(secret,event,'svix-recovery-001');
   const actual=createD1Compat(f.d);let injected=false;
   const wrapper={prepare(sql){if(!injected&&sql.includes('INSERT OR IGNORE INTO mail_suppressions')){
@@ -108,7 +108,7 @@ test('signed webhook feedback remains ingestible while outbound sending is pause
     MMF_SIGNING_PRIVATE_KEY_PEM:keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),
     MMF_SIGNING_PUBLIC_KEY_PEM:keys.publicKey.export({format:'pem',type:'spki'}).toString(),
     MMF_REAL_SEND_ENABLED:'false',MMF_WEBHOOK_ENABLED:'true',MMF_WEBHOOK_SECRET:secret,MMF_API_ENABLED:'false'};
-  const raw=makeWebhook({type:'email.bounced',data:{email_id:sent.proof.events.at(-1).detail.providerId}});
+  const raw=makeWebhook({type:'email.bounced',data:{email_id:sent.proof.events.at(-1).detail.providerId,to:['recipient@example.net']}});
   const headers=webhookHeaders(secret,raw,'svix-paused-001');
   const worker=createWorker();
   const response=await worker.fetch(new Request('https://mmf.invalid/v1/webhooks/resend',{method:'POST',headers,body:raw}),env);
@@ -134,7 +134,7 @@ test('transient webhook database failures return retryable HTTP 503, never false
     MMF_SIGNING_PRIVATE_KEY_PEM:keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),
     MMF_SIGNING_PUBLIC_KEY_PEM:keys.publicKey.export({format:'pem',type:'spki'}).toString(),
     MMF_REAL_SEND_ENABLED:'false',MMF_WEBHOOK_ENABLED:'true',MMF_WEBHOOK_SECRET:secret,MMF_API_ENABLED:'false'};
-  const raw=makeWebhook({type:'email.complained',data:{email_id:sent.proof.events.at(-1).detail.providerId}});
+  const raw=makeWebhook({type:'email.complained',data:{email_id:sent.proof.events.at(-1).detail.providerId,to:['recipient@example.net']}});
   const response=await createWorker().fetch(new Request('https://mmf.invalid/v1/webhooks/resend',{method:'POST',headers:webhookHeaders(secret,raw,'svix-db-down-01'),body:raw}),env);
   assert.equal(response.status,503);
   assert.deepEqual(await response.json(),{error:'WEBHOOK_PROCESSING_UNAVAILABLE'});
