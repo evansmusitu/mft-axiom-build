@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    if: github.event.before == 'f2dce680f58c13f7cc9c2ff72d232e35f9e28f1c'
+    if: github.event.before == '5083662b5850e30692804ad152ba65f4bacfc2ba'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 5
@@ -40,11 +40,10 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp)"
           err="$(mktemp)"
-          (
-            cd musitu-mail-fabric
-            npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json >"$tmp" 2>"$err"
-          ) &
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json >"$tmp" 2>"$err" &
           tail_pid="$!"
+          cd ..
           cleanup(){ kill "$tail_pid" 2>/dev/null || true; rm -f "$tmp" "$err"; }
           trap cleanup EXIT
           sleep 7
@@ -65,9 +64,8 @@ jobs:
           if(!r.ok||j.success===false)throw Error('SYNTHETIC_QUEUE_POST_FAILED_'+r.status);
           console.log(JSON.stringify({gate:'MMF_SYNTHETIC_QUEUE_POST',status:'PASS',customerMessages:false}));
           NODE
-          for attempt in $(seq 1 35); do
+          for attempt in $(seq 1 42); do
             if grep -q 'MMF_ISOLATED_QUEUE_TO_SQLITE_DO' "$tmp"; then break; fi
-            if ! kill -0 "$tail_pid" 2>/dev/null; then break; fi
             sleep 1
           done
           node --input-type=module - "$tmp" <<'NODE'
@@ -87,6 +85,6 @@ jobs:
               }
             }catch{}
           }
-          console.log(JSON.stringify({gate:'MMF_CLOUD_QUEUE_TO_SQLITE_DO_LIVE',status:proven?'PASS':'NOT_VERIFIED',cloud_log_observed:proven,publicAccess:false,customerMailSent:false}));
+          console.log(JSON.stringify({gate:'MMF_CLOUD_QUEUE_TO_SQLITE_DO_LIVE',status:proven?'PASS':'NOT_VERIFIED',cloud_log_observed:proven,tailLines:lines.filter(Boolean).length,publicAccess:false,customerMailSent:false}));
           if(!proven)process.exit(1);
           NODE
