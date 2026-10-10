@@ -70,7 +70,10 @@ export default {
     if(input?.type==='MMF_STAGE_TRANSACTION_PROBE'){
       const reasons=new Set(['STAGING_SECRET_INVALID','STAGING_STORAGE_REQUIRED','STAGING_ONLY',
         'STAGE_E2E_ENQUEUE_FAILED','STAGE_E2E_PROCESS_FAILED','STAGE_E2E_READ_FAILED',
-        'SYNTHETIC_TRANSACTION_NOT_VERIFIED','SYNTHETIC_READBACK_FAILED']);
+        'SYNTHETIC_TRANSACTION_NOT_VERIFIED','SYNTHETIC_READBACK_FAILED',
+        'STAGE_E2E_STATE_QUEUED','STAGE_E2E_STATE_SENDING','STAGE_E2E_STATE_OUTCOME_UNKNOWN',
+        'STAGE_E2E_STATE_REJECTED_BY_PROVIDER','STAGE_E2E_STATE_BLOCKED_BY_POLICY',
+        'STAGE_E2E_STATE_MISSING','STAGE_E2E_PROOF_INVALID']);
       const reason=reasons.has(String(error?.message))?error.message:'UNCLASSIFIED_STAGE_FAILURE';
       console.log(JSON.stringify({gate:'MMF_STAGE_TRANSACTION_PROBE_DIAGNOSTIC',status:'RETRY',
         reason,probeSha256:createHash('sha256').update(input.probeId).digest('hex'),customerMailSent:false,providerWasSimulation:true}));

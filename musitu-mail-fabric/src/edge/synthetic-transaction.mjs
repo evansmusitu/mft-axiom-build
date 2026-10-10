@@ -35,8 +35,11 @@ export async function runSyntheticTransactionProbe(db,env,probeId){
  }
  let result;
  try{result=await fabric.get(queued.messageId,'stage-tenant');}catch{throw Error('STAGE_E2E_READ_FAILED');}
- if(result?.state!=='ACCEPTED_BY_PROVIDER'||!verifyProof(result.proof,{trustedPublicKey:result.proof.publicKey}))
-   throw Error('SYNTHETIC_TRANSACTION_NOT_VERIFIED');
+ if(result?.state!=='ACCEPTED_BY_PROVIDER'){
+  const status=['QUEUED','SENDING','OUTCOME_UNKNOWN','REJECTED_BY_PROVIDER','BLOCKED_BY_POLICY'].includes(result?.state)?result.state:'MISSING';
+  throw Error('STAGE_E2E_STATE_'+status);
+ }
+ if(!verifyProof(result.proof,{trustedPublicKey:result.proof.publicKey}))throw Error('STAGE_E2E_PROOF_INVALID');
  const persisted=await db.prepare('SELECT state,sealed_envelope FROM mail_messages WHERE message_id=? AND tenant_id=?')
    .bind(queued.messageId,'stage-tenant').first();
  if(persisted?.state!=='ACCEPTED_BY_PROVIDER'||persisted.sealed_envelope!==null)throw Error('SYNTHETIC_READBACK_FAILED');
