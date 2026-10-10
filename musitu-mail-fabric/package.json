@@ -1,6 +1,6 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "description": "Isolated mail trust fabric and guarded SQLite Durable Object Cloudflare queue staging",
