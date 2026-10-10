@@ -52,9 +52,9 @@ export async function handleFeedbackRpc(request,sql,env){
      return respond({error:'INVALID_SUPPRESSION_RECORD'},422);
    // Suppression may only follow a durable bounce/complaint for this exact
    // recipient and tenant; the token cannot suppress arbitrary addresses.
-   const found=sql.exec(\`SELECT 1 AS ok FROM mail_provider_events e
+   const found=sql.exec(`SELECT 1 AS ok FROM mail_provider_events e
     JOIN mail_messages m ON e.message_id=m.message_id AND e.tenant_id=m.tenant_id
-    WHERE e.tenant_id=? AND m.recipient_hmac=? AND e.kind IN ('email.bounced','email.complained') LIMIT 1\`,
+    WHERE e.tenant_id=? AND m.recipient_hmac=? AND e.kind IN ('email.bounced','email.complained') LIMIT 1`,
     tenant,recipientHmac).toArray();
    if(found.length===0)return respond({error:'SUPPRESSION_EVIDENCE_REQUIRED'},422);
   }
