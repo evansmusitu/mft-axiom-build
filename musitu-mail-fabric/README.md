@@ -111,3 +111,7 @@ Cloudflare D1 create was **blocked** by free-account 10-database limit (error 74
 ## v0.7 non-public Cloudflare SQLite Durable Object option
 
 When new D1 databases are blocked by the account's Free-tier limit, MMF can use a separate SQLite-backed Durable Object without touching AXIOM databases. The new `src/edge/sqlite-do.mjs` implements a secret-authenticated, internal-only D1-style SQL adapter. `src/edge/worker-do-staging.mjs` consumes **synthetic probes only** and refuses every public HTTP request. `wrangler.mmf.do-staging.jsonc` explicitly disables `workers.dev`, public routes and all real sending. This does **not** yet mean production is enabled; see `docs/2026-10-10-sqlite-do-staging-design.md` and the separate live GitHub Actions deployment evidence before making remote claims.
+
+## v0.7.1 — disposable staging-only managed secrets
+
+The private staging Worker can cryptographically self-test AES-256-GCM and Ed25519 using separately provisioned Cloudflare Worker Secrets. The queue accepts synthetic probe events only; customer API, webhook ingress and real outgoing email are disabled. The source code contains no actual keys. Staging keys are generated on a short-lived CI runner, placed into Cloudflare Secrets, and verified using a safe non-secret public-key fingerprint; this is NOT a managed HSM, legal trust anchor, backup-validated production key hierarchy, or independent security audit.

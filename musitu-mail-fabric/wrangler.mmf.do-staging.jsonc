@@ -8,5 +8,5 @@
   "durable_objects": {"bindings": [{"name":"MMF_LEDGER","class_name":"MmfStagingSqliteDO"}]},
   "migrations": [{"tag":"mmf-stage-v1","new_sqlite_classes":["MmfStagingSqliteDO"]}],
   "queues": {"consumers": [{"queue":"musitu-mail-fabric-staging-20261010","max_batch_size":5,"max_batch_timeout":2,"max_retries":2}]},
-  "vars": {"MMF_STAGE_ONLY":"true","MMF_REAL_SEND_ENABLED":"false","MMF_API_ENABLED":"false","MMF_WEBHOOK_ENABLED":"false"}
+  "vars": {"MMF_STAGE_ONLY":"true","MMF_REAL_SEND_ENABLED":"false","MMF_API_ENABLED":"false","MMF_WEBHOOK_ENABLED":"false","MMF_STAGE_CRYPTO_READY":"true"}
 }

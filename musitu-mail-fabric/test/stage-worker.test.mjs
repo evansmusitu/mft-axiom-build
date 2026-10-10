@@ -42,3 +42,28 @@ test('staging queue config has no external hostname, disabled real sending and S
  assert.deepEqual(cfg.migrations?.[0]?.new_sqlite_classes,['MmfStagingSqliteDO']);
  assert.equal(cfg.queues.consumers[0].queue,'musitu-mail-fabric-staging-20261010');
 });
+test('stage crypto gate retries rather than acknowledge when managed keys are missing',async t=>{
+ const {env}=stageFixture(t);let ack=0,retry=0;
+ await stage.queue({messages:[{body:{type:'MMF_STAGE_PROBE',probeId:'probe-stage-cryptogate'},ack(){ack++},retry(){retry++}}]},
+  {...env,MMF_STAGE_CRYPTO_READY:'true'});
+ assert.equal(ack,0);assert.equal(retry,1);
+});
+test('stage signs and encrypts synthetic probes only when secret-backed crypto flag is enabled',async t=>{
+ const {generateKeyPairSync,randomBytes}=await import('node:crypto');
+ const {privateKey}=generateKeyPairSync('ed25519');
+ const key=privateKey.export({format:'pem',type:'pkcs8'}).toString();
+ const dataKey=randomBytes(32).toString('base64');
+ const {env,db}=stageFixture(t);let ack=0,retry=0;const events=[];
+ const original=console.log;
+ console.log=(v)=>events.push(JSON.parse(v));
+ try {
+  await stage.queue({messages:[{body:{type:'MMF_STAGE_PROBE',probeId:'probe-stage-encrypted-001'},ack(){ack++},retry(){retry++}}]},
+   {...env,MMF_STAGE_CRYPTO_READY:'true',MMF_STAGE_SIGNING_PRIVATE_KEY_PEM:key,MMF_STAGE_DATA_KEY_B64:dataKey});
+ } finally {console.log=original}
+ assert.equal(ack,1);assert.equal(retry,0);
+ assert.equal(db.prepare('SELECT COUNT(*) AS c FROM mmf_staging_probes').get().c,1);
+ assert.equal(events[0]?.cryptoVerified,true);
+ assert.match(events[0]?.publicKeySha256,/^[a-f0-9]{64}$/);
+ assert.equal(JSON.stringify(events).includes(key),false);
+ assert.equal(JSON.stringify(events).includes(dataKey),false);
+});

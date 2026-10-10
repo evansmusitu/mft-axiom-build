@@ -2,6 +2,7 @@
  *  Intentionally does not expose MMF API, DNS routes, outbound email or webhook.
  */
 import {MmfStagingSqliteDO,createDurableSqlAdapter} from './sqlite-do.mjs';
+import {stageCryptoSelfTest} from './stage-crypto.mjs';
 export {MmfStagingSqliteDO};
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
 function gated(env){
@@ -18,11 +19,14 @@ export default {
    const input=m.body;
    if(input?.type!=='MMF_STAGE_PROBE'||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    const cryptoProof = env.MMF_STAGE_CRYPTO_READY === 'true'
+      ? stageCryptoSelfTest(env.MMF_STAGE_SIGNING_PRIVATE_KEY_PEM,env.MMF_STAGE_DATA_KEY_B64,input.probeId)
+      : null;
     await db.prepare('INSERT OR IGNORE INTO mmf_staging_probes(probe_id,seen_ms) VALUES(?,?)').bind(input.probeId,Date.now()).run();
     const check=await db.prepare('SELECT probe_id FROM mmf_staging_probes WHERE probe_id=?').bind(input.probeId).first();
     if(check?.probe_id!==input.probeId)throw Error('PROBE_READBACK_MISSING');
     m.ack();
-    console.log(JSON.stringify({gate:'MMF_ISOLATED_QUEUE_TO_SQLITE_DO',status:'PASS',probeRecorded:true,customerMailSent:false}));
+    console.log(JSON.stringify({gate:'MMF_ISOLATED_QUEUE_TO_SQLITE_DO',status:'PASS',probeRecorded:true,cryptoVerified:cryptoProof?.verified===true,publicKeySha256:cryptoProof?.publicKeySha256||null,customerMailSent:false}));
    }catch{m.retry();}
   }
  }

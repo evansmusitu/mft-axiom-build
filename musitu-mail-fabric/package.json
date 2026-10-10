@@ -1,13 +1,13 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "description": "Isolated mail trust fabric and guarded SQLite Durable Object Cloudflare queue staging",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/staging/provision.mjs && node --check src/edge/sqlite-schema.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs",
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/staging/provision.mjs && node --check src/edge/sqlite-schema.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs && node --check src/edge/stage-crypto.mjs",
     "verify": "node src/verify-cli.mjs",
     "verify-rotated": "node src/trust/verify-cli.mjs"
   },
