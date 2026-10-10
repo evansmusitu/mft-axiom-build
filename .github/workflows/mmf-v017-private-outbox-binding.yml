@@ -1,0 +1,110 @@
+name: MUSITU v017 Private External Outbox Binding Provision
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v017-private-outbox-binding.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-linked-outbox-staging-20261010
+  cancel-in-progress: false
+jobs:
+  private-outbox-binding:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_SENDER_STAGE: 'musitu-mail-fabric-staging-20261010'
+      MMF_LINKED_STAGE: 'musitu-mail-fabric-webhook-linked-test-only'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove separate private Worker, no customer or webhook activation
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const a=JSON.parse(readFileSync('wrangler.mmf.webhook-linked.template.jsonc','utf8'));
+          const b=a.durable_objects?.bindings||[];
+          const linked=b.find(x=>x.name==='MMF_OUTBOX');
+          const receipt=b.find(x=>x.name==='MMF_RECEIPTS');
+          if(a.name!=='musitu-mail-fabric-webhook-linked-test-only'||
+             a.main!=='src/edge/webhook-only.mjs'||a.workers_dev!==false||
+             !Array.isArray(a.routes)||a.routes.length!==0||b.length!==2||
+             linked?.script_name!=='musitu-mail-fabric-staging-20261010'||
+             linked?.class_name!=='MmfStagingSqliteDO'||receipt?.script_name!==undefined||
+             receipt?.class_name!=='MmfStagingSqliteDO'||
+             !['MMF_REAL_SEND_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED',
+               'MMF_OUTBOX_LINK_ENABLED','MMF_SUPPRESSION_API_ENABLED',
+               'MMF_SENDER_REVOKE_API_ENABLED','MMF_DIAGNOSTICS_ENABLED']
+                 .every(n=>a.vars?.[n]==='false'))
+             throw Error('PRIVATE_WEBHOOK_LINK_TEMPLATE_UNSAFE');
+          console.log(JSON.stringify({gate:'MMF_V017_STRICTLY_DISABLED_LINKED_TEMPLATE',status:'PASS',
+            routes:0,publicIngress:false,customerSending:false,feedbackLinkActive:false}));
+          NODE
+          npm run check
+          npm run test:webhook-bridge
+      - name: Verify existing sender stage is nonpublic before attaching new Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,s=process.env.MMF_SENDER_STAGE;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||
+            s!=='musitu-mail-fabric-staging-20261010'||typeof k!=='string'||k.length<16)
+             throw Error('SENDER_STAGE_SCOPE_DENIED');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/'+s+'/';
+          const get=async path=>{const r=await fetch(base+path,{method:'GET',
+            headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(15000)});
+            const v=await r.json();if(!r.ok||v.success===false)throw Error('SENDER_STAGE_READ_FAILED');return v.result};
+          const [cfg,sub]=await Promise.all([get('settings'),get('subdomain')]);
+          const b=cfg?.bindings||[],v=n=>b.find(x=>x.name===n)?.text;
+          if(sub?.enabled===true||sub?.previews_enabled===true||
+            v('MMF_STAGE_ONLY')!=='true'||v('MMF_REAL_SEND_ENABLED')!=='false'||
+            v('MMF_API_ENABLED')!=='false'||v('MMF_WEBHOOK_ENABLED')!=='false'||
+            !b.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace'))
+             throw Error('SENDER_STAGE_NOT_PRIVATE');
+          console.log(JSON.stringify({gate:'MMF_V017_SENDER_STAGE_PREFLIGHT',status:'PASS',senderNonpublic:true}));
+          NODE
+      - name: Deploy only a new nonpublic Worker with disabled external sender binding
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.webhook-linked.template.jsonc
+      - name: Readback of new Cloudflare external Durable Object binding and disabled flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const name=process.env.MMF_LINKED_STAGE;
+          if(name!=='musitu-mail-fabric-webhook-linked-test-only')throw Error('LINK_TARGET_NOT_ISOLATED');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+name+'/';
+          const get=async suffix=>{const r=await fetch(root+suffix,{method:'GET',
+            headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(15000)});
+            const j=await r.json();if(!r.ok||j.success===false)throw Error('LINK_TARGET_READBACK_FAILED_'+r.status);
+            return j.result;};
+          const [cfg,sub,secrets]=await Promise.all([get('settings'),get('subdomain'),get('secrets')]);
+          const bindings=cfg?.bindings||[],v=n=>bindings.find(x=>x.name===n)?.text;
+          const linked=bindings.find(x=>x.name==='MMF_OUTBOX'&&x.type==='durable_object_namespace');
+          const receipt=bindings.find(x=>x.name==='MMF_RECEIPTS'&&x.type==='durable_object_namespace');
+          if(sub?.enabled===true||sub?.previews_enabled===true||
+             v('MMF_REAL_SEND_ENABLED')!=='false'||v('MMF_API_ENABLED')!=='false'||
+             v('MMF_WEBHOOK_ENABLED')!=='false'||v('MMF_OUTBOX_LINK_ENABLED')!=='false'||
+             !linked||!receipt||linked.script_name!=='musitu-mail-fabric-staging-20261010'||
+             linked.namespace_id===receipt.namespace_id)
+            throw Error('CLOUD_OUTBOX_LINK_STAGING_GUARDS_FAILED');
+          console.log(JSON.stringify({gate:'MMF_V017_REAL_PRIVATE_CLOUDFLARE_EXTERNAL_OUTBOX',status:'PASS',
+            separateWebhookWorker:true,nonpublic:true,externalSenderObjectBound:true,
+            scopedFeedbackEnabled:false,providerWebhookRegistered:false,publicAccess:false,
+            networkMailSent:false,customerDataUsed:false,
+            secretNames:secrets?.map(x=>x.name).filter(n=>n.startsWith('MMF_')).length??0}));
+          NODE
