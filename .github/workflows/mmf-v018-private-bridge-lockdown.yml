@@ -1,0 +1,128 @@
+name: MUSITU Mail Fabric v018 Private Feedback Bridge Post-Proof Lockdown
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v018-private-bridge-lockdown.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-bridge-20261010
+  cancel-in-progress: false
+jobs:
+  lockdown:
+    if: github.event.before == '7d39c2aac95aa87e1d20d61a16bc177506211720'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert release remains nonpublic and invoke no live provider network
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check
+          node --test test/private-bridge-lockdown.test.mjs test/feedback-capability-rotation.test.mjs
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const owner=JSON.parse(readFileSync('wrangler.mmf.do-feedback-locked.jsonc','utf8'));
+          const linked=JSON.parse(readFileSync('wrangler.mmf.webhook-linked-locked.jsonc','utf8'));
+          if(owner.name!=='musitu-mail-fabric-staging-20261010'||linked.name!=='musitu-mail-fabric-webhook-linked-test-only'||
+             owner.workers_dev!==false||linked.workers_dev!==false||
+             JSON.stringify(owner.routes)!=='[]'||JSON.stringify(linked.routes)!=='[]'||
+             owner.services!==undefined||linked.main!=='src/edge/webhook-only.mjs'||
+             owner.vars?.MMF_FEEDBACK_RPC_ENABLED!=='true'||linked.vars?.MMF_PRIVATE_BRIDGE_TEST_ENABLED!=='false'||
+             linked.vars?.MMF_OUTBOX_LINK_ENABLED!=='true'||
+             ![owner,linked].every(c=>c.vars?.MMF_REAL_SEND_ENABLED==='false'&&c.vars?.MMF_API_ENABLED==='false'&&
+               c.vars?.MMF_WEBHOOK_ENABLED==='false'&&c.vars?.MMF_STAGE_ONLY==='true'))
+            throw Error('LOCKDOWN_CONFIG_UNSAFE');
+          console.log(JSON.stringify({gate:'MMF_V018_LOCKDOWN_STATIC',status:'PASS',publicAccess:false,providerMail:false}));
+          NODE
+      - name: Scope-check existing private Cloudflare workers before revoking synthetic ability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||typeof k!=='string'||k.length<16)throw Error('CLOUD_SCOPE_INVALID');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(16000)});
+            const x=await r.json();if(!r.ok||x.success===false)throw Error('READ_PREFLIGHT_FAILED');return x.result;};
+          for(const w of ['musitu-mail-fabric-staging-20261010','musitu-mail-fabric-webhook-linked-test-only']){
+            const [cfg,sub]=await Promise.all([get(w+'/settings'),get(w+'/subdomain')]);
+            const b=cfg.bindings||[],value=n=>b.find(x=>x.name===n)?.text;
+            if(sub?.enabled===true||sub?.previews_enabled===true||
+               value('MMF_REAL_SEND_ENABLED')!=='false'||value('MMF_API_ENABLED')!=='false'||
+               value('MMF_WEBHOOK_ENABLED')!=='false')throw Error('WORKER_NOT_PRIVATE');
+          }
+          console.log(JSON.stringify({gate:'MMF_V018_LOCKDOWN_PREFLIGHT',status:'PASS',networkDelivery:false}));
+          NODE
+      - name: Restore private linked ingress to disabled webhook-only code
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.webhook-linked-locked.jsonc
+      - name: Remove cross-Worker synthetic service binding from sender staging
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.do-feedback-locked.jsonc
+      - name: Revoke synthetic-only shared test credential on both isolated Workers
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          deletion="$RUNNER_TEMP/mmf-test-capability-revocation.json"
+          trap 'rm -f "$deletion"' EXIT
+          printf '{"MMF_PRIVATE_BRIDGE_TEST_SECRET":null}\n' > "$deletion"
+          npx --yes wrangler@4 secret bulk "$deletion" --config wrangler.mmf.webhook-linked-locked.jsonc
+          npx --yes wrangler@4 secret bulk "$deletion" --config wrangler.mmf.do-feedback-locked.jsonc
+      - name: Independently prove missing test credentials and preserved scoped feedback authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          const prefix='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const get=async p=>{const r=await fetch(prefix+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(16000)});
+            const v=await r.json();if(!r.ok||v.success===false)throw Error('REVOKED_READBACK_UNAVAILABLE');return v.result;};
+          const read=async w=>Promise.all([get(w+'/settings'),get(w+'/subdomain'),get(w+'/secrets')]);
+          const [owner,linked]=await Promise.all([read('musitu-mail-fabric-staging-20261010'),
+             read('musitu-mail-fabric-webhook-linked-test-only')]);
+          const o=owner[0].bindings||[],l=linked[0].bindings||[];
+          const value=(bindings,n)=>bindings.find(x=>x.name===n)?.text;
+          const ownerSecrets=new Set(owner[2].map(x=>x.name)),linkedSecrets=new Set(linked[2].map(x=>x.name));
+          if(owner[1]?.enabled===true||linked[1]?.enabled===true||
+             owner[1]?.previews_enabled===true||linked[1]?.previews_enabled===true||
+             ![o,l].every(b=>value(b,'MMF_REAL_SEND_ENABLED')==='false'&&
+               value(b,'MMF_WEBHOOK_ENABLED')==='false'&&value(b,'MMF_API_ENABLED')==='false')||
+             value(o,'MMF_FEEDBACK_RPC_ENABLED')!=='true'||
+             value(l,'MMF_PRIVATE_BRIDGE_TEST_ENABLED')!=='false'||
+             value(l,'MMF_OUTBOX_LINK_ENABLED')!=='true'||
+             o.some(x=>x.name==='MMF_PRIVATE_FEEDBACK_INGRESS')||
+             !l.some(x=>x.name==='MMF_OUTBOX'&&x.script_name==='musitu-mail-fabric-staging-20261010')||
+             ownerSecrets.has('MMF_PRIVATE_BRIDGE_TEST_SECRET')||linkedSecrets.has('MMF_PRIVATE_BRIDGE_TEST_SECRET')||
+             !ownerSecrets.has('MMF_FEEDBACK_RPC_SECRET')||
+             !linkedSecrets.has('MMF_OUTBOX_FEEDBACK_SECRET')||
+             !ownerSecrets.has('MMF_STORAGE_RPC_SECRET')||
+             !ownerSecrets.has('MMF_STAGE_DATA_KEY_B64')||
+             linkedSecrets.has('MMF_STORAGE_RPC_SECRET')||
+             linkedSecrets.has('MMF_STAGE_SIGNING_PRIVATE_KEY_PEM')||
+             linkedSecrets.has('MMF_PRIVACY_KEY_B64'))
+            throw Error('SYNTHETIC_CAPABILITY_REVOCATION_NOT_PROVEN');
+          console.log(JSON.stringify({gate:'MMF_V018_PRIVATE_TWO_WORKER_POST_TEST_LOCKDOWN',status:'PASS',
+            syntheticTestCredentialRevoked:true,syntheticServiceBindingRemoved:true,
+            providerFeedbackScopedSecretRetained:true,noSenderKeysAtIngress:true,
+            realProviderWebhookDisabled:true,customerMailDisabled:true,publicAccess:false}));
+          NODE
