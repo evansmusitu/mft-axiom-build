@@ -118,16 +118,21 @@ export async function runSacrificialPitrDrill(namespace,env,probeId){
   restoreNetworkAborted=true; // ctx.abort usually terminates this private RPC.
  }
  let lastPhase='UNOBSERVED';
- // Only actual post-restart data state proves rollback, never merely a restore call.
+ // An aborted DO sometimes needs an additional session to become queryable.
+ // Diagnose only HTTP status / phase categories; never print raw bookmarks.
  for(let i=0;i<20;i++){
   try{
-   const after=await read('/inspect');
-   lastPhase=after?.phase==='altered'?'ALTERED':after?.phase==='baseline'?'BASELINE':'OTHER';
-   if(after.phase==='baseline'&&restoreNetworkAborted)
-    return Object.freeze({status:'PASS',wasRestored:true,afterPhase:'baseline',
-     bookmarkSha256:fingerprint(before.bookmark),targetDedicatedSandbox:true,
-     customerMailSent:false,mainTenantUntouched:true});
-  }catch{}
+   const check=await call('/inspect',{});
+   if(!check.ok)lastPhase='HTTP_'+check.status;
+   else {
+    const after=await check.json();
+    lastPhase=after?.phase==='altered'?'ALTERED':after?.phase==='baseline'?'BASELINE':'OTHER';
+    if(after?.phase==='baseline'&&restoreNetworkAborted)
+     return Object.freeze({status:'PASS',wasRestored:true,afterPhase:'baseline',
+      bookmarkSha256:fingerprint(before.bookmark),targetDedicatedSandbox:true,
+      customerMailSent:false,mainTenantUntouched:true});
+   }
+  }catch{lastPhase='NETWORK';}
   await new Promise(resolve=>setTimeout(resolve,500));
  }
  throw Error('SACRIFICIAL_RESTORE_NOT_PROVEN_'+lastPhase);
