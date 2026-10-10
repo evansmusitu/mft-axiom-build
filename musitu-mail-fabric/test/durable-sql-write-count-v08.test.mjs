@@ -6,7 +6,7 @@ const SECRET='isolated-only-very-long-storage-secret-0123456789';
 test('Cloudflare index-billed rowsWritten must not be mistaken for SQLite affected-row count',async()=>{
  let changed=0;
  const sql={exec(query){
-   if(/^SELECT changes\\(\\)/i.test(query))return {toArray:()=>[{n:changed}],rowsWritten:0};
+   if(query.startsWith('SELECT changes()'))return {toArray:()=>[{n:changed}],rowsWritten:0};
    if(/^UPDATE /i.test(query)){changed=1;return {toArray:()=>[],rowsWritten:7};}
    return {toArray:()=>[],rowsWritten:0};
  }};
@@ -20,7 +20,7 @@ test('Cloudflare index-billed rowsWritten must not be mistaken for SQLite affect
 test('ignored insert returns zero affected rows',async()=>{
  let changed=0;
  const sql={exec(query){
-   if(/^SELECT changes\\(\\)/i.test(query))return {toArray:()=>[{n:changed}],rowsWritten:0};
+   if(query.startsWith('SELECT changes()'))return {toArray:()=>[{n:changed}],rowsWritten:0};
    if(/^INSERT /i.test(query)){changed=0;return {toArray:()=>[],rowsWritten:0};}
    return {toArray:()=>[],rowsWritten:0};
  }};
