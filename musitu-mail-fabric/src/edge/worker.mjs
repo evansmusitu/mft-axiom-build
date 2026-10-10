@@ -85,6 +85,43 @@ export function createWorker({providerFactory}={}){
      return respond(report);
     }catch{return respond({error:'OPERATIONAL_STORE_UNAVAILABLE'},503);}
    }
+   if(request.method==='POST'&&url.pathname==='/v1/operator/senders/revoke'){
+    // Emergency kill-switch for ONE configured sender domain and tenant.
+    // Available even when outbound API and customer sending are paused.
+    if(env?.MMF_SENDER_REVOKE_API_ENABLED!=='true')return respond({error:'NOT_FOUND'},404);
+    if(typeof env.MMF_OPERATOR_TOKEN!=='string'||env.MMF_OPERATOR_TOKEN.length<32||
+       env.MMF_OPERATOR_TOKEN===env.MMF_AUTH_TOKEN)return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
+    if(!authorized(request,env.MMF_OPERATOR_TOKEN))return respond({error:'UNAUTHORIZED'},401);
+    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))
+      return respond({error:'UNSUPPORTED_MEDIA_TYPE'},415);
+    const declared=request.headers.get('content-length');
+    if(declared!==null&&Number(declared)>300)return respond({error:'PAYLOAD_TOO_LARGE'},413);
+    let raw;
+    try{
+      const reader=request.body?.getReader();
+      if(!reader)return respond({error:'INVALID_JSON'},400);
+      const chunks=[];let total=0;
+      try{for(;;){
+        const {value,done}=await reader.read();if(done)break;
+        total+=value.byteLength;if(total>300){await reader.cancel().catch(()=>{});return respond({error:'PAYLOAD_TOO_LARGE'},413);}
+        chunks.push(value);
+      }}finally{try{reader.releaseLock()}catch{}}
+      raw=Buffer.concat(chunks,total).toString('utf8');
+    }catch{return respond({error:'INVALID_JSON'},400);}
+    let body;
+    try{body=JSON.parse(raw);}catch{return respond({error:'INVALID_JSON'},400);}
+    if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).length!==2||
+       body.domain!==env.MMF_FROM_DOMAIN||body.confirm!=='REVOKE_SENDER'||
+       !Object.hasOwn(body,'domain')||!Object.hasOwn(body,'confirm'))
+      return respond({error:'INVALID_REVOCATION_REQUEST'},422);
+    try{
+      const sender=new SenderRegistry({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID});
+      const result=await sender.revoke(body.domain);
+      if(result?.revoked!==true||await sender.isVerified(body.domain)!==false)
+        throw Error('SENDER_REVOCATION_UNVERIFIED');
+      return respond({revoked:true});
+    }catch{return respond({error:'SENDER_REVOCATION_UNAVAILABLE'},503);}
+   }
    if(request.method==='POST'&&url.pathname==='/v1/operator/suppressions'){
     // Dedicated operator capability, independent of customer API credentials.
     // No public listing or deletion route. Must also work while mail is paused.
