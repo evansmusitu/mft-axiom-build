@@ -32,3 +32,17 @@ The test also does not qualify long-term KMS/HSM custody, historical signing-key
 Secret material used for this stage exercise was disposable, not recorded in GitHub commits, not included in the handoff or output. Its temporary synthetic-testing capability should be revoked or disabled after proving the bridge. Until legitimate vendor-originated events, independent external review and full operational approvals are obtained, **commercial sending and public webhook intake stay blocked**.
 
 Protected GitHub main, PR #1, AXIOM production/support, Claude distribution and the frozen OpenAI submission are out of scope and were not changed by the v0.18 stage exercise.
+
+## Live post-qualification security lockdown
+
+GitHub Actions [38073750563](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38073750563) also completed **successfully** after the positive two-Worker proof. Its Cloudflare readback returned `MMF_V018_PRIVATE_TWO_WORKER_POST_TEST_LOCKDOWN=PASS`:
+
+- The one-time synthetic-testing credential `MMF_PRIVATE_BRIDGE_TEST_SECRET` was **revoked from both private staging Workers**, without printing the credential or changing the unrelated scoped feedback credential.
+- The staging sender's temporary service-binding ability to invoke the synthetic ingress test endpoint was removed.
+- The linked Worker reverted to `src/edge/webhook-only.mjs`; synthetic test endpoint disabled. Existing external sender Durable Object binding and independently scoped feedback credential were preserved.
+- The sender's `MMF_FEEDBACK_RPC_SECRET`, stage data/signing secrets and general SQL secret were preserved; the ingress still does **not** hold the sender signing/encryption/privacy keys or unrestricted SQL secret.
+- Independent cloud readback reconfirmed **no public access**, no customer API, no outbound customer sending and **no registered live webhook route**. The source of truth for this locked deployment is `wrangler.mmf.do-feedback-locked.jsonc` and `wrangler.mmf.webhook-linked-locked.jsonc`.
+
+This was a **real cloud revocation of the disposable synthetic-test capability**. It was *not* a live old-to-new rollover of the owner/ingress feedback SQL key; the application supports a time-bounded previous key but an independently controlled KMS procedure and true credential-replacement drill remain outstanding.
+
+The verified private cross-Worker proof is retained in GitHub Actions logs, despite the private test endpoint being disabled afterward. To rerun it, a fresh explicit isolated staging qualification and newly generated capability are required.
