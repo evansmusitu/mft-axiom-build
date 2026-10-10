@@ -1,10 +1,16 @@
-name: MUSITU v015 Linked Feedback Bundle
+name: MUSITU v016 Bounded Ingress and Scoped Feedback — No Deployment
 on:
   push:
     branches:
       - product/musitu-mail-fabric-isolated-20261009
     paths:
       - .github/workflows/mmf-v015-linked.yml
+      - musitu-mail-fabric/src/edge/feedback-rpc.mjs
+      - musitu-mail-fabric/src/webhooks/bounded-body.mjs
+      - musitu-mail-fabric/src/edge/worker.mjs
+      - musitu-mail-fabric/test/webhook-scoped-feedback-rpc.test.mjs
+      - musitu-mail-fabric/test/customer-api-bounded-body.test.mjs
+      - musitu-mail-fabric/test/operator-input-bounds-v016.test.mjs
 permissions:
   contents: read
 jobs:
@@ -21,7 +27,20 @@ jobs:
           npm run check
           npm test
           npm run test:webhook-bridge
+          npm run test:ingress-security
       - name: Build without deployment
         run: |
           cd musitu-mail-fabric
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.webhook-linked.template.jsonc','utf8'));
+          const vars=c.vars||{},bindings=c.durable_objects?.bindings||[];
+          if(c.workers_dev!==false||!Array.isArray(c.routes)||c.routes.length!==0||
+             vars.MMF_REAL_SEND_ENABLED!=='false'||vars.MMF_API_ENABLED!=='false'||
+             vars.MMF_WEBHOOK_ENABLED!=='false'||vars.MMF_OUTBOX_LINK_ENABLED!=='false'||
+             !bindings.some(x=>x.name==='MMF_OUTBOX'&&x.script_name==='musitu-mail-fabric-staging-20261010'))
+             throw Error('WEBHOOK_LINKED_TEMPLATE_NOT_PRIVATE_OR_FAIL_CLOSED');
+          console.log(JSON.stringify({gate:'MMF_V016_NONPUBLIC_LINKED_WORKER_STATIC',status:'PASS',
+            routes:0,liveSending:false,publicWebhook:false,externalOutboxLinked:false}));
+          NODE
           npx --yes wrangler@4 deploy --dry-run --config wrangler.mmf.webhook-linked.template.jsonc
