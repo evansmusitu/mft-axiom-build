@@ -93,24 +93,10 @@ export function createWorker({providerFactory}={}){
     if(typeof env.MMF_OPERATOR_TOKEN!=='string'||env.MMF_OPERATOR_TOKEN.length<32||
        env.MMF_OPERATOR_TOKEN===env.MMF_AUTH_TOKEN)return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
     if(!authorized(request,env.MMF_OPERATOR_TOKEN))return respond({error:'UNAUTHORIZED'},401);
-    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))
-      return respond({error:'UNSUPPORTED_MEDIA_TYPE'},415);
-    const declared=request.headers.get('content-length');
-    if(declared!==null&&Number(declared)>300)return respond({error:'PAYLOAD_TOO_LARGE'},413);
-    let raw;
-    try{
-      const reader=request.body?.getReader();
-      if(!reader)return respond({error:'INVALID_JSON'},400);
-      const chunks=[];let total=0;
-      try{for(;;){
-        const {value,done}=await reader.read();if(done)break;
-        total+=value.byteLength;if(total>300){await reader.cancel().catch(()=>{});return respond({error:'PAYLOAD_TOO_LARGE'},413);}
-        chunks.push(value);
-      }}finally{try{reader.releaseLock()}catch{}}
-      raw=Buffer.concat(chunks,total).toString('utf8');
-    }catch{return respond({error:'INVALID_JSON'},400);}
+    const bounded=await readBoundedWebhookBody(request,{maxBytes:300});
+    if(bounded.error)return respond({error:bounded.error},bounded.status);
     let body;
-    try{body=JSON.parse(raw);}catch{return respond({error:'INVALID_JSON'},400);}
+    try{body=JSON.parse(bounded.raw);}catch{return respond({error:'INVALID_JSON'},400);}
     if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).length!==2||
        body.domain!==env.MMF_FROM_DOMAIN||body.confirm!=='REVOKE_SENDER'||
        !Object.hasOwn(body,'domain')||!Object.hasOwn(body,'confirm'))
@@ -134,25 +120,10 @@ export function createWorker({providerFactory}={}){
     const dailyLimit=rawLimit===undefined?200:Number(rawLimit);
     if(!Number.isSafeInteger(dailyLimit)||dailyLimit<1||dailyLimit>5000)
       return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
-    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))
-      return respond({error:'UNSUPPORTED_MEDIA_TYPE'},415);
-    const declared=request.headers.get('content-length');
-    if(declared!==null&&Number(declared)>1024)return respond({error:'PAYLOAD_TOO_LARGE'},413);
-    let raw;
-    try{
-      // Stream-read with a hard cap, avoiding unbounded request.text() allocation.
-      const reader=request.body?.getReader();
-      if(!reader)return respond({error:'INVALID_JSON'},400);
-      const chunks=[];let total=0;
-      try{for(;;){
-        const {value,done}=await reader.read();if(done)break;
-        total+=value.byteLength;if(total>1024){await reader.cancel().catch(()=>{});return respond({error:'PAYLOAD_TOO_LARGE'},413);}
-        chunks.push(value);
-      }}finally{try{reader.releaseLock()}catch{}}
-      raw=Buffer.concat(chunks,total).toString('utf8');
-    }catch{return respond({error:'INVALID_JSON'},400);}
+    const bounded=await readBoundedWebhookBody(request,{maxBytes:1024});
+    if(bounded.error)return respond({error:bounded.error},bounded.status);
     let parsed;
-    try{parsed=JSON.parse(raw);}
+    try{parsed=JSON.parse(bounded.raw);}
     catch{return respond({error:'INVALID_JSON'},400);}
     if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||
        Object.keys(parsed).length!==1||!Object.hasOwn(parsed,'recipient'))
