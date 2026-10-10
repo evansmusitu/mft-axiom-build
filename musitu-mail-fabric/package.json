@@ -1,9 +1,9 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
-  "description": "Bounded signed webhook ingress with scoped outbox feedback bridge; private cloud staging only",
+  "description": "Private communications infrastructure with bounded external/API/operator and scoped feedback bridge intake; staged only",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
@@ -16,7 +16,8 @@
     "test:feedback": "node --test test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs test/stage-synthetic-feedback.test.mjs test/reconciliation-v06.test.mjs test/live-provider-feedback-gate.test.mjs",
     "test:operator": "node --test test/operator-suppression.test.mjs test/operator-sender-revocation.test.mjs test/stage-operator-suppression.test.mjs",
     "test:webhook-only": "node --test test/webhook-only-ingress.test.mjs test/webhook-only-config.test.mjs",
-    "test:webhook-bridge": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-linked-outbox.test.mjs test/webhook-linked-config.test.mjs test/webhook-scoped-feedback-rpc.test.mjs"
+    "test:webhook-bridge": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-linked-outbox.test.mjs test/webhook-linked-config.test.mjs test/webhook-scoped-feedback-rpc.test.mjs",
+    "test:ingress-security": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-scoped-feedback-rpc.test.mjs test/customer-api-bounded-body.test.mjs test/operator-input-bounds-v016.test.mjs test/webhook-linked-outbox.test.mjs"
   },
   "engines": {
     "node": ">=20"
