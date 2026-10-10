@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   whole-product-handoff:
-    if: github.event.before == '7ac5679859911559c8fa83075a767294080d2731'
+    if: github.event.before == 'd9f3118cb7b81c475c0d3dcabc2bfa5b4f5d9f66'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -208,3 +208,4 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           compression-level: 9
+          include-hidden-files: true
