@@ -13,7 +13,8 @@ function harness({deny=false,flagOverrides={},failRestore=false}={}){
     if(sql.startsWith('CREATE TABLE'))return {toArray:()=>[]};
     if(sql.startsWith('INSERT')){if(phase!==null)throw Error('EXISTS');phase='baseline';return{toArray:()=>[]};}
     if(sql.startsWith('UPDATE')){if(phase!=='baseline')throw Error('WRONG_PHASE');phase='altered';return{toArray:()=>[]};}
-    if(sql.startsWith('SELECT'))return{toArray:()=>phase?[{phase}]:[]};
+    if(sql.startsWith('SELECT COUNT(*)'))return{toArray:()=>[{n:phase===null?0:1}]};
+    if(sql.startsWith('SELECT'))return{toArray:()=>phase?[{probe_id:probe,phase}]:[]};
     throw Error('UNEXPECTED_SQL');
   }},
   async getCurrentBookmark(){pitr++;snapshot=phase;return '0000007b-0000b26e-00001538-0c3e87bb37b3db5cc52eedb93cd3b96b';},
