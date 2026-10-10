@@ -10,7 +10,7 @@ import type {
   AppliedBinding, ControlPlaneResult, EvidenceRequirement, ExecutionRequest,
   PlatformExecutionRecord, PolicyDecision, PolicyManifest, ReplayResult, TenantScope, WorldSnapshot
 } from "./types.ts";
-import type { SignerProvider } from "./signer.ts";
+import { signerPublicKeySha256, signingIntentIdForCertificate, type SignerIdentity, type SignerProvider } from "./signer.ts";
 
 const PLATFORM_CONTEXT_PREFIX="AXIOM_PLATFORM_CONTEXT_SHA256:";
 
@@ -39,19 +39,57 @@ function canonicalIssuedAt(issuedAt:string,snapshotAsOf:string):string {
   if(issuedMs<snapshotMs)throw new RangeError("issuedAt cannot be before the world-state snapshot asOf time");
   return normalized;
 }
-function platformContext(
+function legacyPlatformContext(
   tenant:TenantScope,snapshot:WorldSnapshot,policyDecision:PolicyDecision,policyManifest:PolicyManifest,
   requirements:EvidenceRequirement[],bindings:AppliedBinding[],executionIntentId?:string,executionRequestHash?:string
 ){
   const core={tenantId:tenant.tenantId,snapshotId:snapshot.snapshotId,snapshotHash:snapshot.snapshotHash,policyDecision,policyManifest,requirements,bindings};
   return executionIntentId?{...core,executionIntentId,executionRequestHash}:core;
 }
-function contextHash(
+function legacyContextHash(
   tenant:TenantScope,snapshot:WorldSnapshot,policyDecision:PolicyDecision,policyManifest:PolicyManifest,
   requirements:EvidenceRequirement[],bindings:AppliedBinding[],executionIntentId?:string,executionRequestHash?:string
 ):string {
-  return hashJson(json(platformContext(tenant,snapshot,policyDecision,policyManifest,requirements,bindings,executionIntentId,executionRequestHash)));
+  return hashJson(json(legacyPlatformContext(tenant,snapshot,policyDecision,policyManifest,requirements,bindings,executionIntentId,executionRequestHash)));
 }
+function platformContextV2(
+  tenant:TenantScope,snapshot:WorldSnapshot,policyDecision:PolicyDecision,policyManifest:PolicyManifest,
+  requirements:EvidenceRequirement[],bindings:AppliedBinding[],signerIdentity:SignerIdentity,
+  executionIntentId?:string,executionRequestHash?:string
+){
+  const core={
+    platformContextVersion:"2",tenantId:tenant.tenantId,snapshotId:snapshot.snapshotId,snapshotHash:snapshot.snapshotHash,
+    policyDecision,policyManifest,requirements,bindings,signerIdentity
+  };
+  return executionIntentId?{...core,executionIntentId,executionRequestHash}:core;
+}
+function contextHashV2(
+  tenant:TenantScope,snapshot:WorldSnapshot,policyDecision:PolicyDecision,policyManifest:PolicyManifest,
+  requirements:EvidenceRequirement[],bindings:AppliedBinding[],signerIdentity:SignerIdentity,
+  executionIntentId?:string,executionRequestHash?:string
+):string {
+  return hashJson(json(platformContextV2(
+    tenant,snapshot,policyDecision,policyManifest,requirements,bindings,signerIdentity,executionIntentId,executionRequestHash
+  )));
+}
+function validatedSignerIdentity(provider:SignerProvider):{identity:SignerIdentity;trustedKey:string} {
+  const raw=provider?.identity as any;
+  if(!raw||raw.protocolVersion!=="axiom.signer/v1"||raw.algorithm!=="Ed25519"||(raw.mode!=="LOCAL"&&raw.mode!=="EXTERNAL")){
+    throw new Error("Signer identity is invalid");
+  }
+  if(typeof raw.providerId!=="string"||!raw.providerId.trim()||typeof raw.keyId!=="string"||!raw.keyId.trim()){
+    throw new Error("Signer identity is incomplete");
+  }
+  if(!/^[0-9a-f]{64}$/.test(String(raw.publicKeySha256??"")))throw new Error("Signer identity public key hash is invalid");
+  if(provider.keyId!==raw.keyId)throw new Error("Signer identity keyId does not match active signer key");
+  const trustedKey=provider.trustedPublicKeyPem(raw.keyId);
+  if(!trustedKey)throw new Error(`Signer provider has no trusted public key for active key ${raw.keyId}`);
+  if(signerPublicKeySha256(trustedKey)!==raw.publicKeySha256){
+    throw new Error("Signer identity does not match trusted public key");
+  }
+  return {identity:structuredClone(raw) as SignerIdentity,trustedKey};
+}
+
 function resultFromRecord(record:PlatformExecutionRecord):ControlPlaneResult {
   const status=(record.certificate.core as any).decisionStatus;
   if(status!=="APPROVED"&&status!=="DENIED")throw new Error("Stored execution decision status is invalid");
@@ -100,10 +138,31 @@ export class ReasoningControlPlane {
     const recomputedPolicy=evaluateEvidencePolicy(snapshot,record.requirements);
     if(hashJson(json(recomputedPolicy))!==hashJson(json(record.policyDecision)))diagnostics.push("policy replay mismatch");
 
-    const expectedContextHash=contextHash(
-      this.tenant,snapshot,record.policyDecision,record.policyManifest,record.requirements,record.bindings,
-      record.executionIntentId,record.executionRequestHash
-    );
+    let expectedContextHash:string;
+    if(record.platformContextVersion==="2"){
+      if(!record.signerIdentity)diagnostics.push("signer identity missing");
+      if(!record.signingIntentId)diagnostics.push("signing intent missing");
+      if(record.signerIdentity){
+        if(record.signerKeyId!==record.signerIdentity.keyId)diagnostics.push("signer key identity mismatch");
+        const trustedIdentityKey=this.signer.trustedPublicKeyPem(record.signerIdentity.keyId);
+        if(!trustedIdentityKey)diagnostics.push(`unknown signer key: ${record.signerIdentity.keyId}`);
+        else if(signerPublicKeySha256(trustedIdentityKey)!==record.signerIdentity.publicKeySha256)diagnostics.push("signer identity public key hash mismatch");
+        if(record.signingIntentId&&signingIntentIdForCertificate(record.certificate,record.signerIdentity)!==record.signingIntentId){
+          diagnostics.push("signing intent mismatch");
+        }
+        expectedContextHash=contextHashV2(
+          this.tenant,snapshot,record.policyDecision,record.policyManifest,record.requirements,record.bindings,
+          record.signerIdentity,record.executionIntentId,record.executionRequestHash
+        );
+      }else{
+        expectedContextHash=record.platformContextHash;
+      }
+    }else{
+      expectedContextHash=legacyContextHash(
+        this.tenant,snapshot,record.policyDecision,record.policyManifest,record.requirements,record.bindings,
+        record.executionIntentId,record.executionRequestHash
+      );
+    }
     if(record.platformContextHash!==expectedContextHash)diagnostics.push("platform context hash mismatch");
     const contextAssumptions=record.certificate.replay.program.assumptions.filter(a=>a.startsWith(PLATFORM_CONTEXT_PREFIX));
     if(contextAssumptions.length!==1||contextAssumptions[0]!==`${PLATFORM_CONTEXT_PREFIX}${expectedContextHash}`)diagnostics.push("platform context certificate binding mismatch");
@@ -167,21 +226,29 @@ export class ReasoningControlPlane {
     }
 
     const executionRequestHash=executionIntentId?hashJson(json(request)):undefined;
-    const platformContextHash=contextHash(this.tenant,snapshot,policyDecision,policyManifest,requirements,applied,executionIntentId,executionRequestHash);
+    const signerBoundary=validatedSignerIdentity(this.signer);
+    const signerIdentity=signerBoundary.identity;
+    const platformContextHash=contextHashV2(
+      this.tenant,snapshot,policyDecision,policyManifest,requirements,applied,signerIdentity,executionIntentId,executionRequestHash
+    );
     program.assumptions=[...program.assumptions,`${PLATFORM_CONTEXT_PREFIX}${platformContextHash}`];
 
     const compiled=compileProgram(program,this.registry);
     const execution=new AxiomRuntime(this.registry).execute(compiled);
-    const certificate=this.signer.issue(compiled,execution,issuedAt);
-    const activeTrustedKey=this.signer.trustedPublicKeyPem(this.signer.keyId);
-    if(!activeTrustedKey)throw new Error(`Signer provider has no trusted public key for active key ${this.signer.keyId}`);
+    const signingIntentId=this.signer.signingIntentId(compiled,execution,issuedAt);
+    const certificate=await this.signer.issue(compiled,execution,issuedAt);
+    if(signingIntentIdForCertificate(certificate,signerIdentity)!==signingIntentId){
+      throw new Error("Signer signing intent is inconsistent with the issued certificate and declared identity");
+    }
+    const activeTrustedKey=signerBoundary.trustedKey;
     const signerVerification=replayCertificate(certificate,this.registry,compiled,activeTrustedKey);
     if(signerVerification.status!=="MATCH")throw new Error(`Signer provider issued invalid certificate: ${signerVerification.diagnostics.join("; ")}`);
 
     const core={
       id:`platform:${certificate.certificateId}`,tenantId:this.tenant.tenantId,
       snapshotId:snapshot.snapshotId,snapshotHash:snapshot.snapshotHash,policyDecision,policyManifest,
-      requirements,bindings:applied,platformContextHash,certificate,signerKeyId:this.signer.keyId,
+      requirements,bindings:applied,platformContextHash,certificate,signerKeyId:signerIdentity.keyId,
+      platformContextVersion:"2" as const,signerIdentity,signingIntentId,
       ...(executionIntentId?{executionIntentId,executionRequestHash}: {})
     };
     const record:PlatformExecutionRecord={...core,recordHash:hashJson(json(core))};

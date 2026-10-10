@@ -121,3 +121,31 @@ No acceptance criterion asserts guaranteed profit, investment return, model trut
 
 
 Security-review regression coverage additionally requires that bound execution recovery replay-verifies an already-mapped execution before returning it, including when a storage attacker mutates the certificate/policy material and recomputes both execution and intent-mapping record hashes.
+
+
+## Phase-2.5B acceptance properties
+
+Phase 2.5B additionally requires:
+
+1. Phase-1 exposes deterministic certificate preparation/finalization while preserving the existing certificate format and local signer behavior.
+2. Certificate finalization independently verifies Ed25519 signature shape and exact signed payload before returning a certificate.
+3. Certificate finalization rejects an embedded replay program whose hash no longer matches the program hash committed by the signed core.
+4. External signer providers require no private key and expose an explicit server-owned signer identity.
+5. Signer identity commits protocol, provider, LOCAL/EXTERNAL mode, key ID, Ed25519 algorithm, and canonical public-key hash.
+6. The stable signing-intent ID commits the exact signer identity and canonical certificate signing-payload hash.
+7. Active and historical signer trust is pinned server-side; remote responses cannot inject public keys.
+8. External provider responses must exactly match protocol/key/algorithm/intent/payload hash and carry a canonical 64-byte Ed25519 signature.
+9. Returned signatures are independently verified under the pinned active key before certificate finalization.
+10. The HTTP signing backend uses fixed HTTPS origin/path, manual redirect denial, strict bounded JSON, server-owned credentials, and secret-echo rejection.
+11. New execution records use platform-context version 2 and cryptographically commit signer identity in the signed context.
+12. The persisted signer key, signer identity, trusted public-key hash, and signing intent are self-consistent before persistence.
+13. Rewriting signer identity or signing intent plus recomputing unkeyed database hashes cannot produce replay `MATCH`.
+14. Correctly signed legacy v1 platform-context records remain replayable.
+15. Stored v2 replay never calls the external signer.
+16. An ambiguous lost signer response is released for fenced retry rather than converted into a reasoning result.
+17. Distributed retry sends the identical Ed25519 signing request/signing intent and still produces only one durable execution for the job execution intent.
+18. A forged signer signature cannot be persisted as an AXIOM reasoning certificate.
+19. The Phase-2.5B end-to-end gate composes external signing, lost-response retry, one durable intent, v2 replay, legacy replay, and forged-output rejection.
+20. Every prior Phase-1 and Phase-2 gate remains green.
+
+No acceptance criterion asserts guaranteed profit, investment return, model truth, exactly-once external effects, valuation, or commercial success.

@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
+import { sign } from "node:crypto";
 import {
   compileProgram, compilerManifest, createDefaultRegistry, createSigner, hashJson
 } from "../../phase1/src/index.ts";
@@ -316,5 +317,73 @@ test("worker releases transient failures and recovers a crash after execution pe
     raw2.close();
   }finally{
     world.close();executions.close();baseJobs.close();rmSync(dir,{recursive:true,force:true});
+  }
+});
+
+
+test("distributed retry repeats the identical external signing intent after a lost signer response",async()=>{
+  const f=await fixture();
+  const dir=mkdtempSync(join(tmpdir(),"axiom-p25b-signer-retry-")),db=join(dir,"platform.db");
+  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db);
+  try{
+    await putWorld(world);
+    const submitExecutor=new f.phase2.ModelExecutionService({
+      repository:f.repository,profiles:f.profiles,registry:f.registry,plane:{execute(){throw new Error("unused");}}
+    });
+    const queued=await new f.phase2.ModelDispatchService({modelExecutor:submitExecutor,world,jobs})
+      .dispatch(context(f.record.compilationId),f.record.compilationId,timing(),H("6"),"2026-10-08T14:00:02.000Z");
+
+    const remote=createSigner(),calls:any[]=[];
+    let loseFirst=true;
+    const signer=f.phase2.createExternalEd25519SignerProvider({
+      providerId:"kms:distributed-test",activeKeyId:"key:kms:distributed:v1",activePublicKey:remote.publicKey,
+      trustedKeys:{"key:kms:distributed:v1":remote.publicKey},
+      backend:{async sign(request:any){
+        calls.push(structuredClone(request));
+        const signatureBase64=sign(null,Buffer.from(request.payloadBase64,"base64"),remote.privateKey).toString("base64");
+        if(loseFirst){loseFirst=false;throw new Error("simulated lost signer response");}
+        return {
+          protocolVersion:request.protocolVersion,keyId:request.keyId,algorithm:request.algorithm,
+          signingIntentId:request.signingIntentId,payloadHash:request.payloadHash,signatureBase64
+        };
+      }}
+    });
+    const runtimes={create(scope:any){
+      const plane=new f.phase2.ReasoningControlPlane({tenant:scope,world,executions,signer,registry:f.registry});
+      return {
+        modelExecutor:new f.phase2.ModelExecutionService({repository:f.repository,profiles:f.profiles,registry:f.registry,plane}),
+        executions,plane
+      };
+    }};
+
+    const firstWorker=new f.phase2.DistributedModelExecutionWorker({
+      jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
+    });
+    assert.deepEqual(await firstWorker.runOnce("worker:signer-loss"),{status:"RETRY",jobId:queued.jobId});
+    assert.equal((await jobs.get(A,queued.jobId)).state.status,"PENDING");
+    assert.equal(await executions.getByIntent(A,queued.jobId),undefined);
+
+    const secondWorker=new f.phase2.DistributedModelExecutionWorker({
+      jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:04.000Z","2026-10-08T14:00:04.100Z")
+    });
+    const second=await secondWorker.runOnce("worker:signer-retry");
+    assert.equal(second.status,"COMPLETED");
+    assert.equal(calls.length,2);
+    assert.deepEqual(calls[1],calls[0]);
+    assert.match(calls[0].signingIntentId,/^[0-9a-f]{64}$/);
+
+    const stored=await executions.getByIntent(A,queued.jobId);
+    assert.ok(stored);
+    assert.equal(stored.signingIntentId,calls[0].signingIntentId);
+    assert.deepEqual(await new f.phase2.ReasoningControlPlane({tenant:A,world,executions,signer,registry:f.registry}).replayStored(stored.id),{
+      status:"MATCH",diagnostics:[]
+    });
+
+    const raw=new DatabaseSync(db);
+    assert.equal(Number((raw.prepare("SELECT COUNT(*) AS n FROM platform_executions WHERE tenant_id=?").get(A.tenantId) as any).n),1);
+    assert.equal(Number((raw.prepare("SELECT COUNT(*) AS n FROM execution_intents WHERE tenant_id=?").get(A.tenantId) as any).n),1);
+    raw.close();
+  }finally{
+    world.close();executions.close();jobs.close();rmSync(dir,{recursive:true,force:true});
   }
 });

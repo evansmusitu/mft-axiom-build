@@ -135,6 +135,7 @@ npm run gate:phase23a
 npm run gate:phase24a
 npm run gate:phase24b
 npm run gate:phase25a
+npm run gate:phase25b
 ```
 
 PostgreSQL integration:
@@ -181,4 +182,23 @@ Expired leases are reclaimed with a strictly larger epoch. Heartbeat, retry rele
 
 Public job reads are separately authorized by `execution:job:read` and expose only job ID, status, snapshot ID, attempt count, creation/terminal time, bounded terminal result, and sanitized failure code. Worker identity, lease timing, prepared program, compilation internals, and authorization internals are not returned.
 
-Distributed workers do not call model providers, evidence adapters, or explanation providers. Provider-call jobs, external action execution, broker-as-authority semantics, remote worker control/attestation, dead-letter/operator policy, quotas/fair scheduling, and HSM/KMS signing remain separate production increments.
+Distributed workers do not call model providers, evidence adapters, or explanation providers. Provider-call jobs, external action execution, broker-as-authority semantics, remote worker control/attestation, dead-letter/operator policy, and quotas/fair scheduling remain separate production increments. Phase 2.5B adds the generic external signing boundary; vendor-specific HSM/KMS drivers, provisioning, rotation administration, and deployment policy remain separate.
+
+
+## Phase 2.5B out-of-process deterministic certificate signing
+
+Phase 2.5B removes the production requirement that the reasoning private key live inside the AXIOM Node.js process. Phase-1 certificate construction is split into deterministic preparation and finalization primitives while preserving the existing certificate format and local signer API.
+
+Phase 2 signer providers are asynchronous and expose an explicit, server-owned signer identity: protocol version, provider ID, LOCAL/EXTERNAL mode, key ID, Ed25519 algorithm, and SHA-256 of canonical SPKI public-key DER. The active and historical public keys remain pinned in AXIOM configuration. External signer responses never supply trusted key material.
+
+For each exact certificate payload, AXIOM derives a stable signing-intent ID from the signed payload hash plus the committed signer identity. The external Ed25519 provider sends only the exact canonical signing payload and that identity-bound intent through a bounded backend, independently verifies the returned signature under the pinned public key, and only then finalizes/persists the certificate.
+
+`HttpEd25519SigningBackend` uses a fixed HTTPS origin/path, manual redirect handling, bounded request/response sizes, strict JSON schema, exact key/algorithm/intent/payload echoes, header-only resolved credentials, and secret-echo rejection. The backend is suitable for a narrowly scoped HSM/KMS gateway but is not itself a vendor-specific HSM/KMS driver.
+
+New executions use signed platform-context version 2. The context commits the exact signer identity before Phase-1 execution; the persisted record also stores the stable signing intent. Issuance validates that declared signer identity matches the pinned active public key and that the stored signing intent matches the actual certificate before persistence. Replay revalidates those commitments without contacting the external signer.
+
+Legacy pre-2.5B platform-context records remain replayable through the exact v1 context formula. Historical key rotation remains keyring-based and network-free.
+
+Because Ed25519 is deterministic for a fixed key/message, an ambiguous lost signing response can be retried with the identical request. The existing Phase-2.5A lease fencing and stable execution-intent mapping still guarantee at most one durable AXIOM execution record for one distributed intent. This is not an exactly-once external-side-effect claim.
+
+Vendor-specific AWS/GCP/Azure KMS integration, PKCS#11, hardware provisioning, key-rotation administration, mTLS/network deployment policy, external signing audit notarization, and non-Ed25519 algorithms remain deferred.
