@@ -112,3 +112,7 @@ The private synthetic-only Cloudflare stage can now exercise `DurableMailFabric`
 ## v0.8.3 — Cloudflare SQLite billed-write mismatch correction
 
 A real private staging run exposed and now has a regression test for treating Cloudflare billed `rowsWritten` as the number of SQL rows changed. The Durable Object adapter now reads `SELECT changes()` after each statement without yielding, so atomic delivery claims receive the correct affected-row count. Cloud requalification is mandatory before declaring this resolved in the deployed runtime. See `docs/2026-10-10-v083-sqlite-affected-rows.md`.
+
+### v0.8.3 live qualification result
+
+The isolated private Cloudflare Queue → SQLite Durable Object → full `DurableMailFabric` transaction → synthetic-only provider → signed evidence chain **passed** independently pinned receipt verification in GitHub Actions run [38027200745](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38027200745). The code regression suite reported 97 pass / 1 skipped / 0 fail. **No real email sent; not production-qualified.** Exact evidence and blockers: `docs/2026-10-10-v083-live-cloud-proof.md`.
