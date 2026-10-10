@@ -1,0 +1,94 @@
+name: MUSITU v016 Read-only Cloud Feedback Link Audit
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v016-cloud-feedback-link-audit.yml']
+permissions:
+  contents: read
+jobs:
+  private-readonly-audit:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      SENDER_STAGING_SCRIPT: 'musitu-mail-fabric-staging-20261010'
+      WEBHOOK_STAGING_SCRIPT: 'musitu-mail-fabric-webhook-isolated-20261010'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read-only comparison of private Workers, feedback DO binding and secret names
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const key=process.env.CLOUDFLARE_API_TOKEN;
+          const sender=process.env.SENDER_STAGING_SCRIPT,webhook=process.env.WEBHOOK_STAGING_SCRIPT;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||
+             sender!=='musitu-mail-fabric-staging-20261010'||
+             webhook!=='musitu-mail-fabric-webhook-isolated-20261010'||
+             typeof key!=='string'||key.length<16)throw Error('STAGING_AUDIT_SCOPE_INVALID');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/';
+          async function get(script,suffix){
+            const url=base+encodeURIComponent(script)+'/'+suffix;
+            const r=await fetch(url,{method:'GET',headers:{authorization:'Bearer '+key},
+              signal:AbortSignal.timeout(14000)});
+            const data=await r.json();
+            if(!r.ok||data.success===false)throw Error('STAGING_READ_FAILED_'+script+'_'+suffix+'_'+r.status);
+            return data.result;
+          }
+          const [senderSettings,webhookSettings,senderSub,webhookSub,senderSecrets,webhookSecrets]=await Promise.all([
+            get(sender,'settings'),get(webhook,'settings'),
+            get(sender,'subdomain'),get(webhook,'subdomain'),
+            get(sender,'secrets'),get(webhook,'secrets')
+          ]);
+          const a=senderSettings?.bindings||[],b=webhookSettings?.bindings||[];
+          const textValue=(bindings,n)=>bindings.find(x=>x.name===n)?.text;
+          const secretName=(inventory,n)=>Array.isArray(inventory)&&inventory.some(x=>x.name===n);
+          const senderPrivate=senderSub?.enabled!==true&&senderSub?.previews_enabled!==true&&
+            textValue(a,'MMF_STAGE_ONLY')==='true'&&textValue(a,'MMF_REAL_SEND_ENABLED')==='false'&&
+            textValue(a,'MMF_API_ENABLED')==='false'&&textValue(a,'MMF_WEBHOOK_ENABLED')==='false';
+          const webhookPrivate=webhookSub?.enabled!==true&&webhookSub?.previews_enabled!==true&&
+            textValue(b,'MMF_REAL_SEND_ENABLED')==='false'&&
+            textValue(b,'MMF_API_ENABLED')==='false'&&textValue(b,'MMF_WEBHOOK_ENABLED')==='false';
+          if(!senderPrivate||!webhookPrivate)throw Error('LIVE_PRIVATE_STAGE_DRIFT_DETECTED');
+          const linkedObject=b.find(x=>x.name==='MMF_OUTBOX'&&x.type==='durable_object_namespace');
+          const sourceLedger=a.find(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace');
+          if(!sourceLedger)throw Error('SENDER_STAGING_LEDGER_NOT_PRESENT');
+          const ownerEnabled=textValue(a,'MMF_FEEDBACK_RPC_ENABLED')==='true';
+          const ingressEnabled=textValue(b,'MMF_OUTBOX_LINK_ENABLED')==='true'&&
+            textValue(b,'MMF_WEBHOOK_ENABLED')==='true';
+          const senderFeedbackKey=secretName(senderSecrets,'MMF_FEEDBACK_RPC_SECRET');
+          const webhookFeedbackKey=secretName(webhookSecrets,'MMF_OUTBOX_FEEDBACK_SECRET');
+          const webhookSigner=secretName(webhookSecrets,'MMF_WEBHOOK_SECRET');
+          // No live send or public ingress is activated in this workflow.
+          // Inventory names only; never emit any secret value or private SQL data.
+          const linkedToExpectedSender=Boolean(linkedObject&&
+            linkedObject.script_name===sender);
+          const linkReady=linkedToExpectedSender&&ownerEnabled&&ingressEnabled&&
+            senderFeedbackKey&&webhookFeedbackKey&&webhookSigner;
+          const report={
+            gate:'MMF_V016_PRIVATE_CLOUD_LINK_AUDIT',status:'PASS',
+            reviewType:'READ_ONLY_ACTUAL_CLOUDFLARE_STATE',
+            senderWorkerNonpublic:senderPrivate,webhookWorkerNonpublic:webhookPrivate,
+            senderLedgerPresent:true,
+            externalOutboxBindingPresent:linkedToExpectedSender,
+            senderFeedbackCapabilityEnabled:ownerEnabled,
+            senderFeedbackSecretPresent:senderFeedbackKey,
+            webhookFeedbackSecretPresent:webhookFeedbackKey,
+            webhookSigningSecretPresent:webhookSigner,
+            webhookExternalIngressEnabled:ingressEnabled,
+            productionProviderEventsVerified:false,
+            crossWorkerProductionReady:linkReady,
+            customerSendingEnabled:false,publicRouteEnabled:false,
+            secretsRead:false,secretsChanged:false,deployPerformed:false
+          };
+          console.log(JSON.stringify(report));
+          if(linkReady)console.log('PRIVATE_FEEDBACK_LINK_CONFIGURED_REQUIRES_REAL_END_TO_END_CHECKS');
+          else console.log('PRIVATE_FEEDBACK_LINK_NOT_QUALIFIED_NO_PUBLIC_ACTIVATION');
+          NODE
