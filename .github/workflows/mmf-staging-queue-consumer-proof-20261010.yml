@@ -1,0 +1,99 @@
+name: MUSITU Mail Fabric Actual Cloud Queue to SQLite Verification 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-staging-queue-consumer-proof-20261010.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event.before == 'dc1b9ec1a219cd349bfe70a6b01383fd084ddd67'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+    steps:
+      - name: Observe actual private Queue consumer via Cloudflare tail, no customer mail
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {randomBytes} from 'node:crypto';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const worker='musitu-mail-fabric-staging-20261010';
+          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
+          const queueID=process.env.MMF_QUEUE_ID;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||queueID!=='1ff13f921b90488397e7f76970117aee'||token.length<16)throw Error('EXACT_SCOPE_GUARD_FAILED');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+account;
+          const headers={Authorization:'Bearer '+token,Accept:'application/json'};
+          async function call(path,method='GET',body){
+            const r=await fetch(url+path,{method,headers:{...headers,...(body!==undefined?{'Content-Type':'application/json'}:{})},
+              ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(15000)});
+            const payload=await r.json().catch(()=>({}));
+            if(!r.ok||payload.success===false)throw Error('CLOUDFLARE_'+method+'_HTTP_'+r.status+'_CODES_'+(payload.errors||[]).map(e=>e.code).filter(Number.isInteger).join('_'));
+            return payload.result;
+          }
+          const [acct,q,settings,sub,secrets]=await Promise.all([
+            call(''),call('/queues/'+queueID),call('/workers/scripts/'+worker+'/settings'),
+            call('/workers/scripts/'+worker+'/subdomain'),call('/workers/scripts/'+worker+'/secrets')]);
+          if(acct?.id!==account||q?.queue_name!==worker||sub?.enabled===true||sub?.previews_enabled===true)
+            throw Error('STAGE_ISOLATION_READBACK_FAILURE');
+          const bindings=settings?.bindings||[];
+          const flag=n=>bindings.find(x=>x.name===n)?.text;
+          if(flag('MMF_REAL_SEND_ENABLED')!=='false'||flag('MMF_API_ENABLED')!=='false'||flag('MMF_WEBHOOK_ENABLED')!=='false'||
+             flag('MMF_STAGE_ONLY')!=='true'||!bindings.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace')||
+             !Array.isArray(secrets)||!secrets.some(x=>x.name==='MMF_STORAGE_RPC_SECRET'))throw Error('STAGE_BINDING_READBACK_FAILURE');
+          let tail;
+          let ws;
+          let done=false;
+          const log=[];
+          const id='probe-proof-'+randomBytes(6).toString('hex');
+          let timeout;
+          try {
+            tail=await call('/workers/scripts/'+worker+'/tails','POST',{});
+            if(!tail?.url||!tail?.id)throw Error('TAIL_SESSION_MISSING');
+            const signal = new Promise((resolve,reject)=>{
+              timeout=setTimeout(()=>reject(Error('REMOTE_QUEUE_CONSUMER_NOT_OBSERVED')),50000);
+              ws=new WebSocket(tail.url);
+              ws.addEventListener('open',async()=>{
+                try {
+                  const msg={content_type:'json',body:{type:'MMF_STAGE_PROBE',probeId:id}};
+                  await call('/queues/'+queueID+'/messages','POST',msg);
+                  console.log(JSON.stringify({gate:'MMF_STAGE_PROBE',queue_accepted:true,real_sending:false,public_api:false}));
+                } catch(error) {reject(error)}
+              },{once:true});
+              ws.addEventListener('message',(message)=>{
+                try {
+                  const obj=JSON.parse(String(message.data));
+                  const messages=[...(obj.logs||[]),...(obj.exceptions||[])];
+                  for(const x of messages) {
+                    for(const part of x.message||[]) {
+                      let p;try{p=JSON.parse(part)}catch{continue}
+                      if(p.gate==='MMF_ISOLATED_QUEUE_TO_SQLITE_DO' && p.status==='PASS' &&
+                         p.probeRecorded===true && p.customerMailSent===false) {
+                        log.push({gate:p.gate,status:p.status,probeRecorded:p.probeRecorded});
+                        done=true;resolve();
+                      }
+                    }
+                  }
+                } catch {}
+              });
+              ws.addEventListener('error',()=>reject(Error('TAIL_WEBSOCKET_ERROR')),{once:true});
+              ws.addEventListener('close',()=>{if(!done)reject(Error('TAIL_SESSION_CLOSED_BEFORE_PROOF'))},{once:true});
+            });
+            await signal;
+            console.log(JSON.stringify({gate:'MMF_LIVE_CLOUDFLARE_QUEUE_TO_SQLITE_DO',
+              status:'PASS',independent_log_capture:true,persistence_readback:true,
+              probe_count_observed:log.length,real_mail_sent:false,public_worker_access:false,
+              key_material_recorded:false}));
+          } finally {
+            if(timeout)clearTimeout(timeout);
+            try{ws?.close()}catch{}
+            if(tail?.id) {
+              try{await call('/workers/scripts/'+worker+'/tails/'+tail.id,'DELETE')}catch{}
+            }
+          }
+          NODE
