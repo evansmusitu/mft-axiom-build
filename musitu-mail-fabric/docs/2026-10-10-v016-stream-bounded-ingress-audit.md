@@ -54,3 +54,26 @@ These cannot be substituted with internal tests, synthetic signatures, private C
 The newly fixed unbounded parsing behavior was an availability and resource-exhaustion vulnerability for authenticated customer and internal operator/feedback routes. It was not evidence of unauthorized public access, leaked data or actual exploitation. Shared parsing logic reduces inconsistent parser behavior but does not replace perimeter rate limiting, user authentication, data retention or an independent audit.
 
 **Current release decision:** FAIL-CLOSED; appropriate for isolated development/testing, **not** authorized for public customer traffic.
+
+## Actual private Cloudflare linkage inventory
+
+A read-only GitHub Actions workflow [38062366612](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38062366612) queried the **actual** Cloudflare staging Worker settings, subdomain exposure and **secret names only** (not values). Its restricted GET requests did not deploy Workers or alter secrets.
+
+Observed `MMF_V016_PRIVATE_CLOUD_LINK_AUDIT=PASS` with these specific results:
+
+| Live capability | Cloudflare state |
+| --- | --- |
+| Sender Worker and webhook Worker nonpublic | **Confirmed for both** |
+| Sender Ledger Durable Object binding | **Present** |
+| Webhook Worker external sender outbox binding | **ABSENT** |
+| Sender-scoped feedback RPC enabled | **NO** |
+| Scoped owner-side feedback secret name | **ABSENT** |
+| Scoped ingress-side feedback secret name | **ABSENT** |
+| Ingress Resend Svix signing secret name | **ABSENT** |
+| Public external webhook intake enabled | **NO** |
+| Cross-Worker event reconciliation qualified | **NO** |
+| Customer network email enabled | **NO** |
+
+Therefore the current external provider feedback blocker is **observed configuration state**, not a guessed future defect: before any public provider webhook setup, a separately scoped, audited sender ledger capability and authenticated ingress binding must exist and pass real Cloudflare two-Worker integration tests. Resend itself still lists **zero webhooks**.
+
+The separate linked-worker template remains intentionally OFF. Do not quietly turn these flags on, share the unrestricted SQL storage token, or claim an event subscription exists based on template source alone.
