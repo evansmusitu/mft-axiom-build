@@ -20,6 +20,6 @@
     "test:ingress-security": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-scoped-feedback-rpc.test.mjs test/customer-api-bounded-body.test.mjs test/operator-input-bounds-v016.test.mjs test/webhook-linked-outbox.test.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   }
 }
