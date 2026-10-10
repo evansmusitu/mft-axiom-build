@@ -139,3 +139,19 @@ test('recipient-match validation accepts normal addresses containing letter s an
  assert.equal(await adapter.matchRecipient('client1','provider-one',recipient),true);
  await assert.rejects(()=>adapter.matchRecipient('client1','provider-one','support user@example.net'),/SCOPED_FEEDBACK_MATCH_UNAVAILABLE/);
 });
+
+test('staging owner derives opaque recipient key internally from existing stage encryption key',async t=>{
+ const f=fixture(t),stageKey=Buffer.alloc(32,29);
+ const derived=createHmac('sha256',stageKey).update('MMF_SYNTHETIC_STAGE_PRIVACY_V1').digest();
+ const email='synthetic-probe@example.net';
+ const hmac=createHmac('sha256',derived).update(email).digest('hex');
+ f.db.prepare('UPDATE mail_messages SET recipient_hmac=? WHERE tenant_id=? AND provider_id=?')
+   .run(hmac,'client1','provider-one');
+ const cfg={...owner,MMF_STAGE_ONLY:'true',MMF_STAGE_DATA_KEY_B64:stageKey.toString('base64')};
+ const ns={idFromName:x=>x,get:()=>({fetch:request=>handleFeedbackRpc(request,f.sql,cfg)})};
+ const scoped=createFeedbackSqlAdapter(ns,secret);
+ assert.equal(await scoped.matchRecipient('client1','provider-one',email),true);
+ assert.equal(await scoped.matchRecipient('client1','provider-one','unrelated@example.net'),false);
+ assert.equal(await scoped.matchRecipient('client1','unknown-provider',email),null);
+ assert.equal(JSON.stringify(Object.keys(scoped)).includes(derived.toString('base64')),false);
+});
