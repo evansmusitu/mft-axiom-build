@@ -18,6 +18,38 @@ function authorized(value,secret){
  const a=createHash('sha256').update(value).digest(),b=createHash('sha256').update(secret).digest();
  return timingSafeEqual(a,b);
 }
+/** Rotatable, tenant-scoped feedback-only keyring.
+ * The deprecated capability is accepted for at most 15 minutes; it must
+ * never be identical to the general storage key or active capability.
+ */
+export function feedbackCapabilityConfigValid(env,{nowMs=Date.now()}={}){
+ if(!env||env.MMF_FEEDBACK_RPC_ENABLED!=='true'||
+    typeof env.MMF_TENANT_ID!=='string'||!/^[a-z][a-z0-9_-]{2,63}$/.test(env.MMF_TENANT_ID)||
+    !Number.isSafeInteger(nowMs)||nowMs<=0)return false;
+ const primary=env.MMF_FEEDBACK_RPC_SECRET,storage=env.MMF_STORAGE_RPC_SECRET;
+ if(typeof primary!=='string'||primary.length<32||primary.length>256||
+    (typeof storage==='string'&&primary===storage))return false;
+ const hasPrev=env.MMF_FEEDBACK_RPC_PREVIOUS_SECRET!==undefined;
+ const hasExpiry=env.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS!==undefined;
+ if(hasPrev!==hasExpiry)return false;
+ if(!hasPrev)return true;
+ const prev=env.MMF_FEEDBACK_RPC_PREVIOUS_SECRET,expiry=env.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS;
+ if(typeof prev!=='string'||prev.length<32||prev.length>256||
+    prev===primary||prev===storage)return false;
+ const str=String(expiry);
+ if(!/^[0-9]{13}$/.test(str))return false;
+ const ms=Number(str);
+ // Reject a permanently valid or accidentally far-future secondary capability.
+ return Number.isSafeInteger(ms)&&ms>0&&ms-nowMs<=15*60_000;
+}
+export function authorizeFeedbackCapability(token,env,{nowMs=Date.now()}={}){
+ if(!feedbackCapabilityConfigValid(env,{nowMs}))return false;
+ if(authorized(token,env.MMF_FEEDBACK_RPC_SECRET))return true;
+ const until=Number(env.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS);
+ return typeof env.MMF_FEEDBACK_RPC_PREVIOUS_SECRET==='string'&&
+   nowMs<until&&authorized(token,env.MMF_FEEDBACK_RPC_PREVIOUS_SECRET);
+}
+
 /**
  * Sender-side only: resolve an accepted provider's exact recipient claim
  * without transmitting the sender's HMAC privacy key to the ingress Worker.
@@ -63,10 +95,9 @@ async function matchRecipient(request,sql,env){
 export async function handleFeedbackRpc(request,sql,env){
  const path=new URL(request.url).pathname;
  if(request.method!=='POST'||!['/feedback-rpc','/feedback-rpc/recipient-match'].includes(path))return respond({error:'NOT_FOUND'},404);
- if(env?.MMF_FEEDBACK_RPC_ENABLED!=='true'||env?.MMF_FEEDBACK_RPC_SECRET===env?.MMF_STORAGE_RPC_SECRET||
-    typeof env?.MMF_TENANT_ID!=='string'||!/^[-a-z0-9_]{3,64}$/.test(env.MMF_TENANT_ID))
+ if(!feedbackCapabilityConfigValid(env))
     return respond({error:'FEEDBACK_BRIDGE_DISABLED'},503);
- if(!authorized(request.headers.get('x-mmf-feedback'),env.MMF_FEEDBACK_RPC_SECRET))
+ if(!authorizeFeedbackCapability(request.headers.get('x-mmf-feedback'),env))
     return respond({error:'UNAUTHORIZED'},401);
  if(path==='/feedback-rpc/recipient-match')return matchRecipient(request,sql,env);
  try{
