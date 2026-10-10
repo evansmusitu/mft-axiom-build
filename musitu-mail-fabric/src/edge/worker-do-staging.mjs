@@ -7,6 +7,7 @@ import {runSyntheticTransactionProbe,reconcileSyntheticStage} from './synthetic-
 import {assessTenantHealth} from '../ops/health.mjs';
 import {runSyntheticSignedFeedbackProbe,runSyntheticEarlyFeedbackProbe} from './synthetic-feedback.mjs';
 import {runSyntheticOperatorSuppressionProbe} from './synthetic-operator-suppression.mjs';
+import {runPrivateCrossWorkerFeedbackProbe} from './synthetic-cross-worker.mjs';
 import {createHash} from 'node:crypto';
 import {MmfPitrSacrificialDO,runSacrificialPitrDrill} from './pitr-sacrificial.mjs';
 export {MmfPitrSacrificialDO};
@@ -24,8 +25,18 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE'&&input?.type!=='MMF_STAGE_SIGNED_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_EARLY_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_OPERATOR_SUPPRESSION_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE'&&input?.type!=='MMF_STAGE_SIGNED_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_EARLY_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_OPERATOR_SUPPRESSION_PROBE'&&input?.type!=='MMF_STAGE_CROSS_WORKER_FEEDBACK_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_CROSS_WORKER_FEEDBACK_PROBE'){
+     const proof=await runPrivateCrossWorkerFeedbackProbe(db,env,input.probeId);
+     if(proof.status!=='PASS'||proof.crossWorkerServiceBinding!==true||
+        proof.signedEventRecorded!==true||proof.proofSignerIsOwner!==true||
+        proof.recipientSuppressed!==true||proof.customerMailSent!==false)
+      throw Error('STAGE_CROSS_WORKER_VERIFICATION_FAILED');
+     m.ack();
+     console.log(JSON.stringify({gate:'MMF_PRIVATE_CLOUD_TWO_WORKER_SIGNED_FEEDBACK',...proof}));
+     continue;
+    }
     if(input.type==='MMF_STAGE_OPERATOR_SUPPRESSION_PROBE'){
       const evidence=await runSyntheticOperatorSuppressionProbe(db,env,input.probeId);
       if(evidence.status!=='PASS'||evidence.customerTokenRejected!==true||
