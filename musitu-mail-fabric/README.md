@@ -119,3 +119,7 @@ The private staging Worker can cryptographically self-test AES-256-GCM and Ed255
 ## v0.7.2 — Verified private cloud crypto and controlled recovery (2026-10-10)
 
 A guarded private-only GitHub Actions run provisioned disposable Cloudflare Worker secrets for AES-256-GCM and Ed25519; real Queue consumer traces verified synthetic encryption/signing and SQLite readback. A separate test demonstrated an **actual Cloudflare Queue redelivery after a controlled injected retry**, correlated by a unique synthetic probe hash with durable SQLite recovery readback. This is not evidence of a natural Cloudflare outage, live mail delivery, legal trust certification, long-lived HSM/KMS custody or an independent third-party security assessment. All public/customer sending remains disabled. See `docs/2026-10-10-v0.7.2-private-cloud-recovery-evidence.md` and GitHub Actions runs 38025078714 and 38025289143.
+
+## v0.8 — Durable tenant burst limits and stale queue expiry (2026-10-10)
+
+The outbox now enforces a fixed UTC minute quota in the same SQLite transaction as the daily and recipient caps, with 429 on exhaustion and persistent idempotency. Stale queued messages are blocked and their encrypted payload erased before any provider attempt. Configurable operator limits cannot be raised by request payload. See `docs/2026-10-10-v0.8-operational-safety.md`. This does not enable public traffic or establish external audit readiness.

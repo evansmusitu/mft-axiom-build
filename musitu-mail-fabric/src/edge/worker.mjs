@@ -44,9 +44,13 @@ function fromEnv(env,providerFactory,{receiveOnly=false}={}){
  if(!provider)throw Error('DELIVERY_DISABLED');
  const configuredLimit=env.MMF_DAILY_SEND_LIMIT===undefined?100:Number(env.MMF_DAILY_SEND_LIMIT);
  if(!Number.isSafeInteger(configuredLimit)||configuredLimit<1||configuredLimit>100000)throw Error('INVALID_QUOTA_CONFIGURATION');
+ const perMinute=env.MMF_MINUTE_SEND_LIMIT===undefined?20:Number(env.MMF_MINUTE_SEND_LIMIT);
+ if(!Number.isSafeInteger(perMinute)||perMinute<1||perMinute>1000)throw Error('INVALID_MINUTE_RATE_LIMIT');
+ const maxAgeSeconds=env.MMF_MAX_QUEUED_AGE_SECONDS===undefined?86400:Number(env.MMF_MAX_QUEUED_AGE_SECONDS);
+ if(!Number.isSafeInteger(maxAgeSeconds)||maxAgeSeconds<60||maxAgeSeconds>604800)throw Error('INVALID_QUEUE_TTL');
  const perRecipient=env.MMF_DAILY_RECIPIENT_LIMIT===undefined?20:Number(env.MMF_DAILY_RECIPIENT_LIMIT);
  if(!Number.isSafeInteger(perRecipient)||perRecipient<1||perRecipient>10000)throw Error('INVALID_RECIPIENT_QUOTA');
- const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit,dailyRecipientLimit:perRecipient};
+ const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit,dailyRecipientLimit:perRecipient,minuteSendLimit:perMinute,maxQueuedAgeMs:maxAgeSeconds*1000};
  return new DurableMailFabric(config,{db:env.MMF_DB,encryptionKey:enc,privacyKey:privacy,keys});
 }
 /** Isolated Cloudflare Worker entrypoint: no auto-deploy or public hostname. */
@@ -99,7 +103,7 @@ export function createWorker({providerFactory}={}){
      let queued=false;
      try{if(env.MMF_QUEUE?.send){await env.MMF_QUEUE.send({tenantId:env.MMF_TENANT_ID,messageId:result.messageId});queued=true;}}catch{}// Durable cron repairs lost queue notification.
      return respond({...result,queueNotificationAccepted:queued},202);
-    }catch(e){if(e instanceof PolicyRejection)return respond({error:e.code},e.code==='QUOTA_EXCEEDED'?429:422);
+    }catch(e){if(e instanceof PolicyRejection)return respond({error:e.code},['QUOTA_EXCEEDED','RATE_LIMIT_EXCEEDED'].includes(e.code)?429:422);
       if(e instanceof SyntaxError)return respond({error:'INVALID_JSON'},400);return respond({error:'SERVICE_UNAVAILABLE'},503);}
    }
    const proofMatch=url.pathname.match(/^\/v1\/messages\/([0-9a-f-]{36})\/evidence$/i);

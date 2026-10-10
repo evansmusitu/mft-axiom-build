@@ -24,6 +24,11 @@ export class DurableMailFabric {
     if(!Number.isSafeInteger(this.dailySendLimit)||this.dailySendLimit<1||this.dailySendLimit>100000)throw TypeError('INVALID_DAILY_QUOTA_CONFIG');
     this.dailyRecipientLimit=config.dailyRecipientLimit??20;
     if(!Number.isSafeInteger(this.dailyRecipientLimit)||this.dailyRecipientLimit<1||this.dailyRecipientLimit>10000)throw TypeError('INVALID_RECIPIENT_QUOTA_CONFIG');
+    // Fixed UTC minute buckets are enforced by the same SQLite INSERT that creates the envelope.
+    this.minuteSendLimit=config.minuteSendLimit??20;
+    if(!Number.isSafeInteger(this.minuteSendLimit)||this.minuteSendLimit<1||this.minuteSendLimit>1000)throw TypeError('INVALID_MINUTE_RATE_LIMIT');
+    this.maxQueuedAgeMs=config.maxQueuedAgeMs??86400000;
+    if(!Number.isSafeInteger(this.maxQueuedAgeMs)||this.maxQueuedAgeMs<60000||this.maxQueuedAgeMs>604800000)throw TypeError('INVALID_QUEUE_TTL');
     this.config=config;this.db=db;this.key=Buffer.from(encryptionKey);this.now=now;this.leaseMs=leaseMs;
     this.ledger=new EvidenceLedger({...keys,privacyKey:Buffer.from(privacyKey),now:()=>new Date(this.now()).toISOString()});
     this.suppressed=new Set();
@@ -75,18 +80,26 @@ export class DurableMailFabric {
       recipientHmac:this.ledger.opaqueRecipient(msg.to),payloadSha256:requestHash}});
     const cipher=await this.#encrypt(msg,id);
     const dayStart=Math.floor(ms/86400000)*86400000;
+    const minuteStart=Math.floor(ms/60000)*60000;
     // A single atomic SQLite statement serializes competing limit checks with
     // the insert. A duplicated idempotency key returns its original message.
     requireSuccess(await this.db.prepare(`INSERT OR IGNORE INTO mail_messages
       (message_id,tenant_id,idempotency_key,request_hash,recipient_hmac,state,sealed_envelope,events_json,created_ms,updated_ms)
       SELECT ?,?,?,?,?,?,?,?,?,? WHERE
       (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?) < ?
-      AND (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND recipient_hmac=? AND created_ms>=? AND created_ms<?) < ?`)
+      AND (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND recipient_hmac=? AND created_ms>=? AND created_ms<?) < ?
+      AND (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?) < ?`)
       .bind(id,msg.tenantId,msg.idempotencyKey,requestHash,this.ledger.opaqueRecipient(msg.to),
         'QUEUED',cipher,JSON.stringify(events),ms,ms,msg.tenantId,dayStart,dayStart+86400000,this.dailySendLimit,
-        msg.tenantId,this.ledger.opaqueRecipient(msg.to),dayStart,dayStart+86400000,this.dailyRecipientLimit).run());
+        msg.tenantId,this.ledger.opaqueRecipient(msg.to),dayStart,dayStart+86400000,this.dailyRecipientLimit,
+        msg.tenantId,minuteStart,minuteStart+60000,this.minuteSendLimit).run());
     const existing=await this.db.prepare('SELECT * FROM mail_messages WHERE tenant_id=? AND idempotency_key=?').bind(msg.tenantId,msg.idempotencyKey).first();
-    if(!existing)throw new PolicyRejection('QUOTA_EXCEEDED');
+    if(!existing){
+      const minute=await this.db.prepare('SELECT COUNT(*) AS n FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?')
+        .bind(msg.tenantId,minuteStart,minuteStart+60000).first();
+      if(Number(minute?.n)>=this.minuteSendLimit)throw new PolicyRejection('RATE_LIMIT_EXCEEDED');
+      throw new PolicyRejection('QUOTA_EXCEEDED');
+    }
     if(existing.request_hash!==requestHash)throw new PolicyRejection('IDEMPOTENCY_CONFLICT');
     return view(existing,this.ledger);
   }
@@ -102,10 +115,10 @@ export class DurableMailFabric {
     if(result.meta?.changes!==1)return null;
     return {token,row:await this.#row(id)};
   }
-  async #finalize(row,token,state,providerId){
+  async #finalize(row,token,state,providerId,blockReason=null){
     if(!FINAL.has(state))throw Error('INVALID_FINAL_STATE');
     const events=JSON.parse(row.events_json);
-    this.ledger.append(events,{messageId:row.message_id,tenantId:row.tenant_id,event:state==='ACCEPTED_BY_PROVIDER'?'PROVIDER_ACCEPTED':state==='REJECTED_BY_PROVIDER'?'PROVIDER_REJECTED':state==='BLOCKED_BY_POLICY'?'POLICY_BLOCKED':'SEND_OUTCOME_UNKNOWN',detail:providerId?{providerId}:{}});
+    this.ledger.append(events,{messageId:row.message_id,tenantId:row.tenant_id,event:state==='ACCEPTED_BY_PROVIDER'?'PROVIDER_ACCEPTED':state==='REJECTED_BY_PROVIDER'?'PROVIDER_REJECTED':state==='BLOCKED_BY_POLICY'?'POLICY_BLOCKED':'SEND_OUTCOME_UNKNOWN',detail:providerId?{providerId}:blockReason?{blockReason}:{}});
     const result=requireSuccess(await this.db.prepare(`UPDATE mail_messages SET state=?,sealed_envelope=NULL,events_json=?,claim_token=NULL,
       lease_deadline=NULL,provider_id=?,updated_ms=? WHERE message_id=? AND tenant_id=? AND state='SENDING' AND claim_token=?`)
       .bind(state,JSON.stringify(events),providerId,this.now(),row.message_id,this.config.tenantId,token).run());
@@ -119,8 +132,11 @@ export class DurableMailFabric {
     const {row,token}=claim;
     let result;
     try{
+      const elapsed=this.now()-Number(row.created_ms);
+      if(!Number.isSafeInteger(elapsed)||elapsed<0||elapsed>this.maxQueuedAgeMs)
+        return this.#finalize(row,token,'BLOCKED_BY_POLICY',null,'QUEUE_EXPIRED');
       const msg=await this.#decrypt(row);
-      if(await this.#suppressed(msg.to,msg.tenantId))return this.#finalize(row,token,'BLOCKED_BY_POLICY',null);
+      if(await this.#suppressed(msg.to,msg.tenantId))return this.#finalize(row,token,'BLOCKED_BY_POLICY',null,'RECIPIENT_SUPPRESSED');
       result=await this.config.provider.send(msg,'musitu-'+hash(msg.tenantId+':'+msg.idempotencyKey));
     }catch{result={outcome:'unknown'};}
     const outcome=['accepted','rejected','unknown'].includes(result?.outcome)?result.outcome:'unknown';
