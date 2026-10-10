@@ -44,7 +44,7 @@ test('strict signed early feedback remains retryable until provider ID is durabl
 });
 test('paused Worker returns HTTP 503 instead of falsely accepting unmatched signed feedback',async t=>{
  const f=fixture(t),queued=await f.fab.enqueue(message),worker=createWorker();
- const request=()=>new Request('https://private.invalid/v1/webhooks/resend',{method:'POST',headers:f.headers,body:f.event});
+ const request=()=>new Request('https://private.invalid/v1/webhooks/resend',{method:'POST',headers:{'content-type':'application/json',...f.headers},body:f.event});
  const early=await worker.fetch(request(),f.env);
  assert.equal(early.status,503);assert.deepEqual(await early.json(),{error:'PROVIDER_CORRELATION_PENDING'});
  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM mail_provider_events').get().n,0);
