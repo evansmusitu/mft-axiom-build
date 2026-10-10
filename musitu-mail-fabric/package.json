@@ -1,19 +1,20 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
-  "description": "Evidence-native transactional communications with strict recipient-bound provider events, retryable early reconciliation, private cloud synthetic webhook proof",
+  "description": "Isolated evidence-native mail infrastructure with real Cloudflare staging, operator-controlled HMAC suppressions, bounded abuse controls, and emergency sender revocation",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/ops/backup.mjs && node --check src/ops/backup-cli.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs && node --check src/ops/health.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/edge/pitr-sacrificial.mjs && node --check src/edge/synthetic-feedback.mjs",
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/ops/backup.mjs && node --check src/ops/backup-cli.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs && node --check src/ops/health.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/edge/pitr-sacrificial.mjs && node --check src/edge/synthetic-feedback.mjs && node --check src/ops/operator-suppression.mjs && node --check src/edge/synthetic-operator-suppression.mjs",
     "verify": "node src/verify-cli.mjs",
     "verify-rotated": "node src/trust/verify-cli.mjs",
     "test:recovery": "node --test test/backup-restore.test.mjs test/backup-outbox-recovery.test.mjs test/backup-cli.test.mjs",
     "test:operations": "node --test test/operational-health.test.mjs test/stage-health-cloud.test.mjs test/pitr-readonly-stage.test.mjs test/stage-expired-claims.test.mjs",
     "test:pitr": "node --test test/pitr-sacrificial.test.mjs test/stage-sacrificial-redelivery.test.mjs test/pitr-readonly-stage.test.mjs",
-    "test:feedback": "node --test test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs test/stage-synthetic-feedback.test.mjs test/reconciliation-v06.test.mjs test/live-provider-feedback-gate.test.mjs"
+    "test:feedback": "node --test test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs test/stage-synthetic-feedback.test.mjs test/reconciliation-v06.test.mjs test/live-provider-feedback-gate.test.mjs",
+    "test:operator": "node --test test/operator-suppression.test.mjs test/operator-sender-revocation.test.mjs test/stage-operator-suppression.test.mjs"
   },
   "engines": {
     "node": ">=20"
