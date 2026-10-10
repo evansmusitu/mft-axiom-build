@@ -159,11 +159,19 @@ export class DurableMailFabric {
       // for a different recipient to suppress or assert delivery for this one.
       if(typeof recipient!=='string'||recipient.length>254)
         throw new TypeError('INVALID_WEBHOOK_RECIPIENT');
-      const attributed=await this.db.prepare(`SELECT recipient_hmac FROM mail_messages
-        WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`)
-        .bind(this.config.tenantId,providerId).first();
-      if(attributed&&attributed.recipient_hmac!==this.ledger.opaqueRecipient(recipient.toLowerCase()))
-        throw Error('PROVIDER_RECIPIENT_MISMATCH');
+      if(typeof this.db.matchRecipient==='function'){
+        // A linked, least-privilege ingress never needs the sender HMAC key.
+        // The sender Durable Object itself performs this exact recipient match.
+        const matches=await this.db.matchRecipient(this.config.tenantId,providerId,recipient.toLowerCase());
+        if(matches===false)throw Error('PROVIDER_RECIPIENT_MISMATCH');
+        if(matches!==true&&matches!==null)throw Error('PROVIDER_CORRELATION_UNVERIFIED');
+      }else{
+        const attributed=await this.db.prepare(`SELECT recipient_hmac FROM mail_messages
+          WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`)
+          .bind(this.config.tenantId,providerId).first();
+        if(attributed&&attributed.recipient_hmac!==this.ledger.opaqueRecipient(recipient.toLowerCase()))
+          throw Error('PROVIDER_RECIPIENT_MISMATCH');
+      }
     }
     const prior=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
     if(prior){
