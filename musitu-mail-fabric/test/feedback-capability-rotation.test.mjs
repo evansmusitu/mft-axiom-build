@@ -66,7 +66,7 @@ test('private SQL RPC accepts a previous capability only within grace, then reje
  const e=env();
  e.MMF_FEEDBACK_RPC_PREVIOUS_EXPIRES_MS=String(Date.now()+5*60_000);
  let reads=0;
- const sql={exec(){reads++;return {toArray(){return [{message_id:'stage-message'}]}}}};
+ const sql={exec(statement){reads++;const rows=statement.startsWith('SELECT changes()')?[{n:0}]:[{message_id:'stage-message'}];return {toArray(){return rows}}}};
  const request=secret=>new Request('https://internal.invalid/feedback-rpc',{method:'POST',
   headers:{'content-type':'application/json','x-mmf-feedback':secret},
   body:JSON.stringify({sql:"SELECT message_id FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'",
