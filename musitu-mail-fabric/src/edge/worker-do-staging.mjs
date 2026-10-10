@@ -119,7 +119,7 @@ export default {
        'SACRIFICIAL_STAGE_MUTATE_FAILED_409','SACRIFICIAL_STAGE_MUTATE_FAILED_503',
        'SACRIFICIAL_STAGE_INSPECT_FAILED_503']);
       console.log(JSON.stringify({gate:'MMF_STAGE_SACRIFICIAL_PITR_DIAGNOSTIC',
-        status:'NOT_VERIFIED',reason:safe.has(error?.message)?error.message:'SACRIFICIAL_UNCLASSIFIED',
+        status:'NOT_VERIFIED',reason:(safe.has(error?.message)||/^SACRIFICIAL_RESTORE_NOT_PROVEN_(?:HTTP_[45][0-9]{2}|NETWORK|OTHER|ALTERED|BASELINE|UNOBSERVED)$/.test(String(error?.message||'')))?error.message:'SACRIFICIAL_UNCLASSIFIED',
         probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
         noCustomerData:true,publicAccess:false,networkMail:false}));
     }
