@@ -22,7 +22,7 @@ function fixture(t,{dailySendLimit=100,nowValue=Date.parse('2026-10-10T12:00:00Z
   const make=(tenant='client1',db=createD1Compat(d))=>new DurableMailFabric({tenantId:tenant,verifiedDomains:['example.org'],allowedRegions:['us-east-1'],provider,dailySendLimit},{db,encryptionKey,keys,privacyKey,now:()=>clock});
   const count=()=>d.prepare('SELECT COUNT(*) n FROM mail_messages WHERE tenant_id=?').get('client1').n;
   t.after(()=>{d.close();rmSync(dir,{recursive:true,force:true});});
-  return {make,provider,d,count,clock:v=>{clock=v;}};
+  return {make,provider,d,count,keys,encryptionKey,privacyKey,clock:v=>{clock=v;}};
 }
 test('durable daily quota blocks another message, preserves duplicate idempotency',async t=>{
   const f=fixture(t,{dailySendLimit:1}),mail=f.make();
@@ -86,7 +86,7 @@ test('edge worker enforces operator-configured quota instead of request-supplied
   const {privateKey,publicKey}=generateDemonstrationKeys();
   const auth='test-only-strong-auth-token-1234567890';
   const env={MMF_DB:createD1Compat(f.d),MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',MMF_AUTH_TOKEN:auth,
-    MMF_ENCRYPTION_KEY_B64:randomBytes(32).toString('base64'),MMF_PRIVACY_KEY_B64:randomBytes(32).toString('base64'),
+    MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
     MMF_SIGNING_PRIVATE_KEY_PEM:privateKey.export({format:'pem',type:'pkcs8'}).toString(),
     MMF_SIGNING_PUBLIC_KEY_PEM:publicKey.export({format:'pem',type:'spki'}).toString(),
     MMF_API_ENABLED:'true',MMF_DAILY_SEND_LIMIT:'1',MMF_QUEUE:{send:async()=>{}},MMF_REAL_SEND_ENABLED:'false'};
@@ -104,7 +104,7 @@ test('signed webhook feedback remains ingestible while outbound sending is pause
   const {createWorker}=await import('../src/edge/worker.mjs');
   const keys=generateDemonstrationKeys(),secret='whsec_'+randomBytes(32).toString('base64');
   const env={MMF_DB:createD1Compat(f.d),MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',
-    MMF_ENCRYPTION_KEY_B64:randomBytes(32).toString('base64'),MMF_PRIVACY_KEY_B64:randomBytes(32).toString('base64'),
+    MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
     MMF_SIGNING_PRIVATE_KEY_PEM:keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),
     MMF_SIGNING_PUBLIC_KEY_PEM:keys.publicKey.export({format:'pem',type:'spki'}).toString(),
     MMF_REAL_SEND_ENABLED:'false',MMF_WEBHOOK_ENABLED:'true',MMF_WEBHOOK_SECRET:secret,MMF_API_ENABLED:'false'};
@@ -130,7 +130,7 @@ test('transient webhook database failures return retryable HTTP 503, never false
     return {bind(){return {async run(){throw Error('TEMPORARY_D1_FAILURE')}}}};
   }return actual.prepare(sql)}},
     MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',
-    MMF_ENCRYPTION_KEY_B64:randomBytes(32).toString('base64'),MMF_PRIVACY_KEY_B64:randomBytes(32).toString('base64'),
+    MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
     MMF_SIGNING_PRIVATE_KEY_PEM:keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),
     MMF_SIGNING_PUBLIC_KEY_PEM:keys.publicKey.export({format:'pem',type:'spki'}).toString(),
     MMF_REAL_SEND_ENABLED:'false',MMF_WEBHOOK_ENABLED:'true',MMF_WEBHOOK_SECRET:secret,MMF_API_ENABLED:'false'};
