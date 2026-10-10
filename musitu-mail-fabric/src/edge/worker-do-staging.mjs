@@ -73,7 +73,7 @@ export default {
         'SYNTHETIC_TRANSACTION_NOT_VERIFIED','SYNTHETIC_READBACK_FAILED']);
       const reason=reasons.has(String(error?.message))?error.message:'UNCLASSIFIED_STAGE_FAILURE';
       console.log(JSON.stringify({gate:'MMF_STAGE_TRANSACTION_PROBE_DIAGNOSTIC',status:'RETRY',
-        reason,customerMailSent:false,providerWasSimulation:true}));
+        reason,probeSha256:createHash('sha256').update(input.probeId).digest('hex'),customerMailSent:false,providerWasSimulation:true}));
     }
     m.retry();
    }

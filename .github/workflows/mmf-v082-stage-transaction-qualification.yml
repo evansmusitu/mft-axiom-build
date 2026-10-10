@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify:
-    if: github.event.before == 'e13b3a1fb4d4f4086a971bd5740a94a5df822df5'
+    if: github.event.before == 'ff00b94b2ce26d478e94867c7738bff232a91f4a'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 12
@@ -104,7 +104,7 @@ jobs:
           writeFileSync(process.env.MMF_E2E_EXPECTED_FILE,digest+'\n');
           console.log(JSON.stringify({gate:'MMF_V082_SYNTHETIC_QUEUE_POST',status:'PASS',networkMail:false}));
           NODE
-          for i in $(seq 1 55); do
+          for i in $(seq 1 35); do
             grep -q 'MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E' "$trace" && break
             sleep 1
           done
@@ -114,7 +114,7 @@ jobs:
           import {verifyProof} from './src/evidence.mjs';
           const raw=readFileSync(process.argv.at(-2),'utf8');const match=readFileSync(process.argv.at(-1),'utf8').trim();
           const trustedFingerprint=process.env.MMF_EXPECTED_STAGE_PUBLIC_KEY_SHA256;
-          let found=false,receipt=null;
+          let found=false,receipt=null,diagnostics=[];
           for(let i=0;i<raw.length;i++){
             if(raw[i]!=='{')continue;
             let depth=0,quoted=false,escaped=false,j=i;
@@ -128,6 +128,7 @@ jobs:
             let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
             for(const log of obj.logs||[])for(const line of log.message||[]){
               let e;try{e=JSON.parse(line);}catch{continue;}
+              if(e.gate==='MMF_STAGE_TRANSACTION_PROBE_DIAGNOSTIC'&&e.probeSha256===match&&e.status==='RETRY'&&typeof e.reason==='string')diagnostics.push(e.reason);
               if(e.gate==='MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E'&&e.status==='PASS'&&e.probeSha256===match&&
                  e.evidenceVerified===true&&e.providerWasSimulation===true&&e.customerMailSent===false){found=true;receipt=e.receipt;}
             }
@@ -142,6 +143,6 @@ jobs:
               events.includes('POLICY_APPROVED')&&events.includes('PROVIDER_ACCEPTED')&&
               !JSON.stringify(receipt).includes('synthetic-recipient@example.net');
           }
-          console.log(JSON.stringify({gate:'MMF_V082_CLOUD_FULL_DURABLE_TRANSACTION',status:verified?'PASS':'NOT_VERIFIED',realCloudQueue:found,providerWasSimulation:true,independentPinnedSignatureVerification:verified,pinnedFingerprint:fingerprint,customerMailSent:false,productionTouched:false}));
+          console.log(JSON.stringify({gate:'MMF_V082_CLOUD_FULL_DURABLE_TRANSACTION',status:verified?'PASS':'NOT_VERIFIED',realCloudQueue:found,providerWasSimulation:true,independentPinnedSignatureVerification:verified,pinnedFingerprint:fingerprint,redactedDiagnostic:[...new Set(diagnostics)].slice(0,4),customerMailSent:false,productionTouched:false}));
           if(!verified)process.exit(1);
           NODE
