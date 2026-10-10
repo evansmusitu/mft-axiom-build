@@ -12,6 +12,10 @@
       {
         "name": "MMF_LEDGER",
         "class_name": "MmfStagingSqliteDO"
+      },
+      {
+        "name": "MMF_PITR_SANDBOX",
+        "class_name": "MmfPitrSacrificialDO"
       }
     ]
   },
@@ -20,6 +24,12 @@
       "tag": "mmf-stage-v1",
       "new_sqlite_classes": [
         "MmfStagingSqliteDO"
+      ]
+    },
+    {
+      "tag": "mmf-stage-pitr-v2-20261010",
+      "new_sqlite_classes": [
+        "MmfPitrSacrificialDO"
       ]
     }
   ],
@@ -39,6 +49,7 @@
     "MMF_API_ENABLED": "false",
     "MMF_WEBHOOK_ENABLED": "false",
     "MMF_STAGE_CRYPTO_READY": "true",
-    "MMF_STAGE_RECONCILE_ENABLED": "true"
+    "MMF_STAGE_RECONCILE_ENABLED": "true",
+    "MMF_STAGE_PITR_RESTORE_ENABLED": "true"
   }
 }
