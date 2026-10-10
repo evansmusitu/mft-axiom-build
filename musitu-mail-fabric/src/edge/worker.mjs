@@ -20,7 +20,19 @@ function authorized(request,secret){
 }
 function fromEnv(env,providerFactory,{receiveOnly=false}={}){
  if(!env?.MMF_DB?.prepare)throw Error('PERSISTENCE_UNAVAILABLE');
- if(!receiveOnly&&env.MMF_REAL_SEND_ENABLED==='true')verifyLiveRelease(env);
+ if(!receiveOnly&&env.MMF_REAL_SEND_ENABLED==='true'){
+   verifyLiveRelease(env);
+   // Dual approvals authorize network attempts only when there is at least
+   // a locally configured, authenticated Resend feedback path. This is a
+   // necessary preflight, NOT proof that a real webhook is registered.
+   // Postal lacks a verified inbound event authentication adapter here,
+   // so it must not enter commercial live-send mode yet.
+   if(env.MMF_PROVIDER!=='resend'||env.MMF_WEBHOOK_ENABLED!=='true'||
+      typeof env.MMF_WEBHOOK_SECRET!=='string'||
+      !/^whsec_[A-Za-z0-9+/=_-]{32,}$/.test(env.MMF_WEBHOOK_SECRET)||
+      Buffer.from(env.MMF_WEBHOOK_SECRET.slice(6).replace(/-/g,'+').replace(/_/g,'/'),'base64').length<24)
+     throw Error('LIVE_PROVIDER_FEEDBACK_NOT_QUALIFIED');
+ }
  if(!TENANT.test(String(env.MMF_TENANT_ID||'')))throw Error('INVALID_TENANT_CONFIG');
  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(String(env.MMF_FROM_DOMAIN||'')))throw Error('INVALID_SENDER_CONFIG');
  const enc=Buffer.from(String(env.MMF_ENCRYPTION_KEY_B64||''),'base64'),privacy=Buffer.from(String(env.MMF_PRIVACY_KEY_B64||''),'base64');
