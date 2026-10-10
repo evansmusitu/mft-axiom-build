@@ -1,0 +1,169 @@
+name: MUSITU Mail Fabric Private Stage Crypto Qualification 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-stage-crypto-qualify-20261010.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-stage-20261010-sole-worker
+  cancel-in-progress: false
+jobs:
+  qualify:
+    if: github.event.before == 'aa08f551ed23d184109fd40f3fe45b78594070e1'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 14
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+      MMF_STAGE_WORKER: 'musitu-mail-fabric-staging-20261010'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate only exact isolated branch, configuration and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "${{ github.event.before }}" = 'aa08f551ed23d184109fd40f3fe45b78594070e1'
+          cd musitu-mail-fabric
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.do-staging.jsonc','utf8'));
+          const b=c.durable_objects?.bindings?.[0],consumer=c.queues?.consumers?.[0];
+          if(c.name!=='musitu-mail-fabric-staging-20261010'||c.main!=='src/edge/worker-do-staging.mjs'||
+             c.workers_dev!==false||JSON.stringify(c.routes)!=='[]'||b?.name!=='MMF_LEDGER'||b?.class_name!=='MmfStagingSqliteDO'||
+             consumer?.queue!=='musitu-mail-fabric-staging-20261010'||
+             c.vars?.MMF_STAGE_ONLY!=='true'||c.vars?.MMF_REAL_SEND_ENABLED!=='false'||
+             c.vars?.MMF_API_ENABLED!=='false'||c.vars?.MMF_WEBHOOK_ENABLED!=='false'||
+             c.vars?.MMF_STAGE_CRYPTO_READY!=='true')throw Error('STAGE_ONLY_CONFIG_REQUIRED');
+          console.log(JSON.stringify({gate:'MMF_STAGE_CRYPTO_STATIC',status:'PASS',customerSending:false,publicRoutes:false}));
+          NODE
+          npm run check
+          npm test
+      - name: Read-only Cloudflare account and existing private staging bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,q=process.env.MMF_QUEUE_ID,w=process.env.MMF_STAGE_WORKER;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||q!=='1ff13f921b90488397e7f76970117aee'||w!=='musitu-mail-fabric-staging-20261010'||String(k||'').length<16)throw Error('ACCOUNT_OR_CREDENTIAL_GUARD');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+a;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(14000)});const v=await r.json();if(!r.ok||v.success===false)throw Error('STAGE_READ_FAILED_'+r.status);return v.result};
+          const [account,queue,settings,sub,secrets]=await Promise.all([
+            get(''),get('/queues/'+q),get('/workers/scripts/'+w+'/settings'),get('/workers/scripts/'+w+'/subdomain'),get('/workers/scripts/'+w+'/secrets')
+          ]);
+          const bs=settings?.bindings||[],value=n=>bs.find(x=>x.name===n)?.text;
+          if(account?.id!==a||queue?.queue_name!=='musitu-mail-fabric-staging-20261010'||
+             sub?.enabled===true||sub?.previews_enabled===true||
+             value('MMF_STAGE_ONLY')!=='true'||value('MMF_REAL_SEND_ENABLED')!=='false'||
+             value('MMF_API_ENABLED')!=='false'||value('MMF_WEBHOOK_ENABLED')!=='false'||
+             !bs.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace')||
+             !Array.isArray(secrets)||!secrets.some(x=>x.name==='MMF_STORAGE_RPC_SECRET'))throw Error('STAGE_ISOLATION_DRIFT');
+          const signing=secrets.some(x=>x.name==='MMF_STAGE_SIGNING_PRIVATE_KEY_PEM');
+          const aes=secrets.some(x=>x.name==='MMF_STAGE_DATA_KEY_B64');
+          if(signing!==aes)throw Error('PARTIALLY_PROVISIONED_KEYPAIR_STOP');
+          appendFileSync(process.env.GITHUB_ENV,'MMF_STAGE_NEW_KEYS='+(!signing?'true':'false')+'\n');
+          console.log(JSON.stringify({gate:'MMF_STAGE_CRYPTO_PREFLIGHT',status:'PASS',existingStageKeys:signing,nonPublic:true,customerMail:false}));
+          NODE
+      - name: Deploy only private stage Worker with ephemeral noncustomer keyset
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd musitu-mail-fabric
+          if [ "$MMF_STAGE_NEW_KEYS" = "true" ]; then
+            umask 077
+            path="$RUNNER_TEMP/mmf-stage-credentials.json"
+            export MMF_STAGE_CREDS_PATH="$path"
+            trap 'rm -f "$MMF_STAGE_CREDS_PATH"' EXIT
+            node --input-type=module <<'NODE'
+            import {generateKeyPairSync,randomBytes} from 'node:crypto';
+            import {writeFileSync} from 'node:fs';
+            const {privateKey}=generateKeyPairSync('ed25519');
+            writeFileSync(process.env.MMF_STAGE_CREDS_PATH,JSON.stringify({
+              MMF_STAGE_SIGNING_PRIVATE_KEY_PEM:privateKey.export({format:'pem',type:'pkcs8'}).toString(),
+              MMF_STAGE_DATA_KEY_B64:randomBytes(32).toString('base64')
+            }),{mode:0o600});
+            console.log(JSON.stringify({gate:'MMF_EPHEMERAL_STAGE_CREDENTIAL_GENERATION',status:'PASS',secretsPrinted:false}));
+            NODE
+            npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc --secrets-file "$path"
+          else
+            npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc
+          fi
+      - name: Independently read back flags, secret names and private surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const k=process.env.CLOUDFLARE_API_TOKEN,w=process.env.MMF_STAGE_WORKER;
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(14000)});const v=await r.json();if(!r.ok||v.success===false)throw Error('READBACK_'+r.status);return v.result};
+          const [cfg,sub,secrets]=await Promise.all([get('/workers/scripts/'+w+'/settings'),get('/workers/scripts/'+w+'/subdomain'),get('/workers/scripts/'+w+'/secrets')]);
+          const b=cfg?.bindings||[],value=n=>b.find(x=>x.name===n)?.text;
+          if(sub?.enabled===true||sub?.previews_enabled===true||
+             value('MMF_STAGE_ONLY')!=='true'||value('MMF_STAGE_CRYPTO_READY')!=='true'||
+             value('MMF_REAL_SEND_ENABLED')!=='false'||value('MMF_API_ENABLED')!=='false'||
+             value('MMF_WEBHOOK_ENABLED')!=='false'||
+             !b.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace')||
+             !['MMF_STORAGE_RPC_SECRET','MMF_STAGE_SIGNING_PRIVATE_KEY_PEM','MMF_STAGE_DATA_KEY_B64'].every(n=>secrets.some(x=>x.name===n)))throw Error('STAGE_READBACK_FAILED_CLOSED');
+          console.log(JSON.stringify({gate:'MMF_STAGE_CRYPTO_BINDING_READBACK',status:'PASS',publicAccess:false,customerDelivery:false,privateKeysPrinted:false}));
+          NODE
+      - name: Real synthetic Queue, SQLite and crypto-proof runtime trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$tmp" 2>/dev/null &
+          pid=$!
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$tmp"; }
+          trap cleanup EXIT
+          sleep 8
+          kill -0 "$pid" || { echo 'STAGE_TAIL_UNAVAILABLE'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {randomBytes} from 'node:crypto';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,q=process.env.MMF_QUEUE_ID;
+          const probe='probe-crypto-cloud-'+randomBytes(7).toString('hex');
+          const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+a+'/queues/'+q+'/messages',{
+            method:'POST',headers:{authorization:'Bearer '+k,'content-type':'application/json'},
+            body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_PROBE',probeId:probe}}),
+            signal:AbortSignal.timeout(14000)
+          });
+          const v=await r.json();if(!r.ok||v.success===false)throw Error('STAGING_SYNTHETIC_QUEUE_POST_FAILED');
+          console.log(JSON.stringify({gate:'MMF_STAGE_CRYPTO_SYNTHETIC_POST',status:'PASS',customerData:false}));
+          NODE
+          for i in $(seq 1 43); do
+            grep -q 'MMF_ISOLATED_QUEUE_TO_SQLITE_DO' "$tmp" && break
+            sleep 1
+          done
+          node --input-type=module - "$tmp" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const raw=readFileSync(process.argv.at(-1),'utf8');let found=null;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let evidence;try{evidence=JSON.parse(line)}catch{continue}
+              if(evidence.gate==='MMF_ISOLATED_QUEUE_TO_SQLITE_DO'&&evidence.status==='PASS'&&
+                 evidence.probeRecorded===true&&evidence.cryptoVerified===true&&
+                 /^[a-f0-9]{64}$/.test(evidence.publicKeySha256||'')&&
+                 evidence.customerMailSent===false)found=evidence;
+            }
+            if(found)break;i=j-1;
+          }
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_STAGE_MANAGED_SECRET_CRYPTO_LIVE',status:found?'PASS':'NOT_VERIFIED',cloudQueueAndSqlite:!!found,cryptoVerified:!!found,publicKeyFingerprint:found?.publicKeySha256||null,customerMailSent:false}));
+          if(!found)process.exit(1);
+          NODE
