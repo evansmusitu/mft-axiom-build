@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    if: github.event.before == 'a1c328926e04d2163dd08b47d035785d6235f76d'
+    if: github.event.before == 'a17d5e363a154319cceb54a07f1c629aa47837bc'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 5
@@ -71,24 +71,33 @@ jobs:
           node --input-type=module - "$tmp" <<'NODE'
           import fs from 'node:fs';
           const file=process.argv.at(-1);
-          const lines=fs.readFileSync(file,'utf8').split('\n');
-          let proven=false;
-          for(const line of lines){
-            if(!line.includes('MMF_ISOLATED_QUEUE_TO_SQLITE_DO'))continue;
-            try{
-              const obj=JSON.parse(line);
-              for(const log of obj.logs||[]){
-                for(const s of log.message||[]){
-                  let event; try{event=JSON.parse(s)}catch{continue}
-                  if(event.gate==='MMF_ISOLATED_QUEUE_TO_SQLITE_DO'&&event.status==='PASS'&&event.probeRecorded===true&&event.customerMailSent===false)proven=true;
-                }
+          const raw=fs.readFileSync(file,'utf8');
+          let proven=false, parsedEvents=0;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const char=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(char==='\\')escaped=true;else if(char==='"')quoted=false;continue}
+              if(char==='"'){quoted=true;continue}
+              if(char==='{')depth++;
+              if(char==='}'&&--depth===0){j++;break}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j))}catch{continue}
+            parsedEvents++;
+            for(const log of obj.logs||[]){
+              for(const str of log.message||[]){
+                let evidence;try{evidence=JSON.parse(str)}catch{continue}
+                if(evidence.gate==='MMF_ISOLATED_QUEUE_TO_SQLITE_DO' &&
+                   evidence.status==='PASS' && evidence.probeRecorded===true &&
+                   evidence.customerMailSent===false)proven=true;
               }
-            }catch{}
+            }
+            if(proven)break;
+            i=j-1;
           }
-          if(!proven) {
-            const matches=lines.map((text,index)=>({text,index})).filter(x=>x.text.includes('MMF_ISOLATED_QUEUE_TO_SQLITE_DO'));
-            console.log(JSON.stringify({gate:'MMF_TAIL_LOG_DIAGNOSTIC',matches:matches.slice(0,3).map(x=>({line:x.index,preview:x.text.slice(0,400)})),diagnostic_only:true,customer_message_content_logged:false}));
-          }
+          const lines=raw.split('\n');
           console.log(JSON.stringify({gate:'MMF_CLOUD_QUEUE_TO_SQLITE_DO_LIVE',status:proven?'PASS':'NOT_VERIFIED',cloud_log_observed:proven,tailLines:lines.filter(Boolean).length,publicAccess:false,customerMailSent:false}));
           if(!proven)process.exit(1);
           NODE
