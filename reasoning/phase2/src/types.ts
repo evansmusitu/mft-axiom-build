@@ -512,3 +512,29 @@ export interface AuthenticatedWorkerContext {
   issuedAt:string;
   requestHash:string;
 }
+
+
+export type WorkerLeaseAction="HEARTBEAT"|"RELEASE"|"COMPLETE"|"FAIL_TERMINAL";
+export interface WorkerLeaseCapabilityCore {
+  protocolVersion:"axiom.worker-lease/v1";
+  workerId:string;
+  workerKeyId:string;
+  poolId:string;
+  tenantId:string;
+  jobId:string;
+  intentHash:string;
+  leaseEpoch:number;
+  leaseExpiresAt:string;
+  allowedActions:WorkerLeaseAction[];
+  signerKeyId:string;
+}
+export interface WorkerLeaseCapability {
+  core:WorkerLeaseCapabilityCore;
+  capabilityId:string;
+  signatureBase64:string;
+}
+export interface PreparedWorkerLeaseCapability {
+  core:WorkerLeaseCapabilityCore;
+  signingPayload:JsonValue;
+  coreHash:string;
+}
