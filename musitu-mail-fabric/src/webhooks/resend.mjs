@@ -26,11 +26,22 @@ export function verifyResendWebhook(raw,headers,secret,{now=Date.now,maxSkewSeco
   if(!valid)throw new WebhookVerificationError();
   return Object.freeze({id,rawSha256:hash(raw)});
 }
-export async function processResendWebhook(fabric,raw,headers,{secret,now=Date.now}={}){
+export async function processResendWebhook(fabric,raw,headers,{secret,now=Date.now,strictRecipient=false}={}){
   const verified=verifyResendWebhook(raw,headers,secret,{now});
   let event;try{event=JSON.parse(raw);}catch{throw new TypeError('INVALID_WEBHOOK_EVENT');}
   if(!event||typeof event!=='object'||!TYPES.has(event.type)||typeof event.data?.email_id!=='string'||!/^[A-Za-z0-9_-]{1,120}$/.test(event.data.email_id)){
     return {recorded:false,reason:'UNSUPPORTED_EVENT'};
   }
-  return fabric.recordProviderEvent({svixId:verified.id,rawSha256:verified.rawSha256,type:event.type,providerId:event.data.email_id});
+  // Resend publishes one recipient per outcome (2026 contract). Strict mode
+  // binds the signed recipient to the original tenant-scoped opaque HMAC.
+  let recipient;
+  if(strictRecipient){
+    const to=event.data?.to;
+    if(!Array.isArray(to)||to.length!==1||typeof to[0]!=='string'||
+       to[0].length>254||!/^[^\\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(to[0])||
+       to[0].startsWith('.')||to[0].endsWith('.')||to[0].includes('..'))
+      throw new TypeError('INVALID_WEBHOOK_RECIPIENT');
+    recipient=to[0].toLowerCase();
+  }
+  return fabric.recordProviderEvent({svixId:verified.id,rawSha256:verified.rawSha256,type:event.type,providerId:event.data.email_id,recipient});
 }
