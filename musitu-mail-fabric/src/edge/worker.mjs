@@ -4,6 +4,7 @@ import {createResendProvider,createPostalProvider} from '../providers.mjs';
 import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.mjs';
 import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
+import {verifyLiveRelease} from '../security/release-authorization.mjs';
 
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const respond=(payload,status=200)=>new Response(JSON.stringify(payload),{status,headers:HEADERS});
@@ -18,6 +19,7 @@ function authorized(request,secret){
 }
 function fromEnv(env,providerFactory,{receiveOnly=false}={}){
  if(!env?.MMF_DB?.prepare)throw Error('PERSISTENCE_UNAVAILABLE');
+ if(env.MMF_REAL_SEND_ENABLED==='true')verifyLiveRelease(env);
  if(!TENANT.test(String(env.MMF_TENANT_ID||'')))throw Error('INVALID_TENANT_CONFIG');
  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(String(env.MMF_FROM_DOMAIN||'')))throw Error('INVALID_SENDER_CONFIG');
  const enc=Buffer.from(String(env.MMF_ENCRYPTION_KEY_B64||''),'base64'),privacy=Buffer.from(String(env.MMF_PRIVACY_KEY_B64||''),'base64');

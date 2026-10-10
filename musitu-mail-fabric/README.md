@@ -101,25 +101,6 @@ When a **properly authenticated** Resend event reports a bounce or complaint, th
 
 **Limitations:** Tenant quota controls prevent a daily *message count* overload but are not request-per-second rate limits, spam detection, marketing consent or paid-customer abuse protection. The tests currently use local SQLite and mocked provider delivery; no Cloudflare production D1/Queue or real customer domain deployment was authorized.
 
+## v0.8.1 — Dual authorization for production sending (2026-10-10)
 
-## v0.6 continuation — live staging findings (2026-10-10)
-
-The v0.6 branch adds tenant-scoped expiring DNS TXT sender ownership, durable recipient limits, conservative provider-event reconciliation, and a guarded Cloudflare staging-resource provisioner. Local tests and existing isolated Cloudflare runtime CI are separate from a public production service.
-
-Cloudflare D1 create was **blocked** by free-account 10-database limit (error 7406); no AXIOM D1 was reused. An isolated Cloudflare staging Queue and a separate Neon Free PostgreSQL test project were created, but no Worker / real provider / customer-sending connection was deployed. The Neon transaction and rollback checks are not genuine cloud-outage tests. Independent security assessment is outstanding. See `docs/2026-10-10-v0.6-staging-and-external-audit.md`.
-
-## v0.7 non-public Cloudflare SQLite Durable Object option
-
-When new D1 databases are blocked by the account's Free-tier limit, MMF can use a separate SQLite-backed Durable Object without touching AXIOM databases. The new `src/edge/sqlite-do.mjs` implements a secret-authenticated, internal-only D1-style SQL adapter. `src/edge/worker-do-staging.mjs` consumes **synthetic probes only** and refuses every public HTTP request. `wrangler.mmf.do-staging.jsonc` explicitly disables `workers.dev`, public routes and all real sending. This does **not** yet mean production is enabled; see `docs/2026-10-10-sqlite-do-staging-design.md` and the separate live GitHub Actions deployment evidence before making remote claims.
-
-## v0.7.1 — disposable staging-only managed secrets
-
-The private staging Worker can cryptographically self-test AES-256-GCM and Ed25519 using separately provisioned Cloudflare Worker Secrets. The queue accepts synthetic probe events only; customer API, webhook ingress and real outgoing email are disabled. The source code contains no actual keys. Staging keys are generated on a short-lived CI runner, placed into Cloudflare Secrets, and verified using a safe non-secret public-key fingerprint; this is NOT a managed HSM, legal trust anchor, backup-validated production key hierarchy, or independent security audit.
-
-## v0.7.2 — Verified private cloud crypto and controlled recovery (2026-10-10)
-
-A guarded private-only GitHub Actions run provisioned disposable Cloudflare Worker secrets for AES-256-GCM and Ed25519; real Queue consumer traces verified synthetic encryption/signing and SQLite readback. A separate test demonstrated an **actual Cloudflare Queue redelivery after a controlled injected retry**, correlated by a unique synthetic probe hash with durable SQLite recovery readback. This is not evidence of a natural Cloudflare outage, live mail delivery, legal trust certification, long-lived HSM/KMS custody or an independent third-party security assessment. All public/customer sending remains disabled. See `docs/2026-10-10-v0.7.2-private-cloud-recovery-evidence.md` and GitHub Actions runs 38025078714 and 38025289143.
-
-## v0.8 — Durable tenant burst limits and stale queue expiry (2026-10-10)
-
-The outbox now enforces a fixed UTC minute quota in the same SQLite transaction as the daily and recipient caps, with 429 on exhaustion and persistent idempotency. Stale queued messages are blocked and their encrypted payload erased before any provider attempt. Configurable operator limits cannot be raised by request payload. See `docs/2026-10-10-v0.8-operational-safety.md`. This does not enable public traffic or establish external audit readiness.
+The real-delivery path now fails closed unless a matching, time-bounded authorization is Ed25519-signed by **two distinct independently pinned keys**. This gate is checked before any real provider adapter can be built. No production approval has been issued and no live email is enabled. See `docs/2026-10-10-v081-two-party-release.md`.

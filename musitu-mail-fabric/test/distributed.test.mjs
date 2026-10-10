@@ -12,6 +12,7 @@ import {generateDemonstrationKeys,verifyProof} from '../src/evidence.mjs';
 import {verifyResendWebhook,processResendWebhook} from '../src/webhooks/resend.mjs';
 import {makeWebhook,webhookHeaders} from './helpers/svix.mjs';
 import {createWorker} from '../src/edge/worker.mjs';
+import {provisionTestRelease} from './helpers/release-grant.mjs';
 const message={tenantId:'client1',from:'alerts@example.org',to:'customer@example.net',subject:'Account alert',text:'Test private message',kind:'SECURITY',idempotencyKey:'event-000001'};
 function fixture(t){
  const dir=mkdtempSync(join(tmpdir(),'mmf-v03-')),file=join(dir,'db.sqlite');
@@ -131,6 +132,7 @@ test('independent Postal transport can be explicitly selected without Resend',as
  const instant=Date.now();
  f.d.prepare(`INSERT INTO mail_sender_domains(tenant_id,domain,challenge_sha256,challenge_expires_ms,verified_until_ms,status,updated_ms)
     VALUES(?,?,?,?,?,'VERIFIED',?)`).run('client1','example.org','f'.repeat(64),instant+86400000,instant+86400000,instant);
+ provisionTestRelease(env);
  const w=createWorker(),h={authorization:'Bearer '+token};
  const resp=await w.fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:h,body:JSON.stringify(message)}),env);
  assert.equal(resp.status,202);const row=await resp.json();
