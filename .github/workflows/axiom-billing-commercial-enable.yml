@@ -37,8 +37,14 @@ jobs:
         run: |
           python -m py_compile ops/axiom_billing_commercial_enable_v1.py
           python -m py_compile ops/axiom_billing_commercial_enable_v2.py
+      - name: Require dedicated Cloudflare API token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+
       - name: Deploy catalog, signer, transport bridge and checkout fail-safely
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python ops/axiom_billing_commercial_enable_v2.py
@@ -50,3 +56,4 @@ jobs:
             commercial-enable-evidence.sha256
           retention-days: 30
           if-no-files-found: error
+# 2026-09-27 recovery trigger: retry commercial billing enable after edge credential restoration.

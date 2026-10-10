@@ -1,0 +1,127 @@
+name: MUSITU Axiom OpenAI Submission Bundle
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-skill-fabric
+    paths:
+      - '.github/workflows/axiom-openai-submission-bundle.yml'
+      - 'chatgpt-app-submission.json'
+      - 'submission/chatgpt-app-submission.sha256'
+      - 'submission/review-checks.json'
+      - 'submission/REVIEWER_NOTES.md'
+      - 'submission/OPENAI_PUBLICATION_EXECUTION_PACKET.md'
+      - 'submission/OPENAI_PUBLICATION_READINESS_REVALIDATED_20260909.md'
+      - 'branding/musitu-axiom-app-icon.svg'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-submission-bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate sealed OpenAI import contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d'
+          actual="$(sha256sum chatgpt-app-submission.json | awk '{print $1}')"
+          recorded="$(awk '{print $1}' submission/chatgpt-app-submission.sha256)"
+          test "$actual" = "$expected"
+          test "$recorded" = "$expected"
+          python - <<'PY'
+          import json
+          s=json.load(open('chatgpt-app-submission.json',encoding='utf-8'))
+          r=json.load(open('submission/review-checks.json',encoding='utf-8'))
+          assert s.get('$schema')=='https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json'
+          assert s.get('schema_version')==1
+          assert s.get('app_info',{}).get('display_name')=='MUSITU Axiom'
+          assert s.get('app_info',{}).get('subtitle')=='Quantitative analysis'
+          assert len(s.get('tools') or {})==108
+          assert len(s.get('test_cases') or [])==5
+          assert len(s.get('negative_test_cases') or [])==3
+          assert r.get('public_tool_count')==108
+          assert r.get('operation_count')==74
+          assert r.get('business_product_count')==30
+          assert r.get('explicit_annotation_tools')==108
+          assert r.get('hidden_commerce_tools_absent') is True
+          assert not r.get('missing_output_schema')
+          assert not r.get('sensitive_input_fields')
+          assert not r.get('promotional_commerce_descriptor_findings')
+          forbidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+          assert not (forbidden & set(s['tools']))
+          for name,t in s['tools'].items():
+              a=t.get('annotations') or {}
+              j=t.get('justifications') or {}
+              assert all(k in a for k in ('readOnlyHint','openWorldHint','destructiveHint')), name
+              assert all(j.get(k) for k in ('read_only_justification','open_world_justification','destructive_justification')), name
+          print('MUSITU_AXIOM_OPENAI_SUBMISSION_IMPORT_PASS')
+          PY
+
+      - name: Build secret-free submission package
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg='MUSITU_AXIOM_OPENAI_SUBMISSION_20260909'
+          rm -rf "$pkg" "$pkg.zip" "$pkg.zip.sha256"
+          mkdir -p "$pkg/reference" "$pkg/evidence"
+          cp chatgpt-app-submission.json "$pkg/chatgpt-app-submission.json"
+          cp submission/chatgpt-app-submission.sha256 "$pkg/chatgpt-app-submission.sha256"
+          cp branding/musitu-axiom-app-icon.svg "$pkg/musitu-axiom-app-icon.svg"
+          cp submission/REVIEWER_NOTES.md "$pkg/reference/REVIEWER_NOTES.md"
+          cp submission/OPENAI_PUBLICATION_EXECUTION_PACKET.md "$pkg/reference/OPENAI_PUBLICATION_EXECUTION_PACKET.md"
+          cp submission/OPENAI_PUBLICATION_READINESS_REVALIDATED_20260909.md "$pkg/reference/OPENAI_PUBLICATION_READINESS_REVALIDATED_20260909.md"
+          cp submission/review-checks.json "$pkg/evidence/review-checks.json"
+          cat > "$pkg/RELEASE_NOTES.txt" <<'EOF'
+          Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, UserInfo support for explicitly verified email identities, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.
+          EOF
+          cat > "$pkg/README_SUBMIT.md" <<'EOF'
+          # MUSITU Axiom — OpenAI submission package
+
+          ## File to import in OpenAI Platform
+
+          Upload/import `chatgpt-app-submission.json` when the OpenAI Apps/Plugins submission form asks for the ChatGPT app submission JSON. The outer ZIP is a transport bundle; the portal import contract is the JSON file inside it.
+
+          The JSON is sealed at SHA-256:
+          `e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d`
+
+          It contains exactly 108 public tools, explicit annotation values and justifications for all 108 tools, exactly 5 positive tests, and exactly 3 negative tests.
+
+          Public MCP server: `https://mcp.mftintelligence.com/mcp`
+          Product name: `MUSITU Axiom`
+          Subtitle: `Quantitative analysis`
+
+          The public submission must not expose `musitu_axiom_plans`, `musitu_axiom_recommend_plan`, `musitu_axiom_start_checkout`, or `musitu_axiom_checkout_status`.
+
+          ## Reviewer credential
+
+          The dedicated reviewer credential is deliberately NOT included. Enter it only in OpenAI's private reviewer-credential field. Never paste it into public notes, source control, logs, or chat.
+
+          ## Release notes
+
+          Use the exact text in `RELEASE_NOTES.txt` unless the OpenAI portal enforces a technical character limit.
+
+          ## Submission state
+
+          This package does not itself prove that OpenAI review has been submitted, approved, or published. Those states require direct OpenAI Platform confirmation.
+          EOF
+          printf '%s\n' "branch=frontier/axiom-v5-skill-fabric" "commit=${GITHUB_SHA}" "sealed_main=d6a846f6bbe0bccac1758713eb4de167caf07113" "submission_json_sha256=e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d" > "$pkg/BUILD_PROVENANCE.txt"
+          zip -X -q -r "$pkg.zip" "$pkg"
+          sha256sum "$pkg.zip" > "$pkg.zip.sha256"
+          cat "$pkg.zip.sha256"
+
+      - name: Upload submission package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-openai-submission-package
+          path: |
+            MUSITU_AXIOM_OPENAI_SUBMISSION_20260909.zip
+            MUSITU_AXIOM_OPENAI_SUBMISSION_20260909.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
