@@ -3,6 +3,7 @@ import {DurableMailFabric} from '../durable/fabric.mjs';
 import {createResendProvider,createPostalProvider} from '../providers.mjs';
 import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.mjs';
 import {PolicyRejection} from '../policy.mjs';
+import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
 
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const respond=(payload,status=200)=>new Response(JSON.stringify(payload),{status,headers:HEADERS});
@@ -43,7 +44,9 @@ function fromEnv(env,providerFactory,{receiveOnly=false}={}){
  if(!provider)throw Error('DELIVERY_DISABLED');
  const configuredLimit=env.MMF_DAILY_SEND_LIMIT===undefined?100:Number(env.MMF_DAILY_SEND_LIMIT);
  if(!Number.isSafeInteger(configuredLimit)||configuredLimit<1||configuredLimit>100000)throw Error('INVALID_QUOTA_CONFIGURATION');
- const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit};
+ const perRecipient=env.MMF_DAILY_RECIPIENT_LIMIT===undefined?20:Number(env.MMF_DAILY_RECIPIENT_LIMIT);
+ if(!Number.isSafeInteger(perRecipient)||perRecipient<1||perRecipient>10000)throw Error('INVALID_RECIPIENT_QUOTA');
+ const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit,dailyRecipientLimit:perRecipient};
  return new DurableMailFabric(config,{db:env.MMF_DB,encryptionKey:enc,privacyKey:privacy,keys});
 }
 /** Isolated Cloudflare Worker entrypoint: no auto-deploy or public hostname. */
@@ -69,7 +72,16 @@ export function createWorker({providerFactory}={}){
    if(env?.MMF_API_ENABLED!=='true')return respond({error:'SERVICE_UNAVAILABLE'},503);
    if(!authorized(request,env.MMF_AUTH_TOKEN))return respond({error:'UNAUTHORIZED'},401);
    if(request.method!=='POST'&&request.method!=='GET')return respond({error:'METHOD_NOT_ALLOWED'},405);
-   let fab;try{fab=fromEnv(env,providerFactory);}catch{return respond({error:'SERVICE_UNAVAILABLE'},503);}
+   if(url.pathname.startsWith('/v1/senders/')&&request.method==='POST'){
+    try{
+     const tenant=String(env.MMF_TENANT_ID||''),domain=String(env.MMF_FROM_DOMAIN||'');
+     const registry=new SenderRegistry({db:env.MMF_DB,tenantId:tenant});
+     if(url.pathname==='/v1/senders/challenge')return respond(await registry.issue(domain),201);
+     if(url.pathname==='/v1/senders/verify')return respond(await registry.verify(domain));
+    }catch(e){if(e instanceof SenderVerificationError)return respond({error:e.code},e.code==='DNS_UNAVAILABLE'?503:e.code==='CHALLENGE_EXPIRED'?410:422);
+      return respond({error:'SERVICE_UNAVAILABLE'},503);}
+   }
+   let fab;try{fab=fromEnv(env,providerFactory);}catch{return respond({error:'SERVICE_UNAVAILABLE'},503);} 
    if(url.pathname==='/v1/keys/current'&&request.method==='GET'){
     const publicKey=String(env.MMF_SIGNING_PUBLIC_KEY_PEM||'');
     const fingerprint=createHash('sha256').update(publicKey).digest('hex');
@@ -79,6 +91,10 @@ export function createWorker({providerFactory}={}){
     try{
      const raw=await request.text();if(Buffer.byteLength(raw,'utf8')>30000)return respond({error:'PAYLOAD_TOO_LARGE'},413);
      const input=JSON.parse(raw);
+     if(env.MMF_REAL_SEND_ENABLED==='true'){
+      const registry=new SenderRegistry({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID});
+      if(!await registry.isVerified(String(env.MMF_FROM_DOMAIN||'')))return respond({error:'SENDER_NOT_VERIFIED'},403);
+     }
      const result=await fab.enqueue({...input,tenantId:env.MMF_TENANT_ID});
      let queued=false;
      try{if(env.MMF_QUEUE?.send){await env.MMF_QUEUE.send({tenantId:env.MMF_TENANT_ID,messageId:result.messageId});queued=true;}}catch{}// Durable cron repairs lost queue notification.
@@ -97,6 +113,10 @@ export function createWorker({providerFactory}={}){
    return respond({error:'NOT_FOUND'},404);
   },
   async queue(batch,env){
+   if(env?.MMF_REAL_SEND_ENABLED==='true'){
+    try{const reg=new SenderRegistry({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID});if(!await reg.isVerified(String(env.MMF_FROM_DOMAIN||''))){for(const m of batch.messages)m.ack();return;}}
+    catch{for(const m of batch.messages)m.retry();return;}
+   }
    let fab;try{fab=fromEnv(env,providerFactory);}catch(e){for(const m of batch.messages)m.retry();return;}
    for(const m of batch.messages){
     const body=m.body;
@@ -105,6 +125,10 @@ export function createWorker({providerFactory}={}){
    }
   },
   async scheduled(_controller,env){
+   if(env?.MMF_REAL_SEND_ENABLED==='true'){
+    try{const reg=new SenderRegistry({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID});if(!await reg.isVerified(String(env.MMF_FROM_DOMAIN||'')))return {status:'SENDER_NOT_VERIFIED'};}
+    catch{return {status:'SENDER_CHECK_UNAVAILABLE'};}
+   }
    let fab;try{fab=fromEnv(env,providerFactory);}catch{return {status:'DISABLED'};}
    const expired=await fab.reconcileExpired();let processed=0;
    for(;processed<25;processed++){const row=await fab.processNext();if(!row)break;}

@@ -1,0 +1,49 @@
+name: MUSITU Mail Fabric Isolated Cloud Staging Resources 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-staging-resources-20261010.yml']
+permissions:
+  contents: read
+concurrency:
+  group: musitu-mail-fabric-isolated-staging-20261010
+  cancel-in-progress: false
+jobs:
+  stage:
+    if: github.event.before == 'cac9f0e29d06ae41164e05bf38a00ebbef9d2529'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      MMF_STAGING_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      MMF_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      MMF_QUEUES_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact isolation release gate and complete tests
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "${{ github.event.before }}" = 'cac9f0e29d06ae41164e05bf38a00ebbef9d2529'
+          cd musitu-mail-fabric
+          npm run check
+          npm test
+      - name: Provision only two isolated named staging resources with live API verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd musitu-mail-fabric
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {provision} from './src/staging/provision.mjs';
+          const schema=readFileSync('./src/durable/schema.sql','utf8');
+          const config={account:process.env.MMF_STAGING_ACCOUNT,dbToken:process.env.MMF_D1_TOKEN,queueToken:process.env.MMF_QUEUES_TOKEN,schema};
+          // No mutation until both provider reads and exact account verification pass.
+          const preflight=await provision({...config,dryRun:true});
+          console.log(JSON.stringify({gate:'MMF_LIVE_STAGING_PREFLIGHT',...preflight}));
+          const result=await provision({...config,dryRun:false});
+          console.log(JSON.stringify({gate:'MMF_LIVE_STAGING_PROVISION',...result}));
+          NODE

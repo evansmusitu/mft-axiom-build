@@ -22,6 +22,8 @@ export class DurableMailFabric {
     // Clients cannot choose or increase this limit through the HTTP body.
     this.dailySendLimit=config.dailySendLimit??100;
     if(!Number.isSafeInteger(this.dailySendLimit)||this.dailySendLimit<1||this.dailySendLimit>100000)throw TypeError('INVALID_DAILY_QUOTA_CONFIG');
+    this.dailyRecipientLimit=config.dailyRecipientLimit??20;
+    if(!Number.isSafeInteger(this.dailyRecipientLimit)||this.dailyRecipientLimit<1||this.dailyRecipientLimit>10000)throw TypeError('INVALID_RECIPIENT_QUOTA_CONFIG');
     this.config=config;this.db=db;this.key=Buffer.from(encryptionKey);this.now=now;this.leaseMs=leaseMs;
     this.ledger=new EvidenceLedger({...keys,privacyKey:Buffer.from(privacyKey),now:()=>new Date(this.now()).toISOString()});
     this.suppressed=new Set();
@@ -78,9 +80,11 @@ export class DurableMailFabric {
     requireSuccess(await this.db.prepare(`INSERT OR IGNORE INTO mail_messages
       (message_id,tenant_id,idempotency_key,request_hash,recipient_hmac,state,sealed_envelope,events_json,created_ms,updated_ms)
       SELECT ?,?,?,?,?,?,?,?,?,? WHERE
-      (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?) < ?`)
+      (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?) < ?
+      AND (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND recipient_hmac=? AND created_ms>=? AND created_ms<?) < ?`)
       .bind(id,msg.tenantId,msg.idempotencyKey,requestHash,this.ledger.opaqueRecipient(msg.to),
-        'QUEUED',cipher,JSON.stringify(events),ms,ms,msg.tenantId,dayStart,dayStart+86400000,this.dailySendLimit).run());
+        'QUEUED',cipher,JSON.stringify(events),ms,ms,msg.tenantId,dayStart,dayStart+86400000,this.dailySendLimit,
+        msg.tenantId,this.ledger.opaqueRecipient(msg.to),dayStart,dayStart+86400000,this.dailyRecipientLimit).run());
     const existing=await this.db.prepare('SELECT * FROM mail_messages WHERE tenant_id=? AND idempotency_key=?').bind(msg.tenantId,msg.idempotencyKey).first();
     if(!existing)throw new PolicyRejection('QUOTA_EXCEEDED');
     if(existing.request_hash!==requestHash)throw new PolicyRejection('IDEMPOTENCY_CONFLICT');
@@ -120,8 +124,11 @@ export class DurableMailFabric {
       result=await this.config.provider.send(msg,'musitu-'+hash(msg.tenantId+':'+msg.idempotencyKey));
     }catch{result={outcome:'unknown'};}
     const outcome=['accepted','rejected','unknown'].includes(result?.outcome)?result.outcome:'unknown';
-    const state=outcome==='accepted'?'ACCEPTED_BY_PROVIDER':outcome==='rejected'?'REJECTED_BY_PROVIDER':'OUTCOME_UNKNOWN';
     const providerId=outcome==='accepted'&&typeof result?.providerId==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(result.providerId)?result.providerId:null;
+    // Without a valid unique provider identifier we cannot reconcile verified
+    // delivery feedback; the network attempt may nevertheless have succeeded.
+    const state=outcome==='accepted'?(providerId?'ACCEPTED_BY_PROVIDER':'OUTCOME_UNKNOWN'):
+      outcome==='rejected'?'REJECTED_BY_PROVIDER':'OUTCOME_UNKNOWN';
     return this.#finalize(row,token,state,providerId);
   }
   async processNext(){
@@ -171,7 +178,14 @@ export class DurableMailFabric {
       const event={...data,hash:hash(JSON.stringify(data))};entries.push(event);
       events.push({type:r.kind,claim:'PROVIDER_REPORTED',eventIdHash:hash(r.svix_id)});
     }
-    return {messageId,events,proof:this.ledger.export(entries)};
+    // Conservative, provider-asserted projection. Complaint and permanent bounce
+    // cannot be undone by a later or out-of-order 'delivered' event.
+    const kinds=new Set(events.map(x=>x.type));
+    const providerStatus=kinds.has('email.complained')?'COMPLAINT_REPORTED':
+       kinds.has('email.bounced')?'BOUNCED_REPORTED':
+       kinds.has('email.delivered')?'DELIVERED_REPORTED':
+       kinds.has('email.delivery_delayed')?'DELAY_REPORTED':'NO_PROVIDER_EVENT';
+    return {messageId,providerStatus,events,proof:this.ledger.export(entries)};
   }
   async reconcileExpired(){
     const ms=this.now();

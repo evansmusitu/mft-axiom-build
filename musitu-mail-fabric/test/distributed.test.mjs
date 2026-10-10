@@ -128,6 +128,9 @@ test('independent Postal transport can be explicitly selected without Resend',as
  MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
  MMF_SIGNING_PRIVATE_KEY_PEM:f.keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),MMF_SIGNING_PUBLIC_KEY_PEM:f.keys.publicKey.export({format:'pem',type:'spki'}).toString(),
  MMF_API_ENABLED:'true',MMF_REAL_SEND_ENABLED:'true',MMF_PROVIDER:'postal',MMF_POSTAL_BASE_URL:'https://mail.example.org',MMF_POSTAL_API_KEY:'test-postal-server-key'};
+ const instant=Date.now();
+ f.d.prepare(`INSERT INTO mail_sender_domains(tenant_id,domain,challenge_sha256,challenge_expires_ms,verified_until_ms,status,updated_ms)
+    VALUES(?,?,?,?,?,'VERIFIED',?)`).run('client1','example.org','f'.repeat(64),instant+86400000,instant+86400000,instant);
  const w=createWorker(),h={authorization:'Bearer '+token};
  const resp=await w.fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:h,body:JSON.stringify(message)}),env);
  assert.equal(resp.status,202);const row=await resp.json();

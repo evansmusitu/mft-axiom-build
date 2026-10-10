@@ -41,3 +41,15 @@ CREATE INDEX IF NOT EXISTS mail_provider_events_lookup_idx ON mail_provider_even
 CREATE INDEX IF NOT EXISTS mail_messages_provider_lookup_idx ON mail_messages(tenant_id,provider_id);
 -- Provider IDs must uniquely identify one message per tenant, or attribution is unsafe.
 CREATE UNIQUE INDEX IF NOT EXISTS mail_messages_unique_provider_idx ON mail_messages(tenant_id,provider_id) WHERE provider_id IS NOT NULL;
+
+-- Explicit sender-ownership verification, tenant-scoped and expiring.
+CREATE TABLE IF NOT EXISTS mail_sender_domains (
+ tenant_id TEXT NOT NULL,
+ domain TEXT NOT NULL,
+ challenge_sha256 TEXT NOT NULL,
+ challenge_expires_ms INTEGER NOT NULL,
+ verified_until_ms INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL CHECK(status IN ('PENDING','VERIFIED','REVOKED')),
+ updated_ms INTEGER NOT NULL,
+ PRIMARY KEY (tenant_id,domain)
+) STRICT;
