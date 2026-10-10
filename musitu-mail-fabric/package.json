@@ -13,7 +13,7 @@
     "test:recovery": "node --test test/backup-restore.test.mjs test/backup-outbox-recovery.test.mjs test/backup-cli.test.mjs",
     "test:operations": "node --test test/operational-health.test.mjs test/stage-health-cloud.test.mjs test/pitr-readonly-stage.test.mjs test/stage-expired-claims.test.mjs",
     "test:pitr": "node --test test/pitr-sacrificial.test.mjs test/stage-sacrificial-redelivery.test.mjs test/pitr-readonly-stage.test.mjs",
-    "test:feedback": "node --test test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs test/stage-synthetic-feedback.test.mjs test/reconciliation-v06.test.mjs"
+    "test:feedback": "node --test test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs test/stage-synthetic-feedback.test.mjs test/reconciliation-v06.test.mjs test/live-provider-feedback-gate.test.mjs"
   },
   "engines": {
     "node": ">=20"
