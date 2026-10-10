@@ -67,3 +67,34 @@ test('stage signs and encrypts synthetic probes only when secret-backed crypto f
  assert.equal(JSON.stringify(events).includes(key),false);
  assert.equal(JSON.stringify(events).includes(dataKey),false);
 });
+
+test('synthetic retry drill persists first attempt then completes once on queue redelivery',async t=>{
+ const {env,db}=stageFixture(t);
+ let ack=0,retry=0;
+ const probeId='probe-retry-cloud-test-20261010';
+ const m=()=>({body:{type:'MMF_STAGE_RETRY_PROBE',probeId},ack(){ack++},retry(){retry++}});
+ await stage.queue({messages:[m()]},env);
+ assert.equal(ack,0,'first attempt must not acknowledge');
+ assert.equal(retry,1,'first attempt must request actual queue retry');
+ const initial=db.prepare('SELECT recovery_count,completed_ms FROM mmf_staging_recovery WHERE probe_id=?').get(probeId);
+ assert.equal(initial.recovery_count,1);
+ assert.equal(initial.completed_ms,null);
+ await stage.queue({messages:[m()]},env);
+ assert.equal(ack,1);assert.equal(retry,1);
+ const finished=db.prepare('SELECT recovery_count,completed_ms FROM mmf_staging_recovery WHERE probe_id=?').get(probeId);
+ assert.equal(finished.recovery_count,1);
+ assert.ok(Number.isInteger(finished.completed_ms)&&finished.completed_ms>0);
+ await stage.queue({messages:[m()]},env);
+ assert.equal(ack,2,'duplicate delivery should be idempotently acknowledged');
+ assert.equal(retry,1,'completed probe must not be retried');
+ assert.deepEqual(db.prepare('SELECT recovery_count,completed_ms FROM mmf_staging_recovery WHERE probe_id=?').get(probeId),finished);
+});
+
+test('synthetic retry probe must fail closed if cloud stage gates are disabled',async t=>{
+ const {env,db}=stageFixture(t);let ack=0,retry=0;
+ await stage.queue({messages:[{body:{type:'MMF_STAGE_RETRY_PROBE',probeId:'probe-retry-disabled-20261010'},ack(){ack++},retry(){retry++}}]},
+   {...env,MMF_API_ENABLED:'true'});
+ assert.equal(ack,0);assert.equal(retry,1);
+ assert.equal(db.prepare("SELECT COUNT(*) as n FROM sqlite_master WHERE name='mmf_staging_recovery'").get().n,1);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM mmf_staging_recovery').get().n,0);
+});
