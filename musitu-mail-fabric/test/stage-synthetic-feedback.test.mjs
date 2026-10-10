@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {generateKeyPairSync,randomBytes} from 'node:crypto';
 import {createD1Compat} from './helpers/sqlite-d1.mjs';
-import {runSyntheticSignedFeedbackProbe} from '../src/edge/synthetic-feedback.mjs';
+import {runSyntheticSignedFeedbackProbe,runSyntheticEarlyFeedbackProbe} from '../src/edge/synthetic-feedback.mjs';
 function fixture(t){
  const db=new DatabaseSync(':memory:');
  db.exec(readFileSync(new URL('../src/durable/schema.sql',import.meta.url),'utf8'));
@@ -33,4 +33,19 @@ test('synthetic provider feedback cannot run with public route, real mail, or we
  for(const flags of [{MMF_REAL_SEND_ENABLED:'true'},{MMF_API_ENABLED:'true'},{MMF_WEBHOOK_ENABLED:'true'}])
   await assert.rejects(()=>runSyntheticSignedFeedbackProbe(f.adapter,{...f.env,...flags},'probe-fb-denied-20261010'),/STAGING_ONLY/);
  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,0);
+});
+
+test('signed early delivery feedback is retryable until durable provider acceptance, then idempotently reconciled',async t=>{
+ const f=fixture(t);
+ const result=await runSyntheticEarlyFeedbackProbe(f.adapter,f.env,'probe-early-signed-20261010');
+ assert.equal(result.status,'PASS');
+ for(const flag of ['earlyWebhookRetryable','unmatchedEventNeverAcknowledged','sameSignatureReplayed',
+  'eventRecordedAfterAcceptance','exactReplayIdempotent','signatureEvidenceVerified'])
+   assert.equal(result[flag],true,flag);
+ assert.equal(result.providerWasSimulation,true);
+ assert.equal(result.customerMailSent,false);
+ assert.equal(result.realResendWebhookReceived,false);
+ assert.equal(result.networkProviderCalls,0);
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,1);
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events').get().n,1);
 });
