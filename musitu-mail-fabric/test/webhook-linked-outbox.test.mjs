@@ -53,7 +53,7 @@ test('linked webhook-only Worker reconciles signed bounce into originating outbo
  const headers={'content-type':'application/json',...webhookHeaders(f.webhookSecret,raw,'svix-linked-outbox-01')};
  const req=()=>new Request('https://private.invalid/v1/webhooks/resend',{method:'POST',headers,body:raw});
  const res=await ingress.fetch(req(),f.env);
- assert.equal(res.status,202);assert.deepEqual(await res.json(),{accepted:true,recorded:true});
+ assert.equal(res.status,202,JSON.stringify(await res.clone().json()));assert.deepEqual(await res.json(),{accepted:true,recorded:true});
  assert.equal((await ingress.fetch(req(),f.env)).status,202);
  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM mail_provider_events').get().n,1);
  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM mail_suppressions').get().n,1);
