@@ -470,3 +470,45 @@ export interface DistributedExecutionLease {
   leaseEpoch:number;
   leaseExpiresAt:string;
 }
+
+
+export type WorkerAction="CLAIM"|"HEARTBEAT"|"RELEASE"|"COMPLETE"|"FAIL_TERMINAL";
+
+export interface WorkerIdentity {
+  protocolVersion:"axiom.worker/v1";
+  workerId:string;
+  keyId:string;
+  poolId:string;
+  algorithm:"Ed25519";
+  publicKeySha256:string;
+}
+export interface WorkerTrustRecord {
+  identity:WorkerIdentity;
+  publicKeyPem:string;
+  status:"ACTIVE"|"REVOKED";
+  maxLeaseMs:number;
+  allowedActions:WorkerAction[];
+  recordHash:string;
+}
+export interface WorkerRequestProof {
+  protocolVersion:"axiom.worker-request/v1";
+  workerId:string;
+  keyId:string;
+  requestId:string;
+  action:WorkerAction;
+  targetJobId?:string;
+  bodyHash:string;
+  issuedAt:string;
+  signatureBase64:string;
+}
+export interface AuthenticatedWorkerContext {
+  identity:WorkerIdentity;
+  maxLeaseMs:number;
+  allowedActions:WorkerAction[];
+  requestId:string;
+  action:WorkerAction;
+  targetJobId?:string;
+  bodyHash:string;
+  issuedAt:string;
+  requestHash:string;
+}

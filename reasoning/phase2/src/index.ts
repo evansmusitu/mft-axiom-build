@@ -44,3 +44,5 @@ export * from "./distributed_execution_store.ts";
 export * from "./distributed_execution_postgres.ts";
 
 export * from "./distributed_model_execution.ts";
+
+export * from "./worker_authentication.ts";
