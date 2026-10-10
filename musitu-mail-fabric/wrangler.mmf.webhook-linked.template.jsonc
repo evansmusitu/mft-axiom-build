@@ -1,5 +1,5 @@
 {
-  "name": "musitu-mail-fabric-webhook-linked-TEST-ONLY",
+  "name": "musitu-mail-fabric-webhook-linked-test-only",
   "main": "src/edge/webhook-only.mjs",
   "compatibility_date": "2026-10-10",
   "compatibility_flags": [
