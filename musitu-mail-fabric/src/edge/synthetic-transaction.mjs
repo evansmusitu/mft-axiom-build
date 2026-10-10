@@ -5,6 +5,13 @@ import {createHash,createHmac,createPrivateKey,createPublicKey} from 'node:crypt
 import {DurableMailFabric} from '../durable/fabric.mjs';
 import {verifyProof} from '../evidence.mjs';
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
+/** Synthetic per-probe recipient isolation. A previous test's confirmed
+ * suppression must NEVER contaminate a later independent stage test. */
+export function syntheticStageRecipient(probeId){
+ if(typeof probeId!=='string'||!PROBE.test(probeId))throw TypeError('INVALID_SYNTHETIC_PROBE');
+ return 'probe-'+createHash('sha256').update(probeId).digest('hex').slice(0,24)+'@example.net';
+}
+
 const stage=(env)=>env?.MMF_STAGE_ONLY==='true'&&env?.MMF_REAL_SEND_ENABLED==='false'&&
  env?.MMF_API_ENABLED==='false'&&env?.MMF_WEBHOOK_ENABLED==='false'&&env?.MMF_STAGE_CRYPTO_READY==='true';
 export function createSyntheticStageFabric(db,env,probeId){
@@ -29,7 +36,7 @@ export function createSyntheticStageFabric(db,env,probeId){
 }
 export async function runSyntheticTransactionProbe(db,env,probeId){
  const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
- const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:'synthetic-recipient@example.net',
+ const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:syntheticStageRecipient(probeId),
    subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
    kind:'SERVICE_ALERT',idempotencyKey:probeId};
  let queued;
