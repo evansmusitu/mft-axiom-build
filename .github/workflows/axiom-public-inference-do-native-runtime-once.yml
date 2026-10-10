@@ -1,12 +1,14 @@
 name: AXIOM native SQLite DO nonpublic runtime probe (one-shot)
 on:
-  push:
-    branches: [frontier/axiom-public-inference-zero-cost-20261009]
-    paths: ['.github/workflows/axiom-public-inference-do-native-runtime-once.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   scoped-runtime:
+    # QUARANTINED: Cloudflare documents legacy wrangler dev --remote as
+    # unsupported for SQLite-backed Durable Objects. Preserve historical
+    # failed runs; do not repeat this unsupported qualification path.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 7
     env:

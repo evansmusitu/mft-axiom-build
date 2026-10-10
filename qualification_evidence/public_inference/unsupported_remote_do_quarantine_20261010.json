@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.axiom.public_inference.unsupported_remote_do_quarantine.v1",
+  "date_utc": "2026-10-10",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "source_parent_sha": "7f217b4261374e71c21ea83b07c22b482f79660d",
+  "excluded_qualification_method": "wrangler dev --remote with SQLite-backed Durable Objects",
+  "cloudflare_official_reference": "https://developers.cloudflare.com/durable-objects/reference/environments/",
+  "failed_live_runs": [
+    37985883645,
+    37986018199,
+    37986231751,
+    37986439660
+  ],
+  "real_workerd_local_pass_run": 37998084012,
+  "real_local_workerd_statuses": [
+    403,
+    204,
+    204,
+    204,
+    429,
+    429
+  ],
+  "isolated_stage_pass_run": 37977746857,
+  "synthetic_workers_ai_pass_run": 37976063344,
+  "source_test_command": "node --test qualification_mode.test.mjs",
+  "source_test_pass": 5,
+  "actual_remote_sqlite_do_qualification": "NOT_PROVEN",
+  "customer_identity_issuer": "NOT_PROVEN",
+  "independent_security_review": "NOT_PROVEN",
+  "production_release_authorized": false,
+  "cloudflare_deployment_performed_by_this_change": false,
+  "cash_spend_limit_usd": "0.00",
+  "main_drift_observed": "bc48ab8aed137e61b76e25f113bb29e1efd7b11a",
+  "claim_authority": "BUILDER_PROGRESS_NONCERTIFYING"
+}
