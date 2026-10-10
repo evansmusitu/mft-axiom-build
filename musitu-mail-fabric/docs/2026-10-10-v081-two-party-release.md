@@ -39,3 +39,7 @@ Validity: exactly matching tenant, verified domain and provider; issued no earli
 ## Reproducible proof
 
 `node --test test/release-authorization-v08.test.mjs test/operational-safety-v08.test.mjs` verifies dual signatures, trust fingerprints, expiry, tenant/domain/provider scope and fail-closed live API activation. `npm test` checks existing sender ownership, webhook, tenant isolation and provider safety regressions. Real test sends are not performed.
+
+## Fail-safe inbound feedback continuity
+
+An expired or missing live-send authorization blocks new outgoing API, queue and scheduled traffic. It does **not** prevent authenticated incoming Resend webhook feedback. This exception only permits verified provider events to be reconciled; it cannot authorize network delivery. This boundary is covered by a regression test that failed before the correction.
