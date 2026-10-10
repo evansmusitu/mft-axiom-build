@@ -92,6 +92,10 @@ export function createWorker({providerFactory}={}){
     if(typeof env.MMF_OPERATOR_TOKEN!=='string'||env.MMF_OPERATOR_TOKEN.length<32||
        env.MMF_OPERATOR_TOKEN===env.MMF_AUTH_TOKEN)return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
     if(!authorized(request,env.MMF_OPERATOR_TOKEN))return respond({error:'UNAUTHORIZED'},401);
+    const rawLimit=env.MMF_OPERATOR_DAILY_SUPPRESSION_LIMIT;
+    const dailyLimit=rawLimit===undefined?200:Number(rawLimit);
+    if(!Number.isSafeInteger(dailyLimit)||dailyLimit<1||dailyLimit>5000)
+      return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
     if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))
       return respond({error:'UNSUPPORTED_MEDIA_TYPE'},415);
     const declared=request.headers.get('content-length');
@@ -117,12 +121,14 @@ export function createWorker({providerFactory}={}){
       return respond({error:'INVALID_OPERATOR_REQUEST'},422);
     try{
       const outcome=await addOperatorSuppression(env.MMF_DB,{
-        tenantId:env.MMF_TENANT_ID,recipient:parsed.recipient,
+        tenantId:env.MMF_TENANT_ID,recipient:parsed.recipient,dailyLimit,
         privacyKeyBase64:env.MMF_PRIVACY_KEY_B64});
       return respond(outcome,outcome.created?201:200);
     }catch(err){
       if(err instanceof PolicyRejection&&err.code==='INVALID_ADDRESS')
         return respond({error:'INVALID_RECIPIENT'},422);
+      if(err?.message==='OPERATOR_SUPPRESSION_QUOTA_EXCEEDED')
+        return respond({error:'OPERATOR_SUPPRESSION_QUOTA_EXCEEDED'},429);
       return respond({error:'SUPPRESSION_STORE_UNAVAILABLE'},503);
     }
    }
