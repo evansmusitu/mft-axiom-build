@@ -6,6 +6,7 @@ import {stageCryptoSelfTest} from './stage-crypto.mjs';
 import {runSyntheticTransactionProbe,reconcileSyntheticStage} from './synthetic-transaction.mjs';
 import {assessTenantHealth} from '../ops/health.mjs';
 import {runSyntheticSignedFeedbackProbe,runSyntheticEarlyFeedbackProbe} from './synthetic-feedback.mjs';
+import {runSyntheticOperatorSuppressionProbe} from './synthetic-operator-suppression.mjs';
 import {createHash} from 'node:crypto';
 import {MmfPitrSacrificialDO,runSacrificialPitrDrill} from './pitr-sacrificial.mjs';
 export {MmfPitrSacrificialDO};
@@ -23,8 +24,18 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE'&&input?.type!=='MMF_STAGE_SIGNED_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_EARLY_FEEDBACK_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE'&&input?.type!=='MMF_STAGE_SIGNED_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_EARLY_FEEDBACK_PROBE'&&input?.type!=='MMF_STAGE_OPERATOR_SUPPRESSION_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_OPERATOR_SUPPRESSION_PROBE'){
+      const evidence=await runSyntheticOperatorSuppressionProbe(db,env,input.probeId);
+      if(evidence.status!=='PASS'||evidence.customerTokenRejected!==true||
+         evidence.durableSuppressionPersisted!==true||evidence.duplicateIdempotent!==true||
+         evidence.subsequentMessageBlocked!==true||evidence.customerMailSent!==false||
+         evidence.networkCalls!==0)throw Error('STAGE_OPERATOR_SUPPRESSION_NOT_PROVEN');
+      m.ack();
+      console.log(JSON.stringify({gate:'MMF_CLOUD_OPERATOR_MANUAL_SUPPRESSION',...evidence,publicAccess:false}));
+      continue;
+    }
     if(input.type==='MMF_STAGE_EARLY_FEEDBACK_PROBE'){
      const proof=await runSyntheticEarlyFeedbackProbe(db,env,input.probeId);
      if(proof.status!=='PASS'||proof.earlyWebhookRetryable!==true||
