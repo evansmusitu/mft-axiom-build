@@ -1,0 +1,54 @@
+name: MUSITU Mail Fabric v0.14 Webhook Only Bundle CI
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-v14-webhook-only-build.yml'
+      - 'musitu-mail-fabric/src/edge/webhook-only.mjs'
+      - 'musitu-mail-fabric/wrangler.mmf.webhook-only.template.jsonc'
+      - 'musitu-mail-fabric/package.json'
+      - 'musitu-mail-fabric/test/webhook-only-*.test.mjs'
+permissions:
+  contents: read
+jobs:
+  lint-test-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify no routes, secrets, or outbound sending
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.webhook-only.template.jsonc','utf8'));
+          const b=c.durable_objects?.bindings||[];
+          if(c.name!=='musitu-mail-fabric-webhook-isolated-20261010'||
+             c.main!=='src/edge/webhook-only.mjs'||c.workers_dev!==false||
+             JSON.stringify(c.routes)!=='[]'||b.length!==1||b[0].name!=='MMF_RECEIPTS'||
+             b[0].class_name!=='MmfStagingSqliteDO'||
+             !['MMF_REAL_SEND_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED',
+                'MMF_SUPPRESSION_API_ENABLED','MMF_SENDER_REVOKE_API_ENABLED'].every(x=>c.vars?.[x]==='false'))
+            throw Error('WEBHOOK_ONLY_STATIC_SAFETY_FAILED');
+          console.log(JSON.stringify({gate:'MMF_V14_ISOLATED_WEBHOOK_STATIC',status:'PASS',publicRoutes:0,networkMail:false}));
+          NODE
+      - name: Run source syntax, signed-ingress and repository regressions
+        working-directory: musitu-mail-fabric
+        run: |
+          npm run check
+          npm run test:webhook-only
+          npm test
+      - name: Bundle Cloudflare Worker WITHOUT deployment or credentials
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.mmf.webhook-only.template.jsonc --outdir "$RUNNER_TEMP/mmf-webhook-only-bundle"
+          test -d "$RUNNER_TEMP/mmf-webhook-only-bundle"
+          find "$RUNNER_TEMP/mmf-webhook-only-bundle" -maxdepth 2 -type f | grep -q .
+          echo '{"gate":"MMF_V14_WEBHOOK_ONLY_DRY_RUN","status":"PASS","deployed":false,"publicAccess":false,"realMailSent":false}'
