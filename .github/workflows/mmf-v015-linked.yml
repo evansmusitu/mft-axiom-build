@@ -1,0 +1,26 @@
+name: MUSITU v015 Linked Feedback Bundle
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - .github/workflows/mmf-v015-linked.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test linked ingress
+        run: |
+          cd musitu-mail-fabric
+          npm run check
+          npm test
+      - name: Build without deployment
+        run: |
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.mmf.webhook-linked.template.jsonc
