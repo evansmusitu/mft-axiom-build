@@ -1,0 +1,29 @@
+name: AXIOM inference independent project scope security regression
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths:
+      - '.github/workflows/axiom-public-inference-project-scope-offline.yml'
+      - 'ops/public_inference/customer_entry.test.mjs'
+      - 'ops/public_inference/customer_entry.mjs'
+      - 'ops/public_inference/inference_identity.mjs'
+      - 'ops/public_inference/inference_identity.test.mjs'
+permissions:
+  contents: read
+jobs:
+  offline-project-scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute signed customer identity and project scope tests
+        run: cd ops/public_inference && node --test inference_identity.test.mjs customer_entry.test.mjs
+      - name: Preserve customer release qualification truth
+        run: |
+          echo 'PUBLIC_INFERENCE_CUSTOMER_RELEASE=NOT_AUTHORIZED'
+          echo 'INDEPENDENT_IDENTITY_ISSUER=NOT_PROVEN'

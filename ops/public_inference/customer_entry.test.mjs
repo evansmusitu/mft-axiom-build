@@ -45,3 +45,17 @@ test('no unauthenticated route exists and health must be explicit disabled',asyn
  const unknown=await wrapped.fetch(new Request('https://inference.example.test/admin'),env);
  assert.equal(unknown.status,404);assert.equal(forwarded,0);
 });
+
+test('rejects cross-project identity even with valid independent subject and S2 capability',async()=>{
+ forwarded=0;
+ const cross=await request(await signedJwt({project:'project_OTHER'}));
+ const r=await wrapped.fetch(cross,env);
+ assert.equal(r.status,403);
+ assert.equal(forwarded,0);
+});
+test('rejects signed identity lacking explicit project authorization',async()=>{
+ forwarded=0;
+ const r=await wrapped.fetch(await request(await signedJwt()),env);
+ assert.equal(r.status,403);
+ assert.equal(forwarded,0);
+});
