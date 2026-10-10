@@ -57,7 +57,7 @@ test('sacrificial endpoint rejects direct unauthenticated and incorrect-token re
 });
 test('sacrificial PITR refuses inconsistent post-restore data rather than falsely reporting success',async()=>{
  const f=harness({failRestore:true});
- await assert.rejects(()=>runSacrificialPitrDrill(f.ns,flags,probe),/SACRIFICIAL_RESTORE_REFUSED_PITR_UNAVAILABLE/);
+ await assert.rejects(()=>runSacrificialPitrDrill(f.ns,flags,probe),/SACRIFICIAL_RESTORE_NOT_PROVEN_ALTERED/);
  assert.equal(f.inspect().phase,'altered');
 });
 test('invalid or arbitrary customer probe identity cannot select sacrificial object',async()=>{
