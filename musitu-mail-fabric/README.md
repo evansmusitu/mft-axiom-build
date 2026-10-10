@@ -116,3 +116,9 @@ A real private staging run exposed and now has a regression test for treating Cl
 ### v0.8.3 live qualification result
 
 The isolated private Cloudflare Queue → SQLite Durable Object → full `DurableMailFabric` transaction → synthetic-only provider → signed evidence chain **passed** independently pinned receipt verification in GitHub Actions run [38027200745](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38027200745). The code regression suite reported 97 pass / 1 skipped / 0 fail. **No real email sent; not production-qualified.** Exact evidence and blockers: `docs/2026-10-10-v083-live-cloud-proof.md`.
+
+## v0.9.0 — Encrypted offline disaster recovery (2026-10-10)
+
+This release adds a transactional, tenant-scoped SQLite backup exporter, independently pinned Ed25519 signature verification, AES-256-GCM archive encryption, atomic restoration into a fresh empty database, and a fail-closed operator CLI. The tests now include authentic encrypted pending messages, preserved provider-event and suppression history, no-overwrite and corrupted-backup refusal, and recovery without automatic redelivery of ambiguous SENDING messages.
+
+This is **offline** disaster recovery, not an automated or proven Cloudflare Durable Object cloud backup service. It does not replace the still-required genuine outage exercises, production KMS/HSM key custody, live controlled-provider webhook tests, independent security evaluation, or legal review. See `docs/2026-10-10-v0.9-offline-disaster-recovery.md`.
