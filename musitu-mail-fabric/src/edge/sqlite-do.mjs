@@ -30,7 +30,14 @@ export class MmfStagingSqliteDO {
    const x=JSON.parse(body),sql=x?.sql,params=x?.params;
    if(typeof sql!=='string'||sql.length>100000||!QUERY.test(sql.trim())||sql.includes(';')||!Array.isArray(params)||params.length>100||params.some(p=>p!==null&&!['string','number','boolean'].includes(typeof p)))return respond({error:'INVALID_QUERY'},400);
    const result=this.sql.exec(sql,...params);
-   return respond({success:true,rows:result.toArray(),changes:Number(result.rowsWritten||0)});
+   const rows=result.toArray();
+   // SqlStorageCursor.rowsWritten is a BILLING metric that also counts index
+   // writes. It is NOT the SQLite affected-row count required by D1 .meta.changes.
+   // No await occurs between the write and changes(), so this is one DO turn.
+   const counted=this.sql.exec('SELECT changes() AS n').toArray();
+   const changes=Number(counted[0]?.n);
+   if(!Number.isSafeInteger(changes)||changes<0)throw Error('INVALID_SQL_AFFECTED_ROW_COUNT');
+   return respond({success:true,rows,changes});
   }catch{return respond({error:'STORAGE_UNAVAILABLE'},503);}
  }
 }

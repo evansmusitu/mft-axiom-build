@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify:
-    if: github.event.before == '79f97cbe768d8c7dbd9de49e4202277c03894f6d'
+    if: github.event.before == 'cd10e2652fe1879eb397ba062d9ad84822267a3b'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 12
@@ -104,7 +104,7 @@ jobs:
           writeFileSync(process.env.MMF_E2E_EXPECTED_FILE,digest+'\n');
           console.log(JSON.stringify({gate:'MMF_V082_SYNTHETIC_QUEUE_POST',status:'PASS',networkMail:false}));
           NODE
-          for i in $(seq 1 26); do
+          for i in $(seq 1 35); do
             grep -q 'MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E' "$trace" && break
             sleep 1
           done

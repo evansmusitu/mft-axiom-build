@@ -108,3 +108,7 @@ The real-delivery path now fails closed unless a matching, time-bounded authoriz
 ## v0.8.2 — Synthetic complete durable delivery-path staging qualification
 
 The private synthetic-only Cloudflare stage can now exercise `DurableMailFabric` itself through its isolated SQLite Durable Object: enqueue, encryption, idempotency, simulation-only provider acknowledgement, payload erasure and signed receipts. It cannot send customer email or expose any API. See `docs/2026-10-10-v082-synthetic-durable-e2e.md`.
+
+## v0.8.3 — Cloudflare SQLite billed-write mismatch correction
+
+A real private staging run exposed and now has a regression test for treating Cloudflare billed `rowsWritten` as the number of SQL rows changed. The Durable Object adapter now reads `SELECT changes()` after each statement without yielding, so atomic delivery claims receive the correct affected-row count. Cloud requalification is mandatory before declaring this resolved in the deployed runtime. See `docs/2026-10-10-v083-sqlite-affected-rows.md`.
