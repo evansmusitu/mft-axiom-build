@@ -1,0 +1,210 @@
+name: MUSITU Mail Fabric Authoritative Whole Product Handoff 20261010
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - .github/workflows/mmf-authoritative-whole-handoff-20261010.yml
+permissions:
+  contents: read
+jobs:
+  whole-product-handoff:
+    if: github.event.before == '7ac5679859911559c8fa83075a767294080d2731'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate isolated source before handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          git diff --quiet
+          cd musitu-mail-fabric
+          npm run check
+          npm test
+      - name: Assemble exact complete tracked product, workflows and handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import subprocess, json, hashlib, shutil, os, re
+          repo=Path.cwd()
+          out=repo/'handoff'
+          out.mkdir(exist_ok=False)
+          tracked=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          selected=sorted(p for p in tracked if p and (
+              p.startswith('musitu-mail-fabric/') or
+              re.fullmatch(r'\.github/workflows/(mmf-|musitu-mail-fabric)[^/]*\.ya?ml',p)
+          ))
+          product=[p for p in selected if p.startswith('musitu-mail-fabric/')]
+          workflows=[p for p in selected if p.startswith('.github/workflows/')]
+          if len(product)<110 or len(workflows)<26:
+              raise SystemExit('UNEXPECTED_INCOMPLETE_MAIL_FABRIC_PRODUCT_SET')
+          if 'musitu-mail-fabric/package.json' not in selected or 'musitu-mail-fabric/docs/2026-10-10-v017-private-outbox-binding.md' not in selected:
+              raise SystemExit('MISSING_AUTHORITATIVE_PRODUCT_ENTRY')
+          for relative in selected:
+              p=repo/relative
+              if not p.is_file() or p.is_symlink() or p.stat().st_size>8*1024*1024:
+                  raise SystemExit('UNSAFE_HANDOFF_FILE')
+              target=out/relative
+              target.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copyfile(p,target)
+          sha=subprocess.check_output(['git','rev-parse','HEAD']).decode().strip()
+          message=subprocess.check_output(['git','log','-1','--format=%s']).decode().strip()
+          version=json.loads((repo/'musitu-mail-fabric/package.json').read_text())['version']
+          if version!='0.17.0': raise SystemExit('SOURCE_VERSION_CHANGED_REAUDIT_REQUIRED')
+          state={
+              'schema':'MUSITU_MAIL_FABRIC_WHOLE_PRODUCT_HANDOFF_20261010_V1',
+              'created_at_utc':datetime.now(timezone.utc).isoformat(),
+              'repo':'evansmusitu/mft-axiom-build',
+              'isolated_branch':'product/musitu-mail-fabric-isolated-20261009',
+              'packaged_commit_sha':sha,
+              'packaged_commit_message':message,
+              'product_version':version,
+              'source_file_count':len(product),
+              'github_workflow_count':len(workflows),
+              'source_provenance':'git ls-files at exact GitHub Actions checkout SHA; no untracked files, no production credentials',
+              'drive_target_folder':'MUSITU_MAIL_FABRIC_HANDOFFS',
+              'drive_folder_id':'18hKdMa25SIRNvNufiuOT2sGaZbo6ELYu',
+              'last_verified_pre_handoff_source_sha':'7ac5679859911559c8fa83075a767294080d2731',
+              'last_verified_pre_handoff_five_isolated_ci_runs':[38063541681,38063541689,38063541614,38063541648,38063541647],
+              'actual_cloud_linked_worker_proof_run':38063284176,
+              'important_constraints':{
+                  'production_sending':False,
+                  'public_webhook_ingress':False,
+                  'resend_registered_webhook_last_verified':0,
+                  'independent_security_certification':False,
+                  'production_kms_hsm_recovery_certified':False,
+                  'frozen_openai_submission_can_be_modified':False,
+                  'protected_main_can_be_modified':False,
+                  'pr1_merge_authorized':False
+              }
+          }
+          (out/'AUTHORITATIVE_STATE.json').write_text(json.dumps(state,indent=2)+'\n')
+          handoff=f"""# MUSITU MAIL FABRIC — AUTHORITATIVE WHOLE-PRODUCT CONTINUATION
+          
+          Date: 2026-10-10 UTC
+          GitHub repository: evansmusitu/mft-axiom-build
+          Isolated working branch: product/musitu-mail-fabric-isolated-20261009
+          EXACT PACKAGED HEAD: {sha}
+          Packaged product version: {version}
+          GitHub package: {len(product)} tracked product files + {len(workflows)} scoped workflows
+          Google Drive handoff folder ID: 18hKdMa25SIRNvNufiuOT2sGaZbo6ELYu
+          
+          ## Exact continuation — this is NOT a restart
+          
+          1. Fetch THIS ZIP from the connected Google Drive folder and inspect AUTHORITATIVE_STATE.json.
+          2. Verify the ZIP integrity and MANIFEST.sha256 against EVERY bundled file before using it.
+          3. Verify the ZIP's packaged_commit_sha, then query the LIVE connected GitHub HEAD of
+             product/musitu-mail-fabric-isolated-20261009. If it has advanced, the live
+             GitHub state and fresh tests take precedence; never roll back or force-update.
+          4. Read the packaged README.md, package.json, docs/2026-10-10-v017-private-outbox-binding.md,
+             docs/2026-10-10-v016-stream-bounded-ingress-audit.md, and all current staging
+             configs, source tests and workflows as the required source of truth.
+          5. Review the latest connected GitHub Actions results before any further write.
+          6. Continue development on isolated branch ONLY; implement → test red/green → repair
+             → verify in CI and actual isolated cloud where permitted. Do not reimplement completed work.
+          7. Preserve protected main, PR #1 OPEN/DRAFT/UNMERGED, AXIOM production/support,
+             Claude distribution, frozen OpenAI review snapshot, customer DNS and credentials.
+          
+          ## Actual captured state
+          
+          Source HEAD before packaging: 7ac5679859911559c8fa83075a767294080d2731.
+          v0.17 live private Cloudflare linked staging Worker was deployed ONLY as
+          separate nonpublic, disabled capability (proof Actions 38063284176).
+          Owner-scoped privacy-preserving recipient matching was implemented.
+          Sender and webhook Workers are separate and nonpublic; transport and
+          provider feedback processing still disabled. No real customer mail.
+          Latest five isolated CI runs at pre-handoff source SHA succeeded.
+          
+          ## NEXT REQUIRED ACTION: production feedback bridge qualification
+          
+          Audit current fresh GitHub and actual private Cloudflare bindings, then
+          implement and test least-privilege capability-secret provisioning and
+          coordinated revocation/rotation for the two private Workers WITHOUT
+          disclosing secret values to ChatGPT, code, logs or archive.
+          Prove real private Cloudflare cross-Worker sender-outbox binding and
+          signed synthetic provider-event round trip, including wrong-tenant,
+          wrong-recipient, forgery, key mismatch, timing/replay, disabled flags,
+          and in-flight uncertain outcomes. Public ingress stays OFF.
+          If required credentials/permissions are unavailable, document exact
+          external blocker, and continue all independent engineering tasks.
+          
+          ## Commercial launch blockers not completed
+          
+          Authenticated actual Resend-originated webhook receipts, authorized
+          sending to controlled recipients, customer-consent and abuse program,
+          production independently recoverable KMS/HSM keys, offsite backups,
+          genuine regional outage drill, and a signed independent external
+          security/penetration assessment. Never call internal tests external certification.
+          
+          ## Security and archive boundaries
+          
+          Contains tracked MUSITU Mail Fabric source, tests, technical docs,
+          configuration templates and related GitHub workflows. Contains no
+          runtime secrets, private cloud key material, customer messages,
+          private Cloudflare production database copies, or unrelated AXIOM
+          repository files. Secrets intentionally must be reaccessed only through
+          connected secure services by approved operations, not through this ZIP.
+          
+          ## Verification
+          
+          Verify all files by executing from the EXTRACTED ROOT:
+             sha256sum -c MANIFEST.sha256
+          Then run:
+             cd musitu-mail-fabric && npm run check && npm test
+          Node.js 22 required.
+          """
+          (out/'CONTINUE_IN_NEW_CHAT.md').write_text('\n'.join(x.strip() for x in handoff.strip().splitlines())+'\n')
+          allfiles=sorted(p for p in out.rglob('*') if p.is_file())
+          hashes=[]
+          for p in allfiles:
+              relative=p.relative_to(out).as_posix()
+              hashes.append(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+relative)
+          (out/'MANIFEST.sha256').write_text('\n'.join(hashes)+'\n')
+          (out/'ARCHIVE_FILES.txt').write_text('\n'.join(p.relative_to(out).as_posix() for p in sorted(out.rglob('*')) if p.is_file())+'\n')
+          expected=len(selected)+3
+          actual=len([p for p in out.rglob('*') if p.is_file()])
+          if actual!=expected+1:raise SystemExit(f'ARCHIVE_FILE_COUNT_INVALID_{actual}_{expected+1}')
+          subprocess.run(['sha256sum','-c','MANIFEST.sha256'],cwd=out,check=True,stdout=subprocess.DEVNULL)
+          for t in ['MANIFEST.sha256','AUTHORITATIVE_STATE.json','CONTINUE_IN_NEW_CHAT.md']:
+              if not (out/t).is_file():raise SystemExit('MISSING_HANDOFF_METADATA')
+          print(json.dumps({'gate':'MMF_AUTHORITATIVE_WHOLE_PRODUCT_PACKAGED','status':'PASS',
+              'commit_sha':sha,'version':version,'source_files':len(product),
+              'github_workflows':len(workflows),'total_files':actual,
+              'sha256_manifest':'PASS','production_touched':False}))
+          PY
+      - name: Independently validate clean handoff and no secret files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd handoff
+          sha256sum -c MANIFEST.sha256 >/dev/null
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('.')
+          state=json.loads((root/'AUTHORITATIVE_STATE.json').read_text())
+          if state['packaged_commit_sha']!=__import__('os').environ['GITHUB_SHA']:raise SystemExit('SHA_DRIFT')
+          if state['product_version']!='0.17.0':raise SystemExit('VERSION_DRIFT')
+          allfiles=[x for x in root.rglob('*') if x.is_file()]
+          for p in allfiles:
+              if p.suffix.lower() in ('.pem','.key','.p12','.pfx','.env') or p.name.startswith('.env'):
+                  raise SystemExit('UNSAFE_SECRET_NAME')
+          print('MMF_CLEAN_ARCHIVE_SAFETY=PASS '+str(len(allfiles))+' files')
+          PY
+      - name: Upload authoritative whole product bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_MAIL_FABRIC_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261010_AUTHORITATIVE
+          path: handoff/
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 9
