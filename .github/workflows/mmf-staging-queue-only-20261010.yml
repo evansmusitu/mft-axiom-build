@@ -1,0 +1,48 @@
+name: MUSITU Mail Fabric Isolated Queue Only 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-staging-queue-only-20261010.yml']
+permissions:
+  contents: read
+jobs:
+  queue:
+    if: github.event.before == '4e1fc156b084d179f53db51899b87b4ee4a44910'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 4
+    env:
+      CF_QUEUE_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Guarded exact isolated staging queue provision only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CF_ACCOUNT,name='musitu-mail-fabric-staging-20261010';
+          if(account!=='93f395f5121954671f92fffa453d6b61')throw Error('WRONG_ACCOUNT');
+          const token=String(process.env.CF_QUEUE_TOKEN||'');
+          if(token.length<16)throw Error('NO_SCOPED_QUEUE_TOKEN');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account;
+          async function req(path,method='GET',body){
+            const r=await fetch(base+path,{method,headers:{authorization:'Bearer '+token,accept:'application/json',...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p.success===false)throw Error('QUEUES_API_'+method+'_HTTP_'+r.status+'_ERROR_CODES_'+(p.errors||[]).map(e=>e.code).filter(Boolean).join('_'));
+            return p.result;
+          }
+          const ac=await req('');
+          if(ac?.id!==account)throw Error('ACCOUNT_READBACK_MISMATCH');
+          const listing=await req('/queues?per_page=100');
+          const rows=Array.isArray(listing)?listing:Array.isArray(listing?.queues)?listing.queues:null;
+          if(!rows)throw Error('QUEUE_DISCOVERY_FAILED');
+          const matches=rows.filter(x=>x.queue_name===name);
+          if(matches.length>1)throw Error('QUEUE_DUPLICATE_NAME');
+          let queue=matches[0],created=false;
+          if(!queue){queue=await req('/queues','POST',{queue_name:name});created=true;}
+          if(queue.queue_name!==name||!/^[a-f0-9]{32}$/i.test(queue.queue_id||''))throw Error('QUEUE_CREATE_MISMATCH');
+          const verified=await req('/queues/'+queue.queue_id);
+          if(verified.queue_name!==name)throw Error('QUEUE_READBACK_MISMATCH');
+          console.log(JSON.stringify({gate:'MMF_ISOLATED_CLOUDFLARE_QUEUE',status:'PASS',created,queue_name:name,queue_id:queue.queue_id,
+            customer_messages_sent:false,consumer_deployed:false,dns_changed:false,other_resources_modified:false}));
+          NODE
