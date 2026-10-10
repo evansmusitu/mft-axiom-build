@@ -102,24 +102,33 @@ export async function runSacrificialPitrDrill(namespace,env,probeId){
   throw Error('SACRIFICIAL_BOOKMARK_INVALID');
  const altered=await read('/mutate');
  if(altered.phase!=='altered')throw Error('SACRIFICIAL_ALTERATION_NOT_PROVEN');
- let resetRequested=false;
+ let restoreNetworkAborted=false;
  try{
   const attempt=await call('/restore',{bookmark:before.bookmark,tag:before.tag});
-  // A normal success response cannot certify that ctx.abort() restarted.
-  if(attempt.ok)throw Error('RESTORE_RETURNED_UNEXPECTED_SUCCESS');
- }catch{
-  resetRequested=true;
+  // An HTTP response signals explicit server rejection, not a session reset.
+  if(!attempt.ok){
+   let detail='UNKNOWN';
+   try{const body=await attempt.json();if(['PITR_UNAVAILABLE','RESET_NOT_PROVEN','UNAUTHORIZED_RESTORE_PHASE',
+     'INVALID_RESTORE_ATTESTATION','STAGING_PITR_GATE'].includes(body?.error))detail=body.error;}catch{}
+   throw Error('SACRIFICIAL_RESTORE_REFUSED_'+detail);
+  }
+  throw Error('SACRIFICIAL_RESTORE_RETURNED_UNEXPECTED_SUCCESS');
+ }catch(error){
+  if(typeof error?.message==='string'&&error.message.startsWith('SACRIFICIAL_RESTORE_'))throw error;
+  restoreNetworkAborted=true; // ctx.abort usually terminates this private RPC.
  }
+ let lastPhase='UNOBSERVED';
  // Only actual post-restart data state proves rollback, never merely a restore call.
- for(let i=0;i<12;i++){
+ for(let i=0;i<20;i++){
   try{
    const after=await read('/inspect');
-   if(after.phase==='baseline'&&resetRequested)
+   lastPhase=after?.phase==='altered'?'ALTERED':after?.phase==='baseline'?'BASELINE':'OTHER';
+   if(after.phase==='baseline'&&restoreNetworkAborted)
     return Object.freeze({status:'PASS',wasRestored:true,afterPhase:'baseline',
      bookmarkSha256:fingerprint(before.bookmark),targetDedicatedSandbox:true,
      customerMailSent:false,mainTenantUntouched:true});
   }catch{}
   await new Promise(resolve=>setTimeout(resolve,500));
  }
- throw Error('SACRIFICIAL_RESTORE_NOT_PROVEN');
+ throw Error('SACRIFICIAL_RESTORE_NOT_PROVEN_'+lastPhase);
 }
