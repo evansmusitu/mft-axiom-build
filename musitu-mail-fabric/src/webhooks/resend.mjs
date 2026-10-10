@@ -38,7 +38,7 @@ export async function processResendWebhook(fabric,raw,headers,{secret,now=Date.n
   if(strictRecipient){
     const to=event.data?.to;
     if(!Array.isArray(to)||to.length!==1||typeof to[0]!=='string'||
-       to[0].length>254||!/^[^\\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(to[0])||
+       to[0].length>254||!/^[^\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(to[0])||
        to[0].startsWith('.')||to[0].endsWith('.')||to[0].includes('..'))
       throw new TypeError('INVALID_WEBHOOK_RECIPIENT');
     recipient=to[0].toLowerCase();
