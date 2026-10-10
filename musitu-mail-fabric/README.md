@@ -157,3 +157,11 @@ See `docs/2026-10-10-v0.12-recipient-bound-reconciliation.md`. The service remai
 - Real private Cloudflare Queue and SQLite Durable Object executed the synthetic operator suppression flow with actual storage readback and a subsequent blocked message. No customer email, public route or external provider call was activated.
 
 See `docs/2026-10-10-v0.13-operator-safety-and-cloud-proof.md`. The current **commercial release gate remains closed**: actual Resend webhook setup/round trips, customer-held KMS/HSM key custody, independent security assessment, compliance and business operations are still not qualified.
+
+## v0.14.0 — Separate non-public provider webhook ingress (2026-10-10)
+
+MUSITU now has an independent `src/edge/webhook-only.mjs` Worker that accepts only authenticated Resend webhook POSTs when separately activated. It never serves public customer APIs, sending APIs, operator actions or diagnostics. A dedicated `MMF_RECEIPTS` SQLite Durable Object namespace is distinct from the existing synthetic `MMF_LEDGER` staging database. `wrangler.mmf.webhook-only.template.jsonc` disables all traffic by default and contains **no credentials or public routes**.
+
+This version passed **167 automated tests plus one optional skip**, successfully bundled through a real Wrangler dry run, and **provisioned the new route-disabled Cloudflare Worker** through a guarded isolated workflow. Live Cloudflare readback verified namespace separation and all traffic flags disabled. **No real Resend webhook is registered** (the connected account still reports zero), no public address is active, and no customer email was sent. Real provider event qualification and independent external security review remain blocking.
+
+Technical evidence: `docs/2026-10-10-v0.14-webhook-only-private-cloud-proof.md`. GitHub Actions: 38055150067 (bundle) and 38055283891 (private cloud provisioning).
