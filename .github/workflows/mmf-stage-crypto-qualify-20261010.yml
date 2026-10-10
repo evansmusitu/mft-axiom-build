@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify:
-    if: github.event.before == '5a327f0dd4634dbae160df6a9201eaf37e753e01'
+    if: github.event.before == '0348ec8e3825ccabe10716a15a523389bb3e97bc'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 14
@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "${{ github.event.before }}" = '5a327f0dd4634dbae160df6a9201eaf37e753e01'
+          test "${{ github.event.before }}" = '0348ec8e3825ccabe10716a15a523389bb3e97bc'
           cd musitu-mail-fabric
           node --input-type=module <<'NODE'
           import {readFileSync} from 'node:fs';
@@ -157,4 +157,69 @@ jobs:
           }
           console.log(JSON.stringify({gate:'MMF_PRIVATE_STAGE_MANAGED_SECRET_CRYPTO_LIVE',status:found?'PASS':'NOT_VERIFIED',cloudQueueAndSqlite:!!found,cryptoVerified:!!found,publicKeyFingerprint:found?.publicKeySha256||null,customerMailSent:false}));
           if(!found)process.exit(1);
+          NODE
+
+      - name: Prove genuine isolated Cloudflare Queue retry and SQLite recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$(mktemp)"
+          expected="$(mktemp)"
+          export MMF_RECOVERY_EXPECTED_FILE="$expected"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$trace" 2>/dev/null &
+          pid=$!
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$trace" "$expected"; }
+          trap cleanup EXIT
+          sleep 8
+          kill -0 "$pid" || { echo 'PRIVATE_TAIL_UNAVAILABLE'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {randomBytes,createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const probeId='probe-retry-cloud-'+randomBytes(8).toString('hex');
+          const digest=createHash('sha256').update(probeId).digest('hex');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+
+             '/queues/'+process.env.MMF_QUEUE_ID+'/messages';
+          const resp=await fetch(url,{method:'POST',headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,
+              'content-type':'application/json'},body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_RETRY_PROBE',probeId}}),
+             signal:AbortSignal.timeout(15000)});
+          const answer=await resp.json();
+          if(!resp.ok||answer.success===false)throw Error('PRIVATE_RETRY_PROBE_REJECTED_'+resp.status);
+          writeFileSync(process.env.MMF_RECOVERY_EXPECTED_FILE,digest+'\n');
+          console.log(JSON.stringify({gate:'MMF_STAGE_RECOVERY_QUEUE_POST',status:'PASS',syntheticOnly:true,customerMailSent:false}));
+          NODE
+          for i in $(seq 1 58); do
+            grep -q 'MMF_STAGE_QUEUE_REDELIVERY_DURABLE_RECOVERY' "$trace" && break
+            sleep 1
+          done
+          node --input-type=module - "$trace" "$expected" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const raw=readFileSync(process.argv.at(-2),'utf8');
+          const expected=readFileSync(process.argv.at(-1),'utf8').trim();
+          let injected=false,recovered=false;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let e;try{e=JSON.parse(line)}catch{continue}
+              if(e.probeSha256!==expected||e.customerMailSent!==false)continue;
+              if(e.gate==='MMF_STAGE_SYNTHETIC_RETRY_INJECTED'&&e.status==='EXPECTED'&&
+                 e.durableFirstAttempt===true)injected=true;
+              if(e.gate==='MMF_STAGE_QUEUE_REDELIVERY_DURABLE_RECOVERY'&&e.status==='PASS'&&
+                 e.recoveredAfterQueueRetry===true&&e.persistedReadback===true)recovered=true;
+            }
+            if(injected&&recovered)break;i=j-1;
+          }
+          const status=injected&&recovered?'PASS':'NOT_VERIFIED';
+          console.log(JSON.stringify({gate:'MMF_LIVE_QUEUE_DURABLE_RECOVERY',status,durableFirstAttempt:injected,
+              actualQueueRedelivery:recovered,sqliteRecoveryReadback:recovered,customerMailSent:false,productionTouched:false}));
+          if(status!=='PASS')process.exit(1);
           NODE
