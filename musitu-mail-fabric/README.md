@@ -115,3 +115,7 @@ When new D1 databases are blocked by the account's Free-tier limit, MMF can use 
 ## v0.7.1 — disposable staging-only managed secrets
 
 The private staging Worker can cryptographically self-test AES-256-GCM and Ed25519 using separately provisioned Cloudflare Worker Secrets. The queue accepts synthetic probe events only; customer API, webhook ingress and real outgoing email are disabled. The source code contains no actual keys. Staging keys are generated on a short-lived CI runner, placed into Cloudflare Secrets, and verified using a safe non-secret public-key fingerprint; this is NOT a managed HSM, legal trust anchor, backup-validated production key hierarchy, or independent security audit.
+
+## v0.7.2 — Verified private cloud crypto and controlled recovery (2026-10-10)
+
+A guarded private-only GitHub Actions run provisioned disposable Cloudflare Worker secrets for AES-256-GCM and Ed25519; real Queue consumer traces verified synthetic encryption/signing and SQLite readback. A separate test demonstrated an **actual Cloudflare Queue redelivery after a controlled injected retry**, correlated by a unique synthetic probe hash with durable SQLite recovery readback. This is not evidence of a natural Cloudflare outage, live mail delivery, legal trust certification, long-lived HSM/KMS custody or an independent third-party security assessment. All public/customer sending remains disabled. See `docs/2026-10-10-v0.7.2-private-cloud-recovery-evidence.md` and GitHub Actions runs 38025078714 and 38025289143.
