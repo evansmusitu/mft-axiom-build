@@ -1,7 +1,7 @@
 /** Non-public isolated Cloudflare Queue + SQLite Durable Object smoke harness.
  *  Intentionally does not expose MMF API, DNS routes, outbound email or webhook.
  */
-import {MmfStagingSqliteDO,createDurableSqlAdapter} from './sqlite-do.mjs';
+import {MmfStagingSqliteDO,createDurableSqlAdapter,inspectPrivateStagingPitr} from './sqlite-do.mjs';
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
 import {runSyntheticTransactionProbe} from './synthetic-transaction.mjs';
 import {createHash} from 'node:crypto';
@@ -19,8 +19,18 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_PITR_PROBE'){
+     // This path never restores a bookmark or modifies cloud data.
+     const proof=await inspectPrivateStagingPitr(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);
+     m.ack();
+     console.log(JSON.stringify({gate:'MMF_STAGE_REAL_CLOUDFLARE_PITR_CAPABILITY',status:'PASS',
+       probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
+       bookmarkSha256:proof.bookmarkSha256,databaseSizeBytes:proof.databaseSizeBytes,
+       restoreAttempted:false,publicAccess:false,customerMailSent:false}));
+     continue;
+    }
     if(input.type==='MMF_STAGE_TRANSACTION_PROBE'){
       // No customer data, public endpoint, real provider adapter or network mail can be activated here.
       const outcome=await runSyntheticTransactionProbe(db,env,input.probeId);
