@@ -3,9 +3,9 @@
  * Never call request.text() on untrusted unbounded streams.
  * Returns a redacted status/error rather than logging signed bodies.
  */
-export async function readBoundedWebhookBody(request,{maxBytes=65536}={}){
+export async function readBoundedWebhookBody(request,{maxBytes=65536,requireJsonMime=true}={}){
  const mime=request?.headers?.get('content-type')||'';
- if(!/^application\/json(?:\s*;|$)/i.test(mime))
+ if(requireJsonMime&&!/^application\/json(?:\s*;|$)/i.test(mime))
   return {error:'UNSUPPORTED_MEDIA_TYPE',status:415};
  const declared=request.headers.get('content-length');
  if(declared!==null){
