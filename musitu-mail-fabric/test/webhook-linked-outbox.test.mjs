@@ -21,11 +21,13 @@ function fixture(t){
  }}};
  const token='isolated-outbox-ledger-secret-1234567890abcde';
  const feedbackToken='feedback-only-ledger-capability-secret-0123456789';
+ const privacyKey=randomBytes(32);
  const owner=new MmfStagingSqliteDO({storage},{MMF_STORAGE_RPC_SECRET:token,MMF_TENANT_ID:'client1',
-  MMF_FEEDBACK_RPC_ENABLED:'true',MMF_FEEDBACK_RPC_SECRET:feedbackToken});
+  MMF_FEEDBACK_RPC_ENABLED:'true',MMF_FEEDBACK_RPC_SECRET:feedbackToken,
+  MMF_PRIVACY_KEY_B64:privacyKey.toString('base64')});
  const outbox={idFromName:n=>n,get:()=>({fetch:req=>owner.fetch(req)})};
  const receipts={idFromName:n=>n,get:()=>({fetch(){throw Error('RECEIPTS_MUST_NOT_BE_USED_FOR_CORRELATION')}})};
- const keys=generateDemonstrationKeys(),encryptionKey=randomBytes(32),privacyKey=randomBytes(32);
+ const keys=generateDemonstrationKeys(),encryptionKey=randomBytes(32);
  const db=createD1Compat(sqlite),provider=createSimulatedProvider();
  const fabric=new DurableMailFabric({tenantId:'client1',verifiedDomains:['example.org'],allowedRegions:['us-east-1'],provider},
   {db,encryptionKey,privacyKey,keys});
@@ -34,9 +36,10 @@ function fixture(t){
   MMF_OUTBOX_LINK_ENABLED:'true',MMF_OUTBOX:outbox,MMF_RECEIPTS:receipts,MMF_OUTBOX_FEEDBACK_SECRET:feedbackToken,
   MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',
   MMF_WEBHOOK_SECRET:webhookSecret,
-  MMF_ENCRYPTION_KEY_B64:encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:privacyKey.toString('base64'),
+  MMF_ENCRYPTION_KEY_B64:encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:randomBytes(32).toString('base64'),
   MMF_SIGNING_PRIVATE_KEY_PEM:keys.privateKey.export({type:'pkcs8',format:'pem'}).toString(),
   MMF_SIGNING_PUBLIC_KEY_PEM:keys.publicKey.export({type:'spki',format:'pem'}).toString()};
+ assert.notEqual(env.MMF_PRIVACY_KEY_B64,privacyKey.toString('base64'), 'ingress must not hold sender privacy key');
  return {sqlite,fabric,env,provider,webhookSecret,receipts,outbox};
 }
 test('linked webhook-only Worker reconciles signed bounce into originating outbox, never private receipts DB',async t=>{
