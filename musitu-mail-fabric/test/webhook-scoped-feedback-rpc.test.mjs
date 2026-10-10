@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
+import {createHmac} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {handleFeedbackRpc,createFeedbackSqlAdapter} from '../src/edge/feedback-rpc.mjs';
 const secret='feedback-scoped-capability-secret-0123456789abcdef';
@@ -103,4 +104,26 @@ test('private feedback capability still rejects unauthorized token before consum
  const res=await handleFeedbackRpc(req,{exec(){throw Error('STORE_MUST_NOT_BE_TOUCHED')}},owner);
  assert.equal(res.status,401);
  assert.ok(pulls<=1);
+});
+
+test('owner-only recipient match verifies expected HMAC without disclosing tenant privacy key to ingress',async t=>{
+ const f=fixture(t),ownerKey=Buffer.alloc(32,17);
+ const recipient='recipient@example.net';
+ const digest=createHmac('sha256',ownerKey).update(recipient).digest('hex');
+ f.db.prepare('UPDATE mail_messages SET recipient_hmac=? WHERE tenant_id=? AND provider_id=?')
+   .run(digest,'client1','provider-one');
+ const env={...owner,MMF_PRIVACY_KEY_B64:ownerKey.toString('base64')};
+ const ns={idFromName:x=>x,get:()=>({fetch:request=>handleFeedbackRpc(request,f.sql,env)})};
+ const bridge=createFeedbackSqlAdapter(ns,secret);
+ assert.equal(await bridge.matchRecipient('client1','provider-one','recipient@example.net'),true);
+ assert.equal(await bridge.matchRecipient('client1','provider-one','attacker@example.net'),false);
+ assert.equal(await bridge.matchRecipient('client1','nonexistent-provider','recipient@example.net'),null);
+ await assert.rejects(()=>bridge.matchRecipient('other-tenant','provider-one',recipient),/SCOPED_FEEDBACK_MATCH_UNAVAILABLE/);
+ assert.equal(JSON.stringify({bridge:Object.keys(bridge)}).includes(ownerKey.toString('base64')),false);
+});
+test('owner match refuses missing privacy key and cannot return a recipient HMAC',async t=>{
+ const f=fixture(t);
+ const ns={idFromName:x=>x,get:()=>({fetch:request=>handleFeedbackRpc(request,f.sql,owner)})};
+ await assert.rejects(()=>createFeedbackSqlAdapter(ns,secret).matchRecipient('client1','provider-one','recipient@example.net'),
+   /SCOPED_FEEDBACK_MATCH_UNAVAILABLE/);
 });
