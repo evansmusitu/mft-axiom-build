@@ -165,3 +165,11 @@ MUSITU now has an independent `src/edge/webhook-only.mjs` Worker that accepts on
 This version passed **167 automated tests plus one optional skip**, successfully bundled through a real Wrangler dry run, and **provisioned the new route-disabled Cloudflare Worker** through a guarded isolated workflow. Live Cloudflare readback verified namespace separation and all traffic flags disabled. **No real Resend webhook is registered** (the connected account still reports zero), no public address is active, and no customer email was sent. Real provider event qualification and independent external security review remain blocking.
 
 Technical evidence: `docs/2026-10-10-v0.14-webhook-only-private-cloud-proof.md`. GitHub Actions: 38055150067 (bundle) and 38055283891 (private cloud provisioning).
+
+## v0.15.0 — Bounded webhook body and least-privilege sender-ledger link (2026-10-10)
+
+The public-facing Resend webhook code now enforces a hard **64 KiB streaming limit** before buffering, validating strict JSON media type and rejecting invalid UTF-8. The separately deployed private webhook-only Worker now fails closed if the actual **sender outbox** has not been linked: the independent receipt namespace is not an acceptable source for provider-message correlation.
+
+A future linked Worker uses a separately scoped `MMF_OUTBOX_FEEDBACK_SECRET`, not the sender database's general-purpose SQL secret. The sender Durable Object allows only exact recipient/provider queries and feedback writes, and requires proven accepted-message attribution before recording delivery feedback or suppression. A non-public, all-features-disabled external-DO binding template is supplied for staged qualification.
+
+**Caution:** This is tested software and a Cloudflare *dry-run* configuration, not yet a deployed cross-Worker bridge or registered real Resend webhook. The previous webhook Worker remains nonpublic and unused for customer feedback. See `docs/2026-10-10-v015-secure-feedback-bridge.md`.
