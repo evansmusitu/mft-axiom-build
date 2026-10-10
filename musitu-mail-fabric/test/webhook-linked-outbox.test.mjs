@@ -49,6 +49,11 @@ test('linked webhook-only Worker reconciles signed bounce into originating outbo
   subject:'Notice',text:'Synthetic payload',kind:'ACCOUNT',idempotencyKey:'linked-outbox-1234'});
  const accepted=await f.fabric.processById(pending.messageId);
  const providerId=accepted.proof.events.at(-1).detail.providerId;
+ const check=await f.outbox.get(f.outbox.idFromName('mmf-stage-tenant')).fetch(
+  new Request('https://mmf-internal.invalid/feedback-rpc/recipient-match',{method:'POST',
+   headers:{'content-type':'application/json','x-mmf-feedback':f.env.MMF_OUTBOX_FEEDBACK_SECRET},
+   body:JSON.stringify({tenantId:'client1',providerId,recipient:'recipient@example.net'})}));
+ assert.equal(check.status,200,JSON.stringify(await check.clone().json()));
  const bridge=createFeedbackSqlAdapter(f.outbox,f.env.MMF_OUTBOX_FEEDBACK_SECRET);
  assert.equal(await bridge.matchRecipient('client1',providerId,'recipient@example.net'),true,
   'sender Durable Object must authenticate correct recipient with its own key');
