@@ -77,11 +77,13 @@ export function createWorker({providerFactory}={}){
     try{
      const raw=await request.text();if(Buffer.byteLength(raw,'utf8')>65536)return respond({error:'PAYLOAD_TOO_LARGE'},413);
      const fab=fromEnv(env,providerFactory,{receiveOnly:true});
-     const r=await processResendWebhook(fab,raw,request.headers,{secret:env.MMF_WEBHOOK_SECRET});
+     const r=await processResendWebhook(fab,raw,request.headers,{secret:env.MMF_WEBHOOK_SECRET,strictRecipient:true});
      return respond({accepted:true,recorded:r.recorded},202);
     }catch(e){
       if(e instanceof WebhookVerificationError)return respond({error:'WEBHOOK_AUTH_FAILED'},401);
       if(e instanceof TypeError&&e.message==='INVALID_WEBHOOK_EVENT')return respond({error:'INVALID_WEBHOOK'},400);
+      if(e instanceof TypeError&&e.message==='INVALID_WEBHOOK_RECIPIENT')return respond({error:'INVALID_WEBHOOK_RECIPIENT'},400);
+      if(e?.message==='PROVIDER_RECIPIENT_MISMATCH')return respond({error:'PROVIDER_RECIPIENT_MISMATCH'},422);
       if(e?.message==='WEBHOOK_ID_CONFLICT')return respond({error:'WEBHOOK_ID_CONFLICT'},409);
       return respond({error:'WEBHOOK_PROCESSING_UNAVAILABLE'},503);
     }
