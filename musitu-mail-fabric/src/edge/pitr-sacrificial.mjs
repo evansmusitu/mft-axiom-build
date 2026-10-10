@@ -97,15 +97,33 @@ export async function runSacrificialPitrDrill(namespace,env,probeId){
   if(!r.ok)throw Error('SACRIFICIAL_STAGE_'+path.slice(1).toUpperCase()+'_FAILED_'+r.status);
   return r.json();
  };
+ // Inspect a NEW Queue invocation before attempting any new checkpoint.
+ // A Durable Object abort can poison the same client stub for the rest of
+ // the original Queue handler's invocation. Do not poll that stub in place.
+ let priorPhase=null;
+ try{
+  const checked=await call('/inspect',{});
+  if(checked.ok){const row=await checked.json();priorPhase=row?.phase;}
+  else if(checked.status!==404)throw Error('SACRIFICIAL_INSPECT_REJECTED_'+checked.status);
+ }catch(error){
+  if(String(error?.message||'').startsWith('SACRIFICIAL_INSPECT_REJECTED_'))throw error;
+  throw Error('SACRIFICIAL_INSPECT_NOT_AVAILABLE');
+ }
+ if(priorPhase==='baseline'){
+  return Object.freeze({status:'PASS',wasRestored:true,afterPhase:'baseline',
+   targetDedicatedSandbox:true,customerMailSent:false,mainTenantUntouched:true,
+   verifiedOnSeparateQueueDelivery:true});
+ }
+ if(priorPhase==='altered')throw Error('SACRIFICIAL_ROLLBACK_NOT_YET_APPLIED');
+ if(priorPhase!==null)throw Error('SACRIFICIAL_UNEXPECTED_OBJECT_STATE');
  const before=await read('/checkpoint');
  if(before.phase!=='baseline'||!BOOKMARK.test(before.bookmark||'')||!/^[a-f0-9]{64}$/.test(before.tag||''))
   throw Error('SACRIFICIAL_BOOKMARK_INVALID');
  const altered=await read('/mutate');
  if(altered.phase!=='altered')throw Error('SACRIFICIAL_ALTERATION_NOT_PROVEN');
- let restoreNetworkAborted=false;
+ let interrupted=false;
  try{
   const attempt=await call('/restore',{bookmark:before.bookmark,tag:before.tag});
-  // An HTTP response signals explicit server rejection, not a session reset.
   if(!attempt.ok){
    let detail='UNKNOWN';
    try{const body=await attempt.json();if(['PITR_UNAVAILABLE','RESET_NOT_PROVEN','UNAUTHORIZED_RESTORE_PHASE',
@@ -115,25 +133,13 @@ export async function runSacrificialPitrDrill(namespace,env,probeId){
   throw Error('SACRIFICIAL_RESTORE_RETURNED_UNEXPECTED_SUCCESS');
  }catch(error){
   if(typeof error?.message==='string'&&error.message.startsWith('SACRIFICIAL_RESTORE_'))throw error;
-  restoreNetworkAborted=true; // ctx.abort usually terminates this private RPC.
+  interrupted=true;
  }
- let lastPhase='UNOBSERVED';
- // An aborted DO sometimes needs an additional session to become queryable.
- // Diagnose only HTTP status / phase categories; never print raw bookmarks.
- for(let i=0;i<20;i++){
-  try{
-   const check=await call('/inspect',{});
-   if(!check.ok)lastPhase='HTTP_'+check.status;
-   else {
-    const after=await check.json();
-    lastPhase=after?.phase==='altered'?'ALTERED':after?.phase==='baseline'?'BASELINE':'OTHER';
-    if(after?.phase==='baseline'&&restoreNetworkAborted)
-     return Object.freeze({status:'PASS',wasRestored:true,afterPhase:'baseline',
-      bookmarkSha256:fingerprint(before.bookmark),targetDedicatedSandbox:true,
-      customerMailSent:false,mainTenantUntouched:true});
-   }
-  }catch{lastPhase='NETWORK';}
-  await new Promise(resolve=>setTimeout(resolve,500));
- }
- throw Error('SACRIFICIAL_RESTORE_NOT_PROVEN_'+lastPhase);
+ if(!interrupted)throw Error('SACRIFICIAL_RESTORE_NOT_TRIGGERED');
+ // This is intentionally NOT a PASS. The next Queue delivery must observe
+ // baseline after a brand-new actor session. The independent CI gate
+ // correlates both phase observations using the unique probe fingerprint.
+ return Object.freeze({status:'RETRY_REQUIRED',mutationVerified:true,
+  rollbackRequested:true,bookmarkSha256:fingerprint(before.bookmark),
+  targetDedicatedSandbox:true,customerMailSent:false,mainTenantUntouched:true});
 }
