@@ -3,6 +3,7 @@
  * allow edits to mail_messages, or grant the general SQL storage capability.
  */
 import {createHash,timingSafeEqual} from 'node:crypto';
+import {readBoundedWebhookBody} from '../webhooks/bounded-body.mjs';
 const normalize=s=>String(s||'').trim().replace(/\s+/g,' ');
 const statementTypes=new Map([
  ["SELECT recipient_hmac FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'",{count:2,mode:'read'}],
@@ -25,9 +26,11 @@ export async function handleFeedbackRpc(request,sql,env){
  if(!authorized(request.headers.get('x-mmf-feedback'),env.MMF_FEEDBACK_RPC_SECRET))
     return respond({error:'UNAUTHORIZED'},401);
  try{
-  const text=await request.text();
-  if(text.length>15000)return respond({error:'PAYLOAD_TOO_LARGE'},413);
-  const body=JSON.parse(text),sqlText=body?.sql,params=body?.params;
+  // Internal bearer authentication happens first. Stream at most 15 KiB
+  // even when the caller lies about Content-Length or sends chunked input.
+  const bounded=await readBoundedWebhookBody(request,{maxBytes:15000});
+  if(bounded.error)return respond({error:bounded.error},bounded.status);
+  const body=JSON.parse(bounded.raw),sqlText=body?.sql,params=body?.params;
   const normalized=normalize(sqlText),spec=statementTypes.get(normalized);
   if(!spec||!Array.isArray(params)||params.length!==spec.count||params[0]!==env.MMF_TENANT_ID||
      params.some(p=>p===undefined||p!==null&&!['string','number'].includes(typeof p)))
