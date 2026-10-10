@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {generateKeyPairSync,randomBytes} from 'node:crypto';
 import {createD1Compat} from './helpers/sqlite-d1.mjs';
 import {runSyntheticSignedFeedbackProbe,runSyntheticEarlyFeedbackProbe} from '../src/edge/synthetic-feedback.mjs';
+import {runSyntheticTransactionProbe,syntheticStageRecipient} from '../src/edge/synthetic-transaction.mjs';
 function fixture(t){
  const db=new DatabaseSync(':memory:');
  db.exec(readFileSync(new URL('../src/durable/schema.sql',import.meta.url),'utf8'));
@@ -48,4 +49,24 @@ test('signed early delivery feedback is retryable until durable provider accepta
  assert.equal(result.networkProviderCalls,0);
  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,1);
  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events').get().n,1);
+});
+
+test('a synthetic bounce cannot suppress another independent test probe on shared durable storage',async t=>{
+ const f=fixture(t);
+ const first='probe-bounce-isolation-one-20261010',second='probe-bounce-isolation-two-20261010';
+ assert.notEqual(syntheticStageRecipient(first),syntheticStageRecipient(second));
+ const a=await runSyntheticSignedFeedbackProbe(f.adapter,f.env,first);
+ assert.equal(a.bounceSuppressionDurable,true);
+ const b=await runSyntheticTransactionProbe(f.adapter,f.env,second);
+ assert.equal(b.state,'ACCEPTED_BY_PROVIDER');
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,2);
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_suppressions').get().n,1);
+});
+test('a later signed early-event race still passes after a different probe has produced a bounce',async t=>{
+ const f=fixture(t);
+ await runSyntheticSignedFeedbackProbe(f.adapter,f.env,'probe-previous-bounce-20261010');
+ const result=await runSyntheticEarlyFeedbackProbe(f.adapter,f.env,'probe-new-early-after-20261010');
+ assert.equal(result.status,'PASS');
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,2);
+ assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events').get().n,2);
 });
