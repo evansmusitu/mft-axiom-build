@@ -19,10 +19,21 @@ function fixture(t){
  const provider={name:'simulation',region:'us-east-1',async send(){return {outcome:'accepted',providerId:'synthetic_opaque_feedback_101'}}};
  const owner=new DurableMailFabric({tenantId:'client1',verifiedDomains:['example.org'],allowedRegions:['us-east-1'],provider},
   {db,keys,encryptionKey:enc,privacyKey:privacy});
+ const receiverDb={
+  prepare:db.prepare.bind(db),
+  async matchRecipient(tenantId,providerId,recipient){
+   if(tenantId!=='client1')throw Error('TENANT_DENIED');
+   const row=await db.prepare("SELECT recipient_hmac FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'")
+     .bind(tenantId,providerId).first();
+   if(!row)return null;
+   const hmac=createHmac('sha256',privacy).update(recipient.toLowerCase()).digest('hex');
+   return row.recipient_hmac===hmac;
+  }
+ };
  const secret='whsec_'+randomBytes(32).toString('base64');
- const env={MMF_DB:db,MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',MMF_API_ENABLED:'false',
+ const env={MMF_DB:receiverDb,MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',MMF_API_ENABLED:'false',
   MMF_REAL_SEND_ENABLED:'false',MMF_WEBHOOK_ENABLED:'true',MMF_WEBHOOK_RECORDER_ONLY:'true',MMF_WEBHOOK_SECRET:secret};
- return{sqlite,db,owner,secret,env};
+ return{sqlite,db,receiverDb,owner,secret,env};
 }
 async function accepted(owner){
  const q=await owner.enqueue({tenantId:'client1',from:'alerts@example.org',to:'recipient@example.net',
@@ -47,7 +58,7 @@ test('recipient-bound signed feedback needs no sender encryption or signing keys
 });
 test('receive-only recorder rejects cross-recipient report without mutating persistent ledger',async t=>{
  const x=fixture(t);await accepted(x.owner);
- const recorder=createFeedbackRecorder({db:x.db,tenantId:'client1'});
+ const recorder=createFeedbackRecorder({db:x.receiverDb,tenantId:'client1'});
  const raw=event('synthetic_opaque_feedback_101','intruder@example.net');
  await assert.rejects(()=>processResendWebhook(recorder,raw,webhookHeaders(x.secret,raw,'svix-recorder-00002'),
    {secret:x.secret,strictRecipient:true}),/PROVIDER_RECIPIENT_MISMATCH/);
@@ -56,7 +67,7 @@ test('receive-only recorder rejects cross-recipient report without mutating pers
 });
 test('provider event before accepted provider ID is stored must stay retryable',async t=>{
  const x=fixture(t);
- const recorder=createFeedbackRecorder({db:x.db,tenantId:'client1'});
+ const recorder=createFeedbackRecorder({db:x.receiverDb,tenantId:'client1'});
  const raw=event('synthetic_opaque_feedback_101','recipient@example.net','email.delivered');
  await assert.rejects(()=>processResendWebhook(recorder,raw,webhookHeaders(x.secret,raw,'svix-recorder-00003'),
   {secret:x.secret,strictRecipient:true}),/PROVIDER_CORRELATION_PENDING/);
