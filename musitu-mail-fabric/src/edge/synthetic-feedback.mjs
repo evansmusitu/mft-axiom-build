@@ -29,8 +29,8 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  const wrong=makeSigned('wrong-synthetic@example.net','svix-mismatch-'+probeId);
  let mismatchRejected=false;
  try{await processResendWebhook(fabric,wrong.raw,wrong.headers,{secret,strictRecipient:true});}
- catch(err){if(err?.message==='PROVIDER_recipient_MISMATCH')mismatchRejected=true;else throw err;}
- if(!mismatchRejected)throw Error('STAGE_FEEDBACK_recipient_MISMATCH_ACCEPTED');
+ catch(err){if(err?.message==='PROVIDER_RECIPIENT_MISMATCH')mismatchRejected=true;else throw err;}
+ if(!mismatchRejected)throw Error('STAGE_FEEDBACK_RECIPIENT_MISMATCH_ACCEPTED');
  const absent=await db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events WHERE tenant_id=? AND message_id=?')
   .bind('stage-tenant',transaction.messageId).first();
  if(Number(absent?.n)!==0)throw Error('STAGE_FEEDBACK_MISMATCH_PERSISTED');
@@ -52,7 +52,7 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  let blocked=false;
  try{await fabric.enqueue({tenantId:'stage-tenant',from:'synthetic@example.org',to:recipient,
   subject:'must not send',text:'must be blocked',kind:'SERVICE_ALERT',idempotencyKey:probeId+'-second'});}
- catch(err){if(err?.code==='recipient_SUPPRESSED')blocked=true;else throw err;}
+ catch(err){if(err?.code==='RECIPIENT_SUPPRESSED')blocked=true;else throw err;}
  if(!blocked)throw Error('STAGE_FEEDBACK_SUPPRESSION_NOT_ENFORCED');
  return Object.freeze({
   status:'PASS',probeSha256:sha(probeId),providerWasSimulation:true,syntheticallySigned:true,
@@ -71,6 +71,7 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  */
 export async function runSyntheticEarlyFeedbackProbe(db,env,probeId){
  const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
+ const recipient=syntheticStageRecipient(probeId);
  const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:recipient,
    subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
    kind:'SERVICE_ALERT',idempotencyKey:probeId};
