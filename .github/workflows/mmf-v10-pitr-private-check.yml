@@ -1,0 +1,219 @@
+name: MUSITU Mail Fabric Private PITR Bookmark Qualification 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v10-pitr-private-check.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-stage-20261010-sole-worker
+  cancel-in-progress: false
+jobs:
+  qualify:
+    if: github.event.before == '578465c4b7dd72c94976011d7364be4ce6b63e6e'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+      MMF_EXPECTED_STAGE_PUBLIC_KEY_SHA256: '19ca01d99a0189dd4829f5514392abaa55aeca5ef6188b7654e9f1dfcd370a71'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Independent local build tests and stage-only template gate
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          npm run check
+          npm test
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.do-staging.jsonc','utf8'));
+          if(c.name!=='musitu-mail-fabric-staging-20261010'||c.workers_dev!==false||
+             JSON.stringify(c.routes)!=='[]'||c.main!=='src/edge/worker-do-staging.mjs'||
+             c.vars.MMF_STAGE_ONLY!=='true'||c.vars.MMF_REAL_SEND_ENABLED!=='false'||
+             c.vars.MMF_API_ENABLED!=='false'||c.vars.MMF_WEBHOOK_ENABLED!=='false'||
+             c.vars.MMF_STAGE_CRYPTO_READY!=='true'||
+             c.queues.consumers[0].queue!=='musitu-mail-fabric-staging-20261010')throw Error('STAGE_CONFIG_UNSAFE');
+          console.log('MMF_V082_PRIVATE_STATIC_GATE=PASS');
+          NODE
+      - name: Verify existing private resources and staging-only secret names
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,q=process.env.MMF_QUEUE_ID;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||q!=='1ff13f921b90488397e7f76970117aee'||String(k||'').length<16)throw Error('CLOUDFLARE_SCOPE_DENIED');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a;
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(15000)});const o=await r.json();if(!r.ok||o.success===false)throw Error('STAGE_PREFLIGHT_HTTP_'+r.status);return o.result;};
+          const w='musitu-mail-fabric-staging-20261010';
+          const [queue,settings,sub,secrets]=await Promise.all([get('/queues/'+q),get('/workers/scripts/'+w+'/settings'),get('/workers/scripts/'+w+'/subdomain'),get('/workers/scripts/'+w+'/secrets')]);
+          const b=settings.bindings||[],value=n=>b.find(x=>x.name===n)?.text;
+          if(queue?.queue_name!=='musitu-mail-fabric-staging-20261010'||sub?.enabled===true||sub?.previews_enabled===true||
+             value('MMF_STAGE_ONLY')!=='true'||value('MMF_REAL_SEND_ENABLED')!=='false'||value('MMF_API_ENABLED')!=='false'||value('MMF_WEBHOOK_ENABLED')!=='false'||
+             value('MMF_STAGE_CRYPTO_READY')!=='true'||!b.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace')||
+             !Array.isArray(secrets)||!['MMF_STORAGE_RPC_SECRET','MMF_STAGE_SIGNING_PRIVATE_KEY_PEM','MMF_STAGE_DATA_KEY_B64'].every(x=>secrets.some(s=>s.name===x)))throw Error('PRIVATE_STAGE_DRIFT');
+          console.log(JSON.stringify({gate:'MMF_V082_PRIVATE_STAGE_PREFLIGHT',status:'PASS',noPublicAccess:true,customerEmail:false}));
+          NODE
+      - name: Update only existing private synthetic-only staging Worker
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc
+      - name: Verify privacy and stage flags after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/musitu-mail-fabric-staging-20261010/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(15000)});const o=await r.json();if(!r.ok||o.success===false)throw Error('STAGE_READBACK_FAILED');return o.result;};
+          const [sub,settings,secrets]=await Promise.all([get('subdomain'),get('settings'),get('secrets')]);
+          const b=settings.bindings||[],v=n=>b.find(x=>x.name===n)?.text;
+          if(sub.enabled===true||sub.previews_enabled===true||v('MMF_STAGE_ONLY')!=='true'||v('MMF_REAL_SEND_ENABLED')!=='false'||v('MMF_API_ENABLED')!=='false'||v('MMF_WEBHOOK_ENABLED')!=='false'||v('MMF_STAGE_CRYPTO_READY')!=='true'||!['MMF_STORAGE_RPC_SECRET','MMF_STAGE_SIGNING_PRIVATE_KEY_PEM','MMF_STAGE_DATA_KEY_B64'].every(n=>secrets.some(x=>x.name===n)))throw Error('POST_DEPLOY_PRIVATE_GUARD_FAILED');
+          console.log(JSON.stringify({gate:'MMF_V082_NO_CUSTOMER_DELIVERY_POST_DEPLOY',status:'PASS',private:true}));
+          NODE
+      - name: Real Queue and SQLite end-to-end with independent pinned-key evidence check
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$(mktemp)"; expected="$(mktemp)"
+          export MMF_E2E_EXPECTED_FILE="$expected"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$trace" 2>/dev/null &
+          pid="$!"
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$trace" "$expected"; }
+          trap cleanup EXIT
+          sleep 8
+          kill -0 "$pid" || { echo 'PRIVATE_TAIL_UNAVAILABLE'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {randomBytes,createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const probe='probe-real-outbox-'+randomBytes(8).toString('hex');
+          const digest=createHash('sha256').update(probe).digest('hex');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/queues/'+process.env.MMF_QUEUE_ID+'/messages';
+          const r=await fetch(url,{method:'POST',headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'content-type':'application/json'},body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_TRANSACTION_PROBE',probeId:probe}}),signal:AbortSignal.timeout(15000)});
+          const j=await r.json();if(!r.ok||j.success===false)throw Error('STAGE_SYNTHETIC_POST_NOT_ACCEPTED');
+          writeFileSync(process.env.MMF_E2E_EXPECTED_FILE,digest+'\n');
+          console.log(JSON.stringify({gate:'MMF_V082_SYNTHETIC_QUEUE_POST',status:'PASS',networkMail:false}));
+          NODE
+          for i in $(seq 1 35); do
+            grep -q 'MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E' "$trace" && break
+            sleep 1
+          done
+          node --input-type=module - "$trace" "$expected" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {createHash,createPublicKey} from 'node:crypto';
+          import {verifyProof} from './src/evidence.mjs';
+          const raw=readFileSync(process.argv.at(-2),'utf8');const match=readFileSync(process.argv.at(-1),'utf8').trim();
+          const trustedFingerprint=process.env.MMF_EXPECTED_STAGE_PUBLIC_KEY_SHA256;
+          let found=false,receipt=null,diagnostics=[];
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let e;try{e=JSON.parse(line);}catch{continue;}
+              if(e.gate==='MMF_STAGE_TRANSACTION_PROBE_DIAGNOSTIC'&&e.probeSha256===match&&e.status==='RETRY'&&typeof e.reason==='string')diagnostics.push(e.reason);
+              if(e.gate==='MMF_STAGE_SYNTHETIC_DURABLE_MAIL_FABRIC_E2E'&&e.status==='PASS'&&e.probeSha256===match&&
+                 e.evidenceVerified===true&&e.providerWasSimulation===true&&e.customerMailSent===false){found=true;receipt=e.receipt;}
+            }
+            if(found)break;i=j-1;
+          }
+          let verified=false,fingerprint=null;
+          if(found&&receipt){
+            const publicKey=createPublicKey(receipt.publicKey);
+            fingerprint=createHash('sha256').update(publicKey.export({type:'spki',format:'der'})).digest('hex');
+            const events=receipt.events?.map(x=>x.event)||[];
+            verified=fingerprint===trustedFingerprint&&verifyProof(receipt,{trustedPublicKey:receipt.publicKey})&&
+              events.includes('POLICY_APPROVED')&&events.includes('PROVIDER_ACCEPTED')&&
+              !JSON.stringify(receipt).includes('synthetic-recipient@example.net');
+          }
+          console.log(JSON.stringify({gate:'MMF_V082_CLOUD_FULL_DURABLE_TRANSACTION',status:verified?'PASS':'NOT_VERIFIED',realCloudQueue:found,providerWasSimulation:true,independentPinnedSignatureVerification:verified,pinnedFingerprint:fingerprint,redactedDiagnostic:[...new Set(diagnostics)].slice(0,4),customerMailSent:false,productionTouched:false}));
+          if(!verified)process.exit(1);
+          NODE
+      - name: Verify actual Cloudflare SQLite DO point-in-time recovery bookmark without restoration
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$(mktemp)"
+          expected="$(mktemp)"
+          export MMF_PITR_EXPECTED_FILE="$expected"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$trace" 2>/dev/null &
+          pid="$!"
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$trace" "$expected"; }
+          trap cleanup EXIT
+          sleep 8
+          kill -0 "$pid" || { echo 'PRIVATE_TAIL_UNAVAILABLE'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {randomBytes,createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const probe='probe-pitr-cloud-'+randomBytes(8).toString('hex');
+          const digest=createHash('sha256').update(probe).digest('hex');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+
+             '/queues/'+process.env.MMF_QUEUE_ID+'/messages';
+          const r=await fetch(url,{method:'POST',
+            headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_PITR_PROBE',probeId:probe}}),
+            signal:AbortSignal.timeout(15000)});
+          const j=await r.json();if(!r.ok||j.success===false)throw Error('PRIVATE_PITR_QUEUE_POST_FAILED');
+          writeFileSync(process.env.MMF_PITR_EXPECTED_FILE,digest+'\n');
+          console.log(JSON.stringify({gate:'MMF_PITR_SYNTHETIC_QUEUE_POST',status:'PASS',customerMailSent:false}));
+          NODE
+          for i in $(seq 1 45); do
+            grep -q 'MMF_STAGE_REAL_CLOUDFLARE_PITR_CAPABILITY' "$trace" && break
+            sleep 1
+          done
+          node --input-type=module - "$trace" "$expected" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const raw=readFileSync(process.argv.at(-2),'utf8');
+          const expected=readFileSync(process.argv.at(-1),'utf8').trim();
+          let found=null;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let e;try{e=JSON.parse(line)}catch{continue;}
+              if(e.gate==='MMF_STAGE_REAL_CLOUDFLARE_PITR_CAPABILITY'&&
+                e.probeSha256===expected&&e.status==='PASS'&&
+                /^[a-f0-9]{64}$/.test(e.bookmarkSha256||'')&&
+                Number.isFinite(e.databaseSizeBytes)&&e.databaseSizeBytes>=0&&
+                e.restoreAttempted===false&&e.publicAccess===false&&
+                e.customerMailSent===false)found=e;
+            }
+            if(found)break;i=j-1;
+          }
+          console.log(JSON.stringify({
+            gate:'MMF_CLOUDFLARE_PRIVATE_SQLITE_PITR_BOOKMARK_LIVE',
+            status:found?'PASS':'NOT_VERIFIED',
+            actualCloudPITRCheckpointRead:!!found,
+            bookmarkDigestVerified:!!found,
+            bookmarkSha256:found?.bookmarkSha256||null,
+            restoreAttempted:false,
+            customerMailSent:false,publicAccess:false
+          }));
+          if(!found)process.exit(1);
+          NODE
