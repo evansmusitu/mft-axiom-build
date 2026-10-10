@@ -33,7 +33,7 @@ async function matchRecipient(request,sql,env){
     data.tenantId!==env.MMF_TENANT_ID||
     typeof data.providerId!=='string'||!/^[A-Za-z0-9_-]{1,120}$/.test(data.providerId)||
     typeof data.recipient!=='string'||data.recipient.length>254||
-    !/^[^\\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(data.recipient))
+    !/^[^\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(data.recipient))
   return respond({error:'INVALID_RECIPIENT_LOOKUP'},422);
  let privacy;
  const configured=String(env.MMF_PRIVACY_KEY_B64||'');
