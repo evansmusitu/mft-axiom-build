@@ -3,6 +3,7 @@
  */
 import {MmfStagingSqliteDO,createDurableSqlAdapter} from './sqlite-do.mjs';
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
+import {createHash} from 'node:crypto';
 export {MmfStagingSqliteDO};
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
 function gated(env){
@@ -23,6 +24,7 @@ export default {
      // Staging-only fault injection: commit the first attempt to a real Durable Object,
      // request one genuine Queue redelivery, and prove subsequent idempotent recovery.
      const id=input.probeId;
+     const probeSha256=createHash('sha256').update(id).digest('hex');
      await db.prepare('INSERT OR IGNORE INTO mmf_staging_recovery(probe_id,first_seen_ms,recovery_count,completed_ms) VALUES(?,?,0,NULL)').bind(id,Date.now()).run();
      const row=await db.prepare('SELECT recovery_count,completed_ms FROM mmf_staging_recovery WHERE probe_id=?').bind(id).first();
      if(!row||![0,1].includes(row.recovery_count))throw Error('STAGE_RECOVERY_STATE_INVALID');
@@ -32,8 +34,8 @@ export default {
      if(row.recovery_count===0){
       const first=await db.prepare('UPDATE mmf_staging_recovery SET recovery_count=1 WHERE probe_id=? AND recovery_count=0 AND completed_ms IS NULL').bind(id).run();
       if(first?.meta?.changes!==1)throw Error('STAGE_RETRY_LOCK_UNAVAILABLE');
-      m.retry();
-      console.log(JSON.stringify({gate:'MMF_STAGE_SYNTHETIC_RETRY_INJECTED',status:'EXPECTED',durableFirstAttempt:true,customerMailSent:false}));
+      m.retry({delaySeconds:1});
+      console.log(JSON.stringify({gate:'MMF_STAGE_SYNTHETIC_RETRY_INJECTED',status:'EXPECTED',probeSha256,durableFirstAttempt:true,customerMailSent:false}));
       continue;
      }
      const done=await db.prepare('UPDATE mmf_staging_recovery SET completed_ms=? WHERE probe_id=? AND recovery_count=1 AND completed_ms IS NULL').bind(Date.now(),id).run();
@@ -41,7 +43,7 @@ export default {
      if(!proof||proof.recovery_count!==1||!Number.isSafeInteger(proof.completed_ms)||proof.completed_ms<=0)throw Error('STAGE_RETRY_PERSISTENCE_UNPROVEN');
      if(done?.meta?.changes!==1)throw Error('STAGE_RETRY_COMPLETION_UNPROVEN');
      m.ack();
-     console.log(JSON.stringify({gate:'MMF_STAGE_QUEUE_REDELIVERY_DURABLE_RECOVERY',status:'PASS',recoveredAfterQueueRetry:true,persistedReadback:true,customerMailSent:false}));
+     console.log(JSON.stringify({gate:'MMF_STAGE_QUEUE_REDELIVERY_DURABLE_RECOVERY',status:'PASS',probeSha256,recoveredAfterQueueRetry:true,persistedReadback:true,customerMailSent:false}));
      continue;
     }
     const cryptoProof = env.MMF_STAGE_CRYPTO_READY === 'true'
