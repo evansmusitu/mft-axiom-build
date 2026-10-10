@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-test('separate linked-webhook template binds explicitly to a different Worker's Durable Object',()=>{
+test('separate linked-webhook template binds explicitly to a different Worker Durable Object',()=>{
  const cfg=JSON.parse(readFileSync(new URL('../wrangler.mmf.webhook-linked.template.jsonc',import.meta.url),'utf8'));
  assert.equal(cfg.name,'musitu-mail-fabric-webhook-linked-test-only');
  assert.equal(cfg.main,'src/edge/webhook-only.mjs');
