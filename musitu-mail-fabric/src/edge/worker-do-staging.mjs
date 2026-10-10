@@ -66,7 +66,17 @@ export default {
     if(check?.probe_id!==input.probeId)throw Error('PROBE_READBACK_MISSING');
     m.ack();
     console.log(JSON.stringify({gate:'MMF_ISOLATED_QUEUE_TO_SQLITE_DO',status:'PASS',probeRecorded:true,cryptoVerified:cryptoProof?.verified===true,publicKeySha256:cryptoProof?.publicKeySha256||null,customerMailSent:false}));
-   }catch{m.retry();}
+   }catch(error){
+    if(input?.type==='MMF_STAGE_TRANSACTION_PROBE'){
+      const reasons=new Set(['STAGING_SECRET_INVALID','STAGING_STORAGE_REQUIRED','STAGING_ONLY',
+        'STAGE_E2E_ENQUEUE_FAILED','STAGE_E2E_PROCESS_FAILED','STAGE_E2E_READ_FAILED',
+        'SYNTHETIC_TRANSACTION_NOT_VERIFIED','SYNTHETIC_READBACK_FAILED']);
+      const reason=reasons.has(String(error?.message))?error.message:'UNCLASSIFIED_STAGE_FAILURE';
+      console.log(JSON.stringify({gate:'MMF_STAGE_TRANSACTION_PROBE_DIAGNOSTIC',status:'RETRY',
+        reason,customerMailSent:false,providerWasSimulation:true}));
+    }
+    m.retry();
+   }
   }
  }
 };

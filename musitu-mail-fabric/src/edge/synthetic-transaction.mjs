@@ -28,9 +28,13 @@ export async function runSyntheticTransactionProbe(db,env,probeId){
  const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:'synthetic-recipient@example.net',
    subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
    kind:'SERVICE_ALERT',idempotencyKey:probeId};
- const queued=await fabric.enqueue(input);
- if(queued.state==='QUEUED')await fabric.processById(queued.messageId);
- const result=await fabric.get(queued.messageId,'stage-tenant');
+ let queued;
+ try{queued=await fabric.enqueue(input);}catch{throw Error('STAGE_E2E_ENQUEUE_FAILED');}
+ if(queued.state==='QUEUED'){
+  try{await fabric.processById(queued.messageId);}catch{throw Error('STAGE_E2E_PROCESS_FAILED');}
+ }
+ let result;
+ try{result=await fabric.get(queued.messageId,'stage-tenant');}catch{throw Error('STAGE_E2E_READ_FAILED');}
  if(result?.state!=='ACCEPTED_BY_PROVIDER'||!verifyProof(result.proof,{trustedPublicKey:result.proof.publicKey}))
    throw Error('SYNTHETIC_TRANSACTION_NOT_VERIFIED');
  const persisted=await db.prepare('SELECT state,sealed_envelope FROM mail_messages WHERE message_id=? AND tenant_id=?')
