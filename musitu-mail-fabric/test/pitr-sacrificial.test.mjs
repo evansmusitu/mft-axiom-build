@@ -27,13 +27,16 @@ function harness({deny=false,flagOverrides={},failRestore=false}={}){
 }
 test('dedicated sacrificial namespace proves mutated data rolled back to baseline without touching tenant object',async()=>{
  const f=harness();
+ const first=await runSacrificialPitrDrill(f.ns,flags,probe);
+ assert.equal(first.status,'RETRY_REQUIRED');assert.equal(first.mutationVerified,true);
  const outcome=await runSacrificialPitrDrill(f.ns,flags,probe);
  assert.equal(outcome.status,'PASS');assert.equal(outcome.wasRestored,true);
  assert.equal(outcome.afterPhase,'baseline');assert.equal(outcome.customerMailSent,false);
  assert.equal(outcome.targetDedicatedSandbox,true);
  assert.equal(f.inspect().phase,'baseline');
  assert.ok(f.inspect().resets>=1);
- assert.equal(f.names.length,1);
+ assert.equal(outcome.verifiedOnSeparateQueueDelivery,true);
+ assert.equal(f.names.length,2);
  assert.ok(f.names[0].startsWith('mmf-pitr-only-'));
  assert.ok(!f.names.includes('mmf-stage-tenant'));
 });
@@ -57,7 +60,9 @@ test('sacrificial endpoint rejects direct unauthenticated and incorrect-token re
 });
 test('sacrificial PITR refuses inconsistent post-restore data rather than falsely reporting success',async()=>{
  const f=harness({failRestore:true});
- await assert.rejects(()=>runSacrificialPitrDrill(f.ns,flags,probe),/SACRIFICIAL_RESTORE_NOT_PROVEN_ALTERED/);
+ const first=await runSacrificialPitrDrill(f.ns,flags,probe);
+ assert.equal(first.status,'RETRY_REQUIRED');
+ await assert.rejects(()=>runSacrificialPitrDrill(f.ns,flags,probe),/SACRIFICIAL_ROLLBACK_NOT_YET_APPLIED/);
  assert.equal(f.inspect().phase,'altered');
 });
 test('invalid or arbitrary customer probe identity cannot select sacrificial object',async()=>{
