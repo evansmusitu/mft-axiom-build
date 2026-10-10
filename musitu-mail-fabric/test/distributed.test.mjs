@@ -121,7 +121,7 @@ test('real-delivery flag without configured provider credentials fails closed',a
  const resp=await createWorker().fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:{authorization:'Bearer '+token},body:JSON.stringify(message)}),env);
  assert.equal(resp.status,503);
 });
-test('independent Postal transport can be explicitly selected without Resend',async t=>{
+test('Postal transport remains blocked in commercial sending until authenticated events are independently qualified',async t=>{
  const f=fixture(t),token='minimum-strong-private-api-token-000000000000',oldFetch=globalThis.fetch;let count=0;
  globalThis.fetch=async(url,opts)=>{assert.equal(url,'https://mail.example.org/api/v1/send/message');count++;return{status:200,json:async()=>({status:'success',data:{message_id:'postal-message-id@rp.example.org'}})};};
  t.after(()=>{globalThis.fetch=oldFetch});
@@ -135,8 +135,7 @@ test('independent Postal transport can be explicitly selected without Resend',as
  provisionTestRelease(env);
  const w=createWorker(),h={authorization:'Bearer '+token};
  const resp=await w.fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:h,body:JSON.stringify(message)}),env);
- assert.equal(resp.status,202);const row=await resp.json();
- await w.scheduled({},env);assert.equal(count,1);
- const result=await w.fetch(new Request('https://mmf.invalid/v1/messages/'+row.messageId,{headers:h}),env);
- assert.equal((await result.json()).state,'ACCEPTED_BY_PROVIDER');
+ assert.equal(resp.status,503);
+ await w.scheduled({},env);assert.equal(count,0);
+ assert.equal(f.d.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,0);
 });
