@@ -1,0 +1,224 @@
+name: MUSITU Mail Fabric v018 Private Two Worker Feedback Qualification
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v018-private-bridge-qualification.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-bridge-20261010
+  cancel-in-progress: false
+jobs:
+  qualify:
+    if: github.event.before == '2dbc239f8fc8f238f6eaa0280881a431d6f7f9b3'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 16
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate complete isolated tests and zero-public private staging configs
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          npm run check
+          npm test
+          node --test test/private-cross-worker-config.test.mjs test/private-cross-worker-probe.test.mjs test/webhook-recorder-without-sender-keys.test.mjs test/feedback-capability-rotation.test.mjs
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const o=JSON.parse(readFileSync('wrangler.mmf.do-feedback-qualification.jsonc','utf8'));
+          const i=JSON.parse(readFileSync('wrangler.mmf.webhook-linked-stage.jsonc','utf8'));
+          if(o.name!=='musitu-mail-fabric-staging-20261010'||i.name!=='musitu-mail-fabric-webhook-linked-test-only'||
+             o.main!=='src/edge/worker-do-staging.mjs'||i.main!=='src/edge/webhook-private-probe.mjs'||
+             o.workers_dev!==false||i.workers_dev!==false||
+             JSON.stringify(o.routes)!=='[]'||JSON.stringify(i.routes)!=='[]'||
+             ![o,i].every(c=>c.vars?.MMF_STAGE_ONLY==='true'&&c.vars?.MMF_REAL_SEND_ENABLED==='false'&&
+               c.vars?.MMF_API_ENABLED==='false'&&c.vars?.MMF_WEBHOOK_ENABLED==='false')||
+             o.vars.MMF_FEEDBACK_RPC_ENABLED!=='true'||i.vars.MMF_OUTBOX_LINK_ENABLED!=='true'||
+             i.vars.MMF_PRIVATE_BRIDGE_TEST_ENABLED!=='true'||i.vars.MMF_WEBHOOK_RECORDER_ONLY!=='true'||
+             o.vars.MMF_TENANT_ID!=='stage-tenant'||i.vars.MMF_TENANT_ID!=='stage-tenant'||
+             o.services?.length!==1||o.services[0].binding!=='MMF_PRIVATE_FEEDBACK_INGRESS'||
+             o.services[0].service!==i.name||
+             !i.durable_objects?.bindings?.some(x=>x.name==='MMF_OUTBOX'&&
+               x.script_name===o.name&&x.class_name==='MmfStagingSqliteDO'))
+            throw Error('CROSS_WORKER_CONFIG_NOT_PRIVATE');
+          console.log(JSON.stringify({gate:'MMF_V018_STATIC_PRIVATE_TWO_WORKER',status:'PASS',
+            publicRoutes:0,customerSending:false,actualProviderWebhook:false}));
+          NODE
+      - name: Independent Cloudflare preflight, no account-wide or public mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||typeof k!=='string'||k.length<16||
+             process.env.MMF_QUEUE_ID!=='1ff13f921b90488397e7f76970117aee')
+             throw Error('ACCOUNT_SCOPE_DENIED');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+a;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(15000)});
+            const x=await r.json();if(!r.ok||x.success===false)throw Error('PRIVATE_PREFLIGHT_'+r.status);return x.result;};
+          const names=['musitu-mail-fabric-staging-20261010','musitu-mail-fabric-webhook-linked-test-only'];
+          const [queue,...data]=await Promise.all([get('/queues/'+process.env.MMF_QUEUE_ID),
+            ...names.flatMap(n=>[get('/workers/scripts/'+n+'/settings'),get('/workers/scripts/'+n+'/subdomain')])]);
+          if(queue?.queue_name!=='musitu-mail-fabric-staging-20261010')throw Error('WRONG_STAGING_QUEUE');
+          for(let j=0;j<2;j++){
+            const cfg=data[j*2],sub=data[j*2+1],b=cfg?.bindings||[],v=n=>b.find(x=>x.name===n)?.text;
+            if(sub?.enabled===true||sub?.previews_enabled===true||v('MMF_REAL_SEND_ENABLED')!=='false'||
+               v('MMF_API_ENABLED')!=='false'||v('MMF_WEBHOOK_ENABLED')!=='false')
+               throw Error('EXISTING_CLOUD_SURFACE_NOT_PRIVATE');
+          }
+          console.log(JSON.stringify({gate:'MMF_V018_CLOUD_NONPUBLIC_PREFLIGHT',status:'PASS',
+            senderWorkerPrivate:true,linkedWorkerPrivate:true,customerSending:false}));
+          NODE
+      - name: Generate staging-only independent shared capabilities on runner without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export MMF_OWNER_SECRET_PATH="$RUNNER_TEMP/mmf-owner-private-stage-secrets.json"
+          export MMF_LINKED_SECRET_PATH="$RUNNER_TEMP/mmf-linked-private-stage-secrets.json"
+          node --input-type=module <<'NODE'
+          import {randomBytes} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const feedback=randomBytes(48).toString('base64url');
+          const bridge=randomBytes(48).toString('base64url');
+          if(feedback===bridge)throw Error('UNEXPECTED_SECRET_COLLISION');
+          writeFileSync(process.env.MMF_OWNER_SECRET_PATH,JSON.stringify({
+            MMF_FEEDBACK_RPC_SECRET:feedback,
+            MMF_PRIVATE_BRIDGE_TEST_SECRET:bridge
+          }),{mode:0o600});
+          writeFileSync(process.env.MMF_LINKED_SECRET_PATH,JSON.stringify({
+            MMF_OUTBOX_FEEDBACK_SECRET:feedback,
+            MMF_PRIVATE_BRIDGE_TEST_SECRET:bridge
+          }),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_V018_DISPOSABLE_SCOPED_SECRET_GENERATION',
+            status:'PASS',secretValuesPrinted:false}));
+          NODE
+      - name: Deploy only separate nonpublic linked Worker with disposable staged credentials
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MMF_LINKED_SECRET_PATH="$RUNNER_TEMP/mmf-linked-private-stage-secrets.json"
+          test -f "$MMF_LINKED_SECRET_PATH"
+          npx --yes wrangler@4 deploy --config wrangler.mmf.webhook-linked-stage.jsonc --secrets-file "$MMF_LINKED_SECRET_PATH"
+      - name: Deploy only private sender Worker service binding, retaining existing sender secrets
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MMF_OWNER_SECRET_PATH="$RUNNER_TEMP/mmf-owner-private-stage-secrets.json"
+          test -f "$MMF_OWNER_SECRET_PATH"
+          npx --yes wrangler@4 deploy --config wrangler.mmf.do-feedback-qualification.jsonc --secrets-file "$MMF_OWNER_SECRET_PATH"
+      - name: Zero-secret-value readback of separate Cloudflare Workers and cryptographic capabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,
+            prefix='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const get=async p=>{const r=await fetch(prefix+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(16000)});
+            const j=await r.json();if(!r.ok||j.success===false)throw Error('CLOUD_READBACK_FAILED');return j.result;};
+          const read=async worker=>Promise.all([get(worker+'/settings'),get(worker+'/subdomain'),get(worker+'/secrets')]);
+          const [owner,linked]=await Promise.all([read('musitu-mail-fabric-staging-20261010'),
+            read('musitu-mail-fabric-webhook-linked-test-only')]);
+          const flags=x=>n=>x[0].bindings?.find(b=>b.name===n)?.text;
+          const o=flags(owner),l=flags(linked);
+          const ownerNames=new Set(owner[2].map(s=>s.name));
+          const linkedNames=new Set(linked[2].map(s=>s.name));
+          const ob=owner[0].bindings||[],ib=linked[0].bindings||[];
+          if(owner[1]?.enabled===true||linked[1]?.enabled===true||
+             owner[1]?.previews_enabled===true||linked[1]?.previews_enabled===true||
+             o('MMF_STAGE_ONLY')!=='true'||l('MMF_STAGE_ONLY')!=='true'||
+             o('MMF_REAL_SEND_ENABLED')!=='false'||l('MMF_REAL_SEND_ENABLED')!=='false'||
+             o('MMF_API_ENABLED')!=='false'||l('MMF_API_ENABLED')!=='false'||
+             o('MMF_WEBHOOK_ENABLED')!=='false'||l('MMF_WEBHOOK_ENABLED')!=='false'||
+             o('MMF_FEEDBACK_RPC_ENABLED')!=='true'||l('MMF_OUTBOX_LINK_ENABLED')!=='true'||
+             l('MMF_PRIVATE_BRIDGE_TEST_ENABLED')!=='true'||
+             !ob.some(x=>x.name==='MMF_PRIVATE_FEEDBACK_INGRESS')||
+             !ib.some(x=>x.name==='MMF_OUTBOX'&&x.script_name==='musitu-mail-fabric-staging-20261010')||
+             !['MMF_FEEDBACK_RPC_SECRET','MMF_PRIVATE_BRIDGE_TEST_SECRET',
+               'MMF_STAGE_DATA_KEY_B64','MMF_STAGE_SIGNING_PRIVATE_KEY_PEM','MMF_STORAGE_RPC_SECRET'].every(x=>ownerNames.has(x))||
+             !['MMF_OUTBOX_FEEDBACK_SECRET','MMF_PRIVATE_BRIDGE_TEST_SECRET'].every(x=>linkedNames.has(x))||
+             linkedNames.has('MMF_STORAGE_RPC_SECRET')||linkedNames.has('MMF_PRIVACY_KEY_B64')||
+             linkedNames.has('MMF_SIGNING_PRIVATE_KEY_PEM')||linkedNames.has('MMF_ENCRYPTION_KEY_B64'))
+             throw Error('TWO_WORKER_CAPABILITY_CUSTODY_READBACK_FAILED');
+          console.log(JSON.stringify({gate:'MMF_V018_CLOUD_SCOPED_FEEDBACK_BINDING',status:'PASS',
+            separateSenderAndIngress:true,noSenderKeysAtIngress:true,publicRoutes:false,
+            webhookEnabled:false,networkCustomerMailEnabled:false}));
+          NODE
+      - name: Real private Queue to service-bound webhook Worker to sender SQLite evidence proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$(mktemp)"; expected="$(mktemp)"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$trace" 2>/dev/null &
+          pid="$!"
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$trace" "$expected" "$RUNNER_TEMP/mmf-owner-private-stage-secrets.json" "$RUNNER_TEMP/mmf-linked-private-stage-secrets.json"; }
+          trap cleanup EXIT
+          sleep 9
+          kill -0 "$pid" || { echo 'PRIVATE_CLOUD_TAIL_UNAVAILABLE'; exit 1; }
+          export MMF_V018_EXPECTED="$expected"
+          node --input-type=module <<'NODE'
+          import {randomBytes,createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const probe='probe-cloud-two-workers-'+randomBytes(9).toString('hex');
+          const digest=createHash('sha256').update(probe).digest('hex');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+
+             '/queues/'+process.env.MMF_QUEUE_ID+'/messages';
+          const res=await fetch(url,{method:'POST',headers:{
+             authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_CROSS_WORKER_FEEDBACK_PROBE',probeId:probe}}),
+            signal:AbortSignal.timeout(16000)});
+          const result=await res.json();if(!res.ok||result.success===false)throw Error('PRIVATE_BRIDGE_QUEUE_POST_FAILED');
+          writeFileSync(process.env.MMF_V018_EXPECTED,digest+'\n');
+          console.log(JSON.stringify({gate:'MMF_V018_PRIVATE_SYNTHETIC_QUEUE_POST',status:'PASS',customerData:false}));
+          NODE
+          for i in $(seq 1 65); do
+            grep -q 'MMF_PRIVATE_CLOUD_TWO_WORKER_SIGNED_FEEDBACK' "$trace" && break
+            sleep 1
+          done
+          node --input-type=module - "$trace" "$expected" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const raw=readFileSync(process.argv.at(-2),'utf8');
+          const target=readFileSync(process.argv.at(-1),'utf8').trim();
+          let found=false;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let e;try{e=JSON.parse(line)}catch{continue;}
+              if(e.gate==='MMF_PRIVATE_CLOUD_TWO_WORKER_SIGNED_FEEDBACK'&&e.probeSha256===target&&
+                 e.status==='PASS'&&e.crossWorkerServiceBinding===true&&
+                 e.signedEventRecorded===true&&e.proofSignerIsOwner===true&&
+                 e.recipientSuppressed===true&&e.wrongRecipientRejected===true&&
+                 e.providerWasSimulation===true&&e.realResendWebhookReceived===false&&
+                 e.publicAccess===false&&e.customerMailSent===false)found=true;
+            }
+            if(found)break;i=j-1;
+          }
+          console.log(JSON.stringify({gate:'MMF_REAL_CLOUD_PRIVATE_TWO_WORKER_PROVIDER_FEEDBACK',
+            status:found?'PASS':'NOT_VERIFIED',crossWorkerTransport:found,
+            senderOwnedProofAndDurableSuppression:found,
+            realResendEvent:false,customerMailSent:false,publicAccess:false}));
+          if(!found)process.exit(1);
+          NODE
