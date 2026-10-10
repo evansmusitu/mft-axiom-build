@@ -20,7 +20,14 @@ export default {
     return respond({error:'SERVICE_UNAVAILABLE'},503);
   let db=env.MMF_DB;
   if(!db?.prepare){
-   try{db=createDurableSqlAdapter(env.MMF_RECEIPTS,env.MMF_STORAGE_RPC_SECRET);}
+   // IMPORTANT: MMF_RECEIPTS is a separate isolated inbox, not the sender's
+   // transaction ledger. It cannot safely correlate provider IDs on its own.
+   // Never route authenticated feedback to that empty database and then
+   // pretend receipt reconciliation is active.
+   if(env?.MMF_OUTBOX_LINK_ENABLED!=='true'||!env.MMF_OUTBOX||
+      env.MMF_OUTBOX===env.MMF_RECEIPTS)
+    return respond({error:'SERVICE_UNAVAILABLE'},503);
+   try{db=createDurableSqlAdapter(env.MMF_OUTBOX,env.MMF_OUTBOX_RPC_SECRET);}
    catch{return respond({error:'SERVICE_UNAVAILABLE'},503);}
   }
   // The shared worker only receives a read/verify/persist-capable provider
