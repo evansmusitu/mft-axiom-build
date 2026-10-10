@@ -17,7 +17,7 @@ function fixture(t){
   return {toArray(){return rows}};
  }};
  const req=(q,a,key=secret)=>new Request('https://mmf-internal.invalid/feedback-rpc',{
-  method:'POST',headers:{'x-mmf-feedback':key},body:JSON.stringify({sql:q,params:a})});
+  method:'POST',headers:{'x-mmf-feedback':key,'content-type':'application/json'},body:JSON.stringify({sql:q,params:a})});
  const execute=(q,a,key=secret)=>handleFeedbackRpc(req(q,a,key),sql,owner);
  return {db,sql,execute};
 }
@@ -50,4 +50,57 @@ test('least-privilege adapter can access approved feedback lookup but no general
  assert.throws(()=>db.prepare('SELECT * FROM mail_messages WHERE tenant_id=?'),/FORBIDDEN_FEEDBACK_SQL/);
  const q="SELECT message_id FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'";
  assert.equal((await db.prepare(q).bind('client1','provider-one').first()).message_id,'msg-one');
+});
+
+test('declared oversized internal feedback request is rejected before streaming and SQL',async t=>{
+ const f=fixture(t);let pulls=0,queries=0;
+ const reader=new ReadableStream({pull(controller){pulls++;controller.enqueue(new Uint8Array(8192));controller.close();}});
+ const req=new Request('https://mmf-internal.invalid/feedback-rpc',{method:'POST',
+  headers:{'x-mmf-feedback':secret,'content-type':'application/json','content-length':'99999999'},
+  body:reader,duplex:'half'});
+ const sql={exec(){queries++;throw Error('STORAGE_MUST_NOT_BE_READ')}};
+ const res=await handleFeedbackRpc(req,sql,owner);
+ assert.equal(res.status,413);
+ assert.equal((await res.json()).error,'PAYLOAD_TOO_LARGE');
+ assert.equal(queries,0);
+ assert.ok(pulls<=1,'must not consume streamed request on declared overlimit');
+});
+test('chunked feedback RPC stops reading immediately after 15KiB, never buffers complete oversized stream',async()=>{
+ let pulls=0,queries=0;
+ const stream=new ReadableStream({pull(controller){
+  pulls++;controller.enqueue(new Uint8Array(4096).fill(65));
+  if(pulls>=50)controller.close();
+ }},{highWaterMark:0});
+ const req=new Request('https://mmf-internal.invalid/feedback-rpc',{method:'POST',
+  headers:{'x-mmf-feedback':secret,'content-type':'application/json'},body:stream,duplex:'half'});
+ const sql={exec(){queries++;throw Error('STORAGE_MUST_NOT_BE_READ')}};
+ const res=await handleFeedbackRpc(req,sql,owner);
+ assert.equal(res.status,413);
+ assert.equal((await res.json()).error,'PAYLOAD_TOO_LARGE');
+ assert.equal(queries,0);
+ assert.ok(pulls<=5,'read should cancel when crossing 15KiB rather than consume all bytes; read '+pulls);
+});
+test('feedback bridge rejects non-JSON, invalid UTF8 and malformed length before SQL',async()=>{
+ const sql={exec(){throw Error('STORAGE_MUST_NOT_BE_READ')}};
+ const base={'x-mmf-feedback':secret};
+ const cases=[
+  {headers:{...base,'content-type':'text/plain'},body:'{}',status:415,error:'UNSUPPORTED_MEDIA_TYPE'},
+  {headers:{...base,'content-type':'application/json'},body:new Uint8Array([0xff,0xfe]),status:400,error:'INVALID_UTF8'},
+  {headers:{...base,'content-type':'application/json','content-length':'-1'},body:'{}',status:400,error:'INVALID_CONTENT_LENGTH'}
+ ];
+ for(const x of cases){
+  const req=new Request('https://mmf-internal.invalid/feedback-rpc',{method:'POST',headers:x.headers,body:x.body});
+  const res=await handleFeedbackRpc(req,sql,owner);
+  assert.equal(res.status,x.status,x.error);
+  assert.equal((await res.json()).error,x.error);
+ }
+});
+test('private feedback capability still rejects unauthorized token before consuming any body',async()=>{
+ let pulls=0;
+ const stream=new ReadableStream({pull(controller){pulls++;controller.enqueue(new Uint8Array(20000));controller.close();}});
+ const req=new Request('https://mmf-internal.invalid/feedback-rpc',{method:'POST',
+  headers:{'x-mmf-feedback':'wrong-token','content-type':'application/json'},body:stream,duplex:'half'});
+ const res=await handleFeedbackRpc(req,{exec(){throw Error('STORE_MUST_NOT_BE_TOUCHED')}},owner);
+ assert.equal(res.status,401);
+ assert.ok(pulls<=1);
 });
