@@ -6,6 +6,7 @@ import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
 import {verifyLiveRelease} from '../security/release-authorization.mjs';
 import {assessTenantHealth} from '../ops/health.mjs';
+import {addOperatorSuppression} from '../ops/operator-suppression.mjs';
 
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const respond=(payload,status=200)=>new Response(JSON.stringify(payload),{status,headers:HEADERS});
@@ -83,6 +84,47 @@ export function createWorker({providerFactory}={}){
      const report=await assessTenantHealth(env.MMF_DB,{tenantId:env.MMF_TENANT_ID});
      return respond(report);
     }catch{return respond({error:'OPERATIONAL_STORE_UNAVAILABLE'},503);}
+   }
+   if(request.method==='POST'&&url.pathname==='/v1/operator/suppressions'){
+    // Dedicated operator capability, independent of customer API credentials.
+    // No public listing or deletion route. Must also work while mail is paused.
+    if(env?.MMF_SUPPRESSION_API_ENABLED!=='true')return respond({error:'NOT_FOUND'},404);
+    if(typeof env.MMF_OPERATOR_TOKEN!=='string'||env.MMF_OPERATOR_TOKEN.length<32||
+       env.MMF_OPERATOR_TOKEN===env.MMF_AUTH_TOKEN)return respond({error:'OPERATOR_CONFIG_UNAVAILABLE'},503);
+    if(!authorized(request,env.MMF_OPERATOR_TOKEN))return respond({error:'UNAUTHORIZED'},401);
+    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||''))
+      return respond({error:'UNSUPPORTED_MEDIA_TYPE'},415);
+    const declared=request.headers.get('content-length');
+    if(declared!==null&&Number(declared)>1024)return respond({error:'PAYLOAD_TOO_LARGE'},413);
+    let raw;
+    try{
+      // Stream-read with a hard cap, avoiding unbounded request.text() allocation.
+      const reader=request.body?.getReader();
+      if(!reader)return respond({error:'INVALID_JSON'},400);
+      const chunks=[];let total=0;
+      try{for(;;){
+        const {value,done}=await reader.read();if(done)break;
+        total+=value.byteLength;if(total>1024){await reader.cancel().catch(()=>{});return respond({error:'PAYLOAD_TOO_LARGE'},413);}
+        chunks.push(value);
+      }}finally{try{reader.releaseLock()}catch{}}
+      raw=Buffer.concat(chunks,total).toString('utf8');
+    }catch{return respond({error:'INVALID_JSON'},400);}
+    let parsed;
+    try{parsed=JSON.parse(raw);}
+    catch{return respond({error:'INVALID_JSON'},400);}
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||
+       Object.keys(parsed).length!==1||!Object.hasOwn(parsed,'recipient'))
+      return respond({error:'INVALID_OPERATOR_REQUEST'},422);
+    try{
+      const outcome=await addOperatorSuppression(env.MMF_DB,{
+        tenantId:env.MMF_TENANT_ID,recipient:parsed.recipient,
+        privacyKeyBase64:env.MMF_PRIVACY_KEY_B64});
+      return respond(outcome,outcome.created?201:200);
+    }catch(err){
+      if(err instanceof PolicyRejection&&err.code==='INVALID_ADDRESS')
+        return respond({error:'INVALID_RECIPIENT'},422);
+      return respond({error:'SUPPRESSION_STORE_UNAVAILABLE'},503);
+    }
    }
    if(request.method==='POST'&&url.pathname==='/v1/webhooks/resend'){
     if(!env?.MMF_WEBHOOK_SECRET||!env?.MMF_WEBHOOK_ENABLED||env.MMF_WEBHOOK_ENABLED!=='true')return respond({error:'SERVICE_UNAVAILABLE'},503);
