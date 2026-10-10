@@ -10,6 +10,8 @@ test('atomic recipient-specific ceiling cannot be bypassed by competing submissi
  assert.equal(results.filter(x=>x.status==='fulfilled').length,2);
  assert.equal(results.filter(x=>x.status==='rejected'&&x.reason.code==='QUOTA_EXCEEDED').length,10);
  assert.equal(d.prepare('SELECT COUNT(*) n FROM mail_messages').get().n,2);
- assert.equal((await create().enqueue(mail(0))).state,'QUEUED');
+ const winningIndex=results.findIndex(x=>x.status==='fulfilled');
+ assert.ok(winningIndex>=0);
+ assert.equal((await create().enqueue(mail(winningIndex))).state,'QUEUED');
  assert.equal((await create().enqueue({...mail(13),to:'different@example.net'})).state,'QUEUED');
 });
