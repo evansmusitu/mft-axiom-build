@@ -3,7 +3,7 @@
  */
 import {MmfStagingSqliteDO,createDurableSqlAdapter,inspectPrivateStagingPitr} from './sqlite-do.mjs';
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
-import {runSyntheticTransactionProbe} from './synthetic-transaction.mjs';
+import {runSyntheticTransactionProbe,reconcileSyntheticStage} from './synthetic-transaction.mjs';
 import {assessTenantHealth} from '../ops/health.mjs';
 import {createHash} from 'node:crypto';
 export {MmfStagingSqliteDO};
@@ -20,8 +20,17 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_RECONCILE_PROBE'){
+     if(env.MMF_STAGE_RECONCILE_ENABLED!=='true')throw Error('STAGE_RECONCILE_NOT_AUTHORIZED');
+     const summary=await reconcileSyntheticStage(db,env);
+     m.ack();
+     console.log(JSON.stringify({gate:'MMF_STAGE_PRIVATE_EXPIRED_SYNTHETIC_CLAIM_RECONCILIATION',
+       status:'PASS',probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
+       ...summary,publicAccess:false}));
+     continue;
+    }
     if(input.type==='MMF_STAGE_HEALTH_PROBE'){
      const report=await assessTenantHealth(db,{tenantId:'stage-tenant',maxQueuedAgeMs:15*60000});
      m.ack();
