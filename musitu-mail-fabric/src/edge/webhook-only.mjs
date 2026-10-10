@@ -4,7 +4,7 @@
  * NOT exposed. No public hostname or Resend subscription is provisioned here.
  */
 import {createWorker} from './worker.mjs';
-import {createDurableSqlAdapter} from './sqlite-do.mjs';
+import {createFeedbackSqlAdapter} from './feedback-rpc.mjs';
 export {MmfStagingSqliteDO} from './sqlite-do.mjs';
 
 const H={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -27,7 +27,7 @@ export default {
    if(env?.MMF_OUTBOX_LINK_ENABLED!=='true'||!env.MMF_OUTBOX||
       env.MMF_OUTBOX===env.MMF_RECEIPTS)
     return respond({error:'SERVICE_UNAVAILABLE'},503);
-   try{db=createDurableSqlAdapter(env.MMF_OUTBOX,env.MMF_OUTBOX_RPC_SECRET);}
+   try{db=createFeedbackSqlAdapter(env.MMF_OUTBOX,env.MMF_OUTBOX_FEEDBACK_SECRET);}
    catch{return respond({error:'SERVICE_UNAVAILABLE'},503);}
   }
   // The shared worker only receives a read/verify/persist-capable provider
