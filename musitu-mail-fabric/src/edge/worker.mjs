@@ -5,6 +5,7 @@ import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.
 import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
 import {verifyLiveRelease} from '../security/release-authorization.mjs';
+import {assessTenantHealth} from '../ops/health.mjs';
 
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const respond=(payload,status=200)=>new Response(JSON.stringify(payload),{status,headers:HEADERS});
@@ -61,6 +62,16 @@ export function createWorker({providerFactory}={}){
   async fetch(request,env){
    const url=new URL(request.url);
    if(request.method==='GET'&&url.pathname==='/health')return respond({service:'MUSITU Mail Fabric',mode:'restricted'});
+   if(request.method==='GET'&&url.pathname==='/v1/ops/health'){
+    // Separate operator permission: no delivery flag, provider, or customer API credentials
+    // required to observe a paused service. Disabled unless explicitly enabled.
+    if(env?.MMF_DIAGNOSTICS_ENABLED!=='true')return respond({error:'NOT_FOUND'},404);
+    if(!authorized(request,env.MMF_OPERATOR_TOKEN))return respond({error:'UNAUTHORIZED'},401);
+    try{
+     const report=await assessTenantHealth(env.MMF_DB,{tenantId:env.MMF_TENANT_ID});
+     return respond(report);
+    }catch{return respond({error:'OPERATIONAL_STORE_UNAVAILABLE'},503);}
+   }
    if(request.method==='POST'&&url.pathname==='/v1/webhooks/resend'){
     if(!env?.MMF_WEBHOOK_SECRET||!env?.MMF_WEBHOOK_ENABLED||env.MMF_WEBHOOK_ENABLED!=='true')return respond({error:'SERVICE_UNAVAILABLE'},503);
     try{
