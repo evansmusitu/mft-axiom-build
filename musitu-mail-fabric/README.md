@@ -132,3 +132,9 @@ Live Cloudflare staging identified **four expired historical synthetic SENDING c
 This is not a validated PITR **restore**, cloud cross-region backup, managed HSM/KMS recovery, real provider webhook round trip or an independent external security assessment. No customer email, public API, paid upgrade or AXIOM production change occurred.
 
 See `docs/2026-10-10-v0.10-private-pitr-operations-recovery.md` and GitHub Actions runs 38031070531, 38031355852, 38031663282 and 38031800509.
+
+## v0.11.0 — Real Cloudflare sacrificial PITR restoration (2026-10-10)
+
+An isolated, **separately named disposable SQLite Durable Object** successfully passed a real Cloudflare point-in-time restore: a synthetic baseline record was written, changed, rolled back using a real Cloudflare bookmark and confirmed restored in a **separate private Queue delivery**. A verified GitHub Actions run proves both the mutation and post-restart readback, using a matching unique probe digest. The private staging tenant ledger, public routes and customer sending were untouched.
+
+This qualifies a narrowly scoped **sacrificial in-place restore**, not a genuine production incident, cross-account backup, HSM/KMS recovery, provider webhook verification, or external third-party security certification. [Cloud staging evidence](docs/2026-10-10-v0.11-real-sacrificial-pitr-restore.md). GitHub Actions successful run: 38035299915.
