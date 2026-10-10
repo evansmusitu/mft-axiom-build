@@ -45,7 +45,8 @@ export function createCustomerEntry({delegate,now=()=>Date.now()}={}) {
       try{
         const identity=await verifyExternalInferenceIdentity(auth.slice(7),env.AXIOM_INFERENCE_IDP_POLICY,Math.floor(now()/1000));
         const capability=await authorizeRequest(request.headers,env.AXIOM_CAPABILITY_HMAC_KEY,raw,now());
-        if(identity.subject!==capability.subject||identity.inference_scope_verified!==true||
+        if(identity.subject!==capability.subject||identity.project!==capability.project||
+            identity.inference_scope_verified!==true||
             capability.consent!==true||capability.classification!=='EXTERNAL_PROVIDER_APPROVED')throw Error('SCOPE_DENIED');
       }catch{return denied('IDENTITY_OR_CAPABILITY_DENIED',403)}
       try{return await delegate.fetch(request,env)}

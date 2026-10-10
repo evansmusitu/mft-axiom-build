@@ -12,7 +12,7 @@ const input={model:'@cf/zai-org/glm-4.7-flash',provider:'cloudflare',max_tokens:
 const raw=JSON.stringify(input);
 const sha=async raw=>Buffer.from(new Uint8Array(await crypto.subtle.digest('SHA-256',e.encode(raw)))).toString('hex');
 const signedJwt=async (claims={})=>{
- const payload={iss:policy.issuer,aud:policy.audience,sub:'customer_1',scope:'axiom.inference',iat:now-10,nbf:now-10,exp:now+60,...claims};
+ const payload={iss:policy.issuer,aud:policy.audience,sub:'customer_1',project:'project_1',scope:'axiom.inference',iat:now-10,nbf:now-10,exp:now+60,...claims};
  const content=b64(JSON.stringify({alg:'RS256',kid:'issuer_k1',typ:'JWT'}))+'.'+b64(JSON.stringify(payload));
  const sig=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',jwkkeys.privateKey,e.encode(content));return content+'.'+b64(new Uint8Array(sig));
 };
@@ -55,7 +55,7 @@ test('rejects cross-project identity even with valid independent subject and S2 
 });
 test('rejects signed identity lacking explicit project authorization',async()=>{
  forwarded=0;
- const r=await wrapped.fetch(await request(await signedJwt()),env);
+ const r=await wrapped.fetch(await request(await signedJwt({project:undefined})),env);
  assert.equal(r.status,403);
  assert.equal(forwarded,0);
 });

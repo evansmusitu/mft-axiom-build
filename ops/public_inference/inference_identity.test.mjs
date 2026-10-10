@@ -11,7 +11,7 @@ async function fixture(){
  delete jwk.key_ops;delete jwk.ext;
  pub={issuer:'https://identity.example.test',audience:'https://inference.mftintelligence.com',jwks:[jwk]};
 }
-function claims(extra={}){return {iss:pub.issuer, aud:pub.audience,sub:'customer_123',scope:'axiom.inference',iat:now-10,nbf:now-10,exp:now+60,...extra}}
+function claims(extra={}){return {iss:pub.issuer, aud:pub.audience,sub:'customer_123',project:'project_1',scope:'axiom.inference',iat:now-10,nbf:now-10,exp:now+60,...extra}}
 async function sign(payload=claims(),header={alg:'RS256',kid:'kid_1',typ:'JWT'}){
  const t=b64(JSON.stringify(header))+'.'+b64(JSON.stringify(payload));
  const sig=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',keys.privateKey,enc.encode(t));return t+'.'+b64(new Uint8Array(sig));
@@ -20,6 +20,7 @@ await fixture();
 test('accepts explicitly scoped independent JWT only as identity, never provider authority',async()=>{
  const r=await verifyExternalInferenceIdentity(await sign(),pub,now);
  assert.equal(r.subject,'customer_123');
+ assert.equal(r.project,'project_1');
  assert.equal(r.audience,pub.audience);
  assert.equal(r.inference_scope_verified,true);
  assert.equal(r.external_provider_consent_verified,false);
@@ -31,7 +32,8 @@ test('MCP token without inference audience/scope denied',async()=>{
   await assert.rejects(verifyExternalInferenceIdentity(await sign(claims(o)),pub,now),IdentityDenied);
 });
 test('expired, prematurely used, stale, wrong issuer and altered subject fail closed',async()=>{
- for(const o of [{exp:now-1},{nbf:now+1},{iat:now-800},{iss:'https://evil.example'},{sub:'../customer'}])
+ for(const o of [{exp:now-1},{nbf:now+1},{iat:now-800},{iss:'https://evil.example'},{sub:'../customer'},
+                   {project:undefined},{project:'../tenant'},{project:45}])
    await assert.rejects(verifyExternalInferenceIdentity(await sign(claims(o)),pub,now),IdentityDenied);
 });
 test('none algorithm, wrong key ID, unauthorized crit, and malformed JWT denied',async()=>{

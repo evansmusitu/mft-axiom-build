@@ -61,6 +61,7 @@ export async function verifyExternalInferenceIdentity(jwt,policy,now){
      header.alg!=='RS256'||header.typ!=='JWT'||typeof header.kid!=='string'||!KID.test(header.kid))denied();
   if(claims.iss!==policy.issuer||claims.aud!==policy.audience||
      typeof claims.sub!=='string'||!SUBJECT.test(claims.sub)||
+     typeof claims.project!=='string'||!SUBJECT.test(claims.project)||
      claims.scope!=='axiom.inference'||
      !Number.isSafeInteger(claims.iat)||!Number.isSafeInteger(claims.nbf)||!Number.isSafeInteger(claims.exp)||
      claims.exp-claims.iat>600||claims.exp<=claims.iat||claims.iat>now||
@@ -74,7 +75,7 @@ export async function verifyExternalInferenceIdentity(jwt,policy,now){
   }catch{denied()}
   return Object.freeze({
     schema:'musitu.axiom.inference.external-identity-verification.v1',
-    subject:claims.sub,audience:policy.audience,inference_scope_verified:true,
+    subject:claims.sub,project:claims.project,audience:policy.audience,inference_scope_verified:true,
     external_provider_consent_verified:false,capability_issued:false,
     production_authority:false,release_authority:false,
     provider_inference_qualified:false,
