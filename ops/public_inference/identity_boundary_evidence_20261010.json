@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.axiom.public_inference.identity_boundary_candidate.20261010.v1",
+  "source_context": "Live branch advanced from 5198e517 to d280ca61; new state reconciled before writing",
+  "test_red": "Behavioral tests failed before implementation",
+  "new_tests": {
+    "command": "node --test '*.test.mjs' in identity workspace",
+    "passed": 10,
+    "failed": 0
+  },
+  "offline_combined": {
+    "command": "node --test '*.test.mjs' on Oct9 handoff plus new identity files",
+    "passed": 39,
+    "failed": 0,
+    "scope": "Oct9 handoff baseline, not all newer live-branch source"
+  },
+  "source_sha256": {
+    "inference_identity.mjs": "ff5f0b8262fe18b5cef4230ccdb8f2c849454f699d7c9eef955e980448733a70",
+    "inference_identity.test.mjs": "678ee59af0aa48a8adaf753dbfc75bcb83c9297acbddf45fc88acd9b47b286c8",
+    "customer_entry.mjs": "ebbd2de4ba10f44f742068ce2b57101465502d48ed9cc930f514bb702ffa7f05",
+    "customer_entry.test.mjs": "f805610805258678719a20c4af3a5ff433a236f316a9a3cd3b172591c257952a",
+    "customer_entry_worker.mjs": "d66cafe5a6f21971f6c538992550b7b6ca63181f28484b646fa4e06f8182adbc",
+    "INFERENCE_IDENTITY_SCOPE_20261010.md": "bc4fcc9b9d349e97eccf80679ce12cbffa57a796879312dd0053ebf7ea5f3545"
+  },
+  "live_issuer_verified": false,
+  "live_customer_authorization": false,
+  "public_deployed": false,
+  "cloud_live_do_verified": false,
+  "independent_security_review_pass": false,
+  "budget_usd": "0.00",
+  "qualification": "ISOLATED_CODE_ONLY_NOT_PUBLIC_RELEASE"
+}
