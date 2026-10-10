@@ -2,7 +2,7 @@
  * provider-feedback ingress Worker. Does not expose customer send/queue APIs,
  * allow edits to mail_messages, or grant the general SQL storage capability.
  */
-import {createHash,timingSafeEqual} from 'node:crypto';
+import {createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {readBoundedWebhookBody} from '../webhooks/bounded-body.mjs';
 const normalize=s=>String(s||'').trim().replace(/\s+/g,' ');
 const statementTypes=new Map([
@@ -18,13 +18,57 @@ function authorized(value,secret){
  const a=createHash('sha256').update(value).digest(),b=createHash('sha256').update(secret).digest();
  return timingSafeEqual(a,b);
 }
+/**
+ * Sender-side only: resolve an accepted provider's exact recipient claim
+ * without transmitting the sender's HMAC privacy key to the ingress Worker.
+ */
+async function matchRecipient(request,sql,env){
+ const input=await readBoundedWebhookBody(request,{maxBytes:1000});
+ if(input.error)return respond({error:input.error},input.status);
+ let data;
+ try{data=JSON.parse(input.raw);}catch{return respond({error:'INVALID_FEEDBACK_JSON'},400);}
+ if(!data||typeof data!=='object'||Array.isArray(data)||
+    Object.keys(data).length!==3||
+    !['tenantId','providerId','recipient'].every(k=>Object.hasOwn(data,k))||
+    data.tenantId!==env.MMF_TENANT_ID||
+    typeof data.providerId!=='string'||!/^[A-Za-z0-9_-]{1,120}$/.test(data.providerId)||
+    typeof data.recipient!=='string'||data.recipient.length>254||
+    !/^[^\\s@<>]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(data.recipient))
+  return respond({error:'INVALID_RECIPIENT_LOOKUP'},422);
+ let privacy;
+ const configured=String(env.MMF_PRIVACY_KEY_B64||'');
+ try{
+  if(configured){
+   privacy=Buffer.from(configured,'base64');
+   if(privacy.length!==32||privacy.toString('base64')!==configured)throw Error('KEY');
+  }else if(env.MMF_STAGE_ONLY==='true'){
+   const raw=String(env.MMF_STAGE_DATA_KEY_B64||'');
+   const stageKey=Buffer.from(raw,'base64');
+   if(stageKey.length!==32||stageKey.toString('base64')!==raw)throw Error('KEY');
+   privacy=createHmac('sha256',stageKey).update('MMF_SYNTHETIC_STAGE_PRIVACY_V1').digest();
+  }else throw Error('KEY');
+ }catch{return respond({error:'OWNER_PRIVACY_KEY_UNAVAILABLE'},503);}
+ try{
+  const rows=sql.exec("SELECT recipient_hmac FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'",
+    data.tenantId,data.providerId).toArray();
+  if(!Array.isArray(rows)||rows.length>1)throw Error('AMBIGUOUS_PROVIDER_REFERENCE');
+  if(rows.length===0)return respond({success:true,match:null});
+  const actual=rows[0]?.recipient_hmac;
+  if(typeof actual!=='string'||!/^[a-f0-9]{64}$/.test(actual))throw Error('INVALID_STORED_RECIPIENT');
+  const expect=createHmac('sha256',privacy).update(data.recipient.toLowerCase()).digest();
+  const match=timingSafeEqual(expect,Buffer.from(actual,'hex'));
+  return respond({success:true,match});
+ }catch{return respond({error:'RECIPIENT_MATCH_UNAVAILABLE'},503);}
+}
 export async function handleFeedbackRpc(request,sql,env){
- if(request.method!=='POST'||new URL(request.url).pathname!=='/feedback-rpc')return respond({error:'NOT_FOUND'},404);
+ const path=new URL(request.url).pathname;
+ if(request.method!=='POST'||!['/feedback-rpc','/feedback-rpc/recipient-match'].includes(path))return respond({error:'NOT_FOUND'},404);
  if(env?.MMF_FEEDBACK_RPC_ENABLED!=='true'||env?.MMF_FEEDBACK_RPC_SECRET===env?.MMF_STORAGE_RPC_SECRET||
     typeof env?.MMF_TENANT_ID!=='string'||!/^[-a-z0-9_]{3,64}$/.test(env.MMF_TENANT_ID))
     return respond({error:'FEEDBACK_BRIDGE_DISABLED'},503);
  if(!authorized(request.headers.get('x-mmf-feedback'),env.MMF_FEEDBACK_RPC_SECRET))
     return respond({error:'UNAUTHORIZED'},401);
+ if(path==='/feedback-rpc/recipient-match')return matchRecipient(request,sql,env);
  try{
   // Internal bearer authentication happens first. Stream at most 15 KiB
   // even when the caller lies about Content-Length or sends chunked input.
@@ -85,7 +129,18 @@ export function createFeedbackSqlAdapter(namespace,secret){
    throw Error('SCOPED_FEEDBACK_BRIDGE_RESPONSE_INVALID');
   return result;
  }
- return Object.freeze({prepare(sql){
+ async function verifyRecipientMatch(tenantId,providerId,recipient){
+  const response=await object.fetch(new Request('https://mmf-internal.invalid/feedback-rpc/recipient-match',{
+   method:'POST',headers:{'content-type':'application/json','x-mmf-feedback':secret},
+   body:JSON.stringify({tenantId,providerId,recipient})
+  }));
+  if(!response.ok)throw Error('SCOPED_FEEDBACK_MATCH_UNAVAILABLE');
+  const data=await response.json();
+  if(data?.success!==true||![true,false,null].includes(data.match))
+   throw Error('SCOPED_FEEDBACK_MATCH_INVALID');
+  return data.match;
+ }
+ return Object.freeze({matchRecipient:verifyRecipientMatch,prepare(sql){
   if(!statementTypes.has(normalize(sql)))throw TypeError('FORBIDDEN_FEEDBACK_SQL');
   const bound=params=>Object.freeze({
    async run(){const r=await execute(sql,params);return{success:true,meta:{changes:r.changes}};},
