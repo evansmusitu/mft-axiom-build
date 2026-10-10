@@ -2,15 +2,16 @@
  * Runs through real DurableMailFabric storage and evidence on the private stage Queue.
  */
 import {randomBytes,createHmac,createHash} from 'node:crypto';
-import {createSyntheticStageFabric,runSyntheticTransactionProbe} from './synthetic-transaction.mjs';
+import {createSyntheticStageFabric,runSyntheticTransactionProbe,syntheticStageRecipient} from './synthetic-transaction.mjs';
 import {processResendWebhook} from '../webhooks/resend.mjs';
 import {verifyProof} from '../evidence.mjs';
 
-const RECIPIENT='synthetic-recipient@example.net';
+// Test identities are per probe; no real recipient data is used.
 const sha=s=>createHash('sha256').update(s).digest('hex');
 
 export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
+ const recipient=syntheticStageRecipient(probeId);
  const transaction=await runSyntheticTransactionProbe(db,env,probeId);
  if(transaction.state!=='ACCEPTED_BY_PROVIDER'||transaction.providerIsSimulation!==true||transaction.customerMailSent!==false)
   throw Error('STAGE_FEEDBACK_NO_ACCEPTED_SYNTHETIC_MAIL');
@@ -28,12 +29,12 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  const wrong=makeSigned('wrong-synthetic@example.net','svix-mismatch-'+probeId);
  let mismatchRejected=false;
  try{await processResendWebhook(fabric,wrong.raw,wrong.headers,{secret,strictRecipient:true});}
- catch(err){if(err?.message==='PROVIDER_RECIPIENT_MISMATCH')mismatchRejected=true;else throw err;}
- if(!mismatchRejected)throw Error('STAGE_FEEDBACK_RECIPIENT_MISMATCH_ACCEPTED');
+ catch(err){if(err?.message==='PROVIDER_recipient_MISMATCH')mismatchRejected=true;else throw err;}
+ if(!mismatchRejected)throw Error('STAGE_FEEDBACK_recipient_MISMATCH_ACCEPTED');
  const absent=await db.prepare('SELECT COUNT(*) AS n FROM mail_provider_events WHERE tenant_id=? AND message_id=?')
   .bind('stage-tenant',transaction.messageId).first();
  if(Number(absent?.n)!==0)throw Error('STAGE_FEEDBACK_MISMATCH_PERSISTED');
- const good=makeSigned(RECIPIENT,'svix-good-'+probeId);
+ const good=makeSigned(recipient,'svix-good-'+probeId);
  const recorded=await processResendWebhook(fabric,good.raw,good.headers,{secret,strictRecipient:true});
  const duplicate=await processResendWebhook(fabric,good.raw,good.headers,{secret,strictRecipient:true});
  if(recorded.recorded!==true||duplicate.recorded!==false||duplicate.reason!=='DUPLICATE_EVENT')
@@ -46,12 +47,12 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
   .bind('stage-tenant',transaction.messageId).first();
  if(Number(persisted?.n)!==1)throw Error('STAGE_FEEDBACK_NOT_DURABLE');
  const suppress=await db.prepare('SELECT COUNT(*) AS n FROM mail_suppressions WHERE tenant_id=? AND recipient_hmac=?')
-  .bind('stage-tenant',fabric.ledger.opaqueRecipient(RECIPIENT)).first();
+  .bind('stage-tenant',fabric.ledger.opaqueRecipient(recipient)).first();
  if(Number(suppress?.n)!==1)throw Error('STAGE_FEEDBACK_SUPPRESSION_NOT_DURABLE');
  let blocked=false;
- try{await fabric.enqueue({tenantId:'stage-tenant',from:'synthetic@example.org',to:RECIPIENT,
+ try{await fabric.enqueue({tenantId:'stage-tenant',from:'synthetic@example.org',to:recipient,
   subject:'must not send',text:'must be blocked',kind:'SERVICE_ALERT',idempotencyKey:probeId+'-second'});}
- catch(err){if(err?.code==='RECIPIENT_SUPPRESSED')blocked=true;else throw err;}
+ catch(err){if(err?.code==='recipient_SUPPRESSED')blocked=true;else throw err;}
  if(!blocked)throw Error('STAGE_FEEDBACK_SUPPRESSION_NOT_ENFORCED');
  return Object.freeze({
   status:'PASS',probeSha256:sha(probeId),providerWasSimulation:true,syntheticallySigned:true,
@@ -70,7 +71,7 @@ export async function runSyntheticSignedFeedbackProbe(db,env,probeId){
  */
 export async function runSyntheticEarlyFeedbackProbe(db,env,probeId){
  const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
- const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:RECIPIENT,
+ const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:recipient,
    subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
    kind:'SERVICE_ALERT',idempotencyKey:probeId};
  const queued=await fabric.enqueue(input);
@@ -79,7 +80,7 @@ export async function runSyntheticEarlyFeedbackProbe(db,env,probeId){
  const timestamp=String(Math.floor(Date.now()/1000));
  const id='svix-early-'+probeId;
  const raw=JSON.stringify({type:'email.delivered',created_at:new Date().toISOString(),data:{
-   email_id:'synthetic_'+probeId,to:[RECIPIENT]}});
+   email_id:'synthetic_'+probeId,to:[recipient]}});
  const signature=createHmac('sha256',Buffer.from(secret.slice(6),'base64'))
    .update(id+'.'+timestamp+'.'+raw).digest('base64');
  const headers={'svix-id':id,'svix-timestamp':timestamp,'svix-signature':'v1,'+signature};
