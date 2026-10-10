@@ -1,0 +1,111 @@
+name: MUSITU Mail Fabric Private Post-Recovery Stage Health 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v11-post-recovery-readback.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event.before == 'c836b12b2548b85ca9cb5a22ecd9d5e41f0cca92'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm only unchanged non-public staging resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,q=process.env.MMF_QUEUE_ID,w='musitu-mail-fabric-staging-20261010';
+          if(a!=='93f395f5121954671f92fffa453d6b61'||q!=='1ff13f921b90488397e7f76970117aee'||String(k||'').length<16)throw Error('STAGE_SCOPE_DENIED');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a;
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(15000)});const v=await r.json();if(!r.ok||v.success===false)throw Error('CLOUD_STAGE_READBACK_FAILED');return v.result;};
+          const [queue,settings,sub]=await Promise.all([get('/queues/'+q),get('/workers/scripts/'+w+'/settings'),get('/workers/scripts/'+w+'/subdomain')]);
+          const b=settings?.bindings||[],v=n=>b.find(x=>x.name===n)?.text;
+          if(queue?.queue_name!=='musitu-mail-fabric-staging-20261010'||sub?.enabled===true||sub?.previews_enabled===true||
+             v('MMF_STAGE_ONLY')!=='true'||v('MMF_REAL_SEND_ENABLED')!=='false'||v('MMF_API_ENABLED')!=='false'||
+             v('MMF_WEBHOOK_ENABLED')!=='false'||v('MMF_STAGE_RECONCILE_ENABLED')!=='true'||
+             !b.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace'))throw Error('PRIVATE_STAGE_DRIFT');
+          console.log(JSON.stringify({gate:'MMF_POST_RECOVERY_PRIVATE_PREFLIGHT',status:'PASS',customerMailSent:false}));
+          NODE
+      - name: Verify metadata-only tenant health against actual private SQLite Durable Object
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$(mktemp)"; expected="$(mktemp)"
+          export MMF_HEALTH_EXPECTED_FILE="$expected"
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 tail musitu-mail-fabric-staging-20261010 --format json > "$trace" 2>/dev/null &
+          pid="$!"
+          cleanup(){ kill "$pid" 2>/dev/null || true; rm -f "$trace" "$expected"; }
+          trap cleanup EXIT
+          sleep 8
+          kill -0 "$pid" || { echo 'PRIVATE_TAIL_UNAVAILABLE'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {randomBytes,createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const probe='probe-stage-health-'+randomBytes(8).toString('hex');
+          const digest=createHash('sha256').update(probe).digest('hex');
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+
+            '/queues/'+process.env.MMF_QUEUE_ID+'/messages';
+          const r=await fetch(url,{method:'POST',
+            headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({content_type:'json',body:{type:'MMF_STAGE_HEALTH_PROBE',probeId:probe}}),
+            signal:AbortSignal.timeout(15000)});
+          const j=await r.json();if(!r.ok||j.success===false)throw Error('PRIVATE_HEALTH_QUEUE_POST_FAILED');
+          writeFileSync(process.env.MMF_HEALTH_EXPECTED_FILE,digest+'\n');
+          console.log(JSON.stringify({gate:'MMF_HEALTH_SYNTHETIC_QUEUE_POST',status:'PASS',customerMailSent:false}));
+          NODE
+          for i in $(seq 1 45); do
+            grep -q 'MMF_STAGE_REAL_SQLITE_OPERATIONAL_HEALTH' "$trace" && break
+            sleep 1
+          done
+          node --input-type=module - "$trace" "$expected" <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const raw=readFileSync(process.argv.at(-2),'utf8');
+          const expected=readFileSync(process.argv.at(-1),'utf8').trim();
+          let found=null;
+          for(let i=0;i<raw.length;i++){
+            if(raw[i]!=='{')continue;
+            let depth=0,quoted=false,escaped=false,j=i;
+            for(;j<raw.length;j++){
+              const ch=raw[j];
+              if(quoted){if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')quoted=false;continue;}
+              if(ch==='"'){quoted=true;continue;}
+              if(ch==='{')depth++;if(ch==='}'&&--depth===0){j++;break;}
+            }
+            if(depth!==0||j<=i)continue;
+            let obj;try{obj=JSON.parse(raw.slice(i,j));}catch{continue;}
+            for(const log of obj.logs||[])for(const line of log.message||[]){
+              let e;try{e=JSON.parse(line)}catch{continue;}
+              if(e.gate==='MMF_STAGE_REAL_SQLITE_OPERATIONAL_HEALTH'&&
+                e.probeSha256===expected&&e.status==='PASS'&&
+                ['OK','ATTENTION_REQUIRED'].includes(e.health)&&
+                e.metrics&&typeof e.metrics.staleClaims==='number'&&
+                typeof e.metrics.messageStates?.QUEUED==='number'&&
+                e.metrics.staleClaims===0&&e.metrics.messageStates.OUTCOME_UNKNOWN>=4&&
+                e.observationOnly===true&&e.publicAccess===false&&
+                e.customerMailSent===false)found=e;
+            }
+            if(found)break;i=j-1;
+          }
+          console.log(JSON.stringify({
+            gate:'MMF_PRIVATE_STAGE_POST_RECONCILIATION_HEALTH',
+            status:found?'PASS':'NOT_VERIFIED',
+            actualCloudDatabaseObservation:!!found,
+            health:found?.health||null,
+            queueDepth:found?.metrics?.messageStates?.QUEUED??null,
+            staleClaims:found?.metrics?.staleClaims??null,
+            observationOnly:true,publicAccess:false,customerMailSent:false
+          }));
+          if(!found)process.exit(1);
+          NODE
