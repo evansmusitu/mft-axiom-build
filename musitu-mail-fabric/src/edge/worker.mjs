@@ -84,6 +84,7 @@ export function createWorker({providerFactory}={}){
       if(e instanceof TypeError&&e.message==='INVALID_WEBHOOK_EVENT')return respond({error:'INVALID_WEBHOOK'},400);
       if(e instanceof TypeError&&e.message==='INVALID_WEBHOOK_RECIPIENT')return respond({error:'INVALID_WEBHOOK_RECIPIENT'},400);
       if(e?.message==='PROVIDER_RECIPIENT_MISMATCH')return respond({error:'PROVIDER_RECIPIENT_MISMATCH'},422);
+      if(e?.message==='PROVIDER_CORRELATION_PENDING')return respond({error:'PROVIDER_CORRELATION_PENDING'},503);
       if(e?.message==='WEBHOOK_ID_CONFLICT')return respond({error:'WEBHOOK_ID_CONFLICT'},409);
       return respond({error:'WEBHOOK_PROCESSING_UNAVAILABLE'},503);
     }
