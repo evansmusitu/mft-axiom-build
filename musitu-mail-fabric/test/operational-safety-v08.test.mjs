@@ -24,7 +24,9 @@ test('durable per-minute throttle cannot be bypassed concurrently or after proce
  assert.equal(results.filter(x=>x.status==='fulfilled').length,2);
  assert.equal(results.filter(x=>x.status==='rejected'&&x.reason.code==='RATE_LIMIT_EXCEEDED').length,10);
  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,2);
- const replay=await f.make().enqueue(msg(0));assert.equal(replay.state,'QUEUED');
+ const winner=results.findIndex(x=>x.status==='fulfilled');
+ assert.ok(winner>=0,'at least one concurrent request should succeed');
+ const replay=await f.make().enqueue(msg(winner));assert.equal(replay.state,'QUEUED');
  f.setNow(Date.parse('2026-10-10T09:01:01Z'));
  assert.equal((await f.make().enqueue(msg(20))).state,'QUEUED');
  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,3);
