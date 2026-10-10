@@ -68,6 +68,6 @@ test('signed incoming provider feedback remains ingestible when the outbound rel
  const raw=makeWebhook({type:'email.delivered',data:{email_id:'synthetic-provider-not-in-store',to:['recipient@example.net']}});
  const h=webhookHeaders(f.env.MMF_WEBHOOK_SECRET,raw,'svix-outbound-expired-001');
  const response=await createWorker().fetch(new Request('https://test.invalid/v1/webhooks/resend',{method:'POST',headers:h,body:raw}),f.env);
- assert.equal(response.status,202,'expiration must stop new outbound traffic but preserve authenticated webhook reconciliation');
- assert.deepEqual(await response.json(),{accepted:true,recorded:false});
+ assert.equal(response.status,503,'expired outbound grant must not block authenticated webhook handling, but unattributed feedback must remain retryable');
+ assert.deepEqual(await response.json(),{error:'PROVIDER_CORRELATION_PENDING'});
 });
