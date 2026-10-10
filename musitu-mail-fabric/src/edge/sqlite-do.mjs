@@ -25,7 +25,7 @@ export class MmfStagingSqliteDO {
  }
  async fetch(request){
   const path=new URL(request.url).pathname;
-  if(path==='/feedback-rpc')return handleFeedbackRpc(request,this.sql,this.stageEnv);
+  if(path==='/feedback-rpc'||path==='/feedback-rpc/recipient-match')return handleFeedbackRpc(request,this.sql,this.stageEnv);
   if(!['/rpc','/stage-pitr-capability'].includes(path)||request.method!=='POST')return respond({error:'NOT_FOUND'},404);
   if(!authorized(request.headers.get('x-mmf-internal'),this.secret))return respond({error:'UNAUTHORIZED'},401);
   if(path==='/stage-pitr-capability'){
