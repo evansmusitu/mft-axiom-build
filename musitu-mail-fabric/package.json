@@ -1,13 +1,13 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "private": true,
   "type": "module",
-  "description": "Private sender-owned recipient proof and deployed disabled Cloudflare external outbox binding; no public provider events",
+  "description": "Private two-Worker signed synthetic provider feedback with owner-held signing/privacy custody and bounded scoped credential rotation",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/ops/backup.mjs && node --check src/ops/backup-cli.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs && node --check src/ops/health.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/edge/pitr-sacrificial.mjs && node --check src/edge/synthetic-feedback.mjs && node --check src/ops/operator-suppression.mjs && node --check src/edge/synthetic-operator-suppression.mjs && node --check src/edge/webhook-only.mjs && node --check src/webhooks/bounded-body.mjs && node --check src/edge/feedback-rpc.mjs",
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs && node --check src/security/sender-ownership.mjs && node --check src/security/release-authorization.mjs && node --check src/staging/provision.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/ops/backup.mjs && node --check src/ops/backup-cli.mjs && node --check src/edge/sqlite-do.mjs && node --check src/edge/worker-do-staging.mjs && node --check src/ops/health.mjs && node --check src/edge/synthetic-transaction.mjs && node --check src/edge/pitr-sacrificial.mjs && node --check src/edge/synthetic-feedback.mjs && node --check src/ops/operator-suppression.mjs && node --check src/edge/synthetic-operator-suppression.mjs && node --check src/edge/webhook-only.mjs && node --check src/webhooks/bounded-body.mjs && node --check src/edge/feedback-rpc.mjs && node --check src/webhooks/feedback-recorder.mjs && node --check src/edge/webhook-private-probe.mjs && node --check src/edge/synthetic-cross-worker.mjs",
     "verify": "node src/verify-cli.mjs",
     "verify-rotated": "node src/trust/verify-cli.mjs",
     "test:recovery": "node --test test/backup-restore.test.mjs test/backup-outbox-recovery.test.mjs test/backup-cli.test.mjs",
@@ -18,7 +18,8 @@
     "test:webhook-only": "node --test test/webhook-only-ingress.test.mjs test/webhook-only-config.test.mjs",
     "test:webhook-bridge": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-linked-outbox.test.mjs test/webhook-linked-config.test.mjs test/webhook-scoped-feedback-rpc.test.mjs",
     "test:ingress-security": "node --test test/webhook-ingress-boundary-v015.test.mjs test/webhook-scoped-feedback-rpc.test.mjs test/customer-api-bounded-body.test.mjs test/operator-input-bounds-v016.test.mjs test/webhook-linked-outbox.test.mjs",
-    "test:owner-feedback": "node --test test/webhook-scoped-feedback-rpc.test.mjs test/webhook-linked-outbox.test.mjs test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs"
+    "test:owner-feedback": "node --test test/webhook-scoped-feedback-rpc.test.mjs test/webhook-linked-outbox.test.mjs test/webhook-recipient-identity.test.mjs test/webhook-early-retry.test.mjs",
+    "test:private-bridge": "node --test test/private-cross-worker-config.test.mjs test/private-cross-worker-probe.test.mjs test/cross-worker-feedback-orchestration.test.mjs test/webhook-recorder-without-sender-keys.test.mjs test/feedback-capability-rotation.test.mjs"
   },
   "engines": {
     "node": ">=22.13.0"
