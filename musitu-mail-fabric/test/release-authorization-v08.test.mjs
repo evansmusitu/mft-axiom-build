@@ -65,7 +65,7 @@ test('signed incoming provider feedback remains ingestible when the outbound rel
  const f=releaseFixture(t);f.env.MMF_RELEASE_GRANT_JSON=f.grant({expiresMs:Date.now()-5});
  f.env.MMF_WEBHOOK_ENABLED='true';f.env.MMF_WEBHOOK_SECRET='whsec_'+randomBytes(32).toString('base64');
  const {makeWebhook,webhookHeaders}=await import('./helpers/svix.mjs');
- const raw=makeWebhook({type:'email.delivered',data:{email_id:'synthetic-provider-not-in-store'}});
+ const raw=makeWebhook({type:'email.delivered',data:{email_id:'synthetic-provider-not-in-store',to:['recipient@example.net']}});
  const h=webhookHeaders(f.env.MMF_WEBHOOK_SECRET,raw,'svix-outbound-expired-001');
  const response=await createWorker().fetch(new Request('https://test.invalid/v1/webhooks/resend',{method:'POST',headers:h,body:raw}),f.env);
  assert.equal(response.status,202,'expiration must stop new outbound traffic but preserve authenticated webhook reconciliation');
