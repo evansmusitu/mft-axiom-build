@@ -5,6 +5,7 @@ import {MmfStagingSqliteDO,createDurableSqlAdapter,inspectPrivateStagingPitr} fr
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
 import {runSyntheticTransactionProbe,reconcileSyntheticStage} from './synthetic-transaction.mjs';
 import {assessTenantHealth} from '../ops/health.mjs';
+import {runSyntheticSignedFeedbackProbe} from './synthetic-feedback.mjs';
 import {createHash} from 'node:crypto';
 import {MmfPitrSacrificialDO,runSacrificialPitrDrill} from './pitr-sacrificial.mjs';
 export {MmfPitrSacrificialDO};
@@ -22,8 +23,21 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE'&&input?.type!=='MMF_STAGE_RECONCILE_PROBE'&&input?.type!=='MMF_STAGE_SACRIFICIAL_PITR_PROBE'&&input?.type!=='MMF_STAGE_SIGNED_FEEDBACK_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_SIGNED_FEEDBACK_PROBE'){
+     // This is NOT a provider-originated webhook. The private Queue constructs a
+     // synthetic Svix-signed event and verifies its recipient-bound durable path.
+     const proof=await runSyntheticSignedFeedbackProbe(db,env,input.probeId);
+     if(proof.status!=='PASS'||proof.customerMailSent!==false||
+        proof.recipientMismatchRejected!==true||proof.exactReplayIdempotent!==true||
+        proof.bounceSuppressionDurable!==true||proof.laterMessageBlocked!==true||
+        proof.networkProviderCalls!==0)throw Error('SIGNED_FEEDBACK_SYNTHETIC_NOT_VERIFIED');
+     m.ack();
+     console.log(JSON.stringify({gate:'MMF_REAL_SQLITE_SYNTHETIC_SIGNED_FEEDBACK',...proof,
+       publicAccess:false,realResendWebhookReceived:false}));
+     continue;
+    }
     if(input.type==='MMF_STAGE_SACRIFICIAL_PITR_PROBE'){
      if(env.MMF_STAGE_PITR_RESTORE_ENABLED!=='true')throw Error('SACRIFICIAL_PITR_NOT_AUTHORIZED');
      const result=await runSacrificialPitrDrill(env.MMF_PITR_SANDBOX,env,input.probeId);
