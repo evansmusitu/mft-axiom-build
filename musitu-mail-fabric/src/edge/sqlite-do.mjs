@@ -15,7 +15,7 @@ function authorized(given,secret){
 export class MmfStagingSqliteDO {
  constructor(ctx,env){
   if(!ctx?.storage?.sql?.exec)throw Error('SQLITE_DURABLE_OBJECT_REQUIRED');
-  this.sql=ctx.storage.sql;this.secret=String(env.MMF_STORAGE_RPC_SECRET||'');
+  this.sql=ctx.storage.sql;this.storage=ctx.storage;this.stageEnv=env;this.secret=String(env.MMF_STORAGE_RPC_SECRET||'');
   if(this.secret.length<32)throw Error('MMF_RPC_SECRET_REQUIRED');
   // The schema is idempotent, and SQLite serializes operations per Durable Object.
   for(const statement of SQL_SCHEMA.split(';').map(s=>s.trim()).filter(Boolean))this.sql.exec(statement);
@@ -23,8 +23,22 @@ export class MmfStagingSqliteDO {
   this.sql.exec('CREATE TABLE IF NOT EXISTS mmf_staging_recovery(probe_id TEXT PRIMARY KEY, first_seen_ms INTEGER NOT NULL, recovery_count INTEGER NOT NULL, completed_ms INTEGER) STRICT');
  }
  async fetch(request){
-  if(new URL(request.url).pathname!=='/rpc'||request.method!=='POST')return respond({error:'NOT_FOUND'},404);
+  const path=new URL(request.url).pathname;
+  if(!['/rpc','/stage-pitr-capability'].includes(path)||request.method!=='POST')return respond({error:'NOT_FOUND'},404);
   if(!authorized(request.headers.get('x-mmf-internal'),this.secret))return respond({error:'UNAUTHORIZED'},401);
+  if(path==='/stage-pitr-capability'){
+   // Staging-only, read-only: never accept restore bookmarks, rollback or writes.
+   if(this.stageEnv.MMF_STAGE_ONLY!=='true'||this.stageEnv.MMF_REAL_SEND_ENABLED!=='false'||
+      this.stageEnv.MMF_API_ENABLED!=='false'||this.stageEnv.MMF_WEBHOOK_ENABLED!=='false')
+      return respond({error:'STAGING_ONLY'},403);
+   if(typeof this.storage.getCurrentBookmark!=='function')return respond({error:'PITR_UNAVAILABLE'},503);
+   try{
+    const bookmark=await this.storage.getCurrentBookmark();
+    if(typeof bookmark!=='string'||!/^[A-Za-z0-9-]{12,180}$/.test(bookmark))throw Error('INVALID_BOOKMARK');
+    return respond({supported:true,bookmarkSha256:createHash('sha256').update(bookmark).digest('hex'),
+      databaseSizeBytes:Number(this.sql.databaseSize)||0,restoreAttempted:false,customerDataUsed:false});
+   }catch{return respond({error:'PITR_UNAVAILABLE'},503);}
+  }
   try{
    const body=await request.text();if(body.length>120000)return respond({error:'PAYLOAD_TOO_LARGE'},413);
    const x=JSON.parse(body),sql=x?.sql,params=x?.params;
@@ -61,4 +75,23 @@ export function createDurableSqlAdapter(namespace,secret){
    });
    return Object.freeze({...bound([]),bind(...params){return bound(params);}});
  }});
+}
+
+/** Resolve only the fixed private staging object's read-only PITR capability.
+ * Never return the raw Cloudflare bookmark or expose restore operations.
+ */
+export async function inspectPrivateStagingPitr(namespace,secret){
+ if(!namespace?.idFromName||!namespace?.get||typeof secret!=='string'||secret.length<32)
+   throw Error('PRIVATE_STAGE_PITR_BINDING_REQUIRED');
+ const stub=namespace.get(namespace.idFromName(NAME));
+ const response=await stub.fetch(new Request('https://mmf-internal.invalid/stage-pitr-capability',{
+   method:'POST',headers:{'x-mmf-internal':secret}
+ }));
+ if(!response.ok)throw Error('PITR_PROBE_UNAVAILABLE');
+ const result=await response.json();
+ if(result?.supported!==true||result.restoreAttempted!==false||result.customerDataUsed!==false||
+   !/^[a-f0-9]{64}$/.test(result.bookmarkSha256||'')||
+   !Number.isFinite(result.databaseSizeBytes)||result.databaseSizeBytes<0)
+   throw Error('PITR_PROBE_INVALID');
+ return Object.freeze(result);
 }
