@@ -2,6 +2,7 @@ import {createHash,createPrivateKey,createPublicKey,timingSafeEqual,sign,verify}
 import {DurableMailFabric} from '../durable/fabric.mjs';
 import {createResendProvider,createPostalProvider} from '../providers.mjs';
 import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.mjs';
+import {readBoundedWebhookBody} from '../webhooks/bounded-body.mjs';
 import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
 import {verifyLiveRelease} from '../security/release-authorization.mjs';
@@ -172,7 +173,9 @@ export function createWorker({providerFactory}={}){
    if(request.method==='POST'&&url.pathname==='/v1/webhooks/resend'){
     if(!env?.MMF_WEBHOOK_SECRET||!env?.MMF_WEBHOOK_ENABLED||env.MMF_WEBHOOK_ENABLED!=='true')return respond({error:'SERVICE_UNAVAILABLE'},503);
     try{
-     const raw=await request.text();if(Buffer.byteLength(raw,'utf8')>65536)return respond({error:'PAYLOAD_TOO_LARGE'},413);
+     const input=await readBoundedWebhookBody(request);
+     if(input.error)return respond({error:input.error},input.status);
+     const raw=input.raw;
      const fab=fromEnv(env,providerFactory,{receiveOnly:true});
      const r=await processResendWebhook(fab,raw,request.headers,{secret:env.MMF_WEBHOOK_SECRET,strictRecipient:true});
      return respond({accepted:true,recorded:r.recorded},202);
