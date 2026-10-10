@@ -148,3 +148,12 @@ A real private Cloudflare Queue/SQLite Durable Object run passed the synthetic S
 See `docs/2026-10-10-v0.12-recipient-bound-reconciliation.md`. The service remains **non-public, customer delivery disabled, and not commercially production-qualified**.
 
 **Commercial release preflight:** Two valid independent release signatures alone cannot enable live Resend delivery without a configured authenticated webhook signing secret. Postal customer sending is explicitly blocked until its authenticated feedback integration is qualified. These are software safety checks, not claims of actual Resend webhook registration.
+
+## v0.13.0 — Operator-controlled privacy and emergency containment (2026-10-10)
+
+- New disabled-by-default **operator-only manual suppression** API. Tenant-scoped HMAC recipient digests are persisted without plaintext addresses; retries are idempotent, and previously suppressed recipients cannot enqueue new communication.
+- An **atomic per-tenant UTC-day cap** limits new operator suppressions to 200 by default (configurable 1–5000); concurrent requests cannot bypass the limit in tested SQLite. Duplicate requests remain available when the cap is exhausted.
+- New disabled-by-default **operator-only sender revocation** API provides an emergency stop for the configured verified domain, even while customer sending is paused. Both operator APIs reject reused customer bearer tokens, invalid JSON and misconfiguration.
+- Real private Cloudflare Queue and SQLite Durable Object executed the synthetic operator suppression flow with actual storage readback and a subsequent blocked message. No customer email, public route or external provider call was activated.
+
+See `docs/2026-10-10-v0.13-operator-safety-and-cloud-proof.md`. The current **commercial release gate remains closed**: actual Resend webhook setup/round trips, customer-held KMS/HSM key custody, independent security assessment, compliance and business operations are still not qualified.
