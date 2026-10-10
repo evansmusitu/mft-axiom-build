@@ -1,0 +1,98 @@
+name: MUSITU Mail Fabric v0.14 Private Webhook Worker Provisioning
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-v14-provision-private-webhook.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-webhook-first-provision-20261010
+  cancel-in-progress: false
+jobs:
+  first-provision:
+    if: github.event.before == '6679075b09b39f4d2d30807e059c2f420097abe3'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_WEBHOOK_PRIVATE_SCRIPT: 'musitu-mail-fabric-webhook-isolated-20261010'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove isolated non-public target, forbid production names and no paid upgrades
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.webhook-only.template.jsonc','utf8'));
+          const b=c.durable_objects?.bindings||[];
+          const forbidden=['MMF_LEDGER','MMF_RESEND_API_KEY','MMF_WEBHOOK_SECRET','MMF_STORAGE_RPC_SECRET','CLOUDFLARE_API_TOKEN'];
+          if(c.name!=='musitu-mail-fabric-webhook-isolated-20261010'||
+             c.main!=='src/edge/webhook-only.mjs'||c.workers_dev!==false||
+             JSON.stringify(c.routes)!=='[]'||b.length!==1||b[0].name!=='MMF_RECEIPTS'||
+             b[0].class_name!=='MmfStagingSqliteDO'||
+             forbidden.some(x=>JSON.stringify(c).includes(x))||
+             !['MMF_REAL_SEND_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED',
+               'MMF_SUPPRESSION_API_ENABLED','MMF_SENDER_REVOKE_API_ENABLED','MMF_DIAGNOSTICS_ENABLED'].every(k=>c.vars?.[k]==='false'))
+             throw Error('MUSITU_PRIVATE_WEBHOOK_CONFIG_NOT_SAFE');
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_WEBHOOK_CONFIG',status:'PASS',publicRoutes:0,liveDelivery:false}));
+          NODE
+          npm run check
+          npm run test:webhook-only
+      - name: Confirm exact new Worker name is unused and existing stage is separate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          const n=process.env.MMF_WEBHOOK_PRIVATE_SCRIPT;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||
+             n!=='musitu-mail-fabric-webhook-isolated-20261010'||String(k||'').length<16)
+             throw Error('PRIVATE_RESOURCE_SCOPE_DENIED');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const headers={authorization:'Bearer '+k};
+          const stage=await fetch(root+'musitu-mail-fabric-staging-20261010/settings',{headers,signal:AbortSignal.timeout(15000)});
+          const s=await stage.json();if(!stage.ok||s.success===false||!(s.result.bindings||[]).some(x=>x.name==='MMF_LEDGER'))
+            throw Error('EXISTING_STAGE_BASELINE_UNAVAILABLE');
+          const check=await fetch(root+n+'/settings',{headers,signal:AbortSignal.timeout(15000)});
+          if(check.status!==404)throw Error('WEBHOOK_WORKER_NOT_NEW_OR_CANNOT_PROVE_ABSENCE_'+check.status);
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_WEBHOOK_NEW_RESOURCE_PREFLIGHT',status:'PASS',
+            existingStageReadOnly:true,targetPreviouslyAbsent:true}));
+          NODE
+      - name: Create only separate route-disabled Worker, no public webhook subscription
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.webhook-only.template.jsonc
+      - name: Independent provider-free readback of flags, private subdomain and namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN,n=process.env.MMF_WEBHOOK_PRIVATE_SCRIPT;
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const headers={authorization:'Bearer '+k};
+          const get=async path=>{const r=await fetch(root+path,{headers,signal:AbortSignal.timeout(15000)});
+            const x=await r.json();if(!r.ok||x.success===false)throw Error('PRIVATE_CLOUD_READBACK_'+r.status);return x.result};
+          const [cfg,sub,existing]=await Promise.all([
+            get(n+'/settings'),get(n+'/subdomain'),get('musitu-mail-fabric-staging-20261010/settings')]);
+          const b=cfg?.bindings||[],e=existing?.bindings||[],value=key=>b.find(x=>x.name===key)?.text;
+          const privateDO=b.find(x=>x.name==='MMF_RECEIPTS'&&x.type==='durable_object_namespace');
+          const stageDO=e.find(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace');
+          if(!privateDO||!stageDO||privateDO.namespace_id===stageDO.namespace_id||
+             sub?.enabled===true||sub?.previews_enabled===true||
+             !['MMF_REAL_SEND_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED',
+              'MMF_SUPPRESSION_API_ENABLED','MMF_SENDER_REVOKE_API_ENABLED','MMF_DIAGNOSTICS_ENABLED'].every(x=>value(x)==='false'))
+             throw Error('PRIVATE_WEBHOOK_POSTDEPLOY_DRIFT');
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_WEBHOOK_WORKER_PROVISIONED',status:'PASS',
+            separateWorker:true,separateDurableObjectNamespace:true,publicAccess:false,
+            realResendWebhookRegistered:false,customerEmailSent:false,providerApiCalls:0}));
+          NODE
