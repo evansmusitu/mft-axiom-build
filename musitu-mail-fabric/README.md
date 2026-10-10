@@ -107,3 +107,7 @@ When a **properly authenticated** Resend event reports a bounce or complaint, th
 The v0.6 branch adds tenant-scoped expiring DNS TXT sender ownership, durable recipient limits, conservative provider-event reconciliation, and a guarded Cloudflare staging-resource provisioner. Local tests and existing isolated Cloudflare runtime CI are separate from a public production service.
 
 Cloudflare D1 create was **blocked** by free-account 10-database limit (error 7406); no AXIOM D1 was reused. An isolated Cloudflare staging Queue and a separate Neon Free PostgreSQL test project were created, but no Worker / real provider / customer-sending connection was deployed. The Neon transaction and rollback checks are not genuine cloud-outage tests. Independent security assessment is outstanding. See `docs/2026-10-10-v0.6-staging-and-external-audit.md`.
+
+## v0.7 non-public Cloudflare SQLite Durable Object option
+
+When new D1 databases are blocked by the account's Free-tier limit, MMF can use a separate SQLite-backed Durable Object without touching AXIOM databases. The new `src/edge/sqlite-do.mjs` implements a secret-authenticated, internal-only D1-style SQL adapter. `src/edge/worker-do-staging.mjs` consumes **synthetic probes only** and refuses every public HTTP request. `wrangler.mmf.do-staging.jsonc` explicitly disables `workers.dev`, public routes and all real sending. This does **not** yet mean production is enabled; see `docs/2026-10-10-sqlite-do-staging-design.md` and the separate live GitHub Actions deployment evidence before making remote claims.

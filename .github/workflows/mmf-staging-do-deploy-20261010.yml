@@ -1,0 +1,95 @@
+name: MUSITU Mail Fabric Isolated SQLite DO Worker Staging 20261010
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-staging-do-deploy-20261010.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-stage-20261010-sole-worker
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event.before == 'f53fef032b06441620788b02127914b69a1d1873'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      MMF_QUEUE_ID: '1ff13f921b90488397e7f76970117aee'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact branch and no-sending gate with isolated regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "${{ github.event.before }}" = 'f53fef032b06441620788b02127914b69a1d1873'
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const c=JSON.parse(fs.readFileSync('musitu-mail-fabric/wrangler.mmf.do-staging.jsonc','utf8'));
+          if(c.name!=='musitu-mail-fabric-staging-20261010'||c.workers_dev!==false||c.routes.length!==0||
+             c.main!=='src/edge/worker-do-staging.mjs'||c.vars.MMF_STAGE_ONLY!=='true'||
+             c.vars.MMF_REAL_SEND_ENABLED!=='false'||c.vars.MMF_API_ENABLED!=='false'||
+             c.vars.MMF_WEBHOOK_ENABLED!=='false'||c.migrations[0].new_sqlite_classes.join(',')!=='MmfStagingSqliteDO'||
+             c.queues.consumers[0].queue!=='musitu-mail-fabric-staging-20261010')throw Error('INVALID_STAGING_CONFIG');
+          console.log('MMF_ISOLATED_STAGE_STATIC_GATE_PASS');
+          NODE
+          cd musitu-mail-fabric
+          npm run check
+          npm test
+      - name: Live exact-account/queue preflight and ensure no existing Worker overwritten
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||String(token||'').length<16)throw Error('CLOUDFLARE_SCOPE_INVALID');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+account;
+          async function api(p){const r=await fetch(root+p,{headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(15000)});return {r,p:await r.json().catch(()=>({}))};}
+          const a=await api(''),q=await api('/queues/'+process.env.MMF_QUEUE_ID);
+          if(!a.r.ok||a.p.success===false||a.p.result?.id!==account||!q.r.ok||q.p.success===false||q.p.result?.queue_name!=='musitu-mail-fabric-staging-20261010')throw Error('ACCOUNT_OR_QUEUE_VERIFICATION_FAILED');
+          const existing=await api('/workers/scripts/musitu-mail-fabric-staging-20261010/settings');
+          if(existing.r.status!==404)throw Error('REFUSE_EXISTING_WORKER_OR_UNKNOWN_WORKER_PERMISSION');
+          console.log(JSON.stringify({gate:'MMF_STAGE_DO_PREFLIGHT',status:'PASS',exact_queue_verified:true,worker_does_not_exist:true,no_existing_resource_changed:true}));
+          NODE
+      - name: Deploy non-public staging-only SQLite Durable Object Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd musitu-mail-fabric
+          npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc
+      - name: Provision private internal RPC credential without printing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd musitu-mail-fabric
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          printf '%s' "$secret" | npx --yes wrangler@4 secret put MMF_STORAGE_RPC_SECRET --config wrangler.mmf.do-staging.jsonc >/dev/null
+          unset secret
+          echo 'MMF_PRIVATE_STAGE_RPC_SECRET_SET=true'
+      - name: Verify Worker has no public preview or route; publish only synthetic probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID;
+          const h={authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,accept:'application/json'};
+          async function api(path,method='GET',body){const r=await fetch(root+path,{method,headers:{...h,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});const p=await r.json().catch(()=>({}));if(!r.ok||p.success===false)throw Error('CLOUDFLARE_STAGE_'+method+'_HTTP_'+r.status);return p.result;}
+          const name='musitu-mail-fabric-staging-20261010';
+          const sub=await api('/workers/scripts/'+name+'/subdomain');
+          const settings=await api('/workers/scripts/'+name+'/settings');
+          const bindings=Array.isArray(settings?.bindings)?settings.bindings:[];
+          if(sub?.enabled===true||sub?.previews_enabled===true)throw Error('PUBLIC_STAGE_ACCESS_NOT_DISABLED');
+          if(!bindings.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace'))throw Error('SQLITE_DO_BINDING_MISSING');
+          const secrets=await api('/workers/scripts/'+name+'/secrets');
+          if(!Array.isArray(secrets)||!secrets.some(x=>x.name==='MMF_STORAGE_RPC_SECRET'))throw Error('PRIVATE_STORAGE_SECRET_MISSING');
+          const body={content_type:'json',body:{type:'MMF_STAGE_PROBE',probeId:'probe-stage-live-20261010'}};
+          await api('/queues/'+process.env.MMF_QUEUE_ID+'/messages','POST',body);
+          console.log(JSON.stringify({gate:'MMF_STAGE_QUEUE_PROBE_SUBMITTED',status:'PASS',queue_api_accepted:true,consumer_persistence_proven:false,customer_mail_sent:false,stage_publicly_exposed:false,secret_values_recorded:false}));
+          NODE
