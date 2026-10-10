@@ -4,6 +4,7 @@
 import {MmfStagingSqliteDO,createDurableSqlAdapter,inspectPrivateStagingPitr} from './sqlite-do.mjs';
 import {stageCryptoSelfTest} from './stage-crypto.mjs';
 import {runSyntheticTransactionProbe} from './synthetic-transaction.mjs';
+import {assessTenantHealth} from '../ops/health.mjs';
 import {createHash} from 'node:crypto';
 export {MmfStagingSqliteDO};
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
@@ -19,8 +20,17 @@ export default {
   try{db=createDurableSqlAdapter(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);}catch{for(const msg of batch.messages)msg.retry();return;}
   for(const m of batch.messages){
    const input=m.body;
-   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
+   if((input?.type!=='MMF_STAGE_PROBE'&&input?.type!=='MMF_STAGE_RETRY_PROBE'&&input?.type!=='MMF_STAGE_TRANSACTION_PROBE'&&input?.type!=='MMF_STAGE_PITR_PROBE'&&input?.type!=='MMF_STAGE_HEALTH_PROBE')||typeof input.probeId!=='string'||!PROBE.test(input.probeId)){m.ack();continue;}
    try{
+    if(input.type==='MMF_STAGE_HEALTH_PROBE'){
+     const report=await assessTenantHealth(db,{tenantId:'stage-tenant',maxQueuedAgeMs:15*60000});
+     m.ack();
+     console.log(JSON.stringify({gate:'MMF_STAGE_REAL_SQLITE_OPERATIONAL_HEALTH',status:'PASS',
+       probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
+       health:report.status,metrics:report.metrics,reasons:report.reasons,
+       observationOnly:true,customerMailSent:false,publicAccess:false}));
+     continue;
+    }
     if(input.type==='MMF_STAGE_PITR_PROBE'){
      // This path never restores a bookmark or modifies cloud data.
      const proof=await inspectPrivateStagingPitr(env.MMF_LEDGER,env.MMF_STORAGE_RPC_SECRET);
