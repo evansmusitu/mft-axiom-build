@@ -20,7 +20,9 @@ function fixture(t){
   return{toArray(){return rows}};
  }}};
  const token='isolated-outbox-ledger-secret-1234567890abcde';
- const owner=new MmfStagingSqliteDO({storage},{MMF_STORAGE_RPC_SECRET:token});
+ const feedbackToken='feedback-only-ledger-capability-secret-0123456789';
+ const owner=new MmfStagingSqliteDO({storage},{MMF_STORAGE_RPC_SECRET:token,MMF_TENANT_ID:'client1',
+  MMF_FEEDBACK_RPC_ENABLED:'true',MMF_FEEDBACK_RPC_SECRET:feedbackToken});
  const outbox={idFromName:n=>n,get:()=>({fetch:req=>owner.fetch(req)})};
  const receipts={idFromName:n=>n,get:()=>({fetch(){throw Error('RECEIPTS_MUST_NOT_BE_USED_FOR_CORRELATION')}})};
  const keys=generateDemonstrationKeys(),encryptionKey=randomBytes(32),privacyKey=randomBytes(32);
@@ -29,7 +31,7 @@ function fixture(t){
   {db,encryptionKey,privacyKey,keys});
  const webhookSecret='whsec_'+randomBytes(32).toString('base64');
  const env={MMF_WEBHOOK_ENABLED:'true',MMF_REAL_SEND_ENABLED:'false',MMF_API_ENABLED:'false',
-  MMF_OUTBOX_LINK_ENABLED:'true',MMF_OUTBOX:outbox,MMF_RECEIPTS:receipts,MMF_OUTBOX_RPC_SECRET:token,
+  MMF_OUTBOX_LINK_ENABLED:'true',MMF_OUTBOX:outbox,MMF_RECEIPTS:receipts,MMF_OUTBOX_FEEDBACK_SECRET:feedbackToken,
   MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',
   MMF_WEBHOOK_SECRET:webhookSecret,
   MMF_ENCRYPTION_KEY_B64:encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:privacyKey.toString('base64'),
@@ -62,7 +64,7 @@ test('linked Worker fails closed on absent or wrong outbox credential and separa
  const hdr={'content-type':'application/json',...webhookHeaders(f.webhookSecret,raw,'svix-boundary-01')};
  const req=()=>new Request('https://private.invalid/v1/webhooks/resend',{method:'POST',headers:hdr,body:raw});
  for(const changed of [{MMF_OUTBOX_LINK_ENABLED:'false'},{MMF_OUTBOX:undefined},
-  {MMF_OUTBOX_RPC_SECRET:'wrong-outbox-secret-0123456789abcdef'},
+  {MMF_OUTBOX_FEEDBACK_SECRET:'wrong-outbox-secret-0123456789abcdef'},
   {MMF_OUTBOX:f.receipts}]){
   const resp=await ingress.fetch(req(),{...f.env,...changed});
   assert.equal(resp.status,503);
