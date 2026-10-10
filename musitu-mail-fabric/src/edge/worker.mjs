@@ -209,8 +209,9 @@ export function createWorker({providerFactory}={}){
    }
    if(url.pathname==='/v1/messages'&&request.method==='POST'){
     try{
-     const raw=await request.text();if(Buffer.byteLength(raw,'utf8')>30000)return respond({error:'PAYLOAD_TOO_LARGE'},413);
-     const input=JSON.parse(raw);
+     const bounded=await readBoundedWebhookBody(request,{maxBytes:30000,requireJsonMime:false});
+     if(bounded.error)return respond({error:bounded.error},bounded.status);
+     const input=JSON.parse(bounded.raw);
      if(env.MMF_REAL_SEND_ENABLED==='true'){
       const registry=new SenderRegistry({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID});
       if(!await registry.isVerified(String(env.MMF_FROM_DOMAIN||'')))return respond({error:'SENDER_NOT_VERIFIED'},403);
