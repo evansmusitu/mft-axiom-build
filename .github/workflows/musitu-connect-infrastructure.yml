@@ -20,9 +20,12 @@ jobs:
           python-version: '3.12'
       - name: Install Docker Compose prerequisites
         run: docker compose version
+      - name: Verify bounded registry retry remains fail-closed
+        run: python -m unittest tests.connect.test_infrastructure_pull_retry -v
       - name: Start isolated infrastructure
         run: |
-          docker compose -f infra/qualification/docker-compose.yml up -d
+          python qualification/retry_compose_pull.py --compose-file infra/qualification/docker-compose.yml
+          docker compose -f infra/qualification/docker-compose.yml up -d --pull never
           docker compose -f infra/qualification/docker-compose.yml wait temporal-create-namespace
           docker compose -f infra/qualification/docker-compose.yml ps
       - name: Install qualification dependencies
