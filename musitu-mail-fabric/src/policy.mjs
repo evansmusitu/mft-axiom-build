@@ -4,6 +4,13 @@ const ID=/^[a-z][a-z0-9_-]{2,63}$/;
 const IDEM=/^[A-Za-z0-9._:-]{8,128}$/;
 const TYPES=new Set(['SECURITY','ACCOUNT','RECEIPT','SUPPORT','SERVICE_ALERT']);
 export class PolicyRejection extends Error {constructor(code){super(code);this.name='PolicyRejection';this.code=code;}}
+/** Common recipient syntax for queued messages and privacy-preserving manual suppression. */
+export function normalizeRecipientAddress(value){
+  if(typeof value!=='string'||value.length>254||value.length<3||value!==value.trim()||
+     !ADDR.test(value)||/[\r\n\0]/.test(value))
+    throw new PolicyRejection('INVALID_ADDRESS');
+  return value.toLowerCase();
+}
 export function validateSubmission(input,config,suppressed){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new PolicyRejection('INVALID_REQUEST');
   const {tenantId,from,to,subject,text,kind,idempotencyKey}=input;
