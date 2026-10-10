@@ -1,0 +1,80 @@
+name: MUSITU Mail Fabric v0.8.1 Independent-Assessment Readiness Evidence
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-v08-release-readiness-audit.yml']
+permissions:
+  contents: read
+jobs:
+  evidence:
+    if: github.event.before == '952865c6a3a2d8ff7cf6c96ec305934ad5582ab9'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test isolated build including dual release authorization
+        working-directory: musitu-mail-fabric
+        run: |
+          npm run check
+          npm test
+      - name: Read only isolated cloud stage and produce immutable-snapshot assessment input
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const w='musitu-mail-fabric-staging-20261010',q='1ff13f921b90488397e7f76970117aee';
+          if(a!=='93f395f5121954671f92fffa453d6b61'||String(token||'').length<16)throw Error('STAGE_SCOPE_DENIED');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a;
+          const get=async(path)=>{
+            const r=await fetch(root+path,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(12000)});
+            const j=await r.json();if(!r.ok||j.success===false)throw Error('STAGE_READ_FAILED_'+r.status);
+            return j.result;
+          };
+          const [account,queue,worker,sub,secrets]=await Promise.all([
+            get(''),get('/queues/'+q),get('/workers/scripts/'+w+'/settings'),
+            get('/workers/scripts/'+w+'/subdomain'),get('/workers/scripts/'+w+'/secrets')
+          ]);
+          const bs=worker.bindings||[],val=(name)=>bs.find(x=>x.name===name)?.text;
+          const required=['MMF_STORAGE_RPC_SECRET','MMF_STAGE_SIGNING_PRIVATE_KEY_PEM','MMF_STAGE_DATA_KEY_B64'];
+          const isolated=account.id===a&&queue.queue_name==='musitu-mail-fabric-staging-20261010'&&
+            sub.enabled!==true&&sub.previews_enabled!==true&&
+            val('MMF_STAGE_ONLY')==='true'&&val('MMF_STAGE_CRYPTO_READY')==='true'&&
+            val('MMF_REAL_SEND_ENABLED')==='false'&&val('MMF_API_ENABLED')==='false'&&
+            val('MMF_WEBHOOK_ENABLED')==='false'&&
+            bs.some(x=>x.name==='MMF_LEDGER'&&x.type==='durable_object_namespace')&&
+            Array.isArray(secrets)&&required.every(name=>secrets.some(x=>x.name===name));
+          if(!isolated)throw Error('ISOLATED_STAGE_DRIFT');
+          const report={
+            schema:'MUSITU_MAIL_FABRIC_RELEASE_READINESS_V1',
+            commit:process.env.GITHUB_SHA,generatedAt:new Date().toISOString(),
+            scope:'SYNTHETIC_ONLY',independentExternalAudit:false,
+            cloudflareStage:{private:true,worker:w,queueId:q,durableSqliteBound:true,requiredSecretNamesPresent:true,customerSendingDisabled:true},
+            testProof:'npm run check and npm test passed in this Actions job',
+            releaseStatus:'BLOCKED_FOR_CUSTOMER_PRODUCTION',
+            blockedReasons:['INDEPENDENT_SECURITY_ASSESSMENT_OUTSTANDING',
+              'LONG_LIVED_KEY_BACKUP_AND_HSM_CUSTODY_UNVERIFIED',
+              'LIVE_PROVIDER_EVENT_ROUNDTRIP_UNVERIFIED',
+              'GENUINE_CLOUD_OUTAGE_RECOVERY_UNVERIFIED',
+              'LEGAL_AND_CUSTOMER_CONSENT_REVIEW_OUTSTANDING',
+              'INDEPENDENT_DUAL_SIGNED_PRODUCTION_GRANT_NOT_ISSUED']
+          };
+          writeFileSync('evidence/mmf-readiness.json',JSON.stringify(report,null,2)+'\n');
+          console.log(JSON.stringify({gate:'MMF_V08_PRIVATE_STAGE_READBACK',status:'PASS',releaseStatus:report.releaseStatus,blockedCount:report.blockedReasons.length,customerMailSent:false}));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mmf-v081-nonpublic-production-readiness
+          path: evidence/mmf-readiness.json
+          retention-days: 7
+          if-no-files-found: error
