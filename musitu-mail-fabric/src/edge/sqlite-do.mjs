@@ -20,6 +20,7 @@ export class MmfStagingSqliteDO {
   // The schema is idempotent, and SQLite serializes operations per Durable Object.
   for(const statement of SQL_SCHEMA.split(';').map(s=>s.trim()).filter(Boolean))this.sql.exec(statement);
   this.sql.exec('CREATE TABLE IF NOT EXISTS mmf_staging_probes(probe_id TEXT PRIMARY KEY, seen_ms INTEGER NOT NULL) STRICT');
+  this.sql.exec('CREATE TABLE IF NOT EXISTS mmf_staging_recovery(probe_id TEXT PRIMARY KEY, first_seen_ms INTEGER NOT NULL, recovery_count INTEGER NOT NULL, completed_ms INTEGER) STRICT');
  }
  async fetch(request){
   if(new URL(request.url).pathname!=='/rpc'||request.method!=='POST')return respond({error:'NOT_FOUND'},404);
