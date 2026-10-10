@@ -2,6 +2,7 @@ import {createHash,createPrivateKey,createPublicKey,timingSafeEqual,sign,verify}
 import {DurableMailFabric} from '../durable/fabric.mjs';
 import {createResendProvider,createPostalProvider} from '../providers.mjs';
 import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.mjs';
+import {createFeedbackRecorder} from '../webhooks/feedback-recorder.mjs';
 import {readBoundedWebhookBody} from '../webhooks/bounded-body.mjs';
 import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
@@ -147,7 +148,15 @@ export function createWorker({providerFactory}={}){
      const input=await readBoundedWebhookBody(request);
      if(input.error)return respond({error:input.error},input.status);
      const raw=input.raw;
-     const fab=fromEnv(env,providerFactory,{receiveOnly:true});
+     // Dedicated feedback ingress has no reason to hold the sender's
+     // Ed25519 signing key, encryption key, or opaque recipient HMAC key.
+     // This mode is only available with customer API and sending disabled.
+     const fab=env.MMF_WEBHOOK_RECORDER_ONLY==='true'
+       ?(env.MMF_REAL_SEND_ENABLED==='false'&&env.MMF_API_ENABLED==='false'
+          ?createFeedbackRecorder({db:env.MMF_DB,tenantId:env.MMF_TENANT_ID})
+          :null)
+       :fromEnv(env,providerFactory,{receiveOnly:true});
+     if(!fab)throw Error('FEEDBACK_RECEIVE_ONLY_GATE_REQUIRED');
      const r=await processResendWebhook(fab,raw,request.headers,{secret:env.MMF_WEBHOOK_SECRET,strictRecipient:true});
      return respond({accepted:true,recorded:r.recorded},202);
     }catch(e){
