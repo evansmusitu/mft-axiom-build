@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify:
-    if: github.event.before == 'aa08f551ed23d184109fd40f3fe45b78594070e1'
+    if: github.event.before == '5a327f0dd4634dbae160df6a9201eaf37e753e01'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 14
@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "${{ github.event.before }}" = 'aa08f551ed23d184109fd40f3fe45b78594070e1'
+          test "${{ github.event.before }}" = '5a327f0dd4634dbae160df6a9201eaf37e753e01'
           cd musitu-mail-fabric
           node --input-type=module <<'NODE'
           import {readFileSync} from 'node:fs';
@@ -81,16 +81,7 @@ jobs:
             path="$RUNNER_TEMP/mmf-stage-credentials.json"
             export MMF_STAGE_CREDS_PATH="$path"
             trap 'rm -f "$MMF_STAGE_CREDS_PATH"' EXIT
-            node --input-type=module <<'NODE'
-            import {generateKeyPairSync,randomBytes} from 'node:crypto';
-            import {writeFileSync} from 'node:fs';
-            const {privateKey}=generateKeyPairSync('ed25519');
-            writeFileSync(process.env.MMF_STAGE_CREDS_PATH,JSON.stringify({
-              MMF_STAGE_SIGNING_PRIVATE_KEY_PEM:privateKey.export({format:'pem',type:'pkcs8'}).toString(),
-              MMF_STAGE_DATA_KEY_B64:randomBytes(32).toString('base64')
-            }),{mode:0o600});
-            console.log(JSON.stringify({gate:'MMF_EPHEMERAL_STAGE_CREDENTIAL_GENERATION',status:'PASS',secretsPrinted:false}));
-            NODE
+            node --input-type=module -e 'import {generateKeyPairSync,randomBytes} from "node:crypto"; import {writeFileSync} from "node:fs"; const {privateKey}=generateKeyPairSync("ed25519"); writeFileSync(process.env.MMF_STAGE_CREDS_PATH,JSON.stringify({MMF_STAGE_SIGNING_PRIVATE_KEY_PEM:privateKey.export({format:"pem",type:"pkcs8"}).toString(),MMF_STAGE_DATA_KEY_B64:randomBytes(32).toString("base64")}),{mode:0o600}); console.log(JSON.stringify({gate:"MMF_EPHEMERAL_STAGE_CREDENTIAL_GENERATION",status:"PASS",secretsPrinted:false}));'
             npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc --secrets-file "$path"
           else
             npx --yes wrangler@4 deploy --config wrangler.mmf.do-staging.jsonc
