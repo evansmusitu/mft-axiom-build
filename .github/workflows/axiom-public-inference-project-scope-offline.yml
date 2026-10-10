@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '22'
       - name: Execute signed customer identity and project scope tests
-        run: cd ops/public_inference && node --test inference_identity.test.mjs customer_entry.test.mjs
+        run: cd ops/public_inference && node --test *.test.mjs
       - name: Preserve customer release qualification truth
         run: |
           echo 'PUBLIC_INFERENCE_CUSTOMER_RELEASE=NOT_AUTHORIZED'
