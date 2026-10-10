@@ -151,8 +151,20 @@ export class DurableMailFabric {
     const pending=await this.db.prepare(`SELECT message_id FROM mail_messages WHERE tenant_id=? AND state='QUEUED' ORDER BY created_ms,message_id LIMIT 1`).bind(this.config.tenantId).first();
     return pending?this.processById(pending.message_id):null;
   }
-  async recordProviderEvent({svixId,rawSha256,type,providerId}){
+  async recordProviderEvent({svixId,rawSha256,type,providerId,recipient}){
     if(typeof svixId!=='string'||!(/^[A-Za-z0-9._:-]{4,200}$/).test(svixId)||!(/^[a-f0-9]{64}$/).test(rawSha256)||!['email.delivered','email.bounced','email.complained','email.delivery_delayed'].includes(type)||!(/^[A-Za-z0-9_-]{1,120}$/).test(providerId))throw TypeError('INVALID_PROVIDER_EVENT');
+    if(recipient!==undefined){
+      // A valid webhook signature proves provider origin, NOT that it belongs
+      // to the recipient of this MUSITU transaction. Never allow feedback
+      // for a different recipient to suppress or assert delivery for this one.
+      if(typeof recipient!=='string'||recipient.length>254)
+        throw new TypeError('INVALID_WEBHOOK_RECIPIENT');
+      const attributed=await this.db.prepare(`SELECT recipient_hmac FROM mail_messages
+        WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`)
+        .bind(this.config.tenantId,providerId).first();
+      if(attributed&&attributed.recipient_hmac!==this.ledger.opaqueRecipient(recipient.toLowerCase()))
+        throw Error('PROVIDER_RECIPIENT_MISMATCH');
+    }
     const prior=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
     if(prior){
       if(prior.raw_sha256!==rawSha256||prior.kind!==type||prior.provider_id!==providerId)throw Error('WEBHOOK_ID_CONFLICT');
