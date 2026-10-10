@@ -3,6 +3,7 @@
  */
 import {createHash,timingSafeEqual} from 'node:crypto';
 import {SQL_SCHEMA} from './sqlite-schema.mjs';
+import {handleFeedbackRpc} from './feedback-rpc.mjs';
 const H={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 const respond=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:H});
 const NAME='mmf-stage-tenant';
@@ -24,6 +25,7 @@ export class MmfStagingSqliteDO {
  }
  async fetch(request){
   const path=new URL(request.url).pathname;
+  if(path==='/feedback-rpc')return handleFeedbackRpc(request,this.sql,this.stageEnv);
   if(!['/rpc','/stage-pitr-capability'].includes(path)||request.method!=='POST')return respond({error:'NOT_FOUND'},404);
   if(!authorized(request.headers.get('x-mmf-internal'),this.secret))return respond({error:'UNAUTHORIZED'},401);
   if(path==='/stage-pitr-capability'){
