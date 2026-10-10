@@ -43,5 +43,12 @@ export async function processResendWebhook(fabric,raw,headers,{secret,now=Date.n
       throw new TypeError('INVALID_WEBHOOK_RECIPIENT');
     recipient=to[0].toLowerCase();
   }
-  return fabric.recordProviderEvent({svixId:verified.id,rawSha256:verified.rawSha256,type:event.type,providerId:event.data.email_id,recipient});
+  const outcome=await fabric.recordProviderEvent({svixId:verified.id,rawSha256:verified.rawSha256,
+    type:event.type,providerId:event.data.email_id,recipient});
+  // Signed provider feedback can arrive before a send's acceptance and
+  // provider ID are durably finalized. In production, tell Resend to retry
+  // instead of returning 2xx and silently discarding the event.
+  if(strictRecipient&&outcome?.reason==='UNRELATED_PROVIDER_ID')
+    throw Error('PROVIDER_CORRELATION_PENDING');
+  return outcome;
 }
