@@ -103,22 +103,23 @@ test("SQLite authenticated worker operations are receipt-idempotent capability-f
     assert.equal(heart.leaseExpiresAt,"2026-10-10T00:00:05.000Z");
     assert.notEqual(heart.job.state.leaseCapabilityCoreHash,lease.job.state.leaseCapabilityCoreHash);
 
-    const oldCompleteBody={capabilityId:lease.capability.capabilityId,resultHash:H("9")};
-    const oldCompleteCtx=proof({requestId:"request:complete:old",action:"COMPLETE",targetJobId:first.intent.jobId,body:oldCompleteBody});
-    await assert.rejects(()=>store.completeAuthenticated(A,first.intent.jobId,oldCompleteCtx,lease.capability,"2026-10-10T00:00:03.600Z",{
+    const oldResult={
       status:"APPROVED",snapshotId:first.intent.snapshotId,policyDecision:{status:"ALLOW",snapshotId:first.intent.snapshotId,checks:[]},
       certificateId:"cert:old",executionRecordId:"platform:old"
-    }),/lease|capability/i);
+    };
+    const oldCompleteBody={capabilityId:lease.capability.capabilityId,result:oldResult};
+    const oldCompleteCtx=proof({requestId:"request:complete:old",action:"COMPLETE",targetJobId:first.intent.jobId,body:oldCompleteBody});
+    await assert.rejects(()=>store.completeAuthenticated(A,first.intent.jobId,oldCompleteCtx,lease.capability,"2026-10-10T00:00:03.600Z",oldResult),/lease|capability/i);
 
     const otherBody={capabilityId:heart.capability.capabilityId};
     const otherCtx=proof({worker:"b",requestId:"request:release:other",action:"RELEASE",targetJobId:first.intent.jobId,body:otherBody});
     await assert.rejects(()=>store.releaseForRetryAuthenticated(A,first.intent.jobId,otherCtx,heart.capability,"2026-10-10T00:00:03.700Z"),/worker|lease|capability/i);
 
+    const releaseCtx=proof({requestId:"request:release:revoked",action:"RELEASE",targetJobId:first.intent.jobId,body:{capabilityId:heart.capability.capabilityId}});
     workerRecord=phase2.createWorkerTrustRecord({
       workerId:"worker:a",keyId:"worker-key:a:v1",poolId:"pool:a",publicKey:workerKeys.publicKey,
       status:"REVOKED",maxLeaseMs:2000,allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]
     });
-    const releaseCtx=proof({requestId:"request:release:revoked",action:"RELEASE",targetJobId:first.intent.jobId,body:{capabilityId:heart.capability.capabilityId}});
     await assert.rejects(()=>store.releaseForRetryAuthenticated(A,first.intent.jobId,releaseCtx,heart.capability,"2026-10-10T00:00:03.800Z"),/revoked|active|worker/i);
 
     workerRecord=phase2.createWorkerTrustRecord({

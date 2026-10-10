@@ -1,6 +1,7 @@
 import type { AxiomNode, AxiomProgram, CompilerManifest, ConstraintSpec, JsonValue, TypeRef, TypedValue } from "../../phase1/src/types.ts";
 import type { ReasoningCertificate } from "../../phase1/src/certificate.ts";
 import type { SignerIdentity } from "./signer.ts";
+import type { WorkerLeaseCapability } from "./worker_lease_capability.ts";
 
 export interface TenantScope { tenantId: string; }
 
@@ -454,6 +455,9 @@ export interface DistributedExecutionState {
   attemptCount:number;
   leaseOwner?:string;
   leaseExpiresAt?:string;
+  leaseWorkerKeyId?:string;
+  leasePoolId?:string;
+  leaseCapabilityCoreHash?:string;
   terminalAt?:string;
   result?:ControlPlaneResult;
   resultHash?:string;
@@ -537,4 +541,21 @@ export interface PreparedWorkerLeaseCapability {
   core:WorkerLeaseCapabilityCore;
   signingPayload:JsonValue;
   coreHash:string;
+}
+
+
+export interface AuthenticatedDistributedExecutionLease extends DistributedExecutionLease {
+  workerKeyId:string;
+  poolId:string;
+  capability:WorkerLeaseCapability;
+}
+export interface WorkerOperationReceipt {
+  workerId:string;
+  workerKeyId:string;
+  requestId:string;
+  action:WorkerAction;
+  requestHash:string;
+  outcomeHash:string;
+  createdAt:string;
+  receiptHash:string;
 }
