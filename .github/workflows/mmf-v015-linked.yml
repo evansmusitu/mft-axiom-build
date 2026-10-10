@@ -20,6 +20,7 @@ jobs:
           cd musitu-mail-fabric
           npm run check
           npm test
+          npm run test:webhook-bridge
       - name: Build without deployment
         run: |
           cd musitu-mail-fabric
