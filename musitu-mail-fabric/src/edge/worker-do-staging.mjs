@@ -27,12 +27,21 @@ export default {
     if(input.type==='MMF_STAGE_SACRIFICIAL_PITR_PROBE'){
      if(env.MMF_STAGE_PITR_RESTORE_ENABLED!=='true')throw Error('SACRIFICIAL_PITR_NOT_AUTHORIZED');
      const result=await runSacrificialPitrDrill(env.MMF_PITR_SANDBOX,env,input.probeId);
-     if(result.wasRestored!==true||result.mainTenantUntouched!==true||
+     const probeSha256=createHash('sha256').update(input.probeId).digest('hex');
+     if(result.status==='RETRY_REQUIRED'&&result.mutationVerified===true&&
+        result.rollbackRequested===true&&result.customerMailSent===false){
+       console.log(JSON.stringify({gate:'MMF_SACRIFICIAL_PITR_MUTATED_AND_RESTORE_INITIATED',
+         status:'EXPECTED',probeSha256,bookmarkSha256:result.bookmarkSha256,
+         mutationVerified:true,rollbackRequested:true,customerMailSent:false}));
+       m.retry({delaySeconds:3});
+       continue;
+     }
+     if(result.status!=='PASS'||result.wasRestored!==true||
+        result.verifiedOnSeparateQueueDelivery!==true||result.mainTenantUntouched!==true||
         result.customerMailSent!==false)throw Error('SACRIFICIAL_PITR_NOT_VERIFIED');
      m.ack();
      console.log(JSON.stringify({gate:'MMF_REAL_CLOUDFLARE_SACRIFICIAL_PITR_ROLLBACK',status:'PASS',
-       probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
-       bookmarkSha256:result.bookmarkSha256,sameDedicatedObjectRestored:true,
+       probeSha256,sameDedicatedObjectRestored:true,verifiedOnSeparateQueueDelivery:true,
        mainTenantUntouched:true,publicAccess:false,customerMailSent:false}));
      continue;
     }
@@ -117,7 +126,8 @@ export default {
        'STAGING_PITR_GATE','SACRIFICIAL_NAMESPACE_REQUIRED','SACRIFICIAL_BINDING_REQUIRED','INVALID_SACRIFICIAL_PROBE',
        'SACRIFICIAL_STAGE_CHECKPOINT_FAILED_409','SACRIFICIAL_STAGE_CHECKPOINT_FAILED_503',
        'SACRIFICIAL_STAGE_MUTATE_FAILED_409','SACRIFICIAL_STAGE_MUTATE_FAILED_503',
-       'SACRIFICIAL_STAGE_INSPECT_FAILED_503']);
+       'SACRIFICIAL_STAGE_INSPECT_FAILED_503','SACRIFICIAL_ROLLBACK_NOT_YET_APPLIED',
+       'SACRIFICIAL_INSPECT_NOT_AVAILABLE','SACRIFICIAL_PITR_NOT_VERIFIED']);
       console.log(JSON.stringify({gate:'MMF_STAGE_SACRIFICIAL_PITR_DIAGNOSTIC',
         status:'NOT_VERIFIED',reason:(safe.has(error?.message)||/^SACRIFICIAL_RESTORE_NOT_PROVEN_(?:HTTP_[45][0-9]{2}|NETWORK|OTHER|ALTERED|BASELINE|UNOBSERVED)$/.test(String(error?.message||'')))?error.message:'SACRIFICIAL_UNCLASSIFIED',
         probeSha256:createHash('sha256').update(input.probeId).digest('hex'),
