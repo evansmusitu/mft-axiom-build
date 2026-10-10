@@ -1,0 +1,41 @@
+{
+  "name": "musitu-mail-fabric-webhook-linked-TEST-ONLY",
+  "main": "src/edge/webhook-only.mjs",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "routes": [],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MMF_RECEIPTS",
+        "class_name": "MmfStagingSqliteDO"
+      },
+      {
+        "name": "MMF_OUTBOX",
+        "class_name": "MmfStagingSqliteDO",
+        "script_name": "musitu-mail-fabric-staging-20261010"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "mmf-webhook-sqlite-v1",
+      "new_sqlite_classes": [
+        "MmfStagingSqliteDO"
+      ]
+    }
+  ],
+  "vars": {
+    "MMF_REAL_SEND_ENABLED": "false",
+    "MMF_API_ENABLED": "false",
+    "MMF_WEBHOOK_ENABLED": "false",
+    "MMF_SUPPRESSION_API_ENABLED": "false",
+    "MMF_SENDER_REVOKE_API_ENABLED": "false",
+    "MMF_DIAGNOSTICS_ENABLED": "false",
+    "MMF_OUTBOX_LINK_ENABLED": "false",
+    "MMF_FEEDBACK_RPC_ENABLED": "false"
+  }
+}
