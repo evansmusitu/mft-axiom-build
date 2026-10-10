@@ -1,0 +1,60 @@
+name: MUSITU Connect direct non-fixture identity qualification
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - 'qualification/non_fixture_identity_direct_compute.py'
+      - '.github/workflows/musitu-connect-non-fixture-direct-compute.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AXIOM_BASE: https://axiom.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate qualification source
+        run: python -m py_compile qualification/non_fixture_identity_direct_compute.py
+      - name: Execute dedicated direct-compute identity proof
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          MUSITU_CONNECT_AXIOM_ACCOUNT_KEY: ${{ secrets.MUSITU_CONNECT_AXIOM_ACCOUNT_KEY }}
+        run: python qualification/non_fixture_identity_direct_compute.py
+      - name: Publish safe evidence summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## MUSITU Connect direct non-fixture identity qualification'
+            echo
+            echo '```json'
+            cat musitu-connect-non-fixture-direct-compute.json
+            echo '```'
+            echo
+            cat musitu-connect-non-fixture-direct-compute.sha256
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evidence
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-non-fixture-direct-compute
+          path: |
+            musitu-connect-non-fixture-direct-compute.json
+            musitu-connect-non-fixture-direct-compute.sha256
+          retention-days: 30
+          if-no-files-found: error
+
+# Revalidate production backend lane before runtime enablement retry 2026-10-05

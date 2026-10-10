@@ -1,0 +1,89 @@
+name: MUSITU Axiom research window proxy and pinned replay audit
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-external-event-proxy-audit.yml'
+      - 'benchmarks/mining_adapter/external_event_proxy_audit.py'
+      - 'benchmarks/mining_adapter/frozen_mine_evaluator.py'
+      - 'benchmarks/mining_adapter/external_validation_gate.py'
+      - 'benchmarks/mining_adapter/frozen_public_artifact_smoke.py'
+      - 'benchmarks/mining_adapter/EXTERNAL_EVENT_PROXY_AUDIT_README.md'
+      - 'tests/connect/test_external_event_proxy_audit.py'
+      - 'tests/connect/test_external_validation_gate.py'
+      - 'tests/connect/test_frozen_public_artifact_smoke.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  frozen-public-model-synthetic-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned inference dependencies
+        run: python -m pip install --disable-pip-version-check lightgbm==4.6.0 scikit-learn==1.9.1 pandas==2.3.3
+      - name: Verify focused regression and invalid-evidence rejection tests
+        run: |
+          python -m py_compile benchmarks/mining_adapter/external_event_proxy_audit.py benchmarks/mining_adapter/frozen_mine_evaluator.py benchmarks/mining_adapter/external_validation_gate.py benchmarks/mining_adapter/frozen_public_artifact_smoke.py
+          python -m unittest tests.connect.test_external_event_proxy_audit tests.connect.test_external_validation_gate tests.connect.test_frozen_model_bundle tests.connect.test_frozen_mine_evaluator -v
+      - name: Acquire exact pinned native model from existing research workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/musitu-event-proxy-frozen-model
+          gh run download 37882474024 --repo "${{ github.repository }}" \
+            --name musitu-axiom-native-frozen-lightgbm-research \
+            --dir /tmp/musitu-event-proxy-frozen-model
+          printf '%s  %s\n' \
+            'f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf' \
+            '/tmp/musitu-event-proxy-frozen-model/manifest.json' \
+            '3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab030eb' \
+            '/tmp/musitu-event-proxy-frozen-model/model.txt' | sha256sum --check
+      - name: Replay model over generated synthetic records only
+        env:
+          AXIOM_FROZEN_REAL_BUNDLE_DIR: /tmp/musitu-event-proxy-frozen-model
+        run: |
+          python -m unittest tests.connect.test_frozen_public_artifact_smoke -v
+          mkdir -p qualification/axiom_external_event_proxy
+          python -m benchmarks.mining_adapter.frozen_public_artifact_smoke \
+            --bundle "$AXIOM_FROZEN_REAL_BUNDLE_DIR" \
+            --output qualification/axiom_external_event_proxy/synthetic_proxy_audit.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          r=json.loads(Path('qualification/axiom_external_event_proxy/synthetic_proxy_audit.json').read_text())
+          p=r['window_proxy_audit']
+          assert r['evaluation_kind']=='SYNTHETIC_CONTRACT_SMOKE_ONLY'
+          assert r['model_retrained'] is False and r['threshold_recalibrated'] is False
+          assert r['independent_validation'] is False and r['production_admission'] is False
+          assert p['window_count']==r['eligible_examples']
+          assert p['positive_label_windows']==r['positive_label_examples']
+          assert p['false_alert_windows']==r['model_metrics']['fp']
+          assert p['hard_observed_warning_windows']==r['observed_hard_warnings']
+          assert p['overlap_groups_are_unique_incidents'] is False
+          assert p['false_alert_streaks_are_operational_alarm_events'] is False
+          assert p['trace_digest_proves_source_authenticity'] is False
+          assert p['proxy_groups_detected']+p['proxy_groups_missed']==p['positive_window_overlap_groups']
+          assert p['production_admission'] is False and p['independent_validation'] is False
+          assert r['audit']['window_proxy_incident_certification'] is False
+          assert r['audit']['admission_gate']=='NOT_AUTHORIZED'
+          print('RESEARCH_PROXY_EVIDENCE_INTEGRITY=PASS')
+          print('INDEPENDENT_MINE_VALIDATION=NOT_DEMONSTRATED')
+          print('PRODUCTION_AXIOM_INTEGRATION=BLOCKED')
+          PY
+          sha256sum qualification/axiom_external_event_proxy/*.json
+      - name: Archive research-only deidentified synthetic summaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-research-window-proxy-synthetic-audit
+          path: qualification/axiom_external_event_proxy/*.json
+          retention-days: 90
+          if-no-files-found: error

@@ -1,0 +1,151 @@
+{
+  "as_of": "2026-10-06",
+  "baselines": [
+    {
+      "comparison_policy": "Published scale/capability target only unless identical workload, topology and hardware are reproduced.",
+      "dimensions": [
+        "opcua",
+        "mqtt",
+        "dataflows",
+        "edge_scale",
+        "latency",
+        "resource_use",
+        "persistence",
+        "high_availability"
+      ],
+      "kind": "commercial_external_reference",
+      "name": "Azure IoT Operations",
+      "performance_source": "https://learn.microsoft.com/en-us/azure/iot-operations/deploy-iot-ops/concept-production-examples",
+      "published_reference": {
+        "cpu_millicores": "2500-3000",
+        "end_to_end_latency": "<10s under ideal network conditions",
+        "memory_gb": "25-30",
+        "multi_node_data_points_per_second": 50000
+      },
+      "source": "https://learn.microsoft.com/en-us/azure/iot-operations/overview-support",
+      "version": "1.4.73 (2608)"
+    },
+    {
+      "comparison_policy": "Capability/completeness reference; no superiority claim without licensed same-workload measurement.",
+      "dimensions": [
+        "industrial_connectivity",
+        "opcua",
+        "mqtt",
+        "pipelines",
+        "opentelemetry",
+        "governance",
+        "gitops"
+      ],
+      "kind": "commercial_external_reference",
+      "name": "HighByte Intelligence Hub",
+      "source": "https://www.highbyte.com/resources/release-notes/version-4-5",
+      "version": "4.5.2"
+    },
+    {
+      "benchmark_source": "https://docs.emqx.com/en/emqx/latest/guides/performance/benchmark-emqtt-bench.html",
+      "comparison_policy": "Use eMQTT-Bench on identical hardware/topology before making MQTT performance claims.",
+      "dimensions": [
+        "mqtt_latency",
+        "mqtt_throughput",
+        "mqtt_durability",
+        "mqtt_security"
+      ],
+      "kind": "mqtt_scale_reference",
+      "name": "EMQX Enterprise",
+      "source": "https://docs.emqx.com/en/emqx/latest/release-notes/changes-ee-v6.html",
+      "version": "6.3.1"
+    },
+    {
+      "comparison_policy": "Run in the same process/machine with identical objective, dataset, warmup and repetition schedule.",
+      "dimensions": [
+        "optimization_correctness",
+        "optimization_latency",
+        "optimization_throughput"
+      ],
+      "kind": "reproducible_algorithmic_baseline",
+      "name": "SciPy MILP",
+      "source": "https://scipy.org/news/",
+      "version": "1.18.1"
+    },
+    {
+      "comparison_policy": "Pinned interoperability reference; compare protocol correctness, not product-level superiority.",
+      "dimensions": [
+        "opcua_interoperability",
+        "security",
+        "client_server_compatibility"
+      ],
+      "kind": "opcua_interoperability_reference",
+      "name": "open62541",
+      "source": "https://github.com/open62541/open62541/releases",
+      "version": "1.5.8"
+    },
+    {
+      "comparison_policy": "Direct primitive reference used to measure orchestration overhead.",
+      "dimensions": [
+        "arrow",
+        "parquet",
+        "correctness",
+        "serialization"
+      ],
+      "kind": "analytical_format_reference",
+      "name": "Apache Arrow / PyArrow",
+      "source": "https://arrow.apache.org/release/",
+      "version": "25.0.1"
+    },
+    {
+      "comparison_policy": "Direct primitive reference used to measure orchestration overhead; product pin may intentionally lag until qualification.",
+      "dimensions": [
+        "duckdb",
+        "analytical_query_latency",
+        "resource_use"
+      ],
+      "kind": "analytical_query_reference",
+      "name": "DuckDB",
+      "source": "https://duckdb.org/release_calendar",
+      "version": "1.5.6"
+    },
+    {
+      "comparison_policy": "Direct spatial primitive reference.",
+      "dimensions": [
+        "postgis",
+        "spatial_correctness",
+        "spatial_persistence"
+      ],
+      "kind": "spatial_reference",
+      "name": "PostGIS",
+      "source": "https://postgis.net/docs/en/release_notes.html",
+      "version": "3.6.4"
+    },
+    {
+      "comparison_policy": "Qualify recovery semantics directly; do not claim product superiority from primitive conformance.",
+      "dimensions": [
+        "workflow_durability",
+        "worker_recovery",
+        "replay"
+      ],
+      "kind": "workflow_durability_reference",
+      "name": "Temporal",
+      "sdk_source": "https://github.com/temporalio/sdk-python/releases",
+      "source": "https://github.com/temporalio/temporal/releases",
+      "version": "server 1.32.0 / Python SDK 1.34.0"
+    },
+    {
+      "comparison_policy": "Current stable external reference; product pin may intentionally lag until qualification.",
+      "dimensions": [
+        "otlp",
+        "telemetry_export",
+        "observability"
+      ],
+      "kind": "observability_reference",
+      "name": "OpenTelemetry Collector",
+      "source": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases",
+      "version": "0.162.0"
+    }
+  ],
+  "policy": {
+    "commercial_without_identical_deployment": "NOT_COMPARABLE",
+    "latest_stable_baseline_required": true,
+    "same_workload_required_for_superiority": true
+  },
+  "schema": "musitu.connect.mining.baselines.v2"
+}

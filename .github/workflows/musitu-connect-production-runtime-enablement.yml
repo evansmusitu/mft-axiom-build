@@ -1,0 +1,92 @@
+name: MUSITU Connect production runtime enablement
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: musitu-connect-production-runtime-enablement
+  cancel-in-progress: false
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      ZONE_NAME: musitu.com
+      PROD_HOST: connect.musitu.com
+      PROD_WORKER: musitu-connect-production
+      AXIOM_BASE: https://axiom.mftintelligence.com
+      SEALED_MAIN_SHA: d6a846f6bbe0bccac1758713eb4de167caf07113
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate production runtime sources and admission guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile qualification/production_runtime_enablement.py
+          node --check connect/production_worker.mjs
+          node --test tests/connect/test_production_worker.mjs
+          python qualification/validate_production_admission.py
+
+      - name: Install pinned Wrangler
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-connect-production-wrangler
+          npm install --prefix /tmp/musitu-connect-production-wrangler --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          /tmp/musitu-connect-production-wrangler/node_modules/.bin/wrangler --version
+
+      - name: Canary and enable production runtime with automatic rollback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          MUSITU_CONNECT_AXIOM_ACCOUNT_KEY: ${{ secrets.MUSITU_CONNECT_AXIOM_ACCOUNT_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          WRANGLER_BIN: /tmp/musitu-connect-production-wrangler/node_modules/.bin/wrangler
+        run: python qualification/production_runtime_enablement.py
+
+      - name: Publish production enablement evidence
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## MUSITU Connect production runtime enablement'
+            echo
+            cat musitu-connect-production-runtime-enablement.sha256
+            echo
+            echo '```json'
+            cat musitu-connect-production-runtime-enablement.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload rollout evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-production-runtime-enablement
+          path: |
+            musitu-connect-production-runtime-enablement.json
+            musitu-connect-production-runtime-enablement.sha256
+            musitu-connect-production-runtime-failure.json
+          retention-days: 30
+          if-no-files-found: warn

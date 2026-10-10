@@ -1,0 +1,178 @@
+name: MUSITU Connect real mine methane prediction
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-real-mine-prediction.yml'
+      - 'benchmarks/mining_adapter/methane_prediction.py'
+      - 'benchmarks/mining_adapter/methane_prediction_runner.py'
+      - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
+      - 'tests/connect/test_methane_prediction.py'
+      - 'connect/mining_telemetry.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-real-mine-prediction-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      DATASET_PAGE: 'https://data.mendeley.com/datasets/yd7vw4c5mk/1'
+      EXPECTED_SOURCE_SHA256: '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+      EXPECTED_OPENML_MD5: '6aecde2eae0963b86f72d7447e292926'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify prediction contract before data access
+        run: |
+          python -m py_compile             benchmarks/mining_adapter/methane_prediction.py             benchmarks/mining_adapter/methane_prediction_runner.py             benchmarks/mining_adapter/polish_longwall_telemetry.py
+          python -m unittest             tests.connect.test_methane_prediction             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry -v
+          python benchmarks/mining_adapter/methane_prediction_runner.py --help >/dev/null
+
+      - name: Bind published prediction task and CC BY 4.0 identity
+        run: |
+          mkdir -p /tmp/musitu-methane-prediction qualification/real_prediction
+          curl --fail --location             --retry 5 --retry-all-errors --retry-delay 2             --connect-timeout 20 --max-time 120             "$DATASET_PAGE"             --output /tmp/musitu-methane-prediction/dataset-page.html
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("/tmp/musitu-methane-prediction/dataset-page.html").read_text(
+              encoding="utf-8",errors="replace"
+          )
+          required=(
+              "yd7vw4c5mk",
+              "10.17632/yd7vw4c5mk.1",
+              "CC BY 4.0",
+              "three to six minutes",
+              "MM263",
+              "MM264",
+              "MM256",
+          )
+          missing=[item for item in required if item not in text]
+          if missing:
+              raise SystemExit("prediction_task_identity_missing:"+",".join(missing))
+          print("PUBLISHED_METHANE_PREDICTION_TASK=PASS")
+          print("PUBLISHED_HORIZON=180_TO_360_SECONDS")
+          PY
+
+      - name: Acquire exact previously-qualified OpenML source bytes
+        run: |
+          python -m pip install --disable-pip-version-check             openml==0.15.1 scikit-learn==1.9.1
+          OPENML_SKIP_PARQUET=true python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import openml
+          import shutil
+
+          dataset=openml.datasets.get_dataset(
+              42701,
+              download_data=True,
+              download_qualities=False,
+              download_features_meta_data=False,
+          )
+          if int(dataset.dataset_id)!=42701:
+              raise SystemExit("openml_dataset_id_mismatch")
+          if str(dataset.name).strip().casefold()!="methane":
+              raise SystemExit("openml_dataset_name_mismatch:"+str(dataset.name))
+          if int(dataset.version)!=1:
+              raise SystemExit("openml_dataset_version_mismatch:"+str(dataset.version))
+          if str(dataset.format).strip().casefold()!="arff":
+              raise SystemExit("openml_dataset_format_mismatch:"+str(dataset.format))
+          if str(dataset.md5_checksum).lower()!="6aecde2eae0963b86f72d7447e292926":
+              raise SystemExit("openml_md5_metadata_mismatch:"+str(dataset.md5_checksum))
+          source=Path(dataset.data_file)
+          if not source.is_file():
+              raise SystemExit("openml_arff_missing")
+          target=Path("/tmp/musitu-methane-prediction/Methane-OpenML-42701.arff")
+          shutil.copyfile(source,target)
+          digest=hashlib.sha256(target.read_bytes()).hexdigest()
+          expected="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
+          if digest!=expected:
+              raise SystemExit(f"openml_source_sha256_mismatch:{digest}:{expected}")
+          if target.stat().st_size < 1_000_000_000:
+              raise SystemExit("openml_source_size_unexpected:"+str(target.stat().st_size))
+          print("PREDICTION_SOURCE_BINDING=PASS")
+          print("PREDICTION_SOURCE_SHA256="+digest)
+          print("PREDICTION_SOURCE_BYTES="+str(target.stat().st_size))
+          PY
+
+      - name: Train calibrate and score chronological methane prediction
+        run: |
+          python benchmarks/mining_adapter/methane_prediction_runner.py             --source /tmp/musitu-methane-prediction/Methane-OpenML-42701.arff             --minimum-test-recall 0.90             --minimum-test-precision 0.10             --minimum-f2-gain-fraction 0.05             --output qualification/real_prediction/methane_prediction.json
+
+      - name: Validate predictive evidence fail closed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report=json.loads(
+              Path("qualification/real_prediction/methane_prediction.json").read_text()
+          )
+          e=report["execution"]
+          q=report["qualification"]
+          spec=report["spec"]
+          assert q["predictive_signal_qualified"] is True
+          assert q["gate"]=="REAL_MINE_METHANE_PREDICTION_QUALIFIED"
+          assert e["dataset_id"]=="yd7vw4c5mk"
+          assert e["dataset_version"]==1
+          assert e["doi"]=="10.17632/yd7vw4c5mk.1"
+          assert e["license"]=="CC BY 4.0"
+          assert e["transport_source"]=="openml:42701"
+          assert e["source_sha256"]=="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
+          assert e["source_rows"] >= 9_000_000
+          assert e["eligible_examples"] >= spec["minimum_examples"]
+          assert e["test_positives"] >= spec["minimum_test_positives"]
+          assert e["horizon_start_seconds"]==180
+          assert e["horizon_end_seconds"]==360
+          assert e["temporal_leakage_check"] is True
+          assert e["future_label_check"] is True
+          assert e["model"]["recall"] >= spec["minimum_test_recall"]
+          assert e["model"]["precision"] >= spec["minimum_test_precision"]
+          assert e["model"]["f2"] >= e["baseline"]["f2"]*(1+spec["minimum_f2_gain_fraction"])
+          assert e["model"]["average_precision"] > e["test_prevalence"]
+          assert e["credentials_used"] is False
+          assert e["errors"] == []
+          print("REAL_MINE_METHANE_PREDICTION_QUALIFICATION=PASS")
+          print(json.dumps({
+              "source_rows":e["source_rows"],
+              "eligible_examples":e["eligible_examples"],
+              "train_examples":e["train_examples"],
+              "calibration_examples":e["calibration_examples"],
+              "test_examples":e["test_examples"],
+              "test_positives":e["test_positives"],
+              "test_prevalence":e["test_prevalence"],
+              "baseline":e["baseline"],
+              "model":e["model"],
+              "calibration_operating_point":e["calibration_operating_point"],
+              "model_version":e["model_version"],
+              "example_build_seconds":e["example_build_seconds"],
+              "model_train_seconds":e["model_train_seconds"],
+              "gate":q["gate"],
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/real_prediction/methane_prediction.json
+          {
+            echo "## MUSITU Connect Real Mine Methane Prediction"
+            echo
+            cat qualification/real_prediction/methane_prediction.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive prediction evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-real-mine-prediction-evidence
+          path: qualification/real_prediction/*.json
+          retention-days: 90
+          if-no-files-found: warn

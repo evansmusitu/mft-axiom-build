@@ -1,0 +1,139 @@
+name: MUSITU Connect infrastructure qualification
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+  pull_request:
+    branches: ['main']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Docker Compose prerequisites
+        run: docker compose version
+      - name: Verify bounded registry retry remains fail-closed
+        run: python -m unittest tests.connect.test_infrastructure_pull_retry -v
+      - name: Start isolated infrastructure
+        run: |
+          python qualification/retry_compose_pull.py --compose-file infra/qualification/docker-compose.yml
+          docker compose -f infra/qualification/docker-compose.yml up -d --pull never
+          docker compose -f infra/qualification/docker-compose.yml wait temporal-create-namespace
+          docker compose -f infra/qualification/docker-compose.yml ps
+      - name: Install qualification dependencies
+        run: python -m pip install --disable-pip-version-check -r infra/qualification/requirements.txt
+      - name: Security qualification
+        run: python infra/qualification/security_smoke.py
+      - name: Contract schema qualification
+        run: python infra/qualification/contract_smoke.py
+      - name: Build open62541 1.5.8
+        run: |
+          git clone --depth 1 --branch v1.5.8 https://github.com/open62541/open62541.git /tmp/open62541
+          cmake -S /tmp/open62541 -B /tmp/open62541-build -DUA_BUILD_EXAMPLES=OFF -DUA_BUILD_TESTS=OFF
+          cmake --build /tmp/open62541-build --parallel 2
+      - name: Start OPC UA qualification server
+        run: |
+          python infra/qualification/opcua_server.py > /tmp/opcua.log 2>&1 &
+          echo $! > /tmp/opcua.pid
+          sleep 5
+      - name: Build and run open62541 interoperability client
+        run: |
+          cmake -S infra/qualification/opcua_client -B /tmp/connect-opcua-client
+          cmake --build /tmp/connect-opcua-client --parallel 2
+          /tmp/connect-opcua-client/musitu_opcua_client
+          kill $(cat /tmp/opcua.pid)
+      - name: Data plane qualification
+        run: python infra/qualification/smoke.py
+      - name: OpenTelemetry qualification
+        run: python infra/qualification/otel_smoke.py
+      - name: Durable workflow qualification
+        run: python infra/qualification/temporal_smoke.py
+      - name: Composed Mining Adapter E2E before recovery
+        run: python infra/qualification/mining_adapter_e2e.py --phase pre-recovery --output qualification/mining_adapter_e2e_pre.json
+      - name: Deterministic Mining Adapter benchmark
+        run: python benchmarks/mining_adapter/benchmark.py --output qualification/mining_adapter_benchmark.json
+      - name: Infrastructure recovery qualification
+        run: |
+          docker compose -f infra/qualification/docker-compose.yml restart mqtt postgres otel
+          docker compose -f infra/qualification/docker-compose.yml restart temporal-db
+          for i in $(seq 1 30); do
+            if docker compose -f infra/qualification/docker-compose.yml exec -T temporal-db pg_isready -U temporal; then
+              break
+            fi
+            sleep 2
+          done
+          docker compose -f infra/qualification/docker-compose.yml restart temporal
+          sleep 10
+          python infra/qualification/smoke.py
+          python infra/qualification/otel_smoke.py
+          python infra/qualification/temporal_smoke.py
+          python infra/qualification/mining_adapter_e2e.py --phase post-recovery --output qualification/mining_adapter_e2e_post.json
+      - name: Verify current live production runtime read-only
+        run: python qualification/verify_live_production_runtime.py
+      - name: Evaluate Mining Adapter production-completeness matrix
+        run: |
+          python qualification/mining_adapter_qualify.py \
+            --pre qualification/mining_adapter_e2e_pre.json \
+            --post qualification/mining_adapter_e2e_post.json \
+            --benchmark qualification/mining_adapter_benchmark.json \
+            --live-guard qualification/live_runtime_guard.json \
+            --output qualification/mining_adapter_qualification.json
+      - name: Validate qualification evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("qualification/infrastructure_report.json")
+          data=json.loads(p.read_text())
+          assert data["all_passed"] is True
+          assert data["axiom_integration_allowed"] is False
+          assert data["source_commit"]
+          assert data["workflow_run_id"]
+          for name in (
+              "mining_adapter_e2e_pre.json",
+              "mining_adapter_e2e_post.json",
+              "mining_adapter_benchmark.json",
+              "live_runtime_guard.json",
+              "mining_adapter_qualification.json",
+          ):
+              report=json.loads((Path("qualification")/name).read_text())
+              if name.startswith("mining_adapter_e2e"):
+                  assert report["all_passed"] is True, name
+              if name=="live_runtime_guard.json":
+                  assert report["passed"] is True
+              if name=="mining_adapter_qualification.json":
+                  assert report["all_passed"] is True
+          print("QUALIFICATION_EVIDENCE_VALID=PASS")
+          PY
+          sha256sum \
+            qualification/infrastructure_report.json \
+            qualification/mining_adapter_e2e_pre.json \
+            qualification/mining_adapter_e2e_post.json \
+            qualification/mining_adapter_benchmark.json \
+            qualification/live_runtime_guard.json \
+            qualification/mining_adapter_qualification.json
+          echo "### MUSITU Connect Mining Adapter evidence" >> "$GITHUB_STEP_SUMMARY"
+          cat qualification/mining_adapter_qualification.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive qualification evidence
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-infrastructure-evidence
+          path: |
+            qualification/infrastructure_report.json
+            qualification/mining_adapter_e2e_pre.json
+            qualification/mining_adapter_e2e_post.json
+            qualification/mining_adapter_benchmark.json
+            qualification/live_runtime_guard.json
+            qualification/mining_adapter_qualification.json
+      - name: Teardown
+        if: always()
+        run: docker compose -f infra/qualification/docker-compose.yml down -v

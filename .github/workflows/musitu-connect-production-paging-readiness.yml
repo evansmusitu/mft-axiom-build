@@ -1,0 +1,76 @@
+name: MUSITU Connect production paging readiness (read only)
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-production-paging-readiness.yml'
+      - 'qualification/production_paging.py'
+      - 'tests/connect/test_production_paging.py'
+      - 'docs/operations/musitu-connect-production-paging-readiness.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-production-paging-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify no-secret paging contract and negative cases
+        run: |
+          python -m py_compile qualification/production_paging.py
+          python -m unittest discover -s tests/connect -p 'test_production_paging.py' -v
+
+      - name: Verify currently deployed production guard read only
+        id: runtime
+        continue-on-error: true
+        run: python qualification/verify_live_production_runtime.py
+
+      - name: Generate sanitized readiness record - NO external pages allowed
+        if: always()
+        run: |
+          mkdir -p qualification/evidence/operations
+          python qualification/production_paging.py \
+            --guard qualification/live_runtime_guard.json \
+            --output qualification/evidence/operations/paging_readiness.json
+
+      - name: Publish scoped readiness summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('qualification/evidence/operations/paging_readiness.json')
+          if not p.is_file():
+              raise SystemExit('PAGING_READINESS_EVIDENCE_MISSING')
+          r=json.loads(p.read_text())
+          assert r['external_paging_verified'] is False
+          assert r['production_mutation_performed'] is False
+          assert r['credentials_published'] is False
+          assert r['delivery_status'] == 'NO_INCIDENT_NO_PAGE'
+          with Path('/tmp/production-paging-summary.txt').open('w') as out:
+              out.write('MUSITU Connect production guard: PASS\n')
+              out.write('External on-call paging: NOT YET VERIFIED\n')
+              out.write('Production deployment changes: NONE\n')
+          PY
+          cat /tmp/production-paging-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive immutable scoped readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-production-paging-readiness
+          path: qualification/evidence/operations/paging_readiness.json
+          retention-days: 30
+          if-no-files-found: warn

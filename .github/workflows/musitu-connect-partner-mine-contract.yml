@@ -1,0 +1,40 @@
+name: MUSITU Connect partner mine mapping contract
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-partner-mine-contract.yml'
+      - 'connect/partner_mine_mapping.py'
+      - 'connect/PARTNER_MINE_MAPPING_README.md'
+      - 'tests/connect/test_partner_mine_mapping.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lossless-mapping-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Connect mapping and adversarial contract tests
+        run: |
+          python -m py_compile connect/partner_mine_mapping.py tests/connect/test_partner_mine_mapping.py
+      - name: Verify real canonical preflight compatibility with synthesized partner records
+        run: |
+          python -m unittest tests.connect.test_partner_mine_mapping -v
+          python -m unittest tests.connect.test_external_source_preflight -q
+      - name: Assert isolation and safety boundaries
+        run: |
+          echo 'CUSTOMER_MINE_DATA_USED=FALSE'
+          echo 'MISSING_SENSORS_IMPUTED=FALSE'
+          echo 'RESAMPLING_OR_SCALING=FALSE'
+          echo 'INDEPENDENT_MINE_UNIT_EQUIVALENCE_PROVEN=FALSE'
+          echo 'INDEPENDENT_MINE_PROVENANCE_VERIFIED=FALSE'
+          echo 'PREDICTIVE_METHANE_SAFETY_QUALIFICATION=BLOCKED'
+          echo 'PRODUCTION_AXIOM_INTEGRATION=BLOCKED'

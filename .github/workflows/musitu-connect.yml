@@ -1,0 +1,32 @@
+name: MUSITU Connect qualification
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+  pull_request:
+    branches: ['main']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark test dependency
+        run: python -m pip install --disable-pip-version-check scipy==1.18.1
+      - name: Run Connect tests
+        run: python -m unittest discover -s tests/connect -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run production worker tests
+        run: node --test tests/connect/test_production_worker.mjs
+      - name: Enforce production admission guard
+        run: python qualification/validate_production_admission.py
+      - name: Verify live production runtime guard
+        run: python qualification/verify_live_production_runtime.py

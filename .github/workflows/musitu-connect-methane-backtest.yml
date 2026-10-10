@@ -1,0 +1,149 @@
+name: MUSITU Connect methane forecasting backtest
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-methane-backtest.yml'
+      - 'benchmarks/mining_adapter/methane_backtest.py'
+      - 'benchmarks/mining_adapter/methane_backtest_runner.py'
+      - 'benchmarks/mining_adapter/methane_prediction.py'
+      - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
+      - 'tests/connect/test_methane_backtest.py'
+      - 'connect/mining_telemetry.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-methane-backtest-v3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATASET_PAGE: 'https://data.mendeley.com/datasets/yd7vw4c5mk/1'
+      EXPECTED_SOURCE_SHA256: '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify rolling-backtest contract
+        run: |
+          python -m py_compile             benchmarks/mining_adapter/methane_backtest.py             benchmarks/mining_adapter/methane_backtest_runner.py
+          python -m unittest             tests.connect.test_methane_backtest             tests.connect.test_methane_prediction -v
+          python benchmarks/mining_adapter/methane_backtest_runner.py --help >/dev/null
+
+      - name: Bind published dataset and forecasting task
+        run: |
+          mkdir -p /tmp/musitu-methane-backtest qualification/methane_backtest
+          curl --fail --location             --retry 5 --retry-all-errors --retry-delay 2             --connect-timeout 20 --max-time 120             "$DATASET_PAGE"             --output /tmp/musitu-methane-backtest/dataset-page.html
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("/tmp/musitu-methane-backtest/dataset-page.html").read_text(
+              encoding="utf-8",errors="replace"
+          )
+          required=(
+              "yd7vw4c5mk","10.17632/yd7vw4c5mk.1","CC BY 4.0",
+              "three to six minutes","MM263","MM264","MM256",
+          )
+          missing=[item for item in required if item not in text]
+          if missing:
+              raise SystemExit("backtest_task_identity_missing:"+",".join(missing))
+          print("BACKTEST_TASK_IDENTITY=PASS")
+          PY
+
+      - name: Acquire exact qualified source
+        run: |
+          python -m pip install --disable-pip-version-check             openml==0.15.1 scikit-learn==1.9.1
+          OPENML_SKIP_PARQUET=true python - <<'PY'
+          from pathlib import Path
+          import hashlib,openml,shutil
+          dataset=openml.datasets.get_dataset(
+              42701,download_data=True,download_qualities=False,
+              download_features_meta_data=False,
+          )
+          if int(dataset.dataset_id)!=42701 or str(dataset.name).strip().casefold()!="methane":
+              raise SystemExit("backtest_openml_identity_mismatch")
+          source=Path(dataset.data_file)
+          target=Path("/tmp/musitu-methane-backtest/Methane-OpenML-42701.arff")
+          shutil.copyfile(source,target)
+          digest=hashlib.sha256(target.read_bytes()).hexdigest()
+          expected="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
+          if digest!=expected:
+              raise SystemExit(f"backtest_source_sha256_mismatch:{digest}:{expected}")
+          print("BACKTEST_SOURCE_BINDING=PASS")
+          print("BACKTEST_SOURCE_SHA256="+digest)
+          PY
+
+      - name: Run four-fold rolling temporal backtest
+        run: |
+          python benchmarks/mining_adapter/methane_backtest_runner.py             --source /tmp/musitu-methane-backtest/Methane-OpenML-42701.arff             --output qualification/methane_backtest/methane_backtest.json
+
+      - name: Validate backtest evidence fail closed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(
+              Path("qualification/methane_backtest/methane_backtest.json").read_text()
+          )
+          e=report["execution"]
+          q=report["qualification"]
+          spec=report["spec"]
+          assert q["backtest_qualified"] is True
+          assert q["gate"]=="REAL_MINE_METHANE_BACKTEST_QUALIFIED"
+          assert e["source_sha256"]=="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
+          assert e["source_rows"] >= 9_000_000
+          assert e["eligible_examples"] >= spec["minimum_examples"]
+          assert e["history_seconds"]==600
+          assert e["horizon_start_seconds"]==180
+          assert e["horizon_end_seconds"]==360
+          assert e["development_fraction"]==0.80
+          assert e["calibration_recall_target"]==0.95
+          assert e["threshold_update_examples"]==30
+          assert e["threshold_window_examples"]==2000
+          assert e["minimum_online_positives"]>=20
+          assert len(e["folds"])==4
+          assert q["passing_folds"] >= spec["required_passing_folds"]
+          for fold in e["folds"]:
+              assert fold["temporal_leakage_check"] is True
+              assert fold["online_recalibration_leakage_check"] is True
+              assert fold["online_threshold_updates"] > 0
+              assert fold["test_positives"] >= spec["minimum_fold_test_positives"]
+          assert e["credentials_used"] is False
+          assert e["errors"] == []
+          print("REAL_MINE_METHANE_BACKTEST=PASS")
+          print(json.dumps({
+              "eligible_examples":e["eligible_examples"],
+              "feature_count":e["feature_count"],
+              "median_test_recall":e["median_test_recall"],
+              "median_test_precision":e["median_test_precision"],
+              "median_test_f2":e["median_test_f2"],
+              "median_baseline_f2":e["median_baseline_f2"],
+              "passing_folds":q["passing_folds"],
+              "folds":e["folds"],
+              "gate":q["gate"],
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/methane_backtest/methane_backtest.json
+          {
+            echo "## MUSITU Connect Methane Forecasting Backtest"
+            echo
+            cat qualification/methane_backtest/methane_backtest.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive backtest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-methane-backtest-evidence
+          path: qualification/methane_backtest/*.json
+          retention-days: 90
+          if-no-files-found: warn
