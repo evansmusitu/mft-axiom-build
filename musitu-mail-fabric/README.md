@@ -122,3 +122,13 @@ The isolated private Cloudflare Queue → SQLite Durable Object → full `Durabl
 This release adds a transactional, tenant-scoped SQLite backup exporter, independently pinned Ed25519 signature verification, AES-256-GCM archive encryption, atomic restoration into a fresh empty database, and a fail-closed operator CLI. The tests now include authentic encrypted pending messages, preserved provider-event and suppression history, no-overwrite and corrupted-backup refusal, and recovery without automatic redelivery of ambiguous SENDING messages.
 
 This is **offline** disaster recovery, not an automated or proven Cloudflare Durable Object cloud backup service. It does not replace the still-required genuine outage exercises, production KMS/HSM key custody, live controlled-provider webhook tests, independent security evaluation, or legal review. See `docs/2026-10-10-v0.9-offline-disaster-recovery.md`.
+
+## v0.10.0 — Actual private cloud PITR and operational health, controlled synthetic recovery (2026-10-10)
+
+A guarded private SQLite Durable Object now supports read-only PITR bookmark inspection without revealing the actual bookmark. A separate operator-authenticated, opt-in health endpoint exposes tenant-aggregate counters and incident indicators, including while real sending is paused.
+
+Live Cloudflare staging identified **four expired historical synthetic SENDING claims**, which were safely reconciled to **OUTCOME_UNKNOWN with zero provider retries**. A second independent staging check confirmed **zero remaining stale claims and zero queued backlog**; overall health remains `ATTENTION_REQUIRED` while ambiguous outcomes are unresolved. Live synthetic Queue, encrypted database, receipt signature and private-flag checks continue to pass.
+
+This is not a validated PITR **restore**, cloud cross-region backup, managed HSM/KMS recovery, real provider webhook round trip or an independent external security assessment. No customer email, public API, paid upgrade or AXIOM production change occurred.
+
+See `docs/2026-10-10-v0.10-private-pitr-operations-recovery.md` and GitHub Actions runs 38031070531, 38031355852, 38031663282 and 38031800509.
