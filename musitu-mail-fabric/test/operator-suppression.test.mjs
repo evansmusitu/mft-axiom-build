@@ -82,3 +82,34 @@ test('storage outage fails closed and does not falsely report suppression',async
  assert.equal(res.status,503);assert.deepEqual(await res.json(),{error:'SUPPRESSION_STORE_UNAVAILABLE'});
  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM mail_suppressions').get().n,0);
 });
+
+test('operator mass suppression is bounded by an atomic tenant-specific UTC daily quota',async t=>{
+ const f=fixture(t),env={...f.env,MMF_OPERATOR_DAILY_SUPPRESSION_LIMIT:'1'};
+ const first=await f.worker.fetch(f.request('first@example.net'),env);
+ assert.equal(first.status,201);
+ const duplicate=await f.worker.fetch(f.request('FIRST@EXAMPLE.NET'),env);
+ assert.equal(duplicate.status,200);
+ const second=await f.worker.fetch(f.request('second@example.net'),env);
+ assert.equal(second.status,429);
+ assert.deepEqual(await second.json(),{error:'OPERATOR_SUPPRESSION_QUOTA_EXCEEDED'});
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM mail_suppressions WHERE tenant_id=?').get('client1').n,1);
+ // An earlier UTC day no longer consumes today's quota.
+ f.db.prepare('UPDATE mail_suppressions SET created_ms=?').run(Date.now()-2*86400000);
+ const afterWindow=await f.worker.fetch(f.request('second@example.net'),env);
+ assert.equal(afterWindow.status,201);
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM mail_suppressions WHERE tenant_id=?').get('client1').n,2);
+});
+test('competing unique suppressions under one slot cannot both bypass the quota',async t=>{
+ const f=fixture(t),env={...f.env,MMF_OPERATOR_DAILY_SUPPRESSION_LIMIT:'1'};
+ const result=await Promise.all(['race-a@example.net','race-b@example.net'].map(address=>
+   f.worker.fetch(f.request(address),env)));
+ assert.deepEqual(result.map(x=>x.status).sort(),[201,429]);
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM mail_suppressions').get().n,1);
+});
+test('invalid operator quota configuration is rejected before any suppression write',async t=>{
+ const f=fixture(t);
+ const response=await f.worker.fetch(f.request('member@example.net'),{...f.env,MMF_OPERATOR_DAILY_SUPPRESSION_LIMIT:'99999999'});
+ assert.equal(response.status,503);
+ assert.deepEqual(await response.json(),{error:'OPERATOR_CONFIG_UNAVAILABLE'});
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM mail_suppressions').get().n,0);
+});
