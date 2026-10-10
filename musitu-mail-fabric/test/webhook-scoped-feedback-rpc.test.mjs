@@ -127,3 +127,15 @@ test('owner match refuses missing privacy key and cannot return a recipient HMAC
  await assert.rejects(()=>createFeedbackSqlAdapter(ns,secret).matchRecipient('client1','provider-one','recipient@example.net'),
    /SCOPED_FEEDBACK_MATCH_UNAVAILABLE/);
 });
+
+test('recipient-match validation accepts normal addresses containing letter s and rejects whitespace injection',async t=>{
+ const f=fixture(t),ownerKey=Buffer.alloc(32,19),recipient='support@example.net';
+ const digest=createHmac('sha256',ownerKey).update(recipient).digest('hex');
+ f.db.prepare('UPDATE mail_messages SET recipient_hmac=? WHERE tenant_id=? AND provider_id=?')
+   .run(digest,'client1','provider-one');
+ const configured={...owner,MMF_PRIVACY_KEY_B64:ownerKey.toString('base64')};
+ const ns={idFromName:x=>x,get:()=>({fetch:request=>handleFeedbackRpc(request,f.sql,configured)})};
+ const adapter=createFeedbackSqlAdapter(ns,secret);
+ assert.equal(await adapter.matchRecipient('client1','provider-one',recipient),true);
+ await assert.rejects(()=>adapter.matchRecipient('client1','provider-one','support user@example.net'),/SCOPED_FEEDBACK_MATCH_UNAVAILABLE/);
+});
