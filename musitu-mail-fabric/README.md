@@ -138,3 +138,11 @@ See `docs/2026-10-10-v0.10-private-pitr-operations-recovery.md` and GitHub Actio
 An isolated, **separately named disposable SQLite Durable Object** successfully passed a real Cloudflare point-in-time restore: a synthetic baseline record was written, changed, rolled back using a real Cloudflare bookmark and confirmed restored in a **separate private Queue delivery**. A verified GitHub Actions run proves both the mutation and post-restart readback, using a matching unique probe digest. The private staging tenant ledger, public routes and customer sending were untouched.
 
 This qualifies a narrowly scoped **sacrificial in-place restore**, not a genuine production incident, cross-account backup, HSM/KMS recovery, provider webhook verification, or external third-party security certification. [Cloud staging evidence](docs/2026-10-10-v0.11-real-sacrificial-pitr-restore.md). GitHub Actions successful run: 38035299915.
+
+## v0.12.0 — Recipient-bound and race-safe provider feedback (2026-10-10)
+
+The real Worker now rejects authenticated but **cross-recipient** provider events before evidence is recorded or any suppression changes. Strict Resend webhook ingestion requires exactly one signed recipient (matching Resend's January 2026 event format). An event arriving before the provider ID is durably attributable returns **503** to request a provider retry, rather than falsely acknowledging lost evidence with 202. Matching events then persist exactly once and signed bounce/complaint claims suppress the intended recipient.
+
+A real private Cloudflare Queue/SQLite Durable Object run passed the synthetic Svix-signature, recipient-correlation, replay, evidence and bounce-suppression tests (**GitHub Actions 38036274546**). These signatures are generated locally by the test harness and **are not actual Resend-originated events**. The early-arrival path passes isolated regression tests; its attempted live-cloud rehearsal initially failed due to a shared synthetic recipient already being suppressed. Test identities are now probe-specific, but a fresh corrected live-cloud early-race qualification remains unverified.
+
+See `docs/2026-10-10-v0.12-recipient-bound-reconciliation.md`. The service remains **non-public, customer delivery disabled, and not commercially production-qualified**.
