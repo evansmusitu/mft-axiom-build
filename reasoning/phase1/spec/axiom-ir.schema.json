@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musitu.example/spec/axiom-ir/0.1",
+  "title": "AXIOM-IR Program 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["irVersion", "objective", "assumptions", "inputs", "nodes", "constraints", "decisionNodeId"],
+  "properties": {
+    "irVersion": {"const": "0.1"},
+    "objective": {"type": "string", "minLength": 1},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "inputs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/externalInputValue"}},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "constraints": {"type": "array", "items": {"$ref": "#/$defs/constraint"}},
+    "decisionNodeId": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "typeRef": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "unit"], "properties": {"kind": {"const": "number"}, "unit": {"type": "string", "minLength": 1}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "unit", "scale"], "properties": {"kind": {"const": "decimal"}, "unit": {"type": "string", "minLength": 1}, "scale": {"type": "integer", "minimum": 0, "maximum": 18}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "element"], "properties": {"kind": {"const": "series"}, "element": {"$ref": "#/$defs/typeRef"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "fields"], "properties": {"kind": {"const": "record"}, "fields": {"type": "object", "additionalProperties": {"$ref": "#/$defs/typeRef"}}}}
+      ]
+    },
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["source", "contentHash"], "properties": {"source": {"type": "string", "minLength": 1}, "observedAt": {"type": "string"}, "contentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+    "typedValue": {"type": "object", "additionalProperties": false, "required": ["type", "value"], "properties": {"type": {"$ref": "#/$defs/typeRef"}, "value": {}, "provenance": {"$ref": "#/$defs/provenance"}}},
+    "externalInputValue": {"type": "object", "additionalProperties": false, "required": ["type", "value", "provenance"], "properties": {"type": {"$ref": "#/$defs/typeRef"}, "value": {}, "provenance": {"$ref": "#/$defs/provenance"}}},
+    "valueRef": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["input"], "properties": {"input": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["node"], "properties": {"node": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["literal"], "properties": {"literal": {"$ref": "#/$defs/typedValue"}}}
+      ]
+    },
+    "node": {"type": "object", "additionalProperties": false, "required": ["id", "kind", "operation", "inputs"], "properties": {"id": {"type": "string", "minLength": 1}, "kind": {"enum": ["Transform", "Hypothesis", "Verify", "Optimize", "Decision"]}, "operation": {"type": "string", "minLength": 1}, "inputs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/valueRef"}}, "params": {"type": "object"}}},
+    "constraint": {"type": "object", "additionalProperties": false, "required": ["id", "node", "statement", "severity", "expected"], "properties": {"id": {"type": "string"}, "node": {"type": "string"}, "statement": {"type": "string"}, "severity": {"enum": ["error", "warning"]}, "expected": {"type": "boolean"}}}
+  }
+}

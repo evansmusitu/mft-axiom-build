@@ -1,0 +1,12 @@
+{
+  "name": "@musitu/axiom-reasoning-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "conformance": "node --test tests/*.test.ts",
+    "gate": "node scripts/phase1-gate.ts"
+  },
+  "engines": {"node": ">=24.12"}
+}

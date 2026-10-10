@@ -1,0 +1,25 @@
+{
+  "name": "@musitu/axiom-reasoning-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "conformance": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "gate": "npm run gate:phase21 && npm run gate:phase22 && npm run gate:phase23a && npm run gate:phase24a && npm run gate:phase24b && npm run gate:phase25a",
+    "test:postgres": "node --disable-warning=ExperimentalWarning --test tests/postgres.integration.ts",
+    "gate:phase21": "node --disable-warning=ExperimentalWarning scripts/phase2-gate.ts",
+    "gate:phase22": "node --disable-warning=ExperimentalWarning scripts/phase2-2-gate.ts",
+    "gate:phase23a": "node --disable-warning=ExperimentalWarning scripts/phase2-3a-gate.ts",
+    "gate:phase24a": "node --disable-warning=ExperimentalWarning scripts/phase2-4a-gate.ts",
+    "gate:phase24b": "node --disable-warning=ExperimentalWarning scripts/phase2-4b-gate.ts",
+    "gate:phase25a": "node --disable-warning=ExperimentalWarning scripts/phase2-5a-gate.ts"
+  },
+  "dependencies": {
+    "jose": "6.2.12",
+    "pg": "8.23.1"
+  },
+  "engines": {
+    "node": ">=24.12"
+  }
+}

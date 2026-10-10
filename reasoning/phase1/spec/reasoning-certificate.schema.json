@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musitu.example/spec/reasoning-certificate/0.1",
+  "title": "AXIOM Reasoning Certificate 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["certificateId", "core", "publicKeyPem", "signature", "issuedAt", "replay"],
+  "properties": {
+    "certificateId": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "core": {"type": "object"},
+    "publicKeyPem": {"type": "string", "minLength": 1},
+    "signature": {"type": "string", "minLength": 1},
+    "issuedAt": {"type": "string", "minLength": 1},
+    "replay": {"type": "object", "additionalProperties": false, "required": ["program"], "properties": {"program": {"type": "object"}}}
+  }
+}
