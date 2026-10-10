@@ -1,0 +1,59 @@
+stages:
+  - test
+
+phase1:conformance:
+  image: node:24.12-bookworm
+  stage: test
+  script:
+    - cd reasoning/phase1
+    - npm run conformance
+    - npm run gate
+  rules:
+    - changes:
+        - reasoning/phase1/**/*
+        - reasoning/phase2/**/*
+        - .gitlab-ci.yml
+
+phase2:conformance:
+  image: node:24.12-bookworm
+  stage: test
+  script:
+    - cd reasoning/phase2
+    - npm ci --ignore-scripts --no-audit --no-fund
+    - npm run conformance
+    - npm run gate:phase21
+    - npm run gate:phase22
+    - npm run gate:phase23a
+    - npm run gate:phase24a
+    - npm run gate:phase24b
+    - npm run gate:phase25a
+  rules:
+    - changes:
+        - reasoning/phase2/**/*
+        - reasoning/phase1/**/*
+        - .gitlab-ci.yml
+
+phase2:postgres:
+  image: node:24.12-bookworm
+  stage: test
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: axiom_test
+    POSTGRES_USER: axiom
+    POSTGRES_PASSWORD: axiom-test-password
+    PGHOST: postgres
+    PGPORT: "5432"
+    PGDATABASE: axiom_test
+    PGUSER: axiom
+    PGPASSWORD: axiom-test-password
+  script:
+    - cd reasoning/phase2
+    - npm ci --ignore-scripts --no-audit --no-fund
+    - npm run test:postgres
+  rules:
+    - changes:
+        - reasoning/phase2/**/*
+        - reasoning/phase1/**/*
+        - .gitlab-ci.yml
