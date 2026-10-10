@@ -7,7 +7,7 @@ import {verifyProof} from '../evidence.mjs';
 const PROBE=/^probe-[a-z0-9-]{8,56}$/;
 const stage=(env)=>env?.MMF_STAGE_ONLY==='true'&&env?.MMF_REAL_SEND_ENABLED==='false'&&
  env?.MMF_API_ENABLED==='false'&&env?.MMF_WEBHOOK_ENABLED==='false'&&env?.MMF_STAGE_CRYPTO_READY==='true';
-export async function runSyntheticTransactionProbe(db,env,probeId){
+export function createSyntheticStageFabric(db,env,probeId){
  if(!stage(env))throw Error('STAGING_ONLY');
  if(typeof probeId!=='string'||!PROBE.test(probeId))throw TypeError('INVALID_SYNTHETIC_PROBE');
  if(!db?.prepare)throw Error('STAGING_STORAGE_REQUIRED');
@@ -25,6 +25,10 @@ export async function runSyntheticTransactionProbe(db,env,probeId){
  const fabric=new DurableMailFabric({tenantId:'stage-tenant',verifiedDomains:['example.org'],allowedRegions:['us-east-1'],
    provider,dailySendLimit:100,dailyRecipientLimit:100,minuteSendLimit:20,maxQueuedAgeMs:60000},
  {db,encryptionKey,privacyKey,keys:{privateKey,publicKey}});
+ return Object.freeze({fabric,publicKey});
+}
+export async function runSyntheticTransactionProbe(db,env,probeId){
+ const {fabric,publicKey}=createSyntheticStageFabric(db,env,probeId);
  const input={tenantId:'stage-tenant',from:'synthetic@example.org',to:'synthetic-recipient@example.net',
    subject:'Synthetic isolated transaction',text:'Internal-only staging probe; no customer email is sent.',
    kind:'SERVICE_ALERT',idempotencyKey:probeId};
@@ -46,4 +50,23 @@ export async function runSyntheticTransactionProbe(db,env,probeId){
  return Object.freeze({messageId:queued.messageId,state:result.state,proof:result.proof,evidenceVerified:true,
    publicKeySha256:createHash('sha256').update(publicKey.export({type:'spki',format:'der'})).digest('hex'),
    customerMailSent:false,providerIsSimulation:true});
+}
+
+/** Stage-only reconciliation. Refuses non-synthetic in-flight claims and never
+ * retries unknown provider network attempts. Synthetic stage has no mail provider.
+ */
+export async function reconcileSyntheticStage(db,env){
+ const {fabric}=createSyntheticStageFabric(db,env,'probe-stage-maintenance-20261010');
+ const rows=await db.prepare("SELECT idempotency_key,lease_deadline FROM mail_messages WHERE tenant_id=? AND state='SENDING'")
+   .bind('stage-tenant').all();
+ const found=rows?.results||[];
+ if(found.length>100||found.some(r=>!PROBE.test(r.idempotency_key)||!Number.isSafeInteger(r.lease_deadline)||r.lease_deadline<1))
+   throw Error('STAGE_RECONCILIATION_SCOPE_DENIED');
+ const now=Date.now();
+ const staleBefore=found.filter(r=>r.lease_deadline<now).length;
+ const reconciled=await fabric.reconcileExpired();
+ const after=await db.prepare("SELECT COUNT(*) AS n FROM mail_messages WHERE tenant_id=? AND state='SENDING' AND lease_deadline<?")
+   .bind('stage-tenant',Date.now()).first();
+ if(Number(after?.n)!==0||reconciled!==staleBefore)throw Error('STAGE_RECONCILIATION_INCOMPLETE');
+ return Object.freeze({reconciled,staleBefore,staleAfter:0,customerMailSent:false,providerRetryAttempted:false});
 }
