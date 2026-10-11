@@ -96,7 +96,7 @@ jobs:
           disable-linux-hw-accel: auto
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            set -eu
             gradle -p store/phase1/android-client --no-daemon :app:installDebug :app:installDebugAndroidTest
             adb push "$TEST_APK_DIR/alpha.apk" /data/local/tmp/v2-real-fixture-alpha.apk
             adb push "$TEST_APK_DIR/beta.apk" /data/local/tmp/v2-real-fixture-beta.apk
