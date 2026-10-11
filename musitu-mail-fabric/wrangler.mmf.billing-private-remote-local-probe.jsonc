@@ -1,0 +1,1 @@
+{"name":"mmf-billing-qualification-local-only-20261011","main":"src/staging/private-remote-local-bridge.mjs","compatibility_date":"2026-10-11","workers_dev":false,"preview_urls":false,"routes":[],"services":[{"binding":"REMOTE_MMF_PRIVATE_BILLING","service":"musitu-mail-fabric-payment-private-stage-20261011","remote":true}]}

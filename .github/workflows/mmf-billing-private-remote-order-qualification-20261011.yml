@@ -1,0 +1,159 @@
+name: MUSITU Mail Fabric Private Cloud Billing Runtime Qualification 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-billing-private-remote-order-qualification-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: musitu-mail-fabric-private-stage-runtime-qualification-20261011
+  cancel-in-progress: false
+jobs:
+  remote-stage-only:
+    # Single-use authorization: this commit must directly succeed the deployed cloud stage.
+    if: github.event.before == 'dea00e70f57d27338c6b238a25b3df6bb3d34110'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 14
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify complete isolated source and fail-closed commercial controls
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test '${{ github.event.before }}' = 'dea00e70f57d27338c6b238a25b3df6bb3d34110'
+          npm run check
+          npm test
+          node --test test/mmf-cloud-private-remote-qualification.test.mjs
+      - name: Prove live private billing Worker is unchanged and no Internet routes exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||!t||t.length<20)throw Error('MMF_REMOTE_PRIVATE_AUTH_GUARD_DENIED');
+          const name='musitu-mail-fabric-payment-private-stage-20261011';
+          const base=`https://api.cloudflare.com/client/v4/accounts/${a}/workers/scripts/${name}/`;
+          const get=async path=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+t},signal:AbortSignal.timeout(16000)});const x=await r.json();if(!r.ok||x.success!==true)throw Error('MMF_CLOUD_READBACK_FAILED');return x.result};
+          const [settings,sub,secrets]=await Promise.all([get('settings'),get('subdomain'),get('secrets')]);
+          const bindings=settings.bindings||[],getvar=n=>bindings.find(x=>x.name===n&&x.type==='plain_text')?.text;
+          const expected={MMF_STAGE_ONLY:'true',MMF_REAL_SEND_ENABLED:'false',MMF_MAIL_SENDING_ENABLED:'false',MMF_COMMERCE_ENABLED:'false',MMF_BILLING_API_ENABLED:'true',MMF_STAGE_RECEIPTS_ENABLED:'false',MMF_API_ENABLED:'false',MMF_WEBHOOK_ENABLED:'false',MMF_TENANT_ID:'mmf_stage_20261011'};
+          const durable=bindings.filter(x=>x.type==='durable_object_namespace');
+          if(sub.enabled!==false||sub.previews_enabled!==false||
+            !Object.entries(expected).every(([n,v])=>getvar(n)===v)||
+            durable.length!==1||durable[0].name!=='MMF_BILLING_LEDGER'||durable[0].class_name!=='MmfBillingPrivateStageSqliteDO'||
+            bindings.some(x=>['service','d1','queue','send_email'].includes(x.type))||
+            !Array.isArray(secrets)||!secrets.some(x=>x.name==='MMF_BILLING_OPERATOR_TOKEN')||
+            secrets.some(x=>/PAYNOW|FMI|CHEMISTRY|RESEND|PRIVATE_KEY/.test(x.name)))throw Error('MMF_CLOUD_PRIVATE_STAGE_NOT_SAFE');
+          console.log(JSON.stringify({gate:'MMF_LIVE_PRIVATE_STAGE_SCOPE',status:'PASS',worker:name,publicAccess:false,existingPaymentBindings:false,customerFunds:false,customerEmail:false}));
+          NODE
+      - name: Generate one-time operator credential only on private CI runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e "require('fs').writeFileSync(process.env.RUNNER_TEMP+'/mmf-qualify-operator.key',require('crypto').randomBytes(48).toString('base64url'),{mode:0o600})"
+      - name: Temporarily rotate only this new MMF private Worker operator credential
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          cat "$RUNNER_TEMP/mmf-qualify-operator.key" | npx --yes wrangler@4 secret put MMF_BILLING_OPERATOR_TOKEN --name musitu-mail-fabric-payment-private-stage-20261011 --config wrangler.mmf.billing-private-do-authorized-20261011.jsonc > "$RUNNER_TEMP/mmf-credential-rotation.log" 2>&1
+          echo '{"gate":"MMF_PRIVATE_OPERATOR_TEMP_ROTATION","status":"PASS","secretValueNotLogged":true}'
+      - name: Qualify remote durable billing orders using loopback-only service binding
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          chmod 0600 "$RUNNER_TEMP/mmf-qualify-operator.key"
+          sleep 5 # Allow new stage-only secret to propagate at the edge.
+          export MMF_OPERATOR_TOKEN_FILE="$RUNNER_TEMP/mmf-qualify-operator.key"
+          export MMF_PRIVATE_REFERENCE_FILE="$RUNNER_TEMP/mmf-private-order-reference.txt"
+          export MMF_CLOUD_QUALIFICATION_EVIDENCE="$RUNNER_TEMP/mmf-private-remote-billing-evidence.json"
+          # Local-only 127.0.0.1:8789, remote: true service binding to deployed private Worker.
+          # No Internet route, workers.dev, customer, Paynow or mail entitlement is provisioned.
+          start_probe(){
+            setsid npx --yes wrangler@4 dev --config wrangler.mmf.billing-private-remote-local-probe.jsonc --ip 127.0.0.1 --port 8789 --log-level error --show-interactive-dev-session=false > "$RUNNER_TEMP/mmf-private-probe.log" 2>&1 &
+            PROBE_PID=$!
+            local ready=0
+            for i in $(seq 1 45); do
+              if ! kill -0 "$PROBE_PID" 2>/dev/null; then echo 'MMF_REMOTE_BINDING_LOCAL_PROBE_EXITED'; return 1; fi
+              if [ "$(curl --silent --output /dev/null --max-time 2 --write-out '%{http_code}' http://127.0.0.1:8789/should-not-be-public || true)" = 404 ]; then ready=1; break; fi
+              sleep 2
+            done
+            [ "$ready" = 1 ] || { echo 'MMF_REMOTE_BINDING_LOCAL_PROBE_START_FAILED'; return 1; }
+          }
+          stop_probe(){
+            if [ -n "${PROBE_PID:-}" ]; then
+              kill -- -"$PROBE_PID" 2>/dev/null || true
+              wait "$PROBE_PID" 2>/dev/null || true
+              unset PROBE_PID
+              local stopped=0
+              for i in $(seq 1 10); do
+                [ "$(curl --silent --output /dev/null --max-time 2 --write-out '%{http_code}' http://127.0.0.1:8789/should-not-be-public || true)" = 000 ] && { stopped=1; break; }
+                sleep 1
+              done
+              [ "$stopped" = 1 ] || { echo 'MMF_LOOPBACK_PROBE_DID_NOT_STOP'; return 1; }
+            fi
+          }
+          trap stop_probe EXIT
+          start_probe
+          node src/staging/qualify-private-remote-order.mjs
+          stop_probe
+          sleep 2
+          start_probe
+          MMF_PRIVATE_VERIFY_PERSISTENCE=1 node src/staging/qualify-private-remote-order.mjs
+          stop_probe
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const file=process.env.MMF_CLOUD_QUALIFICATION_EVIDENCE;
+          const x=JSON.parse(readFileSync(file,'utf8'));
+          if(x.status!=='PASS'||x.gate!=='MMF_PRIVATE_REMOTE_DURABLE_ORDER_PERSISTENCE'||x.persistedAcrossLocalBridgeRestart!==true||x.customerFunds!==false||x.customerEmail!==false)throw Error('MMF_PRIVATE_QUALIFICATION_INCOMPLETE');
+          const proof={...x,privateServiceBinding:true,publicRoutes:false,previewUrls:false,
+            realPaynowTransactions:0,credentialsInArtifact:false,verificationRunId:process.env.GITHUB_RUN_ID};
+          writeFileSync(file,JSON.stringify(proof)+'\n',{mode:0o600});
+          NODE
+      - name: Rotate temporary stage operator credential again and securely discard it
+        if: always()
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e "require('fs').writeFileSync(process.env.RUNNER_TEMP+'/mmf-qualify-post.key',require('crypto').randomBytes(48).toString('base64url'),{mode:0o600})"
+          cat "$RUNNER_TEMP/mmf-qualify-post.key" | npx --yes wrangler@4 secret put MMF_BILLING_OPERATOR_TOKEN --name musitu-mail-fabric-payment-private-stage-20261011 --config wrangler.mmf.billing-private-do-authorized-20261011.jsonc > "$RUNNER_TEMP/mmf-credential-post-rotation.log" 2>&1
+          rm -f "$RUNNER_TEMP/mmf-qualify-operator.key" "$RUNNER_TEMP/mmf-qualify-post.key" "$RUNNER_TEMP/mmf-private-order-reference.txt"
+          echo '{"gate":"MMF_PRIVATE_STAGE_TEMP_CREDENTIAL_REVOKED","status":"PASS"}'
+      - name: Verify stage stayed nonpublic and credentials are still scoped
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN,name='musitu-mail-fabric-payment-private-stage-20261011';
+          const base=`https://api.cloudflare.com/client/v4/accounts/${a}/workers/scripts/${name}/`;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+t},signal:AbortSignal.timeout(16000)});const x=await r.json();if(!r.ok||x.success!==true)throw Error('MMF_READBACK_FAILED');return x.result};
+          const [settings,sub,secrets]=await Promise.all([get('settings'),get('subdomain'),get('secrets')]);
+          const b=settings.bindings||[],g=n=>b.find(x=>x.name===n&&x.type==='plain_text')?.text;
+          if(sub.enabled!==false||sub.previews_enabled!==false||g('MMF_COMMERCE_ENABLED')!=='false'||g('MMF_REAL_SEND_ENABLED')!=='false'||g('MMF_MAIL_SENDING_ENABLED')!=='false'||g('MMF_STAGE_RECEIPTS_ENABLED')!=='false'||
+            !b.some(x=>x.name==='MMF_BILLING_LEDGER'&&x.class_name==='MmfBillingPrivateStageSqliteDO')||b.some(x=>['service','d1','queue','send_email'].includes(x.type))||
+            !secrets.some(x=>x.name==='MMF_BILLING_OPERATOR_TOKEN'))throw Error('MMF_POST_QUALIFICATION_GUARD_FAILED');
+          console.log(JSON.stringify({gate:'MMF_POST_QUALIFICATION_PRIVATE_STAGE',status:'PASS',publicRoutes:false,commerce:false,mailSending:false}));
+          NODE
+      - name: Save only redacted, noncustomer cloud runtime evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-billing-cloud-remote-order-qualification-20261011
+          path: ${{ runner.temp }}/mmf-private-remote-billing-evidence.json
+          retention-days: 30
