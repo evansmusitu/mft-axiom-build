@@ -1,0 +1,53 @@
+name: MMF Isolated Product-Scope Offline CI 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-isolated-product-scope-offline-ci-20261011.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-isolated-binding-attestation.mjs'
+      - 'musitu-mail-fabric/test/mmf-isolated-binding-attestation.test.mjs'
+      - 'musitu-mail-fabric/docs/2026-10-11-mmf-isolated-product-binding-attestation.md'
+      - 'musitu-mail-fabric/src/commercial/mmf-product-scope-preflight.mjs'
+      - 'musitu-mail-fabric/test/mmf-product-scope-preflight.test.mjs'
+      - 'musitu-mail-fabric/package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-isolated-product-scope-offline-ci-20261011
+  cancel-in-progress: false
+jobs:
+  offline-contracts-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed unless isolated branch is checked out
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+      - name: Run strict signed synthetic scope qualification and all local MMF tests
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npm run test:mmf-isolated-attestation
+          npm run test:mmf-product-scope
+          npm run check
+          npm test
+      - name: Confirm production phase-1 activation stays blocked
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          npm run check:phase1
+          result=$?
+          set -e
+          test "$result" -eq 2
+          echo 'EXPECTED_BLOCKED: phase1 exit 2; no merchant activation or customer mail'
