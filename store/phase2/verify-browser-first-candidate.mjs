@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {join} from 'node:path';
+import {assertInstallCarrier,assertInstallController} from './install-carrier-contract.mjs';
 
 const root=process.env.CANDIDATE_MODULE_ROOT;
 if(!root) throw new Error('CANDIDATE_MODULE_ROOT is required');
@@ -57,22 +58,20 @@ for(const platform of ['android','ios','web']){
   assert.equal(r.headers.get('content-disposition'),null,'/store/open must not be a download');
 }
 
+const transports=[];
 for(const action of ['install','update','repair','reinstall']){
   const path=action==='install'?'/store/install':`/store/${action}`;
-  const android=await html(path,'android');
-  assert.match(android,new RegExp(`intent://app/chemistry\\?action=${action}[^\"]*package=com\\.musitu\\.store`),`Android ${action} must retain MUSITU Store handoff`);
-  assert.ok(hrefs(android).includes('/store/open'),`Android ${action} missing browser fallback`);
-
-  const ios=await html(path,'ios');
-  assert.ok(hrefs(ios).some(h=>h.startsWith('sidestore://install?url=')),`iOS ${action} must retain SideStore handoff`);
-  assert.ok(hrefs(ios).includes('/store/open'),`iOS ${action} missing browser fallback`);
-  assertNoDirectPackageDownload(ios,`iOS ${action}`);
-
-  const web=await html(path,'web');
-  assert.ok(hrefs(web).includes('https://payments.mftintelligence.com/chemistry/install'),`Web ${action} must retain PWA install surface`);
-  assert.ok(hrefs(web).includes('/store/open'),`Web ${action} missing browser launch`);
-  assertNoDirectPackageDownload(web,`Web ${action}`);
+  for(const platform of ['android','ios','web']){
+    const markup=await html(path,platform);
+    const transport=assertInstallCarrier(markup,{platform,action});
+    transports.push(transport);
+    assertNoDirectPackageDownload(markup,`${platform} ${action}`);
+  }
 }
+const controller=await request('/store/assets/store.js',{accept:'application/javascript'});
+assert.equal(controller.status,200,'Store installer JS must be readable');
+const controllerText=await controller.text();
+for(const transport of transports) assertInstallController(controllerText,{transport});
 
 {
   const r=await request('/store/manifest.webmanifest',{accept:'application/manifest+json'});

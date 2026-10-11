@@ -1,15 +1,6 @@
 name: MUSITU Store self-install production promotion
 
 on:
-  push:
-    branches:
-      - musitu-store-browser-first-launch-20260913
-    paths:
-      - '.github/workflows/musitu-store-self-install-production.yml'
-      - 'store/phase2/build-store-self-install-candidate.py'
-      - 'store/phase2/verify-store-self-install-candidate.mjs'
-      - 'store/phase2/deploy-store-self-install-behavior.py'
-      - 'store/phase2/verify-store-self-install-live.py'
   workflow_dispatch:
 
 concurrency:
