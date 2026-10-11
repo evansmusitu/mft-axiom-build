@@ -10,7 +10,7 @@ adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-alpha.apk f
 adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-beta.apk files/v2-real-fixture-beta.apk
 
 test_status=0
-python3 store/phase1/android-client/run-v2-api30-visible-consent.py || test_status=$?
+python3 store/phase1/android-client/run-v2-api30-visible-consent.py | tee "$RUNNER_TEMP/musitu-api30-pass.log" || test_status=$?
 if [[ "$test_status" -ne 0 ]]; then
   echo '=== ANDROID11 INSTRUMENTATION FAILURE XML ==='
   while IFS= read -r -d '' file; do
