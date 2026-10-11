@@ -9,6 +9,7 @@ on:
       - 'musitu-mail-fabric/src/staging/audit-live-paynow-merchant-scope.mjs'
       - 'musitu-mail-fabric/src/staging/mmf-paynow-readonly-cli.mjs'
       - 'musitu-mail-fabric/test/mmf-cloudflare-source-canonicalization.test.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-paynow-envelope-inspect.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -39,6 +40,12 @@ jobs:
           npm run check
           node --check src/staging/canonical-cloudflare-worker-source.mjs
           node --test test/mmf-live-paynow-scope-audit.test.mjs test/mmf-cloudflare-paynow-readonly-inspection.test.mjs test/mmf-cloudflare-source-canonicalization.test.mjs
+      - name: GET-only Cloudflare source MIME structure diagnostic, never source or secrets
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node src/staging/mmf-paynow-envelope-inspect.mjs
       - name: GET-only shared Paynow MMF product scope evidence — no payments, no mutations
         shell: bash
         working-directory: musitu-mail-fabric
