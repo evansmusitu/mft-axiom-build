@@ -196,6 +196,12 @@ The live Cloudflare result is **not an actual Resend-originated event**, does no
 
 See `docs/2026-10-11-offline-custody-and-retention-safety.md` for audit limits, fail-closed operation, recovery expectations and unresolved external approvals.
 
+### Post-v0.18 engineering: key-rotation inventory and unresolved-outcome retention fix
+
+A tenant-scoped, **read-only** key-retirement dependency audit in `src/ops/key-rotation-readiness.mjs` inventories still-encrypted messages, unresolved queue/sending/provider-unknown work, recipient-HMAC references, suppression references, and provider event counts. It always returns `rotationAuthorized:false` because external backups, live KMS secrets, and independently anchored trust transitions cannot be inferred from SQLite counts alone. The audit produces aggregate counts only; it never retrieves message bodies or key material, mutates tables, or permits a release.
+
+The retention cleanup now **excludes `OUTCOME_UNKNOWN`** even after the age window. Unknown provider acceptance is an unresolved delivery claim; erasing its encrypted envelope during reconciliation is unsafe. Regression tests cover dry-run and approved erasure boundaries. This is still not a general erasure or legally approved retention program. See `docs/2026-10-11-v019-key-rotation-preflight-and-provider-qualification.md`.
+
 ### Outbound body URL anti-abuse preflight
 
 `src/policy.mjs` now rejects unapproved destinations in plain-text transactional mail, even when a client labels it `SECURITY` or `RECEIPT`. Non-HTTPS and `www.` links are denied, as are unapproved subdomains, credential-bearing or port-specific URLs, and more than five links. The default allowlist is **empty**: body links require an operator-reviewed exact-host `allowedLinkDomains` SDK setting or comma-separated Worker secret/config `MMF_APPROVED_LINK_DOMAINS`. This is a narrow pre-send anti-phishing control; it is **not** a full content-abuse scanner, click tracking, link shortener detector, consent system or guarantee that mail is not spam. No public sending switches are changed.

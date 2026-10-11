@@ -1,12 +1,14 @@
 /** Offline-only, narrowly scoped cleanup of terminal-state encrypted payload
- * residue after a separately approved retention window. Does not delete
+ * residue after a separately approved retention window.
+ * OUTCOME_UNKNOWN is nonterminal: a provider may have accepted the message,
+ * and the outcome still needs investigation and reconciliation. Does not delete
  * messages, evidence, suppressions, provider events or idempotency records.
  * Does not implement legal compliance or full data erasure.
  */
 const TENANT=/^[a-z][a-z0-9_-]{2,63}$/;
 const ACK='ERASE_ONLY_TERMINAL_ENVELOPE_RESIDUE';
 const CANDIDATES=`tenant_id=? AND state IN
- ('ACCEPTED_BY_PROVIDER','REJECTED_BY_PROVIDER','OUTCOME_UNKNOWN','BLOCKED_BY_POLICY')
+ ('ACCEPTED_BY_PROVIDER','REJECTED_BY_PROVIDER','BLOCKED_BY_POLICY')
  AND sealed_envelope IS NOT NULL AND created_ms<=?`;
 const deny=()=>{throw Error('RETENTION_DENIED');};
 export async function sweepTerminalEnvelopeResidue(db,{tenantId,now=Date.now,minAgeDays=30,dryRun=true,

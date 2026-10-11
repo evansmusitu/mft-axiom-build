@@ -24,7 +24,7 @@ test('dry-run retention reports only aged terminal ciphertext without any mutati
  for(const id of ['final-old','live-old','final-new','other-old'])assert.ok(f.ciphertext(id));
 });
 test('approved offline cleanup erases only eligible terminal ciphertext while preserving signed evidence and idempotency',async t=>{
- const f=fixture(t);f.add('final-old','tenant-one','OUTCOME_UNKNOWN',40);f.add('live-old','tenant-one','QUEUED',40);
+ const f=fixture(t);f.add('final-old','tenant-one','REJECTED_BY_PROVIDER',40);f.add('live-old','tenant-one','QUEUED',40);
  const result=await sweepTerminalEnvelopeResidue(f.db,{...scope,dryRun:false,legalHold:false,backupVerified:true,retentionApproved:true,
   acknowledgement:'ERASE_ONLY_TERMINAL_ENVELOPE_RESIDUE'});
  assert.equal(result.mode,'ERASED');assert.equal(result.erasedEnvelopes,1);
@@ -45,4 +45,17 @@ test('invalid retention scope and SQL unavailability fail closed',async t=>{
  await assert.rejects(()=>sweepTerminalEnvelopeResidue(f.db,{...scope,minAgeDays:0}),/RETENTION_DENIED/);
  await assert.rejects(()=>sweepTerminalEnvelopeResidue(f.db,{...scope,tenantId:'../escape'}),/RETENTION_DENIED/);
  await assert.rejects(()=>sweepTerminalEnvelopeResidue({prepare(){throw Error('offline')}},scope),/RETENTION_STORE_UNAVAILABLE/);
+});
+
+test('unknown provider outcome is an unresolved delivery claim and its ciphertext must not be erased',async t=>{
+ const f=fixture(t);
+ f.add('unknown-old','tenant-one','OUTCOME_UNKNOWN',400);
+ f.add('terminal-old','tenant-one','ACCEPTED_BY_PROVIDER',400);
+ const preview=await sweepTerminalEnvelopeResidue(f.db,scope);
+ assert.equal(preview.eligibleEnvelopes,1,'unknown outcomes must be excluded from terminal retention');
+ const erased=await sweepTerminalEnvelopeResidue(f.db,{...scope,dryRun:false,legalHold:false,
+  backupVerified:true,retentionApproved:true,acknowledgement:'ERASE_ONLY_TERMINAL_ENVELOPE_RESIDUE'});
+ assert.equal(erased.erasedEnvelopes,1);
+ assert.ok(f.ciphertext('unknown-old'),'reconciliation must retain uncertain-outcome ciphertext');
+ assert.equal(f.ciphertext('terminal-old'),null);
 });
