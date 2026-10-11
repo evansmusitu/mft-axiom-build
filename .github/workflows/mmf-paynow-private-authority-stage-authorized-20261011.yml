@@ -1,0 +1,131 @@
+name: MUSITU Mail Fabric MMF-Only Private Paynow Authority Binding 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-paynow-private-authority-stage-authorized-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-paynow-authority-20261011
+  cancel-in-progress: false
+jobs:
+  private-authority-stage-only:
+    if: github.event.before == '6890361a12bc7abcdd0fa462abd6734e6d346c78'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated branch, safe configuration, and full product tests before any Cloudflare mutation
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test '${{ github.event.before }}' = '6890361a12bc7abcdd0fa462abd6734e6d346c78'
+          npm run check
+          npm run test:private-authority
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-commercial-release-gate.log" 2>&1
+          code=$?
+          set -e
+          test "$code" = 2 || { echo 'MMF_COMMERCIAL_GATE_MUST_REMAIN_BLOCKED'; exit 1; }
+      - name: Read-only Cloudflare check of new worker and existing billing stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_ACCOUNT_CREDENTIAL_SCOPE_DENIED');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          const newName='musitu-mail-fabric-paynow-private-authority-stage-20261011';
+          const billing='musitu-mail-fabric-payment-private-stage-20261011';
+          const request=async (n,path)=>{
+            const res=await fetch(`${base}${n}/${path}`,{headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(16000)});
+            const raw=await res.text();let json={};try{json=JSON.parse(raw)}catch{}
+            return {status:res.status,result:json.result,success:json.success};
+          };
+          const absent=await request(newName,'settings');
+          const existing=await request(billing,'settings');
+          const sub=await request(billing,'subdomain');
+          const vars=existing.result?.bindings||[];
+          const varOf=n=>vars.find(v=>v.name===n&&v.type==='plain_text')?.text;
+          if(absent.status!==404||existing.status!==200||existing.success!==true||sub.status!==200||sub.result?.enabled!==false||sub.result?.previews_enabled!==false||
+            !vars.some(v=>v.name==='MMF_BILLING_LEDGER'&&v.type==='durable_object_namespace'&&v.class_name==='MmfBillingPrivateStageSqliteDO')||
+            varOf('MMF_STAGE_RECEIPTS_ENABLED')!=='false'||varOf('MMF_COMMERCE_ENABLED')!=='false'||
+            varOf('MMF_REAL_SEND_ENABLED')!=='false'||varOf('MMF_MAIL_SENDING_ENABLED')!=='false')
+            throw Error('MMF_PRIVATE_CLOUDFLARE_BASELINE_DENIED');
+          const canonical=v=>JSON.stringify(v,(_k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort()):x);
+          const baseline=createHash('sha256').update(canonical(existing.result)).digest('hex');
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-private-authority-stage-baseline.json',JSON.stringify({baseline}),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_AUTHORITY_STAGE_READONLY_PREFLIGHT',status:'PASS',newWorkerPreviouslyAbsent:true,billingWorkerAlreadyPrivate:true,livePaymentEnabled:false,customerEmailEnabled:false}));
+          NODE
+      - name: Deploy only fresh private MMF authority-bound Worker with no credentials
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.paynow-private-authority-stage.jsonc','utf8'));
+          const req={MMF_PRIVATE_AUTHORITY_STAGE_ENABLED:'false',MMF_STAGE_BRIDGE_ENABLED:'false',MMF_STAGE_RECEIPTS_ENABLED:'false',MMF_STAGE_ONLY:'true',MMF_COMMERCE_ENABLED:'false',MMF_REAL_SEND_ENABLED:'false',MMF_MAIL_SENDING_ENABLED:'false',MMF_API_ENABLED:'false',MMF_WEBHOOK_ENABLED:'false'};
+          if(c.name!=='musitu-mail-fabric-paynow-private-authority-stage-20261011'||c.workers_dev!==false||c.preview_urls!==false||
+            JSON.stringify(c.routes)!=='[]'||JSON.stringify(c.services)!==JSON.stringify([{binding:'MMF_PRIVATE_PAYMENT_STAGE',service:'musitu-mail-fabric-payment-private-stage-20261011'}])||
+            !Object.entries(req).every(([key,value])=>c.vars?.[key]===value)||c.durable_objects||c.d1_databases)
+            throw Error('MMF_PRIVATE_AUTHORITY_DEPLOYMENT_CONFIG_DENIED');
+          NODE
+          npx --yes wrangler@4 deploy --config wrangler.mmf.paynow-private-authority-stage.jsonc
+      - name: Independent Cloudflare readback of isolated service binding and unchanged billing worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          const req=async(name,path)=>{
+            const r=await fetch(`${base}${name}/${path}`,{headers:{authorization:`Bearer ${token}`},signal:AbortSignal.timeout(16000)});
+            const j=await r.json();if(!r.ok||j.success!==true)throw Error('MMF_PRIVATE_AUTHORITY_CLOUD_READBACK_DENIED');return j.result;
+          };
+          const target='musitu-mail-fabric-paynow-private-authority-stage-20261011',existing='musitu-mail-fabric-payment-private-stage-20261011';
+          const [newSettings,newSub,oldSettings,oldSub]=await Promise.all([req(target,'settings'),req(target,'subdomain'),req(existing,'settings'),req(existing,'subdomain')]);
+          const canonical=v=>JSON.stringify(v,(_k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort()):x);
+          const baseline=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/mmf-private-authority-stage-baseline.json','utf8')).baseline;
+          const unchanged=createHash('sha256').update(canonical(oldSettings)).digest('hex')===baseline;
+          const binds=newSettings.bindings||[];const variable=k=>binds.find(v=>v.type==='plain_text'&&v.name===k)?.text;
+          const privateBillingBinding=binds.filter(v=>v.type==='service'&&v.name==='MMF_PRIVATE_PAYMENT_STAGE'&&v.service===existing);
+          const allowedVars=['MMF_PRIVATE_AUTHORITY_STAGE_ENABLED','MMF_STAGE_BRIDGE_ENABLED','MMF_STAGE_RECEIPTS_ENABLED','MMF_STAGE_ONLY','MMF_REAL_SEND_ENABLED','MMF_MAIL_SENDING_ENABLED','MMF_COMMERCE_ENABLED','MMF_BILLING_API_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED','MMF_TENANT_ID'];
+          const secretsOrOtherServices=binds.some(v=>v.type!=='plain_text'&&v.type!=='service'||v.type==='service'&&v.name!=='MMF_PRIVATE_PAYMENT_STAGE');
+          if(privateBillingBinding.length!==1||secretsOrOtherServices||binds.some(v=>v.type==='plain_text'&&!allowedVars.includes(v.name))||
+            variable('MMF_PRIVATE_AUTHORITY_STAGE_ENABLED')!=='false'||variable('MMF_STAGE_BRIDGE_ENABLED')!=='false'||variable('MMF_STAGE_RECEIPTS_ENABLED')!=='false'||
+            variable('MMF_COMMERCE_ENABLED')!=='false'||variable('MMF_REAL_SEND_ENABLED')!=='false'||variable('MMF_MAIL_SENDING_ENABLED')!=='false'||
+            variable('MMF_API_ENABLED')!=='false'||variable('MMF_WEBHOOK_ENABLED')!=='false'||
+            newSub.enabled!==false||newSub.previews_enabled!==false||oldSub.enabled!==false||oldSub.previews_enabled!==false||!unchanged)
+            throw Error('MMF_PRIVATE_AUTHORITY_SCOPE_READBACK_FAILED');
+          const proof={gate:'MMF_PRIVATE_MMFSPECIFIC_AUTHORITY_CLOUDFLARE_BINDING',status:'PASS',worker:target,
+            privateServiceBindingToMmfBilling:true,newWorkerNoPublicRoutes:true,
+            separateFromFmiChemistryAxiom:true,merchantCredentialsInstalled:false,
+            livePaynowScopeEstablished:false,realPaynowCalls:0,existingBillingWorkerUnchanged:true,
+            realCustomerPaymentsEnabled:false,customerEmailEnabled:false,productionReleased:false};
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-private-authority-stage-cloud-proof.json',JSON.stringify(proof,null,2)+'\n',{mode:0o600});
+          console.log(JSON.stringify(proof));
+          NODE
+      - name: Upload sanitized private authority stage Cloudflare evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-paynow-authority-staging-binding-20261011
+          path: ${{ runner.temp }}/mmf-private-authority-stage-cloud-proof.json
+          retention-days: 30

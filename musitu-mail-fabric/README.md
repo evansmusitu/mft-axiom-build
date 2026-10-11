@@ -271,3 +271,7 @@ already has an MMF route, service binding or MMF secret.
 ### October 11 private Cloudflare synthetic signed receipt qualification
 
 The staging-only, time-limited, Ed25519 receipt-intake experiment is documented in `docs/2026-10-11-cloud-synthetic-signed-receipt-proof.md`. It exercises *synthetic* Paid/Refunded evidence against the preexisting private billing SQLite Durable Object, with temporary credentials and rollback. It **does not** call Paynow, collect money, issue invoices, unlock mail delivery, or modify shared FMI services. Cloudflare success must be demonstrated by a green workflow and sanitized artifact, not source-code inspection.
+
+### MMF Paynow authority-stage boundary (October 11)
+
+A **new, nonpublic**, independently scoped Cloudflare Worker `musitu-mail-fabric-paynow-private-authority-stage-20261011` has only a service binding to the separate private MMF billing staging Worker. The default is entirely disabled: `MMF_PRIVATE_AUTHORITY_STAGE_ENABLED=false` and `MMF_STAGE_BRIDGE_ENABLED=false`; no credentials, Paynow merchant network routes, checkout, money, invoices, or customer mail. During explicit time-bounded **synthetic-only** qualification, it may accept a separately authenticated and fingerprint-pinned Ed25519 receipt and pass it through the fixed binding. This DOES NOT integrate live Paynow, prove bank settlement, or authorize MMF commerce. See `docs/2026-10-11-mmf-isolated-private-authority-binding.md`.

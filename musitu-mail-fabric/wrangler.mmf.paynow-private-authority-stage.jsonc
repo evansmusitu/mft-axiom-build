@@ -1,0 +1,23 @@
+{
+  "name": "musitu-mail-fabric-paynow-private-authority-stage-20261011",
+  "main": "src/edge/mmf-paynow-private-authority-stage.mjs",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "services": [{"binding": "MMF_PRIVATE_PAYMENT_STAGE", "service": "musitu-mail-fabric-payment-private-stage-20261011"}],
+  "vars": {
+    "MMF_PRIVATE_AUTHORITY_STAGE_ENABLED": "false",
+    "MMF_STAGE_BRIDGE_ENABLED": "false",
+    "MMF_STAGE_RECEIPTS_ENABLED": "false",
+    "MMF_STAGE_ONLY": "true",
+    "MMF_REAL_SEND_ENABLED": "false",
+    "MMF_MAIL_SENDING_ENABLED": "false",
+    "MMF_COMMERCE_ENABLED": "false",
+    "MMF_BILLING_API_ENABLED": "true",
+    "MMF_API_ENABLED": "false",
+    "MMF_WEBHOOK_ENABLED": "false",
+    "MMF_TENANT_ID": "mmf_stage_20261011"
+  }
+}
