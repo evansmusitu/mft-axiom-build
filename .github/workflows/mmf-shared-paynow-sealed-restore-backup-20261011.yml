@@ -1,0 +1,55 @@
+name: MMF Cloudflare Two-Worker Encrypted Source Restore Backup 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-shared-paynow-sealed-restore-backup-20261011.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-sealed-shared-worker-backup.mjs'
+      - 'musitu-mail-fabric/test/mmf-sealed-shared-worker-backup.test.mjs'
+      - 'musitu-mail-fabric/backup-public-keys/mmf-shared-paynow-20261011.pub.pem'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-shared-paynow-getonly-sealed-backup-20261011
+  cancel-in-progress: false
+jobs:
+  source-settings-backup:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Qualify read-only encryption boundary without credentials
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-sealed-shared-worker-backup.mjs
+          node --test test/mmf-sealed-shared-worker-backup.test.mjs
+      - name: GET-only exact Worker source and settings into sealed ciphertext; no provider requests
+        working-directory: musitu-mail-fabric
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/mmf-sealed-shared-worker-backup.mjs --capture
+      - name: Upload only sealed ciphertext and nonsecret digest manifest
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-paynow-two-shared-workers-getonly-sealed-restore-20261011
+          path: |
+            ${{ runner.temp }}/mmf-shared-paynow-restore-source.sealed.json
+            ${{ runner.temp }}/mmf-shared-paynow-restore-manifest.json
+          retention-days: 7
+          if-no-files-found: error
