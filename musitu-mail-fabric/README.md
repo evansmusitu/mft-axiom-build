@@ -245,3 +245,24 @@ receipt bearer token must differ from the private order-operator token.
 The deployment template ships with `workers_dev=false`, zero public routes,
 `MMF_STAGE_RECEIPTS_ENABLED=false`, no live provider binding, and no secret values.
 See `docs/2026-10-11-private-stage-receipt-ingress.md`.
+
+### Dark private MMF authority-to-stage receipt handoff (2026-10-11)
+
+An **unshipped** private service-binding adapter in
+`src/commercial/paynow-private-stage-bridge.mjs` completes the locally
+exercisable evidence-delivery boundary: a separately authorized authority-side
+component signs an MMF-only receipt, verifies its canonical signature and quote,
+and passes it using a preconfigured private `MMF_PRIVATE_PAYMENT_STAGE` service
+binding to the isolated billing stage Worker. There is **no public HTTP
+fallback**, merchant credential, Paynow network transaction, customer charge,
+or mail entitlement. The adapter requires an explicit
+`MMF_STAGE_BRIDGE_ENABLED=true` *and* all non-production dark-stage locks,
+its own stage receipt token, and an Ed25519 public-key fingerprint pin; absent
+any prerequisite it fails closed. A 200 HTTP status alone is insufficient:
+the private stage's acknowledgement must identify the exact order and
+sandbox-only, no-commerce/no-mail state.
+
+Run `npm run test:stage-bridge`, then `npm test` and `npm run check`. The
+service-binding object and all provider events used in tests are in-memory
+emulators. This does not imply that the real production Paynow authority
+already has an MMF route, service binding or MMF secret.
