@@ -108,4 +108,30 @@ public final class V2AndroidApi24InstrumentedTest {
       // PackageManager inspection rejects the synthetic non-APK before user prompt.
     }
   }
+
+  @Test public void actualApi24DoesNotAcceptSelfSignedPublisherRootAtProductionBoundary()throws Exception{
+    Fixture fixture=new Fixture();
+    Context context=ApplicationProvider.getApplicationContext();
+    context.getSharedPreferences(V2AndroidCatalogAuthority.PREFS,Context.MODE_PRIVATE)
+      .edit().clear().commit();
+    try {
+      V2AndroidCatalogAuthority.acceptAndCommit(
+        context,fixture.raw,fixture.signature,System.currentTimeMillis());
+      fail("privately generated publisher root must not be trusted as Store production authority");
+    }catch(SecurityException expected){}
+  }
+  @Test public void actualApi24RejectsCorruptDurableCatalogWatermark()throws Exception{
+    Fixture fixture=new Fixture();
+    Context context=ApplicationProvider.getApplicationContext();
+    context.getSharedPreferences(V2AndroidCatalogAuthority.PREFS,Context.MODE_PRIVATE)
+      .edit().putBoolean("initialized",true).putLong("revision",2).putString("digest","broken").commit();
+    try{
+      V2AndroidCatalogAuthority.acceptAndCommit(
+        context,fixture.raw,fixture.signature,System.currentTimeMillis());
+      fail("invalid trusted state was ignored");
+    }catch(SecurityException expected){}finally{
+      context.getSharedPreferences(V2AndroidCatalogAuthority.PREFS,Context.MODE_PRIVATE)
+        .edit().clear().commit();
+    }
+  }
 }
