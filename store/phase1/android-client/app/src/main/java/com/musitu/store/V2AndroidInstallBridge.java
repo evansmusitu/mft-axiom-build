@@ -101,8 +101,8 @@ final class V2AndroidInstallBridge {
     // No broad storage permission or exported FileProvider is required.
     Intent systemInstaller=new Intent(Intent.ACTION_VIEW)
       .setDataAndType(packageUri,"application/vnd.android.package-archive")
-      .setClipData(ClipData.newRawUri("verified APK",packageUri))
       .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);
+    systemInstaller.setClipData(ClipData.newRawUri("verified APK",packageUri));
     context.startActivity(systemInstaller);
     return Result.SYSTEM_INSTALLER_LAUNCHED;
   }
