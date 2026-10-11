@@ -2,10 +2,7 @@
 name: MUSITU Store Phase 1 v1.0.1 Production Deploy
 
 on:
-  push:
-    branches: [musitu-store-phase1-20260909]
-    paths:
-      - '.github/workflows/musitu-store-phase1-v101-production-deploy.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,6 +14,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
