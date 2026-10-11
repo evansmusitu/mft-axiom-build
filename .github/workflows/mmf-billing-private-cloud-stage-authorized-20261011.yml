@@ -1,0 +1,85 @@
+name: MUSITU Mail Fabric Authorized Private Billing Cloud Stage 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-billing-private-cloud-stage-authorized-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: musitu-mail-fabric-payment-private-first-create-20261011
+  cancel-in-progress: false
+jobs:
+  first-create:
+    # One specific isolated-branch update. Never infer new deployment approval
+    # from subsequent commits or from a re-run on an unrelated branch.
+    if: github.event.before == 'cdc39fd87b050372ba2f891025fde78fcd56715a'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      MMF_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exactly authorized isolated branch, no customer payment or mail flags
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "${{ github.event.before }}" = 'cdc39fd87b050372ba2f891025fde78fcd56715a'
+          node --test test/mmf-authorized-cloud-stage-deploy.test.mjs
+          npm run check
+          npm test
+      - name: Read-only Cloudflare scope and fresh-target preflight
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          node src/staging/authorize-private-billing-stage.mjs preflight
+      - name: Create only new isolated MMF payment D1 and empty schema
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/authorize-private-billing-stage.mjs prepare
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {assertPrivateStageDefinition} from './src/staging/authorize-private-billing-stage.mjs';
+          const cfg=JSON.parse(readFileSync('wrangler.mmf.billing-stage.deploy-20261011.jsonc','utf8'));
+          if(assertPrivateStageDefinition(cfg)!==true)throw Error('MMF_CONFIG_SCOPE_DENIED');
+          console.log(JSON.stringify({gate:'MMF_CLOUDFLARE_PRIVATE_BILLING_WORKER_CONFIG',status:'PASS',publicRoutes:0,realPayment:false,sending:false,recipientEndpoints:false}));
+          NODE
+      - name: Deploy fresh route-disabled private MMF billing Worker, separate from all other services
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.billing-stage.deploy-20261011.jsonc --secrets-file "$RUNNER_TEMP/mmf-billing-private-secret-20261011.json"
+      - name: Independent Cloudflare account, D1, Worker bindings, flags, routes and secrets readback
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          node src/staging/authorize-private-billing-stage.mjs verify
+      - name: Save sanitized cloud evidence (never upload secrets or session tokens)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-billing-cloud-proof-20261011
+          path: ${{ runner.temp }}/mmf-billing-private-cloud-evidence-20261011.json
+          retention-days: 30
+      - name: Securely discard locally generated one-time stage operator secret
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/mmf-billing-private-secret-20261011.json" "$RUNNER_TEMP/mmf-billing-private-db-id-20261011.txt"
+          rm -f musitu-mail-fabric/wrangler.mmf.billing-stage.deploy-20261011.jsonc
