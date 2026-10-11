@@ -1,0 +1,36 @@
+name: MUSITU Store isolated preflight contract checks
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-preflight-contract-20261011
+    paths:
+      - '.github/workflows/musitu-store-preflight-contract-isolated.yml'
+      - 'store/phase2/install-carrier-contract.mjs'
+      - 'store/phase2/install-carrier-contract.test.mjs'
+      - 'store/phase2/verify-browser-first-candidate.mjs'
+      - 'store/phase2/promotion-trigger-contract.test.mjs'
+      - '.github/workflows/musitu-store-browser-first-production.yml'
+      - '.github/workflows/musitu-store-install-button-production.yml'
+      - '.github/workflows/musitu-store-self-install-production.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated Store candidate
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify syntax and security regression contracts
+        run: |
+          set -euo pipefail
+          node --check store/phase2/install-carrier-contract.mjs
+          node --check store/phase2/verify-browser-first-candidate.mjs
+          node --test store/phase2/install-carrier-contract.test.mjs store/phase2/promotion-trigger-contract.test.mjs
