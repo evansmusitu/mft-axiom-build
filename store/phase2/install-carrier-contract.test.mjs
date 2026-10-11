@@ -55,3 +55,12 @@ test('modern button requires JS controller binding',()=>{
 test('legacy links do not require modern controller',()=>{
   assert.doesNotThrow(()=>assertInstallController('',{transport:'legacy-anchor'}));
 });
+
+test('modern Android native carrier may include an optional PWA fallback link',()=>{
+  const pwa='<a href="https://payments.mftintelligence.com/chemistry/install">Install Web App instead</a>';
+  assert.equal(invoke(button('android')+pwa,'android'),'controlled-button');
+});
+test('legacy iOS SideStore carrier may include an optional PWA fallback link',()=>{
+  const pwa='<a href="https://payments.mftintelligence.com/chemistry/install">Install Web App instead</a>';
+  assert.equal(invoke(anchor('ios')+pwa,'ios'),'legacy-anchor');
+});
