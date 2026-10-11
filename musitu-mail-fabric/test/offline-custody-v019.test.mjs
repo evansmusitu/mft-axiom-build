@@ -48,8 +48,12 @@ test('tampering, wrong epoch, wrong independently pinned digest and malformed ke
  const {bundle,digest}=fixture();
  assert.throws(()=>recover(bundle,digest,{expectedEpoch:1}),/CUSTODY_REJECTED/);
  assert.throws(()=>recover(bundle,'0'.repeat(64)),/CUSTODY_REJECTED/);
- const corrupt=structuredClone(bundle);corrupt.ciphertext=corrupt.ciphertext.slice(0,-2)+'AA';
+ const corrupt=structuredClone(bundle);
+ corrupt.ciphertext=(corrupt.ciphertext[0]==='A'?'B':'A')+corrupt.ciphertext.slice(1);
+ assert.notEqual(corrupt.ciphertext,bundle.ciphertext);
  assert.throws(()=>recover(corrupt,digest),/CUSTODY_REJECTED/);
+ // Even when an attacker supplies a newly calculated digest, AES-GCM rejects altered ciphertext.
+ assert.throws(()=>recover(corrupt,createHash('sha256').update(JSON.stringify(corrupt)).digest('hex')),/CUSTODY_REJECTED/);
  assert.throws(()=>sealRecoveryKeys({tenantId:'example-tenant',epoch:2,keys:{...material(),privacyKey:randomBytes(31)},custodians:custodians()}),/CUSTODY_REJECTED/);
 });
 
