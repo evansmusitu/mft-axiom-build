@@ -1,5 +1,6 @@
 package com.musitu.store;
 
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -95,8 +96,12 @@ final class V2AndroidInstallBridge {
       return Result.USER_APPROVAL_REQUIRED;
     }
     Uri packageUri=FileProvider.getUriForFile(context,"com.musitu.store.files",stagedApk);
+    // Preserve a scoped read grant for Android's installer staging activity,
+    // even when the first installer activity forwards the package internally.
+    // No broad storage permission or exported FileProvider is required.
     Intent systemInstaller=new Intent(Intent.ACTION_VIEW)
       .setDataAndType(packageUri,"application/vnd.android.package-archive")
+      .setClipData(ClipData.newRawUri("verified APK",packageUri))
       .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);
     context.startActivity(systemInstaller);
     return Result.SYSTEM_INSTALLER_LAUNCHED;
