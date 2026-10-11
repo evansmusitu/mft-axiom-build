@@ -15,7 +15,11 @@ test('private stage payment Worker template has no public checkout, live money o
  assert.equal(cfg.vars.MMF_WEBHOOK_ENABLED,'false');
  assert.equal(cfg.vars.MMF_STAGE_ONLY,'true');
  assert.equal(cfg.vars.MMF_BILLING_API_ENABLED,'true');
+ assert.equal(cfg.vars.MMF_STAGE_RECEIPTS_ENABLED,'false');
  assert.equal(cfg.services,undefined);
  assert.equal(cfg.vars.PAYNOW_INTEGRATION_KEY,undefined);
  assert.equal(cfg.vars.MMF_BILLING_OPERATOR_TOKEN,undefined);
+ assert.equal(cfg.vars.MMF_STAGE_RECEIPT_TOKEN,undefined);
+ assert.equal(cfg.vars.MMF_STAGE_AUTHORITY_PUBLIC_KEY_PEM,undefined);
+ assert.equal(cfg.vars.MMF_STAGE_AUTHORITY_FINGERPRINT_SHA256,undefined);
 });

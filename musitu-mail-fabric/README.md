@@ -232,3 +232,16 @@ The stage-only intake worker `src/commercial/billing-stage-worker.mjs` with no p
 `src/commercial/paynow-native-protocol.mjs` now parses and verifies the official Paynow SHA-512 wire-message contract with fail-closed input validation, exact MMF product/price checks, and an allowlisted Paynow polling URL. `src/commercial/paynow-private-authority-candidate.mjs` demonstrates a **future server-side extension to the existing shared MUSITU payment authority**, using independently fetched signed provider status and an Ed25519 settlement/refund receipt. `npm run test:paynow-native` exercises genuine protocol primitives with FAKE ephemeral keys and an emulated HTTP poll. It makes **no real Paynow call, checkout or refund**. Never put the Paynow integration key or the authority receipt signing private key in the MMF frontend, production Mail Fabric Worker or repository. See `docs/2026-10-11-mmf-paynow-protocol-integration-candidate.md`.
 
 **Release remains BLOCKED**: no MMF-specific routes/tokens in the existing live authority or transport, no deployed MMF billing service, no legal issuer/invoice clearance, no independent security approval, no genuine MMF payment/poll or reversal, and no independently qualified MMF live Resend outbox integration. The shared FMI, Axiom and Chemistry payment stack remains unchanged.
+
+### Private stage receipt intake (October 11, 2026)
+
+The dark MMF billing Worker can now accept **offline authority-signed evidence**
+for a previously opened stage order via `POST /v1/billing/stage/evidence`.
+This is a private, non-public, simulated payment state integration only. It
+never charges Paynow, issues an invoice, grants Mail Fabric delivery, or accesses
+FMI subscriptions. It rejects reactivating reversed orders. The independent
+receipt bearer token must differ from the private order-operator token.
+
+The deployment template ships with `workers_dev=false`, zero public routes,
+`MMF_STAGE_RECEIPTS_ENABLED=false`, no live provider binding, and no secret values.
+See `docs/2026-10-11-private-stage-receipt-ingress.md`.
