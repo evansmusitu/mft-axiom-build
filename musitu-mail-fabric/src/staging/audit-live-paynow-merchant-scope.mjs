@@ -13,6 +13,7 @@ export async function auditLiveMmfPaynowScope({accountId,token,fetchImpl=globalT
  const base=`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/workers/scripts/`;
  const headers={authorization:`Bearer ${token}`,accept:'application/json'};
  const inventory={};
+ let sameBytesAcrossReads=true;
  for(const name of NAMES){
   const get=async path=>{
    let res;try{res=await fetchImpl(base+name+path,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(15000)});}catch{deny()}
@@ -22,7 +23,10 @@ export async function auditLiveMmfPaynowScope({accountId,token,fetchImpl=globalT
    return res;
   };
   const source=await (await get('')).text();
-  if(source.length<100||Buffer.byteLength(source)>2_000_000)deny();
+  const repeat=await (await get('')).text();
+  if(source.length<100||Buffer.byteLength(source)>2_000_000||
+     repeat.length<100||Buffer.byteLength(repeat)>2_000_000)deny();
+  if(source!==repeat)sameBytesAcrossReads=false;
   let settings;try{settings=await (await get('/settings')).json()}catch{deny()}
   if(settings?.success!==true||!Array.isArray(settings.result?.bindings))deny();
   const names=settings.result.bindings.map(b=>b?.name);
@@ -31,8 +35,13 @@ export async function auditLiveMmfPaynowScope({accountId,token,fetchImpl=globalT
    paths:[...new Set(source.match(PATH_RE)||[])].sort()};
  }
  const status=assessMmfLivePaynowScope(inventory);
- return Object.freeze({...status,observedWorkerCount:NAMES.length,
-  cloudflareCalls:NAMES.length*2,cloudflareMethod:'GET',
+ return Object.freeze({...status,
+  verifiedExistingMerchantStack:sameBytesAcrossReads&&status.verifiedExistingMerchantStack,
+  sourceReadbackStableAcrossReads:sameBytesAcrossReads,
+  sourceHashDriftIndependentlyProven:sameBytesAcrossReads&&status.changedSharedWorkers.length>0,
+  baselineMismatchMayBeNondeterministicSource:!sameBytesAcrossReads,
+  observedWorkerCount:NAMES.length,
+  cloudflareCalls:NAMES.length*3,cloudflareMethod:'GET',
   transactionOrCustomerDataAccessed:false,merchantSecretsRead:false,
   cloudflareMutations:false,customerFunds:false,customerEmail:false});
 }

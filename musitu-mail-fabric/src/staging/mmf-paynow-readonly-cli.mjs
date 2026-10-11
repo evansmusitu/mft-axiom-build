@@ -18,6 +18,8 @@ try{
   JSON.stringify(report,null,2)+'\n',{mode:0o600});
  console.log(JSON.stringify({gate:report.gate,observedWorkerCount:report.observedWorkerCount,
   verifiedExistingMerchantStack:report.verifiedExistingMerchantStack,
+  sourceReadbackStableAcrossReads:report.sourceReadbackStableAcrossReads,
+  sourceHashDriftIndependentlyProven:report.sourceHashDriftIndependentlyProven,
   changedSharedWorkers:report.changedSharedWorkers,
   mmfPaymentAuthorityBound:report.mmfPaymentAuthorityBound,
   missingCapabilities:report.missingCapabilities,

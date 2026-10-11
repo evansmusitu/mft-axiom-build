@@ -18,3 +18,7 @@ It compares the observed source SHA-256 hashes with the previously proven 2026-1
 GitHub Actions `mmf-paynow-live-product-scope-readonly-20261011.yml` is bound to the isolated branch and uses the existing **read-only** Cloudflare account token. The CI artifact `mmf-live-paynow-product-scope-readonly-20261011` contains **sanitized** capability booleans, missing-implementation names, source-drift Worker names, timestamp, and explicit denial of paid activation. It contains no raw code, merchant secrets, credentials, order references, customers, or messages.
 
 Local TDD: 4 focused red tests (`NOT_IMPLEMENTED`), then 7 focused green tests across the pure auditor and GET-only adapter; full regression and syntax checks must pass before commit. No customer-facing release is made by this audit.
+
+## Reproducibility of live source snapshots
+
+The first live audit returned hashes that differed from the historical snapshot for all three shared Workers. That is **not by itself evidence of an actual deployment change**: Cloudflare may return a changing multipart representation or embedded metadata. The audit therefore performs two separate GETs for every script and reports `sourceReadbackStableAcrossReads`. An unstable raw response forces `verifiedExistingMerchantStack=false`, and reported baseline mismatches must **not** be represented as proven new production code. Even stable source content that differs from the baseline requires manual reconciliation of script representation, source identity, and deployment history.

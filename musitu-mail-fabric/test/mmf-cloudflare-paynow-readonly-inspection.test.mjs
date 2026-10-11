@@ -17,9 +17,9 @@ function trial(mutate){const calls=[];const bindings={
   return new Response(t);
  };
  return {calls,fetchImpl:mutate??request};}
-test('six read-only requests never reveal source, key, transaction, or assume real payment enablement',async()=>{
+test('nine read-only requests never reveal source, key, transaction, or assume real payment enablement',async()=>{
  const o=trial();const r=await auditLiveMmfPaynowScope({accountId:'93f395f5121954671f92fffa453d6b61',token:secret,fetchImpl:o.fetchImpl});
- assert.equal(o.calls.length,6);assert.equal(r.cloudflareMethod,'GET');
+ assert.equal(o.calls.length,9);assert.equal(r.sourceReadbackStableAcrossReads,true);assert.equal(r.cloudflareMethod,'GET');
  assert.equal(r.eligibleForPaidActivation,false);assert.equal(r.realProviderPollCertified,false);
  assert.equal(r.transactionOrCustomerDataAccessed,false);assert.equal(r.cloudflareMutations,false);
  assert.equal(JSON.stringify(r).includes(secret),false);assert.equal(JSON.stringify(r).includes('PAYNOW_INTEGRATION_KEY'),false);
@@ -33,4 +33,20 @@ test('malformed, excessive or failed worker response fails closed',async()=>{
  const fns=[async()=>new Response('',{status:403}),async()=>new Response('a'.repeat(2_000_001)),
   async url=>url.endsWith('/settings')?Response.json({success:false}):new Response(js)];
  for(const fetchImpl of fns){await assert.rejects(()=>auditLiveMmfPaynowScope({accountId:'93f395f5121954671f92fffa453d6b61',token:secret,fetchImpl}),/DENIED/);}
+});
+
+test('nondeterministic source readback is flagged as unverified rather than claimed as production drift',async()=>{
+ let requestNo=0;
+ const o=trial(async(url,init)=>{
+  assert.equal(init.method,'GET');
+  const name=url.slice(base.length).replace(/\/settings$/,'');
+  if(url.endsWith('/settings'))return Response.json({success:true,result:{bindings:[]}});
+  requestNo++;
+  return new Response(js+'/* '+name+' '+requestNo+' */');
+ });
+ const r=await auditLiveMmfPaynowScope({accountId:'93f395f5121954671f92fffa453d6b61',token:secret,fetchImpl:o.fetchImpl});
+ assert.equal(r.sourceReadbackStableAcrossReads,false);
+ assert.equal(r.sourceHashDriftIndependentlyProven,false);
+ assert.equal(r.verifiedExistingMerchantStack,false);
+ assert.equal(r.eligibleForPaidActivation,false);
 });
