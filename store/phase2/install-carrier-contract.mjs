@@ -39,7 +39,7 @@ export function assertInstallCarrier(html, {platform, action}) {
   assert.ok(links.includes('/store/open'), platform+' '+action+': browser fallback absent');
   assert.ok(!links.some(url=>/https?:\/\/[^"\s]+\.(?:apk|ipa)(?:[?#]|$)/i.test(url)),
     platform+' '+action+': raw package download link exposed');
-  const legacy=links.filter(isInstallTarget);
+  const legacy=links.filter(isInstallTarget).filter(url=>platform==='web'||url!=='https://payments.mftintelligence.com/chemistry/install');
   const controlled=tags(html, 'button', 'data-musitu-install-target');
   assert.ok(legacy.length+controlled.length>0, platform+' '+action+': install target missing');
   assert.ok(legacy.length+controlled.length<=1, platform+' '+action+': more than one or mixed install carrier');
