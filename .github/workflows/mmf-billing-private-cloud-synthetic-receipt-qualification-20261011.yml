@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   synthetic-receipt-only:
-    if: github.event.before == '672e7f013ebe320f3d4cb8a264a3bf95b3658e7b'
+    if: github.event.before == 'ba964fbbe8a7486720e6879c45f4810076bb7451'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 20
@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test '${{ github.event.before }}' = '672e7f013ebe320f3d4cb8a264a3bf95b3658e7b'
+          test '${{ github.event.before }}' = 'ba964fbbe8a7486720e6879c45f4810076bb7451'
           npm run check
           npm test
           node --test test/mmf-cloud-private-synthetic-receipt.test.mjs test/mmf-cloud-private-receipt-window.test.mjs
@@ -108,6 +108,7 @@ jobs:
             sleep 2
           done
           [ "$ready" = 1 ] || { echo 'MMF_LOCAL_PRIVATE_BRIDGE_NOT_READY'; exit 1; }
+          sleep 8 # Cloudflare stage secret propagation; reject stale edge credentials.
           node src/staging/qualify-private-remote-evidence.mjs
           cleanup
           trap - EXIT
