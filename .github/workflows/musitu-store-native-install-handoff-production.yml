@@ -1,10 +1,7 @@
 name: MUSITU Store Native Install Handoff Production
 
 on:
-  push:
-    branches: [musitu-store-native-install-handoff-20260911]
-    paths:
-      - 'evidence/musitu-store/MUSITU_STORE_NATIVE_INSTALL_HANDOFF_EXECUTE_20260911.json'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +13,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
