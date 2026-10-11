@@ -20,5 +20,9 @@ if [[ "$test_status" -ne 0 ]]; then
   done < <(find store/phase1/android-client/app/build/outputs/androidTest-results/connected -type f -name '*.xml' -print0)
   echo '=== ANDROID11 CRASH LOG ==='
   adb logcat -d -b crash -v time | tail -100 || true
+  echo '=== ANDROID11 APP AND INSTRUMENTATION EVENTS ==='
+  adb logcat -d -b main -b system -v threadtime | grep -Ei 'MUSITU_API30|com.musitu.store|am_instrument|ActivityTaskManager|ActivityManager|Force stopping|FATAL EXCEPTION|AndroidRuntime|SecurityException|NoClassDef' | tail -180 || true
+  echo '=== ANDROID11 TOP ACTIVITIES ==='
+  adb shell dumpsys activity activities | tail -80 || true
 fi
 exit "$test_status"
