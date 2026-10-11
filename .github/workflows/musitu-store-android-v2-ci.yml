@@ -37,5 +37,28 @@ jobs:
         run: |
           set -euo pipefail
           gradle -p store/phase1/android-client --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Prove existing signed Store v1 client remains byte-for-byte unchanged
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = "395b488a7841cd5f32065cac9826983e0454d955"
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = "d5ee6821877a151abfe95c50e8677b2f1b19ae5f"
+          echo "MUSITU_STORE_V1_NATIVE_SOURCE_PRESERVED=PASS"
+      - name: Assert complete Android JVM negative-security test results
+        run: |
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as ET
+          files=glob.glob('store/phase1/android-client/app/build/test-results/testDebugUnitTest/TEST-*.xml')
+          assert files, 'missing Android v2 JVM test reports'
+          tests=failures=errors=skipped=0
+          for path in files:
+            root=ET.parse(path).getroot()
+            tests+=int(root.attrib.get('tests',0))
+            failures+=int(root.attrib.get('failures',0))
+            errors+=int(root.attrib.get('errors',0))
+            skipped+=int(root.attrib.get('skipped',0))
+          assert tests>=23,(files,tests)
+          assert not(failures or errors or skipped),(failures,errors,skipped)
+          print(f'MUSITU_STORE_V2_ANDROID_JVM_PASS tests={tests} failures={failures} errors={errors} skipped={skipped}')
+          PY
       - name: Verify existing signed catalog v2 JavaScript regression suite
         run: node --test store/core/catalog/signed-registry-v2.test.mjs
