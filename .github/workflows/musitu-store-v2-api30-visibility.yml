@@ -105,7 +105,15 @@ jobs:
             adb shell run-as com.musitu.store mkdir -p files
             adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-alpha.apk files/v2-real-fixture-alpha.apk
             adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-beta.apk files/v2-real-fixture-beta.apk
-            gradle -p store/phase1/android-client --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.musitu.store.V2AndroidApi30VisibilityTest
+            test_exit=0
+            gradle -p store/phase1/android-client --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.musitu.store.V2AndroidApi30VisibilityTest || test_exit=$?
+            if [ "$test_exit" -ne 0 ]; then
+              echo '=== ANDROID API30 INSTRUMENTATION TEST XML ==='
+              find store/phase1/android-client/app/build/outputs/androidTest-results/connected -type f -name '*.xml' -exec cat {} \; | tail -180 || true
+              echo '=== ANDROID API30 CRASH BUFFER ==='
+              adb logcat -d -b crash -v time | tail -180 || true
+            fi
+            exit "$test_exit"
       - name: Require Android API26 permission test success (not skipped)
         shell: bash
         run: |
