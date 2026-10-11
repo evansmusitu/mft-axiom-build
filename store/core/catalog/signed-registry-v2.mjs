@@ -84,7 +84,8 @@ export function verifySignedRegistryV2({
     throw new Error('catalog size or input type invalid');
   if(!Buffer.isBuffer(signatureBytes)||signatureBytes.length<8||signatureBytes.length>MAX_SIGNATURE_BYTES)
     throw new Error('signature size or input type invalid');
-  requireString(rootPublicKeyPem,'pinned rootPublicKeyPem',8192);
+  if(typeof rootPublicKeyPem!=='string'||rootPublicKeyPem.length<64||rootPublicKeyPem.length>8192||!rootPublicKeyPem.includes('-----BEGIN PUBLIC KEY-----'))
+    throw new Error('pinned rootPublicKeyPem must be a PEM public key');
   requireDigest(expectedRootPemSha256,'expected root pin');
   const actualRoot=sha256(Buffer.from(rootPublicKeyPem,'utf8'));
   if(actualRoot!==expectedRootPemSha256)throw new Error('root signer pin mismatch');
