@@ -138,3 +138,22 @@ test('verified registry is immutable to callers',()=>{
   const r=verify();
   assert.throws(()=>r.registry.apps[0].releases[0].packageId='com.evil.app',/read only/i);
 });
+
+test('existing Phase-1 MUSITU catalog PEM trust anchor retains its exact historical fingerprint',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const pem=readFileSync('store/phase1/catalog-signing-public.pem','utf8');
+  const sha=createHash('sha256').update(Buffer.from(pem,'utf8')).digest('hex');
+  assert.equal(sha,'4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0');
+});
+test('rejects an unsupported platform even under valid root signature',()=>{
+  const data=fresh();data.apps[0].releases[0].platform='ios';
+  assert.throws(()=>verify(data),/unsupported platform/i);
+});
+test('rejects trust watermark omissions rather than assuming first installation',()=>{
+  const a=opts();
+  assert.throws(()=>verifySignedRegistryV2({...a,highestAcceptedRevision:undefined}),/watermark/i);
+});
+test('rejects signed manifests valid for more than thirty days',()=>{
+  const data=fresh();data.expiresAt='2026-11-20T00:00:00.000Z';
+  assert.throws(()=>verify(data),/validity|window/i);
+});
