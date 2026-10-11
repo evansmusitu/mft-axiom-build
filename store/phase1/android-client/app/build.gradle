@@ -10,6 +10,13 @@ android {
         targetSdk 36
         versionCode 10003
         versionName '1.0.3'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
     }
 
     buildTypes {
@@ -20,4 +27,13 @@ android {
     }
 }
 
-dependencies { implementation 'androidx.core:core:1.16.0' }
+dependencies {
+    implementation 'androidx.core:core:1.16.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
+
