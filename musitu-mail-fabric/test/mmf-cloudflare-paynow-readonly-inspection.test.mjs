@@ -47,6 +47,7 @@ test('nondeterministic source readback is flagged as unverified rather than clai
  const r=await auditLiveMmfPaynowScope({accountId:'93f395f5121954671f92fffa453d6b61',token:secret,fetchImpl:o.fetchImpl});
  assert.equal(r.sourceReadbackStableAcrossReads,false);
  assert.equal(r.sourceHashDriftIndependentlyProven,false);
+ assert.deepEqual(r.changedSharedWorkers,[]); // must not claim actual changes if raw source retrieval is nondeterministic
  assert.equal(r.verifiedExistingMerchantStack,false);
  assert.equal(r.eligibleForPaidActivation,false);
 });

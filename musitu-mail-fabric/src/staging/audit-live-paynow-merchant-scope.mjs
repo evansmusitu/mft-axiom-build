@@ -37,6 +37,7 @@ export async function auditLiveMmfPaynowScope({accountId,token,fetchImpl=globalT
  const status=assessMmfLivePaynowScope(inventory);
  return Object.freeze({...status,
   verifiedExistingMerchantStack:sameBytesAcrossReads&&status.verifiedExistingMerchantStack,
+  changedSharedWorkers:sameBytesAcrossReads?status.changedSharedWorkers:Object.freeze([]),
   sourceReadbackStableAcrossReads:sameBytesAcrossReads,
   sourceHashDriftIndependentlyProven:sameBytesAcrossReads&&status.changedSharedWorkers.length>0,
   baselineMismatchMayBeNondeterministicSource:!sameBytesAcrossReads,
