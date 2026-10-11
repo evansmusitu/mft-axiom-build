@@ -119,7 +119,9 @@ final class V2SignedAndroidCatalog {
        List<String> allowedArtifactHosts,long nowMillis) throws Exception {
     require(catalogBytes!=null&&catalogBytes.length>=2&&catalogBytes.length<=MAX_CATALOG_BYTES,"invalid catalog size");
     require(signatureBytes!=null&&signatureBytes.length>=8&&signatureBytes.length<=MAX_SIGNATURE_BYTES,"invalid signature size");
-    string(rootPublicKeyPem,"pinned root PEM",8192);
+    require(rootPublicKeyPem!=null&&rootPublicKeyPem.length()>64&&rootPublicKeyPem.length()<=8192&&
+      rootPublicKeyPem.contains("-----BEGIN PUBLIC KEY-----")&&rootPublicKeyPem.contains("-----END PUBLIC KEY-----"),
+      "invalid pinned root PEM");
     hash(expectedRootPemSha256,"root pin");
     require(digest(rootPublicKeyPem.getBytes(StandardCharsets.UTF_8)).equals(expectedRootPemSha256),"root signer pin mismatch");
     require(highestAcceptedRevision>=0,"trusted revision watermark missing");
