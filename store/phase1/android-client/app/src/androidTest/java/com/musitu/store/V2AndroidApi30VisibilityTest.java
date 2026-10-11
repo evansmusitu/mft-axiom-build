@@ -40,6 +40,7 @@ public final class V2AndroidApi30VisibilityTest {
     }catch(PackageManager.NameNotFoundException expected){}
   }
   @Test public void android11PermissionCancellationRetryAndPackageVisibility()throws Exception {
+    android.util.Log.i("MUSITU_API30","STEP_01_ENTER_TEST");
     assertEquals("isolated API30 runtime required",30,Build.VERSION.SDK_INT);
     Context context=ApplicationProvider.getApplicationContext();
     PackageManager pm=context.getPackageManager();
@@ -48,19 +49,23 @@ public final class V2AndroidApi30VisibilityTest {
     assertNotInstalled(pm,packageId);
     assertFalse("test Store must start without install-unknown-apps approval",pm.canRequestPackageInstalls());
 
+    android.util.Log.i("MUSITU_API30","STEP_02_BEFORE_EPHEMERAL_CATALOG");
     V2RealApkInstrumentedTest.Signed signed=
       new V2RealApkInstrumentedTest.Signed(context,false);
     V2SignedAndroidCatalog.Release release=signed.catalog.selectAndroid("fixture-alpha");
     File apk=V2AndroidNativeInstallPolicy.stage(
       new ByteArrayInputStream(signed.archives[0].bytes),context.getFilesDir(),release);
 
+    android.util.Log.i("MUSITU_API30","STEP_03_CATALOG_AND_APK_READY");
     // Deny source authorization by backing out of Android Settings. The APK
     // must remain absent and the Store must continue to require approval.
     assertEquals(V2AndroidInstallBridge.Result.USER_APPROVAL_REQUIRED,
       V2AndroidInstallBridge.requestInstall(context,signed.catalog,"fixture-alpha",apk));
+    android.util.Log.i("MUSITU_API30","STEP_04_FIRST_SOURCE_SETTINGS_OPENED");
     UiObject2 sourceSwitch=ui.wait(Until.findObject(By.clazz("android.widget.Switch")),25000L);
     assertNotNull("OS source permission settings missing",sourceSwitch);
     assertFalse(sourceSwitch.isChecked());
+    android.util.Log.i("MUSITU_API30","STEP_05_SOURCE_SWITCH_PRESENT_DENIED");
     ui.pressBack();
     assertFalse("leaving Settings silently granted per-source approval",pm.canRequestPackageInstalls());
     assertNotInstalled(pm,packageId);
@@ -70,10 +75,12 @@ public final class V2AndroidApi30VisibilityTest {
       V2AndroidInstallBridge.requestInstall(context,signed.catalog,"fixture-alpha",apk));
     sourceSwitch=ui.wait(Until.findObject(By.clazz("android.widget.Switch")),25000L);
     assertNotNull("Android Settings source switch missing on retry",sourceSwitch);
+    android.util.Log.i("MUSITU_API30","STEP_06_APPROVING_SOURCE_SETTINGS");
     sourceSwitch.click();
     long deadline=SystemClock.uptimeMillis()+20000;
     while(!pm.canRequestPackageInstalls()&&SystemClock.uptimeMillis()<deadline)SystemClock.sleep(250);
     assertTrue("user did not grant Android source approval",pm.canRequestPackageInstalls());
+    android.util.Log.i("MUSITU_API30","STEP_07_SOURCE_APPROVED");
     ui.pressBack();
 
     // Cancel the first individual APK request. Source approval cannot silently
@@ -82,6 +89,7 @@ public final class V2AndroidApi30VisibilityTest {
       V2AndroidInstallBridge.requestInstall(context,signed.catalog,"fixture-alpha",apk));
     UiObject2 install=ui.wait(Until.findObject(By.text(Pattern.compile("(?i)^install$"))),25000L);
     assertNotNull("separate APK Install button missing",install);
+    android.util.Log.i("MUSITU_API30","STEP_08_APK_DIALOG_SHOWN_CANCEL");
     ui.pressBack();
     assertNotInstalled(pm,packageId);
 
@@ -90,6 +98,7 @@ public final class V2AndroidApi30VisibilityTest {
       V2AndroidInstallBridge.requestInstall(context,signed.catalog,"fixture-alpha",apk));
     install=ui.wait(Until.findObject(By.text(Pattern.compile("(?i)^install$"))),25000L);
     assertNotNull("APK installer missing after cancellation and retry",install);
+    android.util.Log.i("MUSITU_API30","STEP_09_RETRY_DIALOG_SHOWN_APPROVE");
     install.click();
 
     PackageInfo installed=null;
@@ -102,6 +111,7 @@ public final class V2AndroidApi30VisibilityTest {
         SystemClock.sleep(500);
       }
     }
+    android.util.Log.i("MUSITU_API30","STEP_10_INSTALL_RESULT_READ");
     assertNotNull("installed signed publisher package is not visible to the Store after user consent",installed);
     assertEquals(packageId,installed.packageName);
     assertEquals(release.versionCode,installed.getLongVersionCode());
