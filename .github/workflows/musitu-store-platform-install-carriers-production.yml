@@ -1,10 +1,6 @@
 name: MUSITU Store Platform Install Carriers Production
 
 on:
-  push:
-    branches: [musitu-store-native-install-handoff-20260911]
-    paths:
-      - 'evidence/musitu-store/MUSITU_STORE_PLATFORM_INSTALL_CARRIERS_EXECUTE_20260911.json'
   workflow_dispatch:
 
 permissions:
@@ -17,6 +13,7 @@ concurrency:
 
 jobs:
   deploy-verify-rollback-redeploy:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
