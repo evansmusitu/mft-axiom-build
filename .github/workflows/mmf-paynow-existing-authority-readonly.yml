@@ -1,0 +1,94 @@
+name: MUSITU Mail Fabric Existing Paynow Authority Read-Only Inventory
+
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-paynow-existing-authority-readonly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-paynow-inventory-20261011
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read exact live shared-payment worker interface (GET only, no funds)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||
+             typeof token!=='string'||token.length<20)throw Error('NO_AUTHORIZED_READONLY_CLOUDFLARE_TOKEN');
+          if(process.env.GITHUB_REF_NAME!=='product/musitu-mail-fabric-isolated-20261009')
+            throw Error('WRONG_BRANCH');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account;
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          const get=async path=>{
+            const r=await fetch(base+path,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(15000)});
+            if(!r.ok)throw Error('CLOUDFLARE_WORKER_READ_HTTP_'+r.status);
+            if(path.endsWith('/settings')){
+              const value=await r.json();
+              if(value.success!==true)throw Error('CLOUDFLARE_WORKER_SETTINGS_DENIED');
+              return value.result;
+            }
+            return await r.text();
+          };
+          const names=['mft-phase8-external-authority','mft-paynow-transport-gateway','mft-fmi-billing'];
+          const observed=[];
+          for(const name of names){
+            const source=await get('/workers/scripts/'+name);
+            if(source.length>2000000||source.length===0)throw Error('UNEXPECTED_SOURCE_LENGTH');
+            const cfg=await get('/workers/scripts/'+name+'/settings');
+            const bindings=(cfg?.bindings||[]).map(b=>({
+              binding_name:typeof b.name==='string'?b.name:'UNKNOWN',
+              type:typeof b.type==='string'?b.type:'UNKNOWN',
+              service:b.type==='service'&&typeof b.service==='string'?b.service:null
+            })).filter(b=>/^[A-Za-z_][A-Za-z0-9_]{0,79}$/.test(b.binding_name));
+            const recognizedRoutes=[...new Set((source.match(/\/(?:internal\/paynow|billing|v1\/billing)\/[A-Za-z0-9_./:-]{1,90}/g)||[])
+              .filter(p=>!p.includes('..')&&p.length<125))].sort();
+            const safeFields=[...new Set((source.match(/\b(?:body|payload|input|data)\.(?:amount|currency|reference|returnUrl|resultUrl|customerId|orderReference|pollUrl|browserUrl|integrationId|plan|status|providerReference)\b/g)||[])
+              .map(v=>v.slice(v.indexOf('.')+1)))].sort();
+            observed.push({name,source_sha256:createHash('sha256').update(source).digest('hex'),
+              source_bytes:Buffer.byteLength(source),binding_names_and_types:bindings,
+              route_candidates:recognizedRoutes,known_request_field_candidates:safeFields});
+          }
+          const result={schema:'mmf-existing-paynow-readonly-interface-v1',
+            account_verified:true,inventory_only:true,live_revenue_not_activated:true,
+            contract_implementation_not_approved:true,source_exposed:false,
+            raw_merchant_secrets_exposed:false,customer_database_read:false,
+            provider_transaction_called:false,cloudflare_mutations:false,
+            workers:observed,gate:'SHARED_PAYMENT_READONLY'};
+          writeFileSync('mmf-existing-paynow-audit.json',JSON.stringify(result,null,2)+'\n',{mode:0o600});
+          const digest=createHash('sha256').update(JSON.stringify(result)).digest('hex');
+          console.log(JSON.stringify({gate:result.gate,worker_count:observed.length,
+            source_sha256:observed.map(x=>({name:x.name,sha256:x.source_sha256})),
+            source_exposed:false,mutation_performed:false,
+            digest_sha256:digest}));
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: mmf-existing-paynow-readonly-20261011
+          path: mmf-existing-paynow-audit.json
+          retention-days: 10
+          if-no-files-found: error
