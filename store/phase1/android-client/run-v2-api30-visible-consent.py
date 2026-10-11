@@ -30,6 +30,23 @@ def instrument(stage):
         raise AssertionError(f"Android instrumentation {stage} did not pass as one test: {out[-4500:]}")
     return out
 
+def begin_instrument(stage):
+    print(f"=== ANDROID11 LIVE {stage} ===",flush=True)
+    return subprocess.Popen(
+        ["adb","shell","am","instrument","-w","-e","class",f"{TEST}#{stage}",RUNNER],
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+
+def finish_instrument(proc,stage):
+    try:
+        out,err=proc.communicate(timeout=75)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out,err=proc.communicate()
+        raise AssertionError(f"Android instrument session {stage} never completed: {out[-3000:]} {err[-2000:]}")
+    print(out[-4000:]+err[-2000:],flush=True)
+    if proc.returncode or not re.search(r"OK \\(\\s*1 test\\s*\\)",out):
+        raise AssertionError(f"Android instrument {stage} did not pass: {out[-4000:]} {err[-2000:]}")
+
 def window():
     # Read Android's actual foreground accessibility hierarchy, never metadata
     # or a hard-coded screen coordinate that could silently approve the wrong UI.
@@ -86,18 +103,28 @@ def main():
     print("MUSITU_API30_SETTINGS_UI_TAP_APPLIED",flush=True)
     back()
     # Android can kill the Store test process as this source permission changes.
-    instrument("stage03AfterSourceConsentShowsSeparateInstaller")
-    install,position=locate(lambda n:n.get("text","").strip().lower()=="install","individual APK install button")
-    assert install.get("enabled")=="true","installer denied user review"
-    assert not is_installed(),"APK installed before per-APK consent"
-    back() # User cancels first APK consent
-    assert not is_installed(),"APK installed after cancellation"
-    print("MUSITU_API30_APK_CANCELLATION_PREVENTED_INSTALL=PASS",flush=True)
-    instrument("stage04ConfirmCancelledApkAndRetry")
-    install,position=locate(lambda n:n.get("text","").strip().lower()=="install","APK install button on retry")
-    assert not is_installed(),"APK installed during retry before consent"
-    tap(*position) # Actual system package installer visible Install control
-    wait_install()
+    # Keep Store instrumentation process alive during APK staging. The OS
+    # installer needs ongoing read access to the private FileProvider URI.
+    request=begin_instrument("stage03AfterSourceConsentShowsSeparateInstaller")
+    try:
+        install,position=locate(lambda n:n.get("text","").strip().lower()=="install","individual APK install button")
+        assert install.get("enabled")=="true","installer denied user review"
+        assert not is_installed(),"APK installed before per-APK consent"
+        back() # User cancels first APK consent
+        assert not is_installed(),"APK installed after cancellation"
+        print("MUSITU_API30_APK_CANCELLATION_PREVENTED_INSTALL=PASS",flush=True)
+    finally:
+        finish_instrument(request,"stage03AfterSourceConsentShowsSeparateInstaller")
+    # Retry using a new OS install request, still holding the source process
+    # alive until Android's visible Install button has been tapped.
+    request=begin_instrument("stage04ConfirmCancelledApkAndRetry")
+    try:
+        install,position=locate(lambda n:n.get("text","").strip().lower()=="install","APK install button on retry")
+        assert not is_installed(),"APK installed during retry before consent"
+        tap(*position) # Actual system package installer visible Install control
+        wait_install()
+    finally:
+        finish_instrument(request,"stage04ConfirmCancelledApkAndRetry")
     instrument("stage05VerifyApprovedInstalledPackageAndSigner")
     print("MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS stages=5 failures=0 errors=0 skipped=0",flush=True)
 
