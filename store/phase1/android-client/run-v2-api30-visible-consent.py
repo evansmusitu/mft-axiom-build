@@ -61,7 +61,10 @@ def tap(x,y):
 def back():adb("shell","input","keyevent","KEYCODE_BACK")
 
 def is_installed():
-    return bool(adb("shell","pm","path",PACKAGE).strip())
+    # pm path returns status 1 for a correctly absent package on Android11.
+    # pm list packages exits 0 for both absent and present; match exact ID.
+    found=adb("shell","pm","list","packages",PACKAGE)
+    return any(line.strip()==f"package:{PACKAGE}" for line in found.splitlines())
 
 def wait_install():
     for _ in range(60):
