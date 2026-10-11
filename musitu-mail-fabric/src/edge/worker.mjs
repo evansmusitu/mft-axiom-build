@@ -7,6 +7,7 @@ import {readBoundedWebhookBody} from '../webhooks/bounded-body.mjs';
 import {PolicyRejection} from '../policy.mjs';
 import {SenderRegistry,SenderVerificationError} from '../security/sender-ownership.mjs';
 import {verifyLiveRelease} from '../security/release-authorization.mjs';
+import {verifyProviderQualification} from '../security/provider-qualification.mjs';
 import {assessTenantHealth} from '../ops/health.mjs';
 import {addOperatorSuppression} from '../ops/operator-suppression.mjs';
 
@@ -35,6 +36,9 @@ function fromEnv(env,providerFactory,{receiveOnly=false}={}){
       !/^whsec_[A-Za-z0-9+/=_-]{32,}$/.test(env.MMF_WEBHOOK_SECRET)||
       Buffer.from(env.MMF_WEBHOOK_SECRET.slice(6).replace(/-/g,'+').replace(/_/g,'/'),'base64').length<24)
      throw Error('LIVE_PROVIDER_FEEDBACK_NOT_QUALIFIED');
+   // A configured webhook secret proves neither registration nor real callback.
+   // Independently pinned, time-scoped qualification is a second fail-closed gate.
+   verifyProviderQualification(env);
  }
  if(!TENANT.test(String(env.MMF_TENANT_ID||'')))throw Error('INVALID_TENANT_CONFIG');
  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(String(env.MMF_FROM_DOMAIN||'')))throw Error('INVALID_SENDER_CONFIG');

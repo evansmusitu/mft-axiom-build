@@ -7,6 +7,7 @@ import {createD1Compat} from './helpers/sqlite-d1.mjs';
 import {generateDemonstrationKeys} from '../src/evidence.mjs';
 import {createWorker} from '../src/edge/worker.mjs';
 import {provisionTestRelease} from './helpers/release-grant.mjs';
+import {provisionSyntheticQualification} from './helpers/qualification-grant.mjs';
 function fixture(t,{provider='resend'}={}){
  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../src/durable/schema.sql',import.meta.url),'utf8'));t.after(()=>sql.close());
  const keys=generateDemonstrationKeys(),now=Date.now();
@@ -34,12 +35,12 @@ test('two signed owner approvals still cannot activate a Resend sender without a
  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,0);
  assert.equal(f.calls.sends,0);
 });
-test('a configured valid webhook signing secret and sender ownership can pass preflight without sending mail',async t=>{
+test('a configured webhook secret alone must not authorize live delivery without independently verified provider qualification',async t=>{
  const f=fixture(t);f.env.MMF_WEBHOOK_ENABLED='true';
  f.env.MMF_WEBHOOK_SECRET='whsec_'+randomBytes(32).toString('base64');
  const response=await f.worker.fetch(f.req(),f.env);
- assert.equal(response.status,202);
- assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,1);
+ assert.equal(response.status,503);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,0);
  assert.equal(f.calls.sends,0);
 });
 test('configured webhook flag with missing or malformed secret remains fail-closed',async t=>{
@@ -55,4 +56,14 @@ test('Postal cannot be commercially released without a separately qualified auth
  assert.equal((await f.worker.fetch(f.req(),f.env)).status,503);
  assert.equal(f.calls.sends,0);
  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,0);
+});
+
+test('independent provider qualification allows simulated API intake without network sending',async t=>{
+ const f=fixture(t);f.env.MMF_WEBHOOK_ENABLED='true';
+ f.env.MMF_WEBHOOK_SECRET='whsec_'+randomBytes(32).toString('base64');
+ provisionSyntheticQualification(f.env);
+ const response=await f.worker.fetch(f.req(),f.env);
+ assert.equal(response.status,202);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM mail_messages').get().n,1);
+ assert.equal(f.calls.sends,0,'fake test provider must not send external email');
 });
