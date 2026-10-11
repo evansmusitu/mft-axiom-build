@@ -10,6 +10,7 @@ function trial(mutate){const calls=[];const bindings={
  [transport]:['FMI_TRANSPORT_BRIDGE_TOKEN'],[billing]:['PAYMENT_AUTHORITY','PAYNOW_TRANSPORT']};
  const request=async(url,init)=>{calls.push({url,method:init.method,redirect:init.redirect});
   assert.equal(init.method,'GET');assert.equal(init.redirect,'error');assert.equal(init.headers.authorization,`Bearer ${secret}`);
+  assert.equal(init.cache,'no-store');assert.equal(init.headers['cache-control'],'no-store');
   const short=url.slice(base.length),name=short.replace(/\/settings$/,'');
   if(![authority,transport,billing].includes(name))return new Response('not found',{status:404});
   if(short.endsWith('/settings'))return Response.json({success:true,result:{bindings:bindings[name].map(name=>({name,type:'secret_text'}))}});

@@ -103,3 +103,18 @@ test('private binding failures return denied without leaking tokens, secrets or 
   }
  }finally{x.close()}
 });
+
+
+test('private service-binding acknowledgement denies unknown keys and forged unrelated authority fields',async()=>{
+ const x=makeHarness();try{await open(x.db,x.down);
+  const valid={orderReference:fields.orderReference,status:'SANDBOX_SETTLEMENT_RECORD_ONLY',idempotent:false,
+   realProviderSettlementVerified:false,canAcceptCustomerFunds:false,grantsMailSending:false,canIssueTaxInvoice:false};
+  for(const extra of [{merchantIntegrationKey:'NO_MERCHANT_KEY_PERMITTED'},
+    {crossProductEntitlement:'musitu-fmi'}, {actualRefundSubmitted:false}]){
+   const service={fetch:async()=>Response.json({...valid,...extra})};
+   await assert.rejects(()=>deliverMmfReceiptToPrivateStage({quote,receipt:seal(paid),env:{...x.env,MMF_PRIVATE_PAYMENT_STAGE:service},nowMs:now+1}),/MMF_PRIVATE_STAGE_BRIDGE_DENIED/);
+  }
+  assert.equal(x.calls.length,0);
+  assert.equal((await x.db.prepare('SELECT state FROM mmf_prep_orders WHERE order_reference=?').bind(fields.orderReference).first()).state,'PENDING');
+ }finally{x.close()}
+});

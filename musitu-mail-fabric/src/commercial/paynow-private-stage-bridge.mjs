@@ -74,6 +74,15 @@ export async function deliverMmfReceiptToPrivateStage({quote,receipt,env,nowMs=D
     'content-type':'application/json','cache-control':'no-store'},body});
   const response=await env.MMF_PRIVATE_PAYMENT_STAGE.fetch(request);
   const acknowledged=await readSmallJson(response);
+  // The trusted private stage may return only the bounded synthetic ledger
+  // fields. Unknown authority/merchant/customer entitlements fail closed.
+  const allowed=new Set(['orderReference','status','idempotent',
+   'realProviderSettlementVerified','canAcceptCustomerFunds','canIssueTaxInvoice',
+   'grantsMailSending','grantsFmiPlan','externalCheckoutCreated',
+   ...(expected==='REVERSED_SANDBOX'?['actualRefundSubmitted','realProviderReversalVerified']:[])]);
+  if(Object.keys(acknowledged).some(k=>!allowed.has(k))||
+    ['grantsFmiPlan','externalCheckoutCreated','realProviderReversalVerified']
+     .some(k=>Object.hasOwn(acknowledged,k)&&acknowledged[k]!==false))deny();
   if(acknowledged.orderReference!==trusted.orderReference||acknowledged.status!==expected||
     typeof acknowledged.idempotent!=='boolean'||
     acknowledged.realProviderSettlementVerified!==false||

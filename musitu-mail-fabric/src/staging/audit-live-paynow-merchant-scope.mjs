@@ -11,12 +11,12 @@ function deny(){throw Error('MMF_PAYNOW_CLOUDFLARE_READONLY_DENIED')}
 export async function auditLiveMmfPaynowScope({accountId,token,fetchImpl=globalThis.fetch}={}){
  if(accountId!==ACCOUNT||typeof token!=='string'||token.length<20||typeof fetchImpl!=='function')deny();
  const base=`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/workers/scripts/`;
- const headers={authorization:`Bearer ${token}`,accept:'application/json'};
+ const headers={authorization:`Bearer ${token}`,accept:'application/json','cache-control':'no-store'};
  const inventory={};
  let normalizedSourceStable=true,legacyRepresentationComparable=true;
  for(const name of NAMES){
   const get=async path=>{
-   let res;try{res=await fetchImpl(base+name+path,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(15000)});}catch{deny()}
+   let res;try{res=await fetchImpl(base+name+path,{method:'GET',headers,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});}catch{deny()}
    if(!(res instanceof Response)||!res.ok)deny();
    const contentLength=res.headers.get('content-length');
    if(contentLength!==null&&(!/^\d+$/.test(contentLength)||Number(contentLength)>2_000_000))deny();
