@@ -6,7 +6,7 @@
 
 Phase 1 has two independently measurable milestones:
 
-1. **First paid preparation contract**: a customer chooses and pays for scoped assessment, setup design, verification readiness or non-production integration. Work never includes real customer delivery or customer secrets until legal and contractual approvals. This may generate revenue earlier than production sending, but **no customer, business status, payment rail, or invoice has been verified as of this entry**.
+1. **First paid preparation contract**: a customer chooses and pays for scoped assessment, setup design, verification readiness or non-production integration. Work never includes real customer delivery or customer secrets until legal and contractual approvals. This may generate revenue earlier than production sending, but **the previously integrated Paynow rail exists within MUSITU; a distinct MMF paid-product integration, lawful invoice authority and first customer remain unverified**.
 2. **First authorized, bounded live delivery pilot**: use MUSITU Mail Fabric's customer-facing governed service with Resend as the replaceable SMTP/API transport. This is NOT approved yet. It requires every production readiness gate below and explicit manual release, not merely a provider free tier or successful code tests.
 
 ### Proven as of 2026-10-11
@@ -31,12 +31,13 @@ Phase 1 has two independently measurable milestones:
 
 These are starting price **proposals**, not tested market prices or published commitments. Customer contracts and lawful invoice issuer must be determined before any quote is sent as binding.
 
-## Zero/low-budget payment path: Zimbabwe
+## Reuse the existing MUSITU Paynow integration — no new merchant registration
 
-- Paynow Zimbabwe says merchant onboarding has **no signup/usage fee**, commissions are transaction-based; it supports EcoCash/OneMoney/Telecash, Zimswitch VPayments and eligible cards. Funds settle to a local Zimbabwean bank account. [Merchant guide](https://www.paynow.co.zw/home/merchanttutorial); [fees](https://www.paynow.co.zw/Home/Fees).
-- Registration is **not done**. Merchant signup may require owner's information, account registration, bank settlement details and, for international card acceptance, additional business identification. The form explicitly distinguishes local-only checkout from international network processing. [Register](https://www.paynow.co.zw/Customer/Register). Never invent business registration, bank account, payee name, or transaction ID.
-- No Paynow API keys, payment links, webhooks or account connection are available to this runbook. Until verified, keep pricing as a **proposal**; no claim that MUSITU can already automatically charge or settle payments.
-- Merchant may alternatively use a lawful, independently verified payment method agreed in contract. Never demand payment to an unverified personal destination.
+The earlier statement that Paynow merchant registration was not done **was incorrect**. MUSITU's existing Paynow integration (merchant integration ID **26343**, keep any secret key private) has already been used through its Phase-8 payment authority `mft-phase8-external-authority`, shared transport `mft-paynow-transport-gateway`, and product-specific FMI billing `mft-fmi-billing`. The historical FMI test proved provider checkout initiation; a separate 2026-09-13 AXIOM real-money E2E certificate records a settled USD $19 payment and one exact entitlement. These are historical evidence, **not today's live merchant audit or proof that MMF can collect money now**. We are reusing that established checkout architecture, not opening an additional Paynow account or copying merchant credentials into Mail Fabric. See `docs/2026-10-11-existing-paynow-authority-reuse.md`.
+
+FMI's `FOUNDING` (USD 49) and `PRO` (USD 149) subscriptions are **FMI-only**; a paid FMI subscription cannot pay for MMF. Likewise Chemistry's existing endpoint is Chemistry-only. MUSITU Mail Fabric must have an independently authorized product quote, exact business invoice, its **own** order/contract identifiers and an isolated settlement/entitlement state, while reusing only the existing shared merchant/payment authority and transport. Never redirect customers to an unrelated FMI or Chemistry checkout.
+
+The proposed USD $99 one-time assessment remains **a proposal**, not a permitted charge. The isolated `src/commercial/fmi-paynow-reuse.mjs` now defines the MMF-only quote, official Paynow URL allowlist and strict, pinned-issuer signed receipt validation contract. It **cannot initiate money or mark a business-ready payment route operational**. A real MMF-specific authority-binding route, legal/tax/contract approvals, provider confirmation and live negative tests must exist before a checkout can be offered. The checkout must remain unavailable in the public product until those gates pass. Pending/cancelled/created statuses never become paid; Paynow verification must originate from the trusted server-side payment authority, not user-provided query parameters.
 
 ## Commercial/legal reviews
 
@@ -46,7 +47,7 @@ These are starting price **proposals**, not tested market prices or published co
 
 ## Zero-cost execution order, with externally owned steps distinguished
 
-**MUSITU engineering (safe in isolation):** maintain immutable independent evidence test, continue real MMF durable outbox/feedback integration in new disposable resources, expand incident/recovery exercises, keep customer API OFF, produce bounded monitoring and quotas. **Business owner:** supply valid merchant identity and settlement account via provider's official site (never chat secrets), obtain legal/tax and Resend agency review, identify exactly one consenting prospect and agree pilot scope, and nominate independent release and independent security reviewer. **External independent reviewers:** conduct security/recovery/legality assessments and sign scoped approvals. **Only after all these:** create a production-scoped webhook (not the disabled test webhook), provision fresh protected infrastructure, grant bounded production approval, and conduct a precisely observed low-volume pilot.
+**MUSITU engineering (safe in isolation):** maintain immutable independent evidence test, continue real MMF durable outbox/feedback integration in new disposable resources, expand incident/recovery exercises, keep customer API OFF, produce bounded monitoring and quotas. **Business owner:** confirm the existing approved merchant/payee identity and settlement account without registering again, complete a product-specific MMF payment authority binding, obtain legal/tax and Resend agency review, identify exactly one consenting prospect and agree pilot scope, and nominate independent release and independent security reviewer. **External independent reviewers:** conduct security/recovery/legality assessments and sign scoped approvals. **Only after all these:** create a production-scoped webhook (not the disabled test webhook), provision fresh protected infrastructure, grant bounded production approval, and conduct a precisely observed low-volume pilot.
 
 ## Success evidence metrics — all currently unknown for commercial customers
 
