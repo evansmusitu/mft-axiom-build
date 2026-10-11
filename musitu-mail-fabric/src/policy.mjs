@@ -3,6 +3,19 @@ const ADDR=/^[a-z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9]
 const ID=/^[a-z][a-z0-9_-]{2,63}$/;
 const IDEM=/^[A-Za-z0-9._:-]{8,128}$/;
 const TYPES=new Set(['SECURITY','ACCOUNT','RECEIPT','SUPPORT','SERVICE_ALERT']);
+const SAFE_DOMAIN=/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const BODY_LINK=/(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+function verifyBodyLinks(text,allowed=[]){
+  const matches=text.match(BODY_LINK)||[];
+  if(matches.length>5)throw new PolicyRejection('UNAPPROVED_LINK');
+  for(const match of matches){
+    const token=match.replace(/[.,;!?)}\]]+$/,'');
+    if(!token.startsWith('https://'))throw new PolicyRejection(token.startsWith('http://')?'INSECURE_LINK':'UNAPPROVED_LINK');
+    let url;try{url=new URL(token);}catch{throw new PolicyRejection('UNAPPROVED_LINK');}
+    if(url.protocol!=='https:'||url.username||url.password||url.port||!SAFE_DOMAIN.test(url.hostname)||!allowed.includes(url.hostname))
+      throw new PolicyRejection('UNAPPROVED_LINK');
+  }
+}
 export class PolicyRejection extends Error {constructor(code){super(code);this.name='PolicyRejection';this.code=code;}}
 /** Common recipient syntax for queued messages and privacy-preserving manual suppression. */
 export function normalizeRecipientAddress(value){
@@ -20,6 +33,7 @@ export function validateSubmission(input,config,suppressed){
   if(typeof text!=='string'||text.trim().length<1||Buffer.byteLength(text,'utf8')>25000)throw new PolicyRejection('INVALID_TEXT');
   if(typeof idempotencyKey!=='string'||!IDEM.test(idempotencyKey))throw new PolicyRejection('INVALID_IDEMPOTENCY_KEY');
   if(typeof kind!=='string'||!TYPES.has(kind))throw new PolicyRejection('PURPOSE_NOT_ALLOWED');
+  verifyBodyLinks(text,config.allowedLinkDomains);
   const fromAddress=from.toLowerCase(),toAddress=to.toLowerCase();
   if(!config.verifiedDomains.includes(fromAddress.split('@')[1]))throw new PolicyRejection('DOMAIN_NOT_VERIFIED');
   if(config.denyExternalRecipients&&!config.allowedRecipientDomains?.includes(toAddress.split('@')[1]))throw new PolicyRejection('RECIPIENT_POLICY_REJECTED');
@@ -33,4 +47,8 @@ export function validateConfig(config){
   if(!Array.isArray(config.allowedRegions)||!config.allowedRegions.length||config.allowedRegions.some(x=>typeof x!=='string'))throw new TypeError('Explicit legal data region policy required');
   if(typeof config.provider?.send!=='function'||typeof config.provider?.region!=='string')throw new TypeError('Delivery provider required');
   if(config.denyExternalRecipients&&(!Array.isArray(config.allowedRecipientDomains)||!config.allowedRecipientDomains.length))throw new TypeError('Explicit recipient domain policy required');
+  if(config.allowedLinkDomains!==undefined&&(!Array.isArray(config.allowedLinkDomains)||config.allowedLinkDomains.length>100||
+     new Set(config.allowedLinkDomains).size!==config.allowedLinkDomains.length||
+     config.allowedLinkDomains.some(x=>typeof x!=='string'||!SAFE_DOMAIN.test(x))))
+    throw new TypeError('Explicit HTTPS body link domains required');
 }

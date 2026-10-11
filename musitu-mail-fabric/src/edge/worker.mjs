@@ -68,7 +68,14 @@ function fromEnv(env,providerFactory,{receiveOnly=false}={}){
  if(!Number.isSafeInteger(maxAgeSeconds)||maxAgeSeconds<60||maxAgeSeconds>604800)throw Error('INVALID_QUEUE_TTL');
  const perRecipient=env.MMF_DAILY_RECIPIENT_LIMIT===undefined?20:Number(env.MMF_DAILY_RECIPIENT_LIMIT);
  if(!Number.isSafeInteger(perRecipient)||perRecipient<1||perRecipient>10000)throw Error('INVALID_RECIPIENT_QUOTA');
- const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit,dailyRecipientLimit:perRecipient,minuteSendLimit:perMinute,maxQueuedAgeMs:maxAgeSeconds*1000};
+ // Exact trusted HTTPS link hosts are a separate explicit, operator-approved
+ // allowlist; absent configuration denies all body links by default.
+ if(env.MMF_APPROVED_LINK_DOMAINS!==undefined&&
+    (typeof env.MMF_APPROVED_LINK_DOMAINS!=='string'||env.MMF_APPROVED_LINK_DOMAINS.length>4096))
+   throw Error('INVALID_LINK_POLICY_CONFIG');
+ const rawLinks=env.MMF_APPROVED_LINK_DOMAINS;
+ const allowedLinkDomains=rawLinks===undefined||rawLinks===''?[]:rawLinks.split(',');
+ const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider,dailySendLimit:configuredLimit,dailyRecipientLimit:perRecipient,minuteSendLimit:perMinute,maxQueuedAgeMs:maxAgeSeconds*1000,allowedLinkDomains};
  return new DurableMailFabric(config,{db:env.MMF_DB,encryptionKey:enc,privacyKey:privacy,keys});
 }
 /** Isolated Cloudflare Worker entrypoint: no auto-deploy or public hostname. */
