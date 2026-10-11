@@ -1,0 +1,52 @@
+name: MUSITU Mail Fabric Read-Only Live Paynow MMF Scope 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-paynow-live-product-scope-readonly-20261011.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-live-paynow-scope-audit.mjs'
+      - 'musitu-mail-fabric/src/staging/audit-live-paynow-merchant-scope.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-paynow-readonly-cli.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-paynow-product-scope-readonly-20261011
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm branch, exact read-only audit implementation and test suite
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = 'product/musitu-mail-fabric-isolated-20261009'
+          npm run check
+          node --test test/mmf-live-paynow-scope-audit.test.mjs test/mmf-cloudflare-paynow-readonly-inspection.test.mjs
+      - name: GET-only shared Paynow MMF product scope evidence — no payments, no mutations
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node src/staging/mmf-paynow-readonly-cli.mjs
+      - name: Save sanitized inventory only, NEVER private source or secrets
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: mmf-live-paynow-product-scope-readonly-20261011
+          path: ${{ runner.temp }}/mmf-live-paynow-scope-readonly.json
+          retention-days: 10
+          if-no-files-found: error
