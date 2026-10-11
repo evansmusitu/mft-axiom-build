@@ -63,6 +63,10 @@ public final class V2SignedAndroidCatalogTest {
     return V2SignedAndroidCatalog.verify(bytes,sig(bytes),pinnedPem,rootFingerprint,prior,priorDigest,
       Collections.singletonList("payments.mftintelligence.com"),NOW);
   }
+  @Test public void existingStoreV1PinnedRootIdentityIsUnchanged()throws Exception{
+    assertEquals("4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0",
+      sha(StoreCore.PUB_PEM));
+  }
   @Test public void twoIndependentPublishersCanSelectTheirOwnAndroidPackages()throws Exception{
     V2SignedAndroidCatalog.Verified out=accept(baseline());
     assertEquals(1,out.revision);
