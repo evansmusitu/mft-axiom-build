@@ -111,21 +111,20 @@ jobs:
           import glob,xml.etree.ElementTree as ET
           paths=glob.glob('store/phase1/android-client/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
           total=failed=errors=0
-          real=None
+          real_cases=[]
           for p in paths:
             try: root=ET.parse(p).getroot()
             except ET.ParseError: continue
             total+=int(root.get('tests','0'))
             failed+=int(root.get('failures','0'))
             errors+=int(root.get('errors','0'))
-            for sub in root.iter('testsuite'):
-              if 'V2RealApkInstrumentedTest' in sub.get('name',''): real=sub
-            if 'V2RealApkInstrumentedTest' in root.get('name',''): real=root
-          assert real is not None, ('missing real APK test class',paths)
-          assert int(real.get('tests','0'))>=6,real.attrib
-          assert int(real.get('failures','0'))==0 and int(real.get('errors','0'))==0,real.attrib
+            for case in root.iter('testcase'):
+              if 'V2RealApkInstrumentedTest' in case.get('classname',''):
+                real_cases.append(case)
+          assert len(real_cases)>=6,('missing genuine APK tests',len(real_cases),paths)
+          assert not any(any(child.tag in ('failure','error','skipped') for child in case) for case in real_cases),'real-APK test failed or skipped'
           assert total>=13 and failed==0 and errors==0,(total,failed,errors)
-          print(f'MUSITU_STORE_V2_GENUINE_APK_API24_PASS tests={total} real_apk_tests={real.get("tests")} failures={failed} errors={errors}')
+          print(f'MUSITU_STORE_V2_GENUINE_APK_API24_PASS tests={total} real_apk_tests={len(real_cases)} failures={failed} errors={errors}')
           PY
       - name: Retain public test checksums without ephemeral private key material
         if: always()
