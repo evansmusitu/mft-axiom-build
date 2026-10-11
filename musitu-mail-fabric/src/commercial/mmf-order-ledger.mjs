@@ -6,16 +6,18 @@
  * implementation must be independently reviewed and deployed separately.
  */
 import {createHash} from 'node:crypto';
-import {draftMmfFmiPaynowQuote,verifyMmfPaynowSettlement} from './fmi-paynow-reuse.mjs';
+import {draftMmfFmiPaynowQuote,verifyMmfPaynowSettlement,verifyMmfPaynowReversal} from './fmi-paynow-reuse.mjs';
 export const MMF_PREP_BILLING_SCHEMA=Object.freeze([
  `CREATE TABLE IF NOT EXISTS mmf_prep_orders (
   order_reference TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   quote_sha256 TEXT NOT NULL CHECK(length(quote_sha256)=64),
-  state TEXT NOT NULL CHECK(state IN ('PENDING','PAID_SANDBOX')),
+  state TEXT NOT NULL CHECK(state IN ('PENDING','PAID_SANDBOX','REVERSED_SANDBOX')),
   provider_ref_sha256 TEXT UNIQUE CHECK(provider_ref_sha256 IS NULL OR length(provider_ref_sha256)=64),
   created_ms INTEGER NOT NULL CHECK(created_ms>0),
-  settled_ms INTEGER CHECK(settled_ms IS NULL OR settled_ms>0)
+  settled_ms INTEGER CHECK(settled_ms IS NULL OR settled_ms>0),
+  reversed_ms INTEGER CHECK(reversed_ms IS NULL OR reversed_ms>0),
+  reversal_kind TEXT CHECK(reversal_kind IS NULL OR reversal_kind IN ('refunded','chargeback'))
  ) STRICT`,
  'CREATE INDEX IF NOT EXISTS mmf_prep_tenant_idx ON mmf_prep_orders(tenant_id,state)'
 ]);
@@ -52,7 +54,7 @@ export async function openMmfPreparationOrder({db,quote,env,nowMs=Date.now()}){
   const row=await db.prepare('SELECT tenant_id,quote_sha256,state,provider_ref_sha256 FROM mmf_prep_orders WHERE order_reference=?')
    .bind(trusted.orderReference).first();
   if(!row||row.tenant_id!==trusted.tenantId||row.quote_sha256!==digest||
-     !['PENDING','PAID_SANDBOX'].includes(row.state))deny();
+     !['PENDING','PAID_SANDBOX','REVERSED_SANDBOX'].includes(row.state))deny();
   return Object.freeze({orderReference:trusted.orderReference,status:row.state,
    idempotent:insert.meta.changes===0,grantsMailSending:false,
    externalCheckoutCreated:false,canIssueTaxInvoice:false,realPaymentProcessed:false});
@@ -82,6 +84,46 @@ export async function reconcileMmfSandboxSettlement({db,quote,receipt,verificati
   return Object.freeze({orderReference:trusted.orderReference,status:'SANDBOX_SETTLEMENT_RECORD_ONLY',
    idempotent:u.meta.changes===0,realProviderSettlementVerified:false,
    externalCheckoutCreated:false,grantsMailSending:false,grantsFmiPlan:false,
+   canIssueTaxInvoice:false,canAcceptCustomerFunds:false});
+ }catch{deny()}
+}
+/** Stage ONLY: reversal of an already-recorded synthetic signed settlement.
+ * This method cannot accept a real Paynow callback and cannot issue refunds.
+ */
+export async function reconcileMmfSandboxReversal({db,quote,receipt,verification,env}){
+ stage(env);if(!okDb(db)||!verification||typeof verification!=='object')deny();
+ const trusted=vettedQuote(quote),digest=sha(JSON.stringify(trusted));
+ try{
+  const before=await db.prepare(`SELECT tenant_id,quote_sha256,state,provider_ref_sha256,settled_ms,
+   reversed_ms,reversal_kind FROM mmf_prep_orders WHERE order_reference=?`)
+   .bind(trusted.orderReference).first();
+  if(!before||before.tenant_id!==trusted.tenantId||before.quote_sha256!==digest||
+     !['PAID_SANDBOX','REVERSED_SANDBOX'].includes(before.state)||
+     !before.provider_ref_sha256||!Number.isSafeInteger(before.settled_ms))deny();
+  const evidence=verifyMmfPaynowReversal(receipt,trusted,{
+   ...verification,
+   expectedProviderReferenceSha256:before.provider_ref_sha256,
+   expectedOriginalSettledAtMs:before.settled_ms
+  });
+  if(evidence.verified!==true||evidence.canEnableMailSending!==false||
+     evidence.orderReference!==trusted.orderReference||evidence.tenantId!==trusted.tenantId)deny();
+  const claim=receipt.claim;
+  const u=await db.prepare(`UPDATE mmf_prep_orders SET state='REVERSED_SANDBOX',
+   reversed_ms=?,reversal_kind=? WHERE order_reference=? AND tenant_id=?
+   AND quote_sha256=? AND state='PAID_SANDBOX' AND provider_ref_sha256=? AND settled_ms=?`)
+   .bind(claim.reversedAtMs,claim.status,trusted.orderReference,trusted.tenantId,
+    digest,claim.providerReferenceSha256,claim.originalSettledAtMs).run();
+  if(u?.success!==true||![0,1].includes(u.meta?.changes))deny();
+  const row=await db.prepare(`SELECT tenant_id,quote_sha256,state,provider_ref_sha256,settled_ms,
+   reversed_ms,reversal_kind FROM mmf_prep_orders WHERE order_reference=?`)
+   .bind(trusted.orderReference).first();
+  if(!row||row.tenant_id!==trusted.tenantId||row.quote_sha256!==digest||
+     row.state!=='REVERSED_SANDBOX'||row.provider_ref_sha256!==claim.providerReferenceSha256||
+     row.settled_ms!==claim.originalSettledAtMs||row.reversed_ms!==claim.reversedAtMs||
+     row.reversal_kind!==claim.status)deny();
+  return Object.freeze({orderReference:trusted.orderReference,status:'REVERSED_SANDBOX',
+   idempotent:u.meta.changes===0,realProviderReversalVerified:false,
+   actualRefundSubmitted:false,grantsMailSending:false,grantsFmiPlan:false,
    canIssueTaxInvoice:false,canAcceptCustomerFunds:false});
  }catch{deny()}
 }

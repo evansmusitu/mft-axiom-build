@@ -129,3 +129,55 @@ export function requireMmfSpecificPaymentBinding(env){
  // deployment, invoice legality and exact live signature verification.
  deny();
 }
+/**
+ * Candidate reversal receipt contract, strictly stage-only for MMF.
+ * The current live Paynow authority does NOT implement this receipt schema.
+ * In a future provider bridge, issuance may follow only independently checked
+ * provider settlement AND refund/chargeback evidence, never a browser claim.
+ */
+const REVERSAL_FIELDS=['schema','product','sku','tenantId','orderReference',
+ 'contractReference','provider','paymentAuthority','providerReferenceSha256',
+ 'amountCents','currency','status','originalSettledAtMs','reversedAtMs'];
+export function canonicalMmfReversalClaim(claim){
+ if(!shape(claim,REVERSAL_FIELDS)||claim.schema!=='mmf-paynow-reversal-v1'||
+    claim.product!==MMF_PREPARATION_SKU.product||claim.sku!==MMF_PREPARATION_SKU.sku||
+    !ID.test(claim.tenantId)||!ORD.test(claim.orderReference)||!REF.test(claim.contractReference)||
+    claim.provider!=='paynow'||claim.paymentAuthority!==SHARED_MUSITU_PAYNOW.authorityWorker||
+    !HASH.test(claim.providerReferenceSha256)||claim.amountCents!==MMF_PREPARATION_SKU.amountCents||
+    claim.currency!=='USD'||!['refunded','chargeback'].includes(claim.status)||
+    !Number.isSafeInteger(claim.originalSettledAtMs)||claim.originalSettledAtMs<=0||
+    !Number.isSafeInteger(claim.reversedAtMs)||claim.reversedAtMs<claim.originalSettledAtMs)deny();
+ return Buffer.from(JSON.stringify(Object.fromEntries(REVERSAL_FIELDS.map(k=>[k,claim[k]]))));
+}
+export function verifyMmfPaynowReversal({claim,signature},quote,options={}){
+ try{
+  const {publicKeyPem,fingerprint,nowMs=Date.now(),expectedProviderReferenceSha256,
+   expectedOriginalSettledAtMs}=options;
+  if(!shape({claim,signature},['claim','signature']))deny();
+  const trustedQuote=draftMmfFmiPaynowQuote({tenantId:quote?.tenantId,
+   customerReference:quote?.customerReference,contractReference:quote?.contractReference,
+   orderReference:quote?.orderReference});
+  if(JSON.stringify(quote)!==JSON.stringify(trustedQuote))deny();
+  const bytes=canonicalMmfReversalClaim(claim);
+  if(claim.tenantId!==quote.tenantId||claim.orderReference!==quote.orderReference||
+   claim.contractReference!==quote.contractReference||
+   !HASH.test(expectedProviderReferenceSha256)||
+   claim.providerReferenceSha256!==expectedProviderReferenceSha256||
+   !Number.isSafeInteger(expectedOriginalSettledAtMs)||
+   claim.originalSettledAtMs!==expectedOriginalSettledAtMs||
+   !Number.isSafeInteger(nowMs)||claim.reversedAtMs>nowMs+300000||
+   nowMs-claim.reversedAtMs>366*86400000)deny();
+  if(typeof publicKeyPem!=='string'||publicKeyPem.length>4000||
+   typeof fingerprint!=='string'||!HASH.test(fingerprint)||
+   typeof signature!=='string'||!/^[A-Za-z0-9_-]{86}$/.test(signature))deny();
+  const key=createPublicKey(publicKeyPem);
+  if(key.asymmetricKeyType!=='ed25519')deny();
+  if(createHash('sha256').update(key.export({format:'der',type:'spki'})).digest('hex')!==fingerprint||
+     !verify(null,bytes,key,Buffer.from(signature,'base64url')))deny();
+  return Object.freeze({verified:true,product:claim.product,sku:claim.sku,
+   tenantId:claim.tenantId,orderReference:claim.orderReference,
+   status:'REVERSAL_EVIDENCE_ONLY_CONTRACT_REVIEW_REQUIRED',
+   canEnableMailSending:false,canProvisionFmiPlan:false,
+   realProviderReversalVerified:false});
+ }catch{deny()}
+}

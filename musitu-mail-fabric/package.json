@@ -22,7 +22,8 @@
     "test:private-bridge": "node --test test/private-cross-worker-config.test.mjs test/private-cross-worker-probe.test.mjs test/cross-worker-feedback-orchestration.test.mjs test/webhook-recorder-without-sender-keys.test.mjs test/feedback-capability-rotation.test.mjs",
     "check:phase1": "node src/commercial/check-cli.mjs docs/2026-10-11-phase1-evidence-snapshot.json",
     "test:paynow-reuse": "node --test test/fmi-paynow-reuse.test.mjs",
-    "test:billing-stage": "node --test test/mmf-billing-stage-worker.test.mjs test/mmf-billing-stage-config.test.mjs test/mmf-payment-order-ledger.test.mjs"
+    "test:billing-stage": "node --test test/mmf-billing-stage-worker.test.mjs test/mmf-billing-stage-config.test.mjs test/mmf-payment-order-ledger.test.mjs",
+    "test:billing-lifecycle": "node --test test/mmf-payment-reversal-lifecycle.test.mjs test/mmf-payment-order-ledger.test.mjs test/mmf-billing-stage-worker.test.mjs test/fmi-paynow-reuse.test.mjs"
   },
   "engines": {
     "node": ">=22.13.0"

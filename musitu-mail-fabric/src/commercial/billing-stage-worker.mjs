@@ -50,7 +50,7 @@ export async function fetchPrivateMmfBillingStage(request,env){
    const row=await env.MMF_PAYMENT_DB.prepare(
     'SELECT tenant_id,state FROM mmf_prep_orders WHERE order_reference=? AND tenant_id=?')
     .bind(query[1],env.MMF_TENANT_ID).first();
-   if(!row||row.tenant_id!==env.MMF_TENANT_ID||!['PENDING','PAID_SANDBOX'].includes(row.state))
+   if(!row||row.tenant_id!==env.MMF_TENANT_ID||!['PENDING','PAID_SANDBOX','REVERSED_SANDBOX'].includes(row.state))
     return json(404,{error:'NOT_FOUND'});
    return json(200,visible(row,query[1]));
   }
