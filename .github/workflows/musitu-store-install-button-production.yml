@@ -1,15 +1,6 @@
 name: MUSITU Store install-button production promotion
 
 on:
-  push:
-    branches:
-      - musitu-store-browser-first-launch-20260913
-    paths:
-      - '.github/workflows/musitu-store-install-button-production.yml'
-      - 'store/phase2/build-browser-first-live-candidate.py'
-      - 'store/phase2/deploy-install-button-behavior.py'
-      - 'store/phase2/verify-install-button-candidate.mjs'
-      - 'store/phase2/verify-install-button-live.py'
   workflow_dispatch:
 
 concurrency:
