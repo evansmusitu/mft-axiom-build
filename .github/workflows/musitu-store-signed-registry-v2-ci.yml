@@ -1,0 +1,26 @@
+name: MUSITU Store signed registry v2 isolated tests
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-signed-registry-v2-20261011
+    paths:
+      - '.github/workflows/musitu-store-signed-registry-v2-ci.yml'
+      - 'store/core/catalog/**'
+
+permissions:
+  contents: read
+
+jobs:
+  registry-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check signed registry syntax
+        run: node --check store/core/catalog/signed-registry-v2.mjs
+      - name: Verify signed publisher registry security requirements
+        run: node --test store/core/catalog/signed-registry-v2.test.mjs
