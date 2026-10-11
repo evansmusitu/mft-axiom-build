@@ -50,17 +50,21 @@ public final class V2AndroidApi24InstrumentedTest {
     Fixture()throws Exception{
       payload="v2 catalog synthetic data - not a real APK".getBytes(StandardCharsets.UTF_8);
       long now=System.currentTimeMillis();
+      JSONObject grant=new JSONObject()
+        .put("platform","android")
+        .put("packageId","org.musitu.testapp")
+        .put("signingCertificateSha256",repeat('b',64));
+      JSONObject publisher=new JSONObject()
+        .put("id","operator-test").put("name","Test Publisher")
+        .put("grants",new JSONArray().put(grant));
+      JSONObject application=new JSONObject()
+        .put("id","musitu-test-app").put("publisherId","operator-test")
+        .put("releases",new JSONArray().put(release(payload)));
       JSONObject catalog=new JSONObject()
         .put("schema","musitu.store.catalog.v2").put("revision",1)
         .put("issuedAt",iso(now-60_000)).put("expiresAt",iso(now+3_600_000))
-        .put("publishers",new JSONArray().put(new JSONObject()
-          .put("id","operator-test").put("name","Test Publisher")
-          .put("grants",new JSONArray().put(new JSONObject()
-             .put("platform","android").put("packageId","org.musitu.testapp")
-             .put("signingCertificateSha256",repeat('b',64)))))
-        .put("apps",new JSONArray().put(new JSONObject()
-          .put("id","musitu-test-app").put("publisherId","operator-test")
-          .put("releases",new JSONArray().put(release(payload))));
+        .put("publishers",new JSONArray().put(publisher))
+        .put("apps",new JSONArray().put(application));
       raw=catalog.toString().getBytes(StandardCharsets.UTF_8);
       KeyPairGenerator g=KeyPairGenerator.getInstance("EC");
       g.initialize(new ECGenParameterSpec("secp256r1"));
