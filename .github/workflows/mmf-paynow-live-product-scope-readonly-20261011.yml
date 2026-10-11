@@ -5,8 +5,10 @@ on:
     paths:
       - '.github/workflows/mmf-paynow-live-product-scope-readonly-20261011.yml'
       - 'musitu-mail-fabric/src/commercial/mmf-live-paynow-scope-audit.mjs'
+      - 'musitu-mail-fabric/src/staging/canonical-cloudflare-worker-source.mjs'
       - 'musitu-mail-fabric/src/staging/audit-live-paynow-merchant-scope.mjs'
       - 'musitu-mail-fabric/src/staging/mmf-paynow-readonly-cli.mjs'
+      - 'musitu-mail-fabric/test/mmf-cloudflare-source-canonicalization.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,7 +37,8 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = 'product/musitu-mail-fabric-isolated-20261009'
           npm run check
-          node --test test/mmf-live-paynow-scope-audit.test.mjs test/mmf-cloudflare-paynow-readonly-inspection.test.mjs
+          node --check src/staging/canonical-cloudflare-worker-source.mjs
+          node --test test/mmf-live-paynow-scope-audit.test.mjs test/mmf-cloudflare-paynow-readonly-inspection.test.mjs test/mmf-cloudflare-source-canonicalization.test.mjs
       - name: GET-only shared Paynow MMF product scope evidence — no payments, no mutations
         shell: bash
         working-directory: musitu-mail-fabric
