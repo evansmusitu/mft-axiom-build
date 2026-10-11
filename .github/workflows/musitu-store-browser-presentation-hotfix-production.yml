@@ -1,10 +1,7 @@
 name: MUSITU Store Browser Presentation Hotfix Production
 
 on:
-  push:
-    branches: [musitu-store-phase2-standards-hardening-20260911]
-    paths:
-      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_EXECUTE_20260911.json'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +13,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
