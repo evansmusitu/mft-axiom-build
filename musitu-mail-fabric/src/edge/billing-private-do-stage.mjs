@@ -6,9 +6,22 @@ import {fetchPrivateMmfBillingStage} from '../commercial/billing-stage-worker.mj
 const tenantActor='mmf-stage-tenant';
 const H={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 const deny=()=>new Response(JSON.stringify({error:'BILLING_STAGE_DISABLED'}),{status:503,headers:H});
+// Strict, ephemeral sandbox receipt window; the base deployed configuration
+// remains receipt-disabled and no customer payment capability is provided.
+const receiptWindow=env=>{
+ if(env?.MMF_STAGE_RECEIPTS_ENABLED==='false')return true;
+ if(env?.MMF_STAGE_RECEIPTS_ENABLED!=='true')return false;
+ const expires=Number(env.MMF_STAGE_RECEIPT_EXPIRES_MS),now=Date.now();
+ return typeof env.MMF_STAGE_RECEIPT_EXPIRES_MS==='string'&&
+   /^\d{13}$/.test(env.MMF_STAGE_RECEIPT_EXPIRES_MS)&&
+   Number.isSafeInteger(expires)&&expires>now&&expires<=now+20*60*1000&&
+   typeof env.MMF_STAGE_RECEIPT_TOKEN==='string'&&env.MMF_STAGE_RECEIPT_TOKEN.length>=32&&
+   typeof env.MMF_STAGE_AUTHORITY_PUBLIC_KEY_PEM==='string'&&
+   /^[a-f0-9]{64}$/.test(env.MMF_STAGE_AUTHORITY_FINGERPRINT_SHA256||'');
+};
 const safe=env=>env?.MMF_STAGE_ONLY==='true'&&env?.MMF_REAL_SEND_ENABLED==='false'&&
  env?.MMF_MAIL_SENDING_ENABLED==='false'&&env?.MMF_COMMERCE_ENABLED==='false'&&
- env?.MMF_BILLING_API_ENABLED==='true'&&env?.MMF_STAGE_RECEIPTS_ENABLED==='false'&&
+ env?.MMF_BILLING_API_ENABLED==='true'&&receiptWindow(env)&&
  env?.MMF_API_ENABLED==='false'&&env?.MMF_WEBHOOK_ENABLED==='false'&&
  env?.MMF_TENANT_ID==='mmf_stage_20261011';
 export function createIsolatedBillingSqlDb(sql){

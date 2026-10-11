@@ -266,3 +266,8 @@ Run `npm run test:stage-bridge`, then `npm test` and `npm run check`. The
 service-binding object and all provider events used in tests are in-memory
 emulators. This does not imply that the real production Paynow authority
 already has an MMF route, service binding or MMF secret.
+
+
+### October 11 private Cloudflare synthetic signed receipt qualification
+
+The staging-only, time-limited, Ed25519 receipt-intake experiment is documented in `docs/2026-10-11-cloud-synthetic-signed-receipt-proof.md`. It exercises *synthetic* Paid/Refunded evidence against the preexisting private billing SQLite Durable Object, with temporary credentials and rollback. It **does not** call Paynow, collect money, issue invoices, unlock mail delivery, or modify shared FMI services. Cloudflare success must be demonstrated by a green workflow and sanitized artifact, not source-code inspection.

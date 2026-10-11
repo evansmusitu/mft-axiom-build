@@ -1,0 +1,151 @@
+name: MUSITU Mail Fabric Private Cloud Synthetic Receipt Qualification 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-billing-private-cloud-synthetic-receipt-qualification-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: musitu-mail-fabric-private-cloud-synthetic-receipt-20261011
+  cancel-in-progress: false
+jobs:
+  synthetic-receipt-only:
+    if: github.event.before == '672e7f013ebe320f3d4cb8a264a3bf95b3658e7b'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated code and all dark commerce safety tests
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test '${{ github.event.before }}' = '672e7f013ebe320f3d4cb8a264a3bf95b3658e7b'
+          npm run check
+          npm test
+          node --test test/mmf-cloud-private-synthetic-receipt.test.mjs test/mmf-cloud-private-receipt-window.test.mjs
+      - name: GET-only Cloudflare scoped preflight and backup controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||!t||t.length<20)throw Error('MMF_CLOUD_PREFLIGHT_DENIED');
+          const target='musitu-mail-fabric-payment-private-stage-20261011';
+          const b=`https://api.cloudflare.com/client/v4/accounts/${a}/workers/scripts/${target}/`;
+          const get=async p=>{const r=await fetch(b+p,{headers:{authorization:'Bearer '+t},signal:AbortSignal.timeout(16000)});const x=await r.json();if(!r.ok||x.success!==true)throw Error('MMF_READ_ONLY_PREFLIGHT_DENIED');return x.result};
+          const [settings,sub,secrets]=await Promise.all([get('settings'),get('subdomain'),get('secrets')]);
+          const binds=settings.bindings||[],g=n=>binds.find(x=>x.name===n&&x.type==='plain_text')?.text;
+          if(sub.enabled!==false||sub.previews_enabled!==false||!binds.some(x=>x.name==='MMF_BILLING_LEDGER'&&x.type==='durable_object_namespace'&&x.class_name==='MmfBillingPrivateStageSqliteDO')||
+            binds.some(x=>['service','d1','queue','send_email'].includes(x.type))||
+            !secrets.some(x=>x.name==='MMF_BILLING_OPERATOR_TOKEN')||
+            !Object.entries({MMF_STAGE_ONLY:'true',MMF_REAL_SEND_ENABLED:'false',MMF_MAIL_SENDING_ENABLED:'false',MMF_COMMERCE_ENABLED:'false',MMF_BILLING_API_ENABLED:'true',MMF_STAGE_RECEIPTS_ENABLED:'false',MMF_API_ENABLED:'false',MMF_WEBHOOK_ENABLED:'false',MMF_TENANT_ID:'mmf_stage_20261011'}).every(([n,v])=>g(n)===v))throw Error('MMF_ISOLATION_PREFLIGHT_DENIED');
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-qualification-may-deploy','yes',{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_SYNTHETIC_RECEIPT_ISOLATION_PREFLIGHT',status:'PASS',stageAlreadyExists:true,publicRoutes:false,realPaynow:false,mailSending:false}));
+          NODE
+      - name: Create short-lived synthetic signer and isolated stage bearer credentials
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {generateKeyPairSync,randomBytes,createHash} from 'node:crypto';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const {privateKey,publicKey}=generateKeyPairSync('ed25519');
+          const pem=publicKey.export({type:'spki',format:'pem'});
+          const finger=createHash('sha256').update(publicKey.export({type:'spki',format:'der'})).digest('hex');
+          const op=randomBytes(48).toString('base64url'),receipt=randomBytes(48).toString('base64url');
+          const t=process.env.RUNNER_TEMP,write=(p,value)=>writeFileSync(p,value,{mode:0o600});
+          write(t+'/mmf-synthetic-signer.pem',privateKey.export({type:'pkcs8',format:'pem'}));
+          write(t+'/mmf-stage-operator.key',op);write(t+'/mmf-stage-receipt.key',receipt);
+          write(t+'/mmf-stage-qualification-secrets.json',JSON.stringify({MMF_BILLING_OPERATOR_TOKEN:op,MMF_STAGE_RECEIPT_TOKEN:receipt,MMF_STAGE_AUTHORITY_PUBLIC_KEY_PEM:pem}));
+          const c=JSON.parse(readFileSync('wrangler.mmf.billing-private-do-authorized-20261011.jsonc','utf8'));
+          if(c.workers_dev!==false||c.preview_urls!==false||c.routes.length!==0||c.vars.MMF_STAGE_RECEIPTS_ENABLED!=='false')throw Error('MMF_TEMP_STAGE_CONFIG_DENIED');
+          c.vars.MMF_STAGE_RECEIPTS_ENABLED='true';c.vars.MMF_STAGE_AUTHORITY_FINGERPRINT_SHA256=finger;
+          c.vars.MMF_STAGE_RECEIPT_EXPIRES_MS=String(Date.now()+13*60*1000);
+          write('wrangler.mmf.billing-private-receipt-ephemeral.generated.jsonc',JSON.stringify(c));
+          console.log(JSON.stringify({gate:'MMF_EPHEMERAL_SIGNER',status:'PASS',signerIsSynthetic:true,signerPrivateKeyLogged:false,expiresWithinMinutes:13,publicRoutes:false,realPaynow:false}));
+          NODE
+      - name: Temporarily arm ONLY private MMF sandbox receipt verification
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          # Generated config retains workers_dev=false, routes=[], previews=false,
+          # commerce/sending=false and ONE dedicated SQLite Durable Object.
+          npx --yes wrangler@4 deploy --config wrangler.mmf.billing-private-receipt-ephemeral.generated.jsonc --secrets-file "$RUNNER_TEMP/mmf-stage-qualification-secrets.json"
+      - name: Exercise signed synthetic Paid and Refunded against DEPLOYED private Cloudflare SQLite
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          export MMF_OPERATOR_TOKEN_FILE="$RUNNER_TEMP/mmf-stage-operator.key"
+          export MMF_RECEIPT_TOKEN_FILE="$RUNNER_TEMP/mmf-stage-receipt.key"
+          export MMF_SYNTHETIC_SIGNER_FILE="$RUNNER_TEMP/mmf-synthetic-signer.pem"
+          export MMF_CLOUD_QUALIFICATION_EVIDENCE="$RUNNER_TEMP/mmf-synthetic-remote-receipt-proof.json"
+          # ONLY local 127.0.0.1 probe with remote private Worker service binding.
+          setsid npx --yes wrangler@4 dev --config wrangler.mmf.billing-private-remote-evidence-local.jsonc --ip 127.0.0.1 --port 8793 --log-level error --show-interactive-dev-session=false > "$RUNNER_TEMP/mmf-synthetic-receipt-local-probe.log" 2>&1 &
+          PID=$!
+          cleanup(){ kill -- -"$PID" 2>/dev/null || true; wait "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          ready=0
+          for i in $(seq 1 60); do
+            kill -0 "$PID" 2>/dev/null || break
+            status="$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:8793/not-exposed || true)"
+            if [ "$status" = 404 ]; then ready=1; break; fi
+            sleep 2
+          done
+          [ "$ready" = 1 ] || { echo 'MMF_LOCAL_PRIVATE_BRIDGE_NOT_READY'; exit 1; }
+          node src/staging/qualify-private-remote-evidence.mjs
+          cleanup
+          trap - EXIT
+      - name: Always restore receipt-disabled Cloudflare Worker and revoke test bearer credentials
+        if: always()
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/mmf-qualification-may-deploy" ]; then
+            umask 077
+            node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';import {randomBytes} from 'node:crypto';
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-rotated-stage-secrets.json',JSON.stringify({MMF_BILLING_OPERATOR_TOKEN:randomBytes(48).toString('base64url'),MMF_STAGE_RECEIPT_TOKEN:randomBytes(48).toString('base64url')}),{mode:0o600});
+          NODE
+            npx --yes wrangler@4 deploy --config wrangler.mmf.billing-private-do-authorized-20261011.jsonc --secrets-file "$RUNNER_TEMP/mmf-rotated-stage-secrets.json" > "$RUNNER_TEMP/mmf-safe-redeployment.log" 2>&1 || { echo 'MMF_RECEIPT_DISABLE_REDEPLOY_FAILED_MANUAL_ATTENTION_REQUIRED'; exit 1; }
+          fi
+          rm -f "$RUNNER_TEMP/mmf-synthetic-signer.pem" "$RUNNER_TEMP/mmf-stage-operator.key" "$RUNNER_TEMP/mmf-stage-receipt.key" "$RUNNER_TEMP/mmf-stage-qualification-secrets.json" "$RUNNER_TEMP/mmf-rotated-stage-secrets.json" wrangler.mmf.billing-private-receipt-ephemeral.generated.jsonc
+          echo '{"gate":"MMF_SYNTHETIC_RECEIPT_CREDENTIAL_CUSTODY","status":"PASS","privateKeyDiscarded":true,"testBearerCredentialsRevoked":true}'
+      - name: Independently verify restored private, receipt-disabled Cloudflare configuration
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN;
+          if(!a||!t)throw Error('MMF_FINAL_STAGE_AUTH_MISSING');
+          const b=`https://api.cloudflare.com/client/v4/accounts/${a}/workers/scripts/musitu-mail-fabric-payment-private-stage-20261011/`;
+          const get=async s=>{const r=await fetch(b+s,{headers:{authorization:'Bearer '+t},signal:AbortSignal.timeout(16000)});const j=await r.json();if(!r.ok||j.success!==true)throw Error('MMF_FINAL_CLOUD_READBACK_FAILED');return j.result};
+          const [config,sub]=await Promise.all([get('settings'),get('subdomain')]);const binds=config.bindings||[];const v=n=>binds.find(x=>x.name===n&&x.type==='plain_text')?.text;
+          if(sub.enabled!==false||sub.previews_enabled!==false||v('MMF_STAGE_RECEIPTS_ENABLED')!=='false'||v('MMF_COMMERCE_ENABLED')!=='false'||v('MMF_MAIL_SENDING_ENABLED')!=='false'||v('MMF_REAL_SEND_ENABLED')!=='false'||
+            binds.some(x=>['service','d1','queue','send_email'].includes(x.type))||!binds.some(x=>x.name==='MMF_BILLING_LEDGER'&&x.class_name==='MmfBillingPrivateStageSqliteDO'))throw Error('MMF_FINAL_PRIVATE_STAGE_NOT_RESTORED');
+          console.log(JSON.stringify({gate:'MMF_SYNTHETIC_RECEIPT_FINAL_CLOUD_READBACK',status:'PASS',publicRoutes:false,receiptsDisabled:true,customerFunds:false,mailSending:false}));
+          NODE
+      - name: Upload sanitized noncustomer synthetic receipt evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-cloud-synthetic-signed-receipt-qualification-20261011
+          path: ${{ runner.temp }}/mmf-synthetic-remote-receipt-proof.json
+          retention-days: 30
