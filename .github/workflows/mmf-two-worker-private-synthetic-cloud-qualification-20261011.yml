@@ -1,0 +1,193 @@
+name: MUSITU Mail Fabric Deployed Private Two Worker Synthetic Qualification 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-two-worker-private-synthetic-cloud-qualification-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-two-worker-synthetic-20261011
+  cancel-in-progress: false
+jobs:
+  cloud-two-worker-synthetic:
+    if: github.event.before == '10b94b50f62c8f4fb3af94a5da3900b5529ee3df'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 22
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify branch, dark commercial gates, complete tests and synthetic-only bridge
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test '${{ github.event.before }}' = '10b94b50f62c8f4fb3af94a5da3900b5529ee3df'
+          npm run check
+          node --test test/mmf-private-two-worker-cloud-qualification.test.mjs
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-release-must-remain-blocked.log" 2>&1
+          code=$?
+          set -e
+          test "$code" = 2 || { echo 'MMF_COMMERCIAL_RELEASE_GATE_UNEXPECTED'; exit 1; }
+      - name: GET-only Cloudflare preflight — two existing MMF private Workers and no production bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_OWNER_SCOPE_DENIED');
+          const b=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          const billing='musitu-mail-fabric-payment-private-stage-20261011',authority='musitu-mail-fabric-paynow-private-authority-stage-20261011';
+          async function get(n,s){const r=await fetch(b+n+'/'+s,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(18000)});const j=await r.json();if(!r.ok||j.success!==true)throw Error('MMF_TWO_WORKER_CLOUD_PREFLIGHT_ERROR');return j.result}
+          const [bs,as,bsub,asub,bsec,asec]=await Promise.all([get(billing,'settings'),get(authority,'settings'),get(billing,'subdomain'),get(authority,'subdomain'),get(billing,'secrets'),get(authority,'secrets')]);
+          const binds=x=>x.bindings||[],v=(s,n)=>binds(s).find(x=>x.name===n&&x.type==='plain_text')?.text;
+          const dark=s=>Object.entries({MMF_STAGE_ONLY:'true',MMF_COMMERCE_ENABLED:'false',MMF_REAL_SEND_ENABLED:'false',MMF_MAIL_SENDING_ENABLED:'false',MMF_API_ENABLED:'false',MMF_WEBHOOK_ENABLED:'false',MMF_STAGE_RECEIPTS_ENABLED:'false',MMF_BILLING_API_ENABLED:'true',MMF_TENANT_ID:'mmf_stage_20261011'}).every(([k,value])=>v(s,k)===value);
+          if(!dark(bs)||!dark(as)||v(as,'MMF_PRIVATE_AUTHORITY_STAGE_ENABLED')!=='false'||v(as,'MMF_STAGE_BRIDGE_ENABLED')!=='false'||
+            bsub.enabled!==false||bsub.previews_enabled!==false||asub.enabled!==false||asub.previews_enabled!==false||
+            !binds(bs).some(x=>x.name==='MMF_BILLING_LEDGER'&&x.type==='durable_object_namespace'&&x.class_name==='MmfBillingPrivateStageSqliteDO')||
+            binds(bs).some(x=>['service','d1','queue','send_email'].includes(x.type))||
+            binds(as).filter(x=>x.type==='service').length!==1||
+            !binds(as).some(x=>x.type==='service'&&x.name==='MMF_PRIVATE_PAYMENT_STAGE'&&x.service===billing)||
+            binds(as).some(x=>!['plain_text','service'].includes(x.type))||
+            !bsec.some(x=>x.name==='MMF_BILLING_OPERATOR_TOKEN')||
+            asec.some(x=>/PAYNOW|MERCHANT|INTEGRATION_KEY/.test(x.name)))throw Error('MMF_TWO_WORKER_DARK_SCOPE_DENIED');
+          // All future writes are strictly these two NEW MMF stage Workers only.
+          const canonical=x=>JSON.stringify(x,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort()):v);
+          const sha=x=>createHash('sha256').update(canonical(x)).digest('hex');
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-two-worker-baseline.json',JSON.stringify({billing:sha(bs),authority:sha(as)}),{mode:0o600});
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-two-worker-restore-required','yes',{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_TWO_WORKER_PREDEPLOY',status:'PASS',stageWorkers:2,publicAccess:false,realPaynow:false,customerMail:false}));
+          NODE
+      - name: Generate independent, short-lived synthetic signing and operator credentials
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {generateKeyPairSync,randomBytes,createHash} from 'node:crypto';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const {privateKey,publicKey}=generateKeyPairSync('ed25519'),t=process.env.RUNNER_TEMP;
+          const publicPem=publicKey.export({type:'spki',format:'pem'});
+          const fp=createHash('sha256').update(publicKey.export({type:'spki',format:'der'})).digest('hex');
+          const operator=randomBytes(48).toString('base64url'),receipt=randomBytes(48).toString('base64url'),caller=randomBytes(48).toString('base64url');
+          const write=(name,value)=>writeFileSync(t+'/'+name,value,{mode:0o600});
+          write('mmf-two-worker-signing.pem',privateKey.export({type:'pkcs8',format:'pem'}));
+          write('mmf-two-worker-operator.key',operator);write('mmf-two-worker-receipt.key',receipt);write('mmf-two-worker-caller.key',caller);
+          write('mmf-two-worker-billing-secrets.json',JSON.stringify({MMF_BILLING_OPERATOR_TOKEN:operator,MMF_STAGE_RECEIPT_TOKEN:receipt,MMF_STAGE_AUTHORITY_PUBLIC_KEY_PEM:publicPem}));
+          write('mmf-two-worker-authority-secrets.json',JSON.stringify({MMF_AUTHORITY_CALLER_TOKEN:caller,MMF_STAGE_RECEIPT_TOKEN:receipt,MMF_STAGE_AUTHORITY_PUBLIC_KEY_PEM:publicPem}));
+          const billing=JSON.parse(readFileSync('wrangler.mmf.billing-private-do-authorized-20261011.jsonc','utf8'));
+          const authority=JSON.parse(readFileSync('wrangler.mmf.paynow-private-authority-stage.jsonc','utf8'));
+          if(billing.workers_dev!==false||billing.preview_urls!==false||billing.routes.length!==0||billing.vars.MMF_STAGE_RECEIPTS_ENABLED!=='false'||
+            authority.workers_dev!==false||authority.preview_urls!==false||authority.routes.length!==0||authority.vars.MMF_PRIVATE_AUTHORITY_STAGE_ENABLED!=='false'||
+            authority.services.length!==1||authority.services[0].service!==billing.name)throw Error('MMF_EPHEMERAL_STAGE_CONFIG_DENIED');
+          const expiry=String(Date.now()+13*60000);
+          billing.vars.MMF_STAGE_RECEIPTS_ENABLED='true';billing.vars.MMF_STAGE_RECEIPT_EXPIRES_MS=expiry;billing.vars.MMF_STAGE_AUTHORITY_FINGERPRINT_SHA256=fp;
+          authority.vars.MMF_STAGE_RECEIPTS_ENABLED='true';authority.vars.MMF_PRIVATE_AUTHORITY_STAGE_ENABLED='true';authority.vars.MMF_STAGE_BRIDGE_ENABLED='true';authority.vars.MMF_PRIVATE_AUTHORITY_EXPIRES_MS=expiry;authority.vars.MMF_STAGE_AUTHORITY_FINGERPRINT_SHA256=fp;
+          writeFileSync('wrangler.mmf.two-worker-billing.ephemeral.jsonc',JSON.stringify(billing),{mode:0o600});
+          writeFileSync('wrangler.mmf.two-worker-authority.ephemeral.jsonc',JSON.stringify(authority),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_TWO_WORKER_EPHEMERAL_SECRETS',status:'PASS',signerSyntheticOnly:true,expiresWithinMinutes:13,merchantCredentials:false,realPayments:false}));
+          NODE
+      - name: Temporarily enable synthetic receipt verification ONLY in isolated billing Worker
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.two-worker-billing.ephemeral.jsonc --secrets-file "$RUNNER_TEMP/mmf-two-worker-billing-secrets.json"
+      - name: Temporarily enable synthetic receipt service binding ONLY in isolated authority Worker
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.two-worker-authority.ephemeral.jsonc --secrets-file "$RUNNER_TEMP/mmf-two-worker-authority-secrets.json"
+      - name: Exercise actual two Cloudflare Workers and private SQLite with signed synthetic Paid and Refunded
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          export MMF_OPERATOR_TOKEN_FILE="$RUNNER_TEMP/mmf-two-worker-operator.key"
+          export MMF_AUTHORITY_CALLER_TOKEN_FILE="$RUNNER_TEMP/mmf-two-worker-caller.key"
+          export MMF_RECEIPT_TOKEN_FILE="$RUNNER_TEMP/mmf-two-worker-receipt.key"
+          export MMF_SYNTHETIC_SIGNER_FILE="$RUNNER_TEMP/mmf-two-worker-signing.pem"
+          export MMF_TWO_WORKER_CLOUD_EVIDENCE="$RUNNER_TEMP/mmf-two-worker-sanitized-proof.json"
+          setsid npx --yes wrangler@4 dev --config wrangler.mmf.private-two-worker-local.jsonc --ip 127.0.0.1 --port 8794 --log-level error --show-interactive-dev-session=false > "$RUNNER_TEMP/mmf-two-worker-loopback.log" 2>&1 &
+          PID=$!
+          cleanup(){ kill -- -"$PID" 2>/dev/null || true; wait "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          ready=0
+          for i in $(seq 1 65); do
+            kill -0 "$PID" 2>/dev/null || break
+            code="$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:8794/not-exposed || true)"
+            if [ "$code" = 404 ]; then ready=1; break; fi
+            sleep 2
+          done
+          [ "$ready" = 1 ] || { echo 'MMF_TWO_WORKER_LOOPBACK_NOT_READY'; exit 1; }
+          sleep 8
+          node src/staging/qualify-private-two-worker.mjs
+          cleanup
+          trap - EXIT
+      - name: Always restore BOTH Workers to default disabled configurations and rotate temporary credentials
+        if: always()
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/mmf-two-worker-restore-required" ]; then
+            umask 077
+            node --input-type=module <<'NODE'
+          import {randomBytes} from 'node:crypto';import {writeFileSync} from 'node:fs';
+          const t=process.env.RUNNER_TEMP,random=()=>randomBytes(48).toString('base64url');
+          writeFileSync(t+'/mmf-two-worker-billing-revoked.json',JSON.stringify({MMF_BILLING_OPERATOR_TOKEN:random(),MMF_STAGE_RECEIPT_TOKEN:random()}),{mode:0o600});
+          writeFileSync(t+'/mmf-two-worker-authority-revoked.json',JSON.stringify({MMF_AUTHORITY_CALLER_TOKEN:random(),MMF_STAGE_RECEIPT_TOKEN:random()}),{mode:0o600});
+          NODE
+            status=0
+            npx --yes wrangler@4 deploy --config wrangler.mmf.paynow-private-authority-stage.jsonc --secrets-file "$RUNNER_TEMP/mmf-two-worker-authority-revoked.json" > "$RUNNER_TEMP/mmf-two-worker-authority-restore.log" 2>&1 || { echo 'MMF_AUTHORITY_RESTORE_FAILED_MANUAL_ATTENTION'; status=1; }
+            npx --yes wrangler@4 deploy --config wrangler.mmf.billing-private-do-authorized-20261011.jsonc --secrets-file "$RUNNER_TEMP/mmf-two-worker-billing-revoked.json" > "$RUNNER_TEMP/mmf-two-worker-billing-restore.log" 2>&1 || { echo 'MMF_BILLING_RESTORE_FAILED_MANUAL_ATTENTION'; status=1; }
+            if [ "$status" != 0 ]; then exit 1; fi
+          fi
+          rm -f "$RUNNER_TEMP/mmf-two-worker-signing.pem" "$RUNNER_TEMP/mmf-two-worker-operator.key" "$RUNNER_TEMP/mmf-two-worker-caller.key" "$RUNNER_TEMP/mmf-two-worker-receipt.key" "$RUNNER_TEMP/mmf-two-worker-billing-secrets.json" "$RUNNER_TEMP/mmf-two-worker-authority-secrets.json" "$RUNNER_TEMP/mmf-two-worker-billing-revoked.json" "$RUNNER_TEMP/mmf-two-worker-authority-revoked.json" wrangler.mmf.two-worker-billing.ephemeral.jsonc wrangler.mmf.two-worker-authority.ephemeral.jsonc
+          echo '{"gate":"MMF_TWO_WORKER_SYNTHETIC_CREDENTIALS_REVOKED","status":"PASS","customerMoney":false,"customerMail":false}'
+      - name: Independently verify both Workers are private, receipts disabled, and service binding still scoped
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(!token||account!=='93f395f5121954671f92fffa453d6b61')throw Error('MMF_FINAL_AUTH_UNAVAILABLE');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          const get=async(n,s)=>{const r=await fetch(base+n+'/'+s,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(18000)});const j=await r.json();if(!r.ok||j.success!==true)throw Error('MMF_FINAL_PRIVATE_CLOUD_READBACK_ERROR');return j.result};
+          const billing='musitu-mail-fabric-payment-private-stage-20261011',authority='musitu-mail-fabric-paynow-private-authority-stage-20261011';
+          const [bs,as,bsub,asub]=await Promise.all([get(billing,'settings'),get(authority,'settings'),get(billing,'subdomain'),get(authority,'subdomain')]);
+          const vars=(s,k)=>s.bindings?.find(x=>x.type==='plain_text'&&x.name===k)?.text;
+          const off=s=>['MMF_COMMERCE_ENABLED','MMF_REAL_SEND_ENABLED','MMF_MAIL_SENDING_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED','MMF_STAGE_RECEIPTS_ENABLED'].every(k=>vars(s,k)==='false');
+          if(!off(bs)||!off(as)||vars(as,'MMF_PRIVATE_AUTHORITY_STAGE_ENABLED')!=='false'||vars(as,'MMF_STAGE_BRIDGE_ENABLED')!=='false'||
+            bsub.enabled!==false||bsub.previews_enabled!==false||asub.enabled!==false||asub.previews_enabled!==false||
+            !bs.bindings.some(x=>x.type==='durable_object_namespace'&&x.name==='MMF_BILLING_LEDGER')||
+            as.bindings.filter(x=>x.type==='service').length!==1||
+            !as.bindings.some(x=>x.type==='service'&&x.name==='MMF_PRIVATE_PAYMENT_STAGE'&&x.service===billing))throw Error('MMF_TWO_WORKER_RELOCK_NOT_VERIFIED');
+          const proof={gate:'MMF_DEPLOYED_TWO_WORKER_PRIVATE_RELOCK',status:'PASS',bothWorkersPrivate:true,syntheticReceiptIntakeDisabled:true,authorityDisabled:true,realPaynowCalls:0,customerPayments:false,customerEmail:false,scopedPrivateBinding:true};
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-two-worker-final-relock-proof.json',JSON.stringify(proof)+'\n',{mode:0o600});console.log(JSON.stringify(proof));
+          NODE
+      - name: Save only sanitized verification proof, with no order IDs or tokens
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-two-worker-cloud-signed-synthetic-qualification-20261011
+          path: |
+            ${{ runner.temp }}/mmf-two-worker-sanitized-proof.json
+            ${{ runner.temp }}/mmf-two-worker-final-relock-proof.json
+          retention-days: 30
