@@ -1,0 +1,51 @@
+name: MMF Shared Paynow Product-Route Offline Safety 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-product-shared-paynow-offline-safety-20261011.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-shared-product-route-stage.mjs'
+      - 'musitu-mail-fabric/test/mmf-product-shared-route-staging.test.mjs'
+      - 'musitu-mail-fabric/package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-shared-paynow-product-route-offline-safety
+  cancel-in-progress: false
+jobs:
+  stage-only-no-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enforce isolation and no deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test ! -f .github/workflows/mmf-product-shared-paynow-offline-safety-20261011.yml.secrets
+      - name: Test product route stage only, then complete MMF regression
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npm run test:mmf-shared-route-stage
+          npm run check
+          npm test
+      - name: Keep commercial activation blocked
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-phase1-gate.log" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          echo 'MMF_COMMERCIAL_GATE_EXPECTED_BLOCKED: neither payments nor customer mail activated'
