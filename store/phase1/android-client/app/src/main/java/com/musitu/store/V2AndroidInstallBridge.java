@@ -3,6 +3,8 @@ package com.musitu.store;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.ResolveInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -103,8 +105,43 @@ final class V2AndroidInstallBridge {
       .setDataAndType(packageUri,"application/vnd.android.package-archive")
       .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);
     systemInstaller.setClipData(ClipData.newRawUri("verified APK",packageUri));
-    context.startActivity(systemInstaller);
+    // Android 11's InstallStart can forward the URI to a separate InstallStaging
+    // Activity without forwarding transient Intent flags. Grant read access
+    // to the one resolved trusted OS installer PACKAGE, not to arbitrary apps.
+    ResolveInfo handler=context.getPackageManager().resolveActivity(
+      systemInstaller,PackageManager.MATCH_DEFAULT_ONLY);
+    if(handler==null||handler.activityInfo==null||
+        handler.activityInfo.applicationInfo==null)
+      throw new SecurityException("no trusted Android system APK installer");
+    ApplicationInfo installerInfo=handler.activityInfo.applicationInfo;
+    if((installerInfo.flags&(ApplicationInfo.FLAG_SYSTEM|
+        ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))==0)
+      throw new SecurityException("APK installer is not a system application");
+    String installerPackage=handler.activityInfo.packageName;
+    systemInstaller.setPackage(installerPackage);
+    context.grantUriPermission(installerPackage,packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    try{
+      context.startActivity(systemInstaller);
+    }catch(RuntimeException failed){
+      context.revokeUriPermission(packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      throw failed;
+    }
     return Result.SYSTEM_INSTALLER_LAUNCHED;
+  }
+
+  /**
+   * After the OS installation finishes or the user cancels, the integrating
+   * Activity MUST revoke the temporary per-APK grant. Until lifecycle wiring
+   * is qualified the V2 bridge is not eligible for production rollout.
+   */
+  static void revokeInstallerUriGrant(Context context,File stagedApk)throws Exception{
+    if(context==null||stagedApk==null)throw new SecurityException("grant cleanup requires APK");
+    File base=new File(context.getFilesDir(),"downloads/v2").getCanonicalFile();
+    File apk=stagedApk.getCanonicalFile();
+    if(!apk.getPath().startsWith(base.getPath()+File.separator))
+      throw new SecurityException("cannot revoke outside verified Store downloads");
+    Uri uri=FileProvider.getUriForFile(context,"com.musitu.store.files",apk);
+    context.revokeUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
   }
   private V2AndroidInstallBridge(){}
 }
