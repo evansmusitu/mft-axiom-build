@@ -12,7 +12,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.file.Files;
+import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
@@ -50,7 +51,12 @@ public final class V2RealApkInstrumentedTest {
     Archive(Context ctx,int i)throws Exception{
       file=new File(ctx.getFilesDir(),"v2-real-fixture-"+(i==0?"alpha":"beta")+".apk");
       assertTrue("CI must install fixture into private Store test directory: "+file,file.isFile());
-      bytes=Files.readAllBytes(file.toPath());
+      ByteArrayOutputStream buffer=new ByteArrayOutputStream();
+      try(FileInputStream stream=new FileInputStream(file)){
+        byte[] block=new byte[65536];
+        for(int n;(n=stream.read(block))!=-1;)if(n>0)buffer.write(block,0,n);
+      }
+      bytes=buffer.toByteArray();
       assertTrue(bytes.length>512);
       PackageInfo info=ctx.getPackageManager().getPackageArchiveInfo(file.getAbsolutePath(),PackageManager.GET_SIGNATURES);
       assertNotNull("must be an actual Android APK archive",info);
