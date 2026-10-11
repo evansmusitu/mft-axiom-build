@@ -65,6 +65,20 @@ public final class V2AndroidApi24InstrumentedTest {
         .put("issuedAt",iso(now-60_000)).put("expiresAt",iso(now+3_600_000))
         .put("publishers",new JSONArray().put(publisher))
         .put("apps",new JSONArray().put(application));
+      JSONObject otherGrant=new JSONObject()
+        .put("platform","android").put("packageId","org.northstar.testapp")
+        .put("signingCertificateSha256",repeat('c',64));
+      JSONObject otherPublisher=new JSONObject()
+        .put("id","northstar").put("name","Northstar Publisher")
+        .put("grants",new JSONArray().put(otherGrant));
+      JSONObject otherRelease=release(payload)
+        .put("packageId","org.northstar.testapp")
+        .put("signingCertificateSha256",repeat('c',64));
+      JSONObject otherApp=new JSONObject()
+        .put("id","northstar-app").put("publisherId","northstar")
+        .put("releases",new JSONArray().put(otherRelease));
+      catalog.getJSONArray("publishers").put(otherPublisher);
+      catalog.getJSONArray("apps").put(otherApp);
       raw=catalog.toString().getBytes(StandardCharsets.UTF_8);
       KeyPairGenerator g=KeyPairGenerator.getInstance("EC");
       g.initialize(new ECGenParameterSpec("secp256r1"));
@@ -107,6 +121,35 @@ public final class V2AndroidApi24InstrumentedTest {
     } catch(SecurityException expected) {
       // PackageManager inspection rejects the synthetic non-APK before user prompt.
     }
+  }
+
+  @Test public void actualApi24DisplaysTwoVerifiedPublisherApplications()throws Exception{
+    Fixture fixture=new Fixture();
+    Context context=ApplicationProvider.getApplicationContext();
+    final java.util.List<String> selections=new java.util.ArrayList<>();
+    android.view.View view=V2AndroidAppBrowser.render(context,fixture.verified,
+      chosen->selections.add(chosen.appId));
+    assertTrue(view instanceof android.widget.ScrollView);
+    android.widget.LinearLayout container=(android.widget.LinearLayout)
+      ((android.widget.ScrollView)view).getChildAt(0);
+    java.util.List<android.widget.Button> choices=new java.util.ArrayList<>();
+    for(int n=0;n<container.getChildCount();n++){
+      android.view.View child=container.getChildAt(n);
+      if(child instanceof android.widget.Button)choices.add((android.widget.Button)child);
+    }
+    assertEquals("only two verified releases may be actionable",2,choices.size());
+    assertEquals("review:musitu-test-app",choices.get(0).getTag());
+    assertEquals("review:northstar-app",choices.get(1).getTag());
+    choices.get(0).performClick();
+    choices.get(1).performClick();
+    assertEquals(java.util.Arrays.asList("musitu-test-app","northstar-app"),selections);
+  }
+  @Test public void actualApi24NeverRendersUnsignedOrMissingRegistry()throws Exception{
+    try{
+      V2AndroidAppBrowser.render(ApplicationProvider.getApplicationContext(),null,
+        selected->{});
+      fail("unsigned or missing V2 registry was rendered");
+    }catch(SecurityException expected){}
   }
 
   @Test public void actualApi24DoesNotAcceptSelfSignedPublisherRootAtProductionBoundary()throws Exception{
