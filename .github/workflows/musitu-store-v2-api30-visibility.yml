@@ -12,6 +12,7 @@ on:
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi30VisibilityTest.java'
       - 'store/phase1/android-client/run-v2-api30-qualification.sh'
+      - 'store/phase1/android-client/run-v2-api30-visible-consent.py'
       - 'store/phase1/android-client/app/build.gradle'
 
 permissions:
@@ -99,22 +100,14 @@ jobs:
           disable-linux-hw-accel: auto
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash store/phase1/android-client/run-v2-api30-qualification.sh
-      - name: Require Android API30 visibility test success (not skipped)
+      - name: Require all five separate OS-mediated approval sessions to pass
         shell: bash
         run: |
-          python3 - <<'PY'
-          import glob,xml.etree.ElementTree as ET
-          paths=glob.glob('store/phase1/android-client/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
-          matches=[]
-          for p in paths:
-            root=ET.parse(p).getroot()
-            for case in root.iter('testcase'):
-              if 'V2AndroidApi30VisibilityTest' in case.get('classname',''):
-                matches.append(case)
-          assert len(matches)==1,('API30 visibility test missing',len(matches),paths)
-          assert not any(child.tag in ('failure','error','skipped') for child in matches[0]),'permission acceptance failed or skipped'
-          print('MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS tests=1 failures=0 errors=0 skipped=0')
-          PY
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/musitu-api30-pass.log"
+          grep -Fx 'MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS stages=5 failures=0 errors=0 skipped=0' "$RUNNER_TEMP/musitu-api30-pass.log"
+          grep -Fx 'MUSITU_API30_SOURCE_PERMISSION_INITIAL_OFF=PASS' "$RUNNER_TEMP/musitu-api30-pass.log"
+          grep -Fx 'MUSITU_API30_APK_CANCELLATION_PREVENTED_INSTALL=PASS' "$RUNNER_TEMP/musitu-api30-pass.log"
       - name: Retain public test checksums without ephemeral private key material
         if: always()
         uses: actions/upload-artifact@v4
