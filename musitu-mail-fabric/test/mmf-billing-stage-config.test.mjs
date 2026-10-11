@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const cfg=JSON.parse(readFileSync(new URL('../wrangler.mmf.billing-stage.template.jsonc',import.meta.url),'utf8'));
+test('private stage payment Worker template has no public checkout, live money or shared FMI database',()=>{
+ assert.equal(cfg.workers_dev,false);assert.deepEqual(cfg.routes,[]);
+ assert.equal(cfg.main,'src/commercial/billing-stage-worker.mjs');
+ assert.deepEqual(cfg.d1_databases.map(x=>x.binding),['MMF_PAYMENT_DB']);
+ assert.notEqual(cfg.d1_databases[0].database_id,'a03dc12d-8206-47be-b904-1f24e4e37d91');
+ assert.match(cfg.d1_databases[0].database_id,/^REPLACE_WITH_FRESH_MMF_ONLY_/);
+ assert.equal(cfg.vars.MMF_COMMERCE_ENABLED,'false');
+ assert.equal(cfg.vars.MMF_REAL_SEND_ENABLED,'false');
+ assert.equal(cfg.vars.MMF_MAIL_SENDING_ENABLED,'false');
+ assert.equal(cfg.vars.MMF_API_ENABLED,'false');
+ assert.equal(cfg.vars.MMF_WEBHOOK_ENABLED,'false');
+ assert.equal(cfg.vars.MMF_STAGE_ONLY,'true');
+ assert.equal(cfg.vars.MMF_BILLING_API_ENABLED,'true');
+ assert.equal(cfg.services,undefined);
+ assert.equal(cfg.vars.PAYNOW_INTEGRATION_KEY,undefined);
+ assert.equal(cfg.vars.MMF_BILLING_OPERATOR_TOKEN,undefined);
+});

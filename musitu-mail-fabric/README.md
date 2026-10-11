@@ -221,3 +221,7 @@ The isolated workflow `.github/workflows/mmf-paynow-existing-authority-readonly.
 ## MMF Paynow isolated order-ledger qualification (2026-10-11)
 
 `src/commercial/mmf-order-ledger.mjs` contains a separate MMF-only SQLite/D1-compatible staging order ledger: exact-quote SHA-256 binding, strict one-time USD 99 proposal identity, uniquely indexed provider reference hashes, idempotent pending order insertion and synthetic Ed25519-verified settlement replay, with explicit fail-closed staging locks and no customer delivery or invoicing permission. Tests run against real in-memory SQLite via Node 22 `node:sqlite` (experimental test dependency only). **This is not a production Paynow charge, an actual settled MMF fee or proof of a verified MMF payment authority**. The live shared payment audit still proves only FMI/Chemistry scoped integration; adding an MMF-specific authority/transport binding and independently verifying real settlement remains a separate release-controlled task.
+
+### Distinct private MMF billing stage (not Paynow production checkout)
+
+The stage-only intake worker `src/commercial/billing-stage-worker.mjs` with no public routes or payment integration is documented in [`docs/2026-10-11-mmf-billing-private-stage-worker.md`](docs/2026-10-11-mmf-billing-private-stage-worker.md). The separate locked D1-only deployment template is `wrangler.mmf.billing-stage.template.jsonc`. Existing FMI/Chemistry Paynow billing does **not** settle MMF orders.

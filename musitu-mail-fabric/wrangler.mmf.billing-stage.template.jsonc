@@ -1,0 +1,22 @@
+{
+  "name": "musitu-mail-fabric-payment-private-stage-20261011",
+  "main": "src/commercial/billing-stage-worker.mjs",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [],
+  "d1_databases": [
+    {"binding": "MMF_PAYMENT_DB", "database_name": "mmf-isolated-billing-stage",
+     "database_id": "REPLACE_WITH_FRESH_MMF_ONLY_ISOLATED_D1_ID"}
+  ],
+  "vars": {
+    "MMF_STAGE_ONLY": "true",
+    "MMF_REAL_SEND_ENABLED": "false",
+    "MMF_MAIL_SENDING_ENABLED": "false",
+    "MMF_COMMERCE_ENABLED": "false",
+    "MMF_BILLING_API_ENABLED": "true",
+    "MMF_API_ENABLED": "false",
+    "MMF_WEBHOOK_ENABLED": "false",
+    "MMF_TENANT_ID": "REPLACE_WITH_EXACT_ISOLATED_STAGE_TENANT"
+  }
+}
