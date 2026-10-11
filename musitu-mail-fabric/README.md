@@ -225,3 +225,10 @@ The isolated workflow `.github/workflows/mmf-paynow-existing-authority-readonly.
 ### Distinct private MMF billing stage (not Paynow production checkout)
 
 The stage-only intake worker `src/commercial/billing-stage-worker.mjs` with no public routes or payment integration is documented in [`docs/2026-10-11-mmf-billing-private-stage-worker.md`](docs/2026-10-11-mmf-billing-private-stage-worker.md). The separate locked D1-only deployment template is `wrangler.mmf.billing-stage.template.jsonc`. Existing FMI/Chemistry Paynow billing does **not** settle MMF orders.
+
+
+## 2026-10-11 Paynow native protocol qualification (isolated, NOT live)
+
+`src/commercial/paynow-native-protocol.mjs` now parses and verifies the official Paynow SHA-512 wire-message contract with fail-closed input validation, exact MMF product/price checks, and an allowlisted Paynow polling URL. `src/commercial/paynow-private-authority-candidate.mjs` demonstrates a **future server-side extension to the existing shared MUSITU payment authority**, using independently fetched signed provider status and an Ed25519 settlement/refund receipt. `npm run test:paynow-native` exercises genuine protocol primitives with FAKE ephemeral keys and an emulated HTTP poll. It makes **no real Paynow call, checkout or refund**. Never put the Paynow integration key or the authority receipt signing private key in the MMF frontend, production Mail Fabric Worker or repository. See `docs/2026-10-11-mmf-paynow-protocol-integration-candidate.md`.
+
+**Release remains BLOCKED**: no MMF-specific routes/tokens in the existing live authority or transport, no deployed MMF billing service, no legal issuer/invoice clearance, no independent security approval, no genuine MMF payment/poll or reversal, and no independently qualified MMF live Resend outbox integration. The shared FMI, Axiom and Chemistry payment stack remains unchanged.
