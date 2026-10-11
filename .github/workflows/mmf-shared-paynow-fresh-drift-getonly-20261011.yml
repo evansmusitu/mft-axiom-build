@@ -1,0 +1,53 @@
+name: MMF Shared Paynow Fresh Source Drift GET-Only 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-shared-paynow-fresh-drift-getonly-20261011.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-current-cloudflare-drift-readonly.mjs'
+      - 'musitu-mail-fabric/test/mmf-current-cloudflare-drift-readonly.test.mjs'
+      - 'musitu-mail-fabric/src/staging/canonical-cloudflare-worker-source.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-shared-paynow-fresh-source-getonly-20261011
+  cancel-in-progress: false
+jobs:
+  source-drift-get-only:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enforce isolated branch and qualify GET-only auditing without credentials
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-current-cloudflare-drift-readonly.mjs
+          node --test test/mmf-current-cloudflare-drift-readonly.test.mjs
+      - name: Refresh two-Worker normalized source baseline with Cloudflare GET only
+        shell: bash
+        working-directory: musitu-mail-fabric
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/mmf-current-cloudflare-drift-readonly.mjs --get-only
+      - name: Upload sanitized evidence only (no sources, no secret values)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-shared-paynow-fresh-getonly-baseline-20261011
+          path: ${{ runner.temp }}/mmf-paynow-current-source-baseline-sanitized.json
+          retention-days: 14
+          if-no-files-found: warn
