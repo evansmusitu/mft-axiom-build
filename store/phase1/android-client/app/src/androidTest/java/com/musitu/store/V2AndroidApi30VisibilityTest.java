@@ -84,8 +84,12 @@ public final class V2AndroidApi30VisibilityTest {
     assertTrue("approved source permission unexpectedly lost",context().getPackageManager().canRequestPackageInstalls());
     assertAbsent(context().getPackageManager());
     V2RealApkInstrumentedTest.Signed s=signed();
+    File staged=stage(s);
+    // The previous installer was dismissed: revoke its one-APK grant before
+    // creating a fresh user-approved installation attempt.
+    V2AndroidInstallBridge.revokeInstallerUriGrant(context(),staged);
     assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
-      V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,stage(s)));
+      V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,staged));
     Log.i("MUSITU_API30","STAGE04_APK_INSTALL_DIALOG_RETRIED");
   }
 
@@ -103,6 +107,7 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals(1,certs.length);
     assertEquals("installed publisher signature not authorized by verified signed catalog",
       release.signingCertificateSha256,hexSha(certs[0].toByteArray()));
+    V2AndroidInstallBridge.revokeInstallerUriGrant(context(),stage(s));
     Log.i("MUSITU_API30","STAGE05_INSTALLED_PACKAGE_AND_SIGNER_CONFIRMED");
   }
 }
