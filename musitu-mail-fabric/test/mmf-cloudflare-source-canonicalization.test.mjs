@@ -61,3 +61,9 @@ test('Cloudflare classic Service Worker multipart with a single untyped script p
  assert.equal(r.sourceText,actualModule);
  assert.match(r.sourceSha256,/^[a-f0-9]{64}$/);
 });
+test('Cloudflare single untyped JavaScript module source envelope is normalized safely',async()=>{
+ const raw=`--single\r\nContent-Disposition: form-data; name="worker.js"\r\n\r\n${actualModule}\r\n--single--\r\n`;
+ const r=await canonicalCloudflareWorkerSource(new Response(raw,{headers:{'content-type':'multipart/form-data; boundary=single'}}));
+ assert.equal(r.sourceText,actualModule);
+ assert.equal(r.multipartNormalized,true);
+});
