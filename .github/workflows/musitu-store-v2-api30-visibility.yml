@@ -11,6 +11,7 @@ on:
       - 'store/phase1/android-client/fixturebeta/**'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi30VisibilityTest.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstallBridge.java'
       - 'store/phase1/android-client/run-v2-api30-qualification.sh'
       - 'store/phase1/android-client/run-v2-api30-visible-consent.py'
       - 'store/phase1/android-client/app/build.gradle'
