@@ -44,7 +44,7 @@ def finish_instrument(proc,stage):
         out,err=proc.communicate()
         raise AssertionError(f"Android instrument session {stage} never completed: {out[-3000:]} {err[-2000:]}")
     print(out[-4000:]+err[-2000:],flush=True)
-    if proc.returncode or not re.search(r"OK \\(\\s*1 test\\s*\\)",out):
+    if proc.returncode or not re.search(r"OK \(\s*1 test\s*\)",out):
         raise AssertionError(f"Android instrument {stage} did not pass: {out[-4000:]} {err[-2000:]}")
 
 def window():
