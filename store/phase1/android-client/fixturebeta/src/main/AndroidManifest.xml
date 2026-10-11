@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:hasCode="false" android:allowBackup="false" android:label="MUSITU V2 Beta Fixture" />
+</manifest>
