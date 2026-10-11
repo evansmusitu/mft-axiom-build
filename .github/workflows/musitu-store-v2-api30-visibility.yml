@@ -11,6 +11,7 @@ on:
       - 'store/phase1/android-client/fixturebeta/**'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi30VisibilityTest.java'
+      - 'store/phase1/android-client/run-v2-api30-qualification.sh'
       - 'store/phase1/android-client/app/build.gradle'
 
 permissions:
@@ -97,24 +98,8 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: auto
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -eu
-            gradle -p store/phase1/android-client --no-daemon :app:installDebug :app:installDebugAndroidTest
-            adb push "$TEST_APK_DIR/alpha.apk" /data/local/tmp/v2-real-fixture-alpha.apk
-            adb push "$TEST_APK_DIR/beta.apk" /data/local/tmp/v2-real-fixture-beta.apk
-            adb shell run-as com.musitu.store mkdir -p files
-            adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-alpha.apk files/v2-real-fixture-alpha.apk
-            adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-beta.apk files/v2-real-fixture-beta.apk
-            test_exit=0
-            gradle -p store/phase1/android-client --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.musitu.store.V2AndroidApi30VisibilityTest || test_exit=$?
-            if [ "$test_exit" -ne 0 ]; then
-              echo '=== ANDROID API30 INSTRUMENTATION TEST XML ==='
-              find store/phase1/android-client/app/build/outputs/androidTest-results/connected -type f -name '*.xml' -exec cat {} \; | tail -180 || true
-              echo '=== ANDROID API30 CRASH BUFFER ==='
-              adb logcat -d -b crash -v time | tail -180 || true
-            fi
-            exit "$test_exit"
-      - name: Require Android API26 permission test success (not skipped)
+          script: bash store/phase1/android-client/run-v2-api30-qualification.sh
+      - name: Require Android API30 visibility test success (not skipped)
         shell: bash
         run: |
           python3 - <<'PY'
@@ -126,7 +111,7 @@ jobs:
             for case in root.iter('testcase'):
               if 'V2AndroidApi30VisibilityTest' in case.get('classname',''):
                 matches.append(case)
-          assert len(matches)==1,('API26 permission test missing',len(matches),paths)
+          assert len(matches)==1,('API30 visibility test missing',len(matches),paths)
           assert not any(child.tag in ('failure','error','skipped') for child in matches[0]),'permission acceptance failed or skipped'
           print('MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS tests=1 failures=0 errors=0 skipped=0')
           PY
