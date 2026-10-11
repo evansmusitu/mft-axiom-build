@@ -1,0 +1,120 @@
+name: MUSITU Mail Fabric Authorized Private SQLite Billing Stage 20261011
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-billing-private-sqlite-do-stage-authorized-20261011.yml']
+permissions:
+  contents: read
+concurrency:
+  group: musitu-mail-fabric-private-billing-sqlite-stage-only-20261011
+  cancel-in-progress: false
+jobs:
+  isolated-sqlite-stage:
+    # One-time exact authorization-specific isolated branch transition.
+    if: github.event.before == 'a49ddcf8bfb0c04ae8e4d6d322aba4d1b69e96d9'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reverify isolated code and fresh SQLite Durable Object staging contract
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "${{ github.event.before }}" = 'a49ddcf8bfb0c04ae8e4d6d322aba4d1b69e96d9'
+          npm run check
+          npm test
+          node --test test/mmf-authorized-billing-do-config.test.mjs test/mmf-authorized-billing-do-stage.test.mjs
+      - name: GET-only Cloudflare account and strictly new target check
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const target='musitu-mail-fabric-payment-private-stage-20261011';
+          if(account!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_SCOPE_DENIED');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/';
+          const get=async(s)=>{const r=await fetch(base+s,{method:'GET',headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(16000)});let o={};try{o=await r.json()}catch{}return {status:r.status,result:o.result,success:o.success}};
+          const [newWorker,stage,sub]=await Promise.all([get(target+'/settings'),get('musitu-mail-fabric-staging-20261010/settings'),get('musitu-mail-fabric-staging-20261010/subdomain')]);
+          if(newWorker.status!==404||stage.status!==200||stage.success!==true||sub.status!==200||sub.success!==true||sub.result?.enabled!==false)throw Error('MMF_NEW_SQLITE_STAGE_TARGET_NOT_SAFE');
+          const existing=stage.result.bindings||[];
+          if(!existing.some(b=>b.name==='MMF_LEDGER'&&b.type==='durable_object_namespace'))throw Error('MMF_EXISTING_STAGE_BASELINE_UNVERIFIED');
+          const digest=createHash('sha256').update(JSON.stringify({bindings:existing,sub:sub.result})).digest('hex');
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-existing-mail-worker-baseline.sha256',digest,{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_NEW_PRIVATE_SQLITE_STAGE_PREFLIGHT',status:'PASS',targetPreviouslyAbsent:true,existingSenderUntouched:true,publicAccess:false,d1QuotaBypass:true}));
+          NODE
+      - name: Generate isolated single-use private operator key without logging or storing elsewhere
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {randomBytes} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-private-billing-sqlite-do-secrets.json',JSON.stringify({MMF_BILLING_OPERATOR_TOKEN:randomBytes(48).toString('base64url')}),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_OPERATOR_SECRET_CREATED',status:'PASS',valueLogged:false,customerTokenReused:false}));
+          NODE
+      - name: Deploy NEW ONLY non-public payment SQLite Durable Object Worker
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.mmf.billing-private-do-authorized-20261011.jsonc --secrets-file "$RUNNER_TEMP/mmf-private-billing-sqlite-do-secrets.json"
+      - name: Independent Cloudflare settings and namespace proof, existing Mail Fabric unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,k=process.env.CLOUDFLARE_API_TOKEN;
+          const target='musitu-mail-fabric-payment-private-stage-20261011';
+          const base='https://api.cloudflare.com/client/v4/accounts/'+a+'/workers/scripts/';
+          const get=async(path)=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+k},signal:AbortSignal.timeout(16000)});const x=await r.json();if(!r.ok||x.success!==true)throw Error('MMF_CLOUD_READBACK_HTTP_'+r.status);return x.result};
+          const [cfg,sub,secrets,previous,previousSub]=await Promise.all([get(target+'/settings'),get(target+'/subdomain'),get(target+'/secrets'),get('musitu-mail-fabric-staging-20261010/settings'),get('musitu-mail-fabric-staging-20261010/subdomain')]);
+          const bindings=cfg.bindings||[],vars=n=>bindings.find(b=>b.name===n&&b.type==='plain_text')?.text;
+          const expected={MMF_STAGE_ONLY:'true',MMF_REAL_SEND_ENABLED:'false',MMF_MAIL_SENDING_ENABLED:'false',MMF_COMMERCE_ENABLED:'false',MMF_BILLING_API_ENABLED:'true',MMF_STAGE_RECEIPTS_ENABLED:'false',MMF_API_ENABLED:'false',MMF_WEBHOOK_ENABLED:'false',MMF_TENANT_ID:'mmf_stage_20261011'};
+          const own=bindings.find(b=>b.name==='MMF_BILLING_LEDGER'&&b.type==='durable_object_namespace'&&b.class_name==='MmfBillingPrivateStageSqliteDO');
+          const existing=previous.bindings||[],earlier=existing.find(b=>b.name==='MMF_LEDGER'&&b.type==='durable_object_namespace');
+          const before=readFileSync(process.env.RUNNER_TEMP+'/mmf-existing-mail-worker-baseline.sha256','utf8');
+          const after=createHash('sha256').update(JSON.stringify({bindings:existing,sub:previousSub})).digest('hex');
+          if(!own||!earlier||!own.namespace_id||own.namespace_id===earlier.namespace_id||
+             sub?.enabled!==false||sub?.previews_enabled!==false||
+             !Object.entries(expected).every(([n,v])=>vars(n)===v)||
+             !Array.isArray(secrets)||!secrets.some(x=>x.name==='MMF_BILLING_OPERATOR_TOKEN')||
+             secrets.some(x=>/PAYNOW|FMI|CHEMISTRY|RESEND|PRIVATE_KEY/.test(x.name))||
+             bindings.some(x=>['service','d1','queue','send_email'].includes(x.type))||
+             before!==after)throw Error('MMF_PRIVATE_SQLITE_STAGE_POSTDEPLOY_DENIED');
+          const proof={gate:'MMF_CLOUDFLARE_PRIVATE_BILLING_SQLITE_STAGE',status:'PASS',worker:target,
+            separateSqliteNamespace:true,d1AccountQuotaUnaffected:true,isolatedFromExistingMailLedger:true,
+            existingMailWorkerUnchanged:true,publicAccess:false,previewUrls:false,
+            realPaynowInitiationEnabled:false,receiptIngressEnabled:false,customerFunds:false,
+            customerEmailSending:false,sandboxOrderQualifiedLocally:true,
+            privateCloudOrderExecutionVerified:false};
+          console.log(JSON.stringify(proof));
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-private-billing-sqlite-cloud-evidence.json',JSON.stringify({...proof,verifiedAt:new Date().toISOString()})+'\n',{mode:0o600});
+          NODE
+      - name: Upload sanitized stage deployment verification evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-billing-sqlite-cloud-evidence-20261011
+          path: ${{ runner.temp }}/mmf-private-billing-sqlite-cloud-evidence.json
+          retention-days: 30
+      - name: Securely discard CI-only credentials and baseline
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/mmf-private-billing-sqlite-do-secrets.json" "$RUNNER_TEMP/mmf-existing-mail-worker-baseline.sha256"
