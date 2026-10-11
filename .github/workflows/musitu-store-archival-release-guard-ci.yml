@@ -1,0 +1,27 @@
+name: MUSITU Store isolated archived-release safety tests
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-phase1-archival-release-gates-20261011
+    paths:
+      - '.github/workflows/musitu-store-archival-release-guard-ci.yml'
+      - 'store/phase2/archived-release-workflow.test.mjs'
+      - '.github/workflows/musitu-store-phase1-production-deploy.yml'
+      - '.github/workflows/musitu-store-phase1-runtime-state-production-update.yml'
+      - '.github/workflows/musitu-store-phase1-v101-production-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-archival-guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify no archived Store workflow can execute a production deployment
+        run: node --test store/phase2/archived-release-workflow.test.mjs
