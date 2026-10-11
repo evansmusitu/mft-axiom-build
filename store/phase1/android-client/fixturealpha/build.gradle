@@ -1,0 +1,12 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'org.musitu.fixturealpha'
+  compileSdk 36
+  defaultConfig {
+    applicationId 'org.musitu.fixturealpha'
+    minSdk 24
+    targetSdk 28
+    versionCode 100
+    versionName '1.0.0'
+  }
+}
