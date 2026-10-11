@@ -43,8 +43,38 @@ public final class V2UserConsentInstallerTest {
     UiObject2 button=ui.wait(Until.findObject(By.text(Pattern.compile("(?i)^install$"))),25000);
     assertNotNull("Android must show its system installer consent control",button);
 
-    // RED: Without actual user consent the installer cannot complete.
-    assertEquals("a genuine user approval must complete installation",packageId,
-      context.getPackageManager().getPackageInfo(packageId,0).packageName);
+    // A signed verified APK must remain uninstalled until the visible
+    // system installer approval control is activated by UIAutomator.
+    try {
+      context.getPackageManager().getPackageInfo(packageId,0);
+      fail("package unexpectedly installed before approval");
+    } catch(PackageManager.NameNotFoundException expected){}
+
+    // UIAutomator performs an actual tap on the OS dialog; it does not
+    // use ADB pm install, force-install permissions or hidden APIs.
+    assertTrue("system installer approval button was not clickable",button.click());
+
+    android.content.pm.PackageInfo installed=null;
+    long deadline=android.os.SystemClock.uptimeMillis()+45000L;
+    while(android.os.SystemClock.uptimeMillis()<deadline){
+      try{
+        installed=context.getPackageManager().getPackageInfo(
+          packageId,PackageManager.GET_SIGNATURES);
+        break;
+      }catch(PackageManager.NameNotFoundException notYetInstalled){
+        Thread.sleep(450L);
+      }
+    }
+    assertNotNull("Android did not complete the user-approved APK installation",installed);
+    assertEquals(packageId,installed.packageName);
+    assertEquals(selected.versionCode,(long)installed.versionCode);
+    assertNotNull("OS-reported certificate missing",installed.signatures);
+    assertEquals(1,installed.signatures.length);
+    java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");
+    byte[] cert=digest.digest(installed.signatures[0].toByteArray());
+    StringBuilder actual=new StringBuilder();
+    for(byte b:cert)actual.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
+    assertEquals("installed package signing certificate differs from verified catalog",
+      selected.signingCertificateSha256,actual.toString());
   }
 }
