@@ -1,10 +1,14 @@
 package com.musitu.store;
 
 import org.junit.Test;
+import org.junit.BeforeClass;
 import java.util.List;
 import static org.junit.Assert.*;
 
 public final class V2AndroidAppListingTest {
+  @BeforeClass public static void initializeKey()throws Exception{
+    V2SignedAndroidCatalogTest.key();
+  }
   @Test public void listsTwoIndependentPublishersFromValidatedCatalog()throws Exception{
     V2SignedAndroidCatalog.Verified catalog=V2SignedAndroidCatalogTest.accept(V2SignedAndroidCatalogTest.baseline());
     List<V2AndroidAppListing.Entry> entries=V2AndroidAppListing.from(catalog);
