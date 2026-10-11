@@ -33,6 +33,28 @@ test('MMF isolated authority candidate: independently polls verified Paynow Paid
  assert.equal(out.receipt.claim.status,'paid');assert.equal(out.receipt.claim.orderReference,quote.orderReference);
  assert.equal(verifyMmfPaynowSettlement(out.receipt,quote,verifyOptions).verified,true);
 });
+test('MMF authority pair: documented signed card metadata does not appear in MMF signed claim, adverse fraud decisions fail closed',async()=>{
+ const {calls,options}=setup('Paid','Paid',{
+  paymentinstrument:'4242****4242',paymentinstrumentname:'Sensitive Cardholder',
+  paymentchannel:'Visa',paymentfrauddecision:'Issue'});
+ const signedCallbackBody=payload('Paid',{
+  paymentinstrument:'4242****4242',paymentinstrumentname:'Sensitive Cardholder',
+  paymentchannel:'Visa',paymentfrauddecision:'Issue'});
+ const paid=await certifyMmfPaidViaAuthoritativePoll({...options,signedCallbackBody});
+ assert.equal(calls.length,1);
+ assert.equal(verifyMmfPaynowSettlement(paid.receipt,quote,verifyOptions).verified,true);
+ assert.equal(JSON.stringify(paid.receipt).includes('Sensitive Cardholder'),false);
+ assert.equal(JSON.stringify(paid.receipt).includes('4242****4242'),false);
+ const before=setup();
+ await assert.rejects(()=>certifyMmfPaidViaAuthoritativePoll({
+  ...before.options,signedCallbackBody:payload('Paid',{paymentfrauddecision:'Reject'})
+ }),/DENIED/);
+ assert.equal(before.calls.length,0);
+ for(const decision of ['Reject','Request Manual Review']){
+  const rejected=setup('Paid','Paid',{paymentfrauddecision:decision});
+  await assert.rejects(()=>certifyMmfPaidViaAuthoritativePoll(rejected.options),/DENIED/);
+ }
+});
 test('MMF isolated authority candidate: never polls if callback unauthenticated or cross-order',async()=>{
  const {calls,options}=setup();
  await assert.rejects(()=>certifyMmfPaidViaAuthoritativePoll({...options,signedCallbackBody:options.signedCallbackBody.replace('99.00','98.00')}),/DENIED/);

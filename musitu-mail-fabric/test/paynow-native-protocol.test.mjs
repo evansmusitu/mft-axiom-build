@@ -57,6 +57,31 @@ test('Paynow native: duplicate and forbidden form fields fail even if correctly 
  assert.throws(()=>parseVerifiedMmfPaynowStatus(event('INVALID'),{integrationKey:key}),/DENIED/);
  assert.throws(()=>parseVerifiedMmfPaynowStatus(event().replace('%3A','%INVALID'),{integrationKey:key}),/DENIED/);
 });
+test('Paynow native: accepts current documented optional instrument metadata without exposing it to an MMF receipt',()=>{
+ const optional={paymentchannel:'Visa',paymentinstrument:'411111******1111',
+  paymentinstrumentname:'Owner Name',paymentinstrumentnationality:'Domestic',
+  paymentchanneleci:'05',paymentchannelreference:'AUTH-123456',
+  paymentfraudscore:'0',paymentfrauddecision:'Issue'};
+ const signed=event('Paid',optional);
+ const receipt=parseVerifiedMmfPaynowStatus(signed,{integrationKey:key});
+ assert.equal(receipt.kind,'PAID_OBSERVED');
+ const admission=authorizeMmfPaynowStatusForOrder(receipt,quote,{tenantId:quote.tenantId});
+ assert.equal(admission.kind,'PAID_OBSERVED');
+ for(const secret of [optional.paymentinstrument,optional.paymentinstrumentname,optional.paymentchannelreference]){
+  assert.equal(JSON.stringify(receipt).includes(secret),false);
+  assert.equal(JSON.stringify(admission).includes(secret),false);
+ }
+ assert.throws(()=>parseVerifiedMmfPaynowStatus(signed.replace('Visa','Mastercard'),{integrationKey:key}),/DENIED/);
+ assert.throws(()=>parseVerifiedMmfPaynowStatus(signed+'&paymentinstrumentname=X',{integrationKey:key}),/DENIED/);
+});
+test('Paynow native: signed Paid responses with adverse or unrecognized fraud decisions cannot authorize an MMF payment',()=>{
+ for(const decision of ['Reject','Request Manual Review','UNKNOWN']){
+  assert.throws(()=>parseVerifiedMmfPaynowStatus(event('Paid',{paymentfrauddecision:decision}),{integrationKey:key}),/DENIED/,decision);
+ }
+ const allowed=parseVerifiedMmfPaynowStatus(event('Paid',{paymentfrauddecision:'Issue'}),{integrationKey:key});
+ assert.equal(allowed.kind,'PAID_OBSERVED');
+ assert.equal(allowed.grantsMailSending,false);
+});
 test('Paynow native: poll URL SSRF protections accept exact official check payment URL only',()=>{
  assert.equal(validateMmfPaynowPollUrl(poll),poll);
  for(const x of [

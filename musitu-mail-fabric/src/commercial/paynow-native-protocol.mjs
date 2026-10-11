@@ -17,7 +17,8 @@ const DENIED='MMF_PAYNOW_NATIVE_PROTOCOL_DENIED';
 const deny=()=>{throw Error(DENIED)};
 const ALLOWED=new Set(['reference','paynowreference','amount','status','pollurl','hash',
  // Paynow documents extra optional payment channel metadata. We do not expose it.
- 'paymentchannel','paymentchannelreference','paymentfrauddecision','paymentfraudscore']);
+ 'paymentchannel','paymentchannelreference','paymentfrauddecision','paymentfraudscore',
+ 'paymentinstrument','paymentinstrumentname','paymentinstrumentnationality','paymentchanneleci']);
 const STATUS=Object.freeze({Paid:'PAID_OBSERVED','Awaiting Delivery':'PROVISIONAL',
  Delivered:'PROVISIONAL',Created:'PENDING',Sent:'PENDING',Cancelled:'CANCELLED',
  Disputed:'DISPUTED',Refunded:'REFUNDED'});
@@ -69,6 +70,9 @@ export function validateMmfPaynowPollUrl(input){
 export function parseVerifiedMmfPaynowStatus(raw,{integrationKey}={}){
  try{
   const key=secret(integrationKey),entries=strictForm(raw),data=Object.fromEntries(entries);
+  // Paynow may explicitly mark a signed Paid response for rejection/manual review.
+  // Neither a signed callback nor a matching poll may elevate this to paid.
+  if(data.status==='Paid'&&own(data,'paymentfrauddecision')&&data.paymentfrauddecision!=='Issue')deny();
   if(!HASH.test(data.hash)||!own(data,'reference')||!own(data,'paynowreference')||
     !own(data,'amount')||!own(data,'pollurl')||!own(data,'status'))deny();
   const expected=signature(entries,key);

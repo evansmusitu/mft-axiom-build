@@ -17,6 +17,14 @@
 - `src/commercial/paynow-private-authority-candidate.mjs` accepts authenticated callback form, checks MMF order/price/tenant, **performs one independent allowlisted Paynow status poll via injected transport**, bounds response to 4 KiB, verifies second provider SHA-512 signature and cross-matches order, payment reference and amount, then emits an Ed25519 authority-signed MMF-only paid or refunded receipt. The signer must be an actual *authority-managed* private key, not an ephemeral fixture. A callback alone can NEVER mint a receipt. A "Disputed" status never becomes a "refunded" receipt. `Paid` is not bank settlement or invoice authority.
 - `test/paynow-native-ledger-e2e.test.mjs` connects an **emulated** real-format Paynow callback, emulated status poll, ephemeral Ed25519 signer, genuine SQLite in-memory MMF order database and staged `PENDING → PAID_SANDBOX → REVERSED_SANDBOX` transition. Replay is idempotent and cannot revive a reversed order. No customer data, charges, refunds or email sends take place.
 
+## 2026-10-11: current Paynow optional-metadata compatibility and fraud-release hardening
+
+Paynow's current status-response documentation also permits optional `paymentinstrument`, `paymentinstrumentname`, `paymentinstrumentnationality` and `paymentchanneleci`, in addition to the previously supported payment-channel and fraud fields. The local strict SHA-512 parser now admits these **only inside an authenticated response**, validates the entire original field order, and discards these fields before constructing product-facing receipts or admissions. Sensitive payment-instrument/cardholder strings must never be written to the MMF ledger, receipts or audit logs. Tokenized payment `token` and `tokenexpiry` remain **unsupported and rejected**; MMF does not request card tokenization or recurring payment instrument collection.
+
+A valid `Paid` provider status accompanied by an explicit adverse/unknown `paymentfrauddecision` is **not a paid authorization**. Only a missing decision or the documented `Issue` decision is allowed for a `Paid` response. Signed `Reject`, `Request Manual Review`, and unknown decision values fail closed, whether present on the callback or the independently polled status. Negative tests specifically observe no provider poll for rejected callbacks and no paid claim issuance for a rejected poll. This deliberately conservative policy still requires live merchant review before any production activation.
+
+These tests are run with fake merchant keys and an injected provider transport. They do **not** establish that live Paynow has approved MMF, prove an actual charged transaction, or satisfy the MMF release gates.
+
 ## Live release hard blockers (no workaround by toggling flags)
 
 1. Approve the lawful contracting/tax invoice issuer and exact $99 commercial offer; obtain signed customer/merchant terms for MMF product. The quoted price remains a proposal, not an invoice.
