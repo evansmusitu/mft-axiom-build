@@ -77,6 +77,10 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
       V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,stage(s)));
     Log.i("MUSITU_API30","STAGE03_APK_INSTALL_DIALOG_REQUESTED");
+    // The package installer reads the private FileProvider in another process.
+    // Keep the Store instrumentation process alive until the OS dialog has
+    // been cancelled; otherwise the test harness kills the URI grant owner.
+    Thread.sleep(30000L);
   }
 
   @Test public void stage04ConfirmCancelledApkAndRetry()throws Exception{
@@ -91,6 +95,9 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
       V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,staged));
     Log.i("MUSITU_API30","STAGE04_APK_INSTALL_DIALOG_RETRIED");
+    // Keep the Store process alive while the OS stages and installs this APK.
+    // The host test exercises the actual system Install button concurrently.
+    Thread.sleep(30000L);
   }
 
   @Test public void stage05VerifyApprovedInstalledPackageAndSigner()throws Exception{
