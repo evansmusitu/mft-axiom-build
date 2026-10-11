@@ -26,16 +26,16 @@ public final class V2SignedAndroidCatalogTest {
     pinnedPem="-----BEGIN PUBLIC KEY-----\n"+body+"\n-----END PUBLIC KEY-----\n";
     rootFingerprint=sha(pinnedPem);
   }
-  static JSONObject grant(String platform,String id,String cert){
+  static JSONObject grant(String platform,String id,String cert)throws Exception{
     JSONObject g=new JSONObject().put("platform",platform).put("packageId",id);
     if(cert!=null)g.put("signingCertificateSha256",cert);return g;
   }
-  static JSONObject release(String pkg,String cert,String url){
+  static JSONObject release(String pkg,String cert,String url)throws Exception{
     return new JSONObject().put("platform","android").put("packageId",pkg)
       .put("version","1.0.0").put("versionCode",100).put("artifactURL",url)
       .put("sha256",SHA_A).put("bytes",2048).put("signingCertificateSha256",cert);
   }
-  static JSONObject baseline(){
+  static JSONObject baseline()throws Exception{
     return new JSONObject()
      .put("schema","musitu.store.catalog.v2").put("revision",1)
      .put("issuedAt","2026-10-11T00:00:00.000Z").put("expiresAt","2026-10-18T00:00:00.000Z")
