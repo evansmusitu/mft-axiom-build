@@ -1,0 +1,9 @@
+{
+  "schema": "mmf-phase1-evidence-v1",
+  "gates": {
+    "standaloneResendEvent": {
+      "status": "verified",
+      "reference": "github:db71b07ef1d6ebf51372f41d94625b2da268db3f"
+    }
+  }
+}
