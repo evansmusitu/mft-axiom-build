@@ -12,7 +12,7 @@ jobs:
   first-create:
     # One specific isolated-branch update. Never infer new deployment approval
     # from subsequent commits or from a re-run on an unrelated branch.
-    if: github.event.before == 'cdc39fd87b050372ba2f891025fde78fcd56715a'
+    if: github.event.before == '4b77872913db5a143c719758a3add029a91283cf'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "${{ github.event.before }}" = 'cdc39fd87b050372ba2f891025fde78fcd56715a'
+          test "${{ github.event.before }}" = '4b77872913db5a143c719758a3add029a91283cf'
           node --test test/mmf-authorized-cloud-stage-deploy.test.mjs
           npm run check
           npm test

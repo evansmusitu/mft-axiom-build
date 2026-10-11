@@ -31,7 +31,12 @@ async function cfGet(token,suffix,fetchImpl=fetch,{allow404=false}={}){
 }
 async function cfPost(token,suffix,body,fetchImpl=fetch){
  const res=await fetchImpl(path(suffix),{method:'POST',headers:{authorization:'Bearer '+safeToken(token),accept:'application/json','content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000),redirect:'error'});
- if(!res.ok)throw Error('MMF_PRIVATE_STAGE_CLOUD_MUTATION_HTTP_'+res.status);
+ if(!res.ok){
+  let err;try{err=await res.json()}catch{err=null}
+  const codes=(Array.isArray(err?.errors)?err.errors:[]).map(x=>Number(x.code)).filter(Number.isSafeInteger);
+  if(codes.includes(7406))throw Error('MMF_PRIVATE_STAGE_D1_ACCOUNT_QUOTA_7406');
+  throw Error('MMF_PRIVATE_STAGE_CLOUD_MUTATION_HTTP_'+res.status+(codes.length?'_CODES_'+codes.join('_'):''));
+ }
  let obj;try{obj=await res.json()}catch{deny()}
  if(obj?.success!==true)deny();
  return obj.result;
@@ -82,17 +87,26 @@ function flattenQueryResult(result){
 }
 export async function billingStagePrepare({account,dbToken,workerToken,fetchImpl=fetch}={}){
  await billingStagePreflight({account,dbToken,workerToken,fetchImpl});
- const db=await cfPost(dbToken,'/d1/database',{name:BILLING_STAGE_TARGET.database},fetchImpl);
+ let writeToken=dbToken,db;
+ try{db=await cfPost(writeToken,'/d1/database',{name:BILLING_STAGE_TARGET.database},fetchImpl)}
+ catch(e){
+  // Existing D1 token can list databases while lacking create permission.
+  // Try only the separate, already-scoped Worker token, and only on HTTP 403.
+  if(!String(e?.message).startsWith('MMF_PRIVATE_STAGE_CLOUD_MUTATION_HTTP_403')||
+     workerToken===dbToken)throw e;
+  writeToken=workerToken;
+  db=await cfPost(writeToken,'/d1/database',{name:BILLING_STAGE_TARGET.database},fetchImpl);
+ }
  if(db?.name!==BILLING_STAGE_TARGET.database||!UUID.test(db?.uuid))deny();
  const dbRead=await cfGet(dbToken,'/d1/database/'+db.uuid,fetchImpl);
  if(dbRead?.uuid!==db.uuid||dbRead.name!==BILLING_STAGE_TARGET.database)deny();
  const root='/d1/database/'+db.uuid+'/query';
- const schema=await cfPost(dbToken,root,{sql:MMF_PREP_BILLING_SCHEMA.join(';\n')},fetchImpl);
+ const schema=await cfPost(writeToken,root,{sql:MMF_PREP_BILLING_SCHEMA.join(';\n')},fetchImpl);
  // Cloudflare D1 returns a result object per SQL statement. Verify every statement.
  if(!Array.isArray(schema)||schema.length!==MMF_PREP_BILLING_SCHEMA.length||schema.some(x=>x?.success!==true))deny();
- const proof=flattenQueryResult(await cfPost(dbToken,root,{sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='mmf_prep_orders'"},fetchImpl));
+ const proof=flattenQueryResult(await cfPost(writeToken,root,{sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='mmf_prep_orders'"},fetchImpl));
  if(proof.length!==1||proof[0]?.name!=='mmf_prep_orders')deny();
- const count=flattenQueryResult(await cfPost(dbToken,root,{sql:'SELECT COUNT(*) AS n FROM mmf_prep_orders'},fetchImpl));
+ const count=flattenQueryResult(await cfPost(writeToken,root,{sql:'SELECT COUNT(*) AS n FROM mmf_prep_orders'},fetchImpl));
  if(count.length!==1||count[0]?.n!==0)deny();
  const cfg=privateStageConfig(db.uuid);
  assertPrivateStageDefinition(cfg);
