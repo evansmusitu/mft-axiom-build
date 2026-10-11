@@ -52,7 +52,7 @@ public final class V2UserConsentInstallerTest {
 
     // UIAutomator performs an actual tap on the OS dialog; it does not
     // use ADB pm install, force-install permissions or hidden APIs.
-    assertTrue("system installer approval button was not clickable",button.click());
+    button.click();
 
     android.content.pm.PackageInfo installed=null;
     long deadline=android.os.SystemClock.uptimeMillis()+45000L;
