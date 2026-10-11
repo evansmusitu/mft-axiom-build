@@ -1,0 +1,49 @@
+name: MMF Actual Paynow Source Additive Candidate Offline Safety 20261011
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - '.github/workflows/mmf-real-source-additive-offline-candidate-20261011.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-real-source-additive-candidate.mjs'
+      - 'musitu-mail-fabric/test/mmf-real-source-additive-candidate.test.mjs'
+      - 'musitu-mail-fabric/package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: musitu-mail-fabric
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove deterministic source-drift rejection, legacy routing, auth and disabled-payments isolation (synthetic source only)
+        run: |
+          set -euo pipefail
+          npm run test:mmf-real-source-candidate
+      - name: Syntax validation for whole MMF product and added candidate
+        run: |
+          set -euo pipefail
+          npm run check
+      - name: Complete existing MMF tests (no secrets, no provider, no deployment)
+        run: |
+          set -euo pipefail
+          npm test
+      - name: Confirm commercial activation gate remains blocked
+        run: |
+          set +e
+          npm run check:phase1 > /tmp/mmf_phase1_blocked.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 2 ]; then
+            echo "Expected blocked commercial gate exit 2; got $code"
+            tail -30 /tmp/mmf_phase1_blocked.log
+            exit 1
+          fi
+          echo 'MMF commercial activation remains blocked by design'
