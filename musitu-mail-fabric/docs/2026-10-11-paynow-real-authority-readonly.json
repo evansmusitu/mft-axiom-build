@@ -1,0 +1,110 @@
+{
+  "account_verified": true,
+  "auditWorkflowRun": 38118420154,
+  "cloudflare_mutations": false,
+  "customer_database_read": false,
+  "evidenceClass": "LIVE_READ_ONLY_METADATA_ONLY_NOT_PAYMENT_APPROVAL",
+  "inventory_only": true,
+  "observedAtUtc": "2026-10-11T06:33:04.636Z",
+  "provider_transaction_called": false,
+  "raw_merchant_secrets_exposed": false,
+  "report": "No real MMF checkout or settlement was tested; source hashes prove the exact live worker snapshot observed.",
+  "schema": "mmf-existing-paynow-readonly-interface-v1",
+  "source_exposed": false,
+  "workers": [
+    {
+      "binding_names_and_types": [
+        {
+          "binding_name": "CHEMISTRY_AUTHORITY_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        },
+        {
+          "binding_name": "FMI_AUTHORITY_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        }
+      ],
+      "name": "mft-phase8-external-authority",
+      "route_candidates": [
+        "/billing/return",
+        "/billing/webhooks/paynow",
+        "/internal/paynow/sign-initiate",
+        "/internal/paynow/sign-initiate-chemistry",
+        "/internal/paynow/sign-initiate-fmi",
+        "/internal/paynow/verify-callback",
+        "/internal/paynow/verify-callback-chemistry",
+        "/internal/paynow/verify-callback-fmi",
+        "/v1/billing/return",
+        "/v1/billing/webhooks/paynow"
+      ],
+      "source_bytes": 15415,
+      "source_sha256": "d7a154e74eca75658d489c37b958a7bdffa07315a3ecaf9184988f6ca618aefb"
+    },
+    {
+      "binding_names_and_types": [
+        {
+          "binding_name": "CHEMISTRY_TRANSPORT_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        },
+        {
+          "binding_name": "FMI_TRANSPORT_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        }
+      ],
+      "name": "mft-paynow-transport-gateway",
+      "route_candidates": [
+        "/internal/paynow/initiate",
+        "/internal/paynow/poll"
+      ],
+      "source_bytes": 14610,
+      "source_sha256": "e53ecc1b6bcb5e53162518c89a03e8e00b9627f29bf28aa27b6a78a9f74dc9f3"
+    },
+    {
+      "binding_names_and_types": [
+        {
+          "binding_name": "FMI_AUTHORITY_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        },
+        {
+          "binding_name": "FMI_DB",
+          "service": null,
+          "type": "d1"
+        },
+        {
+          "binding_name": "FMI_TRANSPORT_BRIDGE_TOKEN",
+          "service": null,
+          "type": "secret_text"
+        },
+        {
+          "binding_name": "PAYMENT_AUTHORITY",
+          "service": "mft-phase8-external-authority",
+          "type": "service"
+        },
+        {
+          "binding_name": "PAYNOW_TRANSPORT",
+          "service": "mft-paynow-transport-gateway",
+          "type": "service"
+        }
+      ],
+      "name": "mft-fmi-billing",
+      "route_candidates": [
+        "/billing/catalog",
+        "/billing/checkout",
+        "/billing/healthz",
+        "/billing/poll",
+        "/billing/return",
+        "/billing/webhooks/paynow",
+        "/internal/paynow/initiate",
+        "/internal/paynow/poll",
+        "/internal/paynow/sign-initiate-fmi",
+        "/internal/paynow/verify-callback-fmi"
+      ],
+      "source_bytes": 12770,
+      "source_sha256": "19d7654046f09b15e832517fa7ac1acbb8ce5ccb94b77b5c3f27da17629cf5c0"
+    }
+  ]
+}

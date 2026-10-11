@@ -28,3 +28,19 @@ No old FMI subscriptions can settle MMF. No raw Paynow key enters MMF. The imple
 ### Product separation
 
 Paynow merchant integration **reuse** is established architecture. **MMF SKU billing and settlement validation are NOT yet wired live**. Existing checkout proofs do not justify marking `verifiedPaymentCollection` for MMF as verified. It stays unverified until the new product binding and legal/commercial release are evidenced. No second merchant registration is required based on the currently documented arrangement.
+
+## Live authoritative control-plane readback (2026-10-11, after the historical snapshot)
+
+Performed a **GET-only** authenticated Cloudflare inspection using existing GitHub Actions environment, without writing or exposing credentials, fetching payment transactions or invoking checkout. Run `38118420154` succeeded; artifact `11694122242` (`mmf-existing-paynow-readonly-20261011`, artifact SHA-256 `ddab06eeeb1d76cdcefcfe5a793c1fa33681e6533a85509411c58c2910d7e449`) contains the actual worker source hashes and sanitized interface names.
+
+**Observed live worker source SHA-256s:**
+
+- Existing shared server-owned Paynow authority `mft-phase8-external-authority`: `d7a154e74eca75658d489c37b958a7bdffa07315a3ecaf9184988f6ca618aefb`. Provider authority currently declares `/internal/paynow/sign-initiate`, `/internal/paynow/sign-initiate-fmi`, `/internal/paynow/sign-initiate-chemistry`, `/internal/paynow/verify-callback`, `/internal/paynow/verify-callback-fmi`, `/internal/paynow/verify-callback-chemistry`. **No MMF product-specific authority routes observed.**
+- Existing shared Paynow transport `mft-paynow-transport-gateway`: `e53ecc1b6bcb5e53162518c89a03e8e00b9627f29bf28aa27b6a78a9f74dc9f3`, with `/internal/paynow/initiate` and `/internal/paynow/poll`, plus `FMI_TRANSPORT_BRIDGE_TOKEN` and `CHEMISTRY_TRANSPORT_BRIDGE_TOKEN`. **No dedicated MMF transport bridge token observed.**
+- Existing separate FMI billing worker `mft-fmi-billing`: `19d7654046f09b15e832517fa7ac1acbb8ce5ccb94b77b5c3f27da17629cf5c0`, with `/billing/checkout` and `/billing/poll`, and verified service bindings `PAYMENT_AUTHORITY → mft-phase8-external-authority` and `PAYNOW_TRANSPORT → mft-paynow-transport-gateway`. **This is FMI-only, not an MMF billing worker.**
+
+The sanitized GitHub evidence file `docs/2026-10-11-paynow-real-authority-readonly.json` records run identity, observation timestamp, source hashes, permitted route names and non-secret service binding metadata. Its companion checker `src/commercial/paynow-binding-evidence.mjs` distinguishes **shared merchant VERIFIED** from **MMF billing NOT YET CONNECTED**; it refuses stale or malformed receipts and NEVER enables payment or mail. It is intentionally not a true payment-provider signature verification.
+
+**Implication:** The owner's correction is verified: there is no reason to register Paynow again. The next missing work is *product isolation*, not merchant onboarding: implement, independently qualify and authorize an MMF-specific checkout/settlement binding and order database, with new correctly scoped server-side authority/transport credentials (NOT FMI's secrets). That requires a separate production shared-authority update and explicit approval; the isolated audit did **not** modify the running workers. Both upfront $99 readiness fee and any subscription remain proposed and **not chargeable by MMF** until this completes.
+
+**Safety:** The observed date/source hashes are ephemeral evidence; before release, rerun this read-only inventory, verify specific MMF bridge contract, obtain legal seller/tax/contract approval and test genuine end-to-end paid settlement. Do not treat a previously settled Axiom or FMI invoice as proof of a Mail Fabric customer payment.
