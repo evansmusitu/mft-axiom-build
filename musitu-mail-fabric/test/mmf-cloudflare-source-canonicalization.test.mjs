@@ -54,3 +54,10 @@ test('changing actual script code changes canonical fingerprint even if metadata
  const b=await canonicalCloudflareWorkerSource(new Response(multipart('same','{}',actualModule+'\n// additional line'),{headers:{'content-type':ct}}));
  assert.notEqual(a.sourceSha256,b.sourceSha256);
 });
+test('Cloudflare classic Service Worker multipart with a single untyped script part is normalized',async()=>{
+ const body=`--classic\r\nContent-Disposition: form-data; name="script"\r\n\r\n${actualModule}\r\n--classic--\r\n`;
+ const r=await canonicalCloudflareWorkerSource(new Response(body,{headers:{'content-type':'multipart/form-data; boundary=classic'}}));
+ assert.equal(r.multipartNormalized,true);
+ assert.equal(r.sourceText,actualModule);
+ assert.match(r.sourceSha256,/^[a-f0-9]{64}$/);
+});

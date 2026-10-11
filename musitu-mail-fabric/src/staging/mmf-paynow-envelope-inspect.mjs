@@ -15,9 +15,11 @@ const b=ct.match(/(?:^|;)\s*boundary=(?:"([^"\r\n]{1,70})"|([^;\s]{1,70}))(?:\s*
 const boundary=b?.[1]||b?.[2];
 const parts=boundary?source.split('--'+boundary).slice(1,-1):[];
 // No module names, source, raw MIME headers or object IDs leave the runner.
-const counts={metadata:0,named:0,jsMime:0,contentDisposition:0,filename:0,otherMime:0};
+const counts={metadata:0,named:0,scriptName:0,jsExtensionName:0,jsMime:0,contentDisposition:0,filename:0,otherMime:0};
 for(const part of parts){const head=part.split('\r\n\r\n')[0]||'';
  counts.metadata+=Number(/name=["']metadata["']/.test(head));
+ counts.scriptName+=Number(/name=["']script["']/.test(head));
+ counts.jsExtensionName+=Number(/name=["'][^"']+\.m?js["']/.test(head));
  counts.named+=Number(/\bname=/.test(head));
  counts.filename+=Number(/\bfilename=/.test(head));
  counts.jsMime+=Number(/(?:application|text)\/(?:javascript|ecmascript)/i.test(head));

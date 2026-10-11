@@ -40,10 +40,13 @@ export async function canonicalCloudflareWorkerSource(response){
      if(++meta!==1||body.length>30000||!/^(?:application\/json|text\/plain)(?:\s*;|\s*$)/i.test(contentType))deny();
      continue;
     }
-    if(scripts.has(name)||!/^(?:[A-Za-z0-9_./-]+\.(?:m?js|cjs)|script)$/.test(name)||!isJsMime(contentType)||body.length===0)deny();
+    const classicScript=!contentType&&chunks.length===3&&name==='script';
+    if(scripts.has(name)||!/^(?:[A-Za-z0-9_./-]+\.(?:m?js|cjs)|script)$/.test(name)||
+       (!isJsMime(contentType)&&!classicScript)||body.length===0)deny();
     scripts.set(name,body);
    }
-   if(!scripts.size||meta!==1)deny();
+   if(!scripts.size||
+     !(meta===1||(meta===0&&chunks.length===3&&scripts.size===1&&scripts.has('script'))))deny();
    const entries=[...scripts].sort(([a],[b])=>a.localeCompare(b));
    sourceText=entries.map(([,body])=>body).join('\n');
    sourceSha256=hash(JSON.stringify(entries));multipartNormalized=true;
