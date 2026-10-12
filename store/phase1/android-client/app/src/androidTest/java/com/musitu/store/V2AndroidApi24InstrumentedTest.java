@@ -144,6 +144,26 @@ public final class V2AndroidApi24InstrumentedTest {
     choices.get(1).performClick();
     assertEquals(java.util.Arrays.asList("musitu-test-app","northstar-app"),selections);
   }
+  @Test public void actualApi24NeverCallsUnknownPublisherPackageUninstalled()throws Exception{
+    Fixture fixture=new Fixture();
+    Context context=ApplicationProvider.getApplicationContext();
+    android.view.View page=V2AndroidAppBrowser.render(context,fixture.verified,selected->{});
+    android.widget.LinearLayout contents=(android.widget.LinearLayout)
+      ((android.widget.ScrollView)page).getChildAt(0);
+    int unknownLabels=0, enabledReviews=0;
+    for(int i=0;i<contents.getChildCount();i++){
+      android.view.View child=contents.getChildAt(i);
+      if(child instanceof android.widget.TextView){
+        String label=((android.widget.TextView)child).getText().toString();
+        if(label.contains("Install status unavailable"))unknownLabels++;
+        assertFalse("Browser falsely claims app is absent",label.contains("Not installed"));
+      }
+      if(child instanceof android.widget.Button&&child.isEnabled())enabledReviews++;
+    }
+    assertEquals("both test publishers must show Android's unknown visibility state",2,unknownLabels);
+    assertEquals("review still requires Android user consent",2,enabledReviews);
+  }
+
   @Test public void actualApi24NeverRendersUnsignedOrMissingRegistry()throws Exception{
     try{
       V2AndroidAppBrowser.render(ApplicationProvider.getApplicationContext(),null,
