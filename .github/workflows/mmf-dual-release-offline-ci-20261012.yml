@@ -1,0 +1,54 @@
+name: MMF Offline Two-Person Encrypted Patch Release Gate 20261012
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - '.github/workflows/mmf-dual-release-offline-ci-20261012.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-dual-release-gate.mjs'
+      - 'musitu-mail-fabric/test/mmf-dual-release-gate.test.mjs'
+      - 'musitu-mail-fabric/docs/2026-10-12-mmf-dual-control-offline-release-qualification.md'
+      - 'musitu-mail-fabric/package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-dual-release-offline-20261012
+  cancel-in-progress: false
+jobs:
+  verify-offline-no-production-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restrict branch and run offline dual-release verifier
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          npm run test:mmf-dual-release
+          npm run check
+          npm test
+      - name: Confirm commercial activation remains blocked
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm run check:phase1 > /tmp/mmf-phase1-output.txt 2>&1; then
+            echo 'UNSAFE: activation gate unexpectedly passed' >&2
+            exit 1
+          else
+            code=$?
+            if [ "$code" -ne 2 ]; then
+              echo "Unexpected phase-1 exit $code" >&2
+              exit 1
+            fi
+            grep -q 'BLOCKED' /tmp/mmf-phase1-output.txt
+          fi
+          echo 'MMF stage-only gates verified; no production authorization.'
