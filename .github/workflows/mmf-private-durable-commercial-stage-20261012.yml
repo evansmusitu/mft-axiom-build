@@ -1,0 +1,41 @@
+name: MMF Private SQLite Commercial Stage (Offline Only)
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-private-durable-commercial-stage-20261012.yml'
+      - 'musitu-mail-fabric/src/edge/mmf-commercial-private-stage.mjs'
+      - 'musitu-mail-fabric/src/edge/mmf-commercial-private-cloudflare.mjs'
+      - 'musitu-mail-fabric/src/commercial/mmf-db-transaction.mjs'
+      - 'musitu-mail-fabric/src/commercial/mmf-commercial-platform.mjs'
+      - 'musitu-mail-fabric/src/commercial/mmf-oidc-admission.mjs'
+      - 'musitu-mail-fabric/test/mmf-commercial-durable-object-stage.test.mjs'
+      - 'musitu-mail-fabric/wrangler.mmf.commercial-private.template.jsonc'
+      - 'musitu-mail-fabric/package.json'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline persistence, isolation, no public or merchant capability
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          npm run check
+          npm run test:mmf-persistent-control
+          npm test
+          set +e
+          npm run check:phase1 > /tmp/mmf-phase1-blocked.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -q BLOCKED /tmp/mmf-phase1-blocked.log

@@ -6,6 +6,7 @@
  * route is possible from this file.
  */
 import {createHash,createHmac,createPublicKey,randomBytes,verify,timingSafeEqual} from 'node:crypto';
+import {mmfTransaction} from './mmf-db-transaction.mjs';
 export const Catalog=Object.freeze({
  LAUNCH:Object.freeze({sku:'mmf-launch-v1',amountCents:9900,currency:'USD',period:'month',monthlyEvents:5000,domainLimit:1,commerciallyReleased:false}),
  GROWTH:Object.freeze({sku:'mmf-growth-v1',amountCents:29900,currency:'USD',period:'month',monthlyEvents:30000,domainLimit:3,commerciallyReleased:false}),
@@ -141,12 +142,10 @@ export class CommercialPlatform {
   const allowed=current.status==='PENDING'&&(['pending','paid','failed','cancelled'].includes(claim.status))||
     current.status==='PAID_ATTESTED_STAGE'&&(['reversed','disputed'].includes(claim.status));
   if(!allowed||claim.observedAtMs<current.last_event_ms)deny();
-  this.db.exec('BEGIN IMMEDIATE');
-  try{
+  try{mmfTransaction(this.db,()=>{
    this.db.prepare('INSERT INTO mmf_payment_events(event_hash,order_ref,tenant_id,observed_ms,status) VALUES(?,?,?,?,?)').run(digest,claim.orderReference,claim.tenantId,claim.observedAtMs,claim.status);
    this.db.prepare('UPDATE mmf_subscriptions SET status=?,provider_ref=?,last_event_ms=? WHERE order_ref=? AND tenant_id=?').run(next,claim.providerReferenceSha256,claim.observedAtMs,claim.orderReference,claim.tenantId);
-   this.db.exec('COMMIT');
-  }catch{this.db.exec('ROLLBACK');deny()}
+  });}catch{deny()}
   return Object.freeze({status:next,idempotent:false,realProviderPaymentVerified:false,canSendMail:false});
  }
  effectiveEntitlement({tenantId,actorSubject}){
@@ -157,8 +156,7 @@ export class CommercialPlatform {
   this.#auth(tenantId,actorSubject);
   if(typeof idempotencyKey!=='string'||!IDEM.test(idempotencyKey)||!['governed','extra'].includes(kind))deny();
   const period=new Date(ms(this.now())).toISOString().slice(0,7);
-  this.db.exec('BEGIN IMMEDIATE');
-  try{
+  try{return mmfTransaction(this.db,()=>{
    const prior=this.db.prepare('SELECT kind,period FROM mmf_usage_events WHERE tenant_id=? AND idempotency_key=?').get(tenantId,idempotencyKey);
    if(prior&&(prior.kind!==kind||prior.period!==period))deny();
    const countBefore=this.db.prepare('SELECT COUNT(*) AS n FROM mmf_usage_events WHERE tenant_id=? AND period=?').get(tenantId,period).n;
@@ -166,8 +164,8 @@ export class CommercialPlatform {
    if(!prior&&countBefore>=Catalog.LAUNCH.monthlyEvents)deny();
    if(!prior)this.db.prepare('INSERT INTO mmf_usage_events(tenant_id,idempotency_key,kind,period,created_ms) VALUES(?,?,?,?,?)').run(tenantId,idempotencyKey,kind,period,ms(this.now()));
    const count=prior?countBefore:countBefore+1;
-   this.db.exec('COMMIT');return Object.freeze({count,duplicate:Boolean(prior),period,productionDeliveryEnabled:false});
-  }catch{this.db.exec('ROLLBACK');deny()}
+   return Object.freeze({count,duplicate:Boolean(prior),period,productionDeliveryEnabled:false});
+  });}catch{deny()}
  }
  getUsage({tenantId,actorSubject}){
   this.#auth(tenantId,actorSubject);

@@ -8,6 +8,7 @@
  * No payment, email sending, tenant entitlement, or public API activation.
  */
 import {createHash,createHmac,createPublicKey,randomBytes,verify,timingSafeEqual} from 'node:crypto';
+import {mmfTransaction} from './mmf-db-transaction.mjs';
 const deny=()=>{throw Error('MMF_OIDC_DENIED')};
 const STR=/^[A-Za-z0-9_-]+$/;
 const FINGERPRINT=/^[a-f0-9]{64}$/;
@@ -112,16 +113,14 @@ export class IdentityAdmission {
   const sessionToken='mmf_session_'+randomBytes(32).toString('base64url');
   const sessionExpiresAtMs=Math.min(identity.expiresAtMs,at+15*60000);
   if(sessionExpiresAtMs<=at)deny();
-  this.db.exec('BEGIN IMMEDIATE');
-  try{
+  try{return mmfTransaction(this.db,()=>{
    const updated=this.db.prepare('UPDATE mmf_oidc_login_challenges SET consumed=1 WHERE challenge_hash=? AND expires_ms>=? AND consumed=0').run(sha(nonce),at);
    if(updated.changes!==1)deny();
    this.db.prepare('INSERT INTO mmf_oidc_sessions(session_hash,actor_subject,expires_ms) VALUES(?,?,?)')
     .run(this.#sessionHash(sessionToken),identity.actorSubject,sessionExpiresAtMs);
-   this.db.exec('COMMIT');
    return Object.freeze({sessionToken,actorSubject:identity.actorSubject,expiresAtMs:sessionExpiresAtMs,
     realSendingAuthorized:false,commercialPaymentsAuthorized:false,customerApiEnabled:false});
-  }catch{this.db.exec('ROLLBACK');deny()}
+  });}catch{deny()}
  }
  authenticateSession(token){
   if(typeof token!=='string'||!/^mmf_session_[A-Za-z0-9_-]{43}$/.test(token))deny();
