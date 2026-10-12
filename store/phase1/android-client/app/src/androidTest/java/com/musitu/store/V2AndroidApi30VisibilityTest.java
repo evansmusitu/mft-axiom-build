@@ -120,6 +120,20 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals("root-signed release and installed package are now verifiably consistent",
       V2AndroidInstalledPackageState.State.VERIFIED_INSTALLED,
       V2AndroidInstallBridge.inspectInstalledRelease(context(),release));
+    android.view.View preview=V2AndroidAppBrowser.render(context(),s.catalog,chosen->{});
+    android.widget.LinearLayout cards=(android.widget.LinearLayout)
+      ((android.widget.ScrollView)preview).getChildAt(0);
+    int installedLabels=0,hiddenLabels=0;
+    for(int index=0;index<cards.getChildCount();index++){
+      android.view.View child=cards.getChildAt(index);
+      if(child instanceof android.widget.TextView){
+        String label=((android.widget.TextView)child).getText().toString();
+        if(label.contains("Verified installed"))installedLabels++;
+        if(label.contains("Install status unavailable"))hiddenLabels++;
+      }
+    }
+    assertEquals("fixture alpha must display OS-confirmed installed identity",1,installedLabels);
+    assertEquals("fixture beta must not be falsely labelled uninstalled",1,hiddenLabels);
     V2AndroidInstallBridge.revokeInstallerUriGrant(context(),stage(s));
     Log.i("MUSITU_API30","STAGE05_INSTALLED_PACKAGE_AND_SIGNER_CONFIRMED");
   }
