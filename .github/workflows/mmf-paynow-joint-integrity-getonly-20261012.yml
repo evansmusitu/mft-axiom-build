@@ -1,0 +1,55 @@
+name: MMF Paynow Joint Source and Binding Integrity GET-Only 20261012
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-paynow-joint-integrity-getonly-20261012.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-joint-source-binding-getonly.mjs'
+      - 'musitu-mail-fabric/test/mmf-joint-source-binding-getonly.test.mjs'
+      - 'musitu-mail-fabric/src/staging/canonical-cloudflare-worker-source.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-current-cloudflare-drift-readonly.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-shared-binding-drift-readonly.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-paynow-joint-integrity-getonly-20261012
+  cancel-in-progress: false
+jobs:
+  joint-get-only:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reject other refs and qualify GET-only production-safe local mocks
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-joint-source-binding-getonly.mjs
+          node --test test/mmf-joint-source-binding-getonly.test.mjs
+      - name: Fresh same-run 8 GET integrity assessment, fail closed, NEVER deploy
+        shell: bash
+        working-directory: musitu-mail-fabric
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/mmf-joint-source-binding-getonly.mjs --get-only
+      - name: Upload only sanitized digest/count evidence, no script or credential values
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-joint-source-binding-getonly-20261012
+          path: ${{ runner.temp }}/mmf-paynow-joint-source-binding-getonly.json
+          retention-days: 14
+          if-no-files-found: warn
