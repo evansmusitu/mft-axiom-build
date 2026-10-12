@@ -1,5 +1,5 @@
 name: MMF Current Isolated Branch Tracked Source Snapshot 20261012
-# Capture private SQLite control-plane source from exact current isolated GitHub HEAD.
+# Capture proven live SQLite synthetic persistence and closed commercial state from isolated GitHub HEAD.
 # No secrets, deployment or real commerce.
 on:
   push:
