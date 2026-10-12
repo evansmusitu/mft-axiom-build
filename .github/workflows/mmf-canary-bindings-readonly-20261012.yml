@@ -1,0 +1,33 @@
+name: MMF Canary Private Paynow Bindings READ-ONLY Inspection
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - '.github/workflows/mmf-canary-bindings-readonly-20261012.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-canary-bindings-getonly.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  canary-readonly:
+    environment: axiom-support-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read only exact MMF canary script/settings/subdomain (never mutate or reveal credentials)
+        working-directory: musitu-mail-fabric
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-canary-bindings-getonly.mjs
+          node src/staging/mmf-canary-bindings-getonly.mjs
