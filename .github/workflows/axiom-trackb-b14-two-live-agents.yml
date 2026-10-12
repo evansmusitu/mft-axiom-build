@@ -91,4 +91,5 @@ jobs:
           sudo --preserve-env=CLOUDFLARE_API_TOKEN,AXIOM_SIGNED_GRANT_DIR \
             env PYTHONUNBUFFERED=1 PATH=/usr/bin:/bin:/usr/local/bin \
             /tmp/axiom-b14-venv/bin/python /tmp/axiom-b14-live-agent.py
+          echo B14_BOTH_AGENTS_MUST_CALL_NATIVE_FINISH_OR_RUN_FAILS
           echo B14_TWO_REAL_CLOUDFLARE_AGENTS_EXECUTED_NONPRODUCTION
