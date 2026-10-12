@@ -93,8 +93,8 @@ class NativePostgresQualification(unittest.TestCase):
     def broker_child(i):
       # Separate process, separate PostgreSQL connection; never passes a session.
       broker=Ledger(lambda:psycopg.connect(DSN),self.pub)
-      try:receipts.put(int(not broker.reserve(*grants[i],"unique")["replayed"]))
-      except Denied:receipts.put(0)
+      try:receipts.put((int(not broker.reserve(*grants[i],"unique")["replayed"]),"ADMITTED"))
+      except Denied as e:receipts.put((0,str(e)))
     processes=[ctx.Process(target=broker_child,args=(i,)) for i in range(8)]
     for proc in processes:proc.start()
     for proc in processes:
@@ -102,7 +102,8 @@ class NativePostgresQualification(unittest.TestCase):
       self.assertFalse(proc.is_alive())
       self.assertEqual(0,proc.exitcode)
     outcomes=[receipts.get(timeout=2) for _ in processes]
-    self.assertEqual(5,sum(outcomes))
+    print("B15_MULTIPROCESS_ADMISSION_RECEIPTS="+str(outcomes),flush=True)
+    self.assertEqual(5,sum(x[0] for x in outcomes))
     with psycopg.connect(DSN) as conn:
       spent=conn.execute("SELECT spent FROM b15_accounts WHERE account=%s",(self.account,)).fetchone()[0]
     self.assertEqual(10,spent)
