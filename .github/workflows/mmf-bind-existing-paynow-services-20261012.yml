@@ -1,0 +1,56 @@
+name: MMF Connect Existing MUSITU Paynow Services (Disabled Private Canary)
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - '.github/workflows/mmf-bind-existing-paynow-services-20261012.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-bind-existing-paynow-services.mjs'
+      - 'musitu-mail-fabric/test/mmf-bind-existing-paynow-services.test.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-paynow-canary.mjs'
+      - 'musitu-mail-fabric/src/staging/mmf-joint-source-binding-getonly.mjs'
+      - 'musitu-mail-fabric/package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-owner-disabled-private-paynow-service-connections
+  cancel-in-progress: false
+jobs:
+  connect-disabled:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate owner-scoped internal binding connection and no real payment capability
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --test test/mmf-bind-existing-paynow-services.test.mjs
+          node --check src/staging/mmf-bind-existing-paynow-services.mjs
+          npm run check
+          npm test
+          set +e
+          npm run check:phase1 > /tmp/mmf-commercial-blocked.txt 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q BLOCKED /tmp/mmf-commercial-blocked.txt
+      - name: Bind existing Paynow authority and transport to only the disabled private MMF canary
+        working-directory: musitu-mail-fabric
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/mmf-bind-existing-paynow-services.mjs --bind-existing-services-disabled
