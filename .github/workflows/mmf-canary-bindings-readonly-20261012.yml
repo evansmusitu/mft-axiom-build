@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Read only exact MMF canary script/settings/subdomain (never mutate or reveal credentials)
+      - name: Independently recheck MMF canary source and binding state after failed connection qualification
         working-directory: musitu-mail-fabric
         env:
           CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
