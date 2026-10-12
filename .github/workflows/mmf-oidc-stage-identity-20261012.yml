@@ -1,0 +1,37 @@
+name: MMF Stage-Only Verified OIDC Identity Qualification
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-oidc-stage-identity-20261012.yml'
+      - 'musitu-mail-fabric/src/commercial/mmf-oidc-admission.mjs'
+      - 'musitu-mail-fabric/test/mmf-oidc-admission.test.mjs'
+      - 'musitu-mail-fabric/package.json'
+permissions:
+  contents: read
+jobs:
+  no-prod-identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact isolated branch and closed identity stage
+        working-directory: musitu-mail-fabric
+        run: |
+          test "$GITHUB_REF_NAME" = product/musitu-mail-fabric-isolated-20261009
+          npm run test:mmf-oidc-stage
+          npm run check
+          npm test
+      - name: Verify commercial readiness fails closed
+        working-directory: musitu-mail-fabric
+        run: |
+          set +e
+          npm run check:phase1 > /tmp/mmf-identity-blocked.log 2>&1
+          result=$?
+          set -e
+          test "$result" -eq 2
+          grep -q BLOCKED /tmp/mmf-identity-blocked.log
