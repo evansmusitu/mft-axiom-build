@@ -1,0 +1,45 @@
+name: MMF Current Isolated Branch Tracked Source Snapshot 20261012
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-current-branch-source-snapshot-20261012.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Produce an exact tracked MMF-only source snapshot without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          mkdir -p "$RUNNER_TEMP/mmf-snapshot"
+          python - <<'PY'
+          import subprocess,hashlib,zipfile,json,os,pathlib
+          root=pathlib.Path(os.environ['GITHUB_WORKSPACE']);out=pathlib.Path(os.environ['RUNNER_TEMP'])/'mmf-snapshot'
+          sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+          paths=subprocess.check_output(['git','ls-files','-z','--','musitu-mail-fabric/**','.github/workflows/mmf-*','.github/workflows/musitu-mail-fabric-*'],cwd=root).decode().strip('\0').split('\0')
+          paths=sorted(set(paths));assert len(paths)>250 and all(p.startswith(('musitu-mail-fabric/','.github/workflows/mmf-','.github/workflows/musitu-mail-fabric-')) and '..' not in pathlib.PurePosixPath(p).parts for p in paths)
+          archive=out/'MMF_CURRENT_GITHUB_TRACKED_SOURCE.zip'
+          with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in paths:
+                  info=zipfile.ZipInfo(p, date_time=(2026,10,12,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED;info.external_attr=0o100644<<16
+                  z.writestr(info,(root/p).read_bytes(),compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          (out/'MMF_CURRENT_GITHUB_TRACKED_SOURCE_SHA256.txt').write_text(digest+'  '+archive.name+'\n')
+          (out/'MMF_CURRENT_GITHUB_TRACKED_SOURCE_STATE.json').write_text(json.dumps({'schema':'mmf-tracked-source-snapshot-v1','gitHead':sha,'trackedFiles':len(paths),'archiveSha256':digest,'scope':'isolated MMF code and MMF GitHub workflows','containsProductionSecrets':False,'releasesProduction':False},indent=2)+'\n')
+          print(json.dumps({'gate':'MMF_TRACKED_SOURCE_SNAPSHOT_CREATED','gitHead':sha,'trackedFiles':len(paths),'productionChanges':False}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mmf-current-isolated-github-source-snapshot-20261012
+          path: ${{ runner.temp }}/mmf-snapshot/*
+          retention-days: 14
+          if-no-files-found: error
