@@ -177,7 +177,7 @@ def worker(wid):
         visualizer=None,callbacks=[cb])
     exc='';state='ERROR'
     try:
-        c.send_message('Synthetic S2 live Cloudflare engineering test: read and correct '+TASKS[wid]['file']+' in workspace; finish when complete.')
+        c.send_message('Tool use is mandatory. You must call file_editor to view and fix '+TASKS[wid]['file']+' in your workspace, then immediately invoke the finish tool after a successful code edit. Never substitute a prose final answer for the finish tool call. Any response without finish fails. Do not access anything outside your workspace or network.')
         c.run();state='RETURNED'
     except Exception as e:exc=type(e).__name__+': '+str(e)[:250]
     finally:
