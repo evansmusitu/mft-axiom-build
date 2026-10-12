@@ -1,0 +1,79 @@
+name: MMF Private Cloud SQL Remote Binding Qualification (Synthetic Only)
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-private-cloud-sqlite-rpc-probe-20261012.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-sqlite-remote-check:
+    if: github.event.before == '7130d9b3498d19b5a5cc24046192a10c0491ec98'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact source, closed payment flags and loopback RPC regression
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --test test/mmf-private-cloud-sqlite-proof.test.mjs test/mmf-private-proxy-error-classification.test.mjs
+          npm run check
+          npm test
+          set +e
+          npm run check:phase1 > /tmp/mmf-phase1-stopped.txt 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q BLOCKED /tmp/mmf-phase1-stopped.txt
+      - name: Validate deployed Worker remains private, no secrets, zero payment bindings (GET-only)
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(id!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_PROOF_NOT_AUTHORIZED');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${id}/workers/scripts/mmf-commercial-private-sqlite-stage-20261012/`;
+          const get=async(path)=>{const resp=await fetch(base+path,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});const r=await resp.json();if(resp.status!==200||r.success!==true)throw Error('MMF_CLOUD_GET_DENIED');return r.result};
+          const settings=await get('settings'),sub=await get('subdomain'),secrets=await get('secrets');
+          const bs=settings.bindings||[],names=bs.map(b=>b.name).sort();
+          const expected=['MMF_COMMERCE_ENABLED','MMF_COMMERCIAL_PRIVATE_STAGE','MMF_CUSTOMER_API_ENABLED','MMF_MAIL_SENDING_ENABLED','MMF_REAL_SEND_ENABLED','MMF_STAGE_ONLY'].sort();
+          if(JSON.stringify(names)!==JSON.stringify(expected)||sub.enabled!==false||sub.previews_enabled!==false||!Array.isArray(secrets)||secrets.length!==0||bs.some(b=>b.type==='plain_text'&&b.text!=='false')||bs.some(b=>!['plain_text','durable_object_namespace'].includes(b.type)))throw Error('MMF_CLOUD_STAGE_NOT_PRIVATE');
+          console.log(JSON.stringify({gate:'MMF_CLOUD_PRIVATE_GET_ONLY_RECHECK',nonPublic:true,secretBindings:0,paymentFlagsEnabled:0,cloudflareControlPlaneWrites:0}));
+          NODE
+      - name: Remotely verify stage-owned SQLite data using local-only service binding (no deployments)
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          LOG="$RUNNER_TEMP/mmf-sqlite-remote-proxy.log"
+          npx --yes wrangler@4 dev --config wrangler.mmf.private-cloud-local-probe.jsonc --ip 127.0.0.1 --port 8796 > "$LOG" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
+          READY=0
+          for n in $(seq 1 35); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8796/health > /dev/null 2>&1; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$READY" -ne 1 ]; then echo MMF_LOCAL_REMOTE_PROXY_FAILED; exit 2; fi
+          node src/staging/mmf-run-private-cloud-proof.mjs | tee "$RUNNER_TEMP/mmf-remote-sqlite-proof.json"
+          grep -q 'MMF_REAL_CLOUDFLARE_DURABLE_SQLITE_PERSISTENCE_PROVEN' "$RUNNER_TEMP/mmf-remote-sqlite-proof.json"
+      - name: Upload only sanitized synthetic proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-remote-private-sqlite-proof-readback-20261012
+          path: ${{ runner.temp }}/mmf-remote-sqlite-proof.json
+      - name: Remove temporary diagnostics
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-remote-sqlite-proof.json" /tmp/mmf-phase1-stopped.txt

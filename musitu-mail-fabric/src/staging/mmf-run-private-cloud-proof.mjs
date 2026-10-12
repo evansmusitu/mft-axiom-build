@@ -6,7 +6,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function call(path,body={},acceptClosed=false){
  const res=await fetch(BASE+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(16000)});
  if(acceptClosed&&res.status===503)return {expectedReset:true};
- if(res.status!==200)deny(path.slice(1)+'_HTTP_'+res.status);
+ if(res.status!==200){const body=await res.json().catch(()=>({}));const category=['CLOSED_STAGE_VALIDATION_FAILED','REMOTE_BINDING_UNAVAILABLE','REMOTE_ENTRYPOINT_MISSING','RPC_TIMED_OUT','REMOTE_RPC_FAILED'].includes(body?.category)?body.category:'UNKNOWN';deny(path.slice(1)+'_HTTP_'+res.status+'_'+category)}
  const parsed=await res.json();
  if(!parsed||Object.getPrototypeOf(parsed)!==Object.prototype)deny('INVALID_RESPONSE');
  return parsed;

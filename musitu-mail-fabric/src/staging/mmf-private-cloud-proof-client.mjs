@@ -2,7 +2,15 @@
  * Wrangler local loopback-only caller for an existing remote private WorkerEntrypoint.
  * Never deployed. No public route or secrets. Only synthetic SQL probe methods.
  */
-const denial=()=>new Response(JSON.stringify({error:'PRIVATE_PROOF_DISABLED'}),{status:503,headers:{'content-type':'application/json','cache-control':'no-store'}});
+const denial=(category)=>new Response(JSON.stringify(category?{error:'PRIVATE_PROOF_DISABLED',category}:{error:'PRIVATE_PROOF_DISABLED'}),{status:503,headers:{'content-type':'application/json','cache-control':'no-store'}});
+function safeCategory(error){
+ const message=String(error?.message||'');
+ if(/MMF_PRIVATE_SQLITE_PROOF_DENIED|MMF_PRIVATE_COMMERCIAL_STAGE_DENIED/.test(message))return 'CLOSED_STAGE_VALIDATION_FAILED';
+ if(/service.binding.*(?:unavailable|not connected)|remote.binding.*(?:unavailable|not connected)/i.test(message))return 'REMOTE_BINDING_UNAVAILABLE';
+ if(/entrypoint.*(?:not found|not exported)|no such rpc method/i.test(message))return 'REMOTE_ENTRYPOINT_MISSING';
+ if(/timed?\s*out|timeout|aborterror/i.test(message))return 'RPC_TIMED_OUT';
+ return 'REMOTE_RPC_FAILED';
+}
 const reply=data=>new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json','cache-control':'no-store'}});
 export default {
  async fetch(request,env){
@@ -25,6 +33,6 @@ export default {
     return denial();
    }
    return denial();
-  }catch{return denial()}
+  }catch(error){return denial(safeCategory(error))}
  }
 };
