@@ -1,0 +1,131 @@
+name: MMF Real Private Cloudflare SQLite Persistence Qualification 20261012
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-private-cloud-sqlite-real-proof-20261012.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-cloud-only-synthetic-sqlite-proof
+  cancel-in-progress: false
+jobs:
+  prove-real-sqlite:
+    if: github.event.before == '2e10167c856906fab0c5102bb44cf1747c76d6ab'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 17
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated scope, full suite, and disabled commercial activation
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-private-sqlite-proof.mjs
+          node --check src/edge/mmf-commercial-private-cloudflare.mjs
+          node --check src/staging/mmf-private-cloud-proof-client.mjs
+          node --check src/staging/mmf-run-private-cloud-proof.mjs
+          node --test test/mmf-private-cloud-sqlite-proof.test.mjs
+          npm run check
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-commercial-block.txt" 2>&1
+          c=$?
+          set -e
+          test "$c" -eq 2
+          grep -q 'BLOCKED' "$RUNNER_TEMP/mmf-commercial-block.txt"
+      - name: Cloudflare GET-only stage source and shared payment Worker fingerprint preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(id!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_PREFLIGHT_DENIED');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${id}/workers/scripts/`;
+          const get=async(path)=>{
+           const r=await fetch(base+path,{headers:{authorization:'Bearer '+token,'cache-control':'no-store'},signal:AbortSignal.timeout(20000)});
+           const data=await r.json();if(r.status!==200||data.success!==true)throw Error('MMF_CLOUD_PREFLIGHT_READ_DENIED');return data.result;
+          };
+          const name='mmf-commercial-private-sqlite-stage-20261012';
+          const settings=await get(name+'/settings'),sub=await get(name+'/subdomain'),secrets=await get(name+'/secrets');
+          const bs=settings.bindings||[];
+          if(bs.length!==6||!Array.isArray(secrets)||secrets.length||sub.enabled!==false||sub.previews_enabled!==false||
+            bs.filter(b=>b.type==='durable_object_namespace').length!==1||
+            bs.filter(b=>b.type==='plain_text').length!==5||
+            bs.filter(b=>b.type==='plain_text').some(b=>b.text!=='false'))throw Error('MMF_CLOUD_STAGE_NOT_CLOSED');
+          const names=['mft-phase8-external-authority','mft-paynow-transport-gateway'];const snap=[];
+          for(const n of names){const x=await get(n+'/settings');const sorted=(x.bindings||[]).map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null})).sort((a,b)=>a.name.localeCompare(b.name));snap.push({name:n,digest:createHash('sha256').update(JSON.stringify(sorted)).digest('hex')})}
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-cloud-before.json',JSON.stringify(snap),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_SYNTHETIC_PROBE_PREFLIGHT',stageClosed:true,sharedWorkersRead:2,cloudflareWrites:0}));
+          NODE
+      - name: Update ONLY existing non-public MMF SQLite Worker to add synthetic private proof RPC
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          npx --yes wrangler@4 deploy --config wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc
+      - name: Verify target remains private and shared payment Worker settings unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {readFileSync} from 'node:fs';
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const base=`https://api.cloudflare.com/client/v4/accounts/${id}/workers/scripts/`;
+          const get=async(path)=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});const obj=await r.json();if(r.status!==200||obj.success!==true)throw Error('MMF_CLOUD_POSTCHECK_DENIED');return obj.result};
+          const name='mmf-commercial-private-sqlite-stage-20261012';
+          const bs=(await get(name+'/settings')).bindings||[],sub=await get(name+'/subdomain'),secrets=await get(name+'/secrets');
+          if(sub.enabled!==false||sub.previews_enabled!==false||bs.length!==6||secrets.length!==0||
+             bs.some(b=>b.type==='plain_text'&&b.text!=='false')||
+             bs.some(b=>!['plain_text','durable_object_namespace'].includes(b.type)))throw Error('MMF_CLOUD_INSECURE_POSTDEPLOY_STOP');
+          const saved=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/mmf-cloud-before.json','utf8'));
+          const observed=[];
+          for(const n of ['mft-phase8-external-authority','mft-paynow-transport-gateway']){
+           const x=await get(n+'/settings');const sorted=(x.bindings||[]).map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null})).sort((a,b)=>a.name.localeCompare(b.name));observed.push({name:n,digest:createHash('sha256').update(JSON.stringify(sorted)).digest('hex')})
+          }
+          if(JSON.stringify(saved)!==JSON.stringify(observed))throw Error('MMF_LEGACY_PAYNOW_DRIFT_STOP');
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_CLOUD_AFTER_PROBE_DEPLOY',private:true,noSecretBinding:true,paynowSettingsUnchanged:true}));
+          NODE
+      - name: Real SQLite digest write, forced restart, readback and cleanup via localhost-only remote service binding
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          LOG="$RUNNER_TEMP/mmf-private-cloud-local.log"
+          npx --yes wrangler@4 dev --config wrangler.mmf.private-cloud-local-probe.jsonc --ip 127.0.0.1 --port 8796 > "$LOG" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8796/health > /dev/null 2>&1; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$READY" -ne 1 ]; then echo 'MMF_REMOTE_PROXY_START_DENIED'; exit 2; fi
+          node src/staging/mmf-run-private-cloud-proof.mjs | tee "$RUNNER_TEMP/mmf-remote-sqlite-proof.json"
+          grep -q 'MMF_REAL_CLOUDFLARE_DURABLE_SQLITE_PERSISTENCE_PROVEN' "$RUNNER_TEMP/mmf-remote-sqlite-proof.json"
+      - name: Upload sanitized proof only (no diagnostic logs)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-real-private-cloud-sqlite-persistence-proof-20261012
+          path: ${{ runner.temp }}/mmf-remote-sqlite-proof.json
+          retention-days: 30
+      - name: Remove temporary secret-free state
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-cloud-before.json" "$RUNNER_TEMP/mmf-commercial-block.txt" "$RUNNER_TEMP/mmf-remote-sqlite-proof.json"
