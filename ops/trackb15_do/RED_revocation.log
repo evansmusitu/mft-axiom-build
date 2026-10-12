@@ -1,0 +1,192 @@
+TAP version 13
+# (node:882) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed grant verified and reservation durable
+ok 1 - signed grant verified and reservation durable
+  ---
+  duration_ms: 8.368833
+  type: 'test'
+  ...
+# Subtest: same request id retry is idempotent, no duplicate neuron reservation
+ok 2 - same request id retry is idempotent, no duplicate neuron reservation
+  ---
+  duration_ms: 2.135751
+  type: 'test'
+  ...
+# Subtest: idempotency key payload mismatch denied
+ok 3 - idempotency key payload mismatch denied
+  ---
+  duration_ms: 3.390553
+  type: 'test'
+  ...
+# Subtest: grant call cap is enforced
+ok 4 - grant call cap is enforced
+  ---
+  duration_ms: 3.142886
+  type: 'test'
+  ...
+# Subtest: cross-tenant same signed grant denied
+ok 5 - cross-tenant same signed grant denied
+  ---
+  duration_ms: 2.030695
+  type: 'test'
+  ...
+# Subtest: account daily cap aggregates different signed tenant grants
+ok 6 - account daily cap aggregates different signed tenant grants
+  ---
+  duration_ms: 2.679148
+  type: 'test'
+  ...
+# Subtest: tampered signature denied
+ok 7 - tampered signature denied
+  ---
+  duration_ms: 1.036629
+  type: 'test'
+  ...
+# Subtest: unknown key denied
+ok 8 - unknown key denied
+  ---
+  duration_ms: 1.912429
+  type: 'test'
+  ...
+# Subtest: expired grant denied
+ok 9 - expired grant denied
+  ---
+  duration_ms: 1.445476
+  type: 'test'
+  ...
+# Subtest: missing provider verified remaining denied even with signature
+ok 10 - missing provider verified remaining denied even with signature
+  ---
+  duration_ms: 2.259354
+  type: 'test'
+  ...
+# Subtest: production authority cannot be granted
+ok 11 - production authority cannot be granted
+  ---
+  duration_ms: 2.046979
+  type: 'test'
+  ...
+# Subtest: wrong UTC day denied
+ok 12 - wrong UTC day denied
+  ---
+  duration_ms: 1.028718
+  type: 'test'
+  ...
+# Subtest: signed boolean neurons invalid
+ok 13 - signed boolean neurons invalid
+  ---
+  duration_ms: 1.708787
+  type: 'test'
+  ...
+# Subtest: limit shrink remains persistent even if shrinking request cannot be admitted
+ok 14 - limit shrink remains persistent even if shrinking request cannot be admitted
+  ---
+  duration_ms: 2.234167
+  type: 'test'
+  ...
+# Subtest: revocation before first request blocks all future requests
+ok 15 - revocation before first request blocks all future requests
+  ---
+  duration_ms: 1.016198
+  type: 'test'
+  ...
+# Subtest: revocation after first request blocks all later requests
+ok 16 - revocation after first request blocks all later requests
+  ---
+  duration_ms: 3.072201
+  type: 'test'
+  ...
+# Subtest: SQLite durable process reopening preserves exact ledger
+ok 17 - SQLite durable process reopening preserves exact ledger
+  ---
+  duration_ms: 2.922909
+  type: 'test'
+  ...
+# Subtest: race from 40 simultaneous reservations stays <= daily limit
+ok 18 - race from 40 simultaneous reservations stays <= daily limit
+  ---
+  duration_ms: 8.349495
+  type: 'test'
+  ...
+# Subtest: grant identity reused across separate tenants fails closed
+ok 19 - grant identity reused across separate tenants fails closed
+  ---
+  duration_ms: 2.376118
+  type: 'test'
+  ...
+# Subtest: grant expiry moving across UTC midnight fails closed
+ok 20 - grant expiry moving across UTC midnight fails closed
+  ---
+  duration_ms: 0.906396
+  type: 'test'
+  ...
+# Subtest: independently signed revocation before first admission denies future requests
+not ok 21 - independently signed revocation before first admission denies future requests
+  ---
+  duration_ms: 0.652239
+  type: 'test'
+  location: '/mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:46:1'
+  failureType: 'testCodeFailure'
+  error: 'l.revoke is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:48:24)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: tampered revocation cannot stop valid work
+not ok 22 - tampered revocation cannot stop valid work
+  ---
+  duration_ms: 0.443118
+  type: 'test'
+  location: '/mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:51:1'
+  failureType: 'testCodeFailure'
+  error: 'l.revoke is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    file:///mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:54:19
+    waitForActual (node:assert:552:21)
+    Function.rejects (node:assert:687:31)
+    deny (file:///mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:24:41)
+    TestContext.<anonymous> (file:///mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:54:8)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  ...
+# Subtest: revocation persisted across process restarts
+not ok 23 - revocation persisted across process restarts
+  ---
+  duration_ms: 0.825706
+  type: 'test'
+  location: '/mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:56:1'
+  failureType: 'testCodeFailure'
+  error: 'l.revoke is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_trackb_b15_do_s0/test_ledger.mjs:59:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 20
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 114.453864
