@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const require=createRequire(import.meta.url);
+const file=new URL('../wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc',import.meta.url);
+const text=readFileSync(file,'utf8');
+const cfg=JSON.parse(text.replace(/^\s*\/\/.*$/gm,''));
+test('real staging deployment stays isolated, unrouted and never launches customers',()=>{
+ assert.equal(cfg.name,'mmf-commercial-private-sqlite-stage-20261012');
+ assert.equal(cfg.workers_dev,false);
+ assert.equal(cfg.preview_urls,false);
+ assert.deepEqual(cfg.routes,[]);
+ assert.equal(cfg.main,'src/edge/mmf-commercial-private-cloudflare.mjs');
+ assert.deepEqual(cfg.durable_objects.bindings,[{name:'MMF_COMMERCIAL_PRIVATE_STAGE',class_name:'MmfCommercialPrivateStageDO'}]);
+ assert.deepEqual(cfg.migrations,[{tag:'mmf-commercial-private-sqlite-v1',new_sqlite_classes:['MmfCommercialPrivateStageDO']}]);
+ for(const n of ['MMF_STAGE_ONLY','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_MAIL_SENDING_ENABLED'])assert.equal(cfg.vars[n],'false');
+ assert.equal(Object.hasOwn(cfg,'services'),false);
+ assert.equal(Object.hasOwn(cfg,'account_id'),false);
+ assert.equal(Object.hasOwn(cfg,'triggers'),false);
+ assert.equal(Object.keys(cfg.vars).length,5);
+ assert.ok(!/PAYNOW|RESEND|SECRET|API_KEY|FMI|CHEMISTRY/i.test(JSON.stringify(cfg)));
+});
+test('Cloudflare HTTP entry point and Durable Object HTTP entry point both deny',()=>{
+ const source=readFileSync(new URL('../src/edge/mmf-commercial-private-cloudflare.mjs',import.meta.url),'utf8');
+ assert.match(source,/async fetch\(\)\s*\{\s*return deny\(\)/);
+ assert.match(source,/status:503/);
+ assert.ok(!source.includes('https://paynow.co.zw'));
+});

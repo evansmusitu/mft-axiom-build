@@ -1,0 +1,27 @@
+{
+  // Isolated Cloudflare qualification only, not a customer launch. No secrets or account ID.
+  "name": "mmf-commercial-private-sqlite-stage-20261012",
+  "main": "src/edge/mmf-commercial-private-cloudflare.mjs",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "durable_objects": {
+    "bindings": [{
+      "name": "MMF_COMMERCIAL_PRIVATE_STAGE",
+      "class_name": "MmfCommercialPrivateStageDO"
+    }]
+  },
+  "migrations": [{
+    "tag": "mmf-commercial-private-sqlite-v1",
+    "new_sqlite_classes": ["MmfCommercialPrivateStageDO"]
+  }],
+  "vars": {
+    "MMF_STAGE_ONLY": "false",
+    "MMF_REAL_SEND_ENABLED": "false",
+    "MMF_COMMERCE_ENABLED": "false",
+    "MMF_CUSTOMER_API_ENABLED": "false",
+    "MMF_MAIL_SENDING_ENABLED": "false"
+  }
+}

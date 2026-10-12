@@ -1,0 +1,133 @@
+name: MMF Owner-Authorized Private Commercial SQLite DO Qualification 20261012
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-commercial-cloud-private-do-deploy-20261012.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-commercial-private-sqlite-do-20261012-deploy-once
+  cancel-in-progress: false
+jobs:
+  isolated-cloud-stage:
+    if: github.event.before == '436f89b1f8ce365a4eff8442647ab5ac1a40ada5'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated source, new stage configuration, regression and production blockade
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test '${{ github.event.before }}' = '436f89b1f8ce365a4eff8442647ab5ac1a40ada5'
+          npm run check
+          node --test test/mmf-private-cloud-stage-config.test.mjs
+          npm run test:mmf-persistent-control
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-commercial-blockade.txt" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q BLOCKED "$RUNNER_TEMP/mmf-commercial-blockade.txt"
+      - name: Preflight only new Worker and prove existing shared payment Workers still reachable (GET ONLY)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const target='mmf-commercial-private-sqlite-stage-20261012';
+          if(account!=='93f395f5121954671f92fffa453d6b61'||typeof token!=='string'||token.length<20)throw Error('MMF_ISOLATED_CLOUD_PREFLIGHT_DENIED');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          async function get(path){
+            const response=await fetch(base+path,{headers:{authorization:'Bearer '+token,'cache-control':'no-store'},signal:AbortSignal.timeout(20000)});
+            return {status:response.status,body:await response.json()};
+          }
+          const prospective=await get(target+'/settings');
+          if(prospective.status!==404)throw Error('MMF_PRIVATE_STAGE_TARGET_ALREADY_EXISTS_STOP');
+          const names=['mft-phase8-external-authority','mft-paynow-transport-gateway'];
+          const rows=[];
+          for(const name of names){
+            const r=await get(name+'/settings');
+            if(r.status!==200||r.body.success!==true||!Array.isArray(r.body.result?.bindings))throw Error('MMF_SHARED_PAYMENT_PRECHECK_DENIED');
+            const sorted=r.body.result.bindings.map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null})).sort((a,b)=>a.name.localeCompare(b.name));
+            rows.push({name,sha256:createHash('sha256').update(JSON.stringify(sorted)).digest('hex')});
+          }
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-cloud-before.json',JSON.stringify(rows),{mode:0o600});
+          console.log(JSON.stringify({gate:'MMF_PRIVATE_CLOUD_GET_ONLY_PREFLIGHT',result:'PASS',targetAbsent:true,legacyWorkersRead:2,cloudflareWrites:0,realPaymentEnabled:false,publicAccessEnabled:false}));
+          NODE
+      - name: Deploy new nonpublic commercial Durable Object Worker only; absolutely no payment credentials
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          npx --yes wrangler@4 deploy --config wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc --log-level error
+      - name: Independent Cloudflare readback of new namespace, flags and unchanged shared payment bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const target='mmf-commercial-private-sqlite-stage-20261012';
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          async function get(path){
+            const r=await fetch(base+path,{headers:{authorization:'Bearer '+token,'cache-control':'no-store'},signal:AbortSignal.timeout(20000)});
+            const obj=await r.json();if(r.status!==200||obj.success!==true)throw Error('MMF_CLOUD_POSTDEPLOY_GET_DENIED');return obj.result;
+          }
+          const settings=await get(target+'/settings');
+          const subdomain=await get(target+'/subdomain');
+          const secrets=await get(target+'/secrets');
+          const bs=settings.bindings||[],plain=n=>bs.find(b=>b.name===n&&b.type==='plain_text')?.text;
+          const expected=['MMF_STAGE_ONLY','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_MAIL_SENDING_ENABLED'];
+          const durable=bs.filter(b=>b.type==='durable_object_namespace');
+          if(subdomain.enabled!==false||subdomain.previews_enabled!==false||
+             expected.some(n=>plain(n)!=='false')||durable.length!==1||
+             durable[0].name!=='MMF_COMMERCIAL_PRIVATE_STAGE'||durable[0].class_name!=='MmfCommercialPrivateStageDO'||
+             !durable[0].namespace_id||
+             bs.some(b=>['service','d1','queue','send_email','secret_text','secret_key','secret'].includes(b.type))||
+             !Array.isArray(secrets)||secrets.length!==0||bs.length!==6)throw Error('MMF_CLOUD_STAGE_ISOLATION_DENIED');
+          const names=['mft-phase8-external-authority','mft-paynow-transport-gateway'];
+          const expectedRows=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/mmf-cloud-before.json','utf8'));
+          const rows=[];
+          for(const name of names){
+            const result=await get(name+'/settings');
+            const sorted=result.bindings.map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null})).sort((a,b)=>a.name.localeCompare(b.name));
+            rows.push({name,sha256:createHash('sha256').update(JSON.stringify(sorted)).digest('hex')});
+          }
+          if(JSON.stringify(rows)!==JSON.stringify(expectedRows))throw Error('MMF_SHARED_PAYMENT_BINDINGS_DRIFTED_STOP');
+          const proof={schema:'mmf-private-cloud-commercial-storage-stage-v1',gate:'MMF_PRIVATE_COMMERCIAL_SQLITE_WORKER_DEPLOYED',
+            status:'PASS',workerName:target,privateDurableNamespaceAllocated:true,namespaceCustomerDataCreated:false,
+            publicWorkersDevEnabled:false,previewUrlsEnabled:false,sharedPaynowWorkersChanged:false,
+            paymentProviderCalled:false,realEmailSent:false,customerLoginOperational:false,
+            stageKernelFlagsEnabled:false,liveDurableSqlRoundTripQualified:false,
+            cloudflareNewWorkerWrites:1,cloudflareSharedWorkerWrites:0,verifiedAt:new Date().toISOString()};
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-private-commercial-cloud-proof.json',JSON.stringify(proof)+'\n',{mode:0o600});
+          console.log(JSON.stringify(proof));
+          NODE
+      - name: Upload sanitized evidence only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-commercial-private-cloud-stage-proof-20261012
+          path: ${{ runner.temp }}/mmf-private-commercial-cloud-proof.json
+          retention-days: 30
+      - name: Remove temporary on-runner inventory
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-cloud-before.json" "$RUNNER_TEMP/mmf-commercial-blockade.txt"
