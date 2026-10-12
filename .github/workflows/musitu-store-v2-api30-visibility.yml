@@ -11,6 +11,7 @@ on:
       - 'store/phase1/android-client/fixturebeta/**'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi30VisibilityTest.java'
+      - 'store/phase1/android-client/app/src/debug/AndroidManifest.xml'
       - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstallBridge.java'
       - 'store/phase1/android-client/run-v2-api30-qualification.sh'
       - 'store/phase1/android-client/run-v2-api30-visible-consent.py'
@@ -79,6 +80,24 @@ jobs:
           ! cmp -s "$SIGN_DIR/alpha.fingerprint" "$SIGN_DIR/beta.fingerprint"
           rm -f "$SIGN_DIR"/*.p12 "$SIGN_DIR"/*.aligned.apk "$SIGN_DIR"/*.fingerprint
           echo MUSITU_STORE_TWO_INDEPENDENT_TEST_SIGNERS=PASS
+      - name: Assert fixture package visibility is debug-only, absent from release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p store/phase1/android-client --no-daemon :app:processDebugMainManifest :app:processReleaseMainManifest
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as ET
+          base='store/phase1/android-client/app/build/intermediates/merged_manifests'
+          candidates=glob.glob(base+'/**/*.xml',recursive=True)
+          m='org.musitu.fixturealpha'
+          names=[]
+          for path in candidates:
+            if path.endswith('AndroidManifest.xml'):
+              names.append((path,m in open(path,encoding='utf8').read()))
+          assert any('debug' in p and hit for p,hit in names),names
+          assert not any('release' in p and hit for p,hit in names),names
+          print('MUSITU_API30_TEST_PACKAGE_VISIBILITY_DEBUG_ONLY=PASS')
+          PY
       - name: Enable emulator hardware virtualization if available
         shell: bash
         run: |
