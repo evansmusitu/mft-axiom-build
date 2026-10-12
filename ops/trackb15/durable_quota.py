@@ -86,11 +86,12 @@ class Ledger:
         g=self.verify(doc,sig,"policy")
         with self.connect() as conn,conn.transaction():
             conn.execute("SET LOCAL lock_timeout='5s'")
-            now=conn.execute("SELECT clock_timestamp()").fetchone()[0]
-            live(g,now)
             conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",(g["account"],))
             row=conn.execute("""SELECT day,epoch,ceiling,spent,revoked,last_seen,policy_digest
                   FROM b15_accounts WHERE account=%s FOR UPDATE""",(g["account"],)).fetchone()
+            # The independent issuer's policy also samples clock after locking.
+            now=conn.execute("SELECT clock_timestamp()").fetchone()[0]
+            live(g,now)
             digest=hashlib.sha256(doc).hexdigest()
             if row:
                 prev_day,prev_epoch,prev_cap,spent,revoked,last_seen,prev_digest=row
@@ -119,10 +120,12 @@ class Ledger:
         g=self.verify(doc,sig,"grant");ident(operation_id)
         with self.connect() as conn,conn.transaction():
             conn.execute("SET LOCAL lock_timeout='5s'")
-            now=conn.execute("SELECT clock_timestamp()").fetchone()[0];live(g,now)
             row=conn.execute("""SELECT day,epoch,ceiling,spent,revoked,expires,last_seen
                   FROM b15_accounts WHERE account=%s FOR UPDATE""",(g["account"],)).fetchone()
             if not row:raise Denied("NO_SIGNED_POLICY")
+            # Only read database time AFTER acquiring the lock: any pre-lock
+            # timestamp can become stale while another broker commits.
+            now=conn.execute("SELECT clock_timestamp()").fetchone()[0];live(g,now)
             day,epoch,cap,spent,revoked,expiry,last_seen=row
             if now<last_seen:raise Denied("DATABASE_CLOCK_ROLLBACK")
             if day.isoformat()!=g["day"] or epoch!=g["epoch"] or revoked or expiry<=now:
