@@ -1,15 +1,6 @@
 name: MMF Connect Existing MUSITU Paynow Services (Disabled Private Canary)
+# Manual-only: do not write to Cloudflare on routine product or package changes.
 on:
-  push:
-    branches:
-      - product/musitu-mail-fabric-isolated-20261009
-    paths:
-      - '.github/workflows/mmf-bind-existing-paynow-services-20261012.yml'
-      - 'musitu-mail-fabric/src/staging/mmf-bind-existing-paynow-services.mjs'
-      - 'musitu-mail-fabric/test/mmf-bind-existing-paynow-services.test.mjs'
-      - 'musitu-mail-fabric/src/staging/mmf-paynow-canary.mjs'
-      - 'musitu-mail-fabric/src/staging/mmf-joint-source-binding-getonly.mjs'
-      - 'musitu-mail-fabric/package.json'
   workflow_dispatch:
 permissions:
   contents: read
