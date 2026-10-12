@@ -56,8 +56,9 @@ def validate_subscription_data(account, sub):
         if not isinstance(item,dict) or not isinstance(item.get('rate_plan'),(dict,type(None))):
             raise ReadDenied('SUBSCRIPTION_ROW_INVALID')
         plan=str((item.get('rate_plan') or {}).get('id') or '').lower()
-        if 'paid' in plan or plan.startswith('partners_workers'):
-            raise ReadDenied('PAID_PLAN_PRESENT_FAIL_CLOSED')
+        # Paid non-Workers subscriptions do not imply a Workers Paid plan.
+        if plan.startswith(('workers_paid','partners_workers')) or 'workers_paid' in plan or 'workers-paid' in plan:
+            raise ReadDenied('WORKERS_PAID_PLAN_PRESENT_FAIL_CLOSED')
     return {'account_identity_read': True, 'subscription_count':len(sub['result']),
             'paid_worker_plan_seen':False, 'free_plan_certified':False}
 
