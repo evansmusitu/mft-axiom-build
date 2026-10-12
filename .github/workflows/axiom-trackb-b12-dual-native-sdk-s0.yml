@@ -53,8 +53,8 @@ jobs:
           # Runner checkout directories are not traversable by UID-isolated workers.
           # Stage only the audited script into root-owned world-readable /tmp.
           sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b12-runner.py
-          sudo -u '#65532' test -r /tmp/axiom-b12-runner.py
-          sudo -u '#65533' test -r /tmp/axiom-b12-runner.py
+          sudo setpriv --reuid=65532 --regid=65532 --clear-groups test -r /tmp/axiom-b12-runner.py
+          sudo setpriv --reuid=65533 --regid=65533 --clear-groups test -r /tmp/axiom-b12-runner.py
           echo B12_UNPRIVILEGED_SOURCE_READABILITY_PREFLIGHT_PASS
           sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 \
             /tmp/axiom-b12-venv/bin/python /tmp/axiom-b12-runner.py
