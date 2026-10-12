@@ -233,10 +233,10 @@ jobs:
                       extra_headers={'X-Axiom-Workload-ID':'axiom-trackb-agent-s2'},
                       temperature=0,stream=False,drop_params=True,num_retries=0,
                       max_output_tokens=300,timeout=22)
-              agent=Agent(llm=llm,tools=[Tool(name=TerminalTool.name),Tool(name=FileEditorTool.name)])
+              agent=Agent(llm=llm,tools=[Tool(name=FileEditorTool.name)])
               c=Conversation(agent=agent,workspace=str(root),max_iteration_per_run=6,
                              visualizer=None,callbacks=[cb])
-              c.send_message('The task is in TASK.md in your workspace. Read and solve it by changing mathfix.py yourself. Run one Python test. Use only your workspace. No internet.')
+              c.send_message('The task is in TASK.md in your workspace. Read and solve it by changing mathfix.py yourself using the file_editor tool. Independent tests are executed after you finish. Use only your workspace. No internet.')
               c.run();state='RETURNED'
           except Exception as e:
               state='ERROR';err=type(e).__name__+': '+str(e)[:140]
