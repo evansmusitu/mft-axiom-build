@@ -1,5 +1,6 @@
 name: MMF Current Isolated Branch Tracked Source Snapshot 20261012
-# Refresh exact tracked source after independently verified disabled Paynow service bindings.
+# Capture private SQLite control-plane source from exact current isolated GitHub HEAD.
+# No secrets, deployment or real commerce.
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
