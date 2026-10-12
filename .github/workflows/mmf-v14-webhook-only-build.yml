@@ -8,6 +8,7 @@ on:
       - 'musitu-mail-fabric/wrangler.mmf.webhook-only.template.jsonc'
       - 'musitu-mail-fabric/package.json'
       - 'musitu-mail-fabric/test/webhook-only-*.test.mjs'
+      - 'musitu-mail-fabric/test/backup-restore.test.mjs'
 permissions:
   contents: read
 jobs:
