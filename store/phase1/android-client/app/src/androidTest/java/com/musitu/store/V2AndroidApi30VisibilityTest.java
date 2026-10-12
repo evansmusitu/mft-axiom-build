@@ -52,6 +52,9 @@ public final class V2AndroidApi30VisibilityTest {
     assertFalse("fresh Android11 Store has permission before approval",pm.canRequestPackageInstalls());
     assertAbsent(pm);
     V2RealApkInstrumentedTest.Signed s=signed();
+    assertEquals("unknown is not proof of no installation",
+      V2AndroidInstalledPackageState.State.UNKNOWN_VISIBILITY,
+      V2AndroidInstallBridge.inspectInstalledRelease(context(),s.catalog.selectAndroid(APP)));
     assertEquals(V2AndroidInstallBridge.Result.USER_APPROVAL_REQUIRED,
       V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,stage(s)));
     Log.i("MUSITU_API30","STAGE01_SOURCE_SETTINGS_REQUESTED");
@@ -114,6 +117,9 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals(1,certs.length);
     assertEquals("installed publisher signature not authorized by verified signed catalog",
       release.signingCertificateSha256,hexSha(certs[0].toByteArray()));
+    assertEquals("root-signed release and installed package are now verifiably consistent",
+      V2AndroidInstalledPackageState.State.VERIFIED_INSTALLED,
+      V2AndroidInstallBridge.inspectInstalledRelease(context(),release));
     V2AndroidInstallBridge.revokeInstallerUriGrant(context(),stage(s));
     Log.i("MUSITU_API30","STAGE05_INSTALLED_PACKAGE_AND_SIGNER_CONFIRMED");
   }
