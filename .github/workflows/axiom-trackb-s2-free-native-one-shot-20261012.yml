@@ -1,0 +1,157 @@
+name: AXIOM Track B S2 Free Native Single Model Probe 20261012
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-s2-free-native-one-shot-20261012
+    paths:
+      - .github/workflows/axiom-trackb-s2-free-native-one-shot-20261012.yml
+permissions:
+  contents: read
+jobs:
+  isolated-s2-native-free:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-s2-free-native-one-shot-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AXIOM_CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      AXIOM_MODEL: '@cf/zai-org/glm-4.7-flash'
+    steps:
+      - name: Independent human-approved Free native account gate and ephemeral Ed25519 issuer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo 'DENIED_NO_SCOPED_SECRET'; exit 42; }
+          python3 - <<'PY'
+          import os, json, time, hashlib, urllib.request, urllib.error
+          A=os.environ['AXIOM_CF_ACCOUNT']; T=os.environ['CLOUDFLARE_API_TOKEN']
+          ORIGIN='https://api.cloudflare.com/client/v4'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): raise RuntimeError('REDIRECT_DENIED')
+          opener=urllib.request.build_opener(NoRedirect)
+          def get(path):
+              if not path.startswith('/accounts/'+A) and not path.startswith('/zones?'):
+                  raise RuntimeError('UNAPPROVED_NATIVE_GET')
+              req=urllib.request.Request(ORIGIN+path,headers={'Authorization':'Bearer '+T,'Accept':'application/json'},method='GET')
+              try:
+                  with opener.open(req,timeout=14) as resp:
+                      body=resp.read(65537)
+                      if resp.status!=200 or len(body)>65536: raise RuntimeError('NON_200_OR_OVERSIZED')
+              except urllib.error.HTTPError as e:
+                  print('NATIVE_ACCOUNT_READ_HTTP_STATUS='+str(e.code))
+                  raise SystemExit('S2_NATIVE_ACCOUNT_GATE_DENIED') from None
+              except Exception:
+                  raise SystemExit('S2_NATIVE_ACCOUNT_GATE_DENIED') from None
+              try: obj=json.loads(body)
+              except Exception: raise SystemExit('S2_NATIVE_BAD_JSON') from None
+              if type(obj) is not dict or obj.get('success') is not True:
+                  raise SystemExit('S2_NATIVE_RESPONSE_DENIED')
+              return obj
+          acct=get('/accounts/'+A).get('result')
+          if type(acct) is not dict or acct.get('id')!=A:
+              raise SystemExit('S2_ACCOUNT_IDENTITY_NOT_VERIFIED')
+          subs=get('/accounts/'+A+'/subscriptions')
+          plans=subs.get('result'); info=subs.get('result_info')
+          if type(plans) is not list or (type(info) is dict and info.get('total_count')!=len(plans)):
+              raise SystemExit('S2_SUBSCRIPTION_COMPLETENESS_DENIED')
+          for p in plans:
+              if type(p) is not dict:raise SystemExit('S2_SUBSCRIPTION_SHAPE_DENIED')
+              id=str((p.get('rate_plan') or {}).get('id') or '').upper()
+              if id.startswith('WORKERS_PAID') or id.startswith('PARTNERS_WORKERS'):
+                  raise SystemExit('S2_WORKERS_PAID_DENIED')
+          z=get('/zones?name=mftintelligence.com&status=active').get('result')
+          if type(z) is not list or len(z)!=1 or (z[0].get('account') or {}).get('id')!=A:
+              raise SystemExit('S2_ZONE_ACCOUNT_MISMATCH')
+          now=int(time.time())
+          mandate={'schema':'axiom.s2.operator.native-free-synthetic-once.20261012.v1',
+                   'account_id':A,'model':os.environ['AXIOM_MODEL'],
+                   'task':'TOOL_CALL_SHAPE_SYNTHETIC_ONLY','max_calls':1,'max_output_tokens':96,
+                   'expires_unix':now+120,'observed_unix':now,
+                   'user_authorized':True,'workers_paid_plan_observed':False,
+                   'provider_native_subscriptions_checked':True,
+                   'user_confirmed_remaining_neurons':True,
+                   'provider_native_remaining_neurons_exact':'NOT_AVAILABLE',
+                   'release_authority':False,'production_authority':False}
+          data=json.dumps(mandate,sort_keys=True,separators=(',',':')).encode()
+          path=os.path.join(os.environ['RUNNER_TEMP'],'axiom_s2_free_mandate.json')
+          open(path,'wb').write(data)
+          print('S2_NATIVE_ACCOUNT_SUBSCRIPTIONS_FREE_COMPATIBLE_PASS')
+          print('S2_NATIVE_RECEIPT_SHA256='+hashlib.sha256(data).hexdigest())
+          print('S2_MAX_MODEL_CALLS=1')
+          PY
+          umask 077
+          openssl genpkey -algorithm Ed25519 -out "$RUNNER_TEMP/axiom_s2_policy_private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/axiom_s2_policy_private.pem" -pubout -out "$RUNNER_TEMP/axiom_s2_policy_public.pem" 2>/dev/null
+          openssl pkeyutl -sign -inkey "$RUNNER_TEMP/axiom_s2_policy_private.pem" -rawin -in "$RUNNER_TEMP/axiom_s2_free_mandate.json" -out "$RUNNER_TEMP/axiom_s2_policy.sig"
+          rm -f "$RUNNER_TEMP/axiom_s2_policy_private.pem"
+          echo 'S2_EPHEMERAL_ED25519_POLICY_ISSUED_SEPARATE_STEP'
+      - name: Single Cloudflare Free model tool-call shape test - synthetic only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$RUNNER_TEMP/axiom_s2_policy_private.pem" || exit 71
+          openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/axiom_s2_policy_public.pem" -rawin -in "$RUNNER_TEMP/axiom_s2_free_mandate.json" -sigfile "$RUNNER_TEMP/axiom_s2_policy.sig" >/dev/null
+          python3 - <<'PY'
+          import os,json,time,hashlib,urllib.request,urllib.error
+          p=os.path.join(os.environ['RUNNER_TEMP'],'axiom_s2_free_mandate.json')
+          a=json.load(open(p))
+          if (a.get('schema')!='axiom.s2.operator.native-free-synthetic-once.20261012.v1'
+              or a.get('account_id')!=os.environ['AXIOM_CF_ACCOUNT']
+              or a.get('model')!='@cf/zai-org/glm-4.7-flash'
+              or a.get('max_calls')!=1 or a.get('max_output_tokens')!=96
+              or a.get('user_authorized') is not True
+              or a.get('workers_paid_plan_observed') is not False
+              or a.get('provider_native_subscriptions_checked') is not True
+              or a.get('release_authority') is not False
+              or a.get('production_authority') is not False
+              or time.time()>=a.get('expires_unix',0)):
+              raise SystemExit('SIGNED_MANDATE_FAIL_CLOSED')
+          # All content is a fixed synthetic fixture, not customer or repository content.
+          content='Synthetic evaluation only. Use the supplied terminal tool exactly once to call pwd. Do not provide prose.'
+          payload={'model':a['model'],'messages':[{'role':'user','content':content}],
+                   'max_completion_tokens':a['max_output_tokens'],
+                   'temperature':0,'stream':False,
+                   'tools':[{'type':'function','function':{'name':'terminal',
+                     'description':'A synthetic terminal tool','parameters':{'type':'object',
+                       'properties':{'command':{'type':'string'}},'required':['command']}}}],
+                   'tool_choice':'required'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): raise RuntimeError('REDIRECT_DENIED')
+          req=urllib.request.Request(
+              'https://api.cloudflare.com/client/v4/accounts/'+a['account_id']+'/ai/v1/chat/completions',
+              data=json.dumps(payload,separators=(',',':')).encode(),
+              headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],
+                       'Content-Type':'application/json','Accept':'application/json'},
+              method='POST')
+          try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=35) as resp:
+                  body=resp.read(131073)
+                  if resp.status!=200 or len(body)>131072:raise RuntimeError('RESPONSE_LIMIT_DENIED')
+          except urllib.error.HTTPError as e:
+              print('PROVIDER_NATIVE_MODEL_HTTP_STATUS='+str(e.code))
+              raise SystemExit('S2_SINGLE_MODEL_CALL_FAIL') from None
+          except Exception:
+              raise SystemExit('S2_SINGLE_MODEL_CALL_FAIL') from None
+          try: j=json.loads(body)
+          except Exception: raise SystemExit('S2_MODEL_INVALID_JSON') from None
+          if 'result' in j and type(j.get('result')) is dict: j=j['result']
+          choices=j.get('choices') if type(j) is dict else None
+          if type(choices) is not list or not choices:
+              print('S2_MODEL_NO_CHAT_CHOICES')
+              raise SystemExit(51)
+          msg=choices[0].get('message') or {}
+          calls=msg.get('tool_calls') or []
+          ok=type(calls) is list and len(calls)>=1 and calls[0].get('function',{}).get('name')=='terminal'
+          if ok:
+              try:
+                  args=json.loads(calls[0]['function']['arguments'])
+                  ok=type(args) is dict and args.get('command')=='pwd'
+              except Exception: ok=False
+          print('REAL_CLOUDFLARE_SINGLE_INFERENCE_RETURNED_NONEMPTY_CHOICES')
+          print('REAL_CLOUDFLARE_TOOL_CALL_RECOGNIZED='+str(bool(ok)))
+          print('REAL_CLOUDFLARE_RESPONSE_SHA256='+hashlib.sha256(body).hexdigest())
+          print('S2_REAL_OPENHANDS_AGENT_NOT_EXECUTED')
+          print('S2_NO_PRODUCTION_DEPLOYMENT')
+          if not ok:raise SystemExit('S2_MODEL_TOOL_CALL_SEMANTICS_FAILED')
+          print('AXIOM_TRACKB_S2_PROVIDER_TOOL_CALL_PROBE_PASS')
+          PY
