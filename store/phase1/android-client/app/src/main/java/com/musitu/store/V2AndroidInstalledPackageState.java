@@ -20,10 +20,27 @@ final class V2AndroidInstalledPackageState {
     }
   }
   static State assess(V2SignedAndroidCatalog.Release release,Observation installed){
-    return State.UNKNOWN_VISIBILITY; // RED stub: concrete observations are not evaluated yet.
+    if(release==null)throw new SecurityException("root-authorized signed release required");
+    // A PackageManager NameNotFoundException may mean filtered visibility,
+    // not that the APK is absent. Never return an "uninstalled" assertion.
+    if(installed==null)return State.UNKNOWN_VISIBILITY;
+    if(!release.packageId.equals(installed.packageId))
+      return State.REJECTED_PACKAGE_IDENTITY;
+    if(!release.signingCertificateSha256.equals(installed.signerSha256))
+      return State.REJECTED_SIGNER;
+    if(installed.versionCode<1)
+      return State.REJECTED_PACKAGE_IDENTITY;
+    if(installed.versionCode>release.versionCode)
+      return State.REJECTED_DOWNGRADE;
+    return State.VERIFIED_INSTALLED;
   }
   static void requireSafeInstall(V2SignedAndroidCatalog.Release release,Observation installed){
-    // RED stub: must reject independently detected signer/version conflicts.
+    State state=assess(release,installed);
+    if(state==State.REJECTED_PACKAGE_IDENTITY||state==State.REJECTED_SIGNER||
+        state==State.REJECTED_DOWNGRADE)
+      throw new SecurityException("installed package conflicts with signed Android catalog: "+state);
+    // UNKNOWN_VISIBILITY must still go through the normal OS installer, which
+    // independently enforces signer compatibility, consent and downgrade rules.
   }
   private V2AndroidInstalledPackageState(){}
 }
