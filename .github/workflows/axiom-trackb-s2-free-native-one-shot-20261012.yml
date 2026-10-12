@@ -182,7 +182,7 @@ jobs:
                       tools=req.get('tools',[])
                       if type(tools) is not list or len(tools)>3:raise ValueError()
                       print('SDK_WIRE_TOOL_NAMES='+','.join(str((t.get('function') or {}).get('name')) for t in tools),flush=True)
-                      if any((t.get('function') or {}).get('name') not in ('terminal','file_editor') for t in tools):raise ValueError()
+                      if any((t.get('function') or {}).get('name') not in ('terminal','file_editor','finish','think') for t in tools):raise ValueError()
                   except Exception:
                       print('SDK_SCHEMA_FAIL_CLOSED',flush=True)
                       return self.result(403,{'error':{'message':'synthetic_only_schema_denied'}})
