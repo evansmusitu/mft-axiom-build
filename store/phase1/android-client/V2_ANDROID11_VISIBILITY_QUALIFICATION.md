@@ -1,30 +1,27 @@
 # MUSITU Store V2 — Android 11 package visibility qualification
 
-**Status: BLOCKED, NOT CERTIFIED.** This work is isolated and stacked on draft PR #25. The production Chemistry Store, v1 package identity, public catalog, root signing authority, live Cloudflare service, main and frozen OpenAI submission have not changed.
+**Status: QUALIFIED ON AN ISOLATED ANDROID 11 / API30 EMULATOR ONLY.** No production release authorization, customer-device certification, or generic unrestricted publisher visibility is implied.
 
-## What must be proven before claiming Android 11 compatibility
+## Root-cause-driven red → green evidence
 
-A new Android 11 (API30) emulator with the future Store target SDK installs two independently signed disposable Android APKs only after user approval, using the actual system Settings and OS package installer. Test must prove:
+- **Initial crash:** Granting Store's per-source install authorization could terminate instrumentation. Split Android11 qualification into five independent instrumentation processes controlled by an OS-visible UI host, rather than retaining a fragile single process.
+- **Installer failure:** GitHub Actions 38152659182 and 38153322114 exposed a real `FileProvider` read denial inside Android 11 `InstallStaging`, displayed as “There was a problem parsing the package.” The candidate bridge now carries a scoped `ClipData` URI grant, explicitly limits read permission to the OS-resolved system installer and provides a scoped revocation method. Keeping the Store process alive while staging also mattered.
+- **Visibility failure:** GitHub Actions 38154279666 demonstrated the user-approved APK was installed, but `PackageManager.getPackageInfo` returned `NameNotFoundException` because Android 11 hides non-queryable packages. This is not an APK-installation failure. An exact **debug-only** `<queries><package android:name="org.musitu.fixturealpha"/></queries>` declaration enables visibility of the disposable fixture. Release manifest has no fixture query.
+- **Green evidence:** [GitHub Actions 38204265223](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38204265223) at source commit `049dcd20951d763c7bb276661bc2d2c1287f64a6` completed **SUCCESS**, emitting:
+  - `MUSITU_STORE_TWO_INDEPENDENT_TEST_SIGNERS=PASS`
+  - `MUSITU_API30_TEST_PACKAGE_VISIBILITY_DEBUG_ONLY=PASS`
+  - `MUSITU_API30_SOURCE_PERMISSION_INITIAL_OFF=PASS`
+  - `MUSITU_API30_APK_CANCELLATION_PREVENTED_INSTALL=PASS`
+  - `MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS stages=5 failures=0 errors=0 skipped=0`
 
-- No source-install permission by default.
-- Backing out of source authorization grants nothing and installs nothing.
-- Explicit Settings permission is required before the Store can request any package installation.
-- User cancels the **first** individual APK installer, and no package appears.
-- On retry, the user approves the individual installer.
-- After install, PackageManager returns the correct package ID, versionCode and signer SHA-256 **without** granting `QUERY_ALL_PACKAGES` or weakening per-publisher identity constraints.
+## Exact qualified behavior
 
-The CI must complete SUCCESS and output `MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS tests=1 failures=0 errors=0 skipped=0`.
+An Android 11 API30 emulator installed a genuine fixture APK signed by a disposable publisher key. The verification sequence was five independent Android instrumentation tests: (1) initial denied source permission, (2) re-request after user backs out, (3) explicit Settings permission followed by a separate OS APK installer, (4) cancellation proving no install and a new approval attempt, and (5) readback of the installed package ID, versionCode and signing SHA-256. The test host exercised visible Android Settings and package installer controls; it never used privileged `pm install`, `appops set`, or blanket `QUERY_ALL_PACKAGES`.
 
-## Current evidence and technical blocker
+A separate CI gate verified that the disposable fixture package query appeared in the merged **debug manifest** but **not** in the merged **release manifest**. The shipping Store's V1 `StoreCore.java` and `MainActivity.java` hashes remained unchanged.
 
-- CI run 38143314595: 1 test failed, reported instrumentation process crash.
-- CI run 38143694166: again failed on Android 11; test-result XML recorded a failed case and `Process crashed` but did not preserve an Android Java stack trace.
-- Follow-up candidate adds fail-closed Android app and instrumentation lifecycle logs with explicit test progress checkpoints, without modifying the tested V2 production-class algorithms.
+## Security and remaining limits
 
-Do **not** infer the crash was caused by package visibility or alter package permissions before actual crash evidence is available. Do not classify these runs as passing.
+The Android11 V2 bridge's installer-only APK URI grant needs product lifecycle wiring and independent security review before any rollout. The debug visibility entry is **not a production approach to unbounded publisher discovery**; Android package visibility for a fully dynamic marketplace still requires a lawful, least-privilege architecture and policy review. No customer hardware, real publisher onboarding, live root-signed V2 catalog, commercial entitlements, payment processing, public Store installation routes or competitive superiority is established.
 
-## Unqualified beyond Android11
-
-- Physical hardware, seller onboarding, live server V2 signed catalog, payments/entitlements, root-key recovery, secure updates, Windows/macOS/Linux and global commercial distribution remain outside this test.
-- API26 emulator qualification passed independently in PR #25, but that does not establish Android11 readiness.
-- The existing Store Phase 1 is RUNNING and Phase 2 must remain PENDING.
+**AXIOM:** Phase 1 stays **RUNNING**. Phase 2 stays **PENDING**. PR #26 remains draft and must not be merged or deployed without separate authorization.
