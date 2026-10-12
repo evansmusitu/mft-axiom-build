@@ -40,4 +40,5 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo B13_MISSING_SCOPED_READ_CREDENTIAL; exit 72; }
           python3 ops/trackb13/b13_account_usage_probe.py
+          echo B13_ACCOUNT_ENTITLEMENT_AND_USAGE_READ_ONLY_EVIDENCE_COMPLETE
           echo B13_NO_MODEL_INFERENCE_NO_PRODUCTION_CHANGES
