@@ -159,17 +159,21 @@ jobs:
                   if not authorized():return self.result(403,{'error':{'message':'expired_or_invalid_grant'}})
                   try:
                       n=int(self.headers.get('Content-Length','0'))
+                      print('SDK_BODY_BYTES='+str(n),flush=True)
                       if not 1<=n<=32768:raise ValueError()
                       req=json.loads(self.rfile.read(n))
                       if type(req) is not dict:raise ValueError()
                       print('SDK_WIRE_FIELD_NAMES='+','.join(sorted(str(k) for k in req.keys())),flush=True)
                       print('SDK_WIRE_STREAM_FLAG='+str(req.get('stream','OMITTED')),flush=True)
                       if req.get('stream',False) is not False:raise ValueError()
+                      print('SDK_MODEL_MATCH='+str(req.get('model') in (MODEL,'openai/'+MODEL)),flush=True)
                       if req.get('model') not in (MODEL,'openai/'+MODEL):raise ValueError()
                       lim=req.get('max_completion_tokens',req.get('max_tokens',300))
+                      print('SDK_OUTPUT_LIMIT='+str(lim),flush=True)
                       if type(lim) is not int or not 1<=lim<=300:raise ValueError()
                       messages=req.get('messages')
                       if type(messages) is not list or not 1<=len(messages)<=60:raise ValueError()
+                      print('SDK_MESSAGE_ROLES='+','.join(str(m.get('role')) for m in messages if type(m) is dict),flush=True)
                       for m in messages:
                           if type(m) is not dict or m.get('role') not in ('system','user','assistant','tool'):raise ValueError()
                       raw=json.dumps(messages)
@@ -179,7 +183,9 @@ jobs:
                       if type(tools) is not list or len(tools)>3:raise ValueError()
                       print('SDK_WIRE_TOOL_NAMES='+','.join(str((t.get('function') or {}).get('name')) for t in tools),flush=True)
                       if any((t.get('function') or {}).get('name') not in ('terminal','file_editor') for t in tools):raise ValueError()
-                  except Exception:return self.result(403,{'error':{'message':'synthetic_only_schema_denied'}})
+                  except Exception:
+                      print('SDK_SCHEMA_FAIL_CLOSED',flush=True)
+                      return self.result(403,{'error':{'message':'synthetic_only_schema_denied'}})
                   with lock:
                       if counts[0]>=5:return self.result(403,{'error':{'message':'bounded_model_budget_exhausted'}})
                       counts[0]+=1
@@ -269,7 +275,7 @@ jobs:
           "/tmp/axiom-s2-venv/bin/python" -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:18766/v1/models", timeout=2).status==200; print("ISOLATED_BROKER_LOOPBACK_READY")' 2>/dev/null || { echo 'BROKER_LOOPBACK_NOT_READY'; tail -n 6 "$RUNNER_TEMP/broker_live_log.txt" | cut -c1-180; exit 70; }
           sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
           echo 'SANITIZED_BROKER_EVENTS'
-          grep -E 'NATIVE_BROKER_' "$RUNNER_TEMP/broker_live_log.txt" || true
+          grep -E 'NATIVE_BROKER_|SDK_(WIRE|BODY|MODEL|OUTPUT|MESSAGE|SCHEMA)' "$RUNNER_TEMP/broker_live_log.txt" || true
           echo 'AGENT_SDK_RECEIPT'
           grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
           echo 'AGENT_DIAGNOSTICS_SANITIZED'
