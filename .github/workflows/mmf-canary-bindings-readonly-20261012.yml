@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/mmf-canary-bindings-readonly-20261012.yml'
       - 'musitu-mail-fabric/src/staging/mmf-canary-bindings-getonly.mjs'
+      - 'musitu-mail-fabric/src/commercial/mmf-oidc-admission.mjs'
   workflow_dispatch:
 permissions:
   contents: read
