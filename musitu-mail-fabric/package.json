@@ -39,7 +39,8 @@
     "test:mmf-real-source-candidate": "node --test test/mmf-real-source-additive-candidate.test.mjs",
     "test:mmf-new-gates": "node --test test/mmf-current-cloudflare-drift-readonly.test.mjs test/mmf-offline-worker-rollback-rehearsal.test.mjs",
     "test:mmf-joint-readonly": "node --test test/mmf-joint-source-binding-getonly.test.mjs",
-    "test:mmf-dual-release": "node --test test/mmf-dual-release-gate.test.mjs"
+    "test:mmf-dual-release": "node --test test/mmf-dual-release-gate.test.mjs",
+    "test:mmf-backup-recovery": "node --test test/backup-restore.test.mjs"
   },
   "engines": {
     "node": ">=22.13.0"
