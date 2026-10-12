@@ -322,7 +322,7 @@ jobs:
           # The earlier test imported model-written code under CI credentials.
           # That unsafe behavior must never return.
           sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin \
-            /tmp/axiom-s2-venv/bin/python "$RUNNER_TEMP/axiom_trackb_hidden_grader.py"
+            /tmp/axiom-s2-venv/bin/python "/tmp/axiom_trackb_hidden_grader.py"
           grep -F '"state": "RETURNED"' "$RUNNER_TEMP/agent_live_log.txt" >/dev/null || \
             { echo 'NATIVE_OPENHANDS_CLEAN_COMPLETION_NOT_PROVEN'; exit 67; }
           echo 'AXIOM_REAL_OPENHANDS_END_TO_END_QUALIFIED_SMALL_CHALLENGE_PASS'
