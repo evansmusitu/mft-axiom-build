@@ -10,6 +10,12 @@ class GateTests(unittest.TestCase):
  def test_paid_plan_fail_closed(self):
   self.sub['result']=[{'rate_plan':{'id':'workers_paid'}}]
   with self.assertRaises(ReadDenied):validate_subscription_data(self.acct,self.sub)
+ def test_non_workers_paid_subscription_is_not_workers_plan(self):
+  self.sub['result']=[{'rate_plan':{'id':'zones_business_paid'}}]
+  self.sub['result_info']['total_count']=1
+  data=validate_subscription_data(self.acct,self.sub)
+  self.assertFalse(data['free_plan_certified'])
+  self.assertFalse(data['paid_worker_plan_seen'])
  def test_partial_page_fail_closed(self):
   self.sub['result_info']['total_count']=5
   with self.assertRaises(ReadDenied):validate_subscription_data(self.acct,self.sub)
