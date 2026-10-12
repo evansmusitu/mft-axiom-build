@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   isolated-cloud-stage:
-    if: github.event.before == '436f89b1f8ce365a4eff8442647ab5ac1a40ada5'
+    if: github.event.before == 'a358d32de069242b0493b87e9aec0190a9290b15'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 18
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test '${{ github.event.before }}' = '436f89b1f8ce365a4eff8442647ab5ac1a40ada5'
+          test '${{ github.event.before }}' = 'a358d32de069242b0493b87e9aec0190a9290b15'
           npm run check
           node --test test/mmf-private-cloud-stage-config.test.mjs
           npm run test:mmf-persistent-control
@@ -76,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          npx --yes wrangler@4 deploy --config wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc --log-level error
+          npx --yes wrangler@4 deploy --config wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc
       - name: Independent Cloudflare readback of new namespace, flags and unchanged shared payment bindings
         shell: bash
         run: |
