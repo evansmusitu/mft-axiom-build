@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- TEST-ONLY visibility allowance for a disposable signed APK fixture.
+       This manifest overlays debug builds; release builds do not contain it.
+       The eventual multi-publisher product must separately qualify a compliant
+       visibility strategy before delivery. -->
+  <queries>
+    <package android:name="org.musitu.fixturealpha" />
+  </queries>
+</manifest>
