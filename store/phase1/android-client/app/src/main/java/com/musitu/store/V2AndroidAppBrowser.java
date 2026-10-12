@@ -50,8 +50,21 @@ final class V2AndroidAppBrowser {
         "Publisher: "+entry.publisherId+"\nPackage: "+entry.packageId+
         "\nVersion code: "+entry.versionCode+"\nDownload size: "+entry.bytes+" bytes",
         14,0xffc3d0e1));
+      V2AndroidInstallPresentation.Card presentation;
+      try{
+        V2SignedAndroidCatalog.Release selected=V2AndroidAppListing.select(verified,entry.appId);
+        V2AndroidInstalledPackageState.State state=
+          V2AndroidInstallBridge.inspectInstalledRelease(context,selected);
+        presentation=V2AndroidInstallPresentation.forState(state);
+      }catch(Exception inspectionFailure){
+        // A failed signer/package inspection must never become "not installed"
+        // or an actionable installation-review control.
+        presentation=V2AndroidInstallPresentation.inspectionFailed();
+      }
+      list.addView(text(context,"Android: "+presentation.status,14,0xff9fd6ef));
       Button button=new Button(context);
-      button.setText("Review installation");
+      button.setText(presentation.action);
+      button.setEnabled(presentation.reviewEnabled);
       button.setTag("review:"+entry.appId);
       button.setContentDescription("Review installation of "+entry.appId+
         " from publisher "+entry.publisherId);
