@@ -10,10 +10,29 @@ final class V2AndroidInstallPresentation {
     }
   }
   static Card forState(V2AndroidInstalledPackageState.State state) {
-    return new Card("Not installed","Install",true); // RED placeholder.
+    if(state==null)throw new SecurityException("unverified installed-package state");
+    switch(state){
+      case UNKNOWN_VISIBILITY:
+        return new Card("Install status unavailable — Android may hide this app",
+                        "Review installation with Android",true);
+      case VERIFIED_INSTALLED:
+        return new Card("Verified installed — Android signer and version checked",
+                        "Review update or reinstall",true);
+      case REJECTED_PACKAGE_IDENTITY:
+        return new Card("Blocked — installed package identity conflicts with signed catalog",
+                        "Blocked by security check",false);
+      case REJECTED_SIGNER:
+        return new Card("Blocked — installed signer conflicts with signed catalog",
+                        "Blocked by security check",false);
+      case REJECTED_DOWNGRADE:
+        return new Card("Blocked — newer installed version would be downgraded",
+                        "Blocked by security check",false);
+      default:throw new SecurityException("unsupported installed-package state");
+    }
   }
   static Card inspectionFailed() {
-    return new Card("Not installed","Install",true); // RED placeholder.
+    return new Card("Could not verify Android installed-package status",
+                    "Blocked pending verification",false);
   }
   private V2AndroidInstallPresentation(){}
 }
