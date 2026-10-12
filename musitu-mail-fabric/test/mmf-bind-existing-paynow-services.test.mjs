@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {bindMmfToExistingPaynowServices} from '../src/staging/mmf-bind-existing-paynow-services.mjs';
+import {bindMmfToExistingPaynowServices,canReplaceDriftedCanary} from '../src/staging/mmf-bind-existing-paynow-services.mjs';
 const account='93f395f5121954671f92fffa453d6b61';
 const branch='product/musitu-mail-fabric-isolated-20261009';
 const canary='mmf-paynow-isolated-deny-canary-20261012';
@@ -49,6 +49,11 @@ test('repeat is idempotent and never redeploys existing connection',async()=>{
  const c=cloud({oldBindings:SCOPED});const r=await bindMmfToExistingPaynowServices({...opts,fetchImpl:c.fetchImpl,integrityAudit:positiveGate});
  assert.equal(c.writes,0);assert.equal(r.idempotentReadback,true);
 });
+test('Cloudflare-reordered binding metadata with explicit production environment is idempotent',async()=>{
+ const withEnvironment=SCOPED.map(b=>({...b,environment:'production'})).reverse();
+ const c=cloud({oldBindings:withEnvironment});const r=await bindMmfToExistingPaynowServices({...opts,fetchImpl:c.fetchImpl,integrityAudit:positiveGate});
+ assert.equal(r.idempotentReadback,true);assert.equal(c.writes,0);
+});
 test('wrong account, branch and credentials cannot reach any cloud endpoint',async()=>{
  for(const patch of [{accountId:'other'},{branch:'main'},{token:''}]){
   let calls=0;await assert.rejects(bindMmfToExistingPaynowServices({...opts,...patch,fetchImpl:async()=>{calls++;throw Error('bad')},integrityAudit:positiveGate}),/MMF_EXISTING_PAYNOW_BINDING_DENIED/);
@@ -68,4 +73,12 @@ test('failed independent source/binding audit blocks the deployment before PUT',
 test('failed Cloudflare write denies success, never touches an existing shared worker',async()=>{
  const c=cloud({writeReject:true});await assert.rejects(bindMmfToExistingPaynowServices({...opts,fetchImpl:c.fetchImpl,integrityAudit:positiveGate}),/MMF_EXISTING_PAYNOW_BINDING_DENIED/);
  assert.equal(c.writes,1);assert.equal(c.calls.some(x=>x.method!=='GET'&&x.url!==BASE+'/'+canary),false);
+});
+
+test('only the separately observed exact canary drift digest is eligible for disabled replacement',()=>{
+ const pinned='bbfd33438e4c84ec507c17ae0b00a26000e10d2e2f83c406cf89212b1a15708c';
+ assert.equal(canReplaceDriftedCanary({observedSha256:pinned,bindings:[],publicDisabled:true,previewDisabled:true}),true);
+ assert.equal(canReplaceDriftedCanary({observedSha256:'f'.repeat(64),bindings:[],publicDisabled:true,previewDisabled:true}),false);
+ assert.equal(canReplaceDriftedCanary({observedSha256:pinned,bindings:SCOPED,publicDisabled:true,previewDisabled:true}),false);
+ assert.equal(canReplaceDriftedCanary({observedSha256:pinned,bindings:[],publicDisabled:false,previewDisabled:true}),false);
 });

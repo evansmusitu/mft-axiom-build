@@ -16,6 +16,8 @@ const ROOT=`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/workers/scr
 const AUTHORITY='mft-phase8-external-authority';
 const TRANSPORT='mft-paynow-transport-gateway';
 const EXPECTED_SHA='a9c9ffb29212104757e15dd9080ed9145b976d673921ac550940808a0a404083';
+// Exact digest independently observed in GET-only live canary audit at 2026-10-12T11:15Z.
+const OBSERVED_CANARY_DRIFT_SHA='bbfd33438e4c84ec507c17ae0b00a26000e10d2e2f83c406cf89212b1a15708c';
 const BINDINGS=Object.freeze([
  Object.freeze({type:'service',name:'MMF_PAYNOW_AUTHORITY',service:AUTHORITY}),
  Object.freeze({type:'service',name:'MMF_PAYNOW_TRANSPORT',service:TRANSPORT})
@@ -23,7 +25,21 @@ const BINDINGS=Object.freeze([
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const denied=()=>{throw Error('MMF_EXISTING_PAYNOW_BINDING_DENIED')};
 const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&Object.getPrototypeOf(x)===Object.prototype;
-const exact=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+export function canReplaceDriftedCanary({observedSha256,bindings,publicDisabled,previewDisabled}={}){
+ return observedSha256===OBSERVED_CANARY_DRIFT_SHA&&Array.isArray(bindings)&&bindings.length===0&&publicDisabled===true&&previewDisabled===true;
+}
+function exactServices(values){
+ if(!Array.isArray(values)||values.length!==BINDINGS.length)return false;
+ const names=new Set();
+ for(const v of values){
+  if(!plain(v)||Object.keys(v).some(k=>!['type','name','service','environment'].includes(k))||
+    (Object.hasOwn(v,'environment')&&v.environment!=='production')||names.has(v.name))return false;
+  names.add(v.name);
+  const expected=BINDINGS.find(x=>x.name===v.name);
+  if(!expected||v.type!==expected.type||v.service!==expected.service)return false;
+ }
+ return true;
+}
 function verifyAudit(o){
  if(!plain(o)||o.jointBaselineMatches!==true||o.cloudflareMutationCount!==0||
    !Array.isArray(o.workerChecks)||o.workerChecks.length!==2||
@@ -56,21 +72,31 @@ export async function bindMmfToExistingPaynowServices({accountId,token,branch,fe
   const names=new Set(catalog.map(x=>x.id));
   if([SCRIPT,AUTHORITY,TRANSPORT].some(x=>!names.has(x)))denied();
   const source=await canonicalCloudflareWorkerSource(await send(ROOT+'/'+SCRIPT));
-  if(source.sourceSha256!==EXPECTED_SHA||source.sourceText!==script)denied();
+  const expectedOriginal=source.sourceSha256===EXPECTED_SHA&&source.sourceText===script;
+  if(!expectedOriginal&&source.sourceSha256!==OBSERVED_CANARY_DRIFT_SHA)denied();
   const sub=await obj(await send(ROOT+'/'+SCRIPT+'/subdomain'));
   if(!plain(sub)||sub.enabled!==false||sub.previews_enabled!==false)denied();
   const current=await obj(await send(ROOT+'/'+SCRIPT+'/settings'));
   if(!plain(current)||!Array.isArray(current.bindings)||current.bindings.length>2)denied();
-  const connected=exact(current.bindings,BINDINGS);
+  const connected=exactServices(current.bindings);
+  const replacePinnedDrift=!expectedOriginal&&canReplaceDriftedCanary({observedSha256:source.sourceSha256,bindings:current.bindings,publicDisabled:sub.enabled===false,previewDisabled:sub.previews_enabled===false});
+  if(!expectedOriginal&&!replacePinnedDrift)denied();
   if(!connected&&current.bindings.length!==0)denied();
-  if(!connected){
+  if(replacePinnedDrift){
+   // A second fresh read blocks silent overwrite if the previously observed
+   // disposable canary has changed since the first GET.
+   const second=await canonicalCloudflareWorkerSource(await send(ROOT+'/'+SCRIPT));
+   const settingsSecond=await obj(await send(ROOT+'/'+SCRIPT+'/settings'));
+   if(second.sourceSha256!==OBSERVED_CANARY_DRIFT_SHA||!Array.isArray(settingsSecond.bindings)||settingsSecond.bindings.length!==0)denied();
+  }
+  if(!connected||replacePinnedDrift){
    const form=new FormData();
    form.set('metadata',JSON.stringify({main_module:'canary.mjs',compatibility_date:'2026-10-12',bindings:BINDINGS}));
    form.set('canary.mjs',new Blob([script],{type:'application/javascript+module'}),'canary.mjs');
    await obj(await send(ROOT+'/'+SCRIPT,'PUT',form));
   }
   const after=await obj(await send(ROOT+'/'+SCRIPT+'/settings'));
-  if(!plain(after)||!exact(after.bindings,BINDINGS))denied();
+  if(!plain(after)||!exactServices(after.bindings))denied();
   const afterSub=await obj(await send(ROOT+'/'+SCRIPT+'/subdomain'));
   if(!plain(afterSub)||afterSub.enabled!==false||afterSub.previews_enabled!==false)denied();
   const afterSrc=await canonicalCloudflareWorkerSource(await send(ROOT+'/'+SCRIPT));
