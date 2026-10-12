@@ -83,4 +83,52 @@ class NativePostgresQualification(unittest.TestCase):
     with psycopg.connect(DSN) as c:
       n=c.execute("SELECT spent FROM b15_accounts WHERE account=%s",(self.account,)).fetchone()[0]
     self.assertEqual(16,n)
+
+  def test_distinct_broker_processes_share_one_postgres_budget(self):
+    import multiprocessing
+    self.ledger.apply_policy(*self.policy(cap=11))
+    ctx=multiprocessing.get_context("fork")
+    receipts=ctx.Queue()
+    grants=[self.grant(worker="p"+str(i),cost=2,max_calls=1) for i in range(8)]
+    def broker_child(i):
+      # Separate process, separate PostgreSQL connection; never passes a session.
+      broker=Ledger(lambda:psycopg.connect(DSN),self.pub)
+      try:receipts.put(int(not broker.reserve(*grants[i],"unique")["replayed"]))
+      except Denied:receipts.put(0)
+    processes=[ctx.Process(target=broker_child,args=(i,)) for i in range(8)]
+    for proc in processes:proc.start()
+    for proc in processes:
+      proc.join(18)
+      self.assertFalse(proc.is_alive())
+      self.assertEqual(0,proc.exitcode)
+    outcomes=[receipts.get(timeout=2) for _ in processes]
+    self.assertEqual(5,sum(outcomes))
+    with psycopg.connect(DSN) as conn:
+      spent=conn.execute("SELECT spent FROM b15_accounts WHERE account=%s",(self.account,)).fetchone()[0]
+    self.assertEqual(10,spent)
+  def test_sigkill_of_uncommitted_writer_does_not_burn_budget(self):
+    import multiprocessing,os,signal
+    self.ledger.apply_policy(*self.policy(cap=2))
+    ctx=multiprocessing.get_context("fork")
+    locked=ctx.Event()
+    def pending_writer():
+      with psycopg.connect(DSN) as conn:
+        with conn.transaction():
+          conn.execute("SELECT spent FROM b15_accounts WHERE account=%s FOR UPDATE",(self.account,))
+          conn.execute("UPDATE b15_accounts SET spent=spent+2 WHERE account=%s",(self.account,))
+          locked.set()
+          while True: __import__("time").sleep(1)
+    worker=ctx.Process(target=pending_writer);worker.start()
+    try:
+      self.assertTrue(locked.wait(8),"Postgres transaction not reached")
+      os.kill(worker.pid,signal.SIGKILL)
+      worker.join(8)
+      self.assertFalse(worker.is_alive())
+      self.assertNotEqual(0,worker.exitcode)
+      result=self.ledger.reserve(*self.grant(cost=2),"after-dead-transaction")
+      self.assertFalse(result["replayed"])
+      self.assertEqual(0,result["remaining"])
+    finally:
+      if worker.is_alive():worker.kill();worker.join(2)
+
 if __name__=="__main__":unittest.main()
