@@ -50,6 +50,12 @@ jobs:
             sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
           }
           trap cleanup EXIT
+          # Runner checkout directories are not traversable by UID-isolated workers.
+          # Stage only the audited script into root-owned world-readable /tmp.
+          sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b12-runner.py
+          sudo -u '#65532' test -r /tmp/axiom-b12-runner.py
+          sudo -u '#65533' test -r /tmp/axiom-b12-runner.py
+          echo B12_UNPRIVILEGED_SOURCE_READABILITY_PREFLIGHT_PASS
           sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 \
-            /tmp/axiom-b12-venv/bin/python ops/trackb12/b12_runner.py
+            /tmp/axiom-b12-venv/bin/python /tmp/axiom-b12-runner.py
           echo B12_NO_CLOUDFLARE_INFERENCE_AND_NO_PRODUCTION_WRITES
