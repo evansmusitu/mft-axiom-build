@@ -132,4 +132,20 @@ class NativePostgresQualification(unittest.TestCase):
     finally:
       if worker.is_alive():worker.kill();worker.join(2)
 
+  def test_database_clock_read_must_happen_after_row_lock(self):
+    import time
+    self.ledger.apply_policy(*self.policy(cap=3))
+    b,sig=self.grant(cost=2)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+      with psycopg.connect(DSN) as owner:
+        with owner.transaction():
+          owner.execute("SELECT spent FROM b15_accounts WHERE account=%s FOR UPDATE",(self.account,))
+          future=executor.submit(self.ledger.reserve,b,sig,"blocked-waiter")
+          time.sleep(0.45)
+          owner.execute("UPDATE b15_accounts SET last_seen=clock_timestamp() WHERE account=%s",(self.account,))
+        # Commit releases the row lock, after last_seen has advanced.
+      result=future.result(timeout=9)
+    self.assertEqual(1,result["remaining"])
+    self.assertFalse(result["replayed"])
+
 if __name__=="__main__":unittest.main()
