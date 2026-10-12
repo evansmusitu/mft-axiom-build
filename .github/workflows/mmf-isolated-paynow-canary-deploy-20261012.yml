@@ -1,0 +1,58 @@
+name: MMF Owner-Authorized Isolated Deny-All Paynow Canary 20261012
+on:
+  push:
+    branches:
+      - product/musitu-mail-fabric-isolated-20261009
+    paths:
+      - '.github/workflows/mmf-isolated-paynow-canary-deploy-20261012.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-paynow-canary.mjs'
+      - 'musitu-mail-fabric/src/staging/deploy-mmf-isolated-paynow-canary.mjs'
+      - 'musitu-mail-fabric/test/mmf-isolated-paynow-canary-deploy.test.mjs'
+      - 'musitu-mail-fabric/src/staging/canonical-cloudflare-worker-source.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-isolated-deny-all-canary-deploy-20261012
+  cancel-in-progress: false
+jobs:
+  safe-disposable-canary:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated branch, scoped canary and full MMF regressions
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --test test/mmf-isolated-paynow-canary-deploy.test.mjs
+          npm run check
+          npm test
+      - name: Verify real-money release is still BLOCKED
+        shell: bash
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          set +e
+          npm run check:phase1 > /tmp/mmf-canary-block.txt 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q 'BLOCKED' /tmp/mmf-canary-block.txt
+      - name: Create ONLY a new isolated deny-all Cloudflare Worker; no payment routes or secret bindings
+        shell: bash
+        working-directory: musitu-mail-fabric
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/deploy-mmf-isolated-paynow-canary.mjs --owner-authorized-isolated-canary
