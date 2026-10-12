@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {bindMmfToExistingPaynowServices,canReplaceDriftedCanary} from '../src/staging/mmf-bind-existing-paynow-services.mjs';
+import {bindMmfToExistingPaynowServices,canReplaceDriftedCanary,isQualifiedDisabledCanaryReadback} from '../src/staging/mmf-bind-existing-paynow-services.mjs';
 const account='93f395f5121954671f92fffa453d6b61';
 const branch='product/musitu-mail-fabric-isolated-20261009';
 const canary='mmf-paynow-isolated-deny-canary-20261012';
@@ -81,4 +81,13 @@ test('only the separately observed exact canary drift digest is eligible for dis
  assert.equal(canReplaceDriftedCanary({observedSha256:'f'.repeat(64),bindings:[],publicDisabled:true,previewDisabled:true}),false);
  assert.equal(canReplaceDriftedCanary({observedSha256:pinned,bindings:SCOPED,publicDisabled:true,previewDisabled:true}),false);
  assert.equal(canReplaceDriftedCanary({observedSha256:pinned,bindings:[],publicDisabled:false,previewDisabled:true}),false);
+});
+
+test('only stable pinned Cloudflare post-upload digest with exact disabled service bindings qualifies',()=>{
+ const pinned='bbfd33438e4c84ec507c17ae0b00a26000e10d2e2f83c406cf89212b1a15708c';
+ const inputs={sha256:pinned,bindings:SCOPED,publicDisabled:true,previewDisabled:true};
+ assert.equal(isQualifiedDisabledCanaryReadback(inputs),true);
+ assert.equal(isQualifiedDisabledCanaryReadback({...inputs,sha256:'f'.repeat(64)}),false);
+ assert.equal(isQualifiedDisabledCanaryReadback({...inputs,bindings:[]}),false);
+ assert.equal(isQualifiedDisabledCanaryReadback({...inputs,previewDisabled:false}),false);
 });
