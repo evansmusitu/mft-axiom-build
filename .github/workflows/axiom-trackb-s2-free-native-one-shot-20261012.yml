@@ -249,6 +249,7 @@ jobs:
                   try:c.close()
                   except Exception:pass
           PY
+          chmod a+r /tmp/axiom_s2_live_agent.py
           # Prevent the agent UID from contacting any remote network host.
           sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
           cleanup() {
@@ -264,6 +265,8 @@ jobs:
           grep -E 'NATIVE_BROKER_' "$RUNNER_TEMP/broker_live_log.txt" || true
           echo 'AGENT_SDK_RECEIPT'
           grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
+          echo 'AGENT_DIAGNOSTICS_SANITIZED'
+          tail -n 14 "$RUNNER_TEMP/agent_live_log.txt" | cut -c1-180 || true
           "/tmp/axiom-s2-venv/bin/python" - <<'PY'
           import os,random,importlib.util,hashlib,json
           p='/tmp/axiom-s2-work/mathfix.py'
