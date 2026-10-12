@@ -1,0 +1,332 @@
+name: AXIOM Track B3 Real GLM Native Agent Qualification 20261012
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b3-glm-live-20261012
+    paths:
+      - .github/workflows/axiom-trackb-b3-glm-live-20261012.yml
+permissions:
+  contents: read
+jobs:
+  isolated-s2-native-free:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b3-glm-live-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AXIOM_CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      AXIOM_MODEL: '@cf/zai-org/glm-4.7-flash'
+    steps:
+      - name: Install native OpenHands SDK in isolated ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "/tmp/axiom-s2-venv"
+          "/tmp/axiom-s2-venv/bin/pip" install --disable-pip-version-check -q 'openhands-agent-server==1.51.0'
+          "/tmp/axiom-s2-venv/bin/python" -c 'from openhands.sdk import LLM, Agent, Conversation, Tool; print("OPENHANDS_REAL_SDK_IMPORTED")'
+      - name: Independent human-approved Free native account gate and ephemeral Ed25519 issuer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo 'DENIED_NO_SCOPED_SECRET'; exit 42; }
+          python3 - <<'PY'
+          import os, json, time, hashlib, urllib.request, urllib.error
+          A=os.environ['AXIOM_CF_ACCOUNT']; T=os.environ['CLOUDFLARE_API_TOKEN']
+          ORIGIN='https://api.cloudflare.com/client/v4'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): raise RuntimeError('REDIRECT_DENIED')
+          opener=urllib.request.build_opener(NoRedirect)
+          def get(path):
+              if not path.startswith('/accounts/'+A) and not path.startswith('/zones?'):
+                  raise RuntimeError('UNAPPROVED_NATIVE_GET')
+              req=urllib.request.Request(ORIGIN+path,headers={'Authorization':'Bearer '+T,'Accept':'application/json'},method='GET')
+              try:
+                  with opener.open(req,timeout=14) as resp:
+                      body=resp.read(65537)
+                      if resp.status!=200 or len(body)>65536: raise RuntimeError('NON_200_OR_OVERSIZED')
+              except urllib.error.HTTPError as e:
+                  print('NATIVE_ACCOUNT_READ_HTTP_STATUS='+str(e.code))
+                  raise SystemExit('S2_NATIVE_ACCOUNT_GATE_DENIED') from None
+              except Exception:
+                  raise SystemExit('S2_NATIVE_ACCOUNT_GATE_DENIED') from None
+              try: obj=json.loads(body)
+              except Exception: raise SystemExit('S2_NATIVE_BAD_JSON') from None
+              if type(obj) is not dict or obj.get('success') is not True:
+                  raise SystemExit('S2_NATIVE_RESPONSE_DENIED')
+              return obj
+          acct=get('/accounts/'+A).get('result')
+          if type(acct) is not dict or acct.get('id')!=A:
+              raise SystemExit('S2_ACCOUNT_IDENTITY_NOT_VERIFIED')
+          subs=get('/accounts/'+A+'/subscriptions')
+          plans=subs.get('result'); info=subs.get('result_info')
+          if type(plans) is not list or (type(info) is dict and info.get('total_count')!=len(plans)):
+              raise SystemExit('S2_SUBSCRIPTION_COMPLETENESS_DENIED')
+          for p in plans:
+              if type(p) is not dict:raise SystemExit('S2_SUBSCRIPTION_SHAPE_DENIED')
+              id=str((p.get('rate_plan') or {}).get('id') or '').upper()
+              if id.startswith('WORKERS_PAID') or id.startswith('PARTNERS_WORKERS'):
+                  raise SystemExit('S2_WORKERS_PAID_DENIED')
+          z=get('/zones?name=mftintelligence.com&status=active').get('result')
+          if type(z) is not list or len(z)!=1 or (z[0].get('account') or {}).get('id')!=A:
+              raise SystemExit('S2_ZONE_ACCOUNT_MISMATCH')
+          now=int(time.time())
+          mandate={'schema':'axiom.s2.operator.native-free-synthetic-once.20261012.v1',
+                   'account_id':A,'model':os.environ['AXIOM_MODEL'],
+                   'task':'B3_LARGEST_REMAINDER_SYNTHETIC_EVALUATION','max_calls':12,'max_output_tokens':512,
+                   'expires_unix':now+240,'observed_unix':now,
+                   'user_authorized':True,'workers_paid_plan_observed':False,
+                   'provider_native_subscriptions_checked':True,
+                   'user_confirmed_remaining_neurons':True,
+                   'provider_native_remaining_neurons_exact':'NOT_AVAILABLE',
+                   'release_authority':False,'production_authority':False}
+          data=json.dumps(mandate,sort_keys=True,separators=(',',':')).encode()
+          path=os.path.join(os.environ['RUNNER_TEMP'],'axiom_s2_free_mandate.json')
+          open(path,'wb').write(data)
+          print('S2_NATIVE_ACCOUNT_SUBSCRIPTIONS_FREE_COMPATIBLE_PASS')
+          print('S2_NATIVE_RECEIPT_SHA256='+hashlib.sha256(data).hexdigest())
+          print('S2_MAX_MODEL_CALLS=12')
+          PY
+          umask 077
+          openssl genpkey -algorithm Ed25519 -out "$RUNNER_TEMP/axiom_s2_policy_private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/axiom_s2_policy_private.pem" -pubout -out "$RUNNER_TEMP/axiom_s2_policy_public.pem" 2>/dev/null
+          openssl pkeyutl -sign -inkey "$RUNNER_TEMP/axiom_s2_policy_private.pem" -rawin -in "$RUNNER_TEMP/axiom_s2_free_mandate.json" -out "$RUNNER_TEMP/axiom_s2_policy.sig"
+          rm -f "$RUNNER_TEMP/axiom_s2_policy_private.pem"
+          echo 'S2_EPHEMERAL_ED25519_POLICY_ISSUED_SEPARATE_STEP'
+      - name: Actual native OpenHands isolated small coding challenge - nonproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$RUNNER_TEMP/axiom_s2_policy_private.pem" || exit 71
+          openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/axiom_s2_policy_public.pem" -rawin -in "$RUNNER_TEMP/axiom_s2_free_mandate.json" -sigfile "$RUNNER_TEMP/axiom_s2_policy.sig" >/dev/null
+          sudo useradd -u 65532 -M -s /usr/sbin/nologin axiomagent 2>/dev/null || true
+          sudo mkdir -p /tmp/axiom-s2-work /tmp/axiom-s2-home
+          # Canonical B3 source spec, checksum must match sealed challenge.
+          "/tmp/axiom-s2-venv/bin/python" - <<'PY'
+          from pathlib import Path
+          import base64,hashlib
+          root=Path('/tmp/axiom-s2-work')
+          (root/'allocation.py').write_text('def allocate_units(total, weights):'+chr(10)+'    # BUG: naive rounding may lose units, ties, and integer precision'+chr(10)+'    return [round(total * w / sum(weights)) for w in weights]'+chr(10))
+          raw=base64.b64decode('IyBBbGxvY2F0ZSBpbnRlZ2VyIHVuaXRzCkltcGxlbWVudCBgYWxsb2NhdGVfdW5pdHModG90YWwsIHdlaWdodHMpYCBpbiBhbGxvY2F0aW9uLnB5LgotIHRvdGFsIGlzIGFuIGludGVnZXIgKG5vdCBib29sKSwgMC4uMV8wMDBfMDAwXzAwMCBpbmNsdXNpdmUuCi0gd2VpZ2h0cyBpcyBhIG5vbmVtcHR5IGxpc3QsIDEuLjMwIGl0ZW1zLCBvZiBub25uZWdhdGl2ZSBpbnRlZ2VycyAobm90IGJvb2wpLCBlYWNoIDw9MV8wMDBfMDAwLgotIEF0IGxlYXN0IG9uZSB3ZWlnaHQgbXVzdCBiZSBwb3NpdGl2ZSwgb3RoZXJ3aXNlIHJhaXNlIFZhbHVlRXJyb3IuCi0gSW52YWxpZCB0eXBlcy9yYW5nZXMgbXVzdCByYWlzZSBWYWx1ZUVycm9yIChpbmNsdWRpbmcgYm9vbGVhbiBpbnRlZ2VycykuCi0gUmV0dXJuIGludGVnZXIgYWxsb2NhdGlvbnMgb2YgdGhlIHNhbWUgbGVuZ3RoLCBlYWNoID49MCwgc3VtbWluZyBleGFjdGx5IHRvIHRvdGFsLgotIFVzZSBleGFjdCBsYXJnZXN0LXJlbWFpbmRlciBhcHBvcnRpb25tZW50LCByZXNvbHZpbmcgdGllZCByZW1haW5kZXJzIGJ5IHNtYWxsZXIgaW5kZXguCi0gTm8gZmxvYXRpbmcgcG9pbnQgYW5kIG5vIHBhY2thZ2VzIGJleW9uZCBQeXRob24gc3RhbmRhcmQgbGlicmFyeS4KWW91IG1heSBjaGFuZ2UgT05MWSBhbGxvY2F0aW9uLnB5IGluIHRoaXMgZGlzcG9zYWJsZSBjaGFsbGVuZ2UgZGlyZWN0b3J5Lgo=')
+          assert hashlib.sha256(raw).hexdigest()=='d644e2f09bb9c793cc0e0d72c947c3a6264117793d82ea4a43290080e2b74730'
+          (root/'PUBLIC_CHALLENGE.md').write_bytes(raw)
+          print('B3_EXACT_PUBLIC_SPEC_SHA256='+hashlib.sha256(raw).hexdigest())
+          PY
+          sudo chown -R "$USER":"$USER" /tmp/axiom-s2-work /tmp/axiom-s2-home
+          umask 077
+          "/tmp/axiom-s2-venv/bin/python" - <<'PY'
+          import secrets,os
+          val=secrets.token_urlsafe(36)
+          with open('/tmp/axiom-s2-work/worker_key','w') as f:f.write(val)
+          with open(os.path.join(os.environ['RUNNER_TEMP'],'axiom_broker_worker_key'),'w') as f:f.write(val)
+          os.chmod('/tmp/axiom-s2-work/worker_key',0o600)
+          PY
+          sudo chown -R axiomagent:axiomagent /tmp/axiom-s2-work /tmp/axiom-s2-home
+          # Broker is owned by the runner, outside the unprivileged agent.
+          cat > "$RUNNER_TEMP/axiom_live_bridge.py" <<'PY'
+          import os,sys,time,json,hashlib,urllib.request,urllib.error,threading,http.server,subprocess
+          A='93f395f5121954671f92fffa453d6b61'
+          MODEL='@cf/zai-org/glm-4.7-flash'
+          ROOT=os.environ['RUNNER_TEMP']
+          FILE=ROOT+'/axiom_s2_free_mandate.json'
+          SIG=ROOT+'/axiom_s2_policy.sig'
+          PUB=ROOT+'/axiom_s2_policy_public.pem'
+          KEY=open(ROOT+'/axiom_broker_worker_key').read().strip()
+          HOST='127.0.0.1'
+          lock=threading.Lock(); counts=[0]
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):raise RuntimeError('REDIRECT_BLOCKED')
+          def authorized():
+              checked=subprocess.run(['openssl','pkeyutl','-verify','-pubin','-inkey',PUB,
+                       '-rawin','-in',FILE,'-sigfile',SIG],stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL,timeout=3)
+              if checked.returncode: return False
+              a=json.load(open(FILE))
+              return (a.get('schema')=='axiom.s2.operator.native-free-synthetic-once.20261012.v1'
+                  and a.get('model')==MODEL and a.get('account_id')==A and
+                  a.get('max_calls')==12 and a.get('max_output_tokens')==512 and
+                  a.get('user_authorized') is True and
+                  a.get('workers_paid_plan_observed') is False and
+                  a.get('production_authority') is False and
+                  a.get('release_authority') is False and
+                  time.time()<a.get('expires_unix',0))
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def log_message(self,*args):pass
+              def result(self,status,body):
+                  b=json.dumps(body,separators=(',',':')).encode()
+                  self.send_response(status);self.send_header('Content-Type','application/json')
+                  self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+              def do_GET(self):
+                  if self.path=='/v1/models':
+                      return self.result(200,{'object':'list','data':[{'id':MODEL,'object':'model','owned_by':'axiom-test'}]})
+                  self.result(404,{'error':{'message':'not_found'}})
+              def do_POST(self):
+                  if (self.path!='/v1/chat/completions' or
+                      self.headers.get('Authorization')!='Bearer '+KEY or
+                      self.headers.get('X-Axiom-Workload-ID')!='axiom-trackb-agent-s2'):
+                      return self.result(403,{'error':{'message':'unauthorized'}})
+                  if not authorized():return self.result(403,{'error':{'message':'expired_or_invalid_grant'}})
+                  try:
+                      n=int(self.headers.get('Content-Length','0'))
+                      print('SDK_BODY_BYTES='+str(n),flush=True)
+                      if not 1<=n<=65536:raise ValueError()
+                      req=json.loads(self.rfile.read(n))
+                      if type(req) is not dict:raise ValueError()
+                      print('SDK_WIRE_FIELD_NAMES='+','.join(sorted(str(k) for k in req.keys())),flush=True)
+                      print('SDK_WIRE_STREAM_FLAG='+str(req.get('stream','OMITTED')),flush=True)
+                      if req.get('stream',False) is not False:raise ValueError()
+                      print('SDK_MODEL_MATCH='+str(req.get('model') in (MODEL,'openai/'+MODEL)),flush=True)
+                      if req.get('model') not in (MODEL,'openai/'+MODEL):raise ValueError()
+                      lim=req.get('max_completion_tokens',req.get('max_tokens',512))
+                      print('SDK_OUTPUT_LIMIT='+str(lim),flush=True)
+                      if type(lim) is not int or not 1<=lim<=512:raise ValueError()
+                      messages=req.get('messages')
+                      if type(messages) is not list or not 1<=len(messages)<=60:raise ValueError()
+                      print('SDK_MESSAGE_ROLES='+','.join(str(m.get('role')) for m in messages if type(m) is dict),flush=True)
+                      for m in messages:
+                          if type(m) is not dict or m.get('role') not in ('system','user','assistant','tool'):raise ValueError()
+                      raw=json.dumps(messages)
+                      print('SDK_WIRE_MESSAGE_BYTES='+str(len(raw)),flush=True)
+                      if len(raw)>52000 or 'CLOUDFLARE_API_TOKEN' in raw or 'ghp_' in raw:raise ValueError()
+                      tools=req.get('tools',[])
+                      if type(tools) is not list or len(tools)>3:raise ValueError()
+                      print('SDK_WIRE_TOOL_NAMES='+','.join(str((t.get('function') or {}).get('name')) for t in tools),flush=True)
+                      if any((t.get('function') or {}).get('name') not in ('terminal','file_editor','finish','think') for t in tools):raise ValueError()
+                  except Exception:
+                      print('SDK_SCHEMA_FAIL_CLOSED',flush=True)
+                      return self.result(403,{'error':{'message':'synthetic_only_schema_denied'}})
+                  with lock:
+                      if counts[0]>=12:return self.result(403,{'error':{'message':'bounded_model_budget_exhausted'}})
+                      counts[0]+=1
+                  payload={'model':MODEL,'messages':messages,'max_completion_tokens':lim,
+                           'temperature':0,'stream':False,'tools':tools,'tool_choice':'auto'}
+                  url='https://api.cloudflare.com/client/v4/accounts/'+A+'/ai/run/'+MODEL
+                  requp=urllib.request.Request(url,
+                       data=json.dumps(payload,separators=(',',':')).encode(),
+                       headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],
+                                'Content-Type':'application/json'},method='POST')
+                  try:
+                      with urllib.request.build_opener(NoRedirect).open(requp,timeout=24) as resp:
+                          b=resp.read(131073)
+                          if resp.status!=200 or len(b)>131072:raise ValueError()
+                      j=json.loads(b)
+                      if type(j) is dict and type(j.get('result')) is dict:j=j['result']
+                      if type(j) is not dict or type(j.get('choices')) is not list:raise ValueError()
+                      j.setdefault('id','chatcmpl-axiom-live');j.setdefault('object','chat.completion')
+                      j.setdefault('created',int(time.time()));j.setdefault('model',MODEL)
+                      j.setdefault('usage',{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0})
+                      print('NATIVE_BROKER_UPSTREAM_CALL_'+str(counts[0])+'_SUCCESS',flush=True)
+                      return self.result(200,j)
+                  except urllib.error.HTTPError as e:
+                      print('NATIVE_BROKER_UPSTREAM_HTTP_'+str(e.code),flush=True)
+                      return self.result(502,{'error':{'message':'upstream_failed'}})
+                  except Exception:
+                      print('NATIVE_BROKER_UPSTREAM_REQUEST_FAILED',flush=True)
+                      return self.result(502,{'error':{'message':'upstream_failed'}})
+          if not authorized():raise SystemExit('BROKER_SIGNED_GRANT_DENIED')
+          http.server.ThreadingHTTPServer((HOST,18766),Handler).serve_forever()
+          PY
+          # Tool-agent source is synthetic-only and contains no provider secrets.
+          cat > "/tmp/axiom_s2_live_agent.py" <<'PY'
+          import os,json,hashlib,traceback
+          from pathlib import Path
+          if 'CLOUDFLARE_API_TOKEN' in os.environ:raise SystemExit('AGENT_SECRET_ISOLATION_FAILED')
+          os.environ['DO_NOT_TRACK']='1';os.environ['OTEL_SDK_DISABLED']='true'
+          os.environ['OPENHANDS_DISABLE_TELEMETRY']='true';os.environ['OPENHANDS_SUPPRESS_BANNER']='1'
+          from openhands.sdk import Agent,LLM,Conversation,Tool
+          from openhands.tools.terminal import TerminalTool
+          from openhands.tools.file_editor import FileEditorTool
+          root=Path('/tmp/axiom-s2-work')
+          seed=hashlib.sha256((root/'allocation.py').read_bytes()).hexdigest()
+          token=(root/'worker_key').read_text().strip()
+          eventfile=root/'native_events.jsonl';events=[]
+          def cb(e):
+              try:
+                  d=e.model_dump(mode='json')
+                  row={k:d.get(k) for k in ('kind','id','tool_call_id','tool_name','action_id','source')}
+                  events.append(row)
+                  with eventfile.open('a') as f:f.write(json.dumps(row,sort_keys=True)+chr(10))
+              except Exception:pass
+          c=None;err=''
+          try:
+              llm=LLM(model='openai/@cf/zai-org/glm-4.7-flash',
+                      base_url='http://127.0.0.1:18766/v1',api_key=token,
+                      extra_headers={'X-Axiom-Workload-ID':'axiom-trackb-agent-s2'},
+                      temperature=0,stream=False,drop_params=True,num_retries=0,
+                      max_output_tokens=512,timeout=22)
+              agent=Agent(llm=llm,tools=[Tool(name=FileEditorTool.name)])
+              c=Conversation(agent=agent,workspace=str(root),max_iteration_per_run=12,
+                             visualizer=None,callbacks=[cb])
+              c.send_message('Read PUBLIC_CHALLENGE.md and implement allocate_units(total, weights) in allocation.py. You may only edit allocation.py in this workspace. Use exact integer arithmetic, no floating point. Do not read anything outside the workspace or use network. After implementing, call finish. Hidden independent grading happens afterwards.')
+              c.run();state='RETURNED'
+          except Exception as e:
+              state='ERROR';err=type(e).__name__+': '+str(e)[:140]
+              traceback.print_exc(limit=2)
+          finally:
+              src=(root/'allocation.py').read_bytes()
+              counts={k:sum(x.get('kind')==k for x in events) for k in ('ActionEvent','ObservationEvent')}
+              print('REAL_SDK_AGENT_RECEIPT='+json.dumps({'state':state,'error':err,'source_changed':hashlib.sha256(src).hexdigest()!=seed,'counts':counts}),flush=True)
+              if c:
+                  try:c.close()
+                  except Exception:pass
+          PY
+          chmod a+r /tmp/axiom_s2_live_agent.py
+          # This fixed independent grader is written OUTSIDE agent-writable paths.
+          # Drop all runner credentials and privileges before importing agent-authored code.
+          # Candidate source snapshot only. Independent B4 grades outside the agent runner.
+          cat > "/tmp/axiom_trackb_hidden_grader.py" <<'PY'
+          import os,base64,hashlib,json
+          from pathlib import Path
+          if os.geteuid()!=65532 or any(k in os.environ for k in ('CLOUDFLARE_API_TOKEN','GH_TOKEN','GITHUB_TOKEN')):
+              raise SystemExit('GRADER_IDENTITY_OR_SECRET_BOUNDARY_FAIL')
+          root=Path('/tmp/axiom-s2-work')
+          p=root/'allocation.py';raw=p.read_bytes()
+          public=(root/'PUBLIC_CHALLENGE.md').read_bytes()
+          if hashlib.sha256(public).hexdigest()!='d644e2f09bb9c793cc0e0d72c947c3a6264117793d82ea4a43290080e2b74730':
+              raise SystemExit('B3_PUBLIC_SPEC_DRIFT')
+          seed=('def allocate_units(total, weights):'+chr(10)+'    # BUG: naive rounding may lose units, ties, and integer precision'+chr(10)+'    return [round(total * w / sum(weights)) for w in weights]'+chr(10)).encode()
+          if not 0<len(raw)<20000 or raw==seed or b'\x00' in raw:
+              raise SystemExit('B3_AGENT_SOURCE_UNCHANGED_OR_INVALID')
+          acts=obs=finishes=0
+          for line in (root/'native_events.jsonl').read_text().splitlines():
+              try:
+                  e=json.loads(line)
+                  acts+=e.get('kind')=='ActionEvent'
+                  obs+=e.get('kind')=='ObservationEvent'
+                  finishes+=(e.get('kind')=='ActionEvent' and e.get('tool_name')=='finish')
+              except Exception:raise SystemExit('B3_TRACE_MALFORMED')
+          print('B3_AGENT_ACTIONS='+str(acts))
+          print('B3_AGENT_OBSERVATIONS='+str(obs))
+          print('B3_AGENT_FINISH_ACTIONS='+str(finishes))
+          print('B3_EXACT_PUBLIC_SPEC_SHA256='+hashlib.sha256(public).hexdigest())
+          print('B3_AGENT_SOURCE_SHA256='+hashlib.sha256(raw).hexdigest())
+          print('B3_AGENT_SOURCE_BASE64='+base64.b64encode(raw).decode())
+          if not (acts>0 and obs>0 and finishes>0):raise SystemExit('B3_NATIVE_COMPLETION_NOT_PROVEN')
+          print('AXIOM_B3_NATIVE_AGENT_SOURCE_COLLECTED_FOR_INDEPENDENT_B4_GRADING')
+          PY
+          chmod 0644 /tmp/axiom_trackb_hidden_grader.py
+          sudo -u axiomagent test -r /tmp/axiom_trackb_hidden_grader.py || { echo 'UNPRIVILEGED_GRADER_NOT_READABLE'; exit 74; }
+          # Prevent the agent UID from contacting any remote network host.
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            kill "${BRIDGE_PID:-0}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          "/tmp/axiom-s2-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
+          BRIDGE_PID=$!
+          sleep 1
+          "/tmp/axiom-s2-venv/bin/python" -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:18766/v1/models", timeout=2).status==200; print("ISOLATED_BROKER_LOOPBACK_READY")' 2>/dev/null || { echo 'BROKER_LOOPBACK_NOT_READY'; tail -n 6 "$RUNNER_TEMP/broker_live_log.txt" | cut -c1-180; exit 70; }
+          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
+          echo 'SANITIZED_BROKER_EVENTS'
+          grep -E 'NATIVE_BROKER_|SDK_(WIRE|BODY|MODEL|OUTPUT|MESSAGE|SCHEMA)' "$RUNNER_TEMP/broker_live_log.txt" || true
+          echo 'AGENT_SDK_RECEIPT'
+          grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
+          echo 'AGENT_DIAGNOSTICS_SANITIZED'
+          tail -n 14 "$RUNNER_TEMP/agent_live_log.txt" | cut -c1-180 || true
+          # The earlier test imported model-written code under CI credentials.
+          # That unsafe behavior must never return.
+          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin \
+            /tmp/axiom-s2-venv/bin/python "/tmp/axiom_trackb_hidden_grader.py"
+          grep -F '"state": "RETURNED"' "$RUNNER_TEMP/agent_live_log.txt" >/dev/null || \
+            { echo 'NATIVE_OPENHANDS_CLEAN_COMPLETION_NOT_PROVEN'; exit 67; }
+          echo 'AXIOM_B3_AGENT_SUBMITTED_SOURCE_PENDING_INDEPENDENT_B4_GRADE'
