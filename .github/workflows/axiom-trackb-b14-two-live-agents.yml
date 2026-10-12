@@ -63,7 +63,7 @@ jobs:
           printf %s "$AXIOM_GRANT_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/grant.json >/dev/null
           printf %s "$AXIOM_PUBLIC_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/public.pem >/dev/null
           printf %s "$AXIOM_SIGNATURE_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/sig.bin >/dev/null
-          sudo chmod 0600 /tmp/axiom-b14-authority/*
+          sudo chmod 0600 /tmp/axiom-b14-authority/grant.json /tmp/axiom-b14-authority/public.pem /tmp/axiom-b14-authority/sig.bin
           sudo test ! -e /tmp/axiom-b14-authority/private.pem
           sudo openssl pkeyutl -verify -pubin -inkey /tmp/axiom-b14-authority/public.pem -rawin -in /tmp/axiom-b14-authority/grant.json -sigfile /tmp/axiom-b14-authority/sig.bin >/dev/null
           echo B14_INDEPENDENT_CI_JOB_SIGNED_SCOPE_VERIFIED_NO_SIGNING_SECRET
