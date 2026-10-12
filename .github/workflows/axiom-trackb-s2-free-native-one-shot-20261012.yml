@@ -21,9 +21,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m venv "$RUNNER_TEMP/axiom-venv"
-          "$RUNNER_TEMP/axiom-venv/bin/pip" install --disable-pip-version-check -q 'openhands-agent-server==1.51.0'
-          "$RUNNER_TEMP/axiom-venv/bin/python" -c 'from openhands.sdk import LLM, Agent, Conversation, Tool; print("OPENHANDS_REAL_SDK_IMPORTED")'
+          python3 -m venv "/tmp/axiom-s2-venv"
+          "/tmp/axiom-s2-venv/bin/pip" install --disable-pip-version-check -q 'openhands-agent-server==1.51.0'
+          "/tmp/axiom-s2-venv/bin/python" -c 'from openhands.sdk import LLM, Agent, Conversation, Tool; print("OPENHANDS_REAL_SDK_IMPORTED")'
       - name: Independent human-approved Free native account gate and ephemeral Ed25519 issuer
         shell: bash
         run: |
@@ -103,15 +103,15 @@ jobs:
           echo 'def multiply(a, b):' | sudo tee /tmp/axiom-s2-work/mathfix.py >/dev/null
           echo '    return a + b' | sudo tee -a /tmp/axiom-s2-work/mathfix.py >/dev/null
           printf '%s\n' 'Repair multiply(a,b) so it returns a*b for any Python integers.' 'Only modify mathfix.py. Test positive, negative, and zero cases.' | sudo tee /tmp/axiom-s2-work/TASK.md >/dev/null
-          sudo chown -R axiomagent:axiomagent /tmp/axiom-s2-work /tmp/axiom-s2-home
+          sudo chown -R "$USER":"$USER" /tmp/axiom-s2-work /tmp/axiom-s2-home
           umask 077
-          "$RUNNER_TEMP/axiom-venv/bin/python" - <<'PY'
+          "/tmp/axiom-s2-venv/bin/python" - <<'PY'
           import secrets,os
           val=secrets.token_urlsafe(36)
           with open('/tmp/axiom-s2-work/worker_key','w') as f:f.write(val)
-          os.chown('/tmp/axiom-s2-work/worker_key',65532,65532)
           os.chmod('/tmp/axiom-s2-work/worker_key',0o600)
           PY
+          sudo chown -R axiomagent:axiomagent /tmp/axiom-s2-work /tmp/axiom-s2-home
           # Broker is owned by the runner, outside the unprivileged agent.
           cat > "$RUNNER_TEMP/axiom_live_bridge.py" <<'PY'
           import os,sys,time,json,hashlib,urllib.request,urllib.error,threading,http.server,subprocess
@@ -206,7 +206,7 @@ jobs:
           http.server.ThreadingHTTPServer((HOST,18766),Handler).serve_forever()
           PY
           # Tool-agent source is synthetic-only and contains no provider secrets.
-          cat > "$RUNNER_TEMP/axiom_live_agent.py" <<'PY'
+          cat > "/tmp/axiom_s2_live_agent.py" <<'PY'
           import os,json,hashlib,traceback
           from pathlib import Path
           if 'CLOUDFLARE_API_TOKEN' in os.environ:raise SystemExit('AGENT_SECRET_ISOLATION_FAILED')
@@ -256,15 +256,15 @@ jobs:
             kill "${BRIDGE_PID:-0}" 2>/dev/null || true
           }
           trap cleanup EXIT
-          "$RUNNER_TEMP/axiom-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
+          "/tmp/axiom-s2-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
           BRIDGE_PID=$!
           sleep 1
-          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "$RUNNER_TEMP/axiom-venv/bin/python" "$RUNNER_TEMP/axiom_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
+          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
           echo 'SANITIZED_BROKER_EVENTS'
           grep -E 'NATIVE_BROKER_' "$RUNNER_TEMP/broker_live_log.txt" || true
           echo 'AGENT_SDK_RECEIPT'
           grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
-          "$RUNNER_TEMP/axiom-venv/bin/python" - <<'PY'
+          "/tmp/axiom-s2-venv/bin/python" - <<'PY'
           import os,random,importlib.util,hashlib,json
           p='/tmp/axiom-s2-work/mathfix.py'
           s=open(p).read()
