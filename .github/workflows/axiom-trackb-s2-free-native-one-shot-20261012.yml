@@ -114,11 +114,11 @@ jobs:
                    'tools':[{'type':'function','function':{'name':'terminal',
                      'description':'A synthetic terminal tool','parameters':{'type':'object',
                        'properties':{'command':{'type':'string'}},'required':['command']}}}],
-                   'tool_choice':'required'}
+                   'tool_choice':'auto'}
           class NoRedirect(urllib.request.HTTPRedirectHandler):
               def redirect_request(self,*args,**kwargs): raise RuntimeError('REDIRECT_DENIED')
           req=urllib.request.Request(
-              'https://api.cloudflare.com/client/v4/accounts/'+a['account_id']+'/ai/v1/chat/completions',
+              'https://api.cloudflare.com/client/v4/accounts/'+a['account_id']+'/ai/run/'+a['model'],
               data=json.dumps(payload,separators=(',',':')).encode(),
               headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],
                        'Content-Type':'application/json','Accept':'application/json'},
