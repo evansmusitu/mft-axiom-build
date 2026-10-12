@@ -262,27 +262,9 @@ jobs:
                   except Exception:pass
           PY
           chmod a+r /tmp/axiom_s2_live_agent.py
-          # Prevent the agent UID from contacting any remote network host.
-          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
-          cleanup() {
-            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
-            kill "${BRIDGE_PID:-0}" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-          "/tmp/axiom-s2-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
-          BRIDGE_PID=$!
-          sleep 1
-          "/tmp/axiom-s2-venv/bin/python" -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:18766/v1/models", timeout=2).status==200; print("ISOLATED_BROKER_LOOPBACK_READY")' 2>/dev/null || { echo 'BROKER_LOOPBACK_NOT_READY'; tail -n 6 "$RUNNER_TEMP/broker_live_log.txt" | cut -c1-180; exit 70; }
-          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
-          echo 'SANITIZED_BROKER_EVENTS'
-          grep -E 'NATIVE_BROKER_|SDK_(WIRE|BODY|MODEL|OUTPUT|MESSAGE|SCHEMA)' "$RUNNER_TEMP/broker_live_log.txt" || true
-          echo 'AGENT_SDK_RECEIPT'
-          grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
-          echo 'AGENT_DIAGNOSTICS_SANITIZED'
-          tail -n 14 "$RUNNER_TEMP/agent_live_log.txt" | cut -c1-180 || true
           # This fixed independent grader is written OUTSIDE agent-writable paths.
           # Drop all runner credentials and privileges before importing agent-authored code.
-          cat > "$RUNNER_TEMP/axiom_trackb_hidden_grader.py" <<'PY'
+          cat > "/tmp/axiom_trackb_hidden_grader.py" <<'PY'
           import os,random,importlib.util,hashlib,json,sys
           if 'CLOUDFLARE_API_TOKEN' in os.environ or 'GH_TOKEN' in os.environ or 'GITHUB_TOKEN' in os.environ:
               raise SystemExit('GRADER_PRIVILEGE_BOUNDARY_FAIL')
@@ -317,7 +299,26 @@ jobs:
               raise SystemExit('AXIOM_REAL_OPENHANDS_QUALIFICATION_FAILED')
           print('AXIOM_REAL_OPENHANDS_SMALL_CODE_CHALLENGE_PASS')
           PY
-          chmod 0644 "$RUNNER_TEMP/axiom_trackb_hidden_grader.py"
+          chmod 0644 "/tmp/axiom_trackb_hidden_grader.py"
+          sudo -u axiomagent test -r /tmp/axiom_trackb_hidden_grader.py || { echo 'UNPRIVILEGED_GRADER_NOT_READABLE'; exit 74; }
+          # Prevent the agent UID from contacting any remote network host.
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            kill "${BRIDGE_PID:-0}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          "/tmp/axiom-s2-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
+          BRIDGE_PID=$!
+          sleep 1
+          "/tmp/axiom-s2-venv/bin/python" -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:18766/v1/models", timeout=2).status==200; print("ISOLATED_BROKER_LOOPBACK_READY")' 2>/dev/null || { echo 'BROKER_LOOPBACK_NOT_READY'; tail -n 6 "$RUNNER_TEMP/broker_live_log.txt" | cut -c1-180; exit 70; }
+          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
+          echo 'SANITIZED_BROKER_EVENTS'
+          grep -E 'NATIVE_BROKER_|SDK_(WIRE|BODY|MODEL|OUTPUT|MESSAGE|SCHEMA)' "$RUNNER_TEMP/broker_live_log.txt" || true
+          echo 'AGENT_SDK_RECEIPT'
+          grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
+          echo 'AGENT_DIAGNOSTICS_SANITIZED'
+          tail -n 14 "$RUNNER_TEMP/agent_live_log.txt" | cut -c1-180 || true
           # The earlier test imported model-written code under CI credentials.
           # That unsafe behavior must never return.
           sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin \
