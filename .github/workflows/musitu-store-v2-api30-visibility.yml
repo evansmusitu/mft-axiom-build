@@ -87,8 +87,8 @@ jobs:
           gradle -p store/phase1/android-client --no-daemon :app:processDebugMainManifest :app:processReleaseMainManifest
           python3 - <<'PY'
           import glob,xml.etree.ElementTree as ET
-          base='store/phase1/android-client/app/build/intermediates/merged_manifests'
-          candidates=glob.glob(base+'/**/*.xml',recursive=True)
+          base='store/phase1/android-client/app/build/intermediates'
+          candidates=glob.glob(base+'/**/AndroidManifest.xml',recursive=True)
           m='org.musitu.fixturealpha'
           names=[]
           for path in candidates:
