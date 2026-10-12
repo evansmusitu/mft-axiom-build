@@ -1,0 +1,43 @@
+name: AXIOM Track B13 read-only Cloudflare AI quota evidence 20261012
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b13-native-account-proof-20261012
+    paths:
+      - .github/workflows/axiom-trackb-b13-native-readonly-20261012.yml
+permissions:
+  contents: read
+jobs:
+  local-gate-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b13-native-account-proof-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify source and fail-closed tests without secrets
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q ops/trackb13
+          cd ops/trackb13
+          python3 -m unittest -q test_account_usage
+          echo B13_LOCAL_GATE_TESTS_PASS
+  provider-account-usage-readonly:
+    needs: local-gate-tests
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b13-native-account-proof-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Native provider read-only account and GraphQL AI consumption
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo B13_MISSING_SCOPED_READ_CREDENTIAL; exit 72; }
+          python3 ops/trackb13/b13_account_usage_probe.py
+          echo B13_NO_MODEL_INFERENCE_NO_PRODUCTION_CHANGES
