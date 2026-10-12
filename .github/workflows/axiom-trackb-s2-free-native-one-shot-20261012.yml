@@ -72,8 +72,8 @@ jobs:
           now=int(time.time())
           mandate={'schema':'axiom.s2.operator.native-free-synthetic-once.20261012.v1',
                    'account_id':A,'model':os.environ['AXIOM_MODEL'],
-                   'task':'TOOL_CALL_SHAPE_SYNTHETIC_ONLY','max_calls':5,'max_output_tokens':300,
-                   'expires_unix':now+60,'observed_unix':now,
+                   'task':'TOOL_CALL_SHAPE_SYNTHETIC_ONLY','max_calls':8,'max_output_tokens':300,
+                   'expires_unix':now+150,'observed_unix':now,
                    'user_authorized':True,'workers_paid_plan_observed':False,
                    'provider_native_subscriptions_checked':True,
                    'user_confirmed_remaining_neurons':True,
@@ -84,7 +84,7 @@ jobs:
           open(path,'wb').write(data)
           print('S2_NATIVE_ACCOUNT_SUBSCRIPTIONS_FREE_COMPATIBLE_PASS')
           print('S2_NATIVE_RECEIPT_SHA256='+hashlib.sha256(data).hexdigest())
-          print('S2_MAX_MODEL_CALLS=5')
+          print('S2_MAX_MODEL_CALLS=8')
           PY
           umask 077
           openssl genpkey -algorithm Ed25519 -out "$RUNNER_TEMP/axiom_s2_policy_private.pem" 2>/dev/null
@@ -135,7 +135,7 @@ jobs:
               a=json.load(open(FILE))
               return (a.get('schema')=='axiom.s2.operator.native-free-synthetic-once.20261012.v1'
                   and a.get('model')==MODEL and a.get('account_id')==A and
-                  a.get('max_calls')==5 and a.get('max_output_tokens')==300 and
+                  a.get('max_calls')==8 and a.get('max_output_tokens')==300 and
                   a.get('user_authorized') is True and
                   a.get('workers_paid_plan_observed') is False and
                   a.get('production_authority') is False and
@@ -187,7 +187,7 @@ jobs:
                       print('SDK_SCHEMA_FAIL_CLOSED',flush=True)
                       return self.result(403,{'error':{'message':'synthetic_only_schema_denied'}})
                   with lock:
-                      if counts[0]>=5:return self.result(403,{'error':{'message':'bounded_model_budget_exhausted'}})
+                      if counts[0]>=8:return self.result(403,{'error':{'message':'bounded_model_budget_exhausted'}})
                       counts[0]+=1
                   payload={'model':MODEL,'messages':messages,'max_completion_tokens':lim,
                            'temperature':0,'stream':False,'tools':tools,'tool_choice':'auto'}
@@ -246,9 +246,9 @@ jobs:
                       temperature=0,stream=False,drop_params=True,num_retries=0,
                       max_output_tokens=300,timeout=22)
               agent=Agent(llm=llm,tools=[Tool(name=FileEditorTool.name)])
-              c=Conversation(agent=agent,workspace=str(root),max_iteration_per_run=6,
+              c=Conversation(agent=agent,workspace=str(root),max_iteration_per_run=8,
                              visualizer=None,callbacks=[cb])
-              c.send_message('The task is in TASK.md in your workspace. Read and solve it by changing mathfix.py yourself using the file_editor tool. Independent tests are executed after you finish. Use only your workspace. No internet.')
+              c.send_message('Read TASK.md. Correct the bug in mathfix.py yourself using file_editor, then call the finish tool. Keep your actions minimal and finish as soon as the correction is made. Independent tests happen afterwards. Stay in your workspace, no internet.')
               c.run();state='RETURNED'
           except Exception as e:
               state='ERROR';err=type(e).__name__+': '+str(e)[:140]
@@ -280,30 +280,48 @@ jobs:
           grep 'REAL_SDK_AGENT_RECEIPT=' "$RUNNER_TEMP/agent_live_log.txt" || true
           echo 'AGENT_DIAGNOSTICS_SANITIZED'
           tail -n 14 "$RUNNER_TEMP/agent_live_log.txt" | cut -c1-180 || true
-          "/tmp/axiom-s2-venv/bin/python" - <<'PY'
-          import os,random,importlib.util,hashlib,json
+          # This fixed independent grader is written OUTSIDE agent-writable paths.
+          # Drop all runner credentials and privileges before importing agent-authored code.
+          cat > "$RUNNER_TEMP/axiom_trackb_hidden_grader.py" <<'PY'
+          import os,random,importlib.util,hashlib,json,sys
+          if 'CLOUDFLARE_API_TOKEN' in os.environ or 'GH_TOKEN' in os.environ or 'GITHUB_TOKEN' in os.environ:
+              raise SystemExit('GRADER_PRIVILEGE_BOUNDARY_FAIL')
           p='/tmp/axiom-s2-work/mathfix.py'
           s=open(p).read()
           seed='def multiply(a, b):'+chr(10)+'    return a + b'+chr(10)
           changed=s!=seed
           try:
               spec=importlib.util.spec_from_file_location('mathfix',p);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
-              random.seed(20261012);pairs=[(random.randint(-1000,1000),random.randint(-1000,1000)) for _ in range(50)]
-              ok=all(m.multiply(a,b)==a*b for a,b in pairs+[(0,7),(7,0),(-8,-9)])
+              random.seed(20261012)
+              pairs=[(random.randint(-1000,1000),random.randint(-1000,1000)) for _ in range(50)]
+              ok=all(type(m.multiply(a,b)) is int and m.multiply(a,b)==a*b for a,b in pairs+[(0,7),(7,0),(-8,-9)])
           except Exception:ok=False
           ev='/tmp/axiom-s2-work/native_events.jsonl'
-          acts=obs=0
+          acts=obs=finishes=0
           if os.path.exists(ev):
               for line in open(ev):
                   try:
-                      z=json.loads(line);acts+=z.get('kind')=='ActionEvent';obs+=z.get('kind')=='ObservationEvent'
+                      z=json.loads(line)
+                      acts+=z.get('kind')=='ActionEvent'
+                      obs+=z.get('kind')=='ObservationEvent'
+                      finishes+=(z.get('kind')=='ActionEvent' and z.get('tool_name')=='finish')
                   except Exception:pass
           print('ACTUAL_NATIVE_SDK_ACTIONS='+str(acts))
           print('ACTUAL_NATIVE_SDK_OBSERVATIONS='+str(obs))
+          print('ACTUAL_NATIVE_FINISH_ACTIONS='+str(finishes))
           print('ACTUAL_AGENT_SOURCE_CHANGED='+str(changed))
           print('POST_RUN_53_CASES_PASS='+str(ok))
           print('AGENT_SOURCE_SHA256='+hashlib.sha256(open(p,'rb').read()).hexdigest())
-          if not (changed and ok and acts>0 and obs>0):
+          print('GRADER_ENV_AND_UID_ISOLATED='+str(os.geteuid()==65532))
+          if not (changed and ok and acts>0 and obs>0 and finishes>0 and os.geteuid()==65532):
               raise SystemExit('AXIOM_REAL_OPENHANDS_QUALIFICATION_FAILED')
           print('AXIOM_REAL_OPENHANDS_SMALL_CODE_CHALLENGE_PASS')
           PY
+          chmod 0644 "$RUNNER_TEMP/axiom_trackb_hidden_grader.py"
+          # The earlier test imported model-written code under CI credentials.
+          # That unsafe behavior must never return.
+          sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin \
+            /tmp/axiom-s2-venv/bin/python "$RUNNER_TEMP/axiom_trackb_hidden_grader.py"
+          grep -F '"state": "RETURNED"' "$RUNNER_TEMP/agent_live_log.txt" >/dev/null || \
+            { echo 'NATIVE_OPENHANDS_CLEAN_COMPLETION_NOT_PROVEN'; exit 67; }
+          echo 'AXIOM_REAL_OPENHANDS_END_TO_END_QUALIFIED_SMALL_CHALLENGE_PASS'
