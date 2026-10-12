@@ -100,6 +100,7 @@ jobs:
           openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/axiom_s2_policy_public.pem" -rawin -in "$RUNNER_TEMP/axiom_s2_free_mandate.json" -sigfile "$RUNNER_TEMP/axiom_s2_policy.sig" >/dev/null
           sudo useradd -u 65532 -M -s /usr/sbin/nologin axiomagent 2>/dev/null || true
           sudo mkdir -p /tmp/axiom-s2-work /tmp/axiom-s2-home
+          sudo chown "$USER":"$USER" /tmp/axiom-s2-work /tmp/axiom-s2-home
           # Canonical B3 source spec, checksum must match sealed challenge.
           "/tmp/axiom-s2-venv/bin/python" - <<'PY'
           from pathlib import Path
