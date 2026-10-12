@@ -109,6 +109,7 @@ jobs:
           import secrets,os
           val=secrets.token_urlsafe(36)
           with open('/tmp/axiom-s2-work/worker_key','w') as f:f.write(val)
+          with open(os.path.join(os.environ['RUNNER_TEMP'],'axiom_broker_worker_key'),'w') as f:f.write(val)
           os.chmod('/tmp/axiom-s2-work/worker_key',0o600)
           PY
           sudo chown -R axiomagent:axiomagent /tmp/axiom-s2-work /tmp/axiom-s2-home
@@ -121,7 +122,7 @@ jobs:
           FILE=ROOT+'/axiom_s2_free_mandate.json'
           SIG=ROOT+'/axiom_s2_policy.sig'
           PUB=ROOT+'/axiom_s2_policy_public.pem'
-          KEY=open('/tmp/axiom-s2-work/worker_key').read().strip()
+          KEY=open(ROOT+'/axiom_broker_worker_key').read().strip()
           HOST='127.0.0.1'
           lock=threading.Lock(); counts=[0]
           class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -260,6 +261,7 @@ jobs:
           "/tmp/axiom-s2-venv/bin/python" "$RUNNER_TEMP/axiom_live_bridge.py" > "$RUNNER_TEMP/broker_live_log.txt" 2>&1 &
           BRIDGE_PID=$!
           sleep 1
+          "/tmp/axiom-s2-venv/bin/python" -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:18766/v1/models", timeout=2).status==200; print("ISOLATED_BROKER_LOOPBACK_READY")' 2>/dev/null || { echo 'BROKER_LOOPBACK_NOT_READY'; tail -n 6 "$RUNNER_TEMP/broker_live_log.txt" | cut -c1-180; exit 70; }
           sudo -u axiomagent env -i HOME=/tmp/axiom-s2-home PATH=/usr/bin:/bin OPENHANDS_DISABLE_TELEMETRY=true OTEL_SDK_DISABLED=true "/tmp/axiom-s2-venv/bin/python" "/tmp/axiom_s2_live_agent.py" > "$RUNNER_TEMP/agent_live_log.txt" 2>&1 || true
           echo 'SANITIZED_BROKER_EVENTS'
           grep -E 'NATIVE_BROKER_' "$RUNNER_TEMP/broker_live_log.txt" || true
