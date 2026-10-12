@@ -45,7 +45,11 @@ test('encrypted backup restores ONLY authorized tenant into an empty SQLite data
 test('tampered backup and untrusted signing keys cannot be restored',()=>{
  const source=fixture(),ctx=context();try{
  populate(source);const backup=createEncryptedBackup(source,ctx.exportOpts);
- const tampered=structuredClone(backup);tampered.ciphertext=tampered.ciphertext.slice(0,-2)+'AA';
+ const tampered=structuredClone(backup);
+ // Flip a valid base64url character guaranteed to differ. A fixed 'AA' suffix
+ // can by chance equal the original ciphertext suffix, causing a flaky test.
+ tampered.ciphertext=(backup.ciphertext[0]==='A'?'B':'A')+backup.ciphertext.slice(1);
+ assert.notEqual(tampered.ciphertext,backup.ciphertext);
  assert.equal(verifyEncryptedBackup(tampered,{backupKey:ctx.backupKey,trustedPublicKey:ctx.signing.publicKey}),false);
  const target=fixture();try{
   assert.throws(()=>restoreEncryptedBackup(target,tampered,ctx.restoreOpts));
