@@ -1,0 +1,55 @@
+name: AXIOM Track B12 two native SDK processes synthetic-model S0
+on:
+  push:
+    branches: [frontier/axiom-trackb-b12-dual-native-sdk-s0-20261012]
+    paths:
+      - .github/workflows/axiom-trackb-b12-dual-native-sdk-s0.yml
+permissions:
+  contents: read
+jobs:
+  isolated-native-sdk-parallel:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b12-dual-native-sdk-s0-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated source only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fail-closed no-cloud credentials and exact sandbox source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-trackb-b12-dual-native-sdk-s0-20261012'
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_SIGNER_PRIVATE_KEY:-}"
+          python3 -m py_compile ops/trackb12/b12_runner.py ops/trackb12/test_b12_broker.py
+          echo 'B12_GITHUB_BRANCH_AND_NO_CLOUDFLARE_SECRET_PASS'
+      - name: Install real pinned OpenHands SDK in isolated ephemeral CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b12-venv
+          /tmp/axiom-b12-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0'
+          /tmp/axiom-b12-venv/bin/python -c 'from openhands.sdk import LLM,Agent,Conversation,Tool; print("B12_REAL_SDK_IMPORTED")'
+      - name: Run synthetic broker adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ops/trackb12
+          /tmp/axiom-b12-venv/bin/python -m unittest -q test_b12_broker
+      - name: Run exactly two native OpenHands agent processes, no model API
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 \
+            /tmp/axiom-b12-venv/bin/python ops/trackb12/b12_runner.py
+          echo B12_NO_CLOUDFLARE_INFERENCE_AND_NO_PRODUCTION_WRITES
