@@ -1,4 +1,5 @@
 name: MMF Current Isolated Branch Tracked Source Snapshot 20261012
+# Refresh exact tracked source after independently verified disabled Paynow service bindings.
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
