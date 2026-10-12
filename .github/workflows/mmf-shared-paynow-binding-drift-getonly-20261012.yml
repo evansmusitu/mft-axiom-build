@@ -1,0 +1,52 @@
+name: MMF Shared Paynow Legacy Binding Drift GET-Only 20261012
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-shared-paynow-binding-drift-getonly-20261012.yml'
+      - 'musitu-mail-fabric/src/staging/mmf-shared-binding-drift-readonly.mjs'
+      - 'musitu-mail-fabric/test/mmf-shared-binding-drift-readonly.test.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmf-shared-paynow-binding-getonly-20261012
+  cancel-in-progress: false
+jobs:
+  binding-drift-get-only:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enforce branch, test exact GET-only and safe inventory projection
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          node --check src/staging/mmf-shared-binding-drift-readonly.mjs
+          node --test test/mmf-shared-binding-drift-readonly.test.mjs
+      - name: GET existing Cloudflare binding NAME+TYPE only, fail closed on drift
+        working-directory: musitu-mail-fabric
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node src/staging/mmf-shared-binding-drift-readonly.mjs --get-only
+      - name: Upload sanitized digest-only audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-shared-paynow-binding-getonly-baseline-20261012
+          path: ${{ runner.temp }}/mmf-paynow-legacy-binding-getonly-sanitized.json
+          if-no-files-found: warn
+          retention-days: 14
