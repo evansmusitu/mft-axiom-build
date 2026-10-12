@@ -1,0 +1,94 @@
+name: AXIOM Track B14 two real OpenHands agents Cloudflare Free governed S2
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b14-two-live-agents-20261012
+    paths:
+      - .github/workflows/axiom-trackb-b14-two-live-agents.yml
+permissions:
+  contents: read
+jobs:
+  independent-experiment-signer:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b14-two-live-agents-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    outputs:
+      grant: ${{ steps.sign.outputs.grant }}
+      public_key: ${{ steps.sign.outputs.public_key }}
+      signature: ${{ steps.sign.outputs.signature }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Local authorization protocol tests no secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ops/trackb14/*.py
+          cd ops/trackb14
+          python3 -m unittest -q test_b14_grant
+          echo B14_OFFLINE_SIGNER_BOUNDARY_TESTS_PASS
+      - name: Read latest account entitlements and advisory Neurons then issue ephemeral Ed25519 grant
+        id: sign
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo B14_SCOPED_CLOUDFLARE_CREDENTIAL_MISSING; exit 72; }
+          python3 ops/trackb14/sign_b14_grant.py
+          test ! -e /tmp/axiom-b14-signed-origin/private.pem
+          echo B14_SIGNING_PRIVATE_KEY_NOT_TRANSFERRED_TO_EXECUTOR
+  isolated-two-live-agent-executor:
+    needs: independent-experiment-signer
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b14-two-live-agents-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AXIOM_SIGNED_GRANT_DIR: /tmp/axiom-b14-authority
+      AXIOM_GRANT_B64: ${{ needs.independent-experiment-signer.outputs.grant }}
+      AXIOM_PUBLIC_B64: ${{ needs.independent-experiment-signer.outputs.public_key }}
+      AXIOM_SIGNATURE_B64: ${{ needs.independent-experiment-signer.outputs.signature }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Independent signed grant verification and prevent signer private-key access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          sudo mkdir -m 0700 -p /tmp/axiom-b14-authority
+          printf %s "$AXIOM_GRANT_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/grant.json >/dev/null
+          printf %s "$AXIOM_PUBLIC_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/public.pem >/dev/null
+          printf %s "$AXIOM_SIGNATURE_B64" | base64 -d | sudo tee /tmp/axiom-b14-authority/sig.bin >/dev/null
+          sudo chmod 0600 /tmp/axiom-b14-authority/*
+          sudo test ! -e /tmp/axiom-b14-authority/private.pem
+          sudo openssl pkeyutl -verify -pubin -inkey /tmp/axiom-b14-authority/public.pem -rawin -in /tmp/axiom-b14-authority/grant.json -sigfile /tmp/axiom-b14-authority/sig.bin >/dev/null
+          echo B14_INDEPENDENT_CI_JOB_SIGNED_SCOPE_VERIFIED_NO_SIGNING_SECRET
+      - name: Install real pinned OpenHands SDK with zero GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b14-venv
+          /tmp/axiom-b14-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0'
+          /tmp/axiom-b14-venv/bin/python -c 'from openhands.sdk import LLM,Agent,Conversation,Tool; print("B14_REAL_OPENHANDS_SDK_READY")'
+      - name: Run two genuine Cloudflare-backed isolated worker processes under signed budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -o root -g root -m 0644 ops/trackb14/b14_live_agents.py /tmp/axiom-b14-live-agent.py
+          sudo setpriv --reuid=65532 --regid=65532 --clear-groups test -r /tmp/axiom-b14-live-agent.py
+          sudo setpriv --reuid=65533 --regid=65533 --clear-groups test -r /tmp/axiom-b14-live-agent.py
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sudo --preserve-env=CLOUDFLARE_API_TOKEN,AXIOM_SIGNED_GRANT_DIR \
+            env PYTHONUNBUFFERED=1 PATH=/usr/bin:/bin:/usr/local/bin \
+            /tmp/axiom-b14-venv/bin/python /tmp/axiom-b14-live-agent.py
+          echo B14_TWO_REAL_CLOUDFLARE_AGENTS_EXECUTED_NONPRODUCTION
