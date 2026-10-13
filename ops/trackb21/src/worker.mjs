@@ -82,9 +82,13 @@ export default {
       result=await guardedDispatch({trustedEnv:env,request,payload,allowedModels:[MODEL],
         maxOutputTokens:32,now:()=>Date.now(),sendProvider:async bytes=>({
           synthetic_transport:true,canonical_body_sha256:await hex(bytes)})});
-    }catch{return json({...DENY,reason:'GOVERNED_ADMISSION_FAILURE'},403);}
+    }catch(err){
+      const reason=(typeof err?.code==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(err.code))?err.code:'GOVERNED_ADMISSION_FAILURE';
+      return json({...DENY,reason},403);
+    }
     if(result.status!=='COMPLETED'||!result.provider_result?.synthetic_transport)
-      return json({...DENY,reason:result.status==='REPLAY_DENIED'?'REPLAY_DENIED':'QUOTA_DENIED'},409);
+      return json({...DENY,reason:result.status==='REPLAY_DENIED'?'REPLAY_DENIED':
+        (typeof result.reason==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(result.reason))?result.reason:'QUOTA_DENIED'},409);
     return json({status:'COMPLETED',synthetic:true,request_id,
       canonical_body_sha256:result.provider_result.canonical_body_sha256,dispatch_allowed:false});
   }

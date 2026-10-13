@@ -55,7 +55,14 @@ def admit(wid,index,raw,token,url=LOCAL_URL):
         with urlopen(request,timeout=18) as response:
             if response.status!=200:return None
             receipt=json.load(response)
-    except (URLError,TimeoutError,OSError,ValueError,HTTPError):return None
+    except HTTPError as err:
+        try:
+            reason=json.load(err).get('reason','UNKNOWN')
+            if type(reason) is not str or len(reason)>80 or not reason.replace('_','').isalnum():reason='INVALID_REASON'
+        except (ValueError,TypeError,AttributeError):reason='INVALID_RESPONSE'
+        print('B21_LOCAL_WORKERD_QUOTA_DENIED='+str(err.code)+':'+reason+':'+wid+':'+str(index),flush=True)
+        return None
+    except (URLError,TimeoutError,OSError,ValueError):return None
     if not (type(receipt) is dict and receipt.get('status')=='COMPLETED' and receipt.get('synthetic') is True and
             receipt.get('request_id')=='b21-'+wid+'-'+str(index) and receipt.get('dispatch_allowed') is False and
             type(receipt.get('canonical_body_sha256')) is str and len(receipt['canonical_body_sha256'])==64):
