@@ -33,19 +33,52 @@ async function receiveWhatsApp(obj,env){
   for(const entry of obj.entry||[])for(const change of entry.changes||[])for(const msg of change.value?.messages||[]){
     if(msg?.type!=='text'||typeof msg.text?.body!=='string'||typeof msg.from!=='string')continue;
     if(env.DEDUPE&&msg.id){if(await env.DEDUPE.get(msg.id))continue;await env.DEDUPE.put(msg.id,'1',{expirationTtl:86400});}
-    await sendWhatsApp(env,msg.from,answer(msg.text.body));
+    await sendWhatsApp(env,msg.from,await smartAnswer(msg.text.body,env));
   }
 }
+
+export class MftAiDailyQuota {
+  constructor(state,env){this.state=state;this.env=env;}
+  async fetch(req){
+    if(new URL(req.url).pathname!=='/claim')return new Response('Not found',{status:404});
+    try{
+      const sql=this.state.storage.sql;
+      sql.exec('CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, used INTEGER NOT NULL)');
+      const today=new Date().toISOString().slice(0,10);
+      const rows=[...sql.exec('INSERT INTO daily(day,used) VALUES (?1,1) ON CONFLICT(day) DO UPDATE SET used=used+1 WHERE used<20 RETURNING used',today)];
+      return json({allowed:rows.length===1,used:rows[0]?.used||20});
+    }catch{return json({allowed:false},503);}
+  }
+}
+export async function smartAnswer(message,env={}){
+  const text=String(message||'').trim().slice(0,1500),lower=text.toLowerCase();
+  if(env.ENABLE_BUSINESS_AI!=='true'||!env.AI||!env.AI_BUDGET||text.length<6||text.length>500||
+     /^(hi|hello|hey|help|menu|start|[0-5])$/i.test(text)||
+     /\b(price|cost|buy|purchase|pay|payment|how much|ecocash|predict|guarantee)\b/.test(lower)||
+     !/(mft|zimsec|a.level|alevel|upper|lower|study|notes|paper|exam|chemistry|physics|math|biology|geography|business|marking)/.test(lower))return answer(text);
+  try{
+    const budget=env.AI_BUDGET.get(env.AI_BUDGET.idFromName('mft-education-nexus-global'));
+    const claim=await budget.fetch('https://internal/claim');
+    const grant=await claim.json();
+    if(!claim.ok||grant.allowed!==true)return answer(text);
+    const instruction='You are a business-specific customer-service chatbot for MFT EDUCATION NEXUS, an independent Zimbabwean A-Level study-materials provider (not ZIMSEC). Assist only with enquiries about ZIMSEC-oriented study notes, past examination papers, revision predictions, marking schemes and contacting MFT. Do not offer general AI tutoring. Never invent availability, prices, payment instructions, delivery guarantees, exam questions or examination affiliation. If unknown, request subject and level and refer customers to WhatsApp 0781572008. Keep answer concise and clear.';
+    const response=await env.AI.run(env.AI_MODEL||'@cf/zai-org/glm-4.7-flash',{model:env.AI_MODEL||'@cf/zai-org/glm-4.7-flash',messages:[{role:'system',content:instruction},{role:'user',content:text}],max_completion_tokens:1024,temperature:0});
+    const content=response?.response||response?.choices?.[0]?.message?.content;
+    if(typeof content!=='string'||content.trim().length<18)return answer(text);
+    return content.trim().slice(0,1500)+FOOTER;
+  }catch{return answer(text);}
+}
+
 export default {async fetch(req,env={},ctx={waitUntil(){}}){
   const u=new URL(req.url);
   if(req.method==='GET'&&u.pathname==='/')return new Response(PAGE,{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'",'x-content-type-options':'nosniff'}});
-  if(req.method==='GET'&&u.pathname==='/health')return json({status:'ok',service:'MFT EDUCATION NEXUS',businessAI:false,whatsappReady:Boolean(env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN&&env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN)});
+  if(req.method==='GET'&&u.pathname==='/health')return json({status:'ok',service:'MFT EDUCATION NEXUS',businessAI:env.ENABLE_BUSINESS_AI==='true'&&Boolean(env.AI)&&Boolean(env.AI_BUDGET),whatsappReady:Boolean(env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN&&env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN)});
   if(req.method==='POST'&&u.pathname==='/api/chat'){
     const raw=await req.text();if(raw.length>12000)return json({error:'Request too long'},413);
     let data;try{data=JSON.parse(raw)}catch{return json({error:'Invalid JSON'},400)}
     if(typeof data?.message!=='string'||data.message.length>1500)return json({error:'Message must have 1500 or fewer characters'},400);
     if(data.mode==='tutor')return json({reply:'AI web tutoring is not publicly enabled. WhatsApp: 0781572008'});
-    return json({reply:answer(data.message)});
+    return json({reply:await smartAnswer(data.message,env)});
   }
   if(req.method==='GET'&&u.pathname==='/webhook'){
     const ok=env.WHATSAPP_VERIFY_TOKEN&&u.searchParams.get('hub.mode')==='subscribe'&&u.searchParams.get('hub.verify_token')===env.WHATSAPP_VERIFY_TOKEN;
