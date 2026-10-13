@@ -145,7 +145,8 @@ export class IdentityAdmission {
 export class StageCommercialController {
  constructor({admission,platform}={}){
   if(!(admission instanceof IdentityAdmission)||!platform||
-     typeof platform.createTenant!=='function'||typeof platform.effectiveEntitlement!=='function')deny();
+     typeof platform.createTenant!=='function'||typeof platform.effectiveEntitlement!=='function'||
+     typeof platform.readTenantDashboard!=='function')deny();
   this.admission=admission;this.platform=platform;
  }
  #verified(sessionToken){return this.admission.authenticateSession(sessionToken).actorSubject}
@@ -169,6 +170,9 @@ export class StageCommercialController {
  }
  getSubscription({sessionToken,tenantId,orderReference}={}){
   return this.platform.getSubscription({tenantId,orderReference,actorSubject:this.#verified(sessionToken)});
+ }
+ getDashboard({sessionToken,tenantId}={}){
+  return this.platform.readTenantDashboard({tenantId,actorSubject:this.#verified(sessionToken)});
  }
  getUsage({sessionToken,tenantId}={}){
   return this.platform.getUsage({tenantId,actorSubject:this.#verified(sessionToken)});

@@ -167,6 +167,29 @@ export class CommercialPlatform {
    return Object.freeze({count,duplicate:Boolean(prior),period,productionDeliveryEnabled:false});
   });}catch{deny()}
  }
+ /**
+  * Server-private, strictly owner-scoped dashboard projection. Excludes tokens,
+  * secret hashes, provider references, actor subjects and DNS challenge proofs.
+  * Refuses unexpectedly large response sets rather than silently truncating.
+  * This does NOT create or expose an HTTP endpoint.
+  */
+ readTenantDashboard({tenantId,actorSubject}={}){
+  this.#auth(tenantId,actorSubject);
+  const domains=this.db.prepare('SELECT domain,status FROM mmf_domains WHERE tenant_id=? ORDER BY domain LIMIT 11').all(tenantId);
+  const keys=this.db.prepare('SELECT key_id,scope,revoked FROM mmf_api_keys WHERE tenant_id=? ORDER BY key_id LIMIT 51').all(tenantId);
+  const orders=this.db.prepare('SELECT order_ref,plan_code,status,price_cents FROM mmf_subscriptions WHERE tenant_id=? ORDER BY created_ms DESC,order_ref LIMIT 101').all(tenantId);
+  if(domains.length>10||keys.length>50||orders.length>100)deny();
+  const usage=this.getUsage({tenantId,actorSubject});
+  const frozenRows=rows=>Object.freeze(rows.map(row=>Object.freeze(row)));
+  return Object.freeze({
+   tenantId,
+   domains:frozenRows(domains.map(x=>({domain:x.domain,status:x.status}))),
+   apiKeys:frozenRows(keys.map(x=>({keyId:x.key_id,scope:x.scope,revoked:x.revoked===1}))),
+   subscriptions:frozenRows(orders.map(x=>({orderReference:x.order_ref,planCode:x.plan_code,status:x.status,amountCents:x.price_cents}))),
+   usage,
+   canSendMail:false,canInitiatePayments:false,customerApiEnabled:false
+  });
+ }
  getUsage({tenantId,actorSubject}){
   this.#auth(tenantId,actorSubject);
   const period=new Date(ms(this.now())).toISOString().slice(0,7);
