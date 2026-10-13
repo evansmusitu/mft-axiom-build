@@ -1,0 +1,17 @@
+{
+  "name": "mft-nexus-chatbot-20261012",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "ENABLE_BUSINESS_AI": "false",
+    "AI_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "GRAPH_API_VERSION": "v23.0"
+  },
+  "observability": {
+    "enabled": false
+  }
+}
