@@ -1,0 +1,78 @@
+name: MFT AI NEXUS — isolated Cloudflare chatbot
+on:
+  push:
+    branches: ['feature/mft-ai-nexus-cloudflare-20261012']
+    paths: ['.github/workflows/mft-nexus-cloudflare-chatbot.yml']
+permissions:
+  contents: read
+concurrency:
+  group: isolated-mft-chatbot-deploy
+  cancel-in-progress: false
+jobs:
+  deploy-business-chatbot:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'feature/mft-ai-nexus-cloudflare-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TARGET: mft-nexus-chatbot-20261012
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test customer safety and webhook verification without provider access
+        run: |
+          set -euo pipefail
+          node --check chatbot/mft-ai-nexus/worker.mjs
+          node --test chatbot/mft-ai-nexus/worker.test.mjs
+      - name: Confirm scoped connection and exclusively new Worker name
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN,name=process.env.TARGET;
+          if(id!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20||name!=='mft-nexus-chatbot-20261012')throw Error('MFT_BOT_IDENTITY_OR_CREDENTIAL_ABSENT');
+          const base='https://api.cloudflare.com/client/v4/accounts/'+id;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});return {status:r.status,result:await r.json()};};
+          const a=await get('');
+          if(a.status!==200||a.result?.success!==true||a.result?.result?.id!==id)throw Error('MFT_BOT_ACCOUNT_AUTH_FAILED');
+          const w=await get('/workers/scripts/'+name+'/settings');
+          if(w.status!==404)throw Error('MFT_BOT_TARGET_EXISTS_OR_UNVERIFIED_STOP');
+          console.log('MFT_BOT_READONLY_AUTH_PASS_EXCLUSIVE_TARGET_ABSENT');
+          NODE
+      - name: Deploy isolated new Worker using existing scoped Cloudflare secret
+        working-directory: chatbot/mft-ai-nexus
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.129.0 deploy --config wrangler.jsonc
+      - name: Validate real public site and Cloudflare Worker bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN,name=process.env.TARGET;
+          const base='https://api.cloudflare.com/client/v4/accounts/'+id;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});const x=await r.json();if(r.status!==200||x.success!==true)throw Error('MFT_BOT_POSTDEPLOY_READBACK_FAILED');return x.result;};
+          const settings=await get('/workers/scripts/'+name+'/settings');
+          const sub=await get('/workers/subdomain');
+          if(!Array.isArray(settings.bindings)||!settings.bindings.some(b=>b.name==='AI'&&b.type==='ai')||!sub?.subdomain)throw Error('MFT_BOT_WORKER_BINDING_OR_SUBDOMAIN_MISSING');
+          const url='https://'+name+'.'+sub.subdomain+'.workers.dev';
+          let health,reply;
+          for(let i=0;i<6;i++){
+            try{
+              const h=await fetch(url+'/health',{signal:AbortSignal.timeout(15000)});
+              if(h.status!==200)throw Error('NO_HEALTH');
+              health=await h.json();
+              const c=await fetch(url+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Hi'}),signal:AbortSignal.timeout(15000)});
+              if(c.status!==200)throw Error('NO_CHAT');
+              reply=(await c.json()).reply;
+              break;
+            }catch(e){if(i===5)throw e;await new Promise(r=>setTimeout(r,2500));}
+          }
+          if(health.status!=='ok'||health.businessAI!==false||health.whatsappReady!==false||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_BETA_SAFETY_FAIL');
+          console.log(JSON.stringify({gate:'MFT_AI_NEXUS_LIVE_WEB_CHAT',result:'PASS',url,businessAI:false,liveWhatsApp:false,existingWorkersChanged:false}));
+          NODE
