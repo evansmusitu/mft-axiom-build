@@ -1,0 +1,227 @@
+test_bad_day_denied (test_quorum.ReplicaSuite.test_bad_day_denied) ... ok
+test_bad_scope_denied (test_quorum.ReplicaSuite.test_bad_scope_denied) ... ok
+test_conflicting_checkpoint_digest_denied (test_quorum.ReplicaSuite.test_conflicting_checkpoint_digest_denied) ... ERROR
+test_duplicate_voter_cannot_vote_twice (test_quorum.ReplicaSuite.test_duplicate_voter_cannot_vote_twice) ... ERROR
+test_forged_sig_denied (test_quorum.ReplicaSuite.test_forged_sig_denied) ... ERROR
+test_missing_pin_denied (test_quorum.ReplicaSuite.test_missing_pin_denied) ... ERROR
+test_missing_workload_digest_denied (test_quorum.ReplicaSuite.test_missing_workload_digest_denied) ... ok
+test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum (test_quorum.ReplicaSuite.test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum) ... ERROR
+test_one_voter_not_quorum (test_quorum.ReplicaSuite.test_one_voter_not_quorum) ... ok
+test_raced_restart_does_not_allow_second_vote (test_quorum.ReplicaSuite.test_raced_restart_does_not_allow_second_vote) ... ERROR
+test_receipt_key_injection_denied (test_quorum.ReplicaSuite.test_receipt_key_injection_denied) ... ERROR
+test_same_vote_receipt_counted_once (test_quorum.ReplicaSuite.test_same_vote_receipt_counted_once) ... ERROR
+test_sequence_rollback_denied (test_quorum.ReplicaSuite.test_sequence_rollback_denied) ... ERROR
+test_three_distinct_votes_allowed_not_three_dispatches (test_quorum.ReplicaSuite.test_three_distinct_votes_allowed_not_three_dispatches) ... ERROR
+test_two_rolledback_replicas_remain_not_certified (test_quorum.ReplicaSuite.test_two_rolledback_replicas_remain_not_certified) ... ERROR
+test_two_separate_witnesses_form_an_s0_audit_quorum (test_quorum.ReplicaSuite.test_two_separate_witnesses_form_an_s0_audit_quorum) ... ERROR
+test_unknown_voter_denied (test_quorum.ReplicaSuite.test_unknown_voter_denied) ... ERROR
+test_unsigned_proposal_not_an_external_identity (test_quorum.ReplicaSuite.test_unsigned_proposal_not_an_external_identity) ... ERROR
+test_wrong_pin_denied (test_quorum.ReplicaSuite.test_wrong_pin_denied) ... ERROR
+
+======================================================================
+ERROR: test_conflicting_checkpoint_digest_denied (test_quorum.ReplicaSuite.test_conflicting_checkpoint_digest_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 45, in test_conflicting_checkpoint_digest_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');bad=copy.deepcopy(self.p);bad['digest_sha256']='f'*64;self.assertDenied(lambda:self.quorum([a,b],proposal=bad))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_duplicate_voter_cannot_vote_twice (test_quorum.ReplicaSuite.test_duplicate_voter_cannot_vote_twice)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 39, in test_duplicate_voter_cannot_vote_twice
+    self.vote('voter-a');self.assertDenied(lambda:self.vote('voter-a'))
+    ~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_forged_sig_denied (test_quorum.ReplicaSuite.test_forged_sig_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 43, in test_forged_sig_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');b['signature_b64']=a['signature_b64'];self.assertDenied(lambda:self.quorum([a,b]))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_missing_pin_denied (test_quorum.ReplicaSuite.test_missing_pin_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 53, in test_missing_pin_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');self.assertDenied(lambda:self.quorum([a,b],pins={'voter-a':PINS['voter-a']}))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum (test_quorum.ReplicaSuite.test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 57, in test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum
+    votes=[self.vote(n) for n in NAMES]
+           ~~~~~~~~~^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_raced_restart_does_not_allow_second_vote (test_quorum.ReplicaSuite.test_raced_restart_does_not_allow_second_vote)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 55, in test_raced_restart_does_not_allow_second_vote
+    self.vote('voter-a');self.assertDenied(lambda:self.vote('voter-a'))
+    ~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_receipt_key_injection_denied (test_quorum.ReplicaSuite.test_receipt_key_injection_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 49, in test_receipt_key_injection_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');a['public_key_b64']=base64.b64encode(PINS['voter-a']).decode();self.assertDenied(lambda:self.quorum([a,b]))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_same_vote_receipt_counted_once (test_quorum.ReplicaSuite.test_same_vote_receipt_counted_once)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 41, in test_same_vote_receipt_counted_once
+    a=self.vote('voter-a');self.assertDenied(lambda:self.quorum([a,a]))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_sequence_rollback_denied (test_quorum.ReplicaSuite.test_sequence_rollback_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 74, in test_sequence_rollback_denied
+    self.vote('voter-a');p=copy.deepcopy(self.p);p['sequence']=2;p['nonce']='q-20261013-2'
+    ~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_three_distinct_votes_allowed_not_three_dispatches (test_quorum.ReplicaSuite.test_three_distinct_votes_allowed_not_three_dispatches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 35, in test_three_distinct_votes_allowed_not_three_dispatches
+    result=self.quorum([self.vote(n) for n in NAMES]);self.assertEqual(result['verified_votes'],3)
+                        ~~~~~~~~~^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_two_rolledback_replicas_remain_not_certified (test_quorum.ReplicaSuite.test_two_rolledback_replicas_remain_not_certified)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 67, in test_two_rolledback_replicas_remain_not_certified
+    for n in NAMES:self.vote(n)
+                   ~~~~~~~~~^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_two_separate_witnesses_form_an_s0_audit_quorum (test_quorum.ReplicaSuite.test_two_separate_witnesses_form_an_s0_audit_quorum)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 32, in test_two_separate_witnesses_form_an_s0_audit_quorum
+    result=self.quorum([self.vote('voter-a'),self.vote('voter-b')]);self.assertEqual(result['verified_votes'],2)
+                        ~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_unknown_voter_denied (test_quorum.ReplicaSuite.test_unknown_voter_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 47, in test_unknown_voter_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');b['voter_id']='rogue';self.assertDenied(lambda:self.quorum([a,b]))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_unsigned_proposal_not_an_external_identity (test_quorum.ReplicaSuite.test_unsigned_proposal_not_an_external_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 84, in test_unsigned_proposal_not_an_external_identity
+    result=self.quorum([self.vote('voter-a'),self.vote('voter-b')]);self.assertFalse(result['provider_dispatch_allowed'])
+                        ~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+======================================================================
+ERROR: test_wrong_pin_denied (test_quorum.ReplicaSuite.test_wrong_pin_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 51, in test_wrong_pin_denied
+    a=self.vote('voter-a');b=self.vote('voter-b');pin=copy.deepcopy(PINS);pin['voter-b']=PINS['voter-c'];self.assertDenied(lambda:self.quorum([a,b],pins=pin))
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/test/test_quorum.py", line 25, in vote
+    return cast_vote(self.root/f'{name}.sqlite',name,KEYS[name], proposal if proposal is not None else self.p, trusted_now=CLOCK)
+  File "/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py", line 4, in cast_vote
+    def cast_vote(*args,**kwargs):raise QuorumDenied('VOTER_MISSING')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+quorum.QuorumDenied: VOTER_MISSING
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.012s
+
+FAILED (errors=15)

@@ -1,0 +1,60 @@
+test_bad_day_denied (test_quorum.ReplicaSuite.test_bad_day_denied) ... ok
+test_bad_scope_denied (test_quorum.ReplicaSuite.test_bad_scope_denied) ... ok
+test_conflicting_checkpoint_digest_denied (test_quorum.ReplicaSuite.test_conflicting_checkpoint_digest_denied) ... ok
+test_duplicate_voter_cannot_vote_twice (test_quorum.ReplicaSuite.test_duplicate_voter_cannot_vote_twice) ... ok
+test_forged_sig_denied (test_quorum.ReplicaSuite.test_forged_sig_denied) ... ok
+test_missing_pin_denied (test_quorum.ReplicaSuite.test_missing_pin_denied) ... ok
+test_missing_workload_digest_denied (test_quorum.ReplicaSuite.test_missing_workload_digest_denied) ... ok
+test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum (test_quorum.ReplicaSuite.test_one_rolledback_replica_cannot_create_new_two_of_three_vote_quorum) ... /mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94220>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94400>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a944f0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a945e0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a946d0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a947c0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a948b0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a949a0>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94a90>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94b80>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94c70>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b25_work/candidate/ops/trackb25/quorum.py:55: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fd756a94d60>
+  db.execute('PRAGMA journal_mode=WAL')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_one_voter_not_quorum (test_quorum.ReplicaSuite.test_one_voter_not_quorum) ... ok
+test_raced_restart_does_not_allow_second_vote (test_quorum.ReplicaSuite.test_raced_restart_does_not_allow_second_vote) ... ok
+test_receipt_key_injection_denied (test_quorum.ReplicaSuite.test_receipt_key_injection_denied) ... ok
+test_same_vote_receipt_counted_once (test_quorum.ReplicaSuite.test_same_vote_receipt_counted_once) ... ok
+test_sequence_rollback_denied (test_quorum.ReplicaSuite.test_sequence_rollback_denied) ... ok
+test_three_distinct_votes_allowed_not_three_dispatches (test_quorum.ReplicaSuite.test_three_distinct_votes_allowed_not_three_dispatches) ... ok
+test_two_rolledback_replicas_remain_not_certified (test_quorum.ReplicaSuite.test_two_rolledback_replicas_remain_not_certified) ... ok
+test_two_separate_witnesses_form_an_s0_audit_quorum (test_quorum.ReplicaSuite.test_two_separate_witnesses_form_an_s0_audit_quorum) ... ok
+test_unknown_voter_denied (test_quorum.ReplicaSuite.test_unknown_voter_denied) ... ok
+test_unsigned_proposal_not_an_external_identity (test_quorum.ReplicaSuite.test_unsigned_proposal_not_an_external_identity) ... ok
+test_wrong_pin_denied (test_quorum.ReplicaSuite.test_wrong_pin_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.043s
+
+OK
