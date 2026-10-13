@@ -1,0 +1,88 @@
+name: MUSITU Store isolated immutable source export for handoff
+
+on:
+  push:
+    branches:
+      - handoff/musitu-store-whole-product-20261013
+    paths:
+      - '.github/workflows/musitu-store-whole-source-export-20261013.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-immutable-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact immutable source under review (not handoff branch)
+        uses: actions/checkout@v4
+        with:
+          ref: 929de8c3de282054bac239b128a37b0c7b749001
+          persist-credentials: false
+      - name: Export complete tracked MUSITU Store product source, support workflows, metadata and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess,hashlib,json,os,zipfile,stat,pathlib
+          root=pathlib.Path('.')
+          pinned='929de8c3de282054bac239b128a37b0c7b749001'
+          observed=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          assert observed==pinned,(observed,pinned)
+          names=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          paths=sorted(p for p in names if p and (
+            p.startswith('store/') or p.startswith('.github/workflows/musitu-store')
+            or p in ('README.md','SUPPORT.md')
+            or p.startswith('docs/store/')
+          ))
+          assert len([p for p in paths if p.startswith('store/')])>=120
+          assert len([p for p in paths if p.startswith('.github/workflows/musitu-store')])>=50
+          forbidden=['.env','.jks','.p12','.pfx','.keystore','.key','.sqlite','.db','.pem']
+          for p in paths:
+            name=p.lower()
+            if any(name.endswith(x) for x in forbidden) and not (
+              name.endswith('catalog-signing-public.pem') or name.endswith('signing-public.pem')):
+              raise SystemExit('SENSITIVE PRIVATE FILE PATH DETECTED: '+p)
+          os.makedirs('whole-product-source-export',exist_ok=True)
+          filename='whole-product-source-export/MUSITU_STORE_CURRENT_V2_GITHUB_TRACKED_SOURCE_929DE8C3DE28.zip'
+          members=[]
+          prefix='MUSITU_STORE_CURRENT_V2_GITHUB_SOURCE_929DE8C3DE28/'
+          with zipfile.ZipFile(filename,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=7) as z:
+            for p in paths:
+              path=root/p
+              raw=path.read_bytes()
+              sha=hashlib.sha256(raw).hexdigest()
+              blob=subprocess.check_output(['git','hash-object','--',p],text=True).strip()
+              members.append({'path':p,'size':len(raw),'sha256':sha,'git_blob':blob})
+              zi=zipfile.ZipInfo(prefix+p,date_time=(2026,10,13,0,0,0))
+              zi.compress_type=zipfile.ZIP_DEFLATED
+              zi.external_attr=(0o644<<16)
+              z.writestr(zi,raw,compress_type=zipfile.ZIP_DEFLATED,compresslevel=7)
+            manifest=''.join(f"{m['sha256']}  {m['path']}\n" for m in members)
+            z.writestr(prefix+'99_INTEGRITY/TRACKED_SOURCE_SHA256.txt',manifest)
+          meta={'schema':'musitu.store.pinned_git_snapshot.v1','repository':'evansmusitu/mft-axiom-build',
+            'immutable_source_commit':pinned,'source_branch':'feature/musitu-store-v2-package-state-20261012',
+            'store_files':sum(x['path'].startswith('store/') for x in members),
+            'store_workflows':sum(x['path'].startswith('.github/workflows/musitu-store') for x in members),
+            'total_files':len(members),'members':members,
+            'scope':'Complete Store tracked subtree and store workflows; unrelated Axiom infrastructure and private signing material excluded.',
+            'not_production_deployed':True}
+          with open('whole-product-source-export/CURRENT_GITHUB_SOURCE_FILES_AND_HASHES.json','w') as f:
+            json.dump(meta,f,sort_keys=True,indent=2)
+          digest=hashlib.sha256(open(filename,'rb').read()).hexdigest()
+          with open('whole-product-source-export/CURRENT_GITHUB_SOURCE_ZIP.sha256','w') as f:
+            f.write(digest+'  '+os.path.basename(filename)+'\n')
+          with zipfile.ZipFile(filename) as z:
+            assert len(z.namelist())==len(paths)+1
+            assert z.testzip() is None
+          print('STORE_FULL_CURRENT_SOURCE_EXPORT_PASS sha='+observed+' files='+str(len(members))+' store='+str(meta['store_files'])+' workflows='+str(meta['store_workflows'])+' zip_sha256='+digest)
+          PY
+      - name: Upload isolated reproducible product source export
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STORE_CURRENT_V2_SOURCE_EXPORT_20261013_929DE8C3DE28
+          path: whole-product-source-export/
+          retention-days: 30
+          if-no-files-found: error
