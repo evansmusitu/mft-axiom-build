@@ -41,7 +41,7 @@ The CI checks exercised real Cloudflare deployment and public HTTP behavior. Wha
 | Open Meta for Developers | Confirmed | Authenticated developer dashboard accessible. |
 | Inspect existing business apps | Confirmed | Fresh app inventory shows **No apps yet**; MFT Education NEXUS portfolio created. |
 | Find/create correct WhatsApp integration | App created | Meta dashboard confirms app ID 1775810357073694; sandbox onboarding prepared. |
-| Configure Meta test number | Blocked | Test WABA, sender and verified recipient not yet observed. |
+| Configure Meta test number | Sender confirmed; recipient verification pending | Test sender +1 555 663-7079 and its account/phone IDs observed; WhatsApp recipient verification sent. |
 | Connect Meta webhook | Backend ready; registration blocked | HMAC/challenge handling tested; authenticated Meta subscription not configured. |
 | Secure credentials | Blocked | Meta credentials unavailable; Cloudflare dashboard signed out. No secrets published. |
 | Use GitHub–Cloudflare connection | Confirmed | Successful scoped deployment run above. |
@@ -94,5 +94,11 @@ The owner explicitly approved creating **MFT AI NEXUS** and accepting Meta Platf
 ## Continuation checkpoint — Meta app creation confirmed
 
 Following the owner's secure manual password submission, Meta displayed the authenticated **MFT AI NEXUS** dashboard. App ID: `1775810357073694`; portfolio: **MFT Education NEXUS** (`2069296827284277`). App remains unpublished. Opening **Step 1. Try it out** showed a sandbox onboarding notice offering a test sender for a maximum of five recipient numbers. Its **Continue** action explicitly accepts separate **Facebook Terms for WhatsApp Business** and **Meta Hosting Terms for Cloud API**. That action is prepared for specific owner confirmation. A screenshot of this exact notice was captured without credentials. No Meta test sender/token is yet confirmed, no webhook subscription has been registered, and no real message delivery is verified. Production and billing remain off.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — WhatsApp sandbox assets provisioned
+
+The owner explicitly approved the displayed Facebook Terms for WhatsApp Business and Meta Hosting Terms for Cloud API. Meta's sandbox onboarding completed. Confirmed assets: test sender `+1 555 663-7079`, Phone Number ID `1292923853915392`, WhatsApp Business account ID `1955690452095441`. The live dashboard's sample uses Graph API `v25.0`. The access-token field says **Not generated yet**; no credential value was read or exposed. The owner-controlled line `+263781572008` was submitted as a recipient of free sandbox messages only. Meta confirmed sending a five-digit verification code on WhatsApp and is awaiting secure owner entry. This does not register, migrate, disconnect or replace that number as a business API sender. Cloudflare dashboard is signed out. Remaining steps: recipient verification, scoped test token, secure Worker settings, callback subscription and real inbound/reply/delivery testing. No outbound test message or delivered callback is yet verified.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
