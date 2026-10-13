@@ -37,11 +37,13 @@ jobs:
           instructions='You are the MFT EDUCATION NEXUS business assistant. This is an independent Zimbabwe A-Level education business, not ZIMSEC. Help prospective customers enquire about MFT study notes, past papers and marking schemes. Do not invent product inventory, prices, official exam guarantees or payment instructions. End by referring customers to WhatsApp 0781572008. Keep replies under 100 words.'
           prompts=['I am in Upper Six. Can I get Chemistry study notes?', 'Do your 2026 examination predictions guarantee the exact questions?']
           for idx,p in enumerate(prompts,1):
-              obj=req('/ai/run/'+model,{'model':model,'messages':[{'role':'system','content':instructions},{'role':'user','content':p}],'max_completion_tokens':360,'temperature':0,'stream':False})
+              obj=req('/ai/run/'+model,{'model':model,'messages':[{'role':'system','content':instructions},{'role':'user','content':p}],'max_completion_tokens':1024,'temperature':0,'stream':False})
               choices=obj.get('choices') or []
               message=choices[0].get('message') if choices and isinstance(choices[0],dict) else {}
               response=message.get('content') if isinstance(message,dict) else None
-              if not isinstance(response,str) or len(response.strip())<20:raise SystemExit('MFT_AI_PROBE_EMPTY_RESPONSE')
+              if not isinstance(response,str) or len(response.strip())<20:
+                  print('MFT_AI_DIAGNOSTIC='+json.dumps({'result_keys':list(obj.keys()),'message_keys':list(message.keys()) if isinstance(message,dict) else [],'choice_count':len(choices)},sort_keys=True))
+                  raise SystemExit('MFT_AI_PROBE_EMPTY_RESPONSE')
               flags={'references_contact':'0781572008' in response,'avoids_dollar_pricing':'$' not in response,'nonempty':True}
               print('MFT_AI_PROBE_'+str(idx)+'_PASS='+json.dumps(flags,sort_keys=True))
           print('MFT_AI_FREE_MODEL_SCOPED_TWO_CALLS_VERIFIED_NO_WORKER_WRITES')
