@@ -1,0 +1,123 @@
+name: MMF Private Synthetic Seed-Read-Clear Without Restart 20261013
+# One-time bounded synthetic SQL seed/read/clear AFTER independent no-residue proof.
+# NO remote stage deploy, NO restart, NO customer API, no payment/sending/ingress.
+# Synthetic cleanup is attempted even after uncertain seed acknowledgement.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-private-remote-seed-read-clear-20261013.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-seed-read-clear-20261013
+  cancel-in-progress: false
+jobs:
+  private-closed-stage-readback:
+    if: github.event.before == '558b799289d3417954b3b5b6487f9afbdf5880ae'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned isolated source and protected refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "$(git rev-parse HEAD^)" = '558b799289d3417954b3b5b6487f9afbdf5880ae'
+          node --input-type=module <<'NODE'
+          const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN,accept:'application/vnd.github+json'},signal:AbortSignal.timeout(12000)});
+            if(!r.ok)throw Error('MMF_PROTECTED_READ_UNAVAILABLE');return r.json()};
+          const [main,pr]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||
+             pr.state!=='open'||pr.draft!==true||pr.merged!==false)
+            throw Error('MMF_PROTECTED_CONTROL_DRIFT_DENIED');
+          console.log('MMF_PROTECTED_BRANCH_PR_VERIFIED');
+          NODE
+      - name: Contract tests and unchanged commercial-block gate
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/staging/mmf-private-remote-occupancy-inspect.mjs
+          node --check src/staging/mmf-private-remote-seed-clear-qualification.mjs
+          node --test test/mmf-private-remote-occupancy-inspect.test.mjs test/mmf-private-remote-seed-clear-qualification.test.mjs
+          npm run check
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-commercial-denied.log" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q 'BLOCKED' "$RUNNER_TEMP/mmf-commercial-denied.log"
+      - name: GET-only Cloudflare private and shared-Worker control-plane preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(account!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_TOKEN_UNAVAILABLE');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/`;
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+token,'cache-control':'no-store'},signal:AbortSignal.timeout(20000)});
+            if(r.status!==200)throw Error('MMF_CLOUD_GET_DENIED');const j=await r.json();if(j.success!==true)throw Error('MMF_CLOUD_GET_DENIED');return j.result};
+          const n='mmf-commercial-private-sqlite-stage-20261012';
+          const [settings,sub,secrets]=await Promise.all([get(n+'/settings'),get(n+'/subdomain'),get(n+'/secrets')]);
+          const bs=settings.bindings||[];
+          const vars=['MMF_STAGE_ONLY','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_MAIL_SENDING_ENABLED'];
+          if(sub.enabled!==false||sub.previews_enabled!==false||!Array.isArray(secrets)||secrets.length!==0||bs.length!==6||
+             vars.some(name=>bs.filter(b=>b.name===name&&b.type==='plain_text'&&b.text==='false').length!==1)||
+             bs.filter(b=>b.type==='durable_object_namespace'&&b.name==='MMF_COMMERCIAL_PRIVATE_STAGE'&&b.class_name==='MmfCommercialPrivateStageDO').length!==1)
+            throw Error('MMF_PRIVATE_STAGE_FLAGS_OR_BINDING_DRIFT');
+          for(const other of ['mft-phase8-external-authority','mft-paynow-transport-gateway']){
+            const x=await get(other+'/settings');if(!Array.isArray(x.bindings))throw Error('MMF_SHARED_WORKER_READ_UNAVAILABLE');
+          }
+          console.log(JSON.stringify({gate:'MMF_CLOSED_STAGE_GETONLY_PREFLIGHT_PASS',commercialEnabled:false,sendingEnabled:false,customerApiEnabled:false,privateSubdomain:false,sharedWorkersInspected:2,cloudflareDeploy:false}));
+          NODE
+      - name: Bounded synthetic seed-read-clear after remote empty preflight; no restart
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          LOG="$RUNNER_TEMP/mmf-remote-diagnostic-local.log"
+          npx --yes wrangler@4 dev --config wrangler.mmf.private-cloud-local-probe.jsonc --ip 127.0.0.1 --port 8796 > "$LOG" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8796/health > /dev/null 2>&1; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$READY" -ne 1 ]; then echo MMF_PRIVATE_DIAGNOSTIC_LOOPBACK_UNAVAILABLE; exit 2; fi
+          node src/staging/mmf-private-remote-occupancy-inspect.mjs > "$RUNNER_TEMP/mmf-remote-preflight.json"
+          grep -q MMF_PRIVATE_REMOTE_READBACK_EMPTY_PROVEN "$RUNNER_TEMP/mmf-remote-preflight.json"
+          node src/staging/mmf-private-remote-seed-clear-qualification.mjs | tee "$RUNNER_TEMP/mmf-remote-readback-evidence.json"
+          grep -q MMF_PRIVATE_REMOTE_SYNTHETIC_SEED_READ_CLEAR_PROVEN "$RUNNER_TEMP/mmf-remote-readback-evidence.json"
+          node src/staging/mmf-private-remote-occupancy-inspect.mjs > "$RUNNER_TEMP/mmf-remote-postflight.json"
+          grep -q MMF_PRIVATE_REMOTE_READBACK_EMPTY_PROVEN "$RUNNER_TEMP/mmf-remote-postflight.json"
+      - name: Persist redacted proof only if remote readback passes
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-synthetic-seed-read-clear-20261013
+          path: ${{ runner.temp }}/mmf-remote-readback-evidence.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Erase temporary diagnostic material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/mmf-commercial-denied.log" "$RUNNER_TEMP/mmf-remote-readback-evidence.json" "$RUNNER_TEMP/mmf-remote-preflight.json" "$RUNNER_TEMP/mmf-remote-postflight.json"
