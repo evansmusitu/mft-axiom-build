@@ -1,0 +1,297 @@
+TAP version 13
+# Subtest: hash binds the exact canonical payload regardless of property order
+not ok 1 - hash binds the exact canonical payload regardless of property order
+  ---
+  duration_ms: 1.895535
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:24:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected "actual" to be strictly unequal to:
+    
+    '0000000000000000000000000000000000000000000000000000000000000000'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0000000000000000000000000000000000000000000000000000000000000000'
+  actual: '0000000000000000000000000000000000000000000000000000000000000000'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:28:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: rejects changed model request before quota reservation or model send
+not ok 2 - rejects changed model request before quota reservation or model send
+  ---
+  duration_ms: 1.111661
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:30:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:35:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects an unapproved model before the quota or provider
+not ok 3 - rejects an unapproved model before the quota or provider
+  ---
+  duration_ms: 0.436854
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:38:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:39:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects prompt containing untrusted endpoint property
+not ok 4 - rejects prompt containing untrusted endpoint property
+  ---
+  duration_ms: 0.287904
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:41:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:43:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects overly large message before admission
+not ok 5 - rejects overly large message before admission
+  ---
+  duration_ms: 1.387755
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:46:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects output-token limit bypass
+not ok 6 - rejects output-token limit bypass
+  ---
+  duration_ms: 0.269585
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:48:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:49:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects poisoned own prototype keys and noncanonical unsupported types
+not ok 7 - rejects poisoned own prototype keys and noncanonical unsupported types
+  ---
+  duration_ms: 0.31169
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:51:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:53:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rejects invalid signed request schema before reserve
+not ok 8 - rejects invalid signed request schema before reserve
+  ---
+  duration_ms: 0.193217
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:57:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: positive reservation permits exactly one trusted provider call
+not ok 9 - positive reservation permits exactly one trusted provider call
+  ---
+  duration_ms: 0.709387
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:59:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:60:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: duplicate receipt never calls provider
+not ok 10 - duplicate receipt never calls provider
+  ---
+  duration_ms: 0.627511
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:63:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:65:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: signed quota denial never calls provider
+not ok 11 - signed quota denial never calls provider
+  ---
+  duration_ms: 0.595214
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:67:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:69:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: forged admission receipt with wrong operation cannot dispatch
+not ok 12 - forged admission receipt with wrong operation cannot dispatch
+  ---
+  duration_ms: 0.300471
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:71:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:72:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: malformed admission receipt cannot dispatch
+not ok 13 - malformed admission receipt cannot dispatch
+  ---
+  duration_ms: 0.527123
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:74:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:75:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: provider error burns reservation and returns uncertain outcome rather than retry
+not ok 14 - provider error burns reservation and returns uncertain outcome rather than retry
+  ---
+  duration_ms: 0.285214
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:77:1'
+  failureType: 'testCodeFailure'
+  error: 'synthetic upstream error'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    send (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:78:46)
+    sendProvider (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:19:176)
+    guardedDispatch (file:///mnt/data/axiom_b17_candidate/ops/trackb17/dispatch_guard.mjs:4:9)
+    harness (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:19:21)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:78:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: UTC rollover after reservation blocks provider send
+not ok 15 - UTC rollover after reservation blocks provider send
+  ---
+  duration_ms: 0.219612
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:81:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:83:38)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: quota service transport exception cannot trigger provider send
+not ok 16 - quota service transport exception cannot trigger provider send
+  ---
+  duration_ms: 0.193372
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:85:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:86:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 0
+# fail 16
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 92.211958

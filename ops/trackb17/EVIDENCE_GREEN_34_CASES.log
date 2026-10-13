@@ -1,0 +1,214 @@
+TAP version 13
+# Subtest: hash binds the exact canonical payload regardless of property order
+ok 1 - hash binds the exact canonical payload regardless of property order
+  ---
+  duration_ms: 11.751784
+  type: 'test'
+  ...
+# Subtest: rejects changed model request before quota reservation or model send
+ok 2 - rejects changed model request before quota reservation or model send
+  ---
+  duration_ms: 2.661843
+  type: 'test'
+  ...
+# Subtest: rejects an unapproved model before the quota or provider
+ok 3 - rejects an unapproved model before the quota or provider
+  ---
+  duration_ms: 1.580373
+  type: 'test'
+  ...
+# Subtest: rejects prompt containing untrusted endpoint property
+ok 4 - rejects prompt containing untrusted endpoint property
+  ---
+  duration_ms: 0.792957
+  type: 'test'
+  ...
+# Subtest: rejects overly large message before admission
+ok 5 - rejects overly large message before admission
+  ---
+  duration_ms: 1.207847
+  type: 'test'
+  ...
+# Subtest: rejects output-token limit bypass
+ok 6 - rejects output-token limit bypass
+  ---
+  duration_ms: 2.997708
+  type: 'test'
+  ...
+# Subtest: rejects poisoned own prototype keys and noncanonical unsupported types
+ok 7 - rejects poisoned own prototype keys and noncanonical unsupported types
+  ---
+  duration_ms: 0.55284
+  type: 'test'
+  ...
+# Subtest: rejects invalid signed request schema before reserve
+ok 8 - rejects invalid signed request schema before reserve
+  ---
+  duration_ms: 1.492281
+  type: 'test'
+  ...
+# Subtest: positive reservation permits exactly one trusted provider call
+ok 9 - positive reservation permits exactly one trusted provider call
+  ---
+  duration_ms: 3.07703
+  type: 'test'
+  ...
+# Subtest: duplicate receipt never calls provider
+ok 10 - duplicate receipt never calls provider
+  ---
+  duration_ms: 1.5914
+  type: 'test'
+  ...
+# Subtest: signed quota denial never calls provider
+ok 11 - signed quota denial never calls provider
+  ---
+  duration_ms: 1.300773
+  type: 'test'
+  ...
+# Subtest: forged admission receipt with wrong operation cannot dispatch
+ok 12 - forged admission receipt with wrong operation cannot dispatch
+  ---
+  duration_ms: 1.028864
+  type: 'test'
+  ...
+# Subtest: malformed admission receipt cannot dispatch
+ok 13 - malformed admission receipt cannot dispatch
+  ---
+  duration_ms: 1.875525
+  type: 'test'
+  ...
+# Subtest: provider error burns reservation and returns uncertain outcome rather than retry
+ok 14 - provider error burns reservation and returns uncertain outcome rather than retry
+  ---
+  duration_ms: 1.269542
+  type: 'test'
+  ...
+# Subtest: UTC rollover after reservation blocks provider send
+ok 15 - UTC rollover after reservation blocks provider send
+  ---
+  duration_ms: 1.285862
+  type: 'test'
+  ...
+# Subtest: quota service transport exception cannot trigger provider send
+ok 16 - quota service transport exception cannot trigger provider send
+  ---
+  duration_ms: 1.834531
+  type: 'test'
+  ...
+# Subtest: trusted Cloudflare model identifier is allowed and bound to hash
+ok 17 - trusted Cloudflare model identifier is allowed and bound to hash
+  ---
+  duration_ms: 1.98472
+  type: 'test'
+  ...
+# Subtest: receipt with missing grant ID is never sufficient for provider call
+ok 18 - receipt with missing grant ID is never sufficient for provider call
+  ---
+  duration_ms: 1.456584
+  type: 'test'
+  ...
+# Subtest: unknown or spoofed quota status cannot authorize provider invocation
+ok 19 - unknown or spoofed quota status cannot authorize provider invocation
+  ---
+  duration_ms: 1.082231
+  type: 'test'
+  ...
+# Subtest: synthetic two-worker replay emits only one provider request under shared atomic ledger
+ok 20 - synthetic two-worker replay emits only one provider request under shared atomic ledger
+  ---
+  duration_ms: 1.989548
+  type: 'test'
+  ...
+# Subtest: hash-bound payload cannot be changed by provider-side callback prior to send
+ok 21 - hash-bound payload cannot be changed by provider-side callback prior to send
+  ---
+  duration_ms: 1.390922
+  type: 'test'
+  ...
+# Subtest: quota-substituted stub and public bucket mismatch cannot cause provider send
+ok 22 - quota-substituted stub and public bucket mismatch cannot cause provider send
+  ---
+  duration_ms: 1.061968
+  type: 'test'
+  ...
+# Subtest: denial result must be uppercase typed policy reason
+ok 23 - denial result must be uppercase typed policy reason
+  ---
+  duration_ms: 1.094793
+  type: 'test'
+  ...
+# Subtest: failed transport does not expose provider prompt in outcome
+ok 24 - failed transport does not expose provider prompt in outcome
+  ---
+  duration_ms: 1.017532
+  type: 'test'
+  ...
+# Subtest: attack: forged quota receipt with status but no identifier fails closed
+ok 25 - attack: forged quota receipt with status but no identifier fails closed
+  ---
+  duration_ms: 11.072151
+  type: 'test'
+  ...
+# Subtest: attack: mutated signed hash binding is denied before quota
+ok 26 - attack: mutated signed hash binding is denied before quota
+  ---
+  duration_ms: 2.167566
+  type: 'test'
+  ...
+# Subtest: attack: forged caller-selected RPC bucket cannot trigger provider
+ok 27 - attack: forged caller-selected RPC bucket cannot trigger provider
+  ---
+  duration_ms: 1.003387
+  type: 'test'
+  ...
+# Subtest: attack: missing trusted Durable Object namespace cannot dispatch
+ok 28 - attack: missing trusted Durable Object namespace cannot dispatch
+  ---
+  duration_ms: 0.952443
+  type: 'test'
+  ...
+# Subtest: attack: unknown quota outcome is never treated as admitted
+ok 29 - attack: unknown quota outcome is never treated as admitted
+  ---
+  duration_ms: 0.890364
+  type: 'test'
+  ...
+# Subtest: attack: remote denial with attacker payload is not propagated as success
+ok 30 - attack: remote denial with attacker payload is not propagated as success
+  ---
+  duration_ms: 1.735234
+  type: 'test'
+  ...
+# Subtest: attack: remote quota database failure denies external send
+ok 31 - attack: remote quota database failure denies external send
+  ---
+  duration_ms: 2.815034
+  type: 'test'
+  ...
+# Subtest: attack: provider fail after reservation has no automatic retry
+ok 32 - attack: provider fail after reservation has no automatic retry
+  ---
+  duration_ms: 0.842895
+  type: 'test'
+  ...
+# Subtest: attack: malicious output-token choice rejected before reservation
+ok 33 - attack: malicious output-token choice rejected before reservation
+  ---
+  duration_ms: 1.397005
+  type: 'test'
+  ...
+# Subtest: attack: malicious agent-provided endpoint fails strict payload schema
+ok 34 - attack: malicious agent-provided endpoint fails strict payload schema
+  ---
+  duration_ms: 1.202557
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 113.109044

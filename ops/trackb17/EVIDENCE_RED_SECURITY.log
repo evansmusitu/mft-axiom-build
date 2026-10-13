@@ -1,0 +1,180 @@
+TAP version 13
+# Subtest: hash binds the exact canonical payload regardless of property order
+ok 1 - hash binds the exact canonical payload regardless of property order
+  ---
+  duration_ms: 24.782254
+  type: 'test'
+  ...
+# Subtest: rejects changed model request before quota reservation or model send
+ok 2 - rejects changed model request before quota reservation or model send
+  ---
+  duration_ms: 4.605417
+  type: 'test'
+  ...
+# Subtest: rejects an unapproved model before the quota or provider
+ok 3 - rejects an unapproved model before the quota or provider
+  ---
+  duration_ms: 0.884465
+  type: 'test'
+  ...
+# Subtest: rejects prompt containing untrusted endpoint property
+ok 4 - rejects prompt containing untrusted endpoint property
+  ---
+  duration_ms: 0.603615
+  type: 'test'
+  ...
+# Subtest: rejects overly large message before admission
+ok 5 - rejects overly large message before admission
+  ---
+  duration_ms: 8.230529
+  type: 'test'
+  ...
+# Subtest: rejects output-token limit bypass
+ok 6 - rejects output-token limit bypass
+  ---
+  duration_ms: 1.137382
+  type: 'test'
+  ...
+# Subtest: rejects poisoned own prototype keys and noncanonical unsupported types
+ok 7 - rejects poisoned own prototype keys and noncanonical unsupported types
+  ---
+  duration_ms: 0.324715
+  type: 'test'
+  ...
+# Subtest: rejects invalid signed request schema before reserve
+ok 8 - rejects invalid signed request schema before reserve
+  ---
+  duration_ms: 5.971156
+  type: 'test'
+  ...
+# Subtest: positive reservation permits exactly one trusted provider call
+ok 9 - positive reservation permits exactly one trusted provider call
+  ---
+  duration_ms: 1.131905
+  type: 'test'
+  ...
+# Subtest: duplicate receipt never calls provider
+ok 10 - duplicate receipt never calls provider
+  ---
+  duration_ms: 5.416725
+  type: 'test'
+  ...
+# Subtest: signed quota denial never calls provider
+ok 11 - signed quota denial never calls provider
+  ---
+  duration_ms: 0.883691
+  type: 'test'
+  ...
+# Subtest: forged admission receipt with wrong operation cannot dispatch
+ok 12 - forged admission receipt with wrong operation cannot dispatch
+  ---
+  duration_ms: 4.880974
+  type: 'test'
+  ...
+# Subtest: malformed admission receipt cannot dispatch
+ok 13 - malformed admission receipt cannot dispatch
+  ---
+  duration_ms: 3.293449
+  type: 'test'
+  ...
+# Subtest: provider error burns reservation and returns uncertain outcome rather than retry
+ok 14 - provider error burns reservation and returns uncertain outcome rather than retry
+  ---
+  duration_ms: 2.561004
+  type: 'test'
+  ...
+# Subtest: UTC rollover after reservation blocks provider send
+ok 15 - UTC rollover after reservation blocks provider send
+  ---
+  duration_ms: 1.987703
+  type: 'test'
+  ...
+# Subtest: quota service transport exception cannot trigger provider send
+ok 16 - quota service transport exception cannot trigger provider send
+  ---
+  duration_ms: 5.560641
+  type: 'test'
+  ...
+# Subtest: trusted Cloudflare model identifier is allowed and bound to hash
+not ok 17 - trusted Cloudflare model identifier is allowed and bound to hash
+  ---
+  duration_ms: 0.33029
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:89:1'
+  failureType: 'testCodeFailure'
+  error: 'MODEL_SCOPE_DENIED'
+  code: 'MODEL_SCOPE_DENIED'
+  name: 'GateDenied'
+  stack: |-
+    serialize (file:///mnt/data/axiom_b17_candidate/ops/trackb17/dispatch_guard.mjs:47:63)
+    digestPayload (file:///mnt/data/axiom_b17_candidate/ops/trackb17/dispatch_guard.mjs:64:57)
+    harness (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:14:21)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:91:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: receipt with missing grant ID is never sufficient for provider call
+not ok 18 - receipt with missing grant ID is never sufficient for provider call
+  ---
+  duration_ms: 6.899224
+  type: 'test'
+  location: '/mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:94:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:22:32)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_b17_candidate/ops/trackb17/test/dispatch_guard.test.mjs:95:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unknown or spoofed quota status cannot authorize provider invocation
+ok 19 - unknown or spoofed quota status cannot authorize provider invocation
+  ---
+  duration_ms: 4.584933
+  type: 'test'
+  ...
+# Subtest: synthetic two-worker replay emits only one provider request under shared atomic ledger
+ok 20 - synthetic two-worker replay emits only one provider request under shared atomic ledger
+  ---
+  duration_ms: 4.716577
+  type: 'test'
+  ...
+# Subtest: hash-bound payload cannot be changed by provider-side callback prior to send
+ok 21 - hash-bound payload cannot be changed by provider-side callback prior to send
+  ---
+  duration_ms: 1.157501
+  type: 'test'
+  ...
+# Subtest: quota-substituted stub and public bucket mismatch cannot cause provider send
+ok 22 - quota-substituted stub and public bucket mismatch cannot cause provider send
+  ---
+  duration_ms: 2.020998
+  type: 'test'
+  ...
+# Subtest: denial result must be uppercase typed policy reason
+ok 23 - denial result must be uppercase typed policy reason
+  ---
+  duration_ms: 3.424253
+  type: 'test'
+  ...
+# Subtest: failed transport does not expose provider prompt in outcome
+ok 24 - failed transport does not expose provider prompt in outcome
+  ---
+  duration_ms: 2.489264
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 22
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 241.672981
