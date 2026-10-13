@@ -28,21 +28,48 @@ async function sendWhatsApp(env,to,body){
   const r=await fetch(url,{method:'POST',headers:{authorization:'Bearer '+env.WHATSAPP_ACCESS_TOKEN,'content-type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to,type:'text',text:{body:body.slice(0,3800)}})});
   if(!r.ok)console.error('WhatsApp send status',r.status);
 }
+function whatsappEnabled(env){
+  return env.ENABLE_WHATSAPP_MESSAGES==='true'&&Boolean(env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN&&env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN&&env.AI_BUDGET);
+}
 async function receiveWhatsApp(obj,env){
-  if(obj?.object!=='whatsapp_business_account')return;
-  for(const entry of obj.entry||[])for(const change of entry.changes||[])for(const msg of change.value?.messages||[]){
-    if(msg?.type!=='text'||typeof msg.text?.body!=='string'||typeof msg.from!=='string')continue;
-    if(env.DEDUPE&&msg.id){if(await env.DEDUPE.get(msg.id))continue;await env.DEDUPE.put(msg.id,'1',{expirationTtl:86400});}
-    await sendWhatsApp(env,msg.from,await smartAnswer(msg.text.body,env));
+  if(!whatsappEnabled(env)||obj?.object!=='whatsapp_business_account')return;
+  for(const entry of obj.entry||[])for(const change of entry.changes||[]){
+    if(change.field!=='messages'||String(change.value?.metadata?.phone_number_id||'')!==String(env.WHATSAPP_PHONE_NUMBER_ID))continue;
+    for(const msg of change.value?.messages||[]){
+      if(!msg?.id||msg.type!=='text'||typeof msg.text?.body!=='string'||!/^\d{8,15}$/.test(msg.from||''))continue;
+      try{
+        const bucket=env.AI_BUDGET.get(env.AI_BUDGET.idFromName('mft-education-nexus-global'));
+        const receipt=await bucket.fetch('https://internal/whatsapp-event',{method:'POST',body:JSON.stringify({id:msg.id})});
+        if(!receipt.ok||(await receipt.json()).allowed!==true)continue;
+      }catch{continue;}
+      await sendWhatsApp(env,msg.from,await smartAnswer(msg.text.body,env));
+    }
   }
 }
 
 export class MftAiDailyQuota {
   constructor(state,env){this.state=state;this.env=env;}
   async fetch(req){
-    if(new URL(req.url).pathname!=='/claim')return new Response('Not found',{status:404});
+    const path=new URL(req.url).pathname;
+    if(path!=='/claim'&&path!=='/whatsapp-event')return new Response('Not found',{status:404});
     try{
       const sql=this.state.storage.sql;
+      if(path==='/whatsapp-event'){
+        if(req.method!=='POST')return json({allowed:false},405);
+        const data=await req.json();
+        if(typeof data?.id!=='string'||data.id.length<4||data.id.length>200)return json({allowed:false},400);
+        const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(data.id)));
+        const digest=Array.from(hash,b=>b.toString(16).padStart(2,'0')).join('');
+        sql.exec('CREATE TABLE IF NOT EXISTS wa_seen (digest TEXT PRIMARY KEY, received_at INTEGER NOT NULL)');
+        const now=Date.now(),dayStart=now-86400000;
+        sql.exec('DELETE FROM wa_seen WHERE received_at < ?1',now-172800000);
+        const seen=[...sql.exec('SELECT digest FROM wa_seen WHERE digest=?1',digest)];
+        if(seen.length)return json({allowed:false,reason:'duplicate'});
+        const today=[...sql.exec('SELECT COUNT(*) AS n FROM wa_seen WHERE received_at >= ?1',dayStart)];
+        if((today[0]?.n||0)>=100)return json({allowed:false,reason:'whatsapp_daily_limit'});
+        const added=[...sql.exec('INSERT OR IGNORE INTO wa_seen (digest,received_at) VALUES (?1,?2) RETURNING digest',digest,now)];
+        return json({allowed:added.length===1});
+      }
       sql.exec('CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, used INTEGER NOT NULL)');
       const today=new Date().toISOString().slice(0,10);
       const rows=[...sql.exec('INSERT INTO daily(day,used) VALUES (?1,1) ON CONFLICT(day) DO UPDATE SET used=used+1 WHERE used<20 RETURNING used',today)];
@@ -72,7 +99,7 @@ export async function smartAnswer(message,env={}){
 export default {async fetch(req,env={},ctx={waitUntil(){}}){
   const u=new URL(req.url);
   if(req.method==='GET'&&u.pathname==='/')return new Response(PAGE,{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'",'x-content-type-options':'nosniff'}});
-  if(req.method==='GET'&&u.pathname==='/health')return json({status:'ok',service:'MFT EDUCATION NEXUS',businessAI:env.ENABLE_BUSINESS_AI==='true'&&Boolean(env.AI)&&Boolean(env.AI_BUDGET),whatsappReady:Boolean(env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN&&env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN)});
+  if(req.method==='GET'&&u.pathname==='/health')return json({status:'ok',service:'MFT EDUCATION NEXUS',businessAI:env.ENABLE_BUSINESS_AI==='true'&&Boolean(env.AI)&&Boolean(env.AI_BUDGET),whatsappReady:whatsappEnabled(env)});
   if(req.method==='POST'&&u.pathname==='/api/chat'){
     const raw=await req.text();if(raw.length>12000)return json({error:'Request too long'},413);
     let data;try{data=JSON.parse(raw)}catch{return json({error:'Invalid JSON'},400)}
@@ -88,6 +115,7 @@ export default {async fetch(req,env={},ctx={waitUntil(){}}){
     const raw=await req.text();if(raw.length>1000000)return new Response('Too large',{status:413});
     if(!(await signed(raw,req.headers.get('x-hub-signature-256'),env.WHATSAPP_APP_SECRET)))return new Response('Unauthorized',{status:401});
     let obj;try{obj=JSON.parse(raw)}catch{return new Response('Invalid JSON',{status:400})}
+    if(!whatsappEnabled(env))return new Response('WhatsApp not activated',{status:503});
     ctx.waitUntil(receiveWhatsApp(obj,env).catch(()=>console.error('WhatsApp webhook failure')));
     return new Response('EVENT_RECEIVED',{status:200});
   }
