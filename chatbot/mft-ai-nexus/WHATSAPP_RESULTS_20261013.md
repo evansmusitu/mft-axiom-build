@@ -40,7 +40,7 @@ The CI checks exercised real Cloudflare deployment and public HTTP behavior. Wha
 | --- | --- | --- |
 | Open Meta for Developers | Confirmed | Authenticated developer dashboard accessible. |
 | Inspect existing business apps | Confirmed | Fresh app inventory shows **No apps yet**; MFT Education NEXUS portfolio created. |
-| Find/create correct WhatsApp integration | Pending re-authentication | MFT AI NEXUS wizard prepared and explicit terms approval received; creation awaits password submission. |
+| Find/create correct WhatsApp integration | App created | Meta dashboard confirms app ID 1775810357073694; sandbox onboarding prepared. |
 | Configure Meta test number | Blocked | Test WABA, sender and verified recipient not yet observed. |
 | Connect Meta webhook | Backend ready; registration blocked | HMAC/challenge handling tested; authenticated Meta subscription not configured. |
 | Secure credentials | Blocked | Meta credentials unavailable; Cloudflare dashboard signed out. No secrets published. |
@@ -88,5 +88,11 @@ The owner authorized proceeding with the prepared MFT app. Creation reached Meta
 ## Continuation checkpoint — explicit terms approval received
 
 The owner explicitly approved creating **MFT AI NEXUS** and accepting Meta Platform Terms, Developer Policies and applicable app terms. The approved final action reached Meta's password re-authentication dialog. The secure browser-auth request timed out; no credential values were exposed. After the browser runtime expired, a fresh authenticated app inventory again showed **No apps yet**, so creation is not confirmed. The wizard was restored with the same WhatsApp-only use case and existing portfolio, and the approved creation action again reached **Please re-enter your password**. The browser is prepared for manual secure password entry and submission, without another automated credential request. Next: verify an actual app ID, configure Meta's test sender and Worker secrets, and perform real delivery tests. No production-number operation or billing action occurred.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — Meta app creation confirmed
+
+Following the owner's secure manual password submission, Meta displayed the authenticated **MFT AI NEXUS** dashboard. App ID: `1775810357073694`; portfolio: **MFT Education NEXUS** (`2069296827284277`). App remains unpublished. Opening **Step 1. Try it out** showed a sandbox onboarding notice offering a test sender for a maximum of five recipient numbers. Its **Continue** action explicitly accepts separate **Facebook Terms for WhatsApp Business** and **Meta Hosting Terms for Cloud API**. That action is prepared for specific owner confirmation. A screenshot of this exact notice was captured without credentials. No Meta test sender/token is yet confirmed, no webhook subscription has been registered, and no real message delivery is verified. Production and billing remain off.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
