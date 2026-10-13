@@ -64,21 +64,24 @@ jobs:
           const sub=await get('/workers/subdomain');
           if(!Array.isArray(settings.bindings)||(!settings.bindings.some(b=>b.name==='AI'&&b.type==='ai')||!settings.bindings.some(b=>b.name==='AI_BUDGET'&&b.type==='durable_object_namespace'))||!sub?.subdomain)throw Error('MFT_BOT_WORKER_BINDING_OR_SUBDOMAIN_MISSING');
           const url='https://'+name+'.'+sub.subdomain+'.workers.dev';
+          const {readFile}=await import('node:fs/promises');
+          const config=JSON.parse(await readFile('chatbot/mft-ai-nexus/wrangler.jsonc','utf8'));
+          const expectedWhatsApp=config.vars?.ENABLE_WHATSAPP_MESSAGES==='true';
           let health,reply;
-          for(let i=0;i<6;i++){
+          for(let i=0;i<15;i++){
             try{
               const h=await fetch(url+'/health',{signal:AbortSignal.timeout(15000)});
               if(h.status!==200)throw Error('NO_HEALTH');
               health=await h.json();
+              // Cloudflare may briefly serve the previous Worker version after deploy.
+              // Require the expected release flag before declaring a propagated deployment.
+              if(health.whatsappReady!==expectedWhatsApp)throw Error('WAITING_FOR_DEPLOY_PROPAGATION');
               const c=await fetch(url+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Hi'}),signal:AbortSignal.timeout(15000)});
               if(c.status!==200)throw Error('NO_CHAT');
               reply=(await c.json()).reply;
               break;
-            }catch(e){if(i===5)throw e;await new Promise(r=>setTimeout(r,2500));}
+            }catch(e){if(i===14)throw e;await new Promise(r=>setTimeout(r,3000));}
           }
-          const {readFile}=await import('node:fs/promises');
-          const config=JSON.parse(await readFile('chatbot/mft-ai-nexus/wrangler.jsonc','utf8'));
-          const expectedWhatsApp=config.vars?.ENABLE_WHATSAPP_MESSAGES==='true';
           if(health.status!=='ok'||health.businessAI!==true||health.whatsappReady!==expectedWhatsApp||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_CONFIG_READBACK_FAIL');
           const unsigned=await fetch(url+'/webhook',{method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)});
           const unverified=await fetch(url+'/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=999',{signal:AbortSignal.timeout(15000)});
