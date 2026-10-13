@@ -72,3 +72,9 @@ Provider 5xx outcomes and timeouts can be ambiguous; exactly-once delivery is no
 After the owner reported sign-in completed, the cloud browser reached Meta for Developers. Opening `/apps/` redirected to the public developer homepage; its **Get Started** entry opened **Create a Meta for Developers account**. The visible account stages are Register, Verify account, Contact info, and About you. The first Continue button explicitly accepts Meta Platform Terms and Developer Policies. No terms acceptance was performed by the agent. The registration screen is handed to the owner for review and account verification. Existing Meta app inventory, test sender credentials, webhook registration and real message delivery remain unverified; production remains off.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — developer access restored and portfolio created
+
+Meta's authenticated app dashboard is now accessible and showed **No apps yet**. The **MFT Education NEXUS** business portfolio was created successfully; Meta confirmed creation in the UI. Business verification was deferred for the sandbox-first workflow. The **MFT AI NEXUS** app wizard is prepared with the **Connect with customers through WhatsApp** use case and the new portfolio. Its Overview currently says no additional use-case requirements are identified. The final **Create app** action explicitly accepts Meta Platform Terms, Developer Policies, and other applicable terms/policies; it has not been submitted and awaits the owner's action-time confirmation. Screenshot capture of this final notice timed out twice, while the accessibility state remained available. The review tab is preserved. No Meta test number, access token, app secret, webhook subscription, or real message delivery has yet been configured or verified.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
