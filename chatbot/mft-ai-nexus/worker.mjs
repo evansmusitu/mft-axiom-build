@@ -6,7 +6,7 @@ export function answer(input){
   if(!m||/^(hi|hello|hey|start|help|menu|0)$/i.test(m))return MENU+FOOTER;
   if(/\b(otp|one.time code|password|passcode|secret pin|verification code|security code)\b/.test(m))return 'For your safety, never share passwords, OTPs, PINs or verification codes with MFT or this chatbot. Contact MFT support directly if something seems suspicious.'+FOOTER;
   if(/\b(leak|leaks|leaked|leaking|stolen (?:exam|paper))\b/.test(m))return 'MFT cannot provide leaked or confidential exam questions. Use authentic revision materials instead; predictions are not guaranteed.'+FOOTER;
-  if((/\b(official|affiliat|endorse)\b/.test(m)&&m.includes('zimsec'))||/^are you (?:the )?zimsec/.test(m))return 'MFT EDUCATION NEXUS is an independent educational service, not affiliated with or officially endorsed by ZIMSEC.'+FOOTER;
+  if((/\b(official(?:ly)?|affiliat(?:e|ed|ion|ions)?|endorse(?:d|ment)?)\b/.test(m)&&m.includes('zimsec'))||/^are you (?:the )?zimsec/.test(m))return 'MFT EDUCATION NEXUS is an independent educational service, not affiliated with or officially endorsed by ZIMSEC.'+FOOTER;
   if(/\b(price|prices|cost|buy|purchase|pay|payment|ecocash|usd|order|how much)\b/.test(m))return 'Ask our team to confirm current prices and official payment instructions. This chatbot does not collect payments or invent prices.'+FOOTER;
   if(m==='1'||/notes|study materials|syllabus/.test(m))return '📘 Tell us your A-Level subject and whether you are in Lower 6 or Upper 6. Our team will confirm availability.'+FOOTER;
   if(m==='2'||/predict/.test(m))return '📝 Predictions are practice materials, not guaranteed examination questions. Tell us the subject and exam session.'+FOOTER;
