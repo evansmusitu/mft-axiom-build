@@ -1,0 +1,48 @@
+name: MFT AI NEXUS — free-tier scoped inference proof
+on:
+  push:
+    branches: ['feature/mft-ai-nexus-cloudflare-20261012']
+    paths: ['.github/workflows/mft-nexus-ai-free-inference-proof.yml']
+permissions:
+  contents: read
+jobs:
+  no-production-changes:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'feature/mft-ai-nexus-cloudflare-20261012'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Two fixed business-domain AI inference probes only
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if len(token)<20:raise SystemExit('MFT_AI_CREDENTIAL_NOT_AVAILABLE')
+          account='93f395f5121954671f92fffa453d6b61'
+          base='https://api.cloudflare.com/client/v4/accounts/'+account
+          model='@cf/zai-org/glm-4.7-flash'
+          h={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'}
+          def req(path,payload=None):
+              request=urllib.request.Request(base+path,headers=h,data=json.dumps(payload,separators=(',',':')).encode() if payload is not None else None,method='POST' if payload is not None else 'GET')
+              with urllib.request.urlopen(request,timeout=35) as rsp:
+                  body=rsp.read(131072)
+                  if rsp.status!=200:raise RuntimeError('PROVIDER_NOT_200')
+              obj=json.loads(body)
+              if obj.get('success') is not True:raise RuntimeError('PROVIDER_RESULT_NOT_SUCCESS')
+              return obj['result']
+          a=req('')
+          if a.get('id')!=account:raise SystemExit('MFT_AI_ACCOUNT_MISMATCH')
+          instructions='You are the MFT EDUCATION NEXUS business assistant. This is an independent Zimbabwe A-Level education business, not ZIMSEC. Help prospective customers enquire about MFT study notes, past papers and marking schemes. Do not invent product inventory, prices, official exam guarantees or payment instructions. End by referring customers to WhatsApp 0781572008. Keep replies under 100 words.'
+          prompts=['I am in Upper Six. Can I get Chemistry study notes?', 'Do your 2026 examination predictions guarantee the exact questions?']
+          for idx,p in enumerate(prompts,1):
+              obj=req('/ai/run/'+model,{'model':model,'messages':[{'role':'system','content':instructions},{'role':'user','content':p}],'max_completion_tokens':360,'temperature':0,'stream':False})
+              choices=obj.get('choices') or []
+              message=choices[0].get('message') if choices and isinstance(choices[0],dict) else {}
+              response=message.get('content') if isinstance(message,dict) else None
+              if not isinstance(response,str) or len(response.strip())<20:raise SystemExit('MFT_AI_PROBE_EMPTY_RESPONSE')
+              flags={'references_contact':'0781572008' in response,'avoids_dollar_pricing':'$' not in response,'nonempty':True}
+              print('MFT_AI_PROBE_'+str(idx)+'_PASS='+json.dumps(flags,sort_keys=True))
+          print('MFT_AI_FREE_MODEL_SCOPED_TWO_CALLS_VERIFIED_NO_WORKER_WRITES')
+          PY
