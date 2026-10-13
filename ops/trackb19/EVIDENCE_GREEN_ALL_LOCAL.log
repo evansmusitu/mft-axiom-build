@@ -1,0 +1,30 @@
+test_altered_signature_denied (test_journal.DurableNativeChain.test_altered_signature_denied) ... ok
+test_chain_created_and_independently_verifiable (test_journal.DurableNativeChain.test_chain_created_and_independently_verifiable) ... ok
+test_cross_workload_replay_is_separately_scoped (test_journal.DurableNativeChain.test_cross_workload_replay_is_separately_scoped) ... ok
+test_event_changed_after_commit_detected (test_journal.DurableNativeChain.test_event_changed_after_commit_detected) ... ok
+test_gap_denied_and_no_commit (test_journal.DurableNativeChain.test_gap_denied_and_no_commit) ... ok
+test_invalid_native_schema_denied (test_journal.DurableNativeChain.test_invalid_native_schema_denied) ... ok
+test_mismatched_replay_denied (test_journal.DurableNativeChain.test_mismatched_replay_denied) ... ok
+test_native_file_ingest_ignores_other_sdk_events (test_journal.DurableNativeChain.test_native_file_ingest_ignores_other_sdk_events) ... ok
+test_native_file_invalid_json_fail_closed (test_journal.DurableNativeChain.test_native_file_invalid_json_fail_closed) ... ok
+test_previous_hash_tampered_detected (test_journal.DurableNativeChain.test_previous_hash_tampered_detected) ... ok
+test_record_deleted_detected (test_journal.DurableNativeChain.test_record_deleted_detected) ... ok
+test_restart_preserves_committed_evidence (test_journal.DurableNativeChain.test_restart_preserves_committed_evidence) ... ok
+test_rollback_discards_incomplete_transaction (test_journal.DurableNativeChain.test_rollback_discards_incomplete_transaction) ... ok
+test_same_native_event_idempotent (test_journal.DurableNativeChain.test_same_native_event_idempotent) ... ok
+test_seal_denies_new_events (test_journal.DurableNativeChain.test_seal_denies_new_events) ... ok
+test_seal_verified_by_independent_public_key (test_journal.DurableNativeChain.test_seal_verified_by_independent_public_key) ... ok
+test_signed_seal_detects_hash_change (test_journal.DurableNativeChain.test_signed_seal_detects_hash_change) ... ok
+test_changed_commit_rejected (test_portable.PortableReceiptTests.test_changed_commit_rejected) ... ok
+test_changed_event_rejected (test_portable.PortableReceiptTests.test_changed_event_rejected) ... ok
+test_changed_signature_rejected (test_portable.PortableReceiptTests.test_changed_signature_rejected) ... ok
+test_changed_source_rejected (test_portable.PortableReceiptTests.test_changed_source_rejected) ... ok
+test_invalid_base64_rejected (test_portable.PortableReceiptTests.test_invalid_base64_rejected) ... ok
+test_invalid_schema_fail_closed (test_portable.PortableReceiptTests.test_invalid_schema_fail_closed) ... ok
+test_roundtrip_independent_verifier (test_portable.PortableReceiptTests.test_roundtrip_independent_verifier) ... ok
+test_truncated_trace_detected (test_portable.PortableReceiptTests.test_truncated_trace_detected) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.033s
+
+OK

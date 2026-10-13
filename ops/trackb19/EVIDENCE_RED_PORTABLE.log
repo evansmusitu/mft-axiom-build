@@ -1,0 +1,100 @@
+======================================================================
+ERROR: test_changed_commit_rejected (test_portable.PortableReceiptTests.test_changed_commit_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 32, in test_changed_commit_rejected
+    e=self.make();e['source_commit']='e'*40
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_changed_event_rejected (test_portable.PortableReceiptTests.test_changed_event_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 26, in test_changed_event_rejected
+    e=self.make();e['events'][0]['event']['tool_name']='think'
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_changed_signature_rejected (test_portable.PortableReceiptTests.test_changed_signature_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 35, in test_changed_signature_rejected
+    e=self.make();e['signature_b64']=base64.b64encode(b'0'*64).decode()
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_changed_source_rejected (test_portable.PortableReceiptTests.test_changed_source_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 29, in test_changed_source_rejected
+    e=self.make();e['source_sha256']['agent-a']='c'*64
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_invalid_base64_rejected (test_portable.PortableReceiptTests.test_invalid_base64_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 44, in test_invalid_base64_rejected
+    e=self.make();e['signature_b64']='ab=='
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_invalid_schema_fail_closed (test_portable.PortableReceiptTests.test_invalid_schema_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 38, in test_invalid_schema_fail_closed
+    e=self.make();e['unknown']='wrong'
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_roundtrip_independent_verifier (test_portable.PortableReceiptTests.test_roundtrip_independent_verifier)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 22, in test_roundtrip_independent_verifier
+    e=self.make();v=verify_portable(e)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_truncated_trace_detected (test_portable.PortableReceiptTests.test_truncated_trace_detected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 41, in test_truncated_trace_detected
+    e=self.make();e['events']=[]
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/test_portable.py", line 20, in make
+    return make_portable(self.proof,self.trace,self.source,self.key,'f'*40)
+  File "/mnt/data/axiom_b19_candidate/ops/trackb19/portable.py", line 4, in make_portable
+    raise PortableDenied('UNIMPLEMENTED')
+portable.PortableDenied: UNIMPLEMENTED
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.010s
+
+FAILED (errors=8)

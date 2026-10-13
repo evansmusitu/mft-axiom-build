@@ -14,6 +14,8 @@ jobs:
     if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b19-native-sdk-journal-s0-20261013'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      receipt_b64: ${{ steps.native.outputs.receipt_b64 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -45,6 +47,7 @@ jobs:
           /tmp/axiom-b19-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0'
           /tmp/axiom-b19-venv/bin/python -c 'from openhands.sdk import Agent, LLM, Conversation, Tool; print("B19_OPENHANDS_SDK_IMPORT_PASS")'
       - name: Run two unprivileged genuine native SDK workers and seal event chain
+        id: native
         shell: bash
         run: |
           set -euo pipefail
@@ -56,6 +59,34 @@ jobs:
             sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
           }
           trap cleanup EXIT
-          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 \
-            /tmp/axiom-b19-venv/bin/python ops/trackb19/native_qualification.py
+          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 B19_SOURCE_COMMIT="$GITHUB_SHA" \
+            /tmp/axiom-b19-venv/bin/python ops/trackb19/native_qualification.py | tee "$RUNNER_TEMP/b19_evidence.log"
+          receipt="$(sed -n 's/^B19_PORTABLE_EVIDENCE_B64=//p' "$RUNNER_TEMP/b19_evidence.log")"
+          test -n "$receipt"
+          test "$(printf %s "$receipt" | wc -c)" -lt 60000
+          echo "receipt_b64=$receipt" >> "$GITHUB_OUTPUT"
           echo B19_S0_NATIVE_EVENTS_SEALED_NO_MODEL_PROVIDER_OR_PRODUCTION
+  independent-portable-verifier-s0:
+    needs: isolated-native-sdk-evidence-s0
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b19-native-sdk-journal-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      B19_RECEIPT_B64: ${{ needs.isolated-native-sdk-evidence-s0.outputs.receipt_b64 }}
+      B19_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Independently verify full portable native event chain without SDK/model credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -n "$B19_RECEIPT_B64"
+          cd ops/trackb19
+          python3 verify_receipt.py
+          python3 -m unittest -q test_journal test_portable
+          echo B19_PORTABLE_INDEPENDENT_JOB_S0_PASS_NOT_PRODUCTION

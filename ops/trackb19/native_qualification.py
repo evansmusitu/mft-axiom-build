@@ -17,6 +17,9 @@ import sys
 import tempfile
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from journal import EventJournal, EvidenceDenied, ingest_native_file
+from portable import make_portable, verify_portable
+import base64
+import re
 
 BASE=Path('/tmp/axiom-b12')
 WORKERS={
@@ -85,6 +88,15 @@ def main():
         except EvidenceDenied:
             print('B19_ALTERED_EVENT_REJECTED_PASS',flush=True)
         finally:corrupted.close()
+        commit=os.environ.get('B19_SOURCE_COMMIT','')
+        if not re.fullmatch(r'[0-9a-f]{40}',commit):raise SystemExit('B19_COMMIT_CONTEXT_MISSING')
+        raw_rows=j.db.execute('SELECT worker,ordinal,event_data FROM events WHERE work_id=? ORDER BY seq',('axiom-b19-native-s0',)).fetchall()
+        trace=[{'worker':who,'ordinal':ordinal,'event':json.loads(raw)} for who,ordinal,raw in raw_rows]
+        portable=make_portable(proof,trace,{who:receipts[who]['source_sha256'] for who in WORKERS},issuer,commit)
+        verified=verify_portable(portable)
+        if verified['events']!=proof['events']:raise SystemExit('B19_PORTABLE_EVIDENCE_WRONG')
+        encoded=base64.b64encode(json.dumps(portable,sort_keys=True,separators=(',',':')).encode()).decode()
+        print('B19_PORTABLE_EVIDENCE_B64='+encoded,flush=True)
         print('B19_VERIFIED_EVENT_COUNTS='+json.dumps(proof['workers'],sort_keys=True),flush=True)
         print('B19_CHAIN_SHA256='+original_hash,flush=True)
         print('AXIOM_B19_GENUINE_OPENHANDS_SDK_NATIVE_EVENT_JOURNAL_S0_PASS_NOT_PRODUCTION',flush=True)

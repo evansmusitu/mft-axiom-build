@@ -23,3 +23,30 @@ The separate B19 job enforces no provider secrets, pins source B12 blob SHA befo
 3. Bind B18 Workerd durable reservation to real OpenHands model requests without violating free quotas.
 4. Prove killed-worker partial evidence and true agent-work recovery (not only journal restart).
 5. Independent security verification and external release gates.
+
+## B19 S0 portable evidence / separate verification job (2026-10-13)
+
+The initial genuine CI event journal passed on run `38413292861` at B19 parent
+`ad82e4e42e00900eca8f50dc0583d90f4aa4aef4`, observing 12 native events
+(3 actions, 3 observations, one finish per worker), correct independently
+hashed source, persisted SQLite journal replay, and a tamper-rejection proof.
+That first run printed only the terminal digest and discarded the actual event
+journal after its synthetic process, limiting post-run auditability.
+
+The next candidate revision fixes **evidence portability** without enabling any
+live provider calls. `portable.py` serializes exact ordered SDK callback metadata,
+worker identities, native source hashes, and GitHub source commit; the root
+coordinator signs the payload using the same ephemeral local-CI key and prints
+base64 as a bounded Actions job output. The separate, credentialless verifier
+job validates each event, rebuilds the hash chain, checks signatures, exact
+source hashes/counts and commit identity, and runs 25 independent local unit
+and adversarial tests. The RED implementation intentionally rejected all
+portable receipts as unimplemented; the GREEN local suite passed 25/25.
+
+**Limitations remain binding:** The signer-generated public key is embedded in
+the same payload; this is an internally integrity-checked synthetic proof,
+**not** a trusted independent public-key anchor. A malicious producer that
+regenerates the entire envelope can forge a new signer's identity. GitHub's
+read-only job separation and source SHA mitigate accidental corruption but do
+not certify external event origin or security policy. Native tool-call ancestry
+and crash recovery of an interrupted agent have not been demonstrated.
