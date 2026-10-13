@@ -25,7 +25,7 @@ def process_attempt(db,key_bytes,proposal,votes,pins,pubkey,gate,queue):
         gate.wait(7)
         signer=Ed25519PrivateKey.from_private_bytes(key_bytes)
         result=admit_audit_checkpoint(proposal=proposal,votes=votes,pinned_voters=pins,
-            witness=SyntheticWitness(db,signer),pinned_witness_key=pubkey,trusted_now=CLOCK)
+            witness=SyntheticWitness(db,signer,pins),pinned_witness_key=pubkey,trusted_now=CLOCK)
         queue.put((True,result['status']))
     except BaseException as exc:
         queue.put((False,type(exc).__name__+':'+str(exc)))

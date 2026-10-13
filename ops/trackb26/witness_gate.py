@@ -99,7 +99,7 @@ def admit_audit_checkpoint(*,proposal,votes,pinned_voters,witness,pinned_witness
         raise WitnessDenied('EXTERNAL_WITNESS_REQUIRED')
     # Never use the local voters as fallback, even for a valid quorum.
     try:receipt=witness.commit(proposal=proposal,proposal_sha256=psha,
-                                votes_sha256=vsha,trusted_now=trusted_now)
+                                votes_sha256=vsha,votes=votes,trusted_now=trusted_now)
     except Exception as exc:raise WitnessDenied('EXTERNAL_WITNESS_UNAVAILABLE_OR_REPLAY') from exc
     expected_id=getattr(witness,'witness_id',None)
     if type(expected_id) is not str or not ID.fullmatch(expected_id):

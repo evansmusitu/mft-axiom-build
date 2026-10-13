@@ -1,0 +1,100 @@
+test_eight_independent_processes_accept_exactly_one (test_concurrency.ConcurrentSyntheticWitness.test_eight_independent_processes_accept_exactly_one) ... ok
+test_archive_receipt_must_require_trusted_voter_pins (test_witness.WitnessAdversarialTest.test_archive_receipt_must_require_trusted_voter_pins) ... ok
+test_clock_scope_fails_before_witness_call (test_witness.WitnessAdversarialTest.test_clock_scope_fails_before_witness_call) ... ok
+test_commit_then_connection_interruption_cannot_resend (test_witness.WitnessAdversarialTest.test_commit_then_connection_interruption_cannot_resend) ... ok
+test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker (test_witness.WitnessAdversarialTest.test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker) ... FAIL
+test_journal_survives_restart_without_regranting (test_witness.WitnessAdversarialTest.test_journal_survives_restart_without_regranting) ... ok
+test_replay_during_same_work_with_higher_sequence_is_allowed_as_new_audit (test_witness.WitnessAdversarialTest.test_replay_during_same_work_with_higher_sequence_is_allowed_as_new_audit) ... ok
+test_signature_valid_checkpoint_digest_mutation_is_denied (test_witness.WitnessAdversarialTest.test_signature_valid_checkpoint_digest_mutation_is_denied) ... ok
+test_tampered_vote_invalidates_attestation_even_if_witness_was_signed (test_witness.WitnessAdversarialTest.test_tampered_vote_invalidates_attestation_even_if_witness_was_signed) ... ok
+test_unrecognized_or_wrong_pins_fail_closed (test_witness.WitnessAdversarialTest.test_unrecognized_or_wrong_pins_fail_closed) ... ok
+test_witness_loss_and_two_voter_rollbacks_still_break_simulated_antirollback (test_witness.WitnessAdversarialTest.test_witness_loss_and_two_voter_rollbacks_still_break_simulated_antirollback) ... /mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07704a90>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077053f0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07706f20>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707010>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07706b60>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07706a70>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707100>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077071f0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077072e0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077073d0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077075b0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e077076a0>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707790>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707880>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707970>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707a60>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707c40>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707d30>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707e20>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07707f10>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07440040>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/mnt/data/axiom_b26_work/candidate/ops/trackb25/quorum.py:58: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f9e07440130>
+  db.execute('BEGIN IMMEDIATE')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_witness_response_key_injection_denied (test_witness.WitnessAdversarialTest.test_witness_response_key_injection_denied) ... ok
+test_wrong_witness_signature_cannot_be_used (test_witness.WitnessAdversarialTest.test_wrong_witness_signature_cannot_be_used) ... ok
+test_first_signed_synthetic_witness_attestation_is_audit_only (test_witness.WitnessGateTest.test_first_signed_synthetic_witness_attestation_is_audit_only) ... ok
+test_forged_witness_receipt_fails (test_witness.WitnessGateTest.test_forged_witness_receipt_fails) ... ok
+test_majority_local_rollback_does_not_renew_when_witness_survives (test_witness.WitnessGateTest.test_majority_local_rollback_does_not_renew_when_witness_survives) ... ok
+test_pin_must_be_independent_of_local_voters (test_witness.WitnessGateTest.test_pin_must_be_independent_of_local_voters) ... ok
+test_replayed_receipt_is_not_an_action_token (test_witness.WitnessGateTest.test_replayed_receipt_is_not_an_action_token) ... ok
+test_unavailable_witness_does_not_fall_back_to_quorum (test_witness.WitnessGateTest.test_unavailable_witness_does_not_fall_back_to_quorum) ... ok
+test_valid_witness_receipt_verifiable_with_pinned_key (test_witness.WitnessGateTest.test_valid_witness_receipt_verifiable_with_pinned_key) ... ok
+
+======================================================================
+FAIL: test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker (test_witness.WitnessAdversarialTest.test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 84, in test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker
+    with self.assertRaises(WitnessDenied):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: WitnessDenied not raised
+
+----------------------------------------------------------------------
+Ran 20 tests in 3.202s
+
+FAILED (failures=1)

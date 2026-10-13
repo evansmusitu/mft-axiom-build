@@ -34,7 +34,7 @@ class _Fixture(unittest.TestCase):
         self.pins={n:pub(k) for n,k in self.keys.items()}
         self.key=Ed25519PrivateKey.generate()
         self.proposal=copy.deepcopy(PROPOSAL)
-        self.witness=SyntheticWitness(self.root/'witness.sqlite',self.key)
+        self.witness=SyntheticWitness(self.root/'witness.sqlite',self.key,self.pins)
         self.votes=[self.vote('voter-a'),self.vote('voter-b')]
     def vote(self,name):
         return cast_vote(self.root/f'{name}.sqlite',name,self.keys[name],self.proposal,trusted_now=CLOCK)
@@ -78,6 +78,17 @@ if __name__=='__main__':unittest.main()
 class WitnessAdversarialTest(_Fixture):
     """Inherited baseline scenarios plus independent adversarial variations."""
 
+    def test_witness_issuer_key_must_not_duplicate_voter_issuer(self):
+        with self.assertRaises(WitnessDenied):
+            SyntheticWitness(self.root/'shared-key.sqlite',self.keys['voter-a'],self.pins)
+
+    def test_direct_witness_cannot_sign_unverified_claim_from_compromised_broker(self):
+        # A direct caller bypasses witness_gate.admit_audit_checkpoint.
+        # A real witness must validate quorum itself; broker success is untrusted.
+        with self.assertRaises(WitnessDenied):
+            self.witness.commit(proposal=self.proposal,
+                proposal_sha256='a'*64,votes_sha256='b'*64,trusted_now=CLOCK)
+
     def test_archive_receipt_must_require_trusted_voter_pins(self):
         row=self.admit()
         with self.assertRaises(WitnessDenied):
@@ -113,7 +124,7 @@ class WitnessAdversarialTest(_Fixture):
 
     def test_wrong_witness_signature_cannot_be_used(self):
         other=Ed25519PrivateKey.generate()
-        forged=SyntheticWitness(self.root/'rogue.sqlite',other)
+        forged=SyntheticWitness(self.root/'rogue.sqlite',other,self.pins)
         with self.assertRaises(WitnessDenied):self.admit(witness=forged)
 
     def test_signature_valid_checkpoint_digest_mutation_is_denied(self):
@@ -124,7 +135,7 @@ class WitnessAdversarialTest(_Fixture):
 
     def test_journal_survives_restart_without_regranting(self):
         self.admit()
-        new=SyntheticWitness(self.root/'witness.sqlite',self.key)
+        new=SyntheticWitness(self.root/'witness.sqlite',self.key,self.pins)
         with self.assertRaises(WitnessDenied):self.admit(witness=new)
 
     def test_commit_then_connection_interruption_cannot_resend(self):

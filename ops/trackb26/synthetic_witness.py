@@ -7,22 +7,43 @@ controlled, nonrollbackable append_once ledger at the network/service boundary.
 import base64
 from pathlib import Path
 import sqlite3
+import hashlib
 
 from witness_gate import WitnessDenied, canonical, SCHEMA
-from quorum import ID, validate
+from quorum import ID, validate, verify_quorum, QuorumDenied
 
 class SyntheticWitness:
-    def __init__(self,db_path,private_key,witness_id='test-witness'):
+    def __init__(self,db_path,private_key,pinned_voters,witness_id='test-witness'):
         if type(witness_id) is not str or not ID.fullmatch(witness_id) or not hasattr(private_key,'sign'):
             raise WitnessDenied('SIMULATOR_INVALID')
         self.db_path=Path(db_path)
         self.key=private_key
         self.witness_id=witness_id
+        if type(pinned_voters) is not dict or set(pinned_voters)!=set(('voter-a','voter-b','voter-c')) or any(type(v) is not bytes or len(v)!=32 for v in pinned_voters.values()):
+            raise WitnessDenied('WITNESS_TRUSTED_VOTER_PINSET_REQUIRED')
+        self.pinned_voters=dict(pinned_voters)
+        try:
+            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+            signer_pub=private_key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)
+        except (AttributeError,TypeError,ValueError) as exc:
+            raise WitnessDenied('WITNESS_SIGNER_PUBLIC_KEY_INVALID') from exc
+        if signer_pub in self.pinned_voters.values():
+            raise WitnessDenied('WITNESS_SIGNER_NOT_SEPARATE_FROM_VOTERS')
 
-    def commit(self,*,proposal,proposal_sha256,votes_sha256,trusted_now):
+    def commit(self,*,proposal,proposal_sha256,votes_sha256,trusted_now,votes=None):
         # This is a local emulator for tests. It may NEVER be connected to a
         # production provider dispatch or used to certify global durability.
         validate(proposal,trusted_now)
+        # Critical security boundary: do not trust the broker's quorum assertion.
+        # Verify voter signatures with witness-configured pins, independently.
+        try:
+            verify_quorum(votes,proposal,pinned_voters=self.pinned_voters,trusted_now=trusted_now)
+            recomputed_proposal=hashlib.sha256(canonical(proposal)).hexdigest()
+            recomputed_votes=hashlib.sha256(canonical(sorted(votes,key=lambda r:r['voter_id']))).hexdigest()
+        except (QuorumDenied,TypeError,ValueError,KeyError) as exc:
+            raise WitnessDenied('WITNESS_INDEPENDENT_QUORUM_REJECTED') from exc
+        if proposal_sha256!=recomputed_proposal or votes_sha256!=recomputed_votes:
+            raise WitnessDenied('WITNESS_BROKER_DIGEST_SUBSTITUTION_DENIED')
         if self.db_path.is_symlink() or not self.db_path.parent.is_dir():
             raise WitnessDenied('SIMULATOR_JOURNAL_PATH_INVALID')
         db=None

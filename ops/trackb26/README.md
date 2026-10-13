@@ -17,13 +17,17 @@ referenced unchanged, not overwritten or elevated to authority.
 2. Require a **separate, pre-pinned witness public key**, distinct from each
    voter key; the witness private key is not accepted in or transmitted by this
    module.
-3. Invoke a trusted injected `witness.commit(...)` boundary; there is **no
+3. The witness independently re-verifies the exact B25 signed voter receipts against
+   its own configured voter pin map before opening any journal. It recomputes
+   both digests rather than trusting a potentially compromised broker. Its
+   private signer key must be distinct from all voter issuer keys.
+4. Invoke a trusted injected `witness.commit(...)` boundary; there is **no
    local quorum-only fallback** if the witness is missing, offline, replaying,
    or returns an invalid receipt.
-4. Verify a separately signed Ed25519 receipt that binds canonical proposal
+5. Verify a separately signed Ed25519 receipt that binds canonical proposal
    bytes and all B25 voter receipts, their identity and sequence, and S0-only
    nonproduction scope. Neither this receipt nor its verifier grants dispatch.
-5. Require voter pins even when verifying historic receipts. Caller-supplied
+6. Require voter pins even when verifying historic receipts. Caller-supplied
    keys included in the receipt are never accepted as trust roots.
 
 `synthetic_witness.py` is **only a local SQLite stand-in** for an independently
@@ -71,4 +75,18 @@ python3 -m venv /tmp/axiom-b26-s0
 ```
 
 Or with installed cryptography, run `python3 ops/trackb26/VERIFY_B26_LOCAL.py`.
-Historical evidence: `EVIDENCE_RED_*.log`, `EVIDENCE_GREEN_*.log`, `EVIDENCE_B25_ROLLBACK_FAILURE.md`.
+Original B26 19-test passing CI source is preserved in GitHub commit
+`9e38abf3d9f8eab3ed6d6a8fad0036f58ac2a1bb` (run `38478254296`).
+Follow-up red/green tests revealed and repaired a direct witness API bypass:
+without independent quorum verification the simulator signed broker-supplied
+claims, and it allowed signer key reuse with a voter. Those failures are
+preserved in `EVIDENCE_RED_BROKER_BYPASS.log` and
+`EVIDENCE_RED_WITNESS_KEY_REUSE.log`. See `EVIDENCE_GREEN_S0_21_TESTS.log`.
+
+Trusted time remains injected in this test-only simulator; an actual service
+must own its own clock, keys and monotonic state. Neither caller-supplied
+`pinned_voters` nor `trusted_now` as tested here proves independent service
+ownership. External authority continues as NOT CERTIFIED.
+
+Historical evidence: `EVIDENCE_RED_*.log`, `EVIDENCE_GREEN_*.log`,
+`EVIDENCE_B25_ROLLBACK_FAILURE.md`.
