@@ -1,0 +1,44 @@
+name: AXIOM B24 synthetic authority and divergence S0
+on:
+  push:
+    branches: [frontier/axiom-trackb-b24-authority-reconciliation-s0-20261013]
+    paths:
+      - ops/trackb24/**
+      - .github/workflows/axiom-trackb-b24-authority-s0.yml
+permissions:
+  contents: read
+jobs:
+  isolated-authority-attack-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b24-authority-reconciliation-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fail closed if model/provider environment credentials present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${ANTHROPIC_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          echo B24_S0_NO_LIVE_PROVIDER_SECRET
+      - name: Install only isolated pinned Ed25519 test dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b24-env
+          /tmp/axiom-b24-env/bin/pip install --only-binary=:all: --no-cache-dir 'cryptography==45.0.7'
+      - name: Independent local deterministic manifest plus process and crypto adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ops/trackb24
+          /tmp/axiom-b24-env/bin/python VERIFY_B24.py
+          echo AXIOM_B24_SYNTHETIC_PIN_REPLAY_REGION_ATTACKS_S0_PASS_NOT_PRODUCTION

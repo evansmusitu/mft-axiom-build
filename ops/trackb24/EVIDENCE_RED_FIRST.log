@@ -1,0 +1,61 @@
+test_conflicting_region_body_denied (test_authority.RegionAttacks.test_conflicting_region_body_denied) ... ok
+test_conflicting_region_result_denied (test_authority.RegionAttacks.test_conflicting_region_result_denied) ... ok
+test_cross_tenant_row_denied (test_authority.RegionAttacks.test_cross_tenant_row_denied) ... ok
+test_day_rollover_mismatch_denied (test_authority.RegionAttacks.test_day_rollover_mismatch_denied) ... ok
+test_duplicate_within_one_region_denied (test_authority.RegionAttacks.test_duplicate_within_one_region_denied) ... ok
+test_false_boolean_result_sha_denied (test_authority.RegionAttacks.test_false_boolean_result_sha_denied) ... ok
+test_identical_replica_rows_are_not_six_more_dispatches (test_authority.RegionAttacks.test_identical_replica_rows_are_not_six_more_dispatches) ... ERROR
+test_missing_region_row_denied (test_authority.RegionAttacks.test_missing_region_row_denied) ... ok
+test_missing_replica_denied (test_authority.RegionAttacks.test_missing_replica_denied) ... ok
+test_replica_self_report_same_region_denied (test_authority.RegionAttacks.test_replica_self_report_same_region_denied) ... ok
+test_unknown_state_denied (test_authority.RegionAttacks.test_unknown_state_denied) ... ok
+test_attestor_does_not_upgrade_incomplete_outcome (test_authority.StrictBoundary.test_attestor_does_not_upgrade_incomplete_outcome) ... ok
+test_attestor_rejects_evidence_that_self_certifies (test_authority.StrictBoundary.test_attestor_rejects_evidence_that_self_certifies) ... ok
+test_authorization_cannot_allow_provider (test_authority.StrictBoundary.test_authorization_cannot_allow_provider) ... ok
+test_authorization_cannot_set_production (test_authority.StrictBoundary.test_authorization_cannot_set_production) ... ok
+test_authorization_cannot_spend_money (test_authority.StrictBoundary.test_authorization_cannot_spend_money) ... ok
+test_bool_as_sequence_denied (test_authority.StrictBoundary.test_bool_as_sequence_denied) ... ok
+test_expired_denied (test_authority.StrictBoundary.test_expired_denied) ... ok
+test_extra_schema_field_denied (test_authority.StrictBoundary.test_extra_schema_field_denied) ... ok
+test_forged_signing_key_denied (test_authority.StrictBoundary.test_forged_signing_key_denied) ... ok
+test_future_issuer_denied (test_authority.StrictBoundary.test_future_issuer_denied) ... ok
+test_more_than_120_second_grant_denied (test_authority.StrictBoundary.test_more_than_120_second_grant_denied) ... ok
+test_noncanonical_envelope_b64_denied (test_authority.StrictBoundary.test_noncanonical_envelope_b64_denied) ... ok
+test_outcome_bytes_tamper_denied (test_authority.StrictBoundary.test_outcome_bytes_tamper_denied) ... ok
+test_payload_tamper_denied (test_authority.StrictBoundary.test_payload_tamper_denied) ... ok
+test_pin_missing_denied (test_authority.StrictBoundary.test_pin_missing_denied) ... ok
+test_schema_and_audience_scope_denied (test_authority.StrictBoundary.test_schema_and_audience_scope_denied) ... ok
+test_signature_tamper_denied (test_authority.StrictBoundary.test_signature_tamper_denied) ... ok
+test_signature_wrong_workload_scope_denied (test_authority.StrictBoundary.test_signature_wrong_workload_scope_denied) ... ok
+test_source_commit_swap_denied (test_authority.StrictBoundary.test_source_commit_swap_denied) ... ok
+test_unknown_journal_after_restart_denied (test_authority.StrictBoundary.test_unknown_journal_after_restart_denied) ... ok
+test_untrusted_envelope_supplied_key_cannot_replace_pin (test_authority.StrictBoundary.test_untrusted_envelope_supplied_key_cannot_replace_pin) ... ok
+test_valid_synthetic_external_pin_is_still_not_certification (test_authority.StrictBoundary.test_valid_synthetic_external_pin_is_still_not_certification) ... ERROR
+test_wrong_pin_denied (test_authority.StrictBoundary.test_wrong_pin_denied) ... ok
+
+======================================================================
+ERROR: test_identical_replica_rows_are_not_six_more_dispatches (test_authority.RegionAttacks.test_identical_replica_rows_are_not_six_more_dispatches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b24_work/candidate/ops/trackb24/test/test_authority.py", line 119, in test_identical_replica_rows_are_not_six_more_dispatches
+    result=reconcile_regions(regions());self.assertEqual(result['unique_operations'],6)
+  File "/mnt/data/axiom_b24_work/candidate/ops/trackb24/authority.py", line 17, in reconcile_regions
+    raise AuthorityDenied('B24_REGION_RECONCILIATION_NOT_IMPLEMENTED')
+authority.AuthorityDenied: B24_REGION_RECONCILIATION_NOT_IMPLEMENTED
+
+======================================================================
+ERROR: test_valid_synthetic_external_pin_is_still_not_certification (test_authority.StrictBoundary.test_valid_synthetic_external_pin_is_still_not_certification)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b24_work/candidate/ops/trackb24/test/test_authority.py", line 70, in test_valid_synthetic_external_pin_is_still_not_certification
+    status=self.verify()
+  File "/mnt/data/axiom_b24_work/candidate/ops/trackb24/test/test_authority.py", line 66, in verify
+    return verify_authority(b,e,pinned_public_key=pin,trusted_now=now)
+  File "/mnt/data/axiom_b24_work/candidate/ops/trackb24/authority.py", line 13, in verify_authority
+    raise AuthorityDenied('B24_AUTHORITY_NOT_IMPLEMENTED')
+authority.AuthorityDenied: B24_AUTHORITY_NOT_IMPLEMENTED
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.008s
+
+FAILED (errors=2)

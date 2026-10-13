@@ -1,0 +1,87 @@
+test_duplicate_nonce_different_sequence_denied (test_authority.DurableReplayAttacks.test_duplicate_nonce_different_sequence_denied) ... ok
+test_expired_advance_does_not_write (test_authority.DurableReplayAttacks.test_expired_advance_does_not_write) ... ok
+test_increasing_sequence_after_restart_admitted (test_authority.DurableReplayAttacks.test_increasing_sequence_after_restart_admitted) ... ok
+test_initial_checkpoint_persisted (test_authority.DurableReplayAttacks.test_initial_checkpoint_persisted) ... ok
+test_invalid_signature_does_not_advance_sequence (test_authority.DurableReplayAttacks.test_invalid_signature_does_not_advance_sequence) ... ok
+test_older_sequence_after_new_sequence_denied (test_authority.DurableReplayAttacks.test_older_sequence_after_new_sequence_denied) ... /usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7d30>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7e20>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7f10>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884040>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884130>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884220>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884310>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/json/encoder.py:252: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884400>
+  _iterencode = c_make_encoder(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_replay_across_process_like_restart_denied (test_authority.DurableReplayAttacks.test_replay_across_process_like_restart_denied) ... ok
+test_signed_window_cannot_cross_midnight (test_authority.DurableReplayAttacks.test_signed_window_cannot_cross_midnight) ... ok
+test_uncertified_status_never_commits (test_authority.DurableReplayAttacks.test_uncertified_status_never_commits) ... ok
+test_eight_processes_one_checkpoint (test_authority.RealMultiprocessReplay.test_eight_processes_one_checkpoint) ... /usr/lib/python3.13/concurrent/futures/process.py:272: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7f10>
+  class _ExecutorManagerThread(threading.Thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/concurrent/futures/process.py:272: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7e20>
+  class _ExecutorManagerThread(threading.Thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/concurrent/futures/process.py:272: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f08273b7d30>
+  class _ExecutorManagerThread(threading.Thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/concurrent/futures/process.py:272: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0826884400>
+  class _ExecutorManagerThread(threading.Thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/multiprocessing/popen_fork.py:67: DeprecationWarning: This process (pid=859) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  self.pid = os.fork()
+ok
+test_conflicting_region_body_denied (test_authority.RegionAttacks.test_conflicting_region_body_denied) ... ok
+test_conflicting_region_result_denied (test_authority.RegionAttacks.test_conflicting_region_result_denied) ... ok
+test_cross_tenant_row_denied (test_authority.RegionAttacks.test_cross_tenant_row_denied) ... ok
+test_day_rollover_mismatch_denied (test_authority.RegionAttacks.test_day_rollover_mismatch_denied) ... ok
+test_duplicate_within_one_region_denied (test_authority.RegionAttacks.test_duplicate_within_one_region_denied) ... ok
+test_false_boolean_result_sha_denied (test_authority.RegionAttacks.test_false_boolean_result_sha_denied) ... ok
+test_identical_replica_rows_are_not_six_more_dispatches (test_authority.RegionAttacks.test_identical_replica_rows_are_not_six_more_dispatches) ... ok
+test_missing_region_row_denied (test_authority.RegionAttacks.test_missing_region_row_denied) ... ok
+test_missing_replica_denied (test_authority.RegionAttacks.test_missing_replica_denied) ... ok
+test_replica_self_report_same_region_denied (test_authority.RegionAttacks.test_replica_self_report_same_region_denied) ... ok
+test_unknown_state_denied (test_authority.RegionAttacks.test_unknown_state_denied) ... ok
+test_attestor_does_not_upgrade_incomplete_outcome (test_authority.StrictBoundary.test_attestor_does_not_upgrade_incomplete_outcome) ... ok
+test_attestor_rejects_evidence_that_self_certifies (test_authority.StrictBoundary.test_attestor_rejects_evidence_that_self_certifies) ... ok
+test_authorization_cannot_allow_provider (test_authority.StrictBoundary.test_authorization_cannot_allow_provider) ... ok
+test_authorization_cannot_set_production (test_authority.StrictBoundary.test_authorization_cannot_set_production) ... ok
+test_authorization_cannot_spend_money (test_authority.StrictBoundary.test_authorization_cannot_spend_money) ... ok
+test_bool_as_sequence_denied (test_authority.StrictBoundary.test_bool_as_sequence_denied) ... ok
+test_expired_denied (test_authority.StrictBoundary.test_expired_denied) ... ok
+test_extra_schema_field_denied (test_authority.StrictBoundary.test_extra_schema_field_denied) ... ok
+test_forged_signing_key_denied (test_authority.StrictBoundary.test_forged_signing_key_denied) ... ok
+test_future_issuer_denied (test_authority.StrictBoundary.test_future_issuer_denied) ... ok
+test_more_than_120_second_grant_denied (test_authority.StrictBoundary.test_more_than_120_second_grant_denied) ... ok
+test_noncanonical_envelope_b64_denied (test_authority.StrictBoundary.test_noncanonical_envelope_b64_denied) ... ok
+test_outcome_bytes_tamper_denied (test_authority.StrictBoundary.test_outcome_bytes_tamper_denied) ... ok
+test_payload_tamper_denied (test_authority.StrictBoundary.test_payload_tamper_denied) ... ok
+test_pin_missing_denied (test_authority.StrictBoundary.test_pin_missing_denied) ... ok
+test_schema_and_audience_scope_denied (test_authority.StrictBoundary.test_schema_and_audience_scope_denied) ... ok
+test_signature_tamper_denied (test_authority.StrictBoundary.test_signature_tamper_denied) ... ok
+test_signature_wrong_workload_scope_denied (test_authority.StrictBoundary.test_signature_wrong_workload_scope_denied) ... ok
+test_source_commit_swap_denied (test_authority.StrictBoundary.test_source_commit_swap_denied) ... ok
+test_unknown_journal_after_restart_denied (test_authority.StrictBoundary.test_unknown_journal_after_restart_denied) ... ok
+test_untrusted_envelope_supplied_key_cannot_replace_pin (test_authority.StrictBoundary.test_untrusted_envelope_supplied_key_cannot_replace_pin) ... ok
+test_valid_synthetic_external_pin_is_still_not_certification (test_authority.StrictBoundary.test_valid_synthetic_external_pin_is_still_not_certification) ... ok
+test_wrong_pin_denied (test_authority.StrictBoundary.test_wrong_pin_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 44 tests in 0.101s
+
+OK
