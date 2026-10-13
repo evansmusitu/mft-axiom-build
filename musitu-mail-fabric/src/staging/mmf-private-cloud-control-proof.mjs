@@ -44,6 +44,25 @@ function requireOwner(s,run,r,active=false){
  if(matched.length!==1||(active&&matched[0].revoked!==0))deny();
  return matched[0];
 }
+/** Read-only, count-only occupancy preflight. Never creates schema, returns row data or deletes residue. */
+export function inspectMmfSyntheticControlOccupancy(storage){
+ if(typeof storage?.sql?.exec!=='function')deny();
+ const tableNames=['mmf_private_control_tenants_20261013','mmf_private_control_usage_20261013'];
+ const present=rows(storage,`SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?)`,...tableNames);
+ if(!Array.isArray(present)||present.length>2||present.some(x=>!tableNames.includes(x.name)))deny();
+ if(present.length===0)return {schema:'mmf-private-synthetic-control-occupancy-v1',state:'ABSENT',tenantCount:0,usageCount:0};
+ if(present.length!==2)deny();
+ const count=(name)=>{
+  const found=rows(storage,`SELECT COUNT(*) AS n FROM ${name}`);
+  if(found.length!==1||!Number.isSafeInteger(found[0].n)||found[0].n<0)deny();
+  return found[0].n;
+ };
+ const tenantCount=count(tableNames[0]);
+ const usageCount=count(tableNames[1]);
+ if(usageCount>0&&tenantCount===0)deny();
+ return {schema:'mmf-private-synthetic-control-occupancy-v1',
+  state:tenantCount===0?'EMPTY':'OCCUPIED',tenantCount,usageCount};
+}
 export function seedMmfSyntheticControl(storage,run,records){
  inputCheck(run,records);const s=initialize(storage);
  let phase='start';

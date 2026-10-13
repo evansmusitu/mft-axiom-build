@@ -6,7 +6,7 @@
  */
 import {DurableObject,WorkerEntrypoint} from 'cloudflare:workers';
 import {writeMmfSyntheticProof,readMmfSyntheticProof,clearMmfSyntheticProof,assertMmfPrivateProofFlags,mmfPrivateFlagsFromCloudEnv} from '../staging/mmf-private-sqlite-proof.mjs';
-import {seedMmfSyntheticControl,readMmfSyntheticControl,recordMmfSyntheticControlUsage,revokeMmfSyntheticControlKey,checkMmfSyntheticControlAccess,clearMmfSyntheticControl} from '../staging/mmf-private-cloud-control-proof.mjs';
+import {seedMmfSyntheticControl,readMmfSyntheticControl,recordMmfSyntheticControlUsage,revokeMmfSyntheticControlKey,checkMmfSyntheticControlAccess,clearMmfSyntheticControl,inspectMmfSyntheticControlOccupancy} from '../staging/mmf-private-cloud-control-proof.mjs';
 import {MmfCommercialStageKernel} from './mmf-commercial-private-stage.mjs';
 const deny=()=>new Response('{"error":"MMF_PRIVATE_STAGE_DISABLED"}',{
  status:503,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}
@@ -29,6 +29,7 @@ export class MmfCommercialPrivateStageDO extends DurableObject {
  revokeSyntheticControl(run,record){return revokeMmfSyntheticControlKey(this.#proof(),run,record)}
  accessSyntheticControl(run,record){return checkMmfSyntheticControlAccess(this.#proof(),run,record)}
  clearSyntheticControl(run){return clearMmfSyntheticControl(this.#proof(),run)}
+ inspectSyntheticControl(){return inspectMmfSyntheticControlOccupancy(this.#proof())}
  restartSyntheticProof(){this.#proof();this.ctx.abort('MMF_PRIVATE_SYNTHETIC_PROBE_RESET',{retryAlarm:false})}
  issueLoginChallenge(){return this.kernel.issueLoginChallenge()}
  acceptOidcLogin(input){return this.kernel.acceptOidcLogin(input)}
@@ -61,5 +62,6 @@ export class MmfPrivateStorageProofEntrypoint extends WorkerEntrypoint {
  async revokeControl(run,record){return this.#stub().revokeSyntheticControl(run,record)}
  async accessControl(run,record){return this.#stub().accessSyntheticControl(run,record)}
  async clearControl(run){return this.#stub().clearSyntheticControl(run)}
+ async inspectControl(){return this.#stub().inspectSyntheticControl()}
  async fetch(){return deny()}
 }
