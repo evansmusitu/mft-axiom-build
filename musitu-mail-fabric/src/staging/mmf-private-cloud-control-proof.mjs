@@ -46,13 +46,19 @@ function requireOwner(s,run,r,active=false){
 }
 export function seedMmfSyntheticControl(storage,run,records){
  inputCheck(run,records);const s=initialize(storage);
- return s.transactionSync(()=>{
+ let phase='start';
+ try{return s.transactionSync(()=>{
+  phase='occupancy';
   if(rows(s,'SELECT tenant_digest FROM mmf_private_control_tenants_20261013 LIMIT 1').length)deny();
-  for(const r of records)rows(s,`INSERT INTO mmf_private_control_tenants_20261013
+  for(const [i,r] of records.entries()){phase=i?'second_insert':'first_insert';rows(s,`INSERT INTO mmf_private_control_tenants_20261013
    (run_digest,tenant_digest,subject_digest,domain_digest,key_digest,plan,domain_state,subscription_state)
-   VALUES(?,?,?,?,?,?,'PENDING_DNS','PENDING')`,run,r.tenantDigest,r.subjectDigest,r.domainDigest,r.keyDigest,r.plan);
+   VALUES(?,?,?,?,?,?,'PENDING_DNS','PENDING')`,run,r.tenantDigest,r.subjectDigest,r.domainDigest,r.keyDigest,r.plan)}
   return {stored:true,tenantCount:2};
- });
+ });}catch(e){
+  if(String(e?.message)==='MMF_PRIVATE_CONTROL_PROOF_DENIED')throw e;
+  // No SQL error text, customer data or stack ever crosses RPC boundary.
+  throw Error('MMF_PRIVATE_CONTROL_SEED_'+phase.toUpperCase()+'_FAILED');
+ }
 }
 export function readMmfSyntheticControl(storage,run,records){
  inputCheck(run,records);const s=initialize(storage);

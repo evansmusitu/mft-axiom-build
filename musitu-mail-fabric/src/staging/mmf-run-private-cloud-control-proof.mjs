@@ -8,7 +8,12 @@ async function call(path,payload={},allowReset=false){
  const response=await fetch(BASE+path,{method:'POST',headers:{'content-type':'application/json'},
   body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
  if(allowReset&&response.status===503)return {expectedReset:true};
- if(response.status!==200)deny('HTTP_'+response.status+'_'+path.replace(/[^a-z]/gi,'_'));
+ if(response.status!==200){
+  const j=await response.json().catch(()=>({}));
+  const allowed=['CONTROL_SEED_OCCUPANCY','CONTROL_SEED_FIRST_INSERT','CONTROL_SEED_SECOND_INSERT','CLOSED_STAGE_VALIDATION_FAILED','REMOTE_BINDING_UNAVAILABLE','REMOTE_ENTRYPOINT_MISSING','RPC_TIMED_OUT','REMOTE_RPC_FAILED'];
+  const category=allowed.includes(j?.category)?j.category:'UNKNOWN';
+  deny('HTTP_'+response.status+'_'+path.replace(/[^a-z]/gi,'_')+'_'+category);
+ }
  const out=await response.json();if(!out||Object.getPrototypeOf(out)!==Object.prototype)deny('RESPONSE');return out;
 }
 const expected=(usageCount,revokedCount)=>({present:true,tenantCount:2,domainPendingCount:2,subscriptionPendingCount:2,usageCount,revokedCount,entitlementsActive:0});

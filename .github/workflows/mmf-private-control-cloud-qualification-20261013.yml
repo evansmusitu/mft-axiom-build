@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify-closed-control:
-    if: github.event.before == 'c9f5c5deeadd91cbbcb62d6fb24f499b344d4a12'
+    if: github.event.before == '05fb3484452e97df3a24fb9482e5c8e928435ebc'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 20
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "$(git rev-parse HEAD^)" = 'c9f5c5deeadd91cbbcb62d6fb24f499b344d4a12'
+          test "$(git rev-parse HEAD^)" = '05fb3484452e97df3a24fb9482e5c8e928435ebc'
           node --input-type=module <<'NODE'
           const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           async function get(endpoint){
