@@ -9,7 +9,7 @@
     "test:local": "node --test ./test/identity.test.mjs ./test/routing.test.mjs"
   },
   "devDependencies": {
-    "vitest": "~4.1.11",
-    "@cloudflare/vitest-plugin": "^1.0.0"
+    "vitest": "4.1.11",
+    "@cloudflare/vitest-plugin": "1.4.0"
   }
 }

@@ -44,6 +44,9 @@ jobs:
         working-directory: ops/trackb16
         run: |
           set -euo pipefail
+          node --version && npm --version
+          npm install --global npm@11.19.1 --no-audit --no-fund
+          node --version && npm --version
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           npm ci --no-audit --no-fund
           echo AXIOM_B16_EPHEMERAL_DEPENDENCIES_LOCKED_NO_COMMITTED_LOCKFILE
