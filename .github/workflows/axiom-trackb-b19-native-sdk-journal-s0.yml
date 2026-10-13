@@ -1,0 +1,61 @@
+name: AXIOM Track B19 synthetic real OpenHands native event chain S0
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b19-native-sdk-journal-s0-20261013
+    paths:
+      - ops/trackb19/**
+      - ops/trackb12/b12_runner.py
+      - .github/workflows/axiom-trackb-b19-native-sdk-journal-s0.yml
+permissions:
+  contents: read
+jobs:
+  isolated-native-sdk-evidence-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b19-native-sdk-journal-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fail closed on provider secrets and ensure known SDK program
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test ! -e ops/trackb19/.dev.vars
+          python3 -m py_compile ops/trackb19/*.py
+          test "$(git hash-object ops/trackb12/b12_runner.py)" = f1ac799d6b00636247c2b773122267031a67aa8f
+          echo B19_VERIFIED_INHERITED_B12_SDK_SOURCE
+      - name: Run independent journal persistence/adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ops/trackb19
+          python3 -m unittest -v test_journal
+          echo B19_SQLITE_EVENT_CHAIN_AND_SIGNATURE_TESTS_PASS
+      - name: Install authentic OpenHands SDK in ephemeral CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b19-venv
+          /tmp/axiom-b19-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0'
+          /tmp/axiom-b19-venv/bin/python -c 'from openhands.sdk import Agent, LLM, Conversation, Tool; print("B19_OPENHANDS_SDK_IMPORT_PASS")'
+      - name: Run two unprivileged genuine native SDK workers and seal event chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b19-verified-b12.py
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 \
+            /tmp/axiom-b19-venv/bin/python ops/trackb19/native_qualification.py
+          echo B19_S0_NATIVE_EVENTS_SEALED_NO_MODEL_PROVIDER_OR_PRODUCTION
