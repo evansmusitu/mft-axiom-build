@@ -38,41 +38,41 @@ export async function qualifyPrivateSyntheticRestart({
   {tenantDigest:gen(),subjectDigest:gen(),domainDigest:gen(),keyDigest:gen(),plan:'GROWTH'}
  ];
  const idem=gen();if(new Set([run,idem,...records.flatMap(x=>[x.tenantDigest,x.subjectDigest,x.domainDigest,x.keyDigest])]).size!==10)deny();
- const seed={run,records};let attempted=false,primaryError=null,qualified=false,cleaned=false;
+ const seed={run,records};let attempted=false,primaryError=null,qualified=false,cleaned=false,phase='SEED';
  try{
   attempted=true;
   if(!equals(await call('/control/seed',seed),{stored:true,tenantCount:2}))deny();
-  if(!equals(await call('/control/read',seed),expected(0,0)))deny();
-  for(const r of records)if(!equals(await call('/control/access',{run,record:r}),{active:true}))deny();
-  if(!equals(await call('/control/access',{run,record:{...records[0],keyDigest:records[1].keyDigest}}),{active:false}))deny();
-  if(!equals(await call('/control/meter',{run,record:records[0],idem}),{metered:true}))deny();
-  if(!equals(await call('/control/meter',{run,record:records[0],idem}),{metered:false}))deny();
-  if(!equals(await call('/control/revoke',{run,record:records[0]}),{revoked:true}))deny();
-  if(!equals(await call('/control/access',{run,record:records[0]}),{active:false}))deny();
+  phase='READ_INITIAL';if(!equals(await call('/control/read',seed),expected(0,0)))deny();
+  phase='ACCESS_INITIAL';for(const r of records)if(!equals(await call('/control/access',{run,record:r}),{active:true}))deny();
+  phase='CROSS_TENANT_ACCESS';if(!equals(await call('/control/access',{run,record:{...records[0],keyDigest:records[1].keyDigest}}),{active:false}))deny();
+  phase='METER';if(!equals(await call('/control/meter',{run,record:records[0],idem}),{metered:true}))deny();
+  phase='METER_DUPLICATE';if(!equals(await call('/control/meter',{run,record:records[0],idem}),{metered:false}))deny();
+  phase='REVOKE';if(!equals(await call('/control/revoke',{run,record:records[0]}),{revoked:true}))deny();
+  phase='REVOKED_ACCESS';if(!equals(await call('/control/access',{run,record:records[0]}),{active:false}))deny();
   // A crash is EXPECTED to return 503 or break RPC. Do not conclude from that alone.
-  let resetOutcome=false;
+  phase='RESTART';let resetOutcome=false;
   try{const r=await fetchImpl(origin+'/restart',{method:'POST',
     headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(timeoutMs)});
     resetOutcome=r.status===503;
   }catch{resetOutcome=true}
   if(!resetOutcome)deny();
-  let different=false;
+  phase='NEW_INSTANCE_EPOCH';let different=false;
   for(let i=0;i<8;i++){
    if(i&&retryDelayMs)await new Promise(resolve=>setTimeout(resolve,retryDelayMs));
    try{if((await epoch())!==before){different=true;break}}catch{}
   }
   if(!different)deny();
-  let persisted=false;
+  phase='RECOVERY_READBACK';let persisted=false;
   for(let i=0;i<6;i++){
    if(i&&retryDelayMs)await new Promise(resolve=>setTimeout(resolve,retryDelayMs));
    try{if(equals(await call('/control/read',seed),expected(1,1))){persisted=true;break}}catch{}
   }
   if(!persisted)deny();
-  if(!equals(await call('/control/access',{run,record:records[1]}),{active:true}))deny();
-  if(!equals(await call('/control/meter',{run,record:records[1],idem}),{metered:true}))deny();
-  if(!equals(await call('/control/read',seed),expected(2,1)))deny();
+  phase='SECOND_TENANT_ACCESS';if(!equals(await call('/control/access',{run,record:records[1]}),{active:true}))deny();
+  phase='CROSS_TENANT_METER';if(!equals(await call('/control/meter',{run,record:records[1],idem}),{metered:true}))deny();
+  phase='FINAL_READBACK';if(!equals(await call('/control/read',seed),expected(2,1)))deny();
   qualified=true;
- }catch{primaryError=Error('MMF_REMOTE_RESTART_QUALIFICATION_DENIED')}
+ }catch{primaryError=Error('MMF_REMOTE_RESTART_STAGE_'+phase+'_DENIED')}
  finally{
   if(attempted){
    let ack=false;
@@ -92,5 +92,5 @@ export async function qualifyPrivateSyntheticRestart({
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  qualifyPrivateSyntheticRestart().then(x=>console.log(JSON.stringify(x)))
-  .catch(()=>{console.error('MMF_PRIVATE_REMOTE_RESTART_QUALIFICATION_UNPROVEN');process.exitCode=2});
+  .catch(e=>{const msg=String(e?.message||'');console.error(/^MMF_REMOTE_RESTART_STAGE_[A-Z_]+_DENIED$/.test(msg)?msg:'MMF_PRIVATE_REMOTE_RESTART_QUALIFICATION_UNPROVEN');process.exitCode=2});
 }

@@ -39,6 +39,6 @@ test('unchanged epoch is denied and attempted seed is cleaned, even if acknowled
  await assert.rejects(()=>qualifyPrivateSyntheticRestart({fetchImpl:b.transport,makeDigest:()=>id(seq++),retryDelayMs:0}),/MMF_REMOTE_RESTART_/);
  assert.equal(b.occupancy(),false);
  const c=boundary({timeoutOnSeed:true});seq=1;
- await assert.rejects(()=>qualifyPrivateSyntheticRestart({fetchImpl:c.transport,makeDigest:()=>id(seq++),retryDelayMs:0}),/MMF_REMOTE_RESTART_/);
+ await assert.rejects(()=>qualifyPrivateSyntheticRestart({fetchImpl:c.transport,makeDigest:()=>id(seq++),retryDelayMs:0}),/MMF_REMOTE_RESTART_STAGE_SEED_DENIED/);
  assert.equal(c.occupancy(),false,'cleanup after uncertain seeded-then-timeout');
 });

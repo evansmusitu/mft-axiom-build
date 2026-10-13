@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qualify-closed-control:
-    if: github.event.before == '1cc8272c72e8bb7d9249045f7b3e436042a35f5d'
+    if: github.event.before == '7525b7bb6cd34900bd201833399516e7e9cc2b6b'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 20
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "$(git rev-parse HEAD^)" = '1cc8272c72e8bb7d9249045f7b3e436042a35f5d'
+          test "$(git rev-parse HEAD^)" = '7525b7bb6cd34900bd201833399516e7e9cc2b6b'
           node --input-type=module <<'NODE'
           const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           async function get(endpoint){
@@ -155,9 +155,14 @@ jobs:
           if [ "$READY" -ne 1 ]; then echo MMF_PRIVATE_READONLY_LOOPBACK_UNAVAILABLE; exit 2; fi
           # Both preflight and postflight are count-only private GETs; no raw data leaves stage.
           node src/staging/mmf-remote-control-readonly-cli.mjs
+          set +e
           node src/staging/mmf-private-control-remote-restart.mjs > "$RUNNER_TEMP/mmf-private-restart-evidence.json"
-          grep -q MMF_PRIVATE_REMOTE_CONTROL_RESTART_PERSISTENCE_PROVEN "$RUNNER_TEMP/mmf-private-restart-evidence.json"
+          PROOF_STATUS=$?
+          set -e
+          # Independently perform a count-only readback EVEN IF synthetic proof fails.
           node src/staging/mmf-remote-control-readonly-cli.mjs
+          test "$PROOF_STATUS" -eq 0
+          grep -q MMF_PRIVATE_REMOTE_CONTROL_RESTART_PERSISTENCE_PROVEN "$RUNNER_TEMP/mmf-private-restart-evidence.json"
       - name: Upload non-identifying verified private restart proof
         if: success()
         uses: actions/upload-artifact@v4
