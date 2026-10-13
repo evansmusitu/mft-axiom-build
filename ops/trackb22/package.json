@@ -1,0 +1,15 @@
+{
+  "name":"@musitu/axiom-trackb22-conservative-journal-s0",
+  "version":"0.0.0-test-only",
+  "private":true,
+  "type":"module",
+  "scripts":{
+    "test:journal":"node --test test/journal.test.mjs",
+    "test:runtime":"vitest run test/runtime.test.mjs"
+  },
+  "devDependencies":{
+    "vitest":"4.1.11",
+    "@cloudflare/vitest-plugin":"1.4.0",
+    "wrangler":"4.149.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name":"axiom-b22-isolated-local-no-provider",
+  "main":"src/worker.mjs",
+  "compatibility_date":"2026-10-13",
+  "durable_objects":{"bindings":[
+    {"name":"AXIOM_QUOTA_S0","class_name":"AxiomB16QuotaLedger"},
+    {"name":"AXIOM_JOURNAL_S0","class_name":"AxiomB22DispatchJournal"}
+  ]},
+  "migrations":[{"tag":"b22_s0_local_v1","new_sqlite_classes":["AxiomB16QuotaLedger","AxiomB22DispatchJournal"]}],
+  "vars":{
+    "AXIOM_ACCOUNT_ID":"axiom-s0-isolated",
+    "AXIOM_B22_TEST_SECRET":"B22_SYNTHETIC_PUBLIC_S0_TEST_ONLY_NOT_AN_AUTHORITY",
+    "AUTHORITY_ED25519_PUBKEY_B64":"FLCBFw1AthWLKpmPaEIPR0ycppsxjSI/XGM12KEaK9w=",
+    "WORKLOAD_AUTH_ED25519_PUBKEY_B64":"2CEpPILmy+/jmfDSDKb8SqW/4vI06JkP4UHytR1Cmeg="
+  }
+}

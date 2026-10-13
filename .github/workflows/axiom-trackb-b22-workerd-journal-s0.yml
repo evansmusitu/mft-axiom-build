@@ -1,0 +1,166 @@
+name: AXIOM Track B22 conservative dispatch journal S0 (no provider)
+on:
+  push:
+    branches: [frontier/axiom-trackb-b22-crash-journal-s0-20261013]
+    paths:
+      - ops/trackb22/**
+      - .github/workflows/axiom-trackb-b22-workerd-journal-s0.yml
+      - ops/trackb16/src/**
+      - ops/trackb17/dispatch_guard.mjs
+      - ops/trackb15_do/ledger_core.mjs
+      - ops/trackb19/**
+      - ops/trackb20/**
+      - ops/trackb12/b12_runner.py
+permissions:
+  contents: read
+jobs:
+  local-workerd-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b22-crash-journal-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 11
+    env:
+      CI: 'true'
+      NPM_CONFIG_AUDIT: 'false'
+      NPM_CONFIG_FUND: 'false'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Enforce S0 credentialless source and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test ! -e ops/trackb22/.dev.vars
+          test ! -e ops/trackb22/.env
+          python3 -m py_compile ops/trackb22/*.py
+          (cd ops/trackb22 && sha256sum -c MANIFEST.sha256)
+          for p in ops/trackb22/src/*.mjs ops/trackb22/test/*.mjs ops/trackb22/vitest.config.mjs; do node --check "$p"; done
+          echo AXIOM_B22_SOURCE_INTEGRITY_S0_PASS
+      - name: Verify exact journal behavior with real Node SQLite and socket gateway tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd ops/trackb22 && node --test test/journal.test.mjs)
+          (cd ops/trackb22 && python3 -m unittest discover -v -s test -p test_gate.py)
+          echo AXIOM_B22_NODE_SQLITE_AND_NEGATIVE_SHIM_PASS
+      - name: Install isolated local Workers runtime
+        shell: bash
+        working-directory: ops/trackb22
+        run: |
+          set -euo pipefail
+          NPM_CONFIG_PREFIX="$RUNNER_TEMP/axiom-b22-npm" npm install -g npm@11.19.1 --no-audit --no-fund
+          export PATH="$RUNNER_TEMP/axiom-b22-npm/bin:$PATH"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          npm ls workerd
+          echo AXIOM_B22_EPHEMERAL_TEST_RUNTIME_NO_DEPLOYMENT
+      - name: Genuine Workerd SQLite journal and independent negative suite
+        shell: bash
+        working-directory: ops/trackb22
+        run: |
+          set -euo pipefail
+          npm run test:runtime
+          echo AXIOM_B22_LOCAL_WORKERD_ATOMIC_JOURNAL_S0_PASS_NOT_PRODUCTION
+  native-openhands-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b22-crash-journal-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    outputs:
+      receipt_b64: ${{ steps.native.outputs.receipt_b64 }}
+    env:
+      CI: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+      NPM_CONFIG_AUDIT: 'false'
+      NPM_CONFIG_FUND: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: S0 no-provider preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test "$(git hash-object ops/trackb12/b12_runner.py)" = f1ac799d6b00636247c2b773122267031a67aa8f
+          (cd ops/trackb22 && sha256sum -c MANIFEST.sha256)
+          echo AXIOM_B22_UNMODIFIED_NATIVE_SOURCE_PINNED
+      - name: Install genuine OpenHands SDK + local Workers only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b22-venv
+          /tmp/axiom-b22-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0' 'cryptography>=42,<50'
+          /tmp/axiom-b22-venv/bin/python -c 'from openhands.sdk import Agent,LLM,Conversation,Tool; print("B22_NATIVE_OPENHANDS_IMPORT_PASS")'
+          NPM_CONFIG_PREFIX="$RUNNER_TEMP/axiom-b22-npm" npm install -g npm@11.19.1 --no-audit --no-fund
+          export PATH="$RUNNER_TEMP/axiom-b22-npm/bin:$PATH"
+          cd ops/trackb22
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          ./node_modules/.bin/wrangler --version
+      - name: Run genuine SDK processes under durable quota AND terminal outcome journal
+        id: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b22-unmodified-b12.py
+          sudo install -o root -g root -m 0644 ops/trackb22/gated_b12.py /tmp/axiom-b19-verified-b12.py
+          sudo install -o root -g root -m 0600 /dev/null /tmp/axiom-b22-local-token
+          synthetic_secret="$(openssl rand -hex 32)"
+          printf %s "$synthetic_secret" | sudo tee /tmp/axiom-b22-local-token >/dev/null
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            if [ -n "${workerd_pid:-}" ]; then kill "$workerd_pid" 2>/dev/null || true; wait "$workerd_pid" 2>/dev/null || true; fi
+            sudo rm -f /tmp/axiom-b22-local-token /tmp/axiom-b22-unmodified-b12.py /tmp/axiom-b19-verified-b12.py
+            unset synthetic_secret
+          }
+          trap cleanup EXIT
+          export PATH="$RUNNER_TEMP/axiom-b22-npm/bin:$PATH"
+          (cd ops/trackb22 && ./node_modules/.bin/wrangler dev --local --ip 127.0.0.1 --port 18768 --inspector-port 0 \
+            --var "AXIOM_B22_TEST_SECRET:$synthetic_secret" > "$RUNNER_TEMP/b22-workerd.log" 2>&1) &
+          workerd_pid=$!
+          ready=0
+          for i in $(seq 1 70); do
+            if curl -fsS --max-time 2 -H "X-Axiom-B21-Local-Secret: $synthetic_secret" \
+               http://127.0.0.1:18768/_internal_s0_health | grep -q '"ready":true'; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then tail -120 "$RUNNER_TEMP/b22-workerd.log"; exit 75; fi
+          test "$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18768/_internal_s0_admit)" = 403
+          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 B19_SOURCE_COMMIT="$GITHUB_SHA" \
+             /tmp/axiom-b22-venv/bin/python ops/trackb19/native_qualification.py | tee "$RUNNER_TEMP/b22-native.log"
+          /tmp/axiom-b22-venv/bin/python ops/trackb22/verify_gate.py "$RUNNER_TEMP/b22-native.log"
+          receipt="$(sed -n 's/^B19_PORTABLE_EVIDENCE_B64=//p' "$RUNNER_TEMP/b22-native.log")"
+          test -n "$receipt"
+          test "$(printf %s "$receipt" | wc -c)" -lt 60000
+          echo "receipt_b64=$receipt" >> "$GITHUB_OUTPUT"
+          echo AXIOM_B22_GENUINE_NATIVE_OPENHANDS_SIGNED_QUOTA_AND_PERSISTED_OUTCOME_S0_PASS_NOT_PRODUCTION
+  independent-verifier-s0:
+    needs: [local-workerd-s0,native-openhands-s0]
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b22-crash-journal-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      B21_PORTABLE_B64: ${{ needs.native-openhands-s0.outputs.receipt_b64 }}
+      B21_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Independently verify native evidence and journal source integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          python3 -m pip install -q --disable-pip-version-check 'cryptography>=42,<50'
+          python3 ops/trackb21/verify_b21_portable.py
+          (cd ops/trackb22 && sha256sum -c MANIFEST.sha256)
+          (cd ops/trackb20 && python3 -m unittest -q test_causality)
+          echo AXIOM_B22_INDEPENDENT_NATIVE_EVIDENCE_AND_SOURCE_S0_PASS_NOT_RELEASE
