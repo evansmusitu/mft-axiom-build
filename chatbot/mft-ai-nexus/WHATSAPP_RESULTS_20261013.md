@@ -41,7 +41,7 @@ The CI checks exercised real Cloudflare deployment and public HTTP behavior. Wha
 | Open Meta for Developers | Confirmed | Authenticated developer dashboard accessible. |
 | Inspect existing business apps | Confirmed | Fresh app inventory shows **No apps yet**; MFT Education NEXUS portfolio created. |
 | Find/create correct WhatsApp integration | App created | Meta dashboard confirms app ID 1775810357073694; sandbox onboarding prepared. |
-| Configure Meta test number | Sender confirmed; recipient verification pending | Test sender +1 555 663-7079 and its account/phone IDs observed; WhatsApp recipient verification sent. |
+| Configure Meta test number | Sender and recipient confirmed | Test sender +1 555 663-7079 and verified recipient +263781572008 selected in Meta; access token still pending. |
 | Connect Meta webhook | Backend ready; registration blocked | HMAC/challenge handling tested; authenticated Meta subscription not configured. |
 | Secure credentials | Blocked | Meta credentials unavailable; Cloudflare dashboard signed out. No secrets published. |
 | Use GitHub–Cloudflare connection | Confirmed | Successful scoped deployment run above. |
@@ -100,5 +100,11 @@ Following the owner's secure manual password submission, Meta displayed the auth
 ## Continuation checkpoint — WhatsApp sandbox assets provisioned
 
 The owner explicitly approved the displayed Facebook Terms for WhatsApp Business and Meta Hosting Terms for Cloud API. Meta's sandbox onboarding completed. Confirmed assets: test sender `+1 555 663-7079`, Phone Number ID `1292923853915392`, WhatsApp Business account ID `1955690452095441`. The live dashboard's sample uses Graph API `v25.0`. The access-token field says **Not generated yet**; no credential value was read or exposed. The owner-controlled line `+263781572008` was submitted as a recipient of free sandbox messages only. Meta confirmed sending a five-digit verification code on WhatsApp and is awaiting secure owner entry. This does not register, migrate, disconnect or replace that number as a business API sender. Cloudflare dashboard is signed out. Remaining steps: recipient verification, scoped test token, secure Worker settings, callback subscription and real inbound/reply/delivery testing. No outbound test message or delivered callback is yet verified.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — sandbox recipient verified
+
+After the owner's secure manual code entry, Meta's recipient dropdown displayed `+263-78-157-2008`, with the verification dialog closed and the generated example targeting `263781572008`. This confirms recipient verification. A cropped screenshot of the selected recipient was captured without secrets. The test sender remains `+1 555 663-7079`. The access token is not generated yet. Cloudflare's existing account sign-in page is prepared for secure manual login; no new account, billing or production registration is being started. Real incoming webhooks, automated replies and delivery are still unverified.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
