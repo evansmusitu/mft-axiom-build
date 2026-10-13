@@ -38,9 +38,9 @@ The CI checks exercised real Cloudflare deployment and public HTTP behavior. Wha
 
 | Requested outcome | Status | Evidence or blocker |
 | --- | --- | --- |
-| Open Meta for Developers | Partial | Opened in ChatGPT cloud browser; redirected to sign-in. |
-| Inspect existing business apps | Blocked | Authenticated app inventory unavailable. |
-| Find/create correct WhatsApp integration | Blocked | Must inspect the actual signed-in account first. |
+| Open Meta for Developers | Confirmed | Authenticated developer dashboard accessible. |
+| Inspect existing business apps | Confirmed | Fresh app inventory shows **No apps yet**; MFT Education NEXUS portfolio created. |
+| Find/create correct WhatsApp integration | Pending re-authentication | MFT AI NEXUS wizard prepared and explicit terms approval received; creation awaits password submission. |
 | Configure Meta test number | Blocked | Test WABA, sender and verified recipient not yet observed. |
 | Connect Meta webhook | Backend ready; registration blocked | HMAC/challenge handling tested; authenticated Meta subscription not configured. |
 | Secure credentials | Blocked | Meta credentials unavailable; Cloudflare dashboard signed out. No secrets published. |
@@ -82,5 +82,11 @@ Meta's authenticated app dashboard is now accessible and showed **No apps yet**.
 ## Continuation checkpoint — approved creation reached re-authentication
 
 The owner authorized proceeding with the prepared MFT app. Creation reached Meta's **Please re-enter your password** checkpoint, where a secure browser-auth request was issued without exposing credentials. That request timed out, and the fresh Meta app inventory still showed **No apps yet**. The wizard was restored with **MFT AI NEXUS**, the WhatsApp use case, and the existing **MFT Education NEXUS** portfolio. Automatic approval review then rejected the final **Create app** click because explicit action-time confirmation of Meta Platform Terms and Developer Policies was not recognized. The agent did not bypass this rejection. The review tab is preserved; explicit confirmation and successful re-authentication remain necessary. No test-number configuration, real WhatsApp delivery, production activation, billing, or migration is confirmed. Screenshot capture of the review again timed out.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — explicit terms approval received
+
+The owner explicitly approved creating **MFT AI NEXUS** and accepting Meta Platform Terms, Developer Policies and applicable app terms. The approved final action reached Meta's password re-authentication dialog. The secure browser-auth request timed out; no credential values were exposed. After the browser runtime expired, a fresh authenticated app inventory again showed **No apps yet**, so creation is not confirmed. The wizard was restored with the same WhatsApp-only use case and existing portfolio, and the approved creation action again reached **Please re-enter your password**. The browser is prepared for manual secure password entry and submission, without another automated credential request. Next: verify an actual app ID, configure Meta's test sender and Worker secrets, and perform real delivery tests. No production-number operation or billing action occurred.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
