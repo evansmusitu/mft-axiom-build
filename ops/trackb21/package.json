@@ -1,0 +1,8 @@
+{
+  "name":"@musitu/axiom-trackb21-openhands-gated-s0",
+  "version":"0.0.0-local-test-only",
+  "private":true,
+  "type":"module",
+  "scripts":{"dev:s0":"wrangler dev --local --ip 127.0.0.1 --port 18768"},
+  "devDependencies":{"wrangler":"4.45.1"}
+}

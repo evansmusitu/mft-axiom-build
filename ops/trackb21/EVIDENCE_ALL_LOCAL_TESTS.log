@@ -1,0 +1,23 @@
+test_bad_ordinal_denied (test_gate.GateBehavior.test_bad_ordinal_denied) ... ok
+test_bad_worker_denied (test_gate.GateBehavior.test_bad_worker_denied) ... ok
+test_expected_bearer_allowed (test_gate.GateBehavior.test_expected_bearer_allowed) ... ok
+test_gate_refuses_forged_receipt (test_gate.GateBehavior.test_gate_refuses_forged_receipt) ... ok
+test_header_requires_valid_token (test_gate.GateBehavior.test_header_requires_valid_token) ... ok
+test_malformed_denied (test_gate.GateBehavior.test_malformed_denied) ... ok
+test_missing_broker_token_denied_even_if_attacker_supplies_sentinel (test_gate.GateBehavior.test_missing_broker_token_denied_even_if_attacker_supplies_sentinel) ... ok
+test_oversize_denied (test_gate.GateBehavior.test_oversize_denied) ... ok
+test_stream_denied (test_gate.GateBehavior.test_stream_denied) ... ok
+test_unknown_model_denied (test_gate.GateBehavior.test_unknown_model_denied) ... ok
+test_unknown_path_denied (test_gate.GateBehavior.test_unknown_path_denied) ... ok
+test_unknown_tool_denied (test_gate.GateBehavior.test_unknown_tool_denied) ... ok
+test_valid_request (test_gate.GateBehavior.test_valid_request) ... ok
+test_accept_real_set (test_verify_gate.VerificationTests.test_accept_real_set) ... ok
+test_reject_denial (test_verify_gate.VerificationTests.test_reject_denial) ... ok
+test_reject_duplicate (test_verify_gate.VerificationTests.test_reject_duplicate) ... ok
+test_reject_missing (test_verify_gate.VerificationTests.test_reject_missing) ... ok
+test_reject_missing_portable (test_verify_gate.VerificationTests.test_reject_missing_portable) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.513s
+
+OK

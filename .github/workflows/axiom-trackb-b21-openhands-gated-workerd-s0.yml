@@ -1,0 +1,136 @@
+name: AXIOM Track B21 genuine OpenHands SDK model calls via B18 local Workerd S0
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b21-governed-openhands-s0-20261013
+    paths:
+      - ops/trackb21/**
+      - .github/workflows/axiom-trackb-b21-openhands-gated-workerd-s0.yml
+      - ops/trackb12/b12_runner.py
+      - ops/trackb19/**
+      - ops/trackb20/**
+      - ops/trackb16/src/**
+      - ops/trackb17/dispatch_guard.mjs
+      - ops/trackb15_do/ledger_core.mjs
+permissions:
+  contents: read
+jobs:
+  genuine-native-sdk-through-workerd-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b21-governed-openhands-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    outputs:
+      receipt_b64: ${{ steps.native.outputs.receipt_b64 }}
+    env:
+      CI: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+      NPM_CONFIG_AUDIT: 'false'
+      NPM_CONFIG_FUND: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Enforce isolated S0 no provider credentials and pinned native SDK source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test "$(git hash-object ops/trackb12/b12_runner.py)" = f1ac799d6b00636247c2b773122267031a67aa8f
+          test ! -e ops/trackb21/.dev.vars
+          test ! -e ops/trackb21/.env
+          python3 -m py_compile ops/trackb21/*.py
+          node --check ops/trackb21/src/worker.mjs
+          echo B21_S0_PROVIDER_CREDENTIALS_ABSENT_INHERITED_SDK_PINNED
+      - name: Source integrity and credentialless broker/adversarial preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd ops/trackb21 && sha256sum -c MANIFEST.sha256)
+          (cd ops/trackb17 && sha256sum -c MANIFEST.sha256)
+          cd ops/trackb21
+          python3 -m unittest discover -v -s test
+          echo AXIOM_B21_S0_OFFLINE_PREFLIGHT_PASS
+      - name: Install ephemeral dependencies without GPU or provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b21-venv
+          /tmp/axiom-b21-venv/bin/pip install -q --disable-pip-version-check 'openhands-agent-server==1.51.0' 'cryptography>=42,<50'
+          /tmp/axiom-b21-venv/bin/python -c 'from openhands.sdk import Agent,LLM,Conversation,Tool; print("B21_GENUINE_OPENHANDS_SDK_IMPORTED")'
+          NPM_CONFIG_PREFIX="$RUNNER_TEMP/axiom-b21-npm" npm install -g npm@11.19.1 --no-audit --no-fund
+          export PATH="$RUNNER_TEMP/axiom-b21-npm/bin:$PATH"
+          cd ops/trackb21
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          ./node_modules/.bin/wrangler --version
+          echo AXIOM_B21_EPHEMERAL_LOCAL_WORKER_TOOL_READY_NO_DEPLOYMENT
+      - name: Run genuine OpenHands SDK under prior signed durable model-request gate
+        id: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Disposable CI only. Test key is not production authorization.
+          sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b21-unmodified-b12.py
+          sudo install -o root -g root -m 0644 ops/trackb21/gated_b12.py /tmp/axiom-b19-verified-b12.py
+          sudo install -o root -g root -m 0600 /dev/null /tmp/axiom-b21-local-token
+          synthetic_secret="$(openssl rand -hex 32)"
+          printf %s "$synthetic_secret" | sudo tee /tmp/axiom-b21-local-token >/dev/null
+          test "$(sudo stat -c '%a' /tmp/axiom-b21-local-token)" = 600
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65533 ! -d 127.0.0.0/8 -j REJECT 2>/dev/null || true
+            if [ -n "${workerd_pid:-}" ]; then kill "$workerd_pid" 2>/dev/null || true; wait "$workerd_pid" 2>/dev/null || true; fi
+            sudo rm -f /tmp/axiom-b21-local-token /tmp/axiom-b21-unmodified-b12.py /tmp/axiom-b19-verified-b12.py
+            unset synthetic_secret
+          }
+          trap cleanup EXIT
+          export PATH="$RUNNER_TEMP/axiom-b21-npm/bin:$PATH"
+          (cd ops/trackb21 && ./node_modules/.bin/wrangler dev --local --ip 127.0.0.1 --port 18768 --inspector-port 0 \
+            --var "AXIOM_B21_TEST_SECRET:$synthetic_secret" > "$RUNNER_TEMP/b21-workerd.log" 2>&1) &
+          workerd_pid=$!
+          ready=0
+          for i in $(seq 1 70); do
+            if curl -fsS --max-time 2 -H "X-Axiom-B21-Local-Secret: $synthetic_secret" \
+                http://127.0.0.1:18768/_internal_s0_health | grep -q '"ready":true'; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then tail -120 "$RUNNER_TEMP/b21-workerd.log"; exit 75; fi
+          # An unauthenticated call cannot perform even a synthetic admission.
+          test "$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18768/_internal_s0_admit)" = 403
+          echo B21_LOOPBACK_WORKERD_ISOLATED_AND_UNAUTHORIZED_REQUEST_DENIED
+          sudo env -i PATH=/usr/bin:/bin:/usr/local/bin PYTHONUNBUFFERED=1 B19_SOURCE_COMMIT="$GITHUB_SHA" \
+            /tmp/axiom-b21-venv/bin/python ops/trackb19/native_qualification.py | tee "$RUNNER_TEMP/b21-native-evidence.log"
+          /tmp/axiom-b21-venv/bin/python ops/trackb21/verify_gate.py "$RUNNER_TEMP/b21-native-evidence.log"
+          receipt="$(sed -n 's/^B19_PORTABLE_EVIDENCE_B64=//p' "$RUNNER_TEMP/b21-native-evidence.log")"
+          test -n "$receipt"
+          test "$(printf %s "$receipt" | wc -c)" -lt 60000
+          echo "receipt_b64=$receipt" >> "$GITHUB_OUTPUT"
+          echo AXIOM_B21_REAL_NATIVE_OPENHANDS_MODEL_CALLS_DURABLE_WORKERD_S0_PASS_NOT_PRODUCTION
+  independent-portable-causal-verifier-s0:
+    needs: genuine-native-sdk-through-workerd-s0
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b21-governed-openhands-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      B21_PORTABLE_B64: ${{ needs.genuine-native-sdk-through-workerd-s0.outputs.receipt_b64 }}
+      B21_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Independent bounded causal verification without model runtime or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          python3 -m pip install -q --disable-pip-version-check 'cryptography>=42,<50'
+          python3 ops/trackb21/verify_b21_portable.py
+          (cd ops/trackb20 && python3 -m unittest -q test_causality)
+          echo AXIOM_B21_SEPARATE_INDEPENDENT_CAUSAL_S0_PASS_NOT_RELEASE

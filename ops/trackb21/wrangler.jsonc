@@ -1,0 +1,14 @@
+{
+  "name": "axiom-b21-s0-local-openhands-admission-test-only",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-13",
+  "durable_objects": {
+    "bindings": [{"name": "AXIOM_QUOTA_S0", "class_name": "AxiomB16QuotaLedger"}]
+  },
+  "migrations": [{"tag": "b21_s0_local_v1", "new_sqlite_classes": ["AxiomB16QuotaLedger"]}],
+  "vars": {
+    "AXIOM_ACCOUNT_ID": "axiom-s0-isolated",
+    "AUTHORITY_ED25519_PUBKEY_B64": "FLCBFw1AthWLKpmPaEIPR0ycppsxjSI/XGM12KEaK9w=",
+    "WORKLOAD_AUTH_ED25519_PUBKEY_B64": "2CEpPILmy+/jmfDSDKb8SqW/4vI06JkP4UHytR1Cmeg="
+  }
+}
