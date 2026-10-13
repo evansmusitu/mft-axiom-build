@@ -132,3 +132,11 @@ All five required private Worker settings were confirmed **absent** at the time 
 The current chat does not expose the prior Cloud Browser session or an authenticated Meta API connector. A Meta sandbox access token still requires authorized, interactive Meta account participation. Do not publish it in chat or public GitHub source. Once Meta tokens are present, the five values must be installed through a secure Cloudflare Worker secret-entry interface and callback/subscription configured in the correct existing Meta app; only afterward test-mode may be enabled for the verified recipient. This is a checkpoint, **not** real delivery evidence.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — 2026-10-13, sandbox token permission review prepared
+
+The authenticated original cloud browser was resumed. The owner explicitly requested generating the sandbox token for existing app `1775810357073694`. **Generate token** opened Meta's OAuth permission review requesting `whatsapp_business_management` and `whatsapp_business_messaging`. The initial selection included current/future WhatsApp accounts; it was narrowed before submission to **current accounts only**, with the sole **Test WhatsApp Business Account** `1955690452095441` selected. The final review offers **Manage your WhatsApp accounts** and **Manage and access conversations in WhatsApp**, each for one selected account, and accepts **Meta Business Tools** terms via **Save**. This final action remains prepared for specific owner approval; no token value was handled or exposed.
+
+Cloudflare browser login currently reports **Unable to sign in. Try again or use your email and password.** No automated login retries were performed. GitHub's private Actions-secret UI is signed out; the connected repository API remains available and its existing deployment connection is already verified. Browser authentication or an authorized private secret-entry route is still needed to install Worker secrets. The authoritative report confirms the other continuation chat aligned Graph API to `v25.0` and ran a successful GET-only audit showing all five WhatsApp Worker settings absent. Production remains disabled and no real WhatsApp reply/delivery is confirmed.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
