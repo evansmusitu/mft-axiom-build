@@ -1,0 +1,38 @@
+# MFT AI NEXUS — live business assistant
+
+**MFT EDUCATION NEXUS**  
+**WhatsApp: 0781572008**  
+**Public URL:** https://mft-nexus-chatbot-20261012.mft-education-nexus-93f395f5.workers.dev
+
+## Verified October 13, 2026
+- Cloudflare GitHub Actions run 38341236700 deployed the initial web chatbot and passed 12/12 tests.
+- Run 38341660392 exercised two real Cloudflare GLM-4.7-Flash customer-service responses; both returned usable answers referencing support.
+- Run 38341913261 deployed quota-gated business AI on the existing isolated MFT chatbot Worker; all 15 tests and public health checks passed.
+- External POST to /api/chat returned HTTP 200 with a relevant Upper Six Chemistry study-notes enquiry response, MFT branding and WhatsApp number.
+
+## Current operation
+- Public web chat is live; deterministic menu responses remain available.
+- Business AI runs on Cloudflare Workers AI (@cf/zai-org/glm-4.7-flash) on the existing AI binding.
+- A global SQLite-backed Durable Object budget permits at most 20 AI calls per UTC day in this Worker. When denied or unavailable, the chatbot falls back to scripted customer support.
+- Requests about payment/prices are scripted; prices, stock, discounts, delivery or payments are not invented or collected.
+- General-purpose AI tutoring is disabled; this chatbot is business-specific.
+- Meta WhatsApp webhook handlers exist but **WhatsApp automatic messaging is not live** because official Meta Business Platform credentials and sender registration have not yet been configured.
+- The contact number in the site is a customer-support link, not evidence of a WhatsApp Cloud API connection.
+
+## Deployment and safety
+- Repository: evansmusitu/mft-axiom-build
+- Isolated branch: feature/mft-ai-nexus-cloudflare-20261012
+- Cloudflare Worker: mft-nexus-chatbot-20261012
+- CI uses GitHub's existing scoped CLOUDFLARE_API_TOKEN secret; no credentials were copied into source.
+- The existing Axiom, Paynow and MUSITU Workers are outside the deployment target.
+- Every public AI request is gated by a single global Durable Object counter before inference. API errors fail closed to scripted support.
+- The upstream Cloudflare account has a daily free Workers AI allocation, but this application cap does not certify the account's total usage from other applications.
+
+## Remaining steps
+1. Complete official Meta WhatsApp Business Platform onboarding and sender registration for 0781572008.
+2. Provision WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID as private Cloudflare Worker secrets, then verify inbound signatures and real replies.
+3. Connect approved MFT notes, marking schemes and inventory/pricing information to a factual, access-controlled knowledge base.
+4. Benchmark against Meta Business Agent using a fixed, reviewable customer-service evaluation set before claiming any superior performance.
+5. Implement payment verification before sending any paid material; never automate delivery based on customer claims alone.
+
+**MFT EDUCATION NEXUS — WhatsApp 0781572008**
