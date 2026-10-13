@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd ops/trackb22 && node --test test/journal.test.mjs)
+          (cd ops/trackb22 && node --test test/journal.test.mjs test/journal_process.test.mjs test/host_policy.test.mjs)
           (cd ops/trackb22 && python3 -m unittest discover -v -s test -p test_gate.py)
           echo AXIOM_B22_NODE_SQLITE_AND_NEGATIVE_SHIM_PASS
       - name: Install isolated local Workers runtime

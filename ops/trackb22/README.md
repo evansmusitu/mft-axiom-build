@@ -29,3 +29,13 @@ requests fail with HTTP 503, even with the publicly known *synthetic* test key.
 Node RED and GREEN test records are preserved alongside the previously observed
 RED and GREEN B22 durable-journal tests. This is defense-in-depth, not
 independent workload authentication; do NOT deploy this Worker.
+
+## Additional independent multi-process S0 regression tests
+
+Eight real separate Node processes share the same SQLite database, wait on
+a start barrier, and race one operation. Exactly one obtains a send permit.
+A separate SIGKILL immediately after durable issue (before any synthetic
+transport receipt) leaves the operation ISSUED and restart refuses resend.
+These tests use genuine local SQLite, not real Cloudflare multi-region hosts.
+They establish only the bounded local crash-window property; there is no
+reconciliation proof for an actual provider's uncertain delivery.

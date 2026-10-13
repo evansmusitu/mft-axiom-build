@@ -1,0 +1,24 @@
+TAP version 13
+# (node:6285) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: eight separate broker processes cannot obtain two transport permits
+ok 1 - eight separate broker processes cannot obtain two transport permits
+  ---
+  duration_ms: 125.465022
+  type: 'test'
+  ...
+# Subtest: SIGKILL immediately after durable ISSUE leaves replay unable to resend
+ok 2 - SIGKILL immediately after durable ISSUE leaves replay unable to resend
+  ---
+  duration_ms: 72.719211
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8085.118443
