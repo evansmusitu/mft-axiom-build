@@ -28,6 +28,15 @@
 - Every public AI request is gated by a single global Durable Object counter before inference. API errors fail closed to scripted support.
 - The upstream Cloudflare account has a daily free Workers AI allocation, but this application cap does not certify the account's total usage from other applications.
 
+
+## Security and domain QA update — 13 October 2026
+- The isolated Worker now rejects signed inbound WhatsApp messages until an explicit `ENABLE_WHATSAPP_MESSAGES=true` release gate is configured **in addition** to official Meta credentials. The default is `false`.
+- Incoming WhatsApp metadata must match the exact configured Meta Phone Number ID; messages are deduplicated using hashed IDs in the Worker’s own SQLite Durable Object. A rolling 100-event/24-hour cap protects the test installation.
+- New synthetic webhook tests cover signing, disabled-by-default behavior, wrong-sender rejection and deduplication. These tests do not constitute a real Meta-delivery round trip.
+- A 26-question offline MFT customer-service benchmark now checks study-note enquiries, revision-paper handling, price honesty, exam-leak refusal, independence from ZIMSEC, OTP security and human support.
+- GitHub Actions run 38352710478 passed **45/45 tests** and confirmed the cloud Worker remained available; this does **not** imply it is connected to WhatsApp or superior to Meta Business Agent.
+- Before registering number **0781572008** for the Cloud API, consult [WHATSAPP_ACTIVATION.md](WHATSAPP_ACTIVATION.md). Never accidentally disrupt an existing WhatsApp Business App installation.
+
 ## Remaining steps
 1. Complete official Meta WhatsApp Business Platform onboarding and sender registration for 0781572008.
 2. Provision WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID as private Cloudflare Worker secrets, then verify inbound signatures and real replies.
