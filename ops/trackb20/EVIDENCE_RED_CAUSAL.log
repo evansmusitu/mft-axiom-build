@@ -1,0 +1,24 @@
+======================================================================
+ERROR: test_actual_pattern_two_workers_linked (test_causality.NativeSDKCausalChecks.test_actual_pattern_two_workers_linked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b20_candidate/ops/trackb20/test_causality.py", line 22, in test_actual_pattern_two_workers_linked
+    proof=verify_linkage(valid())
+  File "/mnt/data/axiom_b20_candidate/ops/trackb20/causality.py", line 4, in verify_linkage
+    raise CausalDenied('UNIMPLEMENTED')
+causality.CausalDenied: UNIMPLEMENTED
+
+======================================================================
+ERROR: test_reordered_multiworker_interleave_allowed (test_causality.NativeSDKCausalChecks.test_reordered_multiworker_interleave_allowed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b20_candidate/ops/trackb20/test_causality.py", line 53, in test_reordered_multiworker_interleave_allowed
+    p=verify_linkage(a+b)
+  File "/mnt/data/axiom_b20_candidate/ops/trackb20/causality.py", line 4, in verify_linkage
+    raise CausalDenied('UNIMPLEMENTED')
+causality.CausalDenied: UNIMPLEMENTED
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.001s
+
+FAILED (errors=2)

@@ -1,0 +1,19 @@
+test_actual_pattern_two_workers_linked (test_causality.NativeSDKCausalChecks.test_actual_pattern_two_workers_linked) ... ok
+test_cross_worker_action_id_rejected (test_causality.NativeSDKCausalChecks.test_cross_worker_action_id_rejected) ... ok
+test_duplicate_native_event_id_rejected (test_causality.NativeSDKCausalChecks.test_duplicate_native_event_id_rejected) ... ok
+test_duplicated_tool_call_id_rejected (test_causality.NativeSDKCausalChecks.test_duplicated_tool_call_id_rejected) ... ok
+test_extra_after_finish_rejected (test_causality.NativeSDKCausalChecks.test_extra_after_finish_rejected) ... ok
+test_finish_first_rejected (test_causality.NativeSDKCausalChecks.test_finish_first_rejected) ... ok
+test_finish_without_observation_rejected (test_causality.NativeSDKCausalChecks.test_finish_without_observation_rejected) ... ok
+test_missing_action_id_rejected (test_causality.NativeSDKCausalChecks.test_missing_action_id_rejected) ... ok
+test_missing_observation_rejected (test_causality.NativeSDKCausalChecks.test_missing_observation_rejected) ... ok
+test_observation_before_action_rejected (test_causality.NativeSDKCausalChecks.test_observation_before_action_rejected) ... ok
+test_ordinal_gap_rejected (test_causality.NativeSDKCausalChecks.test_ordinal_gap_rejected) ... ok
+test_reordered_multiworker_interleave_allowed (test_causality.NativeSDKCausalChecks.test_reordered_multiworker_interleave_allowed) ... ok
+test_tool_name_swap_rejected (test_causality.NativeSDKCausalChecks.test_tool_name_swap_rejected) ... ok
+test_unknown_tool_rejected (test_causality.NativeSDKCausalChecks.test_unknown_tool_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.001s
+
+OK

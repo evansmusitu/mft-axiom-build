@@ -1,0 +1,41 @@
+name: AXIOM Track B20 independent native SDK tool causality audit S0
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b20-native-causal-link-s0-20261013
+    paths:
+      - ops/trackb20/**
+      - ops/trackb19/portable.py
+      - ops/trackb19/verify_receipt.py
+      - .github/workflows/axiom-trackb-b20-native-causal-audit-s0.yml
+permissions:
+  contents: read
+jobs:
+  independent-genuine-sdk-trace-review-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b20-native-causal-link-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Reject provider credentials, production scope and altered evidence
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          python3 -m py_compile ops/trackb20/*.py
+          echo B20_NO_LIVE_PROVIDER_OR_RELEASE_AUTHORITY
+      - name: Independently attack SDK action-to-observation causality
+        run: |
+          set -euo pipefail
+          cd ops/trackb20
+          python3 -m unittest -v test_causality
+          echo B20_NATIVE_CAUSAL_ADVERSARIAL_REGRESSION_PASS
+      - name: Verify exact immutable B19 public trace and correlated tool IDs
+        run: |
+          set -euo pipefail
+          cd ops/trackb20
+          python3 verify_b19_fixture.py
+          echo AXIOM_B20_NATIVE_SDK_B19_TRACE_INDEPENDENT_CAUSAL_GATE_PASS_NOT_RELEASE
