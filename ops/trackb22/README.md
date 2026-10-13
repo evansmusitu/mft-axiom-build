@@ -17,3 +17,15 @@ Evidence gates:
 - Separate credentialless CI job for signed native event record plus B20 causality.
 
 **Not proven:** crash recovery across real regions/hosts, true global Cloudflare remaining Free usage, commercially valid independent workload authorization gateway, external penetration test, actual model transport reconciliation, safe user data isolation, production deployment, device phases or superiority. An `ISSUED` record means uncertain whether remote provider actually received a request; user controls and external provider idempotency are required before reconciliation. No production or paid resource is authorized.
+
+## Local-only HTTP route hardening
+
+An independent source review found the initial test Worker route authenticated
+only a synthetic bearer whose default fixture was visible in public source.
+That made accidental HTTP exposure a risk even though no actual provider existed.
+Added a strict literal loopback URL gate (`http://localhost` or
+`http://127.0.0.1`) before any bearer or model-request handling. Non-loopback
+requests fail with HTTP 503, even with the publicly known *synthetic* test key.
+Node RED and GREEN test records are preserved alongside the previously observed
+RED and GREEN B22 durable-journal tests. This is defense-in-depth, not
+independent workload authentication; do NOT deploy this Worker.

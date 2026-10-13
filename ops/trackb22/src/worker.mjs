@@ -4,6 +4,7 @@
  */
 import {DurableObject} from 'cloudflare:workers';
 import {DurableDispatchJournal,JournalDenied} from './journal.mjs';
+import {localOnly} from './host_policy.mjs';
 import {utcDay,canonicalName,requireCanonicalObject,ScopeDenied} from '../../trackb16/src/identity.mjs';
 import {guardedDispatch,digestPayload} from '../../trackb17/dispatch_guard.mjs';
 import {TEST_PRIVATE_JWK} from '../../trackb16/test/fixture_key.mjs';
@@ -62,6 +63,9 @@ function decodeInput(obj){
 }
 export default {
   async fetch(req,env){
+    // Fail CLOSED if accidentally exposed through a non-loopback HTTP origin.
+    // This S0 transport restriction does not replace production authentication.
+    if(!localOnly(req.url))return reply({status:'DISABLED_PUBLIC_ROUTING',dispatch_allowed:false},503);
     // Outward HTTP defaults to denial. This bearer is isolated disposable CI
     // only, not a real independently authenticated workload identity.
     if(!env.AXIOM_B22_TEST_SECRET || env.AXIOM_B22_TEST_SECRET.length<30 ||

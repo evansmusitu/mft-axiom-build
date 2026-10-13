@@ -1,0 +1,265 @@
+TAP version 13
+# (node:5099) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: one operation produces exactly one durable transport permit
+not ok 1 - one operation produces exactly one durable transport permit
+  ---
+  duration_ms: 2.941768
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:16:123)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: modified immutable request with same id is rejected
+not ok 2 - modified immutable request with same id is rejected
+  ---
+  duration_ms: 0.34413
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:17:94)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: distinct operations in one tenant are independently admitted
+not ok 3 - distinct operations in one tenant are independently admitted
+  ---
+  duration_ms: 0.165846
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:18:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:18:103)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: finished work is terminal and cannot be reissued
+not ok 4 - finished work is terminal and cannot be reissued
+  ---
+  duration_ms: 0.156431
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:19:91)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: uncertain send permanently prevents retry
+not ok 5 - uncertain send permanently prevents retry
+  ---
+  duration_ms: 0.163841
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:20:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:20:84)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: crash before terminal receipt leaves ISSUED and does not resend
+not ok 6 - crash before terminal receipt leaves ISSUED and does not resend
+  ---
+  duration_ms: 1.185631
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:21:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:21:253)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unknown completion without a durable permit is denied
+not ok 7 - unknown completion without a durable permit is denied
+  ---
+  duration_ms: 1.274852
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    JournalDenied: NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:14:32)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:25:94)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: UTC day rollover refuses entry or completion
+not ok 8 - UTC day rollover refuses entry or completion
+  ---
+  duration_ms: 0.235172
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:26:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    JournalDenied: NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:14:32)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:26:102)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: bad schemas and boolean fields rejected
+not ok 9 - bad schemas and boolean fields rejected
+  ---
+  duration_ms: 0.523619
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:27:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    JournalDenied: NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:14:32)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:27:80)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: two journals share same SQL storage with no second send permit
+not ok 10 - two journals share same SQL storage with no second send permit
+  ---
+  duration_ms: 0.407932
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:28:130)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: mismatched tenant with repeated request id is rejected
+not ok 11 - mismatched tenant with repeated request id is rejected
+  ---
+  duration_ms: 0.217345
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:29:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:29:97)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: uncertain cannot reverse completed state
+not ok 12 - uncertain cannot reverse completed state
+  ---
+  duration_ms: 0.141477
+  type: 'test'
+  location: '/mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:30:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'NOT_IMPLEMENTED'
+  name: 'JournalDenied'
+  stack: |-
+    DurableDispatchJournal.begin (file:///mnt/data/axiom_b22_candidate/ops/trackb22/src/journal.mjs:10:25)
+    TestContext.<anonymous> (file:///mnt/data/axiom_b22_candidate/ops/trackb22/test/journal.test.mjs:30:83)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 0
+# fail 12
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 84.724765

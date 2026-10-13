@@ -1,0 +1,84 @@
+TAP version 13
+# (node:5174) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: one operation produces exactly one durable transport permit
+ok 1 - one operation produces exactly one durable transport permit
+  ---
+  duration_ms: 3.478387
+  type: 'test'
+  ...
+# Subtest: modified immutable request with same id is rejected
+ok 2 - modified immutable request with same id is rejected
+  ---
+  duration_ms: 0.937949
+  type: 'test'
+  ...
+# Subtest: distinct operations in one tenant are independently admitted
+ok 3 - distinct operations in one tenant are independently admitted
+  ---
+  duration_ms: 0.508785
+  type: 'test'
+  ...
+# Subtest: finished work is terminal and cannot be reissued
+ok 4 - finished work is terminal and cannot be reissued
+  ---
+  duration_ms: 0.942021
+  type: 'test'
+  ...
+# Subtest: uncertain send permanently prevents retry
+ok 5 - uncertain send permanently prevents retry
+  ---
+  duration_ms: 0.769993
+  type: 'test'
+  ...
+# Subtest: crash before terminal receipt leaves ISSUED and does not resend
+ok 6 - crash before terminal receipt leaves ISSUED and does not resend
+  ---
+  duration_ms: 1.84439
+  type: 'test'
+  ...
+# Subtest: unknown completion without a durable permit is denied
+ok 7 - unknown completion without a durable permit is denied
+  ---
+  duration_ms: 0.54472
+  type: 'test'
+  ...
+# Subtest: UTC day rollover refuses entry or completion
+ok 8 - UTC day rollover refuses entry or completion
+  ---
+  duration_ms: 0.423359
+  type: 'test'
+  ...
+# Subtest: bad schemas and boolean fields rejected
+ok 9 - bad schemas and boolean fields rejected
+  ---
+  duration_ms: 0.546507
+  type: 'test'
+  ...
+# Subtest: two journals share same SQL storage with no second send permit
+ok 10 - two journals share same SQL storage with no second send permit
+  ---
+  duration_ms: 1.524386
+  type: 'test'
+  ...
+# Subtest: mismatched tenant with repeated request id is rejected
+ok 11 - mismatched tenant with repeated request id is rejected
+  ---
+  duration_ms: 0.691785
+  type: 'test'
+  ...
+# Subtest: uncertain cannot reverse completed state
+ok 12 - uncertain cannot reverse completed state
+  ---
+  duration_ms: 0.5805
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 98.604558

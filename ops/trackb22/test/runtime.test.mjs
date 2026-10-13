@@ -17,6 +17,10 @@ const quota=()=>env.AXIOM_QUOTA_S0.getByName(canonicalName(ACCOUNT,utcDay()));
 describe('B22 S0 real local Workerd integration and negative proofs',()=>{
  it('one signed quota permission generates one journaled transport attempt, never two',async()=>{
    expect((await SELF.fetch('http://localhost/')).status).toBe(403);
+   // Even a known synthetic test bearer cannot authorize a public hostname.
+   expect((await SELF.fetch('https://axiom.example.com/_internal_s0_admit',{method:'POST',
+     headers:{'content-type':'application/json','X-Axiom-B21-Local-Secret':env.AXIOM_B22_TEST_SECRET},
+     body:JSON.stringify(fixture('agent-a',2))})).status).toBe(503);
    expect((await post('agent-a',0,'unauthorized')).status).toBe(403);
    const first=await post('agent-a',0);
    expect(first.status).toBe(200);
