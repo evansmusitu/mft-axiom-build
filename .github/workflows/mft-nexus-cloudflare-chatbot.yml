@@ -2,7 +2,9 @@ name: MFT AI NEXUS — isolated Cloudflare chatbot
 on:
   push:
     branches: ['feature/mft-ai-nexus-cloudflare-20261012']
-    paths: ['.github/workflows/mft-nexus-cloudflare-chatbot.yml']
+    paths:
+      - '.github/workflows/mft-nexus-cloudflare-chatbot.yml'
+      - 'chatbot/mft-ai-nexus/**'
 permissions:
   contents: read
 concurrency:
@@ -28,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check chatbot/mft-ai-nexus/worker.mjs
-          node --test chatbot/mft-ai-nexus/worker.test.mjs
+          node --test chatbot/mft-ai-nexus/*.test.mjs
       - name: Confirm scoped connection and exclusively existing MFT Worker
         shell: bash
         run: |
