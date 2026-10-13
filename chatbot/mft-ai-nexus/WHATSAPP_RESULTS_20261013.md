@@ -121,3 +121,14 @@ Source commit: `1cbc934ea6ab4d0bdf5e458435824521670216b6`; [GitHub Actions run 3
 **Exact remaining handoff:** Meta app `1775810357073694`, WABA `1955690452095441`, test sender Phone Number ID `1292923853915392`, sandbox verified test recipient `263781572008`; generate a short-lived Meta test access token through the authenticated Meta dashboard, then provision the five **private** Cloudflare Worker settings listed in `WHATSAPP_ACTIVATION.md` by authorized secure UI/CLI, configure the Meta callback and subscribe to `messages`, and only then enable **test** messaging and collect actual delivered/read evidence. Do not paste secrets into this chat or commit them to GitHub.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+
+## Continuation checkpoint — 2026-10-13, private Cloudflare secret readiness
+
+An isolated GitHub Actions **GET-only** audit checked the exact existing Worker using the already-working scoped `CLOUDFLARE_API_TOKEN`: [run 38447781228](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38447781228), **success**.
+
+All five required private Worker settings were confirmed **absent** at the time of inspection: `WHATSAPP_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TEST_RECIPIENTS`. No secret values were requested, logged, or stored in GitHub. Readiness was `false`; WhatsApp and production messaging remain disabled.
+
+The current chat does not expose the prior Cloud Browser session or an authenticated Meta API connector. A Meta sandbox access token still requires authorized, interactive Meta account participation. Do not publish it in chat or public GitHub source. Once Meta tokens are present, the five values must be installed through a secure Cloudflare Worker secret-entry interface and callback/subscription configured in the correct existing Meta app; only afterward test-mode may be enabled for the verified recipient. This is a checkpoint, **not** real delivery evidence.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
