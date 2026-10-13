@@ -108,3 +108,16 @@ The owner explicitly approved the displayed Facebook Terms for WhatsApp Business
 After the owner's secure manual code entry, Meta's recipient dropdown displayed `+263-78-157-2008`, with the verification dialog closed and the generated example targeting `263781572008`. This confirms recipient verification. A cropped screenshot of the selected recipient was captured without secrets. The test sender remains `+1 555 663-7079`. The access token is not generated yet. Cloudflare's existing account sign-in page is prepared for secure manual login; no new account, billing or production registration is being started. Real incoming webhooks, automated replies and delivery are still unverified.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+
+## Continuation checkpoint — 2026-10-13, GitHub-to-Cloudflare auth confirmed, Meta v25 aligned
+
+The continuation chat re-read the authoritative results/runbook at branch head `cc0efb89fa260b5614c9ff7689a8090828996697` and confirmed successful original run `38363348003` (60 tests). No cloud browser session/tab-claiming tool is present in this chat; Meta browser tab 3 and Cloudflare browser tab 4 **were not accessible** and their interactive login state was not assumed.
+
+The **existing scoped GitHub–Cloudflare deployment connection** was independently reconfirmed, but **Cloudflare dashboard/browser login was not verified**. The only configuration change was `GRAPH_API_VERSION` `v23.0` → `v25.0` in the existing Nexus `wrangler.jsonc`. Flags remained `ENABLE_WHATSAPP_MESSAGES=false`, `WHATSAPP_MODE=test`, `ENABLE_WHATSAPP_PRODUCTION=false`. No Meta credentials were generated or installed and no private values were handled.
+
+Source commit: `1cbc934ea6ab4d0bdf5e458435824521670216b6`; [GitHub Actions run 38446522338](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38446522338) completed **success**. Evidence: 60 tests passed / 0 failed, scoped Cloudflare account and exact existing Worker were verified before deployment, Worker deployment succeeded, live health/chat responded, unsigned webhook POST returned 401, incorrect verify-token challenge returned 403. Final CI receipt indicated `businessAI:true`, `liveWhatsApp:false`. Production, billing, customer outreach, and registration of `0781572008` remain unchanged.
+
+**Exact remaining handoff:** Meta app `1775810357073694`, WABA `1955690452095441`, test sender Phone Number ID `1292923853915392`, sandbox verified test recipient `263781572008`; generate a short-lived Meta test access token through the authenticated Meta dashboard, then provision the five **private** Cloudflare Worker settings listed in `WHATSAPP_ACTIVATION.md` by authorized secure UI/CLI, configure the Meta callback and subscribe to `messages`, and only then enable **test** messaging and collect actual delivered/read evidence. Do not paste secrets into this chat or commit them to GitHub.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
