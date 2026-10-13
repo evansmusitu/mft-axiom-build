@@ -4,9 +4,11 @@
 **Product: MFT AI NEXUS**  
 **Callback:** https://mft-nexus-chatbot-20261012.mft-education-nexus-93f395f5.workers.dev/webhook
 
-## Verified starting state — 13 October 2026
+## Verified starting state — 14 October 2026
 
-The hosted web chatbot works. The live `/health` response reports `businessAI:true` and `whatsappReady:false`. GitHub access and the existing Nexus deployment workflow are available. Meta app discovery is blocked by incomplete authentication; Cloudflare's dashboard also shows sign-in. No Meta app, WABA, test sender, webhook subscription, or credentials have been confirmed through an authenticated account inspection. No real WhatsApp round trip is verified.
+Existing Meta app `1775810357073694`, portfolio `2069296827284277`, sandbox account `1955690452095441`, test sender `+1 555 663-7079` / Phone Number ID `1292923853915392`, and verified recipient `263781572008` are confirmed. Graph API is `v25.0`. Reuse these assets; do not recreate the integration. All five private Worker bindings were independently confirmed present by [run 38476132106](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38476132106); the verify token is `secret_text`. Presence does not prove token validity or delivery. Meta's existing callback form is prepared but not yet verified. Live health remains `businessAI:true`, `whatsappReady:false`; production is off.
+
+Cloudflare does not reveal encrypted secret values after storage. Use the owner's retained matching verification token directly in Meta's Verify token field. Do not request or reconfigure the other four existing secrets, publish the token, or rotate credentials just to obtain readback. If no retained copy exists, stop for an explicit secure credential-change decision.
 
 ## First: Meta test sender only
 
@@ -26,7 +28,7 @@ Only target `mft-nexus-chatbot-20261012` in Cloudflare account `93f395f512195467
 | `WHATSAPP_APP_SECRET` | Selected Meta app |
 | `WHATSAPP_ACCESS_TOKEN` | Meta sandbox/API Setup |
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta-issued test sender ID, not its display number |
-| `WHATSAPP_VERIFY_TOKEN` | New random value, identical in Meta and Worker |
+| `WHATSAPP_VERIFY_TOKEN` | Existing retained value; identical in Meta and Worker, unavailable for dashboard readback |
 | `WHATSAPP_TEST_RECIPIENTS` | Comma-separated verified test recipients; international digits only |
 
 Use Cloudflare's authenticated Worker settings with type **Secret**, or interactive Wrangler secret input from the isolated directory. Do not put secret values in GitHub source, shell arguments, CI logs, screenshots, or chat. The GitHub `CLOUDFLARE_API_TOKEN` stays in its existing private secret store.
