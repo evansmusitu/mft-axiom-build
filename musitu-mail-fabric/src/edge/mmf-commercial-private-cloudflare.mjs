@@ -14,6 +14,7 @@ const deny=()=>new Response('{"error":"MMF_PRIVATE_STAGE_DISABLED"}',{
 export class MmfCommercialPrivateStageDO extends DurableObject {
  constructor(ctx,env){
   super(ctx,env);
+  this.proofRuntimeEpoch=crypto.randomUUID(); // ephemeral per instance, never persisted
   // Live cloud qualification uses all commercial flags OFF: no customer kernel may initialize.
   this.kernel=env.MMF_STAGE_ONLY==='true'?new MmfCommercialStageKernel(ctx,env):null;
  }
@@ -30,6 +31,7 @@ export class MmfCommercialPrivateStageDO extends DurableObject {
  accessSyntheticControl(run,record){return checkMmfSyntheticControlAccess(this.#proof(),run,record)}
  clearSyntheticControl(run){return clearMmfSyntheticControl(this.#proof(),run)}
  inspectSyntheticControl(){return inspectMmfSyntheticControlOccupancy(this.#proof())}
+ runtimeSyntheticControlEpoch(){this.#proof();return {epoch:this.proofRuntimeEpoch}}
  restartSyntheticProof(){this.#proof();this.ctx.abort('MMF_PRIVATE_SYNTHETIC_PROBE_RESET',{retryAlarm:false})}
  issueLoginChallenge(){return this.kernel.issueLoginChallenge()}
  acceptOidcLogin(input){return this.kernel.acceptOidcLogin(input)}
@@ -63,5 +65,6 @@ export class MmfPrivateStorageProofEntrypoint extends WorkerEntrypoint {
  async accessControl(run,record){return this.#stub().accessSyntheticControl(run,record)}
  async clearControl(run){return this.#stub().clearSyntheticControl(run)}
  async inspectControl(){return this.#stub().inspectSyntheticControl()}
+ async runtimeControlEpoch(){return this.#stub().runtimeSyntheticControlEpoch()}
  async fetch(){return deny()}
 }

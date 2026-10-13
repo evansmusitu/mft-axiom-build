@@ -23,6 +23,7 @@ export default {
   try{
    if(url.pathname==='/health'&&request.method==='GET')return reply({ok:true,localOnly:true});
    if(url.pathname==='/control/inspect'&&request.method==='GET')return reply(await env.MMF_PROOF_STAGE.inspectControl());
+   if(url.pathname==='/control/epoch'&&request.method==='GET')return reply(await env.MMF_PROOF_STAGE.runtimeControlEpoch());
    if(url.pathname==='/read'&&request.method==='POST')return reply({digest:await env.MMF_PROOF_STAGE.read()});
    if(url.pathname==='/write'&&request.method==='POST'){
     if(Number(request.headers.get('content-length')||0)>180)return denial();
