@@ -59,4 +59,14 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:workers
-          echo AXIOM_B16_REAL_LOCAL_WORKER_RUNTIME_S0_TESTS_PASS_NOT_PRODUCTION
+          echo AXIOM_B16_REAL_LOCAL_WORKER_POSITIVE_S0_PASS_NOT_PRODUCTION
+      - name: Independently exercise the known unhandled remote-exception gap
+        shell: bash
+        working-directory: ops/trackb16
+        run: |
+          set -euo pipefail
+          # The negative attack is deliberately a separate execution so the
+          # positive Workerd evidence cannot be relabeled as a full security PASS.
+          # Fail this job if the negative test/runtime is not clean.
+          npm run test:workers:negative
+          echo AXIOM_B16_NEGATIVE_REMOTE_RPC_CLEAN_PASS_NOT_PRODUCTION

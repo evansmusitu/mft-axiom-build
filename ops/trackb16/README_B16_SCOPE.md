@@ -101,3 +101,12 @@ manufactured; no cloud infrastructure or production service was changed.
 
 No GitHub writes permitted until the mandatory 2026-10-12 B14 whole-product
 handoff outer ZIP and sibling checksum can be independently verified.
+
+
+## Live B16 status update (2026-10-13; supersedes stale prerequisites above)
+
+The exact 2026-10-12 authoritative whole-product ZIP has now independently passed SHA-256, CRC, manifest and recursive verifier checks. Live main `bc48ab8a` and PR#1 OPEN/DRAFT/UNMERGED were confirmed before the isolated B16 GitHub branch write. The source of B16 remains isolated from production, protected main and PR#1.
+
+GitHub public-repo Actions ran genuine local Workerd/Vitest integration on run 38387219321. Workerd performed the SQLite ledger reservation, persistence/eviction, signed revocation, concurrency, and public disabled 503 checks. Assertions passed, but Vitest process **FAILED** on 3 unhandled expected remote RPC rejections. This is not a clean Workerd certification. See `EVIDENCE_CI_THIRD_FAILURE.md` and live run logs.
+
+The follow-up keeps the original negative invalid named-object test as a separate runnable adversarial test and makes known authorization/quota rejections explicit fail-closed `dispatch_allowed:false` receipts. Unexpected exceptions still propagate. This is a candidate repair, NOT verified Cloudflare security or production authority until fresh independent Workerd runs pass. Local offline suite now has 58 tests.

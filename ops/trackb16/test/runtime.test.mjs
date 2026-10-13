@@ -41,16 +41,21 @@ it('REAL Durable Object: canonical route, bounded atomic reservation, eviction, 
   const s1=routeQuota(env),s2=routeQuota(env);
   expect(s1.name).toBe(canonical);
   expect(s2.name).toBe(canonical);
-  const other=env.AXIOM_QUOTA_S0.getByName(canonical+':alt');
   const grant=await signed(makeGrant(day,crypto.randomUUID()));
-  await expect(other.reserve(await r(grant,'alternate-name'))).rejects.toThrow();
+  // Alternate-object constructor denial is observed in the separate NEGATIVE
+  // workerd attack test; RPC exception currently emits unhandled test-worker log.
+  // Never misreport the negative subprocess as a clean positive test.
   // 30 separate RPC submissions racing through 2 independent stubs; capacity allows five.
   // Even with a valid B15 quota grant, a missing independent workload signature
   // MUST be denied before any reservations are charged.
-  await expect(s1.reserve({signed:grant,request_id:'no-auth',request_sha:'a'.repeat(64),neurons:100,tenant_id:'tenant-A',workload_id:'agent-A'})).rejects.toThrow();
+  const missingAuth=await s1.reserve({signed:grant,request_id:'no-auth',request_sha:'a'.repeat(64),neurons:100,tenant_id:'tenant-A',workload_id:'agent-A'});
+  expect(missingAuth).toMatchObject({status:'DENIED',dispatch_allowed:false,reason:'WORKLOAD_REQUEST_SCHEMA_DENIED'});
   const results=await Promise.allSettled(Array.from({length:30},(_,i)=>(async()=> (i%2?s1:s2).reserve(await r(grant,'race-'+i)))()));
   const succeeded=results.filter(x=>x.status==='fulfilled'&&x.value.dispatch_allowed);
+  const denied=results.filter(x=>x.status==='fulfilled'&&!x.value.dispatch_allowed);
   expect(succeeded.length).toBe(5);
+  expect(denied.length).toBe(25);
+  expect(denied.every(x=>x.value.reason==='ACCOUNT_DAILY_CAPACITY_EXHAUSTED')).toBe(true);
   await runInDurableObject(s1,async(_instance,state)=>{
     expect(state.storage.sql.exec('SELECT used FROM quota_meta WHERE id=1').one().used).toBe(500);
   });
@@ -64,7 +69,8 @@ it('REAL Durable Object: canonical route, bounded atomic reservation, eviction, 
     account_id:env.AXIOM_ACCOUNT_ID,utc_day:day,issued_at:now-5,expires_at:now+120,
     sequence:1,reason:'test-independent-revocation'});
   expect((await s3.revoke({signed:notice})).status).toBe('REVOKED');
-  await expect(s3.reserve(await r(await signed(makeGrant(day,crypto.randomUUID())),'after-revoke'))).rejects.toThrow();
+  const revoked=await s3.reserve(await r(await signed(makeGrant(day,crypto.randomUUID())),'after-revoke'));
+  expect(revoked).toMatchObject({status:'DENIED',dispatch_allowed:false,reason:'ACCOUNT_STATE_DENIED'});
   const publicResponse=await exports.default.fetch('http://example.invalid/');
   expect(publicResponse.status).toBe(503);
 });

@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "test:identity": "node --test ./test/identity.test.mjs",
-    "test:workers": "vitest run",
+    "test:workers": "vitest run test/runtime.test.mjs",
     "test:routing": "node --test ./test/routing.test.mjs",
-    "test:local": "node --test ./test/identity.test.mjs ./test/routing.test.mjs"
+    "test:local": "node --test ./test/identity.test.mjs ./test/routing.test.mjs",
+    "test:workers:negative": "vitest run test/runtime_negative.test.mjs"
   },
   "devDependencies": {
     "vitest": "4.1.11",

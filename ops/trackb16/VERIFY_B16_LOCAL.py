@@ -22,18 +22,18 @@ for line in lines:
     if not f.is_file() or hashlib.sha256(f.read_bytes()).hexdigest()!=digest:
         sys.exit('B16_MANIFEST_MISMATCH: '+name)
 print('B16_MANIFEST_SHA256_PASS files='+str(len(lines)),flush=True)
-for rel in ['src/identity.mjs','src/worker.mjs','src/admission.mjs','test/fixture_workload_key.mjs','test/admission.test.mjs','test/fixture_key.mjs',
+for rel in ['src/identity.mjs','src/worker.mjs','src/admission.mjs','test/outcome.test.mjs','test/runtime_negative.test.mjs','test/fixture_workload_key.mjs','test/admission.test.mjs','test/fixture_key.mjs',
             'test/identity.test.mjs','test/routing.test.mjs','test/runtime.test.mjs',
             'vitest.config.mjs']:
     r=subprocess.run(['node','--check',str(BASE/rel)],text=True,capture_output=True)
     if r.returncode:sys.exit('B16_SYNTAX_FAIL '+rel+': '+r.stderr[-500:])
-print('B16_NODE_SYNTAX_PASS 10/10',flush=True)
+print('B16_NODE_SYNTAX_PASS 12/12',flush=True)
 run=subprocess.run(['node','--test',str(BASE/'test/identity.test.mjs'),
-                    str(BASE/'test/routing.test.mjs'),str(BASE/'test/admission.test.mjs')],text=True,capture_output=True)
-if run.returncode or '# tests 54' not in run.stdout or '# pass 54' not in run.stdout or '# fail 0' not in run.stdout:
+                    str(BASE/'test/routing.test.mjs'),str(BASE/'test/admission.test.mjs'),str(BASE/'test/outcome.test.mjs')],text=True,capture_output=True)
+if run.returncode or '# tests 58' not in run.stdout or '# pass 58' not in run.stdout or '# fail 0' not in run.stdout:
     print(run.stdout[-2500:]);print(run.stderr[-500:])
     sys.exit('B16_LOCAL_TESTS_NOT_PROVEN')
-print('B16_IDENTITY_ROUTING_INDEPENDENT_WORKLOAD_TESTS_PASS 54/54',flush=True)
+print('B16_IDENTITY_ROUTING_INDEPENDENT_WORKLOAD_TESTS_PASS 58/58',flush=True)
 config=json.loads((BASE/'wrangler.jsonc').read_text())
 if (config.get('name')!='axiom-b16-s0-local-disabled' or
     config.get('vars',{}).get('AXIOM_ACCOUNT_ID')!='axiom-s0-isolated' or

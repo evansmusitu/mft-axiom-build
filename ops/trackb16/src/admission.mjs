@@ -70,3 +70,17 @@ export async function authorizeThenReserve(request,context){
   return context.core.reserve({signed:signedGrant,request_id:request.request_id,request_sha:request.request_sha,
     neurons:request.neurons,tenant_id:request.tenant_id,workload_id:request.workload_id});
 }
+
+// RPC boundary preserves explicit fail-closed results for known, typed
+// authorization/quota denials. Do not normalize unexpected runtime failures.
+export async function safeQuotaOutcome(dispatch,denialClasses) {
+  if(typeof dispatch!=="function" || !Array.isArray(denialClasses) || denialClasses.length<1 ||
+     denialClasses.some(x=>typeof x!=="function"))throw new OperationDenied('DENIAL_POLICY_INVALID');
+  try{return await dispatch();}
+  catch(err){
+    if(!denialClasses.some(klass=>err instanceof klass))throw err;
+    const reason=typeof err.code==='string'?err.code:err.message;
+    if(typeof reason!=='string'||!/^[A-Z][A-Z0-9_]{0,79}$/.test(reason))throw err;
+    return {status:'DENIED',dispatch_allowed:false,reason};
+  }
+}

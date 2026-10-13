@@ -1,0 +1,99 @@
+TAP version 13
+# Subtest: known independently signed workload denial returns explicit no-dispatch receipt
+not ok 1 - known independently signed workload denial returns explicit no-dispatch receipt
+  ---
+  duration_ms: 0.710838
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:6:1'
+  failureType: 'testCodeFailure'
+  error: 'S0_SAFE_DENIAL_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    safeQuotaOutcome (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:75:48)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:7:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: known quota-cap denial returns explicit no-dispatch receipt
+not ok 2 - known quota-cap denial returns explicit no-dispatch receipt
+  ---
+  duration_ms: 1.027087
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: 'S0_SAFE_DENIAL_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    safeQuotaOutcome (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:75:48)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:11:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: unknown runtime fault is never hidden as denial
+not ok 3 - unknown runtime fault is never hidden as denial
+  ---
+  duration_ms: 0.799862
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /database-corruption/. Input:
+    
+    'Error: S0_SAFE_DENIAL_NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'S0_SAFE_DENIAL_NOT_IMPLEMENTED'
+  stack: |-
+    safeQuotaOutcome (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:75:48)
+    file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:15:28
+    waitForActual (node:assert:552:21)
+    Function.rejects (node:assert:687:31)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:15:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:15:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: authorized positive receipt is not changed
+not ok 4 - authorized positive receipt is not changed
+  ---
+  duration_ms: 0.354086
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: 'S0_SAFE_DENIAL_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    safeQuotaOutcome (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:75:48)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/outcome.test.mjs:19:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73.186604

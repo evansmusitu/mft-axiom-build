@@ -4,9 +4,9 @@
  * No public route accepts model requests; external HTTP defaults 503.
  */
 import {DurableObject} from 'cloudflare:workers';
-import {AccountDayLedger} from '../../trackb15_do/ledger_core.mjs';
+import {AccountDayLedger,Denied as B15Denied} from '../../trackb15_do/ledger_core.mjs';
 import {requireCanonicalObject} from './identity.mjs';
-import {authorizeThenReserve} from './admission.mjs';
+import {authorizeThenReserve,safeQuotaOutcome,OperationDenied} from './admission.mjs';
 
 export class AxiomB16QuotaLedger extends DurableObject {
   constructor(ctx,env) {
@@ -27,12 +27,12 @@ export class AxiomB16QuotaLedger extends DurableObject {
   }
   async reserve(request) {
     this.ensureCurrent();
-    return authorizeThenReserve(request, {
+    return safeQuotaOutcome(()=>authorizeThenReserve(request, {
       accountId:this.accountId, utcDay:this.day, now:()=>Date.now(),
       quotaIssuerPublicB64:this.env.AUTHORITY_ED25519_PUBKEY_B64,
       workloadIssuerPublicB64:this.env.WORKLOAD_AUTH_ED25519_PUBKEY_B64,
       core:this.core
-    });
+    }),[OperationDenied,B15Denied]);
   }
   async revoke(request) {this.ensureCurrent();return this.core.revoke(request);}
 }
