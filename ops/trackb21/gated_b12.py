@@ -33,7 +33,7 @@ def authorized_preflight(request,who,expected_token):
 
 
 def validated_sdk(raw):
-    if type(raw) is not bytes or not 10<len(raw)<=21500: return False
+    if type(raw) is not bytes or not 10<len(raw)<=60000: return False
     try:
         body=json.loads(raw)
         if type(body) is not dict or body.get('model') not in ('b12-synthetic','openai/b12-synthetic') or body.get('stream',False) is not False:
@@ -69,7 +69,7 @@ def guarded_post(self):
     if not authorized_preflight(self,wid,expected):
         return self.send_json(403,{'error':{'message':'unauthorized_workload'}})
     n=self.headers.get('Content-Length','')
-    if not n.isdecimal() or not 10<int(n)<=21500:
+    if not n.isdecimal() or not 10<int(n)<=60000:
         return self.send_json(403,{'error':{'message':'invalid_body_size'}})
     raw=self.rfile.read(int(n))
     if len(raw)!=int(n) or not validated_sdk(raw):

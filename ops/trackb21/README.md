@@ -47,3 +47,24 @@ not a production network/security interface and MUST NEVER be deployed.
 ### Non-goals
 No production, no remote Cloudflare Workers call, no S3 public write, no paid
 providers, no end-user product activation. Main and PR1 remain untouched.
+
+## Original live B21 failure preserved (2026-10-13)
+
+Run `38423841276` FAILED after a successful local Workerd startup and
+unauthenticated 403 test: both real SDK workers returned `invalid_body_size`
+before any signed Workerd quota admission; B12 modeled calls stayed 0. The
+S0 bridge incorrectly assumed native OpenHands SDK request bodies would fit
+21,500 bytes. This is a real failed runtime qualification, not a PASS.
+
+Observed RED: `EVIDENCE_RED_NATIVE_REQUEST_SIZE.log` reproduces larger genuine-
+SDK-shaped synthetic requests being rejected. GREEN:
+`EVIDENCE_GREEN_NATIVE_REQUEST_SIZE.log` confirms the 19-case local suite
+including the oversized positive and hard rejection above 60,000 bytes.
+The Worker now signs a **SHA-256 digest of the EXACT original native SDK bytes**
+inside B17's canonical small payload, preserving cryptographic linkage without
+exceeding the B17 32KiB bounded payload. This proves bytes are bound but does
+not mean the synthetic transport executed those raw SDK bytes as an upstream
+provider request. The original inbound SDK request is passed unchanged to the
+scripted B12 synthetic tool-action generator only after B18 admission.
+
+The fix has not earned a second live CI PASS until GitHub Actions reruns it.

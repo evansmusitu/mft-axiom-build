@@ -24,15 +24,16 @@ async function sign(jwk,doc){
 async function hex(src){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',src)),x=>x.toString(16).padStart(2,'0')).join('');}
 function validateBody(data){
   if(!data||Array.isArray(data)||typeof data!=='object'||Object.keys(data).sort().join(',')!=='agent,ordinal,raw_b64')throw Error('SCHEMA_DENIED');
-  if(!WORKERS.has(data.agent)||!OPERATIONS.has(data.ordinal)||typeof data.raw_b64!=='string'||data.raw_b64.length<20||data.raw_b64.length>29000||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data.raw_b64))throw Error('INPUT_DENIED');
+  if(!WORKERS.has(data.agent)||!OPERATIONS.has(data.ordinal)||typeof data.raw_b64!=='string'||data.raw_b64.length<20||data.raw_b64.length>82000||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data.raw_b64))throw Error('INPUT_DENIED');
   const raw=Uint8Array.from(atob(data.raw_b64),c=>c.charCodeAt(0));
+  if(raw.length>60000)throw Error('SDK_REQUEST_TOO_LARGE');
   if(b64(raw)!==data.raw_b64)throw Error('ENCODING_DENIED');
   const rawText=decoder.decode(raw);
   const incoming=JSON.parse(rawText);
   if(!incoming||Array.isArray(incoming)||typeof incoming!=='object'||!['b12-synthetic','openai/b12-synthetic'].includes(incoming.model)||incoming.stream===true||!Array.isArray(incoming.messages)||!Array.isArray(incoming.tools)||incoming.tools.length<2)throw Error('SDK_MODEL_SCHEMA_DENIED');
   const names=incoming.tools.map(t=>t?.function?.name);
   if(!names.includes('file_editor')||!names.includes('finish'))throw Error('SDK_TOOLS_DENIED');
-  return {agent:data.agent,ordinal:data.ordinal,rawText};
+  return {agent:data.agent,ordinal:data.ordinal,raw};
 }
 export default {
   async fetch(req,env){
@@ -45,7 +46,7 @@ export default {
     if(req.method!=='POST'||url.pathname!=='/_internal_s0_admit')return json({...DENY,reason:'ROUTE_DISABLED'},404);
     let operation;
     try{
-      if(Number(req.headers.get('Content-Length')||0)>38000)throw Error('REQUEST_TOO_LARGE');
+      if(Number(req.headers.get('Content-Length')||0)>93000)throw Error('REQUEST_TOO_LARGE');
       operation=validateBody(await req.json());
     }catch{return json({...DENY,reason:'MALFORMED_SDK_REQUEST'},403);}
     const now=Math.floor(Date.now()/1000),day=utcDay(),worker=operation.agent;
@@ -58,8 +59,11 @@ export default {
       max_calls:3,max_per_call_neurons:100,daily_capacity_neurons:600,
       provider_remaining_certified:true,production_authority:false
     });
-    // B17 exact body includes every byte of the ORIGINAL OpenHands SDK body.
-    const payload={model:MODEL,messages:[{role:'user',content:worker+'|'+operation.rawText}],max_output_tokens:32};
+    // B17 signed body includes the SHA-256 of every byte of the exact original
+    // OpenHands SDK JSON request (which may exceed B17's 32KiB model-body cap).
+    // The trusted broker replays the captured original unchanged only on PASS.
+    const sdkRawSha256=await hex(operation.raw);
+    const payload={model:MODEL,messages:[{role:'user',content:worker+'|sdk-original-sha256:'+sdkRawSha256}],max_output_tokens:32};
     let request_sha;
     try{request_sha=await digestPayload(payload);}catch{return json({...DENY,reason:'SDK_PAYLOAD_TOO_LARGE'},403);}
     const request_id='b21-'+worker+'-'+operation.ordinal;

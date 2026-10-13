@@ -32,7 +32,10 @@ class GateBehavior(unittest.TestCase):
     def test_unknown_tool_denied(self):self.assertFalse(gate.validated_sdk(good_body().replace(b'finish',b'trash')))
     def test_stream_denied(self):self.assertFalse(gate.validated_sdk(good_body().replace(b'false',b'true')))
     def test_malformed_denied(self):self.assertFalse(gate.validated_sdk(b'{not valid'))
-    def test_oversize_denied(self):self.assertFalse(gate.validated_sdk(good_body()+b' '*22000))
+    def test_real_sdk_large_messages_supported(self):
+        blob=json.loads(good_body());blob['messages'][0]['content']='synthetic-'+'x'*36000
+        self.assertTrue(gate.validated_sdk(json.dumps(blob).encode()))
+    def test_oversize_denied(self):self.assertFalse(gate.validated_sdk(good_body()+b' '*65000))
     def test_bad_worker_denied(self):self.assertIsNone(gate.admit('attacker',0,good_body(),'secret'))
     def test_bad_ordinal_denied(self):self.assertIsNone(gate.admit('agent-a',3,good_body(),'secret'))
     def test_header_requires_valid_token(self):

@@ -6,6 +6,7 @@ test_header_requires_valid_token (test_gate.GateBehavior.test_header_requires_va
 test_malformed_denied (test_gate.GateBehavior.test_malformed_denied) ... ok
 test_missing_broker_token_denied_even_if_attacker_supplies_sentinel (test_gate.GateBehavior.test_missing_broker_token_denied_even_if_attacker_supplies_sentinel) ... ok
 test_oversize_denied (test_gate.GateBehavior.test_oversize_denied) ... ok
+test_real_sdk_large_messages_supported (test_gate.GateBehavior.test_real_sdk_large_messages_supported) ... ok
 test_stream_denied (test_gate.GateBehavior.test_stream_denied) ... ok
 test_unknown_model_denied (test_gate.GateBehavior.test_unknown_model_denied) ... ok
 test_unknown_path_denied (test_gate.GateBehavior.test_unknown_path_denied) ... ok
@@ -18,6 +19,6 @@ test_reject_missing (test_verify_gate.VerificationTests.test_reject_missing) ...
 test_reject_missing_portable (test_verify_gate.VerificationTests.test_reject_missing_portable) ... ok
 
 ----------------------------------------------------------------------
-Ran 18 tests in 0.513s
+Ran 19 tests in 0.515s
 
 OK
