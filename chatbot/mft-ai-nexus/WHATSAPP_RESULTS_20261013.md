@@ -160,3 +160,16 @@ Cloudflare's API documents that secret-binding reads omit the value, and its Wor
 No new deployment or message send occurred in this continuation. No real inbound message, automated reply or delivery evidence exists yet. App publication, billing, production sender registration and production messaging remain untouched.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+
+## Continuation checkpoint — Meta callback handshake rejection and successful external reachability audit
+
+An owner-provided Meta developer screenshot shows the callback's **Verify and save** operation failed with “The callback URL or verify token couldn't be validated.” The screenshot incidentally exposed the verification token in readable form. **The shown token must be rotated** in both the private Cloudflare Worker Secret `WHATSAPP_VERIFY_TOKEN` and Meta configuration; this report intentionally does not reproduce or fingerprint it.
+
+Scoped, GET-only GitHub Actions [run 38478605881](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38478605881) completed successfully. It independently confirmed all five private secret **names**, the verifier's `secret_text` type, and public HTTPS reachability of the **exact** deployed `/webhook` endpoint. The GET request with a deliberately incorrect verification token returned the **expected application-origin HTTP 403 Forbidden**, ruling out general endpoint/TLS unavailability from the CI runner. This check **cannot establish that the Meta-entered token matches** the Cloudflare secret, nor prove Meta's network can reach the endpoint.
+
+Safe next steps: owner generates a new unique 32+ character webhook verification token privately; stores it as an encrypted `WHATSAPP_VERIFY_TOKEN` secret on **only** `mft-nexus-chatbot-20261012`; enters **exactly that same value** (no quotes, prefixes, whitespace, line breaks) in Meta app `1775810357073694` webhook verification; pastes the full callback URL ending `/webhook`; clicks **Verify and save**; subscribes to the `messages` field. Do not use `WHATSAPP_ACCESS_TOKEN` or `WHATSAPP_APP_SECRET` as the verify token. Keep sandbox/test flags and production gate disabled. Any failed retry should be diagnosed with HTTP status, redacted screenshot and Meta-side errors without revealing secret values.
+
+The Meta dashboard additionally warns that an **unpublished app receives dashboard-sent test webhooks only**. Real inbound WhatsApp messages and delivered/read callbacks are not established and must not be reported as proven; publishing or changing production configuration requires separate explicit authorization.
+
+**MFT EDUCATION NEXUS | WhatsApp 0781572008**
