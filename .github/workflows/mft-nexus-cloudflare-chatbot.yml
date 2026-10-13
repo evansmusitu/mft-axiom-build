@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           node --check chatbot/mft-ai-nexus/worker.mjs
           node --test chatbot/mft-ai-nexus/worker.test.mjs
-      - name: Confirm scoped connection and exclusively new Worker name
+      - name: Confirm scoped connection and exclusively existing MFT Worker
         shell: bash
         run: |
           set -euo pipefail
@@ -41,10 +41,10 @@ jobs:
           const a=await get('');
           if(a.status!==200||a.result?.success!==true||a.result?.result?.id!==id)throw Error('MFT_BOT_ACCOUNT_AUTH_FAILED');
           const w=await get('/workers/scripts/'+name+'/settings');
-          if(w.status!==404)throw Error('MFT_BOT_TARGET_EXISTS_OR_UNVERIFIED_STOP');
-          console.log('MFT_BOT_READONLY_AUTH_PASS_EXCLUSIVE_TARGET_ABSENT');
+          if(w.status!==200||w.result?.success!==true||!Array.isArray(w.result?.result?.bindings)||!w.result.result.bindings.some(b=>b.name==='AI'&&b.type==='ai'))throw Error('MFT_BOT_ONLY_KNOWN_TARGET_CAN_BE_UPDATED');
+          console.log('MFT_BOT_READONLY_AUTH_PASS_EXCLUSIVE_EXISTING_TARGET_MATCHED');
           NODE
-      - name: Deploy isolated new Worker using existing scoped Cloudflare secret
+      - name: Update only isolated MFT Worker with SQLite daily AI budget
         working-directory: chatbot/mft-ai-nexus
         run: |
           set -euo pipefail
@@ -59,7 +59,7 @@ jobs:
           const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});const x=await r.json();if(r.status!==200||x.success!==true)throw Error('MFT_BOT_POSTDEPLOY_READBACK_FAILED');return x.result;};
           const settings=await get('/workers/scripts/'+name+'/settings');
           const sub=await get('/workers/subdomain');
-          if(!Array.isArray(settings.bindings)||!settings.bindings.some(b=>b.name==='AI'&&b.type==='ai')||!sub?.subdomain)throw Error('MFT_BOT_WORKER_BINDING_OR_SUBDOMAIN_MISSING');
+          if(!Array.isArray(settings.bindings)||(!settings.bindings.some(b=>b.name==='AI'&&b.type==='ai')||!settings.bindings.some(b=>b.name==='AI_BUDGET'&&b.type==='durable_object_namespace'))||!sub?.subdomain)throw Error('MFT_BOT_WORKER_BINDING_OR_SUBDOMAIN_MISSING');
           const url='https://'+name+'.'+sub.subdomain+'.workers.dev';
           let health,reply;
           for(let i=0;i<6;i++){
@@ -73,6 +73,6 @@ jobs:
               break;
             }catch(e){if(i===5)throw e;await new Promise(r=>setTimeout(r,2500));}
           }
-          if(health.status!=='ok'||health.businessAI!==false||health.whatsappReady!==false||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_BETA_SAFETY_FAIL');
-          console.log(JSON.stringify({gate:'MFT_AI_NEXUS_LIVE_WEB_CHAT',result:'PASS',url,businessAI:false,liveWhatsApp:false,existingWorkersChanged:false}));
+          if(health.status!=='ok'||health.businessAI!==true||health.whatsappReady!==false||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_BETA_SAFETY_FAIL');
+          console.log(JSON.stringify({gate:'MFT_AI_NEXUS_AI_BUDGET_LIVE_WEB_CHAT',result:'PASS',url,businessAI:true,liveWhatsApp:false,existingWorkersChanged:false}));
           NODE
