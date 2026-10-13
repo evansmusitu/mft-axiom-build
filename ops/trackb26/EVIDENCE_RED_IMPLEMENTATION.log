@@ -1,0 +1,101 @@
+test_first_signed_synthetic_witness_attestation_is_audit_only (test_witness.WitnessGateTest.test_first_signed_synthetic_witness_attestation_is_audit_only) ... ERROR
+test_forged_witness_receipt_fails (test_witness.WitnessGateTest.test_forged_witness_receipt_fails) ... ERROR
+test_majority_local_rollback_does_not_renew_when_witness_survives (test_witness.WitnessGateTest.test_majority_local_rollback_does_not_renew_when_witness_survives) ... /usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec408f970>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec3eaba60>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec3eabc40>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec3eabd30>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec3eabf10>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/ast.py:50: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f0ec3368040>
+  return compile(source, filename, mode, flags,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_pin_must_be_independent_of_local_voters (test_witness.WitnessGateTest.test_pin_must_be_independent_of_local_voters) ... ok
+test_replayed_receipt_is_not_an_action_token (test_witness.WitnessGateTest.test_replayed_receipt_is_not_an_action_token) ... ERROR
+test_unavailable_witness_does_not_fall_back_to_quorum (test_witness.WitnessGateTest.test_unavailable_witness_does_not_fall_back_to_quorum) ... ok
+test_valid_witness_receipt_verifiable_with_pinned_key (test_witness.WitnessGateTest.test_valid_witness_receipt_verifiable_with_pinned_key) ... ERROR
+
+======================================================================
+ERROR: test_first_signed_synthetic_witness_attestation_is_audit_only (test_witness.WitnessGateTest.test_first_signed_synthetic_witness_attestation_is_audit_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 46, in test_first_signed_synthetic_witness_attestation_is_audit_only
+    value=self.admit()
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 42, in admit
+    return admit_audit_checkpoint(proposal=proposal or self.proposal,votes=self.votes if votes is None else votes,
+        pinned_voters=self.pins,witness=self.witness if witness is None else witness,
+        pinned_witness_key=pub(self.key) if pin is None else pin,trusted_now=now)
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/witness_gate.py", line 8, in admit_audit_checkpoint
+    raise WitnessDenied('WITNESS_NOT_IMPLEMENTED')
+witness_gate.WitnessDenied: WITNESS_NOT_IMPLEMENTED
+
+======================================================================
+ERROR: test_forged_witness_receipt_fails (test_witness.WitnessGateTest.test_forged_witness_receipt_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 68, in test_forged_witness_receipt_fails
+    value=self.admit();receipt=copy.deepcopy(value['receipt']);sig=bytearray(base64.b64decode(receipt['signature_b64']));sig[0]^=1
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 42, in admit
+    return admit_audit_checkpoint(proposal=proposal or self.proposal,votes=self.votes if votes is None else votes,
+        pinned_voters=self.pins,witness=self.witness if witness is None else witness,
+        pinned_witness_key=pub(self.key) if pin is None else pin,trusted_now=now)
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/witness_gate.py", line 8, in admit_audit_checkpoint
+    raise WitnessDenied('WITNESS_NOT_IMPLEMENTED')
+witness_gate.WitnessDenied: WITNESS_NOT_IMPLEMENTED
+
+======================================================================
+ERROR: test_majority_local_rollback_does_not_renew_when_witness_survives (test_witness.WitnessGateTest.test_majority_local_rollback_does_not_renew_when_witness_survives)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 52, in test_majority_local_rollback_does_not_renew_when_witness_survives
+    self.admit()
+    ~~~~~~~~~~^^
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 42, in admit
+    return admit_audit_checkpoint(proposal=proposal or self.proposal,votes=self.votes if votes is None else votes,
+        pinned_voters=self.pins,witness=self.witness if witness is None else witness,
+        pinned_witness_key=pub(self.key) if pin is None else pin,trusted_now=now)
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/witness_gate.py", line 8, in admit_audit_checkpoint
+    raise WitnessDenied('WITNESS_NOT_IMPLEMENTED')
+witness_gate.WitnessDenied: WITNESS_NOT_IMPLEMENTED
+
+======================================================================
+ERROR: test_replayed_receipt_is_not_an_action_token (test_witness.WitnessGateTest.test_replayed_receipt_is_not_an_action_token)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 72, in test_replayed_receipt_is_not_an_action_token
+    value=self.admit();self.assertNotIn('dispatch_allowed',value['receipt']);self.assertFalse(value['provider_dispatch_allowed'])
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 42, in admit
+    return admit_audit_checkpoint(proposal=proposal or self.proposal,votes=self.votes if votes is None else votes,
+        pinned_voters=self.pins,witness=self.witness if witness is None else witness,
+        pinned_witness_key=pub(self.key) if pin is None else pin,trusted_now=now)
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/witness_gate.py", line 8, in admit_audit_checkpoint
+    raise WitnessDenied('WITNESS_NOT_IMPLEMENTED')
+witness_gate.WitnessDenied: WITNESS_NOT_IMPLEMENTED
+
+======================================================================
+ERROR: test_valid_witness_receipt_verifiable_with_pinned_key (test_witness.WitnessGateTest.test_valid_witness_receipt_verifiable_with_pinned_key)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 63, in test_valid_witness_receipt_verifiable_with_pinned_key
+    value=self.admit()
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 42, in admit
+    return admit_audit_checkpoint(proposal=proposal or self.proposal,votes=self.votes if votes is None else votes,
+        pinned_voters=self.pins,witness=self.witness if witness is None else witness,
+        pinned_witness_key=pub(self.key) if pin is None else pin,trusted_now=now)
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/witness_gate.py", line 8, in admit_audit_checkpoint
+    raise WitnessDenied('WITNESS_NOT_IMPLEMENTED')
+witness_gate.WitnessDenied: WITNESS_NOT_IMPLEMENTED
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.031s
+
+FAILED (errors=5)

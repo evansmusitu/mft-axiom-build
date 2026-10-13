@@ -1,0 +1,51 @@
+test_archive_receipt_must_require_trusted_voter_pins (test_witness.WitnessAdversarialTest.test_archive_receipt_must_require_trusted_voter_pins) ... FAIL
+test_clock_scope_fails_before_witness_call (test_witness.WitnessAdversarialTest.test_clock_scope_fails_before_witness_call) ... /usr/lib/python3.13/unittest/case.py:253: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f045dc7b790>
+  def __exit__(self, exc_type, exc_value, tb):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/unittest/case.py:253: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f045d124130>
+  def __exit__(self, exc_type, exc_value, tb):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/unittest/case.py:253: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f045d124400>
+  def __exit__(self, exc_type, exc_value, tb):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/unittest/case.py:253: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f045d1244f0>
+  def __exit__(self, exc_type, exc_value, tb):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_commit_then_connection_interruption_cannot_resend (test_witness.WitnessAdversarialTest.test_commit_then_connection_interruption_cannot_resend) ... ok
+test_first_signed_synthetic_witness_attestation_is_audit_only (test_witness.WitnessAdversarialTest.test_first_signed_synthetic_witness_attestation_is_audit_only) ... ok
+test_forged_witness_receipt_fails (test_witness.WitnessAdversarialTest.test_forged_witness_receipt_fails) ... ok
+test_journal_survives_restart_without_regranting (test_witness.WitnessAdversarialTest.test_journal_survives_restart_without_regranting) ... ok
+test_majority_local_rollback_does_not_renew_when_witness_survives (test_witness.WitnessAdversarialTest.test_majority_local_rollback_does_not_renew_when_witness_survives) ... ok
+test_pin_must_be_independent_of_local_voters (test_witness.WitnessAdversarialTest.test_pin_must_be_independent_of_local_voters) ... ok
+test_replay_during_same_work_with_higher_sequence_is_allowed_as_new_audit (test_witness.WitnessAdversarialTest.test_replay_during_same_work_with_higher_sequence_is_allowed_as_new_audit) ... ok
+test_replayed_receipt_is_not_an_action_token (test_witness.WitnessAdversarialTest.test_replayed_receipt_is_not_an_action_token) ... ok
+test_signature_valid_checkpoint_digest_mutation_is_denied (test_witness.WitnessAdversarialTest.test_signature_valid_checkpoint_digest_mutation_is_denied) ... ok
+test_tampered_vote_invalidates_attestation_even_if_witness_was_signed (test_witness.WitnessAdversarialTest.test_tampered_vote_invalidates_attestation_even_if_witness_was_signed) ... ok
+test_unavailable_witness_does_not_fall_back_to_quorum (test_witness.WitnessAdversarialTest.test_unavailable_witness_does_not_fall_back_to_quorum) ... ok
+test_unrecognized_or_wrong_pins_fail_closed (test_witness.WitnessAdversarialTest.test_unrecognized_or_wrong_pins_fail_closed) ... ok
+test_valid_witness_receipt_verifiable_with_pinned_key (test_witness.WitnessAdversarialTest.test_valid_witness_receipt_verifiable_with_pinned_key) ... ok
+test_witness_loss_and_two_voter_rollbacks_still_break_simulated_antirollback (test_witness.WitnessAdversarialTest.test_witness_loss_and_two_voter_rollbacks_still_break_simulated_antirollback) ... ok
+test_witness_response_key_injection_denied (test_witness.WitnessAdversarialTest.test_witness_response_key_injection_denied) ... ok
+test_wrong_witness_signature_cannot_be_used (test_witness.WitnessAdversarialTest.test_wrong_witness_signature_cannot_be_used) ... ok
+test_first_signed_synthetic_witness_attestation_is_audit_only (test_witness.WitnessGateTest.test_first_signed_synthetic_witness_attestation_is_audit_only) ... ok
+test_forged_witness_receipt_fails (test_witness.WitnessGateTest.test_forged_witness_receipt_fails) ... ok
+test_majority_local_rollback_does_not_renew_when_witness_survives (test_witness.WitnessGateTest.test_majority_local_rollback_does_not_renew_when_witness_survives) ... ok
+test_pin_must_be_independent_of_local_voters (test_witness.WitnessGateTest.test_pin_must_be_independent_of_local_voters) ... ok
+test_replayed_receipt_is_not_an_action_token (test_witness.WitnessGateTest.test_replayed_receipt_is_not_an_action_token) ... ok
+test_unavailable_witness_does_not_fall_back_to_quorum (test_witness.WitnessGateTest.test_unavailable_witness_does_not_fall_back_to_quorum) ... ok
+test_valid_witness_receipt_verifiable_with_pinned_key (test_witness.WitnessGateTest.test_valid_witness_receipt_verifiable_with_pinned_key) ... ok
+
+======================================================================
+FAIL: test_archive_receipt_must_require_trusted_voter_pins (test_witness.WitnessAdversarialTest.test_archive_receipt_must_require_trusted_voter_pins)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b26_work/candidate/ops/trackb26/test/test_witness.py", line 82, in test_archive_receipt_must_require_trusted_voter_pins
+    with self.assertRaises(WitnessDenied):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: WitnessDenied not raised
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.205s
+
+FAILED (failures=1)

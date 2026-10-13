@@ -1,0 +1,62 @@
+name: AXIOM B26 fail-closed witness protocol S0 (synthetic only)
+on:
+  push:
+    branches: [frontier/axiom-trackb-b26-witness-gate-s0-20261014]
+    paths:
+      - ops/trackb26/**
+      - .github/workflows/axiom-trackb-b26-witness-gate-s0.yml
+permissions:
+  contents: read
+jobs:
+  bounded-synthetic-authority-test:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b26-witness-gate-s0-20261014'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prove provider credentials and production deployment permissions absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${ANTHROPIC_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          echo B26_NO_PROVIDER_KEYS_OR_PRODUCTION_PERMISSIONS
+      - name: Use pinned ephemeral test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/axiom-b26-test-env"
+          "$RUNNER_TEMP/axiom-b26-test-env/bin/pip" install --only-binary=:all: 'cryptography==45.0.7'
+      - name: Source hash and local adversarial verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/axiom-b26-test-env/bin/python" ops/trackb26/VERIFY_B26_LOCAL.py
+          echo AXIOM_B26_S0_WITNESS_INTERFACE_LOCAL_GATE_PASS_NO_REAL_EXTERNAL_AUTHORITY
+  separate-security-replay:
+    needs: bounded-synthetic-authority-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify regression suite in independent credentialless job
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/axiom-b26-security-env"
+          "$RUNNER_TEMP/axiom-b26-security-env/bin/pip" install --only-binary=:all: 'cryptography==45.0.7'
+          "$RUNNER_TEMP/axiom-b26-security-env/bin/python" ops/trackb26/VERIFY_B26_LOCAL.py
+          test -s ops/trackb26/EVIDENCE_B25_ROLLBACK_FAILURE.md
+          grep -q 'test_witness_loss_and_two_voter_rollbacks_still_break_simulated_antirollback' ops/trackb26/test/test_witness.py
+          echo B26_FAILED_GLOBAL_ROLLBACK_GATE_PRESERVED_NOT_PROMOTED
