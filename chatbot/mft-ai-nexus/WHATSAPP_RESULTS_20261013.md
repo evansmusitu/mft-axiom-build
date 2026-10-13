@@ -173,3 +173,18 @@ Safe next steps: owner generates a new unique 32+ character webhook verification
 The Meta dashboard additionally warns that an **unpublished app receives dashboard-sent test webhooks only**. Real inbound WhatsApp messages and delivered/read callbacks are not established and must not be reported as proven; publishing or changing production configuration requires separate explicit authorization.
 
 **MFT EDUCATION NEXUS | WhatsApp 0781572008**
+
+
+## Continuation checkpoint — 14 October 2026: sandbox-only activation live
+
+- The operator stated "Done" after being instructed to rotate the accidentally exposed webhook verification token and click Meta **Verify and save**. This user confirmation is **not independent evidence of Meta accepting the callback**.
+- Scoped GitHub Actions [run 38480060231](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38480060231) confirmed all five Cloudflare secret names still existed as `secret_text`, and the publicly reachable callback rejected a deliberately incorrect token with HTTP 403. It did **not** read or log the real verifier or Meta access token.
+- The existing `wrangler.jsonc` was changed exclusively to `ENABLE_WHATSAPP_MESSAGES=true` with `WHATSAPP_MODE=test`, `ENABLE_WHATSAPP_PRODUCTION=false` and Graph API `v25.0`. The Worker only replies to numbers in the private `WHATSAPP_TEST_RECIPIENTS` allowlist; the verified sandbox recipient recorded in Meta is `263781572008`.
+- Initial [deployment run 38480157566](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38480157566) deployed with **60/60 tests passing**, but its immediate postdeploy check failed because propagation briefly returned the previous `whatsappReady:false` version.
+- A read-only follow-up [run 38480261060](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38480261060) confirmed all five secret bindings still exist, live release flags are precisely `true/test/false`, and public `/health` now reports `whatsappReady:true`.
+- The CI postdeploy gate was strengthened to wait for release-flag propagation before verifying behavior. [Run 38480328766](https://github.com/evansmusitu/mft-axiom-build/actions/runs/38480328766) completed **successfully**, with **60/60 passing tests**, isolated Worker deployment, `businessAI:true` and `liveWhatsApp:true` as a flag/readiness result. This **does not prove Meta webhook subscription, real inbound events, outbound acceptance or delivery**.
+- No production WhatsApp number change, app publishing, payment method, purchase, Axiom code deployment, or Paynow changes occurred.
+
+**Next real provider checkpoints:** confirm Meta says the callback was saved; confirm `messages` webhook field is subscribed under app `1775810357073694`; run a Meta dashboard test event and inspect its result. The app was previously unpublished, and Meta warned that only dashboard test webhooks would arrive while unpublished. Do **not** claim customer-initiated inbound messages or delivered/read callbacks until genuinely observed and recorded. Request separate approval before publishing.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
