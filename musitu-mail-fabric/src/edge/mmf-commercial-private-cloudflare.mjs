@@ -6,6 +6,7 @@
  */
 import {DurableObject,WorkerEntrypoint} from 'cloudflare:workers';
 import {writeMmfSyntheticProof,readMmfSyntheticProof,clearMmfSyntheticProof,assertMmfPrivateProofFlags,mmfPrivateFlagsFromCloudEnv} from '../staging/mmf-private-sqlite-proof.mjs';
+import {seedMmfSyntheticControl,readMmfSyntheticControl,recordMmfSyntheticControlUsage,revokeMmfSyntheticControlKey,checkMmfSyntheticControlAccess,clearMmfSyntheticControl} from '../staging/mmf-private-cloud-control-proof.mjs';
 import {MmfCommercialStageKernel} from './mmf-commercial-private-stage.mjs';
 const deny=()=>new Response('{"error":"MMF_PRIVATE_STAGE_DISABLED"}',{
  status:503,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}
@@ -22,6 +23,12 @@ export class MmfCommercialPrivateStageDO extends DurableObject {
  writeSyntheticProof(value){return writeMmfSyntheticProof(this.#proof(),value)}
  readSyntheticProof(){return readMmfSyntheticProof(this.#proof())}
  clearSyntheticProof(){return clearMmfSyntheticProof(this.#proof())}
+ seedSyntheticControl(run,records){return seedMmfSyntheticControl(this.#proof(),run,records)}
+ readSyntheticControl(run,records){return readMmfSyntheticControl(this.#proof(),run,records)}
+ meterSyntheticControl(run,record,idem){return recordMmfSyntheticControlUsage(this.#proof(),run,record,idem)}
+ revokeSyntheticControl(run,record){return revokeMmfSyntheticControlKey(this.#proof(),run,record)}
+ accessSyntheticControl(run,record){return checkMmfSyntheticControlAccess(this.#proof(),run,record)}
+ clearSyntheticControl(run){return clearMmfSyntheticControl(this.#proof(),run)}
  restartSyntheticProof(){this.#proof();this.ctx.abort('MMF_PRIVATE_SYNTHETIC_PROBE_RESET',{retryAlarm:false})}
  issueLoginChallenge(){return this.kernel.issueLoginChallenge()}
  acceptOidcLogin(input){return this.kernel.acceptOidcLogin(input)}
@@ -48,5 +55,11 @@ export class MmfPrivateStorageProofEntrypoint extends WorkerEntrypoint {
  async read(){return this.#stub().readSyntheticProof()}
  async clear(){return this.#stub().clearSyntheticProof()}
  async restart(){return this.#stub().restartSyntheticProof()}
+ async seedControl(run,records){return this.#stub().seedSyntheticControl(run,records)}
+ async readControl(run,records){return this.#stub().readSyntheticControl(run,records)}
+ async meterControl(run,record,idem){return this.#stub().meterSyntheticControl(run,record,idem)}
+ async revokeControl(run,record){return this.#stub().revokeSyntheticControl(run,record)}
+ async accessControl(run,record){return this.#stub().accessSyntheticControl(run,record)}
+ async clearControl(run){return this.#stub().clearSyntheticControl(run)}
  async fetch(){return deny()}
 }

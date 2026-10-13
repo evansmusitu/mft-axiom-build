@@ -1,0 +1,165 @@
+name: MMF Private Synthetic Customer-Control Persistence Qualification 20261013
+# One-time pre-authorized isolated test. No customer identity, payments, email, or public endpoint.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - '.github/workflows/mmf-private-control-cloud-qualification-20261013.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mmf-private-cloud-only-synthetic-control-20261013
+  cancel-in-progress: false
+jobs:
+  qualify-closed-control:
+    if: github.event.before == '6e5c3097e2ef6a18dfabe9295faaf14d43ff07c7'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require pinned parent, isolated branch and unchanged protected main / PR 1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test "$(git rev-parse HEAD^)" = '6e5c3097e2ef6a18dfabe9295faaf14d43ff07c7'
+          node --input-type=module <<'NODE'
+          const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          async function get(endpoint){
+            const r=await fetch(base+endpoint,{headers:{authorization:'Bearer '+process.env.GH_TOKEN,
+              accept:'application/vnd.github+json'},signal:AbortSignal.timeout(12000)});
+            if(!r.ok)throw Error('MMF_GITHUB_CONTROL_READ_DENIED');return r.json();
+          }
+          const [main,pr]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||
+             pr.state!=='open'||pr.draft!==true||pr.merged!==false)
+            throw Error('MMF_PROTECTED_CONTROL_DRIFT_DENIED');
+          console.log('MMF_PROTECTED_REFS_INTACT');
+          NODE
+      - name: Prove closed-stage contract with local regressions
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/staging/mmf-private-cloud-control-proof.mjs
+          node --check src/staging/mmf-run-private-cloud-control-proof.mjs
+          node --check src/edge/mmf-commercial-private-cloudflare.mjs
+          node --check src/staging/mmf-private-cloud-proof-client.mjs
+          node --test test/mmf-private-cloud-control-lifecycle.test.mjs test/mmf-private-cloud-sqlite-proof.test.mjs
+          npm run check
+          npm test
+          set +e
+          npm run check:phase1 > "$RUNNER_TEMP/mmf-commerce-denial.log" 2>&1
+          status=$?
+          set -e
+          test "$status" -eq 2
+          grep -q BLOCKED "$RUNNER_TEMP/mmf-commerce-denial.log"
+      - name: Authenticated GET-only Cloudflare closed-stage and shared-worker drift preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const id=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(id!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_CLOUD_TOKEN_DENIED');
+          const base=`https://api.cloudflare.com/client/v4/accounts/${id}/workers/scripts/`;
+          async function get(path){
+            const r=await fetch(base+path,{headers:{authorization:'Bearer '+token,'cache-control':'no-store'},signal:AbortSignal.timeout(20000)});
+            const j=await r.json();if(r.status!==200||j.success!==true)throw Error('MMF_CLOUD_GET_DENIED');return j.result;
+          }
+          const n='mmf-commercial-private-sqlite-stage-20261012';
+          const [settings,sub,secrets]=await Promise.all([get(n+'/settings'),get(n+'/subdomain'),get(n+'/secrets')]);
+          const bs=settings.bindings||[];
+          const required=['MMF_STAGE_ONLY','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_MAIL_SENDING_ENABLED'];
+          if(sub.enabled!==false||sub.previews_enabled!==false||!Array.isArray(secrets)||secrets.length!==0||bs.length!==6||
+              required.some(name=>bs.filter(b=>b.name===name&&b.type==='plain_text'&&b.text==='false').length!==1)||
+              bs.filter(b=>b.type==='durable_object_namespace'&&b.name==='MMF_COMMERCIAL_PRIVATE_STAGE'&&b.class_name==='MmfCommercialPrivateStageDO').length!==1)
+              throw Error('MMF_PRIVATE_CLOUD_GATE_DENIED');
+          const shared=[];
+          for(const name of ['mft-phase8-external-authority','mft-paynow-transport-gateway']){
+           const s=await get(name+'/settings');
+           const canonical=(s.bindings||[]).map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null}))
+            .sort((a,b)=>a.name.localeCompare(b.name));
+           shared.push({name,digest:createHash('sha256').update(JSON.stringify(canonical)).digest('hex')});
+          }
+          writeFileSync(process.env.RUNNER_TEMP+'/mmf-control-baseline.json',JSON.stringify(shared),{mode:0o600});
+          console.log(JSON.stringify({stagePrivate:true,commercialFlagsOff:true,sharedWorkersReadOnly:2,customerData:false,payment:false}));
+          NODE
+      - name: Deploy ONLY existing private closed Cloudflare MMF SQLite Worker
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          npx --yes wrangler@4 deploy --config wrangler.mmf.commercial-private.cloud-stage-20261012.jsonc
+      - name: Verify private stage and unchanged shared payment bindings after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {readFileSync} from 'node:fs';
+          const base=`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/`;
+          async function get(path){
+           const r=await fetch(base+path,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
+           const j=await r.json();if(r.status!==200||j.success!==true)throw Error('MMF_CLOUD_POSTREAD_DENIED');return j.result;
+          }
+          const n='mmf-commercial-private-sqlite-stage-20261012';
+          const [settings,sub,secrets]=await Promise.all([get(n+'/settings'),get(n+'/subdomain'),get(n+'/secrets')]);
+          const bs=settings.bindings||[];
+          if(sub.enabled!==false||sub.previews_enabled!==false||secrets.length!==0||bs.length!==6||
+             bs.filter(b=>b.type==='plain_text'&&b.text==='false').length!==5||
+             bs.filter(b=>b.type==='durable_object_namespace'&&b.name==='MMF_COMMERCIAL_PRIVATE_STAGE').length!==1)
+            throw Error('MMF_CLOUD_PUBLIC_OR_CUSTOMER_FLAG_DRIFT');
+          const previous=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/mmf-control-baseline.json','utf8'));
+          for(const row of previous){
+           const s=await get(row.name+'/settings');
+           const canonical=(s.bindings||[]).map(b=>({name:b.name,type:b.type,class_name:b.class_name||null,service:b.service||null}))
+            .sort((a,b)=>a.name.localeCompare(b.name));
+           if(createHash('sha256').update(JSON.stringify(canonical)).digest('hex')!==row.digest)
+            throw Error('MMF_SHARED_WORKER_BINDING_DRIFT');
+          }
+          console.log('MMF_PRIVATE_CLOSED_STAGE_POSTDEPLOY_VERIFIED');
+          NODE
+      - name: Prove synthetic identity tenant/domain/subscription/access/metering persistence via real remote DO restart
+        working-directory: musitu-mail-fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          LOG="$RUNNER_TEMP/mmf-control-local.log"
+          npx --yes wrangler@4 dev --config wrangler.mmf.private-cloud-local-probe.jsonc --ip 127.0.0.1 --port 8796 > "$LOG" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
+          READY=0
+          for i in $(seq 1 35); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8796/health > /dev/null 2>&1; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$READY" -ne 1 ]; then echo MMF_PRIVATE_REMOTE_LOOPBACK_UNAVAILABLE; exit 2; fi
+          node src/staging/mmf-run-private-cloud-control-proof.mjs | tee "$RUNNER_TEMP/mmf-private-control-proof.json"
+          grep -q MMF_PRIVATE_REMOTE_SYNTHETIC_CONTROL_PERSISTENCE_PROVEN "$RUNNER_TEMP/mmf-private-control-proof.json"
+      - name: Upload non-identifying qualified proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-synthetic-customer-control-persistence-proof-20261013
+          path: ${{ runner.temp }}/mmf-private-control-proof.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Remove temporary work material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-control-baseline.json" "$RUNNER_TEMP/mmf-commerce-denial.log" "$RUNNER_TEMP/mmf-private-control-proof.json"

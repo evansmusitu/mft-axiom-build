@@ -27,6 +27,22 @@ export default {
     if(!body||Object.getPrototypeOf(body)!==Object.prototype||Object.keys(body).length!==1||typeof body.digest!=='string')return denial();
     return reply(await env.MMF_PROOF_STAGE.write(body.digest));
    }
+   if(url.pathname.startsWith('/control/')&&request.method==='POST'){
+    if(Number(request.headers.get('content-length')||0)>900)return denial();
+    const raw=await request.text();if(raw.length>900)return denial();
+    const body=JSON.parse(raw);
+    const contract={
+     '/control/seed':['run','records','seedControl'],
+     '/control/read':['run','records','readControl'],
+     '/control/meter':['run','record','idem','meterControl'],
+     '/control/revoke':['run','record','revokeControl'],
+     '/control/access':['run','record','accessControl'],
+     '/control/clear':['run','clearControl']
+    }[url.pathname];
+    if(!contract||!body||Object.getPrototypeOf(body)!==Object.prototype||
+       Object.keys(body).length!==contract.length-1||contract.slice(0,-1).some(k=>!Object.hasOwn(body,k)))return denial();
+    return reply(await env.MMF_PROOF_STAGE[contract.at(-1)](...contract.slice(0,-1).map(k=>body[k])));
+   }
    if(url.pathname==='/clear'&&request.method==='POST')return reply(await env.MMF_PROOF_STAGE.clear());
    if(url.pathname==='/restart'&&request.method==='POST'){
     await env.MMF_PROOF_STAGE.restart(); // expected abrupt DO abort / error
