@@ -41,7 +41,10 @@ def valid():
     for who in ('agent-a','agent-b'):
         for idx in range(3):
             req=f'b22-{who}-{idx}'
-            bodysha=hashlib.sha256(req.encode()).hexdigest()
+            sdksha=hashlib.sha256((req+':actual-sdk-fixture-bytes').encode()).hexdigest()
+            model={'model':'b22-synthetic-gated','messages':[{'role':'user','content':who+'|sdk-original-sha256:'+sdksha}],'max_output_tokens':32}
+            bodysha=hashlib.sha256(json.dumps(model,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+            admissions.append(f'B23_SDK_ORIGINAL_REQUEST_SHA256={who}:{idx}:{sdksha}')
             admissions.append(f'B22_WORKERD_ADMITTED={who}:{idx}:{bodysha}')
             grant=f'b22-local-{who}'
             journals.append({'request_id':req,'account_id':'axiom-s0-isolated','utc_day':'2026-10-13',
@@ -65,6 +68,15 @@ class B23CausalJoinS0(unittest.TestCase):
         self.assertFalse(out['Evidence']['production_release_authorized'])
         verified=verify_package_against_sources(out,*self.args)
         self.assertEqual(verified['operations'],6)
+    def test_missing_sdk_request_digest_is_rejected(self):
+        # A successful native run must bind the exact SDK input bytes to the
+        # worker's signed derived provider payload, not merely tool order.
+        self.args[2]='\n'.join(line for line in self.args[2].splitlines() if not line.startswith('B23_SDK_ORIGINAL_REQUEST_SHA256='))
+        self.deny('SDK_ORIGINAL_REQUEST_DIGESTS_INCOMPLETE_OR_DUPLICATE')
+    def test_substituted_sdk_request_digest_rejected(self):
+        original=next(l for l in self.args[2].splitlines() if l.startswith('B23_SDK_ORIGINAL_REQUEST_SHA256=agent-a:0:'))
+        self.args[2]=self.args[2].replace(original,'B23_SDK_ORIGINAL_REQUEST_SHA256=agent-a:0:'+('f'*64))
+        self.deny('SDK_BYTES_TO_PROVIDER_BODY_BINDING_INVALID')
     def test_repeated_verification_stable(self):
         a=join(*self.args);b=join(*self.args)
         self.assertEqual(a['package_sha256'],b['package_sha256'])
@@ -75,14 +87,16 @@ class B23CausalJoinS0(unittest.TestCase):
     def test_wrong_source_commit_fails(self):
         self.args[1]='f'*40;self.deny('B19_B20_NATIVE_SIGNATURE_OR_CAUSAL_DENIED')
     def test_missing_gateway_receipt_fails(self):
-        self.args[2]=self.args[2].replace(self.args[2].splitlines()[0]+'\n','');self.deny('GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
+        first=next(l for l in self.args[2].splitlines() if l.startswith('B22_WORKERD_ADMITTED='))
+        self.args[2]=self.args[2].replace(first+'\n','');self.deny('GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
     def test_duplicate_gateway_receipt_fails(self):
-        self.args[2]+='\n'+self.args[2].splitlines()[0];self.deny('GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
+        first=next(l for l in self.args[2].splitlines() if l.startswith('B22_WORKERD_ADMITTED='))
+        self.args[2]+='\n'+first;self.deny('GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
     def test_cross_agent_gateway_substitution_fails(self):
         self.args[2]=self.args[2].replace('B22_WORKERD_ADMITTED=agent-a:0:', 'B22_WORKERD_ADMITTED=agent-b:0:');self.deny('GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
     def test_tampered_gateway_hash_fails(self):
         self.args[2]=self.args[2].replace(self.args[3][0]['body_sha'],'f'*64)
-        self.deny('PROVIDER_PAYLOAD_CROSS_LAYER_HASH_MISMATCH')
+        self.deny('SDK_BYTES_TO_PROVIDER_BODY_BINDING_INVALID')
     def test_missing_journal_row_fails(self):
         self.args[3].pop();self.deny('JOURNAL_SNAPSHOT_INCOMPLETE')
     def test_duplicate_journal_row_fails(self):

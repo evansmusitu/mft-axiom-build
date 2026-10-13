@@ -22,6 +22,8 @@ from causality import verify_linkage
 HEX=re.compile(r'^[0-9a-f]{64}$')
 ID=re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')
 ADMIT=re.compile(r'^B22_WORKERD_ADMITTED=(agent-[ab]):([0-2]):([0-9a-f]{64})$')
+SDK=re.compile(r'^B23_SDK_ORIGINAL_REQUEST_SHA256=(agent-[ab]):([0-2]):([0-9a-f]{64})$')
+SYNTHETIC_MODEL='b22-synthetic-gated'
 WORKERS=('agent-a','agent-b')
 EXPECTED={f'b22-{w}-{i}' for w in WORKERS for i in range(3)}
 JOURNAL_FIELDS={'request_id','account_id','utc_day','tenant_id','workload_id','body_sha','quota_grant_id','state','result_sha'}
@@ -47,14 +49,27 @@ def trusted_native(portable_b64,commit):
 
 def transcript_admissions(transcript):
     require(type(transcript) is str and len(transcript)<400000,'GATEWAY_TRANSCRIPT_INVALID')
-    rows=[]
+    rows=[];sdk=[]
     for line in transcript.splitlines():
+        if line.startswith('B23_SDK_ORIGINAL_REQUEST_SHA256='):
+            m=SDK.fullmatch(line)
+            require(m is not None,'SDK_DIGEST_RECEIPT_MALFORMED')
+            who,index,digest=m.groups()
+            sdk.append({'request_id':f'b22-{who}-{index}','sha':digest})
         if line.startswith('B22_WORKERD_ADMITTED='):
             m=ADMIT.fullmatch(line)
             require(m is not None,'GATEWAY_RECEIPT_MALFORMED')
             who,index,digest=m.groups()
             rows.append({'request_id':f'b22-{who}-{index}','workload_id':who,'body_sha':digest})
     require(len(rows)==6 and {r['request_id'] for r in rows}==EXPECTED,'GATEWAY_SDK_ADMISSIONS_INCOMPLETE_OR_DUPLICATE')
+    require(len(sdk)==6 and {r['request_id'] for r in sdk}==EXPECTED,'SDK_ORIGINAL_REQUEST_DIGESTS_INCOMPLETE_OR_DUPLICATE')
+    sdkby={r['request_id']:r['sha'] for r in sdk}
+    for row in rows:
+        worker=row['workload_id'];original=sdkby[row['request_id']]
+        model_body={'model':SYNTHETIC_MODEL,'messages':[{'role':'user','content':worker+'|sdk-original-sha256:'+original}],'max_output_tokens':32}
+        # B17's ASCII-only canonical JSON sorts object keys and encodes exact UTF-8.
+        expected=hashlib.sha256(canonical(model_body)).hexdigest()
+        require(expected==row['body_sha'],'SDK_BYTES_TO_PROVIDER_BODY_BINDING_INVALID')
     for token in ('B22_DENIED_BEFORE_NATIVE_MODEL_REPLY','B22_LOCAL_WORKERD_QUOTA_DENIED='):
         require(token not in transcript,'SDK_PROVIDER_GATE_DENIED')
     require('MUSITU_AXIOM_B12_TWO_NATIVE_SDK_AGENT_PROCESSES_SYNTHETIC_MODEL_PASS' in transcript,'REAL_SDK_COMPLETION_UNPROVEN')

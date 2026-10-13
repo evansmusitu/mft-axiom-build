@@ -15,7 +15,7 @@ from evidence import join,verify_package_against_sources,JoinDenied
 from storage import capture
 
 PORTABLE=re.compile(r'^B19_PORTABLE_EVIDENCE_B64=([A-Za-z0-9+/]+={0,2})$',re.MULTILINE)
-ADMISSION=re.compile(r'^B22_WORKERD_ADMITTED=.+$',re.MULTILINE)
+ADMISSION=re.compile(r'^(?:B22_WORKERD_ADMITTED|B23_SDK_ORIGINAL_REQUEST_SHA256)=.+$',re.MULTILINE)
 B12_PASS='MUSITU_AXIOM_B12_TWO_NATIVE_SDK_AGENT_PROCESSES_SYNTHETIC_MODEL_PASS'
 
 def relevant_transcript(raw):

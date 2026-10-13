@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo install -o root -g root -m 0644 ops/trackb12/b12_runner.py /tmp/axiom-b22-unmodified-b12.py
-          sudo install -o root -g root -m 0644 ops/trackb22/gated_b12.py /tmp/axiom-b19-verified-b12.py
+          sudo install -o root -g root -m 0644 ops/trackb23/gated_b12.py /tmp/axiom-b19-verified-b12.py
           sudo install -o root -g root -m 0600 /dev/null /tmp/axiom-b22-local-token
           synthetic_secret="$(openssl rand -hex 32)"
           printf %s "$synthetic_secret" | sudo tee /tmp/axiom-b22-local-token >/dev/null
