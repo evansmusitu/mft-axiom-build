@@ -1,0 +1,74 @@
+name: AXIOM Track B18 isolated real Worker signed broker dispatch S0
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b18-integrated-workerd-gateway-s0-20261013
+    paths:
+      - ops/trackb16/test/b18_gateway.test.mjs
+      - ops/trackb16/vitest.b18.config.mjs
+      - ops/trackb17/**
+      - .github/workflows/axiom-trackb-b18-real-worker-dispatch-s0.yml
+permissions:
+  contents: read
+jobs:
+  real-workerd-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b18-integrated-workerd-gateway-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ops/trackb16
+    env:
+      CI: 'true'
+      NPM_CONFIG_AUDIT: 'false'
+      NPM_CONFIG_FUND: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: S0 strict no provider secrets or deployments
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          echo AXIOM_B18_S0_NO_LIVE_PROVIDER_CREDENTIALS
+      - name: Verify inherited B16/B17 code and B18 syntax
+        run: |
+          set -euo pipefail
+          (cd ../trackb17 && sha256sum -c MANIFEST.sha256)
+          node --check test/b18_gateway.test.mjs
+          node --check vitest.b18.config.mjs
+          echo AXIOM_B18_SOURCE_INTEGRITY_AND_SYNTAX_PASS
+      - name: Install isolated standard runner local Workerd dependencies
+        run: |
+          set -euo pipefail
+          NPM_CONFIG_PREFIX="$RUNNER_TEMP/axiom-b18-npm" npm install -g npm@11.19.1 --no-audit --no-fund
+          export PATH="$RUNNER_TEMP/axiom-b18-npm/bin:$PATH"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          echo AXIOM_B18_EPHEMERAL_TEST_DEPS_ONLY
+      - name: Run genuine local Workerd integration against synthetic provider callback
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/axiom-b18-npm/bin:$PATH"
+          npx vitest run --config vitest.b18.config.mjs
+          echo AXIOM_B18_REAL_WORKER_INTEGRATED_QUOTA_GATE_S0_PASS_NOT_PRODUCTION
+  independent-review-s0:
+    needs: real-workerd-s0
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b18-integrated-workerd-gateway-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Independently rerun B17 isolated security attacks
+        run: |
+          set -euo pipefail
+          cd ops/trackb17
+          sha256sum -c MANIFEST.sha256
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          node --test test/independent_security.test.mjs
+          echo AXIOM_B18_SEPARATE_SYNTHETIC_ADVERSARIAL_JOB_PASS_NOT_RELEASE_AUTHORITY
