@@ -19,6 +19,6 @@ test_reject_missing (test_verify_gate.VerificationTests.test_reject_missing) ...
 test_reject_missing_portable (test_verify_gate.VerificationTests.test_reject_missing_portable) ... ok
 
 ----------------------------------------------------------------------
-Ran 19 tests in 0.514s
+Ran 19 tests in 0.577s
 
 OK

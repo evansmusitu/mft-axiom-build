@@ -66,6 +66,7 @@ jobs:
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           npm ci --no-audit --no-fund
           ./node_modules/.bin/wrangler --version
+          npm ls workerd
           echo AXIOM_B21_EPHEMERAL_LOCAL_WORKER_TOOL_READY_NO_DEPLOYMENT
       - name: Run genuine OpenHands SDK under prior signed durable model-request gate
         id: native

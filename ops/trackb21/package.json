@@ -4,5 +4,5 @@
   "private":true,
   "type":"module",
   "scripts":{"dev:s0":"wrangler dev --local --ip 127.0.0.1 --port 18768"},
-  "devDependencies":{"wrangler":"4.45.1"}
+  "devDependencies":{"wrangler":"4.149.0"}
 }

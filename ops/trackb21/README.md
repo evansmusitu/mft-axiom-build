@@ -68,3 +68,16 @@ provider request. The original inbound SDK request is passed unchanged to the
 scripted B12 synthetic tool-action generator only after B18 admission.
 
 The fix has not earned a second live CI PASS until GitHub Actions reruns it.
+
+
+## Strict B16 identity failure under obsolete Workerd preserved
+
+Subsequent GitHub Actions run `38425060368` FAILED closed with
+`NONCANONICAL_DURABLE_OBJECT` before any SDK action (both agents 0).
+The pinned Wrangler 4.45.1 shipped a Workerd package dated October **2025**,
+older than B16's March 2026 named `ctx.id.name` identity feature. **Do not
+bypass** the B16 object identity check. The repair updates the isolated test
+Wrangler dependency to 4.149.0, whose build is a current 2026 release, and
+requires an actual Workerd CI rerun. That newer version's behavior remains
+unverified until the GitHub run confirms correct, non-forgeable `ctx.id.name`.
+The failed run is preserved and is not relabeled a PASS.
