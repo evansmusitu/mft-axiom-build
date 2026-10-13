@@ -66,3 +66,9 @@ Enable the **test** integration only after asset/credential validation. From the
 Provider 5xx outcomes and timeouts can be ambiguous; exactly-once delivery is not promised. The default installation intentionally excludes attachments, template campaigns, paid-material delivery and payment processing. Production readiness still requires real sandbox delivery evidence and verification of the user's actual Meta assets and number-continuity route.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — developer registration required
+
+After the owner reported sign-in completed, the cloud browser reached Meta for Developers. Opening `/apps/` redirected to the public developer homepage; its **Get Started** entry opened **Create a Meta for Developers account**. The visible account stages are Register, Verify account, Contact info, and About you. The first Continue button explicitly accepts Meta Platform Terms and Developer Policies. No terms acceptance was performed by the agent. The registration screen is handed to the owner for review and account verification. Existing Meta app inventory, test sender credentials, webhook registration and real message delivery remain unverified; production remains off.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
