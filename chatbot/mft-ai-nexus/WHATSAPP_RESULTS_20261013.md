@@ -2,7 +2,7 @@
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**  
 **Date:** 13 October 2026  
-**Outcome:** backend improvements deployed; Meta setup and real WhatsApp delivery await authentication.
+**Outcome:** backend deployed; Meta sandbox sender, recipient and access-token generation confirmed. Private Worker credentials, webhook registration and real delivery remain pending.
 
 ## Verified deployment
 
@@ -41,11 +41,11 @@ The CI checks exercised real Cloudflare deployment and public HTTP behavior. Wha
 | Open Meta for Developers | Confirmed | Authenticated developer dashboard accessible. |
 | Inspect existing business apps | Confirmed | Fresh app inventory shows **No apps yet**; MFT Education NEXUS portfolio created. |
 | Find/create correct WhatsApp integration | App created | Meta dashboard confirms app ID 1775810357073694; sandbox onboarding prepared. |
-| Configure Meta test number | Sender and recipient confirmed | Test sender +1 555 663-7079 and verified recipient +263781572008 selected in Meta; access token still pending. |
+| Configure Meta test number | Sender, recipient and token generation confirmed | Test sender +1 555 663-7079, verified recipient +263781572008 and generated token presence observed; token value not exposed. |
 | Connect Meta webhook | Backend ready; registration blocked | HMAC/challenge handling tested; authenticated Meta subscription not configured. |
-| Secure credentials | Blocked | Meta credentials unavailable; Cloudflare dashboard signed out. No secrets published. |
+| Secure credentials | Installation pending authentication | Meta sandbox token generated without exposure; Cloudflare private Worker secret settings require sign-in. |
 | Use GitHub–Cloudflare connection | Confirmed | Successful scoped deployment run above. |
-| Real incoming message and automated reply | Unverified | No authenticated sandbox sender or recipient verification available. |
+| Real incoming message and automated reply | Unverified | Sandbox assets confirmed; Worker credential installation and callback subscription still pending. |
 | Fix errors and rerun tests | Confirmed for backend | Regression gaps demonstrated, corrected, and all 60 automated tests pass. |
 | Confirm delivery | Unverified | No real delivered/read callback or recipient confirmation collected. |
 | Document results | Confirmed | This report and activation runbook. |
@@ -138,5 +138,13 @@ The current chat does not expose the prior Cloud Browser session or an authentic
 The authenticated original cloud browser was resumed. The owner explicitly requested generating the sandbox token for existing app `1775810357073694`. **Generate token** opened Meta's OAuth permission review requesting `whatsapp_business_management` and `whatsapp_business_messaging`. The initial selection included current/future WhatsApp accounts; it was narrowed before submission to **current accounts only**, with the sole **Test WhatsApp Business Account** `1955690452095441` selected. The final review offers **Manage your WhatsApp accounts** and **Manage and access conversations in WhatsApp**, each for one selected account, and accepts **Meta Business Tools** terms via **Save**. This final action remains prepared for specific owner approval; no token value was handled or exposed.
 
 Cloudflare browser login currently reports **Unable to sign in. Try again or use your email and password.** No automated login retries were performed. GitHub's private Actions-secret UI is signed out; the connected repository API remains available and its existing deployment connection is already verified. Browser authentication or an authorized private secret-entry route is still needed to install Worker secrets. The authoritative report confirms the other continuation chat aligned Graph API to `v25.0` and ran a successful GET-only audit showing all five WhatsApp Worker settings absent. Production remains disabled and no real WhatsApp reply/delivery is confirmed.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — 2026-10-13, sandbox token generated
+
+Following the owner's **Continue** response to the exact permission/terms review, the expired cloud tabs were recovered by reopening the existing app (no duplicate app created). The request was again limited to current accounts only, with sole test account `1955690452095441` selected. **Save** submitted the reviewed `whatsapp_business_management` and `whatsapp_business_messaging` access and Meta Business Tools terms. Meta displayed **Evans Musitu has been connected to MFT AI NEXUS**. After **Got it**, the existing dashboard's token field was enabled and generated-token presence was confirmed using a boolean-only check. No token value was printed, logged, committed, or included in screenshots. Token API validity and expiry have not yet been tested.
+
+The fresh Cloudflare browser is signed out and shows its ordinary sign-in form. Secure owner authentication is the next blocker before configuring the existing Worker's private credentials. Meta's generated token remains in its authenticated dashboard; no Worker secret has been installed by this continuation. A safe screenshot includes only the test sender/account IDs and excludes the entire access-token region. Production remains disabled; test recipient is restricted to `263781572008`; no incoming/reply/delivered end-to-end evidence exists yet.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
