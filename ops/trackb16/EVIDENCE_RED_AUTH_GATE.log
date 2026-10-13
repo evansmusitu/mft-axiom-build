@@ -1,0 +1,356 @@
+TAP version 13
+# Subtest: independent Ed25519 workload authority and exact bound operation admit once
+not ok 1 - independent Ed25519 workload authority and exact bound operation admit once
+  ---
+  duration_ms: 2.433899
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:30:1'
+  failureType: 'testCodeFailure'
+  error: 'S0_GATE_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    authorizeThenReserve (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:3:54)
+    success (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:27:34)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:30:130)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: no workload authorization denies without entering ledger
+not ok 2 - no workload authorization denies without entering ledger
+  ---
+  duration_ms: 1.027298
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:31:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:31:112)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: invalid Ed25519 signature denies before quota
+not ok 3 - invalid Ed25519 signature denies before quota
+  ---
+  duration_ms: 0.55406
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:32:126)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token signed for another account denies
+not ok 4 - token signed for another account denies
+  ---
+  duration_ms: 0.458895
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:33:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:33:142)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token signed for another tenant denies
+not ok 5 - token signed for another tenant denies
+  ---
+  duration_ms: 0.448861
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:34:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:34:139)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token cannot be replayed for altered request id
+not ok 6 - token cannot be replayed for altered request id
+  ---
+  duration_ms: 1.358309
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:35:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:35:106)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token cannot authorize altered neurons
+not ok 7 - token cannot authorize altered neurons
+  ---
+  duration_ms: 0.392024
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:36:90)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token cannot authorize mutated B15 signed grant
+not ok 8 - token cannot authorize mutated B15 signed grant
+  ---
+  duration_ms: 0.394367
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:37:140)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: token cannot authorize new body digest
+not ok 9 - token cannot authorize new body digest
+  ---
+  duration_ms: 0.60059
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:38:105)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: future issued token denied
+not ok 10 - future issued token denied
+  ---
+  duration_ms: 0.701994
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:39:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:39:171)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: expired token denied
+not ok 11 - expired token denied
+  ---
+  duration_ms: 0.585868
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:40:128)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: excessive signed token TTL denied
+not ok 12 - excessive signed token TTL denied
+  ---
+  duration_ms: 0.333926
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:41:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:41:145)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: workload and quota issuer must be cryptographically distinct
+not ok 13 - workload and quota issuer must be cryptographically distinct
+  ---
+  duration_ms: 0.302128
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:42:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:42:143)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: caller cannot grant production authority even if signed
+not ok 14 - caller cannot grant production authority even if signed
+  ---
+  duration_ms: 0.307546
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:43:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:43:157)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unknown signed fields rejected
+not ok 15 - unknown signed fields rejected
+  ---
+  duration_ms: 0.30296
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:44:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: S0_GATE_NOT_IMPLEMENTED
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async denied (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:28:31)
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:44:119)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ledger failure does not get converted to success
+not ok 16 - ledger failure does not get converted to success
+  ---
+  duration_ms: 0.442972
+  type: 'test'
+  location: '/mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /QUOTA_DENIED/. Input:
+    
+    'Error: S0_GATE_NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'S0_GATE_NOT_IMPLEMENTED'
+  stack: |-
+    authorizeThenReserve (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/src/admission.mjs:3:54)
+    success (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:27:34)
+    file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:45:168
+    waitForActual (node:assert:552:21)
+    Function.rejects (node:assert:687:31)
+    TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:45:156)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/axiom_work_20261013/b16_current/ops/trackb16/test/admission.test.mjs:45:143)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 0
+# fail 16
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 80.955219

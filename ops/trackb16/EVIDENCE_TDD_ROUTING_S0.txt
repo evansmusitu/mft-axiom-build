@@ -1,0 +1,37 @@
+MUSITU AXIOM B16 — LOCAL ROUTING HARDENING S0
+Date: 2026-10-13
+Scope: conversation sandbox; never pushed, deployed or used with provider secrets.
+
+DEFECT: original B16 module exposed canonicalName but no broker-side function
+that could guarantee the same name was passed to DurableObjectNamespace.getByName().
+The existing public Worker fetch remained HTTP 503, and original 20 S0 identity
+tests did not exercise a binding call.
+
+RED (before production implementation):
+  command: node --test ./test/routing.test.mjs
+  initial setup missing-export error was discarded as not a valid behavioral red.
+  minimal export skeleton then threw ScopeDenied('NOT_IMPLEMENTED').
+  result: EXIT 1, behavior assertion failure NOT_IMPLEMENTED, 8 tests failed.
+
+GREEN (only after red observed):
+  implemented routeQuota() in src/identity.mjs:
+  - trusted configured AXIOM_ACCOUNT_ID and UTC day only;
+  - one getByName() canonical identity for all brokers;
+  - no unique-ID fallback;
+  - no caller-selected bucket key;
+  - explicit fail-closed binding/stub checks.
+  command: node --test ./test/routing.test.mjs
+  result: EXIT 0, 8 PASS, 0 FAIL.
+
+REGRESSION:
+  command: node --test ./test/identity.test.mjs ./test/routing.test.mjs
+  result: EXIT 0, 28 PASS, 0 FAIL.
+  synthetic fixture signer public key matches wrangler S0 pubkey: TRUE.
+  public Worker fetch uses disabled status 503: TRUE.
+
+EVIDENCE BOUNDARIES:
+  This is a local Node test and does not exercise Cloudflare Durable Objects.
+  @cloudflare/vitest-plugin and Vitest were not available locally.
+  npm registry lookup failed with EAI_AGAIN. No Cloudflare runtime PASS claimed.
+  No authoritative B14 whole-product handoff ZIP/outer checksum verification.
+  No live S3/S4 authorization, production write, external spend or release.

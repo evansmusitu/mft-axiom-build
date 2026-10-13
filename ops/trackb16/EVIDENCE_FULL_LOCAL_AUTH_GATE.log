@@ -1,0 +1,334 @@
+TAP version 13
+# Subtest: independent Ed25519 workload authority and exact bound operation admit once
+ok 1 - independent Ed25519 workload authority and exact bound operation admit once
+  ---
+  duration_ms: 8.776003
+  type: 'test'
+  ...
+# Subtest: no workload authorization denies without entering ledger
+ok 2 - no workload authorization denies without entering ledger
+  ---
+  duration_ms: 0.721935
+  type: 'test'
+  ...
+# Subtest: invalid Ed25519 signature denies before quota
+ok 3 - invalid Ed25519 signature denies before quota
+  ---
+  duration_ms: 1.731474
+  type: 'test'
+  ...
+# Subtest: token signed for another account denies
+ok 4 - token signed for another account denies
+  ---
+  duration_ms: 1.090693
+  type: 'test'
+  ...
+# Subtest: token signed for another tenant denies
+ok 5 - token signed for another tenant denies
+  ---
+  duration_ms: 0.88407
+  type: 'test'
+  ...
+# Subtest: token cannot be replayed for altered request id
+ok 6 - token cannot be replayed for altered request id
+  ---
+  duration_ms: 1.234692
+  type: 'test'
+  ...
+# Subtest: token cannot authorize altered neurons
+ok 7 - token cannot authorize altered neurons
+  ---
+  duration_ms: 0.72557
+  type: 'test'
+  ...
+# Subtest: token cannot authorize mutated B15 signed grant
+ok 8 - token cannot authorize mutated B15 signed grant
+  ---
+  duration_ms: 0.961838
+  type: 'test'
+  ...
+# Subtest: token cannot authorize new body digest
+ok 9 - token cannot authorize new body digest
+  ---
+  duration_ms: 1.064694
+  type: 'test'
+  ...
+# Subtest: future issued token denied
+ok 10 - future issued token denied
+  ---
+  duration_ms: 1.322164
+  type: 'test'
+  ...
+# Subtest: expired token denied
+ok 11 - expired token denied
+  ---
+  duration_ms: 1.221311
+  type: 'test'
+  ...
+# Subtest: excessive signed token TTL denied
+ok 12 - excessive signed token TTL denied
+  ---
+  duration_ms: 1.257867
+  type: 'test'
+  ...
+# Subtest: workload and quota issuer must be cryptographically distinct
+ok 13 - workload and quota issuer must be cryptographically distinct
+  ---
+  duration_ms: 0.353276
+  type: 'test'
+  ...
+# Subtest: caller cannot grant production authority even if signed
+ok 14 - caller cannot grant production authority even if signed
+  ---
+  duration_ms: 1.07502
+  type: 'test'
+  ...
+# Subtest: unknown signed fields rejected
+ok 15 - unknown signed fields rejected
+  ---
+  duration_ms: 0.704848
+  type: 'test'
+  ...
+# Subtest: ledger failure does not get converted to success
+ok 16 - ledger failure does not get converted to success
+  ---
+  duration_ms: 2.643146
+  type: 'test'
+  ...
+# Subtest: signed token with wrong audience does not enter quota
+ok 17 - signed token with wrong audience does not enter quota
+  ---
+  duration_ms: 0.752741
+  type: 'test'
+  ...
+# Subtest: signed token with wrong UTC day denied
+ok 18 - signed token with wrong UTC day denied
+  ---
+  duration_ms: 0.967847
+  type: 'test'
+  ...
+# Subtest: signed token with wrong workload denied
+ok 19 - signed token with wrong workload denied
+  ---
+  duration_ms: 0.749786
+  type: 'test'
+  ...
+# Subtest: missing B15 grant denied, even with auth signature
+ok 20 - missing B15 grant denied, even with auth signature
+  ---
+  duration_ms: 0.279884
+  type: 'test'
+  ...
+# Subtest: forged unsafe request field rejected
+ok 21 - forged unsafe request field rejected
+  ---
+  duration_ms: 0.231951
+  type: 'test'
+  ...
+# Subtest: untrusted clock crosses UTC midnight, deny before any quota
+ok 22 - untrusted clock crosses UTC midnight, deny before any quota
+  ---
+  duration_ms: 1.505442
+  type: 'test'
+  ...
+# Subtest: malformed signed envelope rejected
+ok 23 - malformed signed envelope rejected
+  ---
+  duration_ms: 0.284992
+  type: 'test'
+  ...
+# Subtest: canonical account/day object name
+ok 24 - canonical account/day object name
+  ---
+  duration_ms: 0.993937
+  type: 'test'
+  ...
+# Subtest: two brokers same canonical identity
+ok 25 - two brokers same canonical identity
+  ---
+  duration_ms: 0.187224
+  type: 'test'
+  ...
+# Subtest: current name passes trusted UTC gate
+ok 26 - current name passes trusted UTC gate
+  ---
+  duration_ms: 0.173523
+  type: 'test'
+  ...
+# Subtest: random object ID rejected
+ok 27 - random object ID rejected
+  ---
+  duration_ms: 0.431665
+  type: 'test'
+  ...
+# Subtest: undefined name from unique ID rejected
+ok 28 - undefined name from unique ID rejected
+  ---
+  duration_ms: 0.113522
+  type: 'test'
+  ...
+# Subtest: null name rejected
+ok 29 - null name rejected
+  ---
+  duration_ms: 0.104729
+  type: 'test'
+  ...
+# Subtest: alternate bucket key rejected
+ok 30 - alternate bucket key rejected
+  ---
+  duration_ms: 0.186172
+  type: 'test'
+  ...
+# Subtest: different account bucket rejected
+ok 31 - different account bucket rejected
+  ---
+  duration_ms: 0.249008
+  type: 'test'
+  ...
+# Subtest: old day rejected immediately at UTC midnight
+ok 32 - old day rejected immediately at UTC midnight
+  ---
+  duration_ms: 0.274606
+  type: 'test'
+  ...
+# Subtest: future day rejected before UTC midnight
+ok 33 - future day rejected before UTC midnight
+  ---
+  duration_ms: 0.374688
+  type: 'test'
+  ...
+# Subtest: UTC day is independent of time zone
+ok 34 - UTC day is independent of time zone
+  ---
+  duration_ms: 0.139081
+  type: 'test'
+  ...
+# Subtest: clock rolls at exactly midnight UTC
+ok 35 - clock rolls at exactly midnight UTC
+  ---
+  duration_ms: 0.07898
+  type: 'test'
+  ...
+# Subtest: invalid account delimiter rejected
+ok 36 - invalid account delimiter rejected
+  ---
+  duration_ms: 0.080973
+  type: 'test'
+  ...
+# Subtest: invalid account unicode rejected
+ok 37 - invalid account unicode rejected
+  ---
+  duration_ms: 0.147183
+  type: 'test'
+  ...
+# Subtest: empty account rejected
+ok 38 - empty account rejected
+  ---
+  duration_ms: 0.09233
+  type: 'test'
+  ...
+# Subtest: invalid day rejected
+ok 39 - invalid day rejected
+  ---
+  duration_ms: 0.07942
+  type: 'test'
+  ...
+# Subtest: invalid month rejected
+ok 40 - invalid month rejected
+  ---
+  duration_ms: 0.099771
+  type: 'test'
+  ...
+# Subtest: invalid clock rejected
+ok 41 - invalid clock rejected
+  ---
+  duration_ms: 0.069204
+  type: 'test'
+  ...
+# Subtest: invalid clock infinity rejected
+ok 42 - invalid clock infinity rejected
+  ---
+  duration_ms: 0.625098
+  type: 'test'
+  ...
+# Subtest: bad date format rejected
+ok 43 - bad date format rejected
+  ---
+  duration_ms: 0.085159
+  type: 'test'
+  ...
+# Subtest: routing derives object identity exclusively from trusted config and UTC clock
+ok 44 - routing derives object identity exclusively from trusted config and UTC clock
+  ---
+  duration_ms: 2.873025
+  type: 'test'
+  ...
+# Subtest: separate brokers deterministically share one identity
+ok 45 - separate brokers deterministically share one identity
+  ---
+  duration_ms: 0.194956
+  type: 'test'
+  ...
+# Subtest: midnight routes to a new account/day object, never previous object
+ok 46 - midnight routes to a new account/day object, never previous object
+  ---
+  duration_ms: 0.141114
+  type: 'test'
+  ...
+# Subtest: configured account is mandatory and untrusted names are not routing inputs
+ok 47 - configured account is mandatory and untrusted names are not routing inputs
+  ---
+  duration_ms: 0.359214
+  type: 'test'
+  ...
+# Subtest: invalid clock fails before reaching durable-object binding
+ok 48 - invalid clock fails before reaching durable-object binding
+  ---
+  duration_ms: 0.122586
+  type: 'test'
+  ...
+# Subtest: binding missing fails closed, not fallback to local or global map
+ok 49 - binding missing fails closed, not fallback to local or global map
+  ---
+  duration_ms: 0.144909
+  type: 'test'
+  ...
+# Subtest: binding that refuses a name does not fall back to newUniqueId
+ok 50 - binding that refuses a name does not fall back to newUniqueId
+  ---
+  duration_ms: 0.23106
+  type: 'test'
+  ...
+# Subtest: binding return missing reserve/revoke methods fails closed
+ok 51 - binding return missing reserve/revoke methods fails closed
+  ---
+  duration_ms: 0.220515
+  type: 'test'
+  ...
+# Subtest: binding cannot substitute an alternate named stub for canonical name
+ok 52 - binding cannot substitute an alternate named stub for canonical name
+  ---
+  duration_ms: 0.386346
+  type: 'test'
+  ...
+# Subtest: binding cannot substitute a nameless or unique-id stub
+ok 53 - binding cannot substitute a nameless or unique-id stub
+  ---
+  duration_ms: 0.42253
+  type: 'test'
+  ...
+# Subtest: canonical stub must not be replaced by an object reporting another id name
+ok 54 - canonical stub must not be replaced by an object reporting another id name
+  ---
+  duration_ms: 0.235507
+  type: 'test'
+  ...
+1..54
+# tests 54
+# suites 0
+# pass 54
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 91.867706

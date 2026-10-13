@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {canonicalName,requireCanonicalObject,utcDay,ScopeDenied} from '../src/identity.mjs';
+const ACCT='axiom-s0-isolated',DAY='2026-10-13';
+const T=Date.parse('2026-10-13T12:00:00Z');
+function deny(fn,code){assert.throws(fn,e=>e instanceof ScopeDenied && e.code===code);}
+test('canonical account/day object name',()=>assert.equal(canonicalName(ACCT,DAY),'axiom.quota.b16.v1:axiom-s0-isolated:2026-10-13'));
+test('two brokers same canonical identity',()=>assert.equal(canonicalName(ACCT,DAY),canonicalName(ACCT,DAY)));
+test('current name passes trusted UTC gate',()=>assert.equal(requireCanonicalObject(canonicalName(ACCT,DAY),ACCT,T),DAY));
+test('random object ID rejected',()=>deny(()=>requireCanonicalObject('f7d952b',ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('undefined name from unique ID rejected',()=>deny(()=>requireCanonicalObject(undefined,ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('null name rejected',()=>deny(()=>requireCanonicalObject(null,ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('alternate bucket key rejected',()=>deny(()=>requireCanonicalObject(canonicalName(ACCT,DAY)+':alternate',ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('different account bucket rejected',()=>deny(()=>requireCanonicalObject(canonicalName('attacker',DAY),ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('old day rejected immediately at UTC midnight',()=>deny(()=>requireCanonicalObject(canonicalName(ACCT,DAY),ACCT,Date.parse('2026-10-14T00:00:00Z')),'NONCANONICAL_DURABLE_OBJECT'));
+test('future day rejected before UTC midnight',()=>deny(()=>requireCanonicalObject(canonicalName(ACCT,'2026-10-14'),ACCT,T),'NONCANONICAL_DURABLE_OBJECT'));
+test('UTC day is independent of time zone',()=>assert.equal(utcDay(Date.parse('2026-10-13T23:59:59Z')),DAY));
+test('clock rolls at exactly midnight UTC',()=>assert.equal(utcDay(Date.parse('2026-10-14T00:00:00Z')),'2026-10-14'));
+test('invalid account delimiter rejected',()=>deny(()=>canonicalName('acct:evil',DAY),'INVALID_CONFIGURED_ACCOUNT'));
+test('invalid account unicode rejected',()=>deny(()=>canonicalName('acct-🌐',DAY),'INVALID_CONFIGURED_ACCOUNT'));
+test('empty account rejected',()=>deny(()=>canonicalName('',DAY),'INVALID_CONFIGURED_ACCOUNT'));
+test('invalid day rejected',()=>deny(()=>canonicalName(ACCT,'2026-02-30'),'INVALID_UTC_DAY'));
+test('invalid month rejected',()=>deny(()=>canonicalName(ACCT,'2026-13-01'),'INVALID_UTC_DAY'));
+test('invalid clock rejected',()=>deny(()=>utcDay(NaN),'INVALID_TRUSTED_CLOCK'));
+test('invalid clock infinity rejected',()=>deny(()=>utcDay(Infinity),'INVALID_TRUSTED_CLOCK'));
+test('bad date format rejected',()=>deny(()=>canonicalName(ACCT,'13-10-2026'),'INVALID_UTC_DAY'));

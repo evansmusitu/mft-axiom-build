@@ -1,0 +1,196 @@
+TAP version 13
+# Subtest: canonical account/day object name
+ok 1 - canonical account/day object name
+  ---
+  duration_ms: 1.716946
+  type: 'test'
+  ...
+# Subtest: two brokers same canonical identity
+ok 2 - two brokers same canonical identity
+  ---
+  duration_ms: 0.22583
+  type: 'test'
+  ...
+# Subtest: current name passes trusted UTC gate
+ok 3 - current name passes trusted UTC gate
+  ---
+  duration_ms: 0.198859
+  type: 'test'
+  ...
+# Subtest: random object ID rejected
+ok 4 - random object ID rejected
+  ---
+  duration_ms: 0.764356
+  type: 'test'
+  ...
+# Subtest: undefined name from unique ID rejected
+ok 5 - undefined name from unique ID rejected
+  ---
+  duration_ms: 0.237838
+  type: 'test'
+  ...
+# Subtest: null name rejected
+ok 6 - null name rejected
+  ---
+  duration_ms: 0.171258
+  type: 'test'
+  ...
+# Subtest: alternate bucket key rejected
+ok 7 - alternate bucket key rejected
+  ---
+  duration_ms: 0.177357
+  type: 'test'
+  ...
+# Subtest: different account bucket rejected
+ok 8 - different account bucket rejected
+  ---
+  duration_ms: 0.244037
+  type: 'test'
+  ...
+# Subtest: old day rejected immediately at UTC midnight
+ok 9 - old day rejected immediately at UTC midnight
+  ---
+  duration_ms: 0.402777
+  type: 'test'
+  ...
+# Subtest: future day rejected before UTC midnight
+ok 10 - future day rejected before UTC midnight
+  ---
+  duration_ms: 0.649127
+  type: 'test'
+  ...
+# Subtest: UTC day is independent of time zone
+ok 11 - UTC day is independent of time zone
+  ---
+  duration_ms: 0.213672
+  type: 'test'
+  ...
+# Subtest: clock rolls at exactly midnight UTC
+ok 12 - clock rolls at exactly midnight UTC
+  ---
+  duration_ms: 0.128113
+  type: 'test'
+  ...
+# Subtest: invalid account delimiter rejected
+ok 13 - invalid account delimiter rejected
+  ---
+  duration_ms: 0.128594
+  type: 'test'
+  ...
+# Subtest: invalid account unicode rejected
+ok 14 - invalid account unicode rejected
+  ---
+  duration_ms: 0.296847
+  type: 'test'
+  ...
+# Subtest: empty account rejected
+ok 15 - empty account rejected
+  ---
+  duration_ms: 0.13914
+  type: 'test'
+  ...
+# Subtest: invalid day rejected
+ok 16 - invalid day rejected
+  ---
+  duration_ms: 0.129605
+  type: 'test'
+  ...
+# Subtest: invalid month rejected
+ok 17 - invalid month rejected
+  ---
+  duration_ms: 0.123847
+  type: 'test'
+  ...
+# Subtest: invalid clock rejected
+ok 18 - invalid clock rejected
+  ---
+  duration_ms: 0.124237
+  type: 'test'
+  ...
+# Subtest: invalid clock infinity rejected
+ok 19 - invalid clock infinity rejected
+  ---
+  duration_ms: 0.124057
+  type: 'test'
+  ...
+# Subtest: bad date format rejected
+ok 20 - bad date format rejected
+  ---
+  duration_ms: 0.160461
+  type: 'test'
+  ...
+# Subtest: routing derives object identity exclusively from trusted config and UTC clock
+ok 21 - routing derives object identity exclusively from trusted config and UTC clock
+  ---
+  duration_ms: 2.404331
+  type: 'test'
+  ...
+# Subtest: separate brokers deterministically share one identity
+ok 22 - separate brokers deterministically share one identity
+  ---
+  duration_ms: 0.182104
+  type: 'test'
+  ...
+# Subtest: midnight routes to a new account/day object, never previous object
+ok 23 - midnight routes to a new account/day object, never previous object
+  ---
+  duration_ms: 0.122845
+  type: 'test'
+  ...
+# Subtest: configured account is mandatory and untrusted names are not routing inputs
+ok 24 - configured account is mandatory and untrusted names are not routing inputs
+  ---
+  duration_ms: 0.437699
+  type: 'test'
+  ...
+# Subtest: invalid clock fails before reaching durable-object binding
+ok 25 - invalid clock fails before reaching durable-object binding
+  ---
+  duration_ms: 0.161003
+  type: 'test'
+  ...
+# Subtest: binding missing fails closed, not fallback to local or global map
+ok 26 - binding missing fails closed, not fallback to local or global map
+  ---
+  duration_ms: 0.266812
+  type: 'test'
+  ...
+# Subtest: binding that refuses a name does not fall back to newUniqueId
+ok 27 - binding that refuses a name does not fall back to newUniqueId
+  ---
+  duration_ms: 2.018825
+  type: 'test'
+  ...
+# Subtest: binding return missing reserve/revoke methods fails closed
+ok 28 - binding return missing reserve/revoke methods fails closed
+  ---
+  duration_ms: 0.237067
+  type: 'test'
+  ...
+# Subtest: binding cannot substitute an alternate named stub for canonical name
+ok 29 - binding cannot substitute an alternate named stub for canonical name
+  ---
+  duration_ms: 0.590309
+  type: 'test'
+  ...
+# Subtest: binding cannot substitute a nameless or unique-id stub
+ok 30 - binding cannot substitute a nameless or unique-id stub
+  ---
+  duration_ms: 0.509167
+  type: 'test'
+  ...
+# Subtest: canonical stub must not be replaced by an object reporting another id name
+ok 31 - canonical stub must not be replaced by an object reporting another id name
+  ---
+  duration_ms: 0.42527
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 79.677172

@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: routing derives object identity exclusively from trusted config and UTC clock
+ok 1 - routing derives object identity exclusively from trusted config and UTC clock
+  ---
+  duration_ms: 3.286069
+  type: 'test'
+  ...
+# Subtest: separate brokers deterministically share one identity
+ok 2 - separate brokers deterministically share one identity
+  ---
+  duration_ms: 0.190677
+  type: 'test'
+  ...
+# Subtest: midnight routes to a new account/day object, never previous object
+ok 3 - midnight routes to a new account/day object, never previous object
+  ---
+  duration_ms: 0.121182
+  type: 'test'
+  ...
+# Subtest: configured account is mandatory and untrusted names are not routing inputs
+ok 4 - configured account is mandatory and untrusted names are not routing inputs
+  ---
+  duration_ms: 0.383107
+  type: 'test'
+  ...
+# Subtest: invalid clock fails before reaching durable-object binding
+ok 5 - invalid clock fails before reaching durable-object binding
+  ---
+  duration_ms: 0.131068
+  type: 'test'
+  ...
+# Subtest: binding missing fails closed, not fallback to local or global map
+ok 6 - binding missing fails closed, not fallback to local or global map
+  ---
+  duration_ms: 0.121793
+  type: 'test'
+  ...
+# Subtest: binding that refuses a name does not fall back to newUniqueId
+ok 7 - binding that refuses a name does not fall back to newUniqueId
+  ---
+  duration_ms: 0.289406
+  type: 'test'
+  ...
+# Subtest: binding return missing reserve/revoke methods fails closed
+ok 8 - binding return missing reserve/revoke methods fails closed
+  ---
+  duration_ms: 0.162104
+  type: 'test'
+  ...
+# Subtest: binding cannot substitute an alternate named stub for canonical name
+not ok 9 - binding cannot substitute an alternate named stub for canonical name
+  ---
+  duration_ms: 0.632232
+  type: 'test'
+  location: '/mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:13:33)
+    TestContext.<anonymous> (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:58:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: binding cannot substitute a nameless or unique-id stub
+not ok 10 - binding cannot substitute a nameless or unique-id stub
+  ---
+  duration_ms: 0.396698
+  type: 'test'
+  location: '/mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:60:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:13:33)
+    TestContext.<anonymous> (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:63:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: canonical stub must not be replaced by an object reporting another id name
+not ok 11 - canonical stub must not be replaced by an object reporting another id name
+  ---
+  duration_ms: 0.237858
+  type: 'test'
+  location: '/mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:65:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    denied (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:13:33)
+    TestContext.<anonymous> (file:///mnt/data/MUSITU_AXIOM_B16_S0_STUB_BOUND_20261013/ops/trackb16/test/routing.test.mjs:68:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 8
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 92.390247

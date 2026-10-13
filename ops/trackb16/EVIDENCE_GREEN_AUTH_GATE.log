@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: independent Ed25519 workload authority and exact bound operation admit once
+ok 1 - independent Ed25519 workload authority and exact bound operation admit once
+  ---
+  duration_ms: 8.994503
+  type: 'test'
+  ...
+# Subtest: no workload authorization denies without entering ledger
+ok 2 - no workload authorization denies without entering ledger
+  ---
+  duration_ms: 0.748966
+  type: 'test'
+  ...
+# Subtest: invalid Ed25519 signature denies before quota
+ok 3 - invalid Ed25519 signature denies before quota
+  ---
+  duration_ms: 1.120468
+  type: 'test'
+  ...
+# Subtest: token signed for another account denies
+ok 4 - token signed for another account denies
+  ---
+  duration_ms: 1.793198
+  type: 'test'
+  ...
+# Subtest: token signed for another tenant denies
+ok 5 - token signed for another tenant denies
+  ---
+  duration_ms: 1.059346
+  type: 'test'
+  ...
+# Subtest: token cannot be replayed for altered request id
+ok 6 - token cannot be replayed for altered request id
+  ---
+  duration_ms: 1.097353
+  type: 'test'
+  ...
+# Subtest: token cannot authorize altered neurons
+ok 7 - token cannot authorize altered neurons
+  ---
+  duration_ms: 1.158486
+  type: 'test'
+  ...
+# Subtest: token cannot authorize mutated B15 signed grant
+ok 8 - token cannot authorize mutated B15 signed grant
+  ---
+  duration_ms: 1.163894
+  type: 'test'
+  ...
+# Subtest: token cannot authorize new body digest
+ok 9 - token cannot authorize new body digest
+  ---
+  duration_ms: 2.188166
+  type: 'test'
+  ...
+# Subtest: future issued token denied
+ok 10 - future issued token denied
+  ---
+  duration_ms: 2.963712
+  type: 'test'
+  ...
+# Subtest: expired token denied
+ok 11 - expired token denied
+  ---
+  duration_ms: 1.025955
+  type: 'test'
+  ...
+# Subtest: excessive signed token TTL denied
+ok 12 - excessive signed token TTL denied
+  ---
+  duration_ms: 0.822257
+  type: 'test'
+  ...
+# Subtest: workload and quota issuer must be cryptographically distinct
+ok 13 - workload and quota issuer must be cryptographically distinct
+  ---
+  duration_ms: 0.416812
+  type: 'test'
+  ...
+# Subtest: caller cannot grant production authority even if signed
+ok 14 - caller cannot grant production authority even if signed
+  ---
+  duration_ms: 2.263632
+  type: 'test'
+  ...
+# Subtest: unknown signed fields rejected
+ok 15 - unknown signed fields rejected
+  ---
+  duration_ms: 0.760673
+  type: 'test'
+  ...
+# Subtest: ledger failure does not get converted to success
+ok 16 - ledger failure does not get converted to success
+  ---
+  duration_ms: 1.028489
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 84.337278

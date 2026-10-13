@@ -1,0 +1,11 @@
+# AXIOM B16 — independent workload authorization S0, NOT CERTIFIED
+
+These files are an isolated addition to the verified Oct12 whole-product lineage and are intended for an unmerged branch based exactly on `frontier/axiom-trackb-b15-do-sqlite-s0-20261012`, commit `1b5cbfbcb1866986bcbd069f958da2223a00d5fb`. They neither merge the independent PostgreSQL B15 track nor modify protected `main` or PR #1.
+
+Security change: `authorizeThenReserve()` verifies a **separately pinned Ed25519 workload issuer key**, exact audience/account/day, operation, tenant, workload, request identity/digest, neuron count, B15 signed grant bytes, expiry and `production_authority:false`. It rejects unknown fields, mismatched signatures, malformed encoding and issuer-key reuse. Only the exact B15 quota schema is forwarded to the already independent B15 ledger; denied requests do not touch quota.
+
+Local test outcome: 20/20 identity tests, 11/11 routing tests, 23/23 workload authorization tests, total **54/54** Node tests PASS. `EVIDENCE_RED_AUTH_GATE.log` records the expected RED gate before implementation; `EVIDENCE_GREEN_AUTH_GATE.log` records initial 16/16 GREEN and `EVIDENCE_FULL_LOCAL_AUTH_GATE.log` records 54/54. These results are local only.
+
+The fixture Ed25519 private JWKs are **public and SYNTHETIC**, never valid authority keys. `wrangler.jsonc` provides only public verification keys and no secrets. Public HTTP `fetch` responds 503. The candidate does not call any provider, deploy or run a real Cloudflare remote model. GitHub workflow uses standard Linux Actions on a public repository, no uploaded artifacts, no secrets, no deploy. Generated ephemeral dependency lock is not immutable future release evidence.
+
+**Unresolved independent gates:** successful actual local `workerd` integration under the plugin, end-to-end B15 SQLite transaction semantics and storage persistence, safe production workload credential issuance and distribution, independent signer rotation/revocation, account-wide credential/quota budget attestation, any S3 live approval, any S4 release, real-device/product qualification, independent security reviewer, disaster recovery, rollback. B16 must not report these as PASS based on the standalone Node tests.

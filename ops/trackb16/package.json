@@ -1,0 +1,15 @@
+{
+  "name": "@musitu/axiom-trackb16-isolated-s0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:identity": "node --test ./test/identity.test.mjs",
+    "test:workers": "vitest run",
+    "test:routing": "node --test ./test/routing.test.mjs",
+    "test:local": "node --test ./test/identity.test.mjs ./test/routing.test.mjs"
+  },
+  "devDependencies": {
+    "vitest": "~4.1.11",
+    "@cloudflare/vitest-plugin": "^1.0.0"
+  }
+}

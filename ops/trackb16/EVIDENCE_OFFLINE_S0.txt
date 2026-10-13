@@ -1,0 +1,139 @@
+AXIOM B16 OFFLINE S0 EXECUTION RECEIPT
+Captured 2026-10-13T05:31:40.658668+00:00
+SOURCE REF B15_DO SHA 1b5cbfbcb1866986bcbd069f958da2223a00d5fb
+NODE v22.16.0
+NODE_SYNTAX [["identity.mjs", 0], ["worker.mjs", 0], ["identity.test.mjs", 0], ["runtime.test.mjs", 0], ["fixture_key.mjs", 0], ["vitest.config.mjs", 0]]
+NODE_IDENTITY_TEST_EXIT 0
+TAP version 13
+# Subtest: canonical account/day object name
+ok 1 - canonical account/day object name
+  ---
+  duration_ms: 2.684574
+  type: 'test'
+  ...
+# Subtest: two brokers same canonical identity
+ok 2 - two brokers same canonical identity
+  ---
+  duration_ms: 0.218489
+  type: 'test'
+  ...
+# Subtest: current name passes trusted UTC gate
+ok 3 - current name passes trusted UTC gate
+  ---
+  duration_ms: 0.196506
+  type: 'test'
+  ...
+# Subtest: random object ID rejected
+ok 4 - random object ID rejected
+  ---
+  duration_ms: 0.51798
+  type: 'test'
+  ...
+# Subtest: undefined name from unique ID rejected
+ok 5 - undefined name from unique ID rejected
+  ---
+  duration_ms: 0.118799
+  type: 'test'
+  ...
+# Subtest: null name rejected
+ok 6 - null name rejected
+  ---
+  duration_ms: 0.162665
+  type: 'test'
+  ...
+# Subtest: alternate bucket key rejected
+ok 7 - alternate bucket key rejected
+  ---
+  duration_ms: 0.163847
+  type: 'test'
+  ...
+# Subtest: different account bucket rejected
+ok 8 - different account bucket rejected
+  ---
+  duration_ms: 0.165559
+  type: 'test'
+  ...
+# Subtest: old day rejected immediately at UTC midnight
+ok 9 - old day rejected immediately at UTC midnight
+  ---
+  duration_ms: 0.252721
+  type: 'test'
+  ...
+# Subtest: future day rejected before UTC midnight
+ok 10 - future day rejected before UTC midnight
+  ---
+  duration_ms: 0.35829
+  type: 'test'
+  ...
+# Subtest: UTC day is independent of time zone
+ok 11 - UTC day is independent of time zone
+  ---
+  duration_ms: 0.413653
+  type: 'test'
+  ...
+# Subtest: clock rolls at exactly midnight UTC
+ok 12 - clock rolls at exactly midnight UTC
+  ---
+  duration_ms: 0.086
+  type: 'test'
+  ...
+# Subtest: invalid account delimiter rejected
+ok 13 - invalid account delimiter rejected
+  ---
+  duration_ms: 0.08023
+  type: 'test'
+  ...
+# Subtest: invalid account unicode rejected
+ok 14 - invalid account unicode rejected
+  ---
+  duration_ms: 0.253852
+  type: 'test'
+  ...
+# Subtest: empty account rejected
+ok 15 - empty account rejected
+  ---
+  duration_ms: 0.107422
+  type: 'test'
+  ...
+# Subtest: invalid day rejected
+ok 16 - invalid day rejected
+  ---
+  duration_ms: 0.17943
+  type: 'test'
+  ...
+# Subtest: invalid month rejected
+ok 17 - invalid month rejected
+  ---
+  duration_ms: 0.171768
+  type: 'test'
+  ...
+# Subtest: invalid clock rejected
+ok 18 - invalid clock rejected
+  ---
+  duration_ms: 0.074132
+  type: 'test'
+  ...
+# Subtest: invalid clock infinity rejected
+ok 19 - invalid clock infinity rejected
+  ---
+  duration_ms: 0.842549
+  type: 'test'
+  ...
+# Subtest: bad date format rejected
+ok 20 - bad date format rejected
+  ---
+  duration_ms: 0.091277
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 70.470077
+
+
+WORKERS_RUNTIME_VITEST NOT RUN (dependencies/network unavailable). NOT CERTIFIED.

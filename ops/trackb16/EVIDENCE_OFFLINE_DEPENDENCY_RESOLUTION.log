@@ -1,0 +1,4 @@
+npm error code ENOTCACHED
+npm error request to https://registry.npmjs.org/@cloudflare%2fvitest-plugin failed: cache mode is 'only-if-cached' but no cached response is available.
+npm error A complete log of this run can be found in: /home/oai/.npm/_logs/2026-10-13T06_11_26_862Z-debug-0.log
+NPM_OFFLINE_EXIT=1

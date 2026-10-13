@@ -1,0 +1,56 @@
+name: AXIOM Track B16 isolated Workers runtime S0 qualification
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b16-workers-vitest-s0-20261013
+    paths:
+      - ops/trackb16/**
+      - ops/trackb15_do/ledger_core.mjs
+      - .github/workflows/axiom-trackb-b16-local-workers-s0.yml
+permissions:
+  contents: read
+jobs:
+  independent-local-workerd-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b16-workers-vitest-s0-20261013'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI: 'true'
+      NPM_CONFIG_AUDIT: 'false'
+      NPM_CONFIG_FUND: 'false'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Enforce S0 and complete absence of live secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${GITHUB_TOKEN:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test ! -e ops/trackb16/.dev.vars
+          echo AXIOM_B16_S0_SECRETS_ABSENT_NO_CLOUD_DEPLOYMENT
+      - name: Verify exactly sourced parent and local evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/trackb16/VERIFY_B16_LOCAL.py
+          echo AXIOM_B16_LOCAL_SHA_TEST_GATE_PASS
+      - name: Install candidate Workers test dependencies in disposable standard runner
+        shell: bash
+        working-directory: ops/trackb16
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          echo AXIOM_B16_EPHEMERAL_DEPENDENCIES_LOCKED_NO_COMMITTED_LOCKFILE
+      - name: Execute real local workerd Durable Object tests without public endpoint
+        shell: bash
+        working-directory: ops/trackb16
+        run: |
+          set -euo pipefail
+          npm run test:workers
+          echo AXIOM_B16_REAL_LOCAL_WORKER_RUNTIME_S0_TESTS_PASS_NOT_PRODUCTION

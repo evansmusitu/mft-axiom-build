@@ -1,0 +1,27 @@
+MUSITU AXIOM B16 isolated S0 TDD evidence: named-stub origin binding
+
+SOURCE: local copy of prior B16 isolated candidate; no GitHub/production write.
+
+RED: node --test ./test/routing.test.mjs
+Exit: 1; 8 passes, 3 fails. Failures were expected missing rejection:
+ - alternate stub.name
+ - unnamed/unique-id stub
+ - conflicting stub.id.name
+Full stdout/stderr: EVIDENCE_RED_STUB_BINDING.log
+
+GREEN: implement exact canonical stub.name check and reject conflicting
+stub.id.name. Preserve the earlier rejection of missing reserve/revoke and
+adjust ONLY its synthetic fixture to provide a valid stub.name, so the
+missing-RPC behavior remains independently verified.
+Command: node --test ./test/routing.test.mjs
+Exit: 0; 11 passes, zero failures.
+Full stdout/stderr: EVIDENCE_GREEN_STUB_BINDING.log
+
+FULL: node --test ./test/identity.test.mjs ./test/routing.test.mjs
+Exit: 0; 31 passes, zero failures.
+Full stdout/stderr: EVIDENCE_FULL_NODE_TESTS.log
+
+RUNTIME: node --check ./test/runtime.test.mjs PASS (syntax only).
+The Workers integration test now calls routeQuota(env), but cannot be
+executed here: required Cloudflare Vitest dependencies unavailable offline.
+This is NOT evidence of actual Cloudflare runtime security qualification.
