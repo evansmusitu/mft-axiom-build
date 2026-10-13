@@ -45,3 +45,10 @@
 5. Implement payment verification before sending any paid material; never automate delivery based on customer claims alone.
 
 **MFT EDUCATION NEXUS — WhatsApp 0781572008**
+
+
+## WhatsApp backend reliability update — 13 October 2026
+
+The isolated webhook now persists replies before acknowledgment, uses Durable Object alarms for bounded retry, and records hashed delivery-status correlations. Test mode requires an explicit verified-recipient allowlist; production has a separate default-off gate. A focused SQLite-backed test suite covers retry, expiry, storage failure, replay handling, crash ambiguity, status ordering and quota limits. The complete local suite passes **60/60 tests**. These are automated tests with simulated Meta responses, not real WhatsApp delivery evidence.
+
+Authenticated Meta discovery, sandbox credentials and a real message round trip remain blocked by sign-in. Use the revised [activation runbook](WHATSAPP_ACTIVATION.md) for secure configuration and acceptance evidence. No owner number migration or paid messaging is authorized.

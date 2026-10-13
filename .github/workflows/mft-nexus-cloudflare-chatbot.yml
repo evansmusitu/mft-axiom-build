@@ -76,9 +76,13 @@ jobs:
               break;
             }catch(e){if(i===5)throw e;await new Promise(r=>setTimeout(r,2500));}
           }
-          if(health.status!=='ok'||health.businessAI!==true||health.whatsappReady!==false||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_BETA_SAFETY_FAIL');
+          const {readFile}=await import('node:fs/promises');
+          const config=JSON.parse(await readFile('chatbot/mft-ai-nexus/wrangler.jsonc','utf8'));
+          const expectedWhatsApp=config.vars?.ENABLE_WHATSAPP_MESSAGES==='true';
+          if(health.status!=='ok'||health.businessAI!==true||health.whatsappReady!==expectedWhatsApp||!reply.includes('MFT EDUCATION NEXUS'))throw Error('MFT_BOT_PUBLIC_CONFIG_READBACK_FAIL');
           const unsigned=await fetch(url+'/webhook',{method:'POST',headers:{'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(15000)});
           const unverified=await fetch(url+'/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=999',{signal:AbortSignal.timeout(15000)});
           if(unsigned.status!==401||unverified.status!==403)throw Error('MFT_BOT_WEBHOOK_SECURITY_PUBLIC_CHECK_FAILED');
-          console.log(JSON.stringify({gate:'MFT_AI_NEXUS_AI_BUDGET_LIVE_WEB_CHAT',result:'PASS',url,businessAI:true,liveWhatsApp:false,existingWorkersChanged:false}));
+          console.log(JSON.stringify({gate:'MFT_AI_NEXUS_AI_BUDGET_LIVE_WEB_CHAT',result:'PASS',url,businessAI:true,liveWhatsApp:health.whatsappReady,existingWorkersChanged:false}));
           NODE
+

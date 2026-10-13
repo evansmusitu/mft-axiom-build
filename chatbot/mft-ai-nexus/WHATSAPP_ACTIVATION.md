@@ -1,66 +1,87 @@
-# MFT EDUCATION NEXUS — WhatsApp Cloud API activation runbook
-**Contact: 0781572008**  
-**Live web assistant:** https://mft-nexus-chatbot-20261012.mft-education-nexus-93f395f5.workers.dev  
-**Webhook callback:** https://mft-nexus-chatbot-20261012.mft-education-nexus-93f395f5.workers.dev/webhook
+# MFT EDUCATION NEXUS — WhatsApp activation
 
-## Current status (13 October 2026)
-- Live hosted web chatbot: **working**, business AI via Cloudflare free-tier binding and an application daily AI cap.
-- Official WhatsApp automated messaging: **OFF**. `ENABLE_WHATSAPP_MESSAGES` is false by default.
-- The webhook has signed-payload verification (HMAC SHA-256), phone-number ID matching, persistent hashed message-ID replay protection, and a guarded budget (up to 100 accepted text-message events per rolling 24 hours).
-- WhatsApp payload metadata and customer phone numbers are not included in the chatbot's normal responses or application logs.
-- This is a **business-service bot**, not a general-purpose AI tutor on WhatsApp. Customer service, materials discovery and human handoff are the approved functions.
+**WhatsApp: 0781572008**  
+**Product: MFT AI NEXUS**  
+**Callback:** https://mft-nexus-chatbot-20261012.mft-education-nexus-93f395f5.workers.dev/webhook
 
-## Step A — Set up the correct Meta assets
-1. Sign in to [Meta for Developers](https://developers.facebook.com/) and open the MFT-controlled Business app with the WhatsApp product. A Meta business portfolio, WhatsApp Business Account (WABA), and appropriate sender number are required. Test first with Meta's test number.
-2. **Do not migrate or register the existing MFT number 0781572008 until you have checked its current WhatsApp Business app/Cloud API coexistence and approved the change.** A rushed migration can interrupt existing WhatsApp operations.
-3. From the app's WhatsApp API Setup and WhatsApp Manager, confirm the sender **Phone Number ID**, **WABA ID**, and the display number. The Phone Number ID is *not* the phone number itself.
-4. Obtain the **App Secret** from your Meta app's Basic settings, and a temporary access token for sandbox-only testing. For production, use a dedicated system-user token with the minimum permissions and appropriate validity/rotation.
-5. Check Meta's 2026 platform rates, 24-hour customer-service window, country availability and any billing setup before production activation. We do not initiate templates or proactive customer messages.
+## Verified starting state — 13 October 2026
 
-Official Meta-maintained API reference: https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api
+The hosted web chatbot works. The live `/health` response reports `businessAI:true` and `whatsappReady:false`. GitHub access and the existing Nexus deployment workflow are available. Meta app discovery is blocked by incomplete authentication; Cloudflare's dashboard also shows sign-in. No Meta app, WABA, test sender, webhook subscription, or credentials have been confirmed through an authenticated account inspection. No real WhatsApp round trip is verified.
 
-## Step B — Private Cloudflare secret installation
-Use authenticated Cloudflare Wrangler from the *isolated chatbot directory*. Never put tokens in the public GitHub repository, CI logs, this chat or downloadable files.
+## First: Meta test sender only
 
-```sh
-cd chatbot/mft-ai-nexus
-# Login with an account authorized to manage only this Worker.
-npx wrangler@4.129.0 login
-npx wrangler@4.129.0 secret put WHATSAPP_APP_SECRET --config wrangler.jsonc
-npx wrangler@4.129.0 secret put WHATSAPP_VERIFY_TOKEN --config wrangler.jsonc
-npx wrangler@4.129.0 secret put WHATSAPP_ACCESS_TOKEN --config wrangler.jsonc
-npx wrangler@4.129.0 secret put WHATSAPP_PHONE_NUMBER_ID --config wrangler.jsonc
+1. Complete secure Meta sign-in in the conversation's cloud browser. Never send passwords, OTPs, app secrets, or access tokens in chat.
+2. Inspect existing MFT-controlled applications. Reuse the appropriate WhatsApp Business Platform app, or prepare a separate MFT test integration. Do not alter Axiom/Paynow app configuration. Stop for owner participation if account creation requires accepting binding terms or new security-sensitive access.
+3. Identify the app ID, WABA ID, Meta-issued test display number, and its Phone Number ID. Confirm the sender is the Meta test asset, not `263781572008`.
+4. Add an owner-controlled test recipient and complete Meta's recipient verification securely. Adding a recipient does not migrate their WhatsApp installation. Record the recipient's full international digits privately.
+5. Obtain the test token through Meta's API Setup and the app secret through app settings without displaying their values. Confirm the Graph API version shown by Meta; update `GRAPH_API_VERSION` if required. A temporary token is for testing only and may expire.
+6. Check the account's sandbox/free usage conditions. Do not add billing, purchase services, or initiate paid messaging.
+
+## Secure Worker configuration
+
+Only target `mft-nexus-chatbot-20261012` in Cloudflare account `93f395f5121954671f92fffa453d6b61`.
+
+| Private Worker setting | Source |
+| --- | --- |
+| `WHATSAPP_APP_SECRET` | Selected Meta app |
+| `WHATSAPP_ACCESS_TOKEN` | Meta sandbox/API Setup |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta-issued test sender ID, not its display number |
+| `WHATSAPP_VERIFY_TOKEN` | New random value, identical in Meta and Worker |
+| `WHATSAPP_TEST_RECIPIENTS` | Comma-separated verified test recipients; international digits only |
+
+Use Cloudflare's authenticated Worker settings with type **Secret**, or interactive Wrangler secret input from the isolated directory. Do not put secret values in GitHub source, shell arguments, CI logs, screenshots, or chat. The GitHub `CLOUDFLARE_API_TOKEN` stays in its existing private secret store.
+
+The repository config remains default-off:
+
+```json
+{
+  "ENABLE_WHATSAPP_MESSAGES": "false",
+  "WHATSAPP_MODE": "test",
+  "ENABLE_WHATSAPP_PRODUCTION": "false"
+}
 ```
 
-**Note:** `WHATSAPP_VERIFY_TOKEN` is a newly generated random verification phrase entered in both Meta Webhooks settings and this Worker. It is **not** your Meta App Secret.
+After confirming the test asset and all five private settings, change only `ENABLE_WHATSAPP_MESSAGES` to `true` on branch `feature/mft-ai-nexus-cloudflare-20261012`. The existing Nexus GitHub Actions workflow tests and deploys the Worker. Keep `WHATSAPP_MODE=test` and `ENABLE_WHATSAPP_PRODUCTION=false`. `/health.whatsappReady` must then be true. The release checks compare readiness with the configured enable flag.
 
-The Cloudflare account uses an existing `CLOUDFLARE_API_TOKEN` GitHub Actions secret; keep it separate from all Meta secrets. Cloudflare application deployment and Meta account control are different authorization systems.
+## Meta webhook registration
 
-## Step C — Verify the webhook and use the Meta sandbox
-1. In Meta app Webhooks/WhatsApp configuration, enter the webhook **HTTPS callback URL** shown above, and the matching `WHATSAPP_VERIFY_TOKEN`. Meta's GET challenge should return HTTP 200 and echo the challenge. An incorrect verification token returns 403.
-2. Subscribe to the WABA's **messages** webhook field. Meta may also require subscribing the app to the WABA through the Graph API endpoint `/{WABA-ID}/subscribed_apps`.
-3. Using only test numbers and sandbox credentials, validate WhatsApp inbound and outbound messages, signature rejections, wrong sender ID rejections, duplicate delivery behavior and human-handoff menu. Do not use real customer conversations as synthetic test data.
-4. Confirm the registered sender is correct and that Meta accepts **customer-initiated service replies**. Do not use unapproved outbound templates.
+Enter the callback URL above and the matching private verification token in the selected app's WhatsApp configuration. Verify the challenge succeeds and subscribe to `messages`. Confirm the app is subscribed to the selected test WABA; if Meta requires a Graph API subscription, use the authenticated selected WABA, never guessed identifiers. Record the app/WABA/test sender identifiers in the operator's private records.
 
-## Step D — Enable production only after owner approval
-After the Meta sandbox round trip succeeds, an authorized operator updates the isolated `wrangler.jsonc` setting `ENABLE_WHATSAPP_MESSAGES` from `false` to `true` and deploys only `mft-nexus-chatbot-20261012`. Re-read Cloudflare Worker bindings afterward. **Never auto-enable on the presence of secrets alone**.
-- `/health`: `whatsappReady` becomes `true` only when secrets, guard binding and explicit toggle are present.
-- If the flag is disabled, a validly signed webhook POST returns 503 and **sends no message**. Unsigned/invalid POST returns 401.
-- If a webhook's reported Phone Number ID does not match the configured sender ID, no reply is sent.
-- Durable Object replay protection stores a SHA-256 digest of each WhatsApp message ID for 48 hours, not the raw message ID.
-- Customer messages are never used to train an AI model via the WhatsApp Business Solution. Respect WhatsApp Business Solution Terms and the customer's privacy.
+## Real acceptance test
 
-## Verification and limits
-- GitHub CI: `.github/workflows/mft-nexus-cloudflare-chatbot.yml` runs the Node.js tests, performs read-only Cloudflare account and Worker identity checks, deploys the isolated Worker and confirms a real HTTP 200 health/chat response.
-- The app uses a daily **20 AI-request** budget shared across its channels plus a rolling **100 WhatsApp event** replay ledger limit. These protect MFT's exposure; they are not proof of unlimited provider free-tier capacity.
-- A WhatsApp webhook success receipt does **not** guarantee delivery/read, and network or Meta API failures can cause lost replies until durable retry/outbox infrastructure is added. Do not promise production-grade guaranteed delivery until that feature and tests exist.
-- Business AI is not an official ZIMSEC resource and never guarantees prediction accuracy or payment authenticity.
+1. From a verified test recipient, send `Hi` to Meta's test display number. This is a customer-initiated test conversation.
+2. Confirm the recipient receives the automated MFT menu containing **MFT EDUCATION NEXUS** and **WhatsApp 0781572008**.
+3. Send `1`, `4`, and `5`; check notes, marking-scheme, and human-support replies.
+4. In authenticated Cloudflare Durable Objects Data Studio, inspect the Nexus global object's `wa_outbox`. Safe operator query:
 
-## Outstanding credentials (not presently available in connected MFT project records)
-- Meta Business App and WABA registration identifiers
-- Official sender Phone Number ID
-- `WHATSAPP_APP_SECRET`
-- `WHATSAPP_ACCESS_TOKEN`
-- `WHATSAPP_VERIFY_TOKEN`
+```sql
+SELECT digest, state, attempts, last_http, delivery_status
+FROM wa_outbox ORDER BY created_at DESC LIMIT 20;
+```
+
+5. Correlate test time and hashed provider/message identifiers without publishing raw recipient numbers, message contents, tokens, or webhook payloads. `accepted` means Meta returned a message identifier; a `delivered` or `read` callback proves delivery. Recipient confirmation is also evidence. A 200 webhook response alone proves neither.
+6. Record timestamp, test prompts, inbound receipt, API acceptance, delivery callback, recipient observation, and any corrective changes. Only call this an end-to-end pass after the real incoming message and delivered automated reply are both observed.
+7. If an error occurs, inspect `last_http` and state privately. Correct configuration, expired token, subscription, or recipient verification, then rerun the real test. Do not weaken signature or sender validation.
+
+## Reliability and limits
+
+- Signed payload verification and exact sender-ID checks run before handling messages.
+- In test mode, only explicitly allowlisted recipients can receive replies.
+- The webhook acknowledges after durable persistence; storage failure returns 503 so Meta can retry.
+- Hashed inbound IDs deduplicate replies for seven days and preserve older receipts during deployment.
+- Replies are stored with the recipient temporarily in the existing SQLite Durable Object. Terminal states erase recipient/reply content; receipt/status rows are cleaned after seven days.
+- Durable alarms retry 429 and 5xx responses with backoff, capped at five total attempts. A retry after a 5xx can have an ambiguous provider outcome; exactly-once delivery is not promised.
+- Network timeouts and crash-interrupted sends become `unknown` and are not blindly resent. They require operator investigation and a fresh user message where appropriate.
+- No send is attempted after the incoming message's 24-hour service window expires. No templates or proactive campaigns are implemented.
+- Monotonic status tracking distinguishes acceptance, sent, delivered, read, and failure; late callbacks do not downgrade delivered/read.
+- The existing global 20-AI-call daily cap and 100-new-WhatsApp-replies rolling daily cap remain. This is a bounded test installation, not a certificate of account-wide free-tier availability.
+
+## Production preparation for 0781572008
+
+Production remains OFF and requires a separate `ENABLE_WHATSAPP_PRODUCTION=true` gate with `WHATSAPP_MODE=production`, in addition to all private credentials and the messaging flag.
+
+Before any activation, inspect the number's current WhatsApp/WhatsApp Business App ownership and Meta eligibility. Establish whether a supported coexistence route is available for this account. Prepare the exact operation and continuity/rollback plan for owner review. **Do not delete the existing account, deregister, migrate, disconnect, or register 0781572008 without explicit approval of that operation.** Do not assume coexistence is available.
+
+Prepare dedicated production credentials, required verification, privacy/contact information, service-window operation, account usage limits, and current provider billing conditions. Obtain separate authorization before any payment method or paid messaging. Production may proceed only after the real sandbox delivery test passes and required owner decisions are complete.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
