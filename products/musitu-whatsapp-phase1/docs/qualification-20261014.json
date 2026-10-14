@@ -9,7 +9,7 @@
   "hosted_postgres_tests": {
     "pass": 26,
     "fail": 0,
-    "evidence": "evidence/20261014/real-postgres-qualification-continuation.json",
+    "evidence": "evidence/20261014/real-postgres-qualification-meta-http.json",
     "provider_events": "synthetic"
   },
   "nextjs_optimized_build": "PASS",

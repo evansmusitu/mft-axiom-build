@@ -12,9 +12,9 @@ The archive's internal manifest passed before changes; baseline 196/196 tests pa
 - Isolated branch: `saas/musitu-whatsapp-phase1-private-20261014`.
 - Product directory: `products/musitu-whatsapp-phase1`.
 - Draft review: https://github.com/evansmusitu/mft-axiom-build/pull/29 . Keep unmerged.
-- Latest tested application source: `53ac8f43e39c5483833ce20476ed4f32b587a244`.
-- Private staging: https://musitu-whatsapp-phase1-private-20261014-h4l86w43q-evansmusitu.vercel.app .
-- Vercel deployment: `dpl_E3UeRmeDpV8hCi65yxjptSryMoBs`; target `staging`; provider state `READY`.
+- Latest tested application source: `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`.
+- Private staging: https://musitu-whatsapp-phase1-private-20261014-40bpf6gv5-evansmusitu.vercel.app .
+- Vercel deployment: `dpl_E33kbx9Zuh4DXggDv3mYy2Kybv9a`; target `staging`; provider state `READY`.
 - All deployments have Vercel authentication protection. Chromium reached the Vercel login screen; authenticated dashboard acceptance is pending sign-in.
 
 The evidence/documentation commit follows the tested application commit. Application code must be requalified if changed.
@@ -34,7 +34,7 @@ The evidence/documentation commit follows the tested application commit. Applica
 
 ## Evidence scope
 
-`evidence/20261014/real-postgres-qualification-continuation.json` is actual execution in Vercel's build environment against the named Neon sandbox. Both `current_user` and `session_user` were the restricted application identities. No Neon owner credentials were installed as runtime credentials.
+`evidence/20261014/real-postgres-qualification-meta-http.json` is actual execution in Vercel's build environment against the named Neon sandbox. Both `current_user` and `session_user` were the restricted application identities. No Neon owner credentials were installed as runtime credentials.
 
 The provider messages, contacts, business facts and status callbacks in that suite are **synthetic**. They validate real PostgreSQL behavior but do not prove Meta delivery, legal consent, model behavior or an actual merchant deployment. Ten concurrent bookings yielded one confirmed reservation and nine conflicts. Late `sent` did not downgrade a synthetic previously delivered attempt.
 
@@ -71,7 +71,7 @@ The account rejected a custom suspend interval (HTTP 412); retrying with the fre
 
 ## Latest hosted execution and account blocker
 
-The updated deployment is READY at application commit `53ac8f43e39c5483833ce20476ed4f32b587a244`. Native hosted run `9a37f9bc-5642-4689-a6ab-3522cf1d0066` passed 26 checks with zero failures. Actual HTTP responses: `/api/status` returns 200 with `databaseHealthy:true`, and absent-session business metrics return 403 `ACCESS_DENIED`.
+The updated deployment is READY at application commit `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`. Native hosted run `9a37f9bc-5642-4689-a6ab-3522cf1d0066` passed 26 checks with zero failures. Actual HTTP responses: `/api/status` returns 200 with `databaseHealthy:true`, and absent-session business metrics return 403 `ACCESS_DENIED`.
 
 Meta developer access now displays **Account confirmation needed**, citing unusual activity, and the Facebook confirmation page says **We need more information** and requires confirming the profile on Meta for Developers. No confirmation information or identity documents were submitted. The observed Continue control is disabled/loading. This is a nondelegable account-confirmation blocker; no SaaS Meta app was created and Nexus was not changed. Browser-auth sign-in to Vercel remains incomplete after an interrupted secure request. The retained screenshot proves only the hosting sign-in boundary.
 
@@ -84,3 +84,5 @@ Meta developer access became available on the next check. The account lists only
 The final Create app step states that proceeding accepts Meta Platform Terms, Developer Policies and other applicable terms. That legally binding submission requires action-time human approval under the browser confirmation policy. The screen is ready for the owner; Nexus's app/webhook remains unchanged.
 
 The actual staging webhook now uses the shared `meta-development-http` adapter. Streamed oversize requests return 413 even with misleading Content-Length, stalled bodies return 408, invalid signatures return 401, unsupported methods/media are refused, and uncertain persistence remains retryable 503. A 200 means admission, never outgoing delivery. Six independent local HTTP boundary cases pass; the full local suite is now 217/217 with no skips, and the Next.js build passes. No genuine Meta callback is claimed. Verification tokens must be 32–256 characters; use a generated secret in the staging secret manager.
+
+Latest tested callback source: `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`. Hosted native run `44566905-ee42-47e9-8d4a-fd11ead7cf88`: 26 pass, 0 fail. Actual HTTP database health is good, absent-session data access returns 403, and unconfigured Meta verification returns 503. No Meta terms were accepted, no new Meta app was created and no live message was sent. This supersedes the earlier account-confirmation blocker: developer access is available; final app-creation terms acceptance is pending.
