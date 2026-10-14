@@ -1,0 +1,134 @@
+{
+  "runId": "fbc279fc-7d9d-46ba-9dec-210cafb2e3fe",
+  "timestamp": "2026-10-14T03:12:05.257Z",
+  "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+  "passed": 19,
+  "failed": 0,
+  "results": [
+    {
+      "name": "direct_login_nonowner_nobypass",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "all_rls_policies",
+      "status": "PASS",
+      "detail": {
+        "role": "musitu_runtime",
+        "tablesChecked": 16,
+        "policiesChecked": 16,
+        "qualified": true
+      }
+    },
+    {
+      "name": "runtime_grant_ceiling",
+      "status": "PASS",
+      "detail": {
+        "qualified": true,
+        "tablesChecked": 15,
+        "insertTablesChecked": 4,
+        "mode": "EFFECTIVE_PRIVILEGES"
+      }
+    },
+    {
+      "name": "cross_tenant_membership_denial",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "all_tables_context_isolation",
+      "status": "PASS",
+      "detail": {
+        "tables": 16,
+        "scopes": 3
+      }
+    },
+    {
+      "name": "invalid_context_fails_closed",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "changed_context_and_rollback",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "cross_tenant_write_denial",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "direct_membership_update_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "synthetic_signed_ingress_into_real_pg",
+      "status": "PASS",
+      "detail": {
+        "eventSource": "SYNTHETIC_NOT_META",
+        "receipts": [
+          {
+            "tenantId": "00000000-0000-4000-8000-00000000000a",
+            "phoneNumberId": "PHONE_A",
+            "providerMessageId": "wamid.fbc279fc-7d9d-46ba-9dec-210cafb2e3fe",
+            "conversationId": "1331d07b-8afa-4064-93d4-a089a6462c6d",
+            "status": "ACCEPTED",
+            "draftStatus": "DRAFT"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ingress_replay_protection",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "ingress_forged_signature_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "human_review_and_consent_required",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "stop_suppression_and_no_auto_resubscribe",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "handover_command_and_audit",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "previously_revoked_staff_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "ten_simultaneous_booking_requests",
+      "status": "PASS",
+      "detail": {
+        "confirmed": 1,
+        "conflicts": 9
+      }
+    },
+    {
+      "name": "booking_replay_and_content_conflict",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "new_pool_recovery",
+      "status": "PASS",
+      "detail": {
+        "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+      }
+    }
+  ]
+}

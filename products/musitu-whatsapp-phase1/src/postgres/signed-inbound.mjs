@@ -1,3 +1,4 @@
+import {encryptLedger} from '../security/ledger-encryption.mjs';
 import {createRuntimeRoleBoundPool} from './runtime-role-guard.mjs';
 /**
  * CANDIDATE for a private signed-Meta -> PostgreSQL ingress boundary.
@@ -53,7 +54,7 @@ function classifyPayload(raw,bindings,key){
      const providerTimestamp=new Date(Number(item.timestamp)*1000);
      if(!Number.isFinite(providerTimestamp.getTime()))fail('INVALID_META_STATUS');
      event={kind,tenantId,wabaId:entry.id,phoneNumberId:phoneId,messageId:item.id,status:item.status.toUpperCase(),
-       providerTimestamp:providerTimestamp.toISOString(),fingerprint,remoteId};
+       providerTimestamp:providerTimestamp.toISOString(),fingerprint,remoteId,remoteRaw:item.recipient_id};
      eventKey=JSON.stringify([kind,tenantId,phoneId,item.id,item.status,item.timestamp]);
     }else{
      if(!requiredText(item?.id,VALID_ID,160)||!requiredText(item?.from,REMOTE,20)||typeof item.type!=='string')fail('INVALID_META_WEBHOOK');
@@ -63,7 +64,7 @@ function classifyPayload(raw,bindings,key){
      const normalized=isText?text.toLowerCase().replace(/\s+/g,' ').trim():null;
      const fingerprint=createHmac('sha256',key).update(JSON.stringify([tenantId,entry.id,phoneId,item])).digest('hex');
      const remoteId='hmac256:'+createHmac('sha256',key).update(JSON.stringify(['remote',tenantId,phoneId,item.from])).digest('hex');
-     event={kind,tenantId,wabaId:entry.id,phoneNumberId:phoneId,messageId:item.id,fingerprint,remoteId,normalized,
+     event={kind,tenantId,wabaId:entry.id,phoneNumberId:phoneId,messageId:item.id,fingerprint,remoteId,normalized,remoteRaw:item.from,textBody:isText?text:'[Unsupported message: human review required]',
        providerSentAt:item.timestamp===undefined?null:new Date(Number(item.timestamp)*1000).toISOString()};
      eventKey=JSON.stringify([kind,tenantId,phoneId,item.id]);
     }
@@ -80,8 +81,8 @@ function classifyPayload(raw,bindings,key){
  return events;
 }
 export class PostgresSignedWebhookIngestor {
- #pool;#appSecret;#bindings;#privacyKey;
- constructor({pool,appSecret,bindings,privacyKey}={}){
+ #pool;#appSecret;#bindings;#privacyKey;#contentKey;#allowedRecipients;
+ constructor({pool,appSecret,bindings,privacyKey,contentEncryptionKey,allowedDevelopmentRecipients}={}){
   if(typeof pool?.connect!=='function'||typeof appSecret!=='string'||!appSecret||
      !Buffer.isBuffer(privacyKey)||privacyKey.length!==32||!Array.isArray(bindings)||bindings.length===0||bindings.length>1000)
    fail('PG_INGRESS_CONFIG_REQUIRED');
@@ -91,6 +92,10 @@ export class PostgresSignedWebhookIngestor {
    const id=JSON.stringify([binding.wabaId,binding.phoneNumberId]);
    if(seen.has(id))fail('PG_BINDING_CONFLICT');seen.add(id);
   }
+  if(contentEncryptionKey!==undefined&&(!Buffer.isBuffer(contentEncryptionKey)||contentEncryptionKey.length!==32))fail('CONTENT_KEY_REQUIRED');
+  this.#contentKey=contentEncryptionKey===undefined?null:Buffer.from(contentEncryptionKey);
+  if(allowedDevelopmentRecipients!==undefined&&(!Array.isArray(allowedDevelopmentRecipients)||allowedDevelopmentRecipients.length<1||allowedDevelopmentRecipients.length>5||allowedDevelopmentRecipients.some(x=>typeof x!=='string'||!REMOTE.test(x))))fail('DEVELOPMENT_RECIPIENT_CONFIG_REQUIRED');
+  this.#allowedRecipients=allowedDevelopmentRecipients===undefined?null:new Set(allowedDevelopmentRecipients);
   this.#pool=pool;this.#appSecret=appSecret;
   this.#bindings=bindings.map(x=>Object.freeze({...x}));
   this.#privacyKey=Buffer.from(privacyKey);
@@ -100,6 +105,7 @@ export class PostgresSignedWebhookIngestor {
   if(!verifyMetaSignature(rawBody,signature,this.#appSecret))fail('INVALID_META_SIGNATURE');
   const events=classifyPayload(rawBody,this.#bindings,this.#privacyKey);
   if(events.length===0)return [];
+  if(this.#allowedRecipients&&events.some(e=>!this.#allowedRecipients.has(e.remoteRaw)))fail('DEVELOPMENT_RECIPIENT_NOT_ALLOWED');
   const tenantId=events[0].tenantId;
   const client=await this.#pool.connect();
   if(typeof client?.query!=='function'||typeof client?.release!=='function'){
@@ -174,6 +180,14 @@ export class PostgresSignedWebhookIngestor {
      receipts.push({tenantId,phoneNumberId:e.phoneNumberId,providerMessageId:e.messageId,
        conversationId:actualConversation,status:'DUPLICATE',draftStatus:'UNCHANGED'});
      continue;
+    }
+    if(this.#contentKey){
+     await client.query(`INSERT INTO musitu.contacts(tenant_id,phone_number_id,remote_hash,encrypted_recipient)
+      VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,[tenantId,e.phoneNumberId,e.remoteId,
+      encryptLedger(e.remoteRaw,this.#contentKey,[tenantId,e.phoneNumberId,'contact:'+e.remoteId])]);
+     await client.query(`INSERT INTO musitu.messages(tenant_id,phone_number_id,provider_message_id,conversation_id,encrypted_body)
+      VALUES($1,$2,$3,$4,$5)`,[tenantId,e.phoneNumberId,e.messageId,actualConversation,
+      encryptLedger(e.textBody,this.#contentKey,[tenantId,e.phoneNumberId,e.messageId])]);
     }
     let draftStatus='HANDOVER_REQUIRED';
     const isOptOut=e.normalized==='stop'||e.normalized==='unsubscribe';

@@ -12,7 +12,7 @@ const REQUIRED_TABLES=Object.freeze([
  'customer_suppressions'
 ]);
 const ROLE=/^[a-z][a-z0-9_]{2,62}$/;
-const EXTENSION_TABLES=Object.freeze(['action_audit']);
+const EXTENSION_TABLES=Object.freeze(['action_audit','business_configuration','contacts','messages']);
 // PostgreSQL may add casts to text or parentheses in pg_policies output.
 // Anything other than the exact, audited tenant-scope expression fails closed.
 // A successful metadata check is NOT a substitute for independent behavioral

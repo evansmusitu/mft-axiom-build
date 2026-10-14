@@ -57,9 +57,10 @@ export async function identityAction(req,action){
   const u=new URL(req.url),flow=await unseal(cookies(req,FLOW));
   if(!u.searchParams.get('code')||u.searchParams.get('state')!==flow.state)throw Error('OIDC_STATE_REJECTED');
   const tokens=await boundedJson(cfg.issuer+'/protocol/openid-connect/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'authorization_code',code:u.searchParams.get('code'),client_id:cfg.client,client_secret:cfg.secret,redirect_uri:cfg.origin+'/auth/callback',code_verifier:flow.verifier})});
-  await validate(tokens.access_token);
+  const accessClaims=await validate(tokens.access_token);
   const id=(await jwtVerify(tokens.id_token,keys,{issuer:cfg.issuer,audience:cfg.client,algorithms:['RS256'],requiredClaims:['sub','exp','iat','nonce']})).payload;
-  if(id.nonce!==flow.nonce)throw Error('OIDC_NONCE_REJECTED');
+  if(id.nonce!==flow.nonce||id.sub!==accessClaims.sub)throw Error('OIDC_NONCE_OR_SUBJECT_REJECTED');
+  if(!Number.isSafeInteger(tokens.expires_in)||tokens.expires_in<1||tokens.expires_in>86400)throw Error('OIDC_EXPIRATION_REJECTED');
   const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token,refreshToken:tokens.refresh_token},Math.min(3600,tokens.expires_in));
   await sessionRow(raw,async(c,h)=>c.query('INSERT INTO musitu_identity.sessions(token_hash,encrypted_payload,expires_at) VALUES($1,$2,now()+($3::int * interval \'1 second\'))',[h,encrypted,Math.min(3600,tokens.expires_in)]));
   const headers=new Headers({location:'/', 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));

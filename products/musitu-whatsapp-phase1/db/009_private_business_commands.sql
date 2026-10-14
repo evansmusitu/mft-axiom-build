@@ -1,6 +1,10 @@
 -- Additive staging migration. Function owner is a non-login NOBYPASSRLS role.
 -- Runtime receives EXECUTE only; no direct UPDATE, membership INSERT or audit mutation.
 BEGIN;
+GRANT USAGE ON SCHEMA musitu TO musitu_commands;
+GRANT SELECT ON musitu.tenants,musitu.memberships,musitu.conversations TO musitu_commands;
+GRANT UPDATE(handling_mode) ON musitu.conversations TO musitu_commands;
+GRANT UPDATE(status) ON musitu.memberships TO musitu_commands;
 CREATE TABLE musitu.action_audit (
  tenant_id uuid NOT NULL REFERENCES musitu.tenants(id),
  audit_id uuid NOT NULL DEFAULT gen_random_uuid(), actor_id text NOT NULL,

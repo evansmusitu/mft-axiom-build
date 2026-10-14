@@ -1,3 +1,4 @@
+import {qualifyPostgresExtensionPrivileges} from '../src/postgres/extension-role-guard.mjs';
 /**
  * An intentionally destructive, disposable PostgreSQL-only verification.
  * Creates and DROPS database musitu_phase1_ci and two test roles.
@@ -28,6 +29,7 @@ const dbName='musitu_phase1_ci';
 const migrator='musitu_migrator';
 const runtime='musitu_runtime';
 const ingress='musitu_ingress';
+const commands='musitu_commands';
 const secret=()=>randomBytes(24).toString('hex');
 const quoteLiteral=s=>"'"+s.replaceAll("'","''")+"'";
 const migrationRoot=resolve(import.meta.dirname,'../db');
@@ -47,12 +49,14 @@ try{
  await admin.connect();
  // Never replace existing state. A CI service must be fresh and disposable.
  const existing=await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[dbName]);
- const existingRole=await admin.query('SELECT rolname FROM pg_roles WHERE rolname=ANY($1::text[])',[[migrator,runtime,ingress]]);
+ const existingRole=await admin.query('SELECT rolname FROM pg_roles WHERE rolname=ANY($1::text[])',[[migrator,runtime,ingress,commands]]);
  if(existing.rows.length||existingRole.rows.length)throw new Error('BLOCKED_EXISTING_TEST_DATABASE_OR_ROLES');
  const migratePass=secret(),runtimePass=secret(),ingressPass=secret();
  await admin.query(`CREATE ROLE ${migrator} LOGIN PASSWORD ${quoteLiteral(migratePass)} NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
  await admin.query(`CREATE ROLE ${runtime} LOGIN PASSWORD ${quoteLiteral(runtimePass)} NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
  await admin.query(`CREATE ROLE ${ingress} LOGIN PASSWORD ${quoteLiteral(ingressPass)} NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
+ await admin.query(`CREATE ROLE ${commands} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
+ await admin.query(`GRANT ${commands} TO ${migrator}`);
  roleCreated=true;
  await admin.query(`CREATE DATABASE ${dbName} OWNER ${migrator}`);
  dbCreated=true;
@@ -60,7 +64,7 @@ try{
  await admin.query(`GRANT CONNECT ON DATABASE ${dbName} TO ${runtime}, ${ingress}`);
  migratorClient=new Client({connectionString:connectUrl(raw,dbName,migrator,migratePass)});
  await migratorClient.connect();
- for(const filename of ['001_private_tenant_core.sql','002_faq_draft_rls_candidate.sql','003_runtime_role_permissions.sql','004_signed_ingress_role.sql','005_verified_status_reconciliation.sql','006_offline_draft_approvals.sql','007_offline_outbound_preparations.sql','008_signed_customer_suppression.sql']){
+ for(const filename of ['001_private_tenant_core.sql','002_faq_draft_rls_candidate.sql','003_runtime_role_permissions.sql','004_signed_ingress_role.sql','005_verified_status_reconciliation.sql','006_offline_draft_approvals.sql','007_offline_outbound_preparations.sql','008_signed_customer_suppression.sql','009_private_business_commands.sql','010_private_identity_sessions.sql','011_locked_review_context.sql','012_business_configuration.sql','013_private_contact_message_ledger.sql']){
   await migratorClient.query(readFileSync(resolve(migrationRoot,filename),'utf8'));
  }
  await migratorClient.end();migratorClient=null;
@@ -69,7 +73,7 @@ try{
  await serverAdminClient.connect();
  const tablePolicies=await serverAdminClient.query(`SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity
  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='musitu' AND c.relkind='r'`);
- assert.equal(tablePolicies.rows.length,15);
+ assert.equal(tablePolicies.rows.length,19);
  assert.ok(tablePolicies.rows.every(r=>r.relrowsecurity&&r.relforcerowsecurity));
  const roles=await serverAdminClient.query('SELECT rolname,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=$1',[runtime]);
  assert.deepEqual(roles.rows[0],{rolname:runtime,rolsuper:false,rolbypassrls:false});
@@ -102,9 +106,10 @@ try{
  // Verify the actual leased runtime role and exact tenant policy matrix, not
  // only ENABLE/FORCE ROW LEVEL SECURITY flags in administrative metadata.
  const runtimeGate=await qualifyPostgresRuntime({pool,expectedRole:runtime});
- assert.equal(runtimeGate.policiesChecked,15);
+ assert.equal(runtimeGate.policiesChecked,19);
  const effectivePrivileges=await qualifyPostgresRuntimePrivileges({pool});
  assert.equal(effectivePrivileges.insertTablesChecked,4);
+ await qualifyPostgresExtensionPrivileges({pool});
  const behavior=await qualifyPostgresTenantReadIsolation({pool,expectedRole:runtime,tenantProbes:[tA,tB]});
  assert.equal(behavior.scopesChecked,3);
  const repo=await createQualifiedPostgresRepository({pool,expectedRole:runtime,tenantProbes:[tA,tB]});
@@ -297,7 +302,7 @@ try{
   await admin.query(`DROP DATABASE ${dbName} WITH (FORCE)`).catch(e=>{console.error('CLEANUP_FAILED_DATABASE:',e.message);process.exitCode=1;});
  }
  if(roleCreated){
-  await admin.query(`DROP ROLE IF EXISTS ${ingress}, ${runtime}, ${migrator}`).catch(e=>{console.error('CLEANUP_FAILED_ROLE:',e.message);process.exitCode=1;});
+  await admin.query(`DROP ROLE IF EXISTS ${ingress}, ${runtime}, ${commands}, ${migrator}`).catch(e=>{console.error('CLEANUP_FAILED_ROLE:',e.message);process.exitCode=1;});
  }
  await admin.end().catch(()=>{});
 }
