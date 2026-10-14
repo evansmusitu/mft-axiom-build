@@ -1,0 +1,36 @@
+test_b27_genuine_network_boundary_creates_signed_audit_without_dispatch (test_remote.RemoteGateTests.test_b27_genuine_network_boundary_creates_signed_audit_without_dispatch)
+Must fail until a real network server and signature verifier exist. ... Process Process-1:
+/usr/lib/python3.13/multiprocessing/popen_fork.py:67: DeprecationWarning: This process (pid=956) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  self.pid = os.fork()
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/usr/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/axiom_b27_s0/ops/trackb27/witness_server.py", line 3, in run_synthetic_loopback_child
+    raise NotImplementedError('B27_SOCKET_BOUNDARY_NOT_IMPLEMENTED')
+NotImplementedError: B27_SOCKET_BOUNDARY_NOT_IMPLEMENTED
+ERROR
+test_b27_witness_never_issues_local_permission_without_running_server (test_remote.RemoteGateTests.test_b27_witness_never_issues_local_permission_without_running_server) ... ok
+
+======================================================================
+ERROR: test_b27_genuine_network_boundary_creates_signed_audit_without_dispatch (test_remote.RemoteGateTests.test_b27_genuine_network_boundary_creates_signed_audit_without_dispatch)
+Must fail until a real network server and signature verifier exist.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/axiom_b27_s0/ops/trackb27/test/test_remote.py", line 47, in test_b27_genuine_network_boundary_creates_signed_audit_without_dispatch
+    info=parent.recv()
+  File "/usr/lib/python3.13/multiprocessing/connection.py", line 250, in recv
+    buf = self._recv_bytes()
+  File "/usr/lib/python3.13/multiprocessing/connection.py", line 430, in _recv_bytes
+    buf = self._recv(4)
+  File "/usr/lib/python3.13/multiprocessing/connection.py", line 399, in _recv
+    raise EOFError
+EOFError
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.023s
+
+FAILED (errors=1)
