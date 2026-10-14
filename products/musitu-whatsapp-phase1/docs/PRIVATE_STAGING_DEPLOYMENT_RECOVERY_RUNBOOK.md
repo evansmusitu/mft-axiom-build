@@ -66,3 +66,9 @@ The final acceptance must include genuine owner/staff login, another business, r
 Meta currently requires the account owner to confirm the developer profile. Finish that provider-owned secure step in the handed-over cloud tab; never put passwords, recovery codes or identity documents in ordinary chat. Resume developer access only after a fresh browser observation confirms access. Preserve Nexus's existing app/webhook. Vercel browser sign-in is also outstanding; hosting sign-in does not configure the separate business OIDC realm.
 
 Current tested application commit: `53ac8f43e39c5483833ce20476ed4f32b587a244`; protected deployment `dpl_E3UeRmeDpV8hCi65yxjptSryMoBs`. Hosted PostgreSQL run `9a37f9bc-5642-4689-a6ab-3522cf1d0066`: 26 pass / 0 fail. Local suite: 211 pass / 0 fail. All live release gates remain on hold.
+
+## Meta app creation hold and callback boundary
+
+Meta access is available. The creation overview is prepared for MUSITU AI Employee Dev, official WhatsApp use case, existing unverified MFT Education NEXUS portfolio. Final submission accepts Meta Platform Terms and Developer Policies and remains pending human approval. Do not record an app ID or reuse Nexus's tokens before the separate app exists. After approval, obtain the new app's development number/binding and enter secrets through the secure provider environment.
+
+The shared callback handler has separate 5-second body and 15-second persistence deadlines, a 256KiB streamed limit and distinct 413/408/401/422/503 responses. A timed-out DB operation can still commit; use persistent replay guards and never treat the timeout as proof of rollback. Keep the dashboard's outer authentication protection. A dedicated authenticated-by-signature ingress/access policy is still needed for genuine Meta callbacks. Do not expose the dashboard to make callback verification work.

@@ -30,7 +30,7 @@ The evidence/documentation commit follows the tested application commit. Applica
 | AXIOM | Genuine connected `arithmetic.evaluate` call for `(120+80+100)/3` returned 100; plugin reports 74 operations and 30 business products | SaaS service identity/transport is not connected; one operation is not qualification of all operations |
 | Application | Next.js 16.4 build; owner/staff routes, onboarding/configuration, approved knowledge, resources/bookings, human handover, response approval, opt-outs, encrypted message reads and audit | Authenticated browser flows; actual user onboarding; real human replies; business channel ownership onboarding; UI/UX assessment |
 | Infrastructure | Separate private Vercel project, HTTPS headers, encrypted environment secrets, database startup qualification, genuine DB restart, earlier snapshot restore and a latest-schema branch recovery checkpoint | Expanded-schema backup/restore, automated retention, alerts/on-call and latest restore drill remain incomplete |
-| Acceptance | 211 local automated tests pass; 26 real PostgreSQL integration checks pass; hosted data API rejects absent session with 403 | Full genuine-service end-to-end acceptance remains blocked |
+| Acceptance | 217 local automated tests pass; 26 real PostgreSQL integration checks pass; hosted data API rejects absent session with 403 | Full genuine-service end-to-end acceptance remains blocked |
 
 ## Evidence scope
 
@@ -76,3 +76,11 @@ The updated deployment is READY at application commit `53ac8f43e39c5483833ce2047
 Meta developer access now displays **Account confirmation needed**, citing unusual activity, and the Facebook confirmation page says **We need more information** and requires confirming the profile on Meta for Developers. No confirmation information or identity documents were submitted. The observed Continue control is disabled/loading. This is a nondelegable account-confirmation blocker; no SaaS Meta app was created and Nexus was not changed. Browser-auth sign-in to Vercel remains incomplete after an interrupted secure request. The retained screenshot proves only the hosting sign-in boundary.
 
 Live model, IdP, provider delivery and AXIOM application identity remain unverified. New session logout and stale-view tests are local tests, not live account acceptance.
+
+## Continuation: isolated Meta app preparation
+
+Meta developer access became available on the next check. The account lists only MFT AI NEXUS; no separate SaaS app exists. Prepared **MUSITU AI Employee Dev** with the official **Connect with customers through WhatsApp** use case under the existing **MFT Education NEXUS** business portfolio. The portfolio is shown as unverified. The app is still a creation draft: no new app ID, token, test number, webhook or send has been provisioned.
+
+The final Create app step states that proceeding accepts Meta Platform Terms, Developer Policies and other applicable terms. That legally binding submission requires action-time human approval under the browser confirmation policy. The screen is ready for the owner; Nexus's app/webhook remains unchanged.
+
+The actual staging webhook now uses the shared `meta-development-http` adapter. Streamed oversize requests return 413 even with misleading Content-Length, stalled bodies return 408, invalid signatures return 401, unsupported methods/media are refused, and uncertain persistence remains retryable 503. A 200 means admission, never outgoing delivery. Six independent local HTTP boundary cases pass; the full local suite is now 217/217 with no skips, and the Next.js build passes. No genuine Meta callback is claimed. Verification tokens must be 32–256 characters; use a generated secret in the staging secret manager.

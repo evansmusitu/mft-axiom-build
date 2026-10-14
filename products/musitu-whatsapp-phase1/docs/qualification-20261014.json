@@ -3,7 +3,7 @@
   "phase1_complete": false,
   "public_release_authorized": false,
   "local_tests": {
-    "pass": 211,
+    "pass": 217,
     "fail": 0
   },
   "hosted_postgres_tests": {
@@ -23,5 +23,6 @@
   "required_release_gates": "REMAIN_BLOCKED",
   "latest_schema_branch_recovery_checkpoint": "PASS_20_RELATION_CHECKSUMS_AND_RESTRICTED_LOGIN",
   "provider_logout": "IMPLEMENTED_LOCAL_TESTED_LIVE_UNVERIFIED",
-  "meta_account_access": "BLOCKED_DEVELOPER_PROFILE_CONFIRMATION"
+  "meta_account_access": "AVAILABLE_CREATION_HELD_FOR_TERMS_ACCEPTANCE",
+  "meta_http_boundary": "LOCAL_6_CASES_PASS_LIVE_META_UNVERIFIED"
 }

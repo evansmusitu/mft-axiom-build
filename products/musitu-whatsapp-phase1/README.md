@@ -2,7 +2,7 @@
 
 **Phase 1 is IN PROGRESS; public release and customer messaging remain disabled.**
 
-The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **211 local automated tests** and **26 hosted native PostgreSQL checks** pass. Signed provider events in qualification are synthetic; live Meta, Keycloak and model acceptance remain pending.
+The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **217 local automated tests** and **26 hosted native PostgreSQL checks** pass. Signed provider events in qualification are synthetic; live Meta, Keycloak and model acceptance remain pending.
 
 - [Current execution status and blockers](docs/PHASE1_EXECUTION_STATUS_20261014.md)
 - [Private deployment and recovery runbook](docs/PRIVATE_STAGING_DEPLOYMENT_RECOVERY_RUNBOOK.md)
