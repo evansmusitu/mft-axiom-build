@@ -1,0 +1,24 @@
+{
+  "candidate": "1.8.0",
+  "phase1_complete": false,
+  "public_release_authorized": false,
+  "local_tests": {
+    "pass": 206,
+    "fail": 0
+  },
+  "hosted_postgres_tests": {
+    "pass": 26,
+    "fail": 0,
+    "evidence": "evidence/20261014/real-postgres-qualification-extended.json",
+    "provider_events": "synthetic"
+  },
+  "nextjs_optimized_build": "PASS",
+  "restricted_native_roles_rls": "PASS",
+  "latest_schema_backup_restore": "BLOCKED_SNAPSHOT_CAPACITY",
+  "authenticated_chromium": "BLOCKED_VERCEL_SIGN_IN_AND_OIDC_SETUP",
+  "live_meta": "UNVERIFIED",
+  "live_model": "UNVERIFIED",
+  "axiom_connector_arithmetic": "PASS_SINGLE_OPERATION",
+  "axiom_saas_service_identity": "UNVERIFIED",
+  "required_release_gates": "REMAIN_BLOCKED"
+}

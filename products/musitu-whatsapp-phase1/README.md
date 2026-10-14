@@ -1,3 +1,20 @@
+# MUSITU WhatsApp AI Employee SaaS — Phase 1 v1.8.0 private candidate
+
+**Phase 1 is IN PROGRESS; public release and customer messaging remain disabled.**
+
+The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **206 local automated tests** and **26 hosted native PostgreSQL checks** pass. Signed provider events in qualification are synthetic; live Meta, Keycloak and model acceptance remain pending.
+
+- [Current execution status and blockers](docs/PHASE1_EXECUTION_STATUS_20261014.md)
+- [Private deployment and recovery runbook](docs/PRIVATE_STAGING_DEPLOYMENT_RECOVERY_RUNBOOK.md)
+- [Real PostgreSQL results](evidence/20261014/real-postgres-qualification-extended.json)
+- [Isolated draft PR](https://github.com/evansmusitu/mft-axiom-build/pull/29)
+
+Use Node 24 and `npm ci --ignore-scripts`, `npm test`, `npm run build`. Hosted qualification requires the named disposable Neon sandbox and restricted encrypted environment credentials; never substitute production or owner runtime credentials. Vercel authentication protects all deployments. Business authentication additionally requires an independently configured OIDC provider; hosting protection does not substitute for employee identity.
+
+## Preserved v1.7.0 development history
+
+The material below records the earlier artifact's state. Its historical statements about missing roles, native testing and Next.js are superseded by the linked current report. Original source and all release restrictions are retained.
+
 # MUSITU WhatsApp AI SaaS — Phase 1 v1.7.0 isolated private integration candidate
 
 This is the **unmerged independent product workspace**, continued from the complete v0.9.0 source archive. It implements an offline end-to-end **private demonstration** of signed WhatsApp-format ingestion, tenant-aware booking, approved FAQ drafting, immutable local review/consent concepts, handover and a browser-based business console.

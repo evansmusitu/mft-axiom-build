@@ -1,0 +1,55 @@
+{
+  "scope": "GENUINE_CONNECTED_AXIOM_TOOL_CALL_NOT_STAGING_SERVICE_IDENTITY",
+  "input": {
+    "operation": "arithmetic.evaluate",
+    "args": {
+      "expression": "(120+80+100)/3"
+    }
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "MUSITU Axiom completed arithmetic.evaluate."
+      }
+    ],
+    "structuredContent": {
+      "operation": "arithmetic.evaluate",
+      "result": {
+        "ok": true,
+        "kernel_version": "1.0.0",
+        "operation": "arithmetic.evaluate",
+        "result": "100.00000000000000000000000000000000000000000000000",
+        "verified": null,
+        "elapsed_ms": 0.744,
+        "axiom": {
+          "compute_units": 1,
+          "plan": "developer",
+          "usage": {
+            "ok": true,
+            "used": 4039,
+            "limit": 100000,
+            "month": "2026-10"
+          }
+        }
+      }
+    },
+    "isError": false
+  },
+  "expected": 100,
+  "passed": true,
+  "registry": {
+    "content": [
+      {
+        "type": "text",
+        "text": "MUSITU Axiom exposes 74 certified quantitative runtime operations and 30 business-facing quantitative products through this plugin."
+      }
+    ],
+    "structuredContent": {
+      "operation_count": 74,
+      "business_product_count": 30,
+      "commerce_tools_exposed": false
+    },
+    "isError": false
+  }
+}
