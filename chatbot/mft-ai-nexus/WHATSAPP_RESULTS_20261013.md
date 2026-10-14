@@ -188,3 +188,9 @@ The Meta dashboard additionally warns that an **unpublished app receives dashboa
 **Next real provider checkpoints:** confirm Meta says the callback was saved; confirm `messages` webhook field is subscribed under app `1775810357073694`; run a Meta dashboard test event and inspect its result. The app was previously unpublished, and Meta warned that only dashboard test webhooks would arrive while unpublished. Do **not** claim customer-initiated inbound messages or delivered/read callbacks until genuinely observed and recorded. Request separate approval before publishing.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+## Continuation checkpoint — owner reports Meta callback verified
+
+On 14 October 2026 the owner answered **YES** to the question whether the existing Meta app displayed a successful **Verified and saved** result for the configured `/webhook` callback. This is owner-reported UI confirmation, not an independent Meta API readback. The existing Cloudflare deployment run `38480328766` had already passed 60 automated tests with test-only `whatsappReady:true`; production remained off. Next required evidence: confirm that the app's `messages` webhook field is **Subscribed**, then trigger a dashboard-origin test webhook. The Meta app was previously unpublished, so user-initiated live message delivery and delivered/read callbacks must remain **unverified** until witnessed. Do not publish the app, register the production line, or add billing without specific approval.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
