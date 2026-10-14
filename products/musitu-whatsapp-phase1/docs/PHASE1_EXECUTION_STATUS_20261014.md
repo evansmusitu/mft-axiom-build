@@ -12,12 +12,12 @@ The archive's internal manifest passed before changes; baseline 196/196 tests pa
 - Isolated branch: `saas/musitu-whatsapp-phase1-private-20261014`.
 - Product directory: `products/musitu-whatsapp-phase1`.
 - Draft review: https://github.com/evansmusitu/mft-axiom-build/pull/29 . Keep unmerged.
-- Latest tested application source: `cd7640677409e7b43afab81f50ccb0e33fe107f1`.
-- Private staging: https://musitu-whatsapp-phase1-private-20261014-p3fc22x4a-evansmusitu.vercel.app .
-- Vercel deployment: `dpl_HAhooU9S2EJKDYnPA5uMkGBrvmE3`; target `staging`; provider state `READY`.
+- Latest tested application source: `53ac8f43e39c5483833ce20476ed4f32b587a244`.
+- Private staging: https://musitu-whatsapp-phase1-private-20261014-h4l86w43q-evansmusitu.vercel.app .
+- Vercel deployment: `dpl_E3UeRmeDpV8hCi65yxjptSryMoBs`; target `staging`; provider state `READY`.
 - All deployments have Vercel authentication protection. Chromium reached the Vercel login screen; authenticated dashboard acceptance is pending sign-in.
 
-The final evidence/documentation commit may follow the tested application commit. Application code must be requalified if changed.
+The evidence/documentation commit follows the tested application commit. Application code must be requalified if changed.
 
 ## Verified work
 
@@ -34,7 +34,7 @@ The final evidence/documentation commit may follow the tested application commit
 
 ## Evidence scope
 
-`evidence/20261014/real-postgres-qualification-extended.json` is actual execution in Vercel's build environment against the named Neon sandbox. Both `current_user` and `session_user` were the restricted application identities. No Neon owner credentials were installed as runtime credentials.
+`evidence/20261014/real-postgres-qualification-continuation.json` is actual execution in Vercel's build environment against the named Neon sandbox. Both `current_user` and `session_user` were the restricted application identities. No Neon owner credentials were installed as runtime credentials.
 
 The provider messages, contacts, business facts and status callbacks in that suite are **synthetic**. They validate real PostgreSQL behavior but do not prove Meta delivery, legal consent, model behavior or an actual merchant deployment. Ten concurrent bookings yielded one confirmed reservation and nine conflicts. Late `sent` did not downgrade a synthetic previously delivered attempt.
 
@@ -68,3 +68,11 @@ Dashboard requests have a generation fence: business/view changes, newer request
 A current-schema Neon branch copy, `br-autumn-rain-b4saskvl`, was created from `br-jolly-fire-b4klddds` at parent LSN `0/1DD70F0`. SHA-256 row checksums and counts match across all 19 business tables plus the identity session table. A genuine restricted `musitu_runtime` login on the copy proved all business tables retain ENABLE/FORCE RLS, no ownership, no missing-context records and no foreign-tenant records under either scope. The copy's compute `ep-quiet-flower-b4vgzsw3` was disabled after verification; the original endpoint stayed attached to the original branch. This is a same-provider recovery checkpoint, not automated or independent external backup. The snapshot capacity and key-escrow gaps remain.
 
 The account rejected a custom suspend interval (HTTP 412); retrying with the free plan's defaults succeeded without a plan change. Evidence: `evidence/20261014/latest-schema-recovery-checkpoint.json`.
+
+## Latest hosted execution and account blocker
+
+The updated deployment is READY at application commit `53ac8f43e39c5483833ce20476ed4f32b587a244`. Native hosted run `9a37f9bc-5642-4689-a6ab-3522cf1d0066` passed 26 checks with zero failures. Actual HTTP responses: `/api/status` returns 200 with `databaseHealthy:true`, and absent-session business metrics return 403 `ACCESS_DENIED`.
+
+Meta developer access now displays **Account confirmation needed**, citing unusual activity, and the Facebook confirmation page says **We need more information** and requires confirming the profile on Meta for Developers. No confirmation information or identity documents were submitted. The observed Continue control is disabled/loading. This is a nondelegable account-confirmation blocker; no SaaS Meta app was created and Nexus was not changed. Browser-auth sign-in to Vercel remains incomplete after an interrupted secure request. The retained screenshot proves only the hosting sign-in boundary.
+
+Live model, IdP, provider delivery and AXIOM application identity remain unverified. New session logout and stale-view tests are local tests, not live account acceptance.

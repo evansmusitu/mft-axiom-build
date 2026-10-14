@@ -60,3 +60,9 @@ The final acceptance must include genuine owner/staff login, another business, r
 ## Latest-schema branch recovery checkpoint
 
 `br-autumn-rain-b4saskvl` (`whatsapp-phase1-v18-recovery-checkpoint-20261014`) copies the original branch at LSN `0/1DD70F0`, retaining all 19 business tables and the identity session table. Twenty SHA-256 row checksums/counts match the source at that checkpoint, and direct restricted-role tenant probes pass. Its endpoint `ep-quiet-flower-b4vgzsw3` is disabled; reactivate only within the authorized free staging environment for a recovery drill. Do not move the original endpoint, change the default branch or connect the running SaaS to the copy without checking schema, key availability, staff/session revocation and ledger integrity. Retain the copy without writes. This checkpoint does not replace automated snapshots, independent encrypted export, key escrow or a genuine merchant recovery qualification.
+
+## Secure continuation
+
+Meta currently requires the account owner to confirm the developer profile. Finish that provider-owned secure step in the handed-over cloud tab; never put passwords, recovery codes or identity documents in ordinary chat. Resume developer access only after a fresh browser observation confirms access. Preserve Nexus's existing app/webhook. Vercel browser sign-in is also outstanding; hosting sign-in does not configure the separate business OIDC realm.
+
+Current tested application commit: `53ac8f43e39c5483833ce20476ed4f32b587a244`; protected deployment `dpl_E3UeRmeDpV8hCi65yxjptSryMoBs`. Hosted PostgreSQL run `9a37f9bc-5642-4689-a6ab-3522cf1d0066`: 26 pass / 0 fail. Local suite: 211 pass / 0 fail. All live release gates remain on hold.
