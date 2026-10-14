@@ -1,0 +1,29 @@
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77617b0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a7762110>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77632e0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77633d0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77634c0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77635b0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a77636a0>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/pathlib/_local.py:125: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f68a7763790>
+  paths.extend(arg._raw_paths)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+B27_EXTERNAL_INDEPENDENCE_NOT_PROVEN_ROLLBACK_ATTACK_REPRODUCED
+----------------------------------------------------------------------
+Ran 14 tests in 7.199s
+
+OK
