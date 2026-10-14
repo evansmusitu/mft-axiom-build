@@ -1,0 +1,42 @@
+TAP version 13
+# (node:8226) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+ok 1 - signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+  ---
+  duration_ms: 13.454195
+  type: 'test'
+  ...
+# Subtest: signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+ok 2 - signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+  ---
+  duration_ms: 5.220783
+  type: 'test'
+  ...
+# Subtest: only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+ok 3 - only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+  ---
+  duration_ms: 3.599427
+  type: 'test'
+  ...
+# Subtest: a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+ok 4 - a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+  ---
+  duration_ms: 4.370136
+  type: 'test'
+  ...
+# Subtest: cross-tenant replay and changed STOP body fail without new suppression records
+ok 5 - cross-tenant replay and changed STOP body fail without new suppression records
+  ---
+  duration_ms: 3.603904
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 91.869866

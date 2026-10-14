@@ -1,0 +1,5 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.7.0 qualify:postgres
+> node scripts/postgres-native-qualification.mjs
+
+BLOCKED: PG_ISOLATED_QUALIFICATION must equal YES

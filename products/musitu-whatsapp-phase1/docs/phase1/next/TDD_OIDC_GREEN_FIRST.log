@@ -1,0 +1,72 @@
+TAP version 13
+# (node:6161) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+not ok 1 - pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+  ---
+  duration_ms: 7.055413
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/oidc-private-api.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /TOKEN_EXPIRED/. Input:
+    
+    'Error: INVALID_TOKEN_TIME'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'INVALID_TOKEN_TIME'
+  stack: |-
+    fail (file:///mnt/data/musitu-whatsapp-phase1-next/src/security/oidc.mjs:9:25)
+    verifyPinnedOidcJwt (file:///mnt/data/musitu-whatsapp-phase1-next/src/security/oidc.mjs:44:89)
+    file:///mnt/data/musitu-whatsapp-phase1-next/test/oidc-private-api.test.mjs:30:20
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/oidc-private-api.test.mjs:30:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/oidc-private-api.test.mjs:30:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+ok 2 - rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+  ---
+  duration_ms: 1.684147
+  type: 'test'
+  ...
+# Subtest: rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+ok 3 - rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+  ---
+  duration_ms: 4.009234
+  type: 'test'
+  ...
+# Subtest: private admin API serves member-scoped metrics only with pinned verified JWT
+ok 4 - private admin API serves member-scoped metrics only with pinned verified JWT
+  ---
+  duration_ms: 75.584342
+  type: 'test'
+  ...
+# Subtest: private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+ok 5 - private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+  ---
+  duration_ms: 27.26368
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 788.911314

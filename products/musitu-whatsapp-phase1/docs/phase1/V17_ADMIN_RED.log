@@ -1,0 +1,62 @@
+TAP version 13
+# (node:1610) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: authenticated partial JSON upload gets a bounded 408 instead of pinning request forever
+not ok 1 - authenticated partial JSON upload gets a bounded 408 instead of pinning request forever
+  ---
+  duration_ms: 1117.549621
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: 'ADMIN_REQUEST_HUNG'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Timeout._onTimeout (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:30:50)
+    listOnTimeout (node:internal/timers:588:17)
+    process.processTimers (node:internal/timers:523:7)
+  ...
+# Subtest: declared oversized body is rejected before reading it
+not ok 2 - declared oversized body is rejected before reading it
+  ---
+  duration_ms: 1108.658579
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'ADMIN_REQUEST_HUNG'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Timeout._onTimeout (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:30:50)
+    listOnTimeout (node:internal/timers:588:17)
+    process.processTimers (node:internal/timers:523:7)
+  ...
+# Subtest: request deadline settings require a safe bounded interval
+not ok 3 - request deadline settings require a safe bounded interval
+  ---
+  duration_ms: 2.666994
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:53:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-admin-request-deadline.test.mjs:54:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2399.365906

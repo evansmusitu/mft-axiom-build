@@ -1,0 +1,76 @@
+
+> musitu-whatsapp-saas-foundation@0.1.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+ok 1 - Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+  ---
+  duration_ms: 1.592929
+  type: 'test'
+  ...
+# Subtest: provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+ok 2 - provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+  ---
+  duration_ms: 1.555062
+  type: 'test'
+  ...
+# Subtest: WABA mismatch and unknown phone fail closed
+ok 3 - WABA mismatch and unknown phone fail closed
+  ---
+  duration_ms: 0.618075
+  type: 'test'
+  ...
+# Subtest: inbox ingress is idempotent per tenant/provider message ID
+ok 4 - inbox ingress is idempotent per tenant/provider message ID
+  ---
+  duration_ms: 0.323008
+  type: 'test'
+  ...
+# Subtest: human takeover disables automated replies and other tenants cannot control conversation
+ok 5 - human takeover disables automated replies and other tenants cannot control conversation
+  ---
+  duration_ms: 0.434958
+  type: 'test'
+  ...
+# Subtest: all real sends, live checkout, production email and signup fail closed regardless of env variables
+ok 6 - all real sends, live checkout, production email and signup fail closed regardless of env variables
+  ---
+  duration_ms: 0.278521
+  type: 'test'
+  ...
+# Subtest: rejected cross-tenant conversation collision must not change message ledger
+not ok 7 - rejected cross-tenant conversation collision must not change message ledger
+  ---
+  duration_ms: 1.960605
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:60:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 144.414152

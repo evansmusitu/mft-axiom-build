@@ -1,0 +1,52 @@
+TAP version 13
+# (node:3602) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed 256 KiB oversize payload fails before local persistence
+not ok 1 - signed 256 KiB oversize payload fails before local persistence
+  ---
+  duration_ms: 14.099052
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v14/test/v14-private-stage-traffic-limit.test.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v14/test/v14-private-stage-traffic-limit.test.mjs:15:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: signed 51 event batch fails atomically instead of expanding work without limit
+not ok 2 - signed 51 event batch fails atomically instead of expanding work without limit
+  ---
+  duration_ms: 5.702907
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v14/test/v14-private-stage-traffic-limit.test.mjs:18:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v14/test/v14-private-stage-traffic-limit.test.mjs:20:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 97.805827

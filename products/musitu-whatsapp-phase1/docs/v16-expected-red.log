@@ -1,0 +1,144 @@
+TAP version 13
+# Subtest: already opted-out customer cannot have a fresh draft approved via direct API bypassing UI
+not ok 1 - already opted-out customer cannot have a fresh draft approved via direct API bypassing UI
+  ---
+  duration_ms: 2.493593
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v16/test/v16-approval-optout.test.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-approval-optout.test.mjs:18:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: unsuppressed source-grounded reply can still be approved offline
+ok 2 - unsuppressed source-grounded reply can still be approved offline
+  ---
+  duration_ms: 0.336678
+  type: 'test'
+  ...
+# (node:14596) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: owner can revoke a member once; revocation persists and disables existing JWT membership immediately
+not ok 3 - owner can revoke a member once; revocation persists and disables existing JWT membership immediately
+  ---
+  duration_ms: 29.873591
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:27:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    401 !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  actual: 401
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:34:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: owner cannot revoke self; tenant B owner and tenant A viewer cannot revoke staff A
+not ok 4 - owner cannot revoke self; tenant B owner and tenant A viewer cannot revoke staff A
+  ---
+  duration_ms: 4.111213
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /OWNER_SELF_REVOCATION_DENIED/. Input:
+    
+    'TypeError: store.revokeMembership is not a function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'store.revokeMembership is not a function'
+  name: 'TypeError'
+  stack: |-
+    file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:49:26
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:49:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:49:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: private staff listing is owner-only and tenant-scoped with no password or JWT data
+not ok 5 - private staff listing is owner-only and tenant-scoped with no password or JWT data
+  ---
+  duration_ms: 10.909893
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:56:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 403
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 403
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:61:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: revoke API rejects extra payload, impersonation, unsupported methods and unknown member without writing audit
+not ok 6 - revoke API rejects extra payload, impersonation, unsupported methods and unknown member without writing audit
+  ---
+  duration_ms: 12.711695
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 400
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 400
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v16/test/v16-membership-revocation.test.mjs:75:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 1
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 353.289044

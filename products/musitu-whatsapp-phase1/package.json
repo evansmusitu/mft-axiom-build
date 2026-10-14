@@ -1,0 +1,34 @@
+{
+  "name": "musitu-whatsapp-phase1-governed-browser-private-candidate",
+  "version": "1.8.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check-syntax.mjs",
+    "verify": "npm run check && npm test && npm run audit:hashes",
+    "demo": "node scripts/local-demo.mjs",
+    "audit:hashes": "node scripts/verify-manifest.mjs",
+    "demo:next": "node scripts/local-next-demo.mjs",
+    "qualify:postgres": "node scripts/postgres-native-qualification.mjs",
+    "serve:private-demo": "node scripts/launch-private-console.mjs",
+    "release:gate": "node scripts/phase1-release-gate.mjs",
+    "browser:smoke": "python scripts/browser-private-smoke.py",
+    "meta:protocol:demo": "node scripts/private-meta-webhook-demo.mjs",
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start",
+    "qualify:hosted": "node scripts/staging-postgres-qualification.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.0.2",
+    "jose": "6.1.0",
+    "next": "16.4.0",
+    "pg": "8.23.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  }
+}

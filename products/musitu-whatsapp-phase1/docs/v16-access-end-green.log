@@ -1,0 +1,5 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.5.0 browser:smoke
+> python scripts/browser-private-smoke.py
+
+BROWSER_SMOKE_PASS: Chromium login, revocation, metrics, drafts, handover, disconnect, cross-tenant 403

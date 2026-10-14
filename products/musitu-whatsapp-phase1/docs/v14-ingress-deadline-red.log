@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: provider receives a retryable 503 when authorized persistence never returns
+not ok 1 - provider receives a retryable 503 when authorized persistence never returns
+  ---
+  duration_ms: 1016.414693
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v14/test/v14-ingress-deadline.test.mjs:5:1'
+  failureType: 'testCodeFailure'
+  error: 'The operation was aborted due to timeout'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1108.942546

@@ -1,0 +1,2 @@
+export const dynamic='force-dynamic';
+export async function GET(){return Response.json({phase1:'IN_PROGRESS',publicMessaging:false,identityConfigured:Boolean(process.env.OIDC_ISSUER&&process.env.OIDC_CLIENT_ID&&process.env.OIDC_CLIENT_SECRET),databaseConfigured:Boolean(process.env.DATABASE_URL),modelConfigured:Boolean(process.env.MODEL_TOKEN),metaConfigured:Boolean(process.env.META_APP_SECRET),axiomConfigured:Boolean(process.env.AXIOM_ACCESS_TOKEN)}, {headers:{'cache-control':'no-store'}});}

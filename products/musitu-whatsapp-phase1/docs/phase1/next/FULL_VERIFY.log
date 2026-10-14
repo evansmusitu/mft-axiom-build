@@ -1,0 +1,227 @@
+
+> musitu-whatsapp-phase1-private-stage@0.3.0 verify
+> npm run check && npm test && npm run audit:hashes
+
+
+> musitu-whatsapp-phase1-private-stage@0.3.0 check
+> node --check src/core/*.mjs && node --check src/adapters/*.mjs && node --check src/private-stage/*.mjs && node --check src/security/*.mjs && node --check scripts/local-demo.mjs
+
+
+> musitu-whatsapp-phase1-private-stage@0.3.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+ok 1 - Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+  ---
+  duration_ms: 1.149789
+  type: 'test'
+  ...
+# Subtest: provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+ok 2 - provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+  ---
+  duration_ms: 1.320538
+  type: 'test'
+  ...
+# Subtest: WABA mismatch and unknown phone fail closed
+ok 3 - WABA mismatch and unknown phone fail closed
+  ---
+  duration_ms: 0.690755
+  type: 'test'
+  ...
+# Subtest: inbox ingress is idempotent per tenant/provider message ID
+ok 4 - inbox ingress is idempotent per tenant/provider message ID
+  ---
+  duration_ms: 0.477923
+  type: 'test'
+  ...
+# Subtest: human takeover disables automated replies and other tenants cannot control conversation
+ok 5 - human takeover disables automated replies and other tenants cannot control conversation
+  ---
+  duration_ms: 0.250088
+  type: 'test'
+  ...
+# Subtest: all real sends, live checkout, production email and signup fail closed regardless of env variables
+ok 6 - all real sends, live checkout, production email and signup fail closed regardless of env variables
+  ---
+  duration_ms: 0.19851
+  type: 'test'
+  ...
+# Subtest: rejected cross-tenant conversation collision must not change message ledger
+ok 7 - rejected cross-tenant conversation collision must not change message ledger
+  ---
+  duration_ms: 0.188265
+  type: 'test'
+  ...
+# (node:6910) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+ok 8 - signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+  ---
+  duration_ms: 9.927018
+  type: 'test'
+  ...
+# Subtest: unknown question and non-text inbound hand over without hallucinating responses
+ok 9 - unknown question and non-text inbound hand over without hallucinating responses
+  ---
+  duration_ms: 4.236199
+  type: 'test'
+  ...
+# Subtest: offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+ok 10 - offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+  ---
+  duration_ms: 3.799388
+  type: 'test'
+  ...
+# Subtest: local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+ok 11 - local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+  ---
+  duration_ms: 41.83574
+  type: 'test'
+  ...
+# (node:6911) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+ok 12 - pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+  ---
+  duration_ms: 8.211012
+  type: 'test'
+  ...
+# Subtest: rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+ok 13 - rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+  ---
+  duration_ms: 2.823131
+  type: 'test'
+  ...
+# Subtest: rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+ok 14 - rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+  ---
+  duration_ms: 3.10042
+  type: 'test'
+  ...
+# Subtest: private admin API serves member-scoped metrics only with pinned verified JWT
+ok 15 - private admin API serves member-scoped metrics only with pinned verified JWT
+  ---
+  duration_ms: 70.362315
+  type: 'test'
+  ...
+# Subtest: private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+ok 16 - private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+  ---
+  duration_ms: 38.615187
+  type: 'test'
+  ...
+# (node:6942) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+ok 17 - FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+  ---
+  duration_ms: 16.42025
+  type: 'test'
+  ...
+# Subtest: unknown FAQ never fabricates a response; handover disables drafts and remains durable
+ok 18 - unknown FAQ never fabricates a response; handover disables drafts and remains durable
+  ---
+  duration_ms: 5.21525
+  type: 'test'
+  ...
+# Subtest: handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+ok 19 - handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+  ---
+  duration_ms: 4.79905
+  type: 'test'
+  ...
+# Subtest: signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+ok 20 - signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+  ---
+  duration_ms: 7.731467
+  type: 'test'
+  ...
+# Subtest: unknown or cross-tenant status and mixed invalid batch roll back completely
+ok 21 - unknown or cross-tenant status and mixed invalid batch roll back completely
+  ---
+  duration_ms: 5.684359
+  type: 'test'
+  ...
+# Subtest: same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+ok 22 - same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+  ---
+  duration_ms: 4.651197
+  type: 'test'
+  ...
+# Subtest: status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+ok 23 - status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+  ---
+  duration_ms: 68.877158
+  type: 'test'
+  ...
+# (node:6953) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 24 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 11.236849
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 25 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 5.019183
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 26 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 42.989812
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 27 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 8.898432
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 28 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 4.535772
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 29 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 5.317765
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 30 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 57.773446
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 31 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 4.619138
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 32 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 5.028237
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 532.378517
+
+> musitu-whatsapp-phase1-private-stage@0.3.0 audit:hashes
+> node scripts/verify-manifest.mjs
+
+LOCAL_SOURCE_MANIFEST_PASS (30 tracked files)
