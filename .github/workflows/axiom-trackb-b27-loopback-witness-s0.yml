@@ -1,0 +1,57 @@
+name: AXIOM B27 isolated loopback-witness S0 qualification (NOT external authority)
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-b27-loopback-witness-s0-20261014
+    paths:
+      - ops/trackb27/**
+      - .github/workflows/axiom-trackb-b27-loopback-witness-s0.yml
+permissions:
+  contents: read
+jobs:
+  isolated-b27-network-boundary-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b27-loopback-witness-s0-20261014'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Require no live credentials or deployment authorization
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          echo 'B27_NO_PROVIDER_SECRETS_OR_DEPLOYMENT'
+      - name: Install cryptographic verifier in disposable CI environment
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b27-venv
+          /tmp/axiom-b27-venv/bin/python -m pip install --disable-pip-version-check --only-binary=:all: 'cryptography==45.0.7'
+      - name: Preserve inherited B26 regression gates
+        run: |
+          set -euo pipefail
+          /tmp/axiom-b27-venv/bin/python ops/trackb26/VERIFY_B26_LOCAL.py
+      - name: Run separate-process S0 witness network qualification
+        run: |
+          set -euo pipefail
+          /tmp/axiom-b27-venv/bin/python ops/trackb27/VERIFY_B27_LOCAL.py
+          echo AXIOM_B27_CI_S0_LOCAL_BOUNDARY_PASS_NOT_EXTERNAL
+  separate-adversarial-review-s0:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-trackb-b27-loopback-witness-s0-20261014'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify destructive rollback is still a known FAILED gate
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b27-adversary
+          /tmp/axiom-b27-adversary/bin/python -m pip install --disable-pip-version-check --only-binary=:all: 'cryptography==45.0.7'
+          cd ops/trackb27
+          /tmp/axiom-b27-adversary/bin/python -m unittest discover -s test -p test_remote.py -v
+          echo B27_GLOBAL_ANTIROLLBACK_FAILED_IN_SIMULATED_DESTRUCTIVE_ATTACK
+          echo B27_NO_EXTERNAL_WITNESS_AUTHORITY_CERTIFIED
