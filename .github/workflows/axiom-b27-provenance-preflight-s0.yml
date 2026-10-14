@@ -1,0 +1,62 @@
+name: AXIOM B27 security evidence provenance preflight S0 — no publication
+on:
+  push:
+    branches:
+      - security/axiom-b27-provenance-preflight-s0-20261014
+    paths:
+      - ops/security_qualification/**
+      - .github/workflows/axiom-b27-provenance-preflight-s0.yml
+permissions:
+  contents: read
+jobs:
+  bounded-s0-evidence-preflight:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'security/axiom-b27-provenance-preflight-s0-20261014'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      AXIOM_B27_PINNED_PARENT: c57cf8505ceee91a6b9b93ae6368f54c6b9ae127
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify S0 scope and forbid provider/private authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF_NAME" = 'security/axiom-b27-provenance-preflight-s0-20261014'
+          test "$GITHUB_REPOSITORY" = 'evansmusitu/mft-axiom-build'
+          echo AXIOM_B27_NO_PRODUCTION_PROVIDER_AUTHORIZATION
+      - name: Install pinned verification dependency in disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/axiom-b27-evidence-venv
+          /tmp/axiom-b27-evidence-venv/bin/python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==45.0.7
+      - name: Replay inherited actual B26 and B27 synthetic scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/axiom-b27-evidence-venv/bin/python ops/trackb26/VERIFY_B26_LOCAL.py > /tmp/axiom-b27-security-transcript.log 2>&1
+          /tmp/axiom-b27-evidence-venv/bin/python ops/trackb27/VERIFY_B27_LOCAL.py >> /tmp/axiom-b27-security-transcript.log 2>&1
+          grep -Fqx 'AXIOM_B27_GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED' /tmp/axiom-b27-security-transcript.log
+          echo B27_GLOBAL_ANTIROLLBACK_STILL_FAILED_DO_NOT_DEPLOY
+      - name: Reverify static B27 status-record adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ops/security_qualification
+          /tmp/axiom-b27-evidence-venv/bin/python -m unittest discover -s test -p 'test*.py' -v
+      - name: Emit provenance preflight subject (not signed or published)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/axiom-b27-evidence-venv/bin/python ops/security_qualification/compose_attested_record.py \
+            /tmp/axiom-b27-security-transcript.log /tmp/axiom-b27-S0-UNEARNED-AUTHORITY.json
+          /tmp/axiom-b27-evidence-venv/bin/python -m json.tool /tmp/axiom-b27-S0-UNEARNED-AUTHORITY.json > /dev/null
+          cat /tmp/axiom-b27-S0-UNEARNED-AUTHORITY.json
+          echo AXIOM_B27_PROVENANCE_PREFLIGHT_S0_PASS_NOT_PUBLISHED_NOT_EXTERNAL_AUTHORITY
