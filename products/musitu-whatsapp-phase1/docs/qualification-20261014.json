@@ -3,7 +3,7 @@
   "phase1_complete": false,
   "public_release_authorized": false,
   "local_tests": {
-    "pass": 206,
+    "pass": 211,
     "fail": 0
   },
   "hosted_postgres_tests": {
@@ -20,5 +20,7 @@
   "live_model": "UNVERIFIED",
   "axiom_connector_arithmetic": "PASS_SINGLE_OPERATION",
   "axiom_saas_service_identity": "UNVERIFIED",
-  "required_release_gates": "REMAIN_BLOCKED"
+  "required_release_gates": "REMAIN_BLOCKED",
+  "latest_schema_branch_recovery_checkpoint": "PASS_20_RELATION_CHECKSUMS_AND_RESTRICTED_LOGIN",
+  "provider_logout": "IMPLEMENTED_LOCAL_TESTED_LIVE_UNVERIFIED"
 }

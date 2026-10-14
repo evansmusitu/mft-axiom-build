@@ -35,7 +35,7 @@ The deployment's finite build qualification runs `node scripts/staging-postgres-
 
 ## Identity and provider handoff
 
-Provision a dedicated Keycloak environment with HTTPS, realm, confidential OIDC client and exact staging callback. Register `/auth/callback` and the appropriate audience. PKCE/state/nonce, issuer/audience checks, JWKS, online introspection and encrypted opaque DB sessions are implemented but require real-browser tests. Obtain IdP credentials through a secure website handoff, never ordinary chat.
+Provision a dedicated Keycloak environment with HTTPS, realm, confidential OIDC client and exact staging callback. Register `/auth/callback`, the exact `/auth/logged-out` post-logout callback and the appropriate audience. Standard RP-initiated logout revokes the local session before redirecting to Keycloak; the provider may require logout confirmation. PKCE/state/nonce, issuer/audience checks, JWKS, online introspection and encrypted opaque DB sessions are implemented but require real-browser tests. Obtain IdP credentials through a secure website handoff, never ordinary chat.
 
 Do not reuse Nexus's Meta webhook. A signed callback receiver requires the SaaS development bindings, authorized verified recipient list and persistent privacy/content keys. The dashboard's Vercel protection currently also blocks a Meta callback. A separately authorized ingress deployment/access policy is required; do not disable the dashboard's protection as a shortcut. The Meta integration stays unavailable until its required configuration is present. No send route or live customer sending is qualified.
 
@@ -56,3 +56,7 @@ Before changing the deployed application, retain the previous tested deployment/
 Hosting logs and `/api/status` are available. Automated alert routing, on-call ownership, retention cleanup, current-schema scheduled backup and recovery RPO/RTO are not qualified. Configure and test them before calling Phase 1 complete. Do not silently substitute console logs for working alerts.
 
 The final acceptance must include genuine owner/staff login, another business, real signed Meta inbound, approved model responses, human handover, consent/suppression, authorized development delivery/receipt reconciliation, revocation, cross-tenant denial, restart/recovery and authenticated Chromium behavior. Synthetic tests remain useful but must keep their evidence labels.
+
+## Latest-schema branch recovery checkpoint
+
+`br-autumn-rain-b4saskvl` (`whatsapp-phase1-v18-recovery-checkpoint-20261014`) copies the original branch at LSN `0/1DD70F0`, retaining all 19 business tables and the identity session table. Twenty SHA-256 row checksums/counts match the source at that checkpoint, and direct restricted-role tenant probes pass. Its endpoint `ep-quiet-flower-b4vgzsw3` is disabled; reactivate only within the authorized free staging environment for a recovery drill. Do not move the original endpoint, change the default branch or connect the running SaaS to the copy without checking schema, key availability, staff/session revocation and ledger integrity. Retain the copy without writes. This checkpoint does not replace automated snapshots, independent encrypted export, key escrow or a genuine merchant recovery qualification.

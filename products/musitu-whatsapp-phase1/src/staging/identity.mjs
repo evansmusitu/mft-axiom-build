@@ -1,16 +1,11 @@
 import {randomBytes,createHash} from 'node:crypto';
 import {EncryptJWT,jwtDecrypt,createRemoteJWKSet,jwtVerify} from 'jose';
 import {database} from './database.mjs';
+import {identityConfig,assertActiveIntrospection,assertIdentityFlow,providerLogoutUrl} from './identity-policy.mjs';
 const COOKIE='__Host-musitu-session',FLOW='__Host-musitu-flow';
 let keys;
 const hash=s=>createHash('sha256').update(s).digest('hex');
-function config(){
- const issuer=process.env.OIDC_ISSUER,client=process.env.OIDC_CLIENT_ID,secret=process.env.OIDC_CLIENT_SECRET,origin=process.env.APP_ORIGIN;
- if(!issuer||!client||!secret||!origin)throw Error('IDENTITY_NOT_CONFIGURED');
- const u=new URL(issuer),o=new URL(origin);
- if(u.protocol!=='https:'||u.search||u.hash||u.username||u.password||!/^\/realms\/[^/]+$/.test(u.pathname)||o.protocol!=='https:'||o.origin!==origin)throw Error('IDENTITY_CONFIGURATION_REJECTED');
- return {issuer,client,secret,origin,audience:process.env.OIDC_AUDIENCE||client};
-}
+function config(){return identityConfig(process.env);}
 function key(){const b=Buffer.from(process.env.SESSION_ENCRYPTION_KEY||'','base64');if(b.length!==32)throw Error('SESSION_KEY_NOT_CONFIGURED');return b;}
 async function seal(payload,seconds){return new EncryptJWT(payload).setProtectedHeader({alg:'dir',enc:'A256GCM'}).setIssuedAt().setExpirationTime(Math.floor(Date.now()/1000)+seconds).encrypt(key());}
 async function unseal(token){return (await jwtDecrypt(token,key(),{keyManagementAlgorithms:['dir'],contentEncryptionAlgorithms:['A256GCM'],maxTokenAge:'1h'})).payload;}
@@ -30,7 +25,7 @@ async function validate(accessToken){
  if(payload.azp!==cfg.client)throw Error('TOKEN_CLIENT_REJECTED');
  // Online introspection on EVERY protected request: no stale success cache.
  const p=await boundedJson(cfg.issuer+'/protocol/openid-connect/token/introspect',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token:accessToken,client_id:cfg.client,client_secret:cfg.secret})});
- if(p.active!==true||p.sub!==payload.sub||p.exp<=Math.floor(Date.now()/1000))throw Error('SESSION_REVOKED');
+ assertActiveIntrospection(p,payload,cfg);
  return payload;
 }
 async function sessionRow(raw,work){
@@ -51,17 +46,18 @@ export async function identityAction(req,action){
   const state=randomBytes(32).toString('base64url'),nonce=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const target=new URL(cfg.issuer+'/protocol/openid-connect/auth');
   target.search=new URLSearchParams({client_id:cfg.client,redirect_uri:cfg.origin+'/auth/callback',response_type:'code',scope:'openid profile',state,nonce,code_challenge:Buffer.from(hash(verifier),'hex').toString('base64url'),code_challenge_method:'S256'}).toString();
-  return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
+  return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
  }
  if(action==='callback'&&req.method==='GET'){
   const u=new URL(req.url),flow=await unseal(cookies(req,FLOW));
-  if(!u.searchParams.get('code')||u.searchParams.get('state')!==flow.state)throw Error('OIDC_STATE_REJECTED');
+  assertIdentityFlow(flow,'login',u.searchParams.get('state'));
+  if(!u.searchParams.get('code'))throw Error('OIDC_STATE_REJECTED');
   const tokens=await boundedJson(cfg.issuer+'/protocol/openid-connect/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'authorization_code',code:u.searchParams.get('code'),client_id:cfg.client,client_secret:cfg.secret,redirect_uri:cfg.origin+'/auth/callback',code_verifier:flow.verifier})});
   const accessClaims=await validate(tokens.access_token);
   const id=(await jwtVerify(tokens.id_token,keys,{issuer:cfg.issuer,audience:cfg.client,algorithms:['RS256'],requiredClaims:['sub','exp','iat','nonce']})).payload;
   if(id.nonce!==flow.nonce||id.sub!==accessClaims.sub)throw Error('OIDC_NONCE_OR_SUBJECT_REJECTED');
   if(!Number.isSafeInteger(tokens.expires_in)||tokens.expires_in<1||tokens.expires_in>86400)throw Error('OIDC_EXPIRATION_REJECTED');
-  const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token,refreshToken:tokens.refresh_token},Math.min(3600,tokens.expires_in));
+  const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token},Math.min(3600,tokens.expires_in));
   await sessionRow(raw,async(c,h)=>c.query('INSERT INTO musitu_identity.sessions(token_hash,encrypted_payload,expires_at) VALUES($1,$2,now()+($3::int * interval \'1 second\'))',[h,encrypted,Math.min(3600,tokens.expires_in)]));
   const headers=new Headers({location:'/', 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));
   return new Response(null,{status:302,headers});
@@ -69,7 +65,20 @@ export async function identityAction(req,action){
  if(action==='logout'&&req.method==='POST'){
   if(req.headers.get('origin')!==cfg.origin)throw Error('ORIGIN_REJECTED');
   await sessionRow(cookies(req,COOKIE),async c=>c.query('UPDATE musitu_identity.sessions SET revoked=true'));
-  return new Response(null,{status:303,headers:{location:'/', 'set-cookie':sessionCookie('',0),'cache-control':'no-store'}});
+  // Commit local revocation before redirecting; a failed/cancelled provider flow
+  // must never restore the application's session.
+  const state=randomBytes(32).toString('base64url');
+  const headers=new Headers({location:providerLogoutUrl(cfg,state),'cache-control':'no-store','referrer-policy':'no-referrer'});
+  headers.append('set-cookie',sessionCookie('',0));
+  headers.append('set-cookie',sessionCookie(await seal({purpose:'logout',state},600),600,FLOW));
+  return new Response(null,{status:303,headers});
+ }
+ if(action==='logged-out'&&req.method==='GET'){
+  const flow=await unseal(cookies(req,FLOW));
+  assertIdentityFlow(flow,'logout',new URL(req.url).searchParams.get('state'));
+  const headers=new Headers({location:'/', 'cache-control':'no-store','referrer-policy':'no-referrer'});
+  headers.append('set-cookie',sessionCookie('',0));headers.append('set-cookie',sessionCookie('',0,FLOW));
+  return new Response(null,{status:303,headers});
  }
  return new Response('NOT_FOUND',{status:404});
 }
