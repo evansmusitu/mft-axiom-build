@@ -1,5 +1,5 @@
 name: MMF Current Isolated Branch Tracked Source Snapshot 20261012
-# 2026-10-15 MMF verified source handoff refresh (no new deploy or public ingress)
+# 2026-10-15 current exact-source snapshot after private GET-only control recheck; no deployment
 # Capture proven live SQLite synthetic persistence and closed commercial state from isolated GitHub HEAD.
 # No secrets, deployment or real commerce.
 on:
