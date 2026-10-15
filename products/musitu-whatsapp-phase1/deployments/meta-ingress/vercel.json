@@ -3,5 +3,5 @@
   "framework": null,
   "installCommand": "npm ci --ignore-scripts --no-audit --no-fund",
   "functions": {"api/index.mjs": {"maxDuration": 30}},
-  "rewrites": [{"source": "/:path*", "destination": "/api/index"}]
+  "routes": [{"src": "/(.*)", "dest": "/api/index"}]
 }

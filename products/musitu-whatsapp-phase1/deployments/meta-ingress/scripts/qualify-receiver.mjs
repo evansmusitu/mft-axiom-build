@@ -4,28 +4,20 @@ import {randomUUID} from 'node:crypto';
 // Execute from an authorized hosted build when local egress cannot reach Vercel.
 // No tokens, signed valid events, database mutations or provider sends.
 const target=new URL(process.argv[2]||'https://invalid.invalid');
-if(target.protocol!=='https:'||!/^musitu-whatsapp-dev-ingress-20261015-[a-z0-9]+-evansmusitu\.vercel\.app$/.test(target.hostname)||target.pathname!=='/'||target.search||target.username||target.password||target.port)throw Error('ISOLATED_HTTP_TARGET_REQUIRED');
+if(target.protocol!=='https:'||!/^musitu-whatsapp-meta-receiver-20261015-[a-z0-9]+-evansmusitu\.vercel\.app$/.test(target.hostname)||target.pathname!=='/'||target.search||target.username||target.password||target.port)throw Error('ISOLATED_HTTP_TARGET_REQUIRED');
 const results=[];
 async function probe(name,path,options,status,body){
  const result=await fetch(new URL(path,target),{...options,redirect:'error',signal:AbortSignal.timeout(12000)});
  const text=await result.text();assert.equal(result.status,status,name);
- if(body instanceof RegExp)assert.match(text,body,name);else assert.equal(text,body,name);
+ assert.equal(text,body,name);
  const headers={};for(const key of ['cache-control','content-security-policy','x-frame-options','x-content-type-options','x-robots-tag','strict-transport-security'])headers[key]=result.headers.get(key);
- if(path==='/'){
-  // Vercel serves the empty project's own root 404 before the callback
-  // rewrite. It contains no application data and has provider noindex/HSTS.
-  assert.equal(result.headers.get('x-vercel-error'),'NOT_FOUND');
-  assert.equal(headers['x-robots-tag'],'noindex');assert.match(headers['strict-transport-security'],/max-age=/);
- }else{
-  assert.equal(headers['cache-control'],'no-store');assert.equal(headers['x-frame-options'],'DENY');
-  assert.equal(headers['x-content-type-options'],'nosniff');assert.equal(headers['x-robots-tag'],'noindex, nofollow, noarchive');
-  assert.match(headers['content-security-policy'],/default-src 'none'/);
- }
+ assert.equal(headers['cache-control'],'no-store');assert.equal(headers['x-frame-options'],'DENY');
+ assert.equal(headers['x-content-type-options'],'nosniff');assert.equal(headers['x-robots-tag'],'noindex, nofollow, noarchive');
+ assert.match(headers['content-security-policy'],/default-src 'none'/);
  results.push({name,status:result.status,body:text,headers});
 }
 await probe('unconfigured webhook refuses verification','/api/meta/webhook?hub.mode=subscribe&hub.verify_token=qualification-not-a-secret&hub.challenge=123',{},503,'DEVELOPMENT_CHANNEL_UNAVAILABLE');
-await probe('no exposed root application','/',{},404,/^The page could not be found\n\nNOT_FOUND\n\n[A-Za-z0-9:._-]+\n$/);
-for(const path of ['/api/status','/package.json','/runtime/source-digests.json','/api/send'])await probe('no exposed surface '+path,path,{},404,'NOT_FOUND');
+for(const path of ['/','/api/status','/package.json','/package-lock.json','/vercel.json','/runtime/source-digests.json','/runtime/src/staging/meta-ingress.mjs','/api/index.mjs','/node_modules/pg/package.json','/api/send'])await probe('no exposed surface '+path,path,{},404,'NOT_FOUND');
 await probe('missing signature refused','/api/meta/webhook',{method:'POST',headers:{'content-type':'application/json'},body:'{}'},401,'SIGNATURE_REJECTED');
 await probe('non-JSON refused','/api/meta/webhook',{method:'POST',headers:{'content-type':'text/plain'},body:'{}'},415,'UNSUPPORTED_MEDIA_TYPE');
 await probe('unsupported method refused','/api/meta/webhook',{method:'DELETE'},405,'METHOD_NOT_ALLOWED');
