@@ -1,7 +1,9 @@
 name: MUSITU Axiom Public Plugin Gate V4 Cutover V3
+# OpenAI v4 public-surface restoration run; sealed main remains untouched.
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     paths:
       - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
@@ -58,14 +60,14 @@ jobs:
           PY
       - name: Execute repaired full v4 certification
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           python /tmp/musitu-v4-certification.py
       - name: Upload sealed public Plugin evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-public-plugin-v4-v3
