@@ -18,7 +18,7 @@ async function probe(name,path,options,status,body){
  console.log('MUSITU_ISOLATED_HTTP_CASE='+JSON.stringify(results.at(-1)));
 }
 await probe('unconfigured webhook refuses verification','/api/meta/webhook?hub.mode=subscribe&hub.verify_token=qualification-not-a-secret&hub.challenge=123',{},503,'DEVELOPMENT_CHANNEL_UNAVAILABLE');
-for(const path of ['/','/api/status','/package.json','/package-lock.json','/vercel.json','/runtime/source-digests.json','/runtime/src/staging/meta-ingress.mjs','/api/index.mjs','/node_modules/pg/package.json','/api/send'])await probe('no exposed surface '+path,path,{},404,'NOT_FOUND');
+for(const path of ['/','/robots.txt','/api/status','/package.json','/package-lock.json','/vercel.json','/runtime/source-digests.json','/runtime/src/staging/meta-ingress.mjs','/api/index.mjs','/node_modules/pg/package.json','/api/send'])await probe('no exposed surface '+path,path,{},404,'NOT_FOUND');
 await probe('missing signature refused','/api/meta/webhook',{method:'POST',headers:{'content-type':'application/json'},body:'{}'},401,'SIGNATURE_REJECTED');
 await probe('non-JSON refused','/api/meta/webhook',{method:'POST',headers:{'content-type':'text/plain'},body:'{}'},415,'UNSUPPORTED_MEDIA_TYPE');
 await probe('unsupported method refused','/api/meta/webhook',{method:'DELETE'},405,'METHOD_NOT_ALLOWED');
