@@ -63,14 +63,22 @@ The final acceptance must include genuine owner/staff login, another business, r
 
 ## Secure continuation
 
-Meta currently requires the account owner to confirm the developer profile. Finish that provider-owned secure step in the handed-over cloud tab; never put passwords, recovery codes or identity documents in ordinary chat. Resume developer access only after a fresh browser observation confirms access. Preserve Nexus's existing app/webhook. Vercel browser sign-in is also outstanding; hosting sign-in does not configure the separate business OIDC realm.
+Meta developer access and app creation are complete. Use isolated app **MUSITU AI Employee Dev**, ID `1096094346481018`; preserve Nexus app `1775810357073694`. Its official test panel displays phone-number ID `1292923853915392` and messaging account ID `1955690452095441`. Access token generation, owner-controlled recipient verification and SaaS callback binding remain outstanding. Enter secrets through secure provider environments, never ordinary chat or source files. The displayed test-panel completion badges do not qualify delivery.
 
-Current tested application commit: `53ac8f43e39c5483833ce20476ed4f32b587a244`; protected deployment `dpl_E3UeRmeDpV8hCi65yxjptSryMoBs`. Hosted PostgreSQL run `9a37f9bc-5642-4689-a6ab-3522cf1d0066`: 26 pass / 0 fail. Local suite: 211 pass / 0 fail. All live release gates remain on hold.
+Vercel browser sign-in remains outstanding; hosting sign-in does not configure the separate business OIDC realm. Current local suite is 217/217; native PostgreSQL checks are 26/26.
 
-## Meta app creation hold and callback boundary
-
-Meta access is available. The creation overview is prepared for MUSITU AI Employee Dev, official WhatsApp use case, existing unverified MFT Education NEXUS portfolio. Final submission accepts Meta Platform Terms and Developer Policies and remains pending human approval. Do not record an app ID or reuse Nexus's tokens before the separate app exists. After approval, obtain the new app's development number/binding and enter secrets through the secure provider environment.
+## Meta callback boundary
 
 The shared callback handler has separate 5-second body and 15-second persistence deadlines, a 256KiB streamed limit and distinct 413/408/401/422/503 responses. A timed-out DB operation can still commit; use persistent replay guards and never treat the timeout as proof of rollback. Keep the dashboard's outer authentication protection. A dedicated authenticated-by-signature ingress/access policy is still needed for genuine Meta callbacks. Do not expose the dashboard to make callback verification work.
 
 Latest private deployment: `dpl_E33kbx9Zuh4DXggDv3mYy2Kybv9a`, tested source `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`, hosted native run `44566905-ee42-47e9-8d4a-fd11ead7cf88`. Local tests 217/217; native checks 26/26. Deployment URL is recorded in the current execution status and release metadata. Final follow-up commits may contain documentation/evidence only.
+
+## Standalone development callback package
+
+Regenerate with `node scripts/prepare-meta-ingress.mjs` and verify with `node scripts/prepare-meta-ingress.mjs --check` after any shared ingress source change. The package at `deployments/meta-ingress` has a separate locked PostgreSQL-only dependency set. Its catch-all hosting rewrite enters one handler that admits only the exact `/api/meta/webhook` path. No dashboard, OIDC session APIs, health details, source/static files or send routes belong in this deployment.
+
+Use the separate Vercel project `prj_r1ttVnVrld13OGqBwVWM7LpNagq2`, named `musitu-whatsapp-dev-ingress-20261015`, with Node 24, framework null and root `products/musitu-whatsapp-phase1/deployments/meta-ingress`. The receiver intentionally uses signature/token authentication instead of hosting SSO so Meta can reach it. The original dashboard project must retain SSO protection on all deployments. This is a provider callback, not a public SaaS launch.
+
+Do not transfer runtime-owner credentials, `DATABASE_URL`, OIDC/session keys or model tokens into this project. Only the ingress-role URL, channel bindings, exact development recipient allowlist, app-specific webhook secret, verification token, privacy key and content key are needed. Generate a verification token separately from Meta API access tokens. No sending capability exists in this receiver. Until these values are present it returns 503 to verification; no live admission is claimed.
+
+Project creation with explicit Build Machines was rejected by the existing plan (400 `err_build_machines_not_available`). Creating with provider defaults succeeded. No plan change or paid build option was selected.

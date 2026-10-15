@@ -3,7 +3,7 @@
   "phase1_complete": false,
   "public_release_authorized": false,
   "local_tests": {
-    "pass": 217,
+    "pass": 220,
     "fail": 0
   },
   "hosted_postgres_tests": {
@@ -16,13 +16,17 @@
   "restricted_native_roles_rls": "PASS",
   "latest_schema_backup_restore": "BLOCKED_SNAPSHOT_CAPACITY",
   "authenticated_chromium": "BLOCKED_VERCEL_SIGN_IN_AND_OIDC_SETUP",
-  "live_meta": "UNVERIFIED",
+  "live_meta": "APP_CREATED_TEST_NUMBER_OBSERVED_NO_SEND_OR_CALLBACK",
   "live_model": "UNVERIFIED",
   "axiom_connector_arithmetic": "PASS_SINGLE_OPERATION",
   "axiom_saas_service_identity": "UNVERIFIED",
   "required_release_gates": "REMAIN_BLOCKED",
   "latest_schema_branch_recovery_checkpoint": "PASS_20_RELATION_CHECKSUMS_AND_RESTRICTED_LOGIN",
   "provider_logout": "IMPLEMENTED_LOCAL_TESTED_LIVE_UNVERIFIED",
-  "meta_account_access": "AVAILABLE_CREATION_HELD_FOR_TERMS_ACCEPTANCE",
-  "meta_http_boundary": "LOCAL_6_CASES_PASS_LIVE_META_UNVERIFIED"
+  "meta_account_access": "AVAILABLE_APP_CREATED",
+  "meta_http_boundary": "LOCAL_6_CASES_PASS_LIVE_META_UNVERIFIED",
+  "meta_development_app_id": "1096094346481018",
+  "meta_test_number_observed": true,
+  "meta_access_token": "NOT_GENERATED",
+  "isolated_callback_receiver": "IMPLEMENTED_LOCAL_3_CASES_PASS_DEPLOYMENT_PENDING"
 }

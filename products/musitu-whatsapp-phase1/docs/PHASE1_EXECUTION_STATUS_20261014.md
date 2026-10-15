@@ -69,7 +69,7 @@ A current-schema Neon branch copy, `br-autumn-rain-b4saskvl`, was created from `
 
 The account rejected a custom suspend interval (HTTP 412); retrying with the free plan's defaults succeeded without a plan change. Evidence: `evidence/20261014/latest-schema-recovery-checkpoint.json`.
 
-## Latest hosted execution and account blocker
+## Historical account blocker (resolved; see current continuation)
 
 The updated deployment is READY at application commit `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`. Native hosted run `9a37f9bc-5642-4689-a6ab-3522cf1d0066` passed 26 checks with zero failures. Actual HTTP responses: `/api/status` returns 200 with `databaseHealthy:true`, and absent-session business metrics return 403 `ACCESS_DENIED`.
 
@@ -77,7 +77,7 @@ Meta developer access now displays **Account confirmation needed**, citing unusu
 
 Live model, IdP, provider delivery and AXIOM application identity remain unverified. New session logout and stale-view tests are local tests, not live account acceptance.
 
-## Continuation: isolated Meta app preparation
+## Historical app preparation (completed; see current continuation)
 
 Meta developer access became available on the next check. The account lists only MFT AI NEXUS; no separate SaaS app exists. Prepared **MUSITU AI Employee Dev** with the official **Connect with customers through WhatsApp** use case under the existing **MFT Education NEXUS** business portfolio. The portfolio is shown as unverified. The app is still a creation draft: no new app ID, token, test number, webhook or send has been provisioned.
 
@@ -86,3 +86,13 @@ The final Create app step states that proceeding accepts Meta Platform Terms, De
 The actual staging webhook now uses the shared `meta-development-http` adapter. Streamed oversize requests return 413 even with misleading Content-Length, stalled bodies return 408, invalid signatures return 401, unsupported methods/media are refused, and uncertain persistence remains retryable 503. A 200 means admission, never outgoing delivery. Six independent local HTTP boundary cases pass; the full local suite is now 217/217 with no skips, and the Next.js build passes. No genuine Meta callback is claimed. Verification tokens must be 32–256 characters; use a generated secret in the staging secret manager.
 
 Latest tested callback source: `4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf`. Hosted native run `44566905-ee42-47e9-8d4a-fd11ead7cf88`: 26 pass, 0 fail. Actual HTTP database health is good, absent-session data access returns 403, and unconfigured Meta verification returns 503. No Meta terms were accepted, no new Meta app was created and no live message was sent. This supersedes the earlier account-confirmation blocker: developer access is available; final app-creation terms acceptance is pending.
+
+## Current continuation: 15 October 2026
+
+After the owner authorized the prepared creation step and completed Meta password reauthentication through secure browser authentication, **MUSITU AI Employee Dev** was created: app ID `1096094346481018`, existing portfolio `2069296827284277`. The earlier account-confirmation and creation-approval holds are resolved. Nexus app `1775810357073694` was not changed. The SaaS app remains unpublished.
+
+The official Step 1 test panel displays test number **+1 (555) 663-7079**, phone-number ID `1292923853915392`, and messaging account ID `1955690452095441`. The access-token field explicitly says **Not generated yet**, no recipient is selected, and no message was sent by this execution. UI completion badges and an existing account-update row are not evidence of SaaS message delivery or genuine callbacks. The number/account may be portfolio-associated; a newly unique number is not claimed.
+
+Current credential-dependent work: generate the isolated development token, obtain the new app secret through secure provider custody, verify a designated owner-controlled recipient, and configure a separate signed callback ingress. Never reuse Nexus tokens or expose the protected dashboard. Evidence: `evidence/20261015/meta-development-app.json` and the retained browser screenshot.
+
+A separate minimal Node.js callback package now contains only the shared webhook import closure, PostgreSQL dependency, and an exact `/api/meta/webhook` handler. Other paths return 404 with no-store/noindex headers. The generated runtime is byte-checked against its shared source and rejects unexpected packaged files. Three new local cases pass (220 total); these are not genuine Meta tests. Receiver deployment is pending.
