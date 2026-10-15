@@ -12,5 +12,5 @@ function inspect(dir){
   }
  }
 }
-for(const dir of ['src','test','scripts','deployments/meta-ingress/api','deployments/meta-ingress/runtime'])inspect(join(root,dir));
+for(const dir of ['src','test','scripts','deployments/meta-ingress/api','deployments/meta-ingress/runtime','deployments/meta-ingress/scripts'])inspect(join(root,dir));
 console.log(`ALL_MJS_SYNTAX_PASS (${count} files)`);
