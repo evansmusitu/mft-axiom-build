@@ -15,6 +15,7 @@ async function probe(name,path,options,status,body){
  assert.equal(headers['x-content-type-options'],'nosniff');assert.equal(headers['x-robots-tag'],'noindex, nofollow, noarchive');
  assert.match(headers['content-security-policy'],/default-src 'none'/);
  results.push({name,status:result.status,body:text,headers});
+ console.log('MUSITU_ISOLATED_HTTP_CASE='+JSON.stringify(results.at(-1)));
 }
 await probe('unconfigured webhook refuses verification','/api/meta/webhook?hub.mode=subscribe&hub.verify_token=qualification-not-a-secret&hub.challenge=123',{},503,'DEVELOPMENT_CHANNEL_UNAVAILABLE');
 for(const path of ['/','/api/status','/package.json','/package-lock.json','/vercel.json','/runtime/source-digests.json','/runtime/src/staging/meta-ingress.mjs','/api/index.mjs','/node_modules/pg/package.json','/api/send'])await probe('no exposed surface '+path,path,{},404,'NOT_FOUND');
@@ -25,4 +26,4 @@ await probe('malformed signature refused before oversized body','/api/meta/webho
 // A syntactically valid signature lets the boundary check the size before
 // accessing missing credentials. This still never passes HMAC authentication.
 await probe('oversize with well-formed signature refused','/api/meta/webhook',{method:'POST',headers:{'content-type':'application/json','x-hub-signature-256':'sha256='+'0'.repeat(64)},body:' '.repeat(262145)},413,'BODY_TOO_LARGE');
-console.log('MUSITU_ISOLATED_HTTP_QUALIFICATION='+JSON.stringify({runId:randomUUID(),observedAt:new Date().toISOString(),target:target.origin,scope:'GENUINE_HOSTED_HTTP_NO_META_PROVIDER_OR_DATABASE_ADMISSION',pass:results.length,fail:0,requestsCarryCredentials:false,results}));
+console.log('MUSITU_ISOLATED_HTTP_QUALIFICATION='+JSON.stringify({runId:randomUUID(),observedAt:new Date().toISOString(),target:target.origin,scope:'GENUINE_HOSTED_HTTP_NO_META_PROVIDER_OR_DATABASE_ADMISSION',pass:results.length,fail:0,requestsCarryCredentials:false}));
