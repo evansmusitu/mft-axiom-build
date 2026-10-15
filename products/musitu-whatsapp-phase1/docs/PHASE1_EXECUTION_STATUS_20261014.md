@@ -1,5 +1,7 @@
 # MUSITU WhatsApp AI Employee — private Phase 1 execution status
 
+Historical checkpoint. Current status and superseding evidence: [15 October report](PHASE1_EXECUTION_STATUS_20261015.md). Statements below describe earlier execution states.
+
 **Phase 1 remains IN PROGRESS. No public launch or customer messaging is authorized.**
 
 Original v1.7.0 archive: `MUSITU_WHATSAPP_PHASE1_PER_LEASE_PRIVACY_V17_2026-10-13.zip`.

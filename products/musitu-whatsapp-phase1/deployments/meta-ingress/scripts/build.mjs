@@ -6,7 +6,7 @@ import {execFileSync} from 'node:child_process';
 await mkdir(new URL('../public/',import.meta.url),{recursive:true});
 await writeFile(new URL('../public/robots.txt',import.meta.url),'User-agent: *\nDisallow: /\n');
 if(process.argv[2]==='--configure-meta-webhook')execFileSync(process.execPath,[new URL('./configure-meta-app-webhook.mjs',import.meta.url).pathname,process.argv[3]],{stdio:'inherit'});
-else if(process.argv[2]==='--app-webhook')execFileSync(process.execPath,[new URL('./read-meta-app-webhook.mjs',import.meta.url).pathname],{stdio:'inherit'});
+else if(process.argv[2]==='--app-webhook')execFileSync(process.execPath,[new URL('./read-meta-app-webhook.mjs',import.meta.url).pathname,...(process.argv[3]?[process.argv[3]]:[])],{stdio:'inherit'});
 else if(process.argv[2]==='--configured')execFileSync(process.execPath,[new URL('./qualify-configured-receiver.mjs',import.meta.url).pathname,process.argv[3]],{stdio:'inherit'});
 else if(process.argv[2])execFileSync(process.execPath,[new URL('./qualify-receiver.mjs',import.meta.url).pathname,process.argv[2]],{stdio:'inherit'});
 console.log('MUSITU_INGRESS_BUILD: robots-only static directory; callback function only');

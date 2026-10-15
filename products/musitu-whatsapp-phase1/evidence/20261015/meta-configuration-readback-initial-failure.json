@@ -1,0 +1,19 @@
+{
+  "scope": "GENUINE_META_APP_POST_ACCEPTED_IMMEDIATE_READBACK_FAILED",
+  "deployment": "dpl_3XWMsCBUPc8AGZtLu53dkqhvLMsN",
+  "events": [
+    {
+      "created": 1792089322983,
+      "date": 1792089322983,
+      "type": "stdout",
+      "text": "MUSITU_META_APP_CONFIGURATION_FAILURE={\"appId\":\"1096094346481018\",\"code\":\"META_SUBSCRIPTION_READBACK_FAILED\",\"noMessageSent\":true}",
+      "info": {
+        "type": "build",
+        "name": "bld_4rpbln7l1",
+        "entrypoint": "."
+      }
+    }
+  ],
+  "laterReadbackEvidence": "real-meta-saved-callback.json",
+  "note": "No retry of the mutating POST was performed. A later independent GET showed active messages subscription and matching callback hash."
+}
