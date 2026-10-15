@@ -16,6 +16,10 @@ export default {
   if(new URL(request.url).pathname!=='/api/meta/webhook')return new Response('NOT_FOUND',{status:404,headers:securityHeaders});
   const result=await handler(request);
   for(const [key,value] of Object.entries(securityHeaders))result.headers.set(key,value);
+  const query=new URL(request.url).searchParams;
+  // Fixed-size operational metadata only: no URL, token, signature, sender,
+  // message content, IP address or caller-controlled query-key text is logged.
+  console.log(JSON.stringify({event:'MUSITU_META_CALLBACK_HTTP',method:['GET','POST'].includes(request.method)?request.method:'OTHER',status:result.status,queryCount:query.size,modeKeyCount:query.getAll('hub.mode').length,tokenKeyCount:query.getAll('hub.verify_token').length,challengeKeyCount:query.getAll('hub.challenge').length}));
   return result;
  }
 };
