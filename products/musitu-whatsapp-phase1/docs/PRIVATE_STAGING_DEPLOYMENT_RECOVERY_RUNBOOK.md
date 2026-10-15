@@ -65,13 +65,13 @@ The final acceptance must include genuine owner/staff login, another business, r
 
 Meta developer access, app creation, test-account-only OAuth grant, development token, verified owner recipient and app callback are configured. Use isolated app **MUSITU AI Employee Dev**, ID `1096094346481018`; preserve Nexus app `1775810357073694`. Test phone ID `1292923853915392` belongs to Test WABA `1955690452095441`, verified through a genuine Graph read. The API token belongs only in the protected application, never the receiver. No WABA subscriptions were changed. Enter credentials through secure provider environments, never ordinary chat or source files. Token expiry/renewal remains unqualified.
 
-Authenticated browser acceptance remains outstanding; hosting sign-in does not configure the separate business OIDC realm. Current local suite is 225/225; native PostgreSQL checks are 26/26 (last full run 14 October). The OpenAI Platform connector rejected its authenticated key-target request; no model key or charge was created.
+Chromium rendered the private overview and conversation access boundary, but business sign-in navigation was blocked by browser URL policy and was not bypassed. Authenticated business acceptance remains outstanding; hosting access does not configure the separate OIDC realm. Current local suite is 225/225; native PostgreSQL checks passed 26/26 again on 15 October. The OpenAI Platform connector rejected its authenticated key-target request; no model key or billable model request was created.
 
 ## Meta callback boundary
 
 The shared callback handler has separate 5-second body and 15-second persistence deadlines, a 256KiB streamed limit and distinct 413/408/401/422/503 responses. A timed-out DB operation can still commit; use persistent replay guards and never treat the timeout as proof of rollback. GET verification allows bounded optional Meta metadata, requires each hub field exactly once, validates mode/challenge and uses constant-time token comparison. Do not restore an exactly-three-query-fields condition: genuine Meta sends six parameters. Keep the dashboard's outer authentication protection.
 
-Protected application deployment: `dpl_5nWo1kUdRMoKEWbKhCZCBkWHmoDv`, source `9f4d901490666faa9d4f1b9e47268178bf1b5598`. Hosted native run `44566905-ee42-47e9-8d4a-fd11ead7cf88` remains the last full database qualification. Deployment URLs and evidence scopes are recorded in the 15 October execution status.
+Protected application deployment: `dpl_3pGQrhWd6upHDDebPmZLcXq9K44N`, source `8323922105380492b883e98be9bdc1dcb13055a7`. Hosted native run `f4b9b1ce-cd9e-41af-8a54-6a2e4a5b0dee` passed 26 checks on 15 October. Its complete report is retained at `evidence/20261015/real-postgres-qualification-final.json`; it was retrieved through an authenticated provider fetch, not used as proof of unauthenticated access. Deployment URLs and evidence scopes are recorded in the 15 October execution status.
 
 ## Standalone development callback package
 

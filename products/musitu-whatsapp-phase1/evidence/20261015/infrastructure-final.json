@@ -1,0 +1,44 @@
+{
+  "observedAt": "2026-10-15T18:50:47.818Z",
+  "scope": "ACTUAL_PROVIDER_READBACK_AND_SUCCESSFUL_EXPLICIT_BUILD_COMMAND_RESTORE",
+  "projects": [
+    {
+      "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+      "name": "musitu-whatsapp-phase1-private-20261014",
+      "ssoProtection": {
+        "enabled": true,
+        "deploymentType": "all"
+      },
+      "framework": "nextjs",
+      "nodeVersion": "24.x"
+    },
+    {
+      "id": "prj_mHTGlXe8GPj4WEFeGgXdAIh6H0aL",
+      "name": "musitu-whatsapp-meta-receiver-20261015",
+      "ssoProtection": {
+        "enabled": false,
+        "deploymentType": null
+      },
+      "framework": null,
+      "nodeVersion": "24.x"
+    },
+    {
+      "id": "prj_r1ttVnVrld13OGqBwVWM7LpNagq2",
+      "name": "musitu-whatsapp-dev-ingress-20261015",
+      "ssoProtection": {
+        "enabled": true,
+        "deploymentType": "all"
+      },
+      "framework": null,
+      "nodeVersion": "24.x"
+    }
+  ],
+  "applicationDeployment": "dpl_3pGQrhWd6upHDDebPmZLcXq9K44N",
+  "applicationBuild": "node scripts/staging-postgres-qualification.mjs && npm run build",
+  "applicationBuildState": "READY",
+  "configuredCallbackDeployment": "dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd",
+  "receiverDefaultBuildRestored": "node scripts/build.mjs",
+  "receiverRoutes": "Strict callback-only catch-all before filesystem; robots-only static output",
+  "credentials": "Encrypted Preview values; role-restricted database URLs; no owner credentials in runtime; receiver API token value empty",
+  "limits": "Project readback exposes SSO/framework/Node metadata but omits some build-setting fields. Explicit successful update and actual build logs support build-command records. Backup/alerts/live IdP/model acceptance still incomplete."
+}
