@@ -12,7 +12,9 @@ export function createDevelopmentMetaHandler({getIngress,getVerifyToken,maxBytes
     getIngress();
     const token=getVerifyToken();if(typeof token!=='string'||token.length<32||token.length>256)throw Error('META_VERIFY_TOKEN_REJECTED');
     const p=new URL(req.url).searchParams;
-    if(p.size!==3||['hub.mode','hub.verify_token','hub.challenge'].some(k=>p.getAll(k).length!==1))return reply('INVALID_VERIFY_REQUEST',400);
+    // Meta includes optional verification metadata. Authenticate only the three
+    // required, unambiguous fields; bound the total request independently.
+    if(req.url.length>8192||p.size>32||['hub.mode','hub.verify_token','hub.challenge'].some(k=>p.getAll(k).length!==1))return reply('INVALID_VERIFY_REQUEST',400);
     if(p.get('hub.mode')!=='subscribe'||!timingSafeEqual(digest(p.get('hub.verify_token')||''),digest(token)))return reply('FORBIDDEN',403);
     const challenge=p.get('hub.challenge');if(!/^[A-Za-z0-9_.~-]{1,256}$/.test(challenge||''))return reply('INVALID_CHALLENGE',400);
     return reply(challenge,200);

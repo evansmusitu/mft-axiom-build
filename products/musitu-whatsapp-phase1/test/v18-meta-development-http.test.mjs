@@ -6,13 +6,23 @@ const secret='synthetic-development-app-secret',token='synthetic-verification-to
 const sign=raw=>'sha256='+createHmac('sha256',secret).update(raw).digest('hex');
 const post=(body,headers={})=>new Request('https://callback.example.invalid/api/meta/webhook',{method:'POST',headers:{'content-type':'application/json','x-hub-signature-256':sign(body),...headers},body});
 const handler=(ingest,options={})=>createDevelopmentMetaHandler({getIngress:()=>({ingest}),getVerifyToken:()=>token,...options});
-test('development verification is exact and requires complete configuration and a strong token',async()=>{
+test('development verification authenticates exact required fields and requires complete configuration and a strong token',async()=>{
  const h=handler(async()=>{}),query=new URLSearchParams({'hub.mode':'subscribe','hub.verify_token':token,'hub.challenge':'12345'});
  let r=await h(new Request('https://callback.example.invalid/?'+query));assert.equal(r.status,200);assert.equal(await r.text(),'12345');assert.equal(r.headers.get('cache-control'),'no-store');
  assert.equal((await h(new Request('https://callback.example.invalid/?'+query+'&hub.challenge=2'))).status,400);
  query.set('hub.verify_token','wrong');assert.equal((await h(new Request('https://callback.example.invalid/?'+query))).status,403);
  assert.equal((await handler(async()=>{},{getIngress:()=>{throw Error('NOT_CONFIGURED');}})(new Request('https://callback.example.invalid/?'+query))).status,503);
  assert.equal((await handler(async()=>{},{getVerifyToken:()=>''})(new Request('https://callback.example.invalid/?'+query))).status,503);
+});
+test('Meta verification tolerates bounded optional metadata without weakening authentication or duplicate rejection',async()=>{
+ const h=handler(async()=>{}),query=new URLSearchParams({'hub.mode':'subscribe','hub.verify_token':token,'hub.challenge':'12345',metadata1:'a',metadata2:'b',metadata3:'c'});
+ let r=await h(new Request('https://callback.example.invalid/?'+query));assert.equal(r.status,200);assert.equal(await r.text(),'12345');
+ for(const key of ['hub.mode','hub.verify_token','hub.challenge'])assert.equal((await h(new Request('https://callback.example.invalid/?'+query+'&'+key+'=duplicate'))).status,400);
+ query.set('hub.verify_token','wrong');assert.equal((await h(new Request('https://callback.example.invalid/?'+query))).status,403);
+ query.set('hub.verify_token',token);query.set('hub.mode','unsubscribe');assert.equal((await h(new Request('https://callback.example.invalid/?'+query))).status,403);
+ query.set('hub.mode','subscribe');query.set('hub.challenge','<unsafe>');assert.equal((await h(new Request('https://callback.example.invalid/?'+query))).status,400);
+ query.set('hub.challenge','12345');for(let i=0;i<33;i++)query.append('extra'+i,'x');assert.equal((await h(new Request('https://callback.example.invalid/?'+query))).status,400);
+ const long=new URLSearchParams({'hub.mode':'subscribe','hub.verify_token':token,'hub.challenge':'12345',metadata:'x'.repeat(8192)});assert.equal((await h(new Request('https://callback.example.invalid/?'+long))).status,400);
 });
 test('streamed oversize with a misleading Content-Length returns 413 before any ingestion',async()=>{
  let calls=0;const raw='x'.repeat(200),h=handler(async()=>{calls++;},{maxBytes:100});
