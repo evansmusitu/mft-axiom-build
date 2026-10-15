@@ -2,14 +2,15 @@
 
 **Phase 1 is IN PROGRESS; public release and customer messaging remain disabled.**
 
-The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **220 local automated tests** and **26 hosted native PostgreSQL checks** pass. Signed provider events in qualification are synthetic; live Meta, Keycloak and model acceptance remain pending.
+The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **220 local automated tests** and **26 hosted native PostgreSQL checks** pass. The separate Meta callback receiver additionally passes **17 genuine hosted HTTP boundary checks**. Signed provider events in database qualification are synthetic; live Meta, Keycloak and model acceptance remain pending.
 
 - [Current execution status and blockers](docs/PHASE1_EXECUTION_STATUS_20261014.md)
 - [Private deployment and recovery runbook](docs/PRIVATE_STAGING_DEPLOYMENT_RECOVERY_RUNBOOK.md)
-- [Real PostgreSQL results](evidence/20261014/real-postgres-qualification-extended.json)
+- [Real PostgreSQL results](evidence/20261014/real-postgres-qualification-meta-http.json)
+- [Real hosted callback HTTP checks](evidence/20261015/hosted-isolated-http-final.json)
 - [Isolated draft PR](https://github.com/evansmusitu/mft-axiom-build/pull/29)
 
-Use Node 24 and `npm ci --ignore-scripts`, `npm test`, `npm run build`. Hosted qualification requires the named disposable Neon sandbox and restricted encrypted environment credentials; never substitute production or owner runtime credentials. Vercel authentication protects all deployments. Business authentication additionally requires an independently configured OIDC provider; hosting protection does not substitute for employee identity.
+Use Node 24 and `npm ci --ignore-scripts`, `npm test`, `npm run build`. Hosted qualification requires the named disposable Neon sandbox and restricted encrypted environment credentials; never substitute production or owner runtime credentials. Vercel authentication protects all dashboard deployments. The separately deployed callback receiver accepts only verified development webhook traffic and remains unavailable until its Meta credentials, tenant bindings and recipient allowlist are configured. Business authentication additionally requires an independently configured OIDC provider; hosting protection does not substitute for employee identity.
 
 ## Preserved v1.7.0 development history
 

@@ -21,6 +21,7 @@ for(const entry of entries){
 function checkComplete(dir){
  for(const item of readdirSync(resolve(root,dir),{withFileTypes:true})){
   const child=join(dir,item.name);
+  if(child==='deployments/meta-ingress/public'||child==='deployments/meta-ingress/node_modules')continue;
   if(item.name==='__pycache__')continue;
   if(item.isDirectory())checkComplete(child);
   else if(item.isFile()&&!item.name.endsWith('.pyc')){
@@ -28,5 +29,5 @@ function checkComplete(dir){
   }else if(item.isSymbolicLink())throw new Error(`SOURCE_SYMLINK_NOT_ALLOWED:${child}`);
  }
 }
-for(const sourceRoot of ['src','test','scripts','db','.github','app','public'])checkComplete(sourceRoot);
+for(const sourceRoot of ['src','test','scripts','db','.github','app','public','deployments/meta-ingress'])checkComplete(sourceRoot);
 console.log(`LOCAL_SOURCE_MANIFEST_PASS (${listed.size} tracked files; source tree completeness checked)`);
