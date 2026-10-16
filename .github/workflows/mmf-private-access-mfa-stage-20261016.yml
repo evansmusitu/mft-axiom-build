@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   mfa-readback:
-    if: github.event.before == '8659830d52e33d47d0b0a1384d5d5714e192beb7'
+    if: github.event.before == '35502c8c787d4711de0b9e3ab1c7e475d23fa62c'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -60,6 +60,8 @@ jobs:
            // Only an app which denies EVERY user can be modified.
            const options={...readback,mfa_config:{mfa_disabled:false,session_duration:'15m',
               allowed_authenticators:['totp','security_key']}};
+           // Cloudflare rejects serializing the readback WARP default when no WARP session is configured.
+           delete options.allow_authenticate_via_warp;
            evidence.mfaUpdateAttempted=true;
            const response=await fetch(root+'apps/'+id,{method:'PUT',headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},redirect:'error',signal:AbortSignal.timeout(15000),body:JSON.stringify(options)});
            evidence.updateHttpStatus=response.status;
