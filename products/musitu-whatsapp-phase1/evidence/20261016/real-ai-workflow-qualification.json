@@ -1,0 +1,127 @@
+{
+  "runId": "1898f673-a042-4f4c-97ed-a1cbbfff4688",
+  "observedAt": "2026-10-16T05:34:04.668Z",
+  "scope": "ISOLATED_AI_WORKFLOW_REAL_POSTGRES_ONE_REAL_GROQ_CALL_OTHER_FAILURES_INJECTED",
+  "liveCalls": 1,
+  "passed": 14,
+  "failed": 0,
+  "results": [
+    {
+      "name": "role_policy_and_readonly_ai_ledgers",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": {
+        "role": "musitu_runtime",
+        "tablesChecked": 21,
+        "policiesChecked": 21,
+        "qualified": true
+      }
+    },
+    {
+      "name": "fresh_synthetic_ai_fixtures_required",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "signed_synthetic_messages_persist_encrypted",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": {
+        "source": "LOCALLY_SIGNED_SYNTHETIC_NOT_META"
+      }
+    },
+    {
+      "name": "disabled_by_default_and_owner_only_enable",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "cross_tenant_actor_and_viewer_denied",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "daily_limit_is_durable_and_cannot_be_reset_by_policy_toggle",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "changed_knowledge_blocks_draft_completion",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "revocation_during_inference_blocks_completion",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "foreign_source_and_invalid_usage_cannot_create_draft",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "real_groq_and_real_postgres_persist_review_only_draft",
+      "scope": "REAL_GROQ_REAL_POSTGRES_SYNTHETIC_MESSAGE_NOT_HTTP_E2E",
+      "status": "PASS",
+      "detail": {
+        "requestId": "d240bbe7-6103-46f8-b2bd-6b487fe1e943",
+        "usage": {
+          "outcome": "RESPONSE_PARSED",
+          "attempts": 1,
+          "httpStatus": 200,
+          "inputTokens": 266,
+          "totalTokens": 324,
+          "outputTokens": 58
+        },
+        "sessionScope": "INJECTED_SYNTHETIC_ACTOR_NOT_OIDC"
+      }
+    },
+    {
+      "name": "concurrent_replay_and_new_pool_do_not_call_groq_again",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": {
+        "replayedRequests": 3,
+        "newPool": true,
+        "databaseRestart": false,
+        "liveCalls": 1
+      }
+    },
+    {
+      "name": "unknown_usage_latches_tenant_closed_without_retry",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": {
+        "transport": "INJECTED_429_NOT_PROVIDER_FAILURE",
+        "state": "UNKNOWN"
+      }
+    },
+    {
+      "name": "new_ai_ledgers_deny_missing_invalid_and_other_tenant_context",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "signed_stop_blocks_subsequent_ai_admission",
+      "scope": "REAL_POSTGRES_SYNTHETIC_FIXTURE_NO_PROVIDER_CALL",
+      "status": "PASS",
+      "detail": null
+    }
+  ],
+  "realOidc": false,
+  "realMetaInbound": false,
+  "whatsappSends": 0,
+  "deploymentId": "dpl_JBBBfBbNgp8VeteWsiKH4HxQHWnz",
+  "sourceCommit": "cf0fa19f29ec34b77e52a95f53c67b15fac091c6",
+  "authenticatedHostingFetch": true,
+  "publicAccessClaim": false
+}
