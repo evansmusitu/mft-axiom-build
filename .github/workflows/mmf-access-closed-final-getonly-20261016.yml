@@ -1,0 +1,90 @@
+name: MMF Access Closed State Final Readback 20261016
+# One-time real Cloudflare GET-only confirmation after denied MFA configuration attempts.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-access-closed-final-getonly-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  attestation:
+    if: github.event.before == '65dc7f64c79b8f995882c6eaae119794f81bdbf3'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify Access app, no allow policies and no public MMF route or DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';import {join} from 'node:path';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN;
+          const host='mail-stage.mftintelligence.com',label='MUSITU Mail Fabric closed private stage (deny all)';
+          const result={schema:'mmf-access-closed-getonly-final-v1',observedAt:new Date().toISOString(),
+             host,readOnly:true,appPresent:false,denyAllPoliciesVerified:false,
+             noExactDnsRecordVerified:false,noOverlappingWorkerRouteVerified:false,
+             noWorkerCustomDomainVerified:false,mfaConfiguredVerified:false,
+             oidcClientVerified:false,liveUserSignInVerified:false,customerSendingEnabled:false,
+             paymentsEnabled:false,productionAuthorized:false,mutationCount:0,
+             gate:'MMF_CLOSED_ACCESS_STATE_NOT_PROVEN'};
+          const persist=()=>writeFileSync(join(process.env.RUNNER_TEMP,'mmf-access-closed-final-getonly.json'),
+             JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o600});
+          if(a!=='93f395f5121954671f92fffa453d6b61'||!t||t.length<20)throw Error('MMF_AUTH_UNAVAILABLE');
+          let reads=0;
+          const get=async p=>{reads++;
+            const r=await fetch('https://api.cloudflare.com/client/v4/'+p,{method:'GET',
+              headers:{authorization:'Bearer '+t,accept:'application/json'},cache:'no-store',
+              redirect:'error',signal:AbortSignal.timeout(15000)});
+            if(!r.ok||r.redirected)throw Error('MMF_API_GET_DENIED');
+            const text=await r.text();if(text.length>120000)throw Error('MMF_GET_TOO_LARGE');
+            const j=JSON.parse(text);if(j.success!==true||!Object.hasOwn(j,'result')||j.result_info?.total_pages>1)throw Error('MMF_GET_INCOMPLETE');
+            return j.result;};
+          try{
+            const prefix='accounts/'+a+'/access/';
+            const [apps,zones,domains]=await Promise.all([
+              get(prefix+'apps'),get('zones?name=mftintelligence.com&per_page=20'),
+              get('accounts/'+a+'/workers/domains')]);
+            const matches=Array.isArray(apps)?apps.filter(x=>x?.name===label&&x?.domain===host):[];
+            if(matches.length!==1||matches[0].type!=='self_hosted'||!Array.isArray(zones)||
+               zones.length!==1||zones[0].account?.id!==a||!Array.isArray(domains))throw Error('MMF_CONTROL_DRIFT');
+            const id=matches[0].id;
+            const [app,policies,dns,routes]=await Promise.all([
+              get(prefix+'apps/'+id),get(prefix+'apps/'+id+'/policies'),
+              get('zones/'+zones[0].id+'/dns_records?name='+host+'&per_page=20'),
+              get('zones/'+zones[0].id+'/workers/routes?per_page=100')]);
+            result.appPresent=app.id===id&&app.domain===host&&app.type==='self_hosted';
+            result.denyAllPoliciesVerified=Array.isArray(policies)&&policies.length===0;
+            result.noExactDnsRecordVerified=Array.isArray(dns)&&dns.length===0;
+            result.noOverlappingWorkerRouteVerified=Array.isArray(routes)&&!routes.some(r=>
+              typeof r?.pattern==='string'&&(r.pattern.includes(host)||r.pattern.startsWith('*.mftintelligence.com')));
+            result.noWorkerCustomDomainVerified=!domains.some(x=>x?.hostname===host||x?.domain===host);
+            result.mfaConfiguredVerified=app.mfa_config?.mfa_disabled===false&&
+              Array.isArray(app.mfa_config?.allowed_authenticators)&&
+              app.mfa_config.allowed_authenticators.includes('totp');
+            result.getCount=reads;
+            result.gate=result.appPresent&&result.denyAllPoliciesVerified&&result.noExactDnsRecordVerified&&
+              result.noOverlappingWorkerRouteVerified&&result.noWorkerCustomDomainVerified?
+              'MMF_CLOSED_ACCESS_APP_REAL_AND_NO_INGRESS':'MMF_CLOSED_ACCESS_GATE_UNVERIFIED';
+            persist();console.log(JSON.stringify({gate:result.gate,appPresent:result.appPresent,
+              denyAll:result.denyAllPoliciesVerified,noIngress:result.noExactDnsRecordVerified&&
+              result.noOverlappingWorkerRouteVerified&&result.noWorkerCustomDomainVerified,
+              mfaConfigured:result.mfaConfiguredVerified,mutations:0}));
+            if(result.gate!=='MMF_CLOSED_ACCESS_APP_REAL_AND_NO_INGRESS')process.exitCode=2;
+          }catch{result.getCount=reads;persist();console.log('MMF_CLOSED_ACCESS_GETONLY_INCONCLUSIVE');process.exitCode=2}
+          NODE
+      - name: Archive sanitized result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-access-final-live-getonly-20261016
+          path: ${{ runner.temp }}/mmf-access-closed-final-getonly.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove transient evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-access-closed-final-getonly.json"
