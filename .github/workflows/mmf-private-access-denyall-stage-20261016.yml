@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   denyall:
-    if: github.event.before == 'f395feb82917dffc5c5bf5065875e980d1caccab'
+    if: github.event.before == '7f1771caa46cde6847636dbe65546aa5d03dbf56'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -89,13 +89,13 @@ jobs:
              type:'self_hosted',domain:host,session_duration:'15m',
              app_launcher_visible:false,auto_redirect_to_identity:false,
              allowed_idps:[idps[0].id],
-             mfa_config:{mfa_disabled:false,session_duration:'0m',allowed_authenticators:['totp','security_key']}};
+             mfa_config:{mfa_disabled:false,session_duration:'15m',allowed_authenticators:['totp','security_key']}};
            const resp=await fetch(root+'accounts/'+a+'/access/apps',{method:'POST',headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(15000)});
            evidence.createHttpStatus=resp.status;
            const s=await resp.text();if(s.length>32768){stop('MMF_ACCESS_CREATE_RESPONSE_OVERSIZE');process.exit()}
            let j;try{j=JSON.parse(s)}catch{stop('MMF_ACCESS_CREATE_INVALID_JSON');process.exit()}
            if(!resp.ok||j.success!==true||!/^[a-f0-9-]{36}$/i.test(j.result?.id||'')){
-             stop('MMF_ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED');process.exit();
+             evidence.errorCodes=Array.isArray(j.errors)?j.errors.map(e=>Number.isInteger(e.code)?e.code:null):[];\n             evidence.errorFields=Array.isArray(j.errors)?j.errors.map(e=>['mfa','domain','idp','policy','session','allow','access','name'].filter(x=>String(e.message||'').toLowerCase().includes(x))):[];\n             stop('MMF_ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED');process.exit();
            }
            evidence.applicationCreated=true;
            const appid=j.result.id;
@@ -103,7 +103,7 @@ jobs:
               get('accounts/'+a+'/access/apps/'+appid),
               get('accounts/'+a+'/access/apps/'+appid+'/policies')]);
            evidence.readbackVerified=readback.id===appid&&readback.domain===host&&readback.type==='self_hosted'&&
-             readback.mfa_config?.mfa_disabled===false&&readback.mfa_config?.session_duration==='0m'&&
+             readback.mfa_config?.mfa_disabled===false&&readback.mfa_config?.session_duration==='15m'&&
              Array.isArray(readback.mfa_config?.allowed_authenticators)&&readback.mfa_config.allowed_authenticators.includes('totp')&&
              Array.isArray(readback.allowed_idps)&&readback.allowed_idps.length===1&&readback.allowed_idps[0]===idps[0].id;
            evidence.zeroAccessPolicies=Array.isArray(policies)&&policies.length===0;
