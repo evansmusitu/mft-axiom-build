@@ -35,3 +35,14 @@ Meta controls the actual eligibility decision. Third-party country-support lists
 No action touches, deregisters, deletes, migrates or replaces +263781572008; no charges/billing/app publication; no modifications to Axiom/Paynow. Production remains **OFF** until a separately authorized cutover. Do not put tokens, six-digit codes, chat history or private customer details in GitHub.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+
+## Owner decision — prefer Coexistence
+
+The owner selected **Option 1 — WhatsApp Coexistence** on 16 October 2026. Interpret this solely as a preference for maintaining the existing mobile WhatsApp service while investigating supported Cloud API integration. It is **not** consent to register, migrate, disconnect or publish the production number, sign a provider contract, enter a paid trial, enable billing or share chat history.
+
+Immediate eligibility checkpoint: independently confirm the production number `+263781572008` is currently active in the official **WhatsApp Business App (B logo)** rather than consumer WhatsApp Messenger. Official Coexistence requires an eligible Business App account; standard Meta production-registration wizard is the *wrong* onboarding path. Consult Meta's Business App onboarding via Embedded Signup or an authorized Tech Provider/Solution Partner's dedicated Coexistence onboarding. Relevant provider documentation: https://docs.360dialog.com/docs/hub/embedded-signup/coexistence-onboarding ; Meta-maintained Embedded Signup API collection: https://www.postman.com/meta/whatsapp-business-platform/documentation/du6gzjv/embedded-signup . Zimbabwe number eligibility, provider costs, and direct forwarding of event webhooks to the existing Cloudflare Worker remain unverified and must be determined **before** starting a provider onboarding flow.
+
+The already-active test sender remains `+1 555 663-7079` and Worker remains scoped to `WHATSAPP_MODE=test`, `ENABLE_WHATSAPP_PRODUCTION=false`. Do not swap `WHATSAPP_PHONE_NUMBER_ID` to the production number without a separate authorized, tested cutover and approved cost terms.
+
+**MFT EDUCATION NEXUS | WhatsApp: 0781572008**
