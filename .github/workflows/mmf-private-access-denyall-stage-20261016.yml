@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   denyall:
-    if: github.event.before == '7f1771caa46cde6847636dbe65546aa5d03dbf56'
+    if: github.event.before == '14410ce2396bd8f592cc3dc81d7464327e1fc656'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -95,7 +95,9 @@ jobs:
            const s=await resp.text();if(s.length>32768){stop('MMF_ACCESS_CREATE_RESPONSE_OVERSIZE');process.exit()}
            let j;try{j=JSON.parse(s)}catch{stop('MMF_ACCESS_CREATE_INVALID_JSON');process.exit()}
            if(!resp.ok||j.success!==true||!/^[a-f0-9-]{36}$/i.test(j.result?.id||'')){
-             evidence.errorCodes=Array.isArray(j.errors)?j.errors.map(e=>Number.isInteger(e.code)?e.code:null):[];\n             evidence.errorFields=Array.isArray(j.errors)?j.errors.map(e=>['mfa','domain','idp','policy','session','allow','access','name'].filter(x=>String(e.message||'').toLowerCase().includes(x))):[];\n             stop('MMF_ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED');process.exit();
+             evidence.errorCodes=Array.isArray(j.errors)?j.errors.map(e=>Number.isInteger(e.code)?e.code:null):[];
+             evidence.errorFields=Array.isArray(j.errors)?j.errors.map(e=>['mfa','domain','idp','policy','session','allow','access','name'].filter(x=>String(e.message||'').toLowerCase().includes(x))):[];
+             stop('MMF_ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED');process.exit();
            }
            evidence.applicationCreated=true;
            const appid=j.result.id;
