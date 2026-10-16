@@ -46,3 +46,22 @@ Immediate eligibility checkpoint: independently confirm the production number `+
 The already-active test sender remains `+1 555 663-7079` and Worker remains scoped to `WHATSAPP_MODE=test`, `ENABLE_WHATSAPP_PRODUCTION=false`. Do not swap `WHATSAPP_PHONE_NUMBER_ID` to the production number without a separate authorized, tested cutover and approved cost terms.
 
 **MFT EDUCATION NEXUS | WhatsApp: 0781572008**
+
+
+## Confirmed account type — 2026-10-16
+Owner confirmed number `+263781572008` is in the official **WhatsApp Business mobile application (B logo)**, rather than consumer WhatsApp Messenger. The preferred option is non-destructive **Coexistence** through Meta-approved Embedded Signup. This is not proof that Meta has approved +263 for Coexistence. Do not use the production "Register your WhatsApp phone number" wizard, disconnect, delete, reinstall or move the number while determining eligibility.
+
+### Eligibility and provider screening
+- WhatsApp Business app should be updated to version 2.24.17 or higher; many providers require at least 7 days of active WhatsApp Business history and administrative access to the selected Meta Business Portfolio.
+- The existing Meta app `1775810357073694` is a conventional WhatsApp Cloud API developer app and is unpublished. Direct Coexistence through its production-registration screen is **not** the correct onboarding method. A Meta-approved Solution Partner/Tech Provider with the **Business app onboarding** Embedded Signup configuration is normally required. Creating this configuration in MFT's own app may require App Review and additional Meta provider verification.
+- Available coverage for Zimbabwe (+263) **is not independently confirmed**. Regional restrictions vary by provider and signup version; do not misinterpret Meta's ordinary "number already registered" error as definitive Coexistence ineligibility.
+- Price benchmark: 360dialog publicly lists WhatsApp API `€49/month per number + Meta message fees`, so **do not activate** it without separate approval (https://360dialog.com/pricing). Other vendors market trials; trial eligibility, Zimbabwe support, card requirements and ability to direct webhooks to MFT's own Worker need written confirmation.
+- Require written answers about who controls app/WABA/message webhook, whether incoming webhooks can be forwarded to `mft-nexus-chatbot-20261012` **with verifiable auth**, API credentials, customer/role privacy, charges after trial, and no-loss rollback before onboarding. Never pass the existing `WHATSAPP_APP_SECRET` or `WHATSAPP_ACCESS_TOKEN` to a provider.
+- Coexistence can change mobile-app behavior (linked-device reconnection, broadcast lists, one-time history/contacts sync, message echo handling); protect private chats and explicitly decide whether to import history.
+- Do not reassign the existing Worker `WHATSAPP_PHONE_NUMBER_ID=1292923853915392` from the **Meta sandbox sender** to the real +263 number without separately approved, tested release changes. `ENABLE_WHATSAPP_PRODUCTION=false` remains the production gate.
+
+Reference guides: https://docs.360dialog.com/docs/hub/embedded-signup/coexistence-onboarding ; https://www.postman.com/meta/whatsapp-business-platform/documentation/du6gzjv/embedded-signup .
+
+**Next owner checkpoint:** establish that the Business app has been used for at least 7 days; check country/number eligibility with a Meta-approved provider's **read-only / pre-enrollment eligibility** process without accepting charges or number linking. Continue sandbox `messages` webhook testing independently.
+
+**MFT EDUCATION NEXUS | WhatsApp 0781572008**
