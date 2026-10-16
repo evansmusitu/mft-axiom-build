@@ -1,0 +1,126 @@
+name: MMF Private Access Deny-All Staging Gateway 20261016
+# One-time scoped Cloudflare Access application pre-provision only.
+# Explicitly NO allow policy, DNS record, Worker route, IdP registration,
+# real customer login or payment/messaging activation.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-private-access-denyall-stage-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  denyall:
+    if: github.event.before == 'f395feb82917dffc5c5bf5065875e980d1caccab'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Preflight protected Git refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(base+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GITHUB_READ_DENIED');return r.json()};
+          const [main,pr]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||pr.state!=='open'||pr.draft!==true||pr.merged!==false)
+            throw Error('MMF_PROTECTED_GIT_SURFACE_DRIFT');
+          console.log('MMF_FROZEN_MAIN_AND_DRAFT_PR_PRESERVED');
+          NODE
+      - name: Scoped create deny-by-default Access application only when preflight proven
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,t=process.env.CLOUDFLARE_API_TOKEN;
+          const host='mail-stage.mftintelligence.com',zoneName='mftintelligence.com';
+          const root='https://api.cloudflare.com/client/v4/';
+          const evidence={schema:'mmf-denyall-access-stage-v1',observedAt:new Date().toISOString(),
+            domain:host,operation:'NO_PUBLIC_ROUTE_OR_DNS',applicationCreated:false,
+            allowPolicyCreated:false,privateWorkerDeployed:false,identityProviderRegistered:false,
+            genuineOidcAuthenticated:false,mfaChallengeCompleted:false,browserTested:false,
+            realMailEnabled:false,paymentsEnabled:false,productionReleaseAuthorized:false,
+            noCustomerIngressProven:false,gate:'MMF_ACCESS_STAGING_PRECONDITIONS_UNVERIFIED'};
+          const write=()=>writeFileSync(join(process.env.RUNNER_TEMP,'mmf-access-denyall-20261016.json'),JSON.stringify(evidence,null,2)+'\n',{flag:'wx',mode:0o600});
+          const stop=(why)=>{evidence.gate=why;write();console.log(JSON.stringify({gate:evidence.gate,created:false}));process.exitCode=2};
+          if(a!=='93f395f5121954671f92fffa453d6b61'||!t||t.length<20){stop('MMF_ACCESS_NO_AUTHORIZED_TOKEN');process.exit()}
+          const get=async p=>{
+           const r=await fetch(root+p,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(12000)});
+           if(!r.ok||r.redirected||!(r.headers.get('content-type')||'').startsWith('application/json'))throw Error('MMF_ACCESS_METADATA_READ_DENIED');
+           const s=await r.text();if(s.length>100000)throw Error('MMF_ACCESS_METADATA_OVERSIZE');
+           const j=JSON.parse(s);if(j.success!==true||!Object.hasOwn(j,'result')||j.result_info?.total_pages>1)throw Error('MMF_ACCESS_API_INCOMPLETE');return j.result;
+          };
+          try{
+           const [zones,apps,idps,domains]=await Promise.all([
+             get('zones?name='+zoneName+'&per_page=20'),
+             get('accounts/'+a+'/access/apps'),get('accounts/'+a+'/access/identity_providers'),
+             get('accounts/'+a+'/workers/domains')]);
+           if(!Array.isArray(zones)||zones.length!==1||zones[0]?.name!==zoneName||zones[0]?.status!=='active'||zones[0]?.account?.id!==a||
+              !Array.isArray(apps)||apps.length!==3||!Array.isArray(idps)||idps.length!==1||idps[0]?.type!=='cloudflare'||
+              !/^[a-f0-9-]{36}$/i.test(idps[0]?.id||'')||!Array.isArray(domains)){
+             stop('MMF_ACCESS_ACCOUNT_INVENTORY_DRIFT');process.exit();
+           }
+           const covers=(app)=>{
+             const hosts=[app?.domain,...(Array.isArray(app?.self_hosted_domains)?app.self_hosted_domains.map(d=>d?.hostname):[])];
+             return hosts.some(s=>typeof s==='string'&&(s===host||s==='*.'+zoneName||s===zoneName));
+           };
+           if(apps.some(covers)||domains.some(d=>d?.hostname===host||d?.domain===host)){
+             stop('MMF_ACCESS_EXISTING_APP_OR_DOMAIN_COLLISION');process.exit();
+           }
+           const z=zones[0].id;
+           const [dns,routes]=await Promise.all([
+             get('zones/'+z+'/dns_records?name='+host+'&per_page=20'),
+             get('zones/'+z+'/workers/routes?per_page=100')]);
+           if(!Array.isArray(dns)||dns.length||!Array.isArray(routes)||
+              routes.some(x=>typeof x?.pattern==='string'&&
+                 (x.pattern.includes(host)||x.pattern.startsWith('*.'+zoneName)||x.pattern.startsWith(zoneName)))){
+              stop('MMF_ACCESS_HOSTNAME_OR_ROUTE_COLLISION');process.exit();
+           }
+           // An Access app with ZERO Allow policies is DENY by default.
+           // This does not create a Worker, DNS, hostname route, token or tenant.
+           const body={name:'MUSITU Mail Fabric private closed staging — NO ALLOW POLICY',
+             type:'self_hosted',domain:host,session_duration:'15m',
+             app_launcher_visible:false,auto_redirect_to_identity:false,
+             allowed_idps:[idps[0].id],
+             mfa_config:{mfa_disabled:false,session_duration:'0m',allowed_authenticators:['totp','security_key']}};
+           const resp=await fetch(root+'accounts/'+a+'/access/apps',{method:'POST',headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(15000)});
+           evidence.createHttpStatus=resp.status;
+           const s=await resp.text();if(s.length>32768){stop('MMF_ACCESS_CREATE_RESPONSE_OVERSIZE');process.exit()}
+           let j;try{j=JSON.parse(s)}catch{stop('MMF_ACCESS_CREATE_INVALID_JSON');process.exit()}
+           if(!resp.ok||j.success!==true||!/^[a-f0-9-]{36}$/i.test(j.result?.id||'')){
+             stop('MMF_ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED');process.exit();
+           }
+           evidence.applicationCreated=true;
+           const appid=j.result.id;
+           const [readback,policies]=await Promise.all([
+              get('accounts/'+a+'/access/apps/'+appid),
+              get('accounts/'+a+'/access/apps/'+appid+'/policies')]);
+           evidence.readbackVerified=readback.id===appid&&readback.domain===host&&readback.type==='self_hosted'&&
+             readback.mfa_config?.mfa_disabled===false&&readback.mfa_config?.session_duration==='0m'&&
+             Array.isArray(readback.mfa_config?.allowed_authenticators)&&readback.mfa_config.allowed_authenticators.includes('totp')&&
+             Array.isArray(readback.allowed_idps)&&readback.allowed_idps.length===1&&readback.allowed_idps[0]===idps[0].id;
+           evidence.zeroAccessPolicies=Array.isArray(policies)&&policies.length===0;
+           evidence.gate=evidence.readbackVerified&&evidence.zeroAccessPolicies?
+            'MMF_CLOUDFLARE_ACCESS_DENYALL_APP_CREATED_NOT_ACTIVE':'MMF_ACCESS_READBACK_FAIL_CLOSED';
+           write();console.log(JSON.stringify({gate:evidence.gate,created:true,readback:evidence.readbackVerified,zeroAllowPolicies:evidence.zeroAccessPolicies}));
+           if(!evidence.readbackVerified||!evidence.zeroAccessPolicies)process.exitCode=2;
+          }catch{if(!evidence.applicationCreated){stop('MMF_ACCESS_PREFLIGHT_ERROR_NO_MUTATION');}else{stop('MMF_ACCESS_CREATED_READBACK_INCOMPLETE');}}
+          NODE
+      - name: Archive sanitized configuration evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-access-denyall-gateway-20261016
+          path: ${{ runner.temp }}/mmf-access-denyall-20261016.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Delete ephemeral evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-access-denyall-20261016.json"
