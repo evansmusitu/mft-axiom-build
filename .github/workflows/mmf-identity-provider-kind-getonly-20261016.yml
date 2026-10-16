@@ -1,0 +1,94 @@
+name: MMF OIDC Provider and Gateway Safe Inventory 20261016
+# One-time Cloudflare account metadata inspection. GET ONLY. Redacted artifact;
+# never print provider ids, email, names, OAuth client secrets, org hostnames.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-identity-provider-kind-getonly-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  inspector:
+    if: github.event.before == '8008de0d69ffbb809ba8f96c0432b1bb51562bca'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Safely inspect identity, no mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const t=process.env.CLOUDFLARE_API_TOKEN,a=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!t||t.length<20||a!=='93f395f5121954671f92fffa453d6b61')throw Error('MMF_IDP_TOKEN_MISSING');
+          const base='https://api.cloudflare.com/client/v4/';
+          const path=[
+            'accounts/'+a+'/access/identity_providers',
+            'accounts/'+a+'/access/apps',
+            'accounts/'+a+'/access/organizations',
+            'accounts/'+a+'/workers/domains',
+            'zones?name=mftintelligence.com&per_page=20',
+            'accounts/'+a+'/workers/subdomain'
+          ];
+          async function safeGet(p){
+            try{
+              const r=await fetch(base+p,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(13000)});
+              if(!r.ok||r.redirected||!(r.headers.get('content-type')||'').startsWith('application/json'))return {ok:false,status:r.status};
+              const cl=r.headers.get('content-length');
+              if(cl!==null&&Number(cl)>131072)return {ok:false,status:413};
+              let size=0,chunks=[];for await(const c of r.body){size+=c.length;if(size>131072)throw Error('TOO_LARGE');chunks.push(c);}
+              const obj=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks)));
+              if(obj.success!==true||!Object.hasOwn(obj,'result')||obj.result_info?.total_pages>1)return {ok:false,status:r.status};
+              return {ok:true,result:obj.result,status:r.status}
+            }catch{return {ok:false,status:null}}
+          }
+          const [idps,apps,org,domains,zones,sub]=await Promise.all(path.map(safeGet));
+          const known=new Set(['cloudflare','onetimepin','oidc','google','google-apps','github','azureAD','okta','saml','duo','passkeys','other']);
+          const providers=idps.ok&&Array.isArray(idps.result)?idps.result.map(p=>known.has(p?.type)?p.type:'other'):[];
+          const configured=idps.ok&&Array.isArray(idps.result)?idps.result.map(p=>({
+            kind:known.has(p?.type)?p.type:'other',
+            readOnly:p?.read_only===true,
+            hasClientId:typeof p?.config?.client_id==='string'&&p.config.client_id.length>3,
+            hasClientSecret:typeof p?.config?.client_secret==='string'&&p.config.client_secret.length>4,
+            enabled:p?.enabled!==false
+          })):[];
+          const entries=apps.ok&&Array.isArray(apps.result)?apps.result:[];
+          const matches=entries.filter(p=>/mmf|musitu.mail.fabric/i.test(p?.name||''));
+          const zoneMatches=zones.ok&&Array.isArray(zones.result)?zones.result.filter(z=>z?.name==='mftintelligence.com'&&z?.account?.id===a):[];
+          const result={
+            schema:'mmf-provider-safe-inventory-v20261016',observedAt:new Date().toISOString(),
+            providerInventoryReadable:idps.ok,providerTypes:providers,providerCapabilities:configured,
+            appInventoryReadable:apps.ok,allAccessAppsCount:apps.ok?entries.length:null,mmfAccessApps:matches.length,
+            configuredAccessMfaApps:matches.filter(p=>p?.mfa_config?.mfa_disabled===false).length,
+            accessOrgReadable:org.ok&&!!org.result,
+            zoneApiReadable:zones.ok,approvedOwnedZonePresent:zoneMatches.length===1,
+            workerDomainsReadable:domains.ok,mmfWorkerDomains:domains.ok&&Array.isArray(domains.result)?
+              domains.result.filter(p=>/mmf|musitu.mail.fabric/i.test(p?.service||'')).length:null,
+            workersSubdomainReadable:sub.ok,workersSubdomainConfigured:sub.ok&&typeof sub.result?.subdomain==='string',
+            operation:'GET_ONLY',getCount:path.length,mutations:0,
+            credentialsExposed:false,providerApproved:false,mmfClientRegistered:false,
+            realMfaObserved:false,realBrowserPassed:false,prodEnabled:false,
+            gate:'MMF_IDENTITY_APPROVAL_AND_GATEWAY_NOT_ESTABLISHED'
+          };
+          const out=join(process.env.RUNNER_TEMP,'mmf-oidc-provider-safe-kind-20261016.json');
+          writeFileSync(out,JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o600});
+          console.log(JSON.stringify({gate:result.gate,providerTypes,appCount:result.allAccessAppsCount,mmfApps:result.mmfAccessApps,
+            verifiedOwnedZone:result.approvedOwnedZonePresent,mmfWorkerDomains:result.mmfWorkerDomains,mutationCount:0}));
+          NODE
+      - name: Save de-identified evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-idp-kind-gateway-preflight-20261016
+          path: ${{ runner.temp }}/mmf-oidc-provider-safe-kind-20261016.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Delete ephemeral evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-oidc-provider-safe-kind-20261016.json"
