@@ -15,7 +15,7 @@ const PIN=createHash('sha256').update(keyPair.publicKey.export({type:'spki',form
 const base64=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 function jwt(nonce,changes={},header={}){
  const h=base64({alg:'RS256',kid:'owner-identity-rsa-2026',typ:'JWT',...header});
- const p=base64({iss:ISSUER,aud:AUD,sub:'identity-subject-stable',exp:Math.floor((NOW+300000)/1000),iat:Math.floor((NOW-5000)/1000),nonce,...changes});
+ const p=base64({iss:ISSUER,aud:AUD,sub:'identity-subject-stable',exp:Math.floor((NOW+300000)/1000),iat:Math.floor((NOW-5000)/1000),nonce,amr:['pwd','otp'],auth_time:Math.floor((NOW-5000)/1000),...changes});
  const input=h+'.'+p;
  return input+'.'+sign('RSA-SHA256',Buffer.from(input),keyPair.privateKey).toString('base64url');
 }
@@ -35,6 +35,21 @@ test('pinned OIDC signature, issuer, audience, nonce and subject are mandatory',
   {exp:Math.floor((NOW-999999)/1000)}, {iat:Math.floor((NOW+999999)/1000)},
   {sub:''}, {sub:'abc'.repeat(100)}
  ]) assert.throws(()=>verifyPinnedOidcIdToken(token('challenge-abc',modification),{issuer:ISSUER,audience:AUD,keyId:'owner-identity-rsa-2026',publicJwk:jwk,spkiFingerprint:PIN,nonce:'challenge-abc',nowMs:NOW}),/MMF_OIDC_DENIED/);
+});
+
+test('signed OIDC identity without recent provider MFA assurance is rejected',()=>{
+ const options={issuer:ISSUER,audience:AUD,keyId:'owner-identity-rsa-2026',publicJwk:jwk,spkiFingerprint:PIN,nonce:'challenge-abc',nowMs:NOW};
+ const nowSec=Math.floor(NOW/1000);
+ for(const bad of [
+  {amr:undefined,auth_time:nowSec-10},
+  {amr:['pwd'],auth_time:nowSec-10},
+  {amr:['otp'],auth_time:nowSec-10},
+  {amr:['pwd','otp'],auth_time:undefined},
+  {amr:['pwd','otp'],auth_time:nowSec-700},
+  {amr:['pwd','otp'],auth_time:nowSec+300},
+  {amr:['pwd','sms'],auth_time:nowSec-5},
+ ])assert.throws(()=>verifyPinnedOidcIdToken(token('challenge-abc',bad),options),/MMF_OIDC_DENIED/);
+ assert.match(verifyPinnedOidcIdToken(token('challenge-abc',{amr:['pwd','otp'],auth_time:nowSec-5}),options).actorSubject,/^oidc:/);
 });
 
 test('untrusted key metadata, algorithm substitution, and forged signatures are refused',()=>{

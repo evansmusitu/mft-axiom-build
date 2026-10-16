@@ -15,7 +15,7 @@ const fingerprint=createHash('sha256').update(publicKey.export({type:'spki',form
 const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 const signNonce=(nonce,sub='owner-one')=>{
  const h=enc({alg:'RS256',typ:'JWT',kid:'stage-rsa-2026'});
- const p=enc({iss:issuer,aud:clientId,sub,nonce,iat:Math.floor((NOW-1000)/1000),exp:Math.floor((NOW+240000)/1000)});
+ const p=enc({iss:issuer,aud:clientId,sub,nonce,iat:Math.floor((NOW-1000)/1000),auth_time:Math.floor((NOW-1000)/1000),amr:['pwd','otp'],exp:Math.floor((NOW+240000)/1000)});
  const msg=h+'.'+p;return msg+'.'+sign('RSA-SHA256',Buffer.from(msg),privateKey).toString('base64url');
 };
 const defaultHeaders={host:'mmf-private.example.org','sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};

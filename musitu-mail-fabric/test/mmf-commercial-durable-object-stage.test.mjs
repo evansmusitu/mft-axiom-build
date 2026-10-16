@@ -41,7 +41,7 @@ function fixture(t){
  function token(nonce,sub='subject-tenant-operator'){
   const now=Math.floor(at/1000);
   const header={alg:'RS256',typ:'JWT',kid:env.MMF_OIDC_KEY_ID};
-  const claims={iss:env.MMF_OIDC_ISSUER,aud:env.MMF_OIDC_AUDIENCE,sub,nonce,iat:now,exp:now+600};
+  const claims={iss:env.MMF_OIDC_ISSUER,aud:env.MMF_OIDC_AUDIENCE,sub,nonce,iat:now,auth_time:now,amr:['pwd','otp'],exp:now+600};
   const payload=[header,claims].map(x=>Buffer.from(JSON.stringify(x)).toString('base64url')).join('.');
   return `${payload}.${sign('RSA-SHA256',Buffer.from(payload),oidc.privateKey).toString('base64url')}`;
  }

@@ -21,7 +21,7 @@ function fixture(t){
  function login(sub){
   const {nonce}=identity.issueChallenge();
   const head=enc({alg:'RS256',typ:'JWT',kid:'idp-stage-rsa-v1'});
-  const payload=enc({iss:issuer,aud:audience,sub,nonce,iat:Math.floor((time-1000)/1000),exp:Math.floor((time+300000)/1000)});
+  const payload=enc({iss:issuer,aud:audience,sub,nonce,iat:Math.floor((time-1000)/1000),auth_time:Math.floor((time-1000)/1000),amr:['pwd','otp'],exp:Math.floor((time+300000)/1000)});
   const data=head+'.'+payload;
   const jwt=data+'.'+sign('RSA-SHA256',Buffer.from(data),privateKey).toString('base64url');
   return identity.acceptLogin({idToken:jwt,nonce}).sessionToken;

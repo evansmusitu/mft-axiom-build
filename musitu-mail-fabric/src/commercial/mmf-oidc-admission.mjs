@@ -76,6 +76,19 @@ export function verifyPinnedOidcIdToken(idToken,options){
   // Ten-minute maximum login-token age, at most one-hour provider token lifetime.
   if(claims.exp<=now||claims.iat>now+60||claims.iat<now-600||
      claims.exp-claims.iat>3600||claims.nbf!==undefined&&claims.nbf>now+60)deny();
+  // MMF's initial approved identity profile is deliberately narrow: the signed
+  // provider assertion must record a recent password AND independent one-time
+  // authenticator or hardware key. A 'mfa' marketing flag, SMS or a stale
+  // authentication event cannot silently satisfy this requirement. This is
+  // claim validation, not independent proof of the provider's live MFA policy.
+  if(!Array.isArray(claims.amr)||claims.amr.length<2||claims.amr.length>12||
+     claims.amr.some(x=>typeof x!=='string'||x.length>32)||
+     new Set(claims.amr).size!==claims.amr.length||
+     !claims.amr.includes('pwd')||
+     !claims.amr.some(x=>x==='otp'||x==='hwk')||
+     !Number.isSafeInteger(claims.auth_time)||
+     claims.auth_time>now+60||claims.auth_time<now-300||
+     claims.auth_time>claims.iat+60)deny();
   const actorSubject='oidc:'+sha(issuer+'\x00'+claims.sub);
   return Object.freeze({actorSubject,issuer,audience:options.audience,
     expiresAtMs:claims.exp*1000,realSendingAuthorized:false,commercialPaymentsAuthorized:false});

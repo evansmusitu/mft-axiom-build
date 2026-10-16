@@ -22,7 +22,7 @@ const cookieValue=(headers,name)=>{
 };
 function signed(nonce,subject='owner-alpha'){
  const h=enc({alg:'RS256',typ:'JWT',kid:'mmf-oidc-v1'});
- const p=enc({iss:issuer,aud:clientId,sub:subject,nonce,iat:Math.floor((NOW-1000)/1000),exp:Math.floor((NOW+300000)/1000)});
+ const p=enc({iss:issuer,aud:clientId,sub:subject,nonce,iat:Math.floor((NOW-1000)/1000),auth_time:Math.floor((NOW-1000)/1000),amr:['pwd','otp'],exp:Math.floor((NOW+300000)/1000)});
  const data=h+'.'+p;
  return data+'.'+sign('RSA-SHA256',Buffer.from(data),privateKey).toString('base64url');
 }

@@ -94,7 +94,7 @@ test('verified provider snapshot binds existing token exchanger and exact pinned
   const {nonce}=admission.issueChallenge();
   const jwtPart=obj=>Buffer.from(JSON.stringify(obj)).toString('base64url');
   const h=jwtPart({alg:'RS256',typ:'JWT',kid:snapshot.keyId});
-  const p=jwtPart({iss:issuer,sub:'synthetic-owner',aud:'mmf-private-stage',nonce,iat:Math.floor(now/1000)-1,exp:Math.floor(now/1000)+90});
+  const p=jwtPart({iss:issuer,sub:'synthetic-owner',aud:'mmf-private-stage',nonce,iat:Math.floor(now/1000)-1,auth_time:Math.floor(now/1000)-1,amr:['pwd','otp'],exp:Math.floor(now/1000)+90});
   const signingInput=h+'.'+p;
   const id_token=signingInput+'.'+sign('RSA-SHA256',Buffer.from(signingInput),material.privateKey).toString('base64url');
   const redirectUri='https://mmf-private.example.net/private/oidc/callback';
