@@ -111,13 +111,27 @@ export class PrivateOidcBrowserStage {
   try{this.#guard(origin);return this.controller.getDashboard({sessionToken:this.#session(cookieHeader),tenantId})}
   catch{deny()}
  }
- logout({origin,cookieHeader,csrfHeader}={}){
+ /** Stage-only server-side session read. Never reveal actor subject or token to HTML. */
+ readSession({origin,cookieHeader}={}){
+  try{this.#guard(origin);this.admission.authenticateSession(this.#session(cookieHeader));
+   return Object.freeze({authenticated:true,customerApiEnabled:false});}
+  catch{deny()}
+ }
+ /** Validate browser cookie double-submit against a session-keyed MAC and live session. */
+ authorizeMutation({origin,cookieHeader,csrfHeader}={}){
   try{
    this.#guard(origin);
    const token=this.#session(cookieHeader);
    const tokenCsrf=strictCookie(cookieHeader,CSRF_COOKIE,TOKEN);
    if(!TOKEN.test(csrfHeader||'')||!eq(tokenCsrf,csrfHeader)||
       !eq(tokenCsrf,this.#derive('csrf',token)))deny();
+   this.admission.authenticateSession(token);
+   return token;
+  }catch{deny()}
+ }
+ logout({origin,cookieHeader,csrfHeader}={}){
+  try{
+   const token=this.authorizeMutation({origin,cookieHeader,csrfHeader});
    if(!this.admission.revokeSession(token))deny();
    return Object.freeze({revoked:true,clearCookies:Object.freeze([
     cookie(SESSION_COOKIE,'',0),cookie(CSRF_COOKIE,'',0,{httpOnly:false})
