@@ -5,7 +5,7 @@ export async function qualifyPostgresExtensionPrivileges({pool}={}){
   const schema=(await c.query(`SELECT has_schema_privilege(current_user,'musitu_identity','CREATE') AS identity_create,
    has_database_privilege(current_user,current_database(),'TEMP') AS temp_create`)).rows[0];
   if(schema?.identity_create!==false||schema.temp_create!==false)throw Error('EXTENSION_PRIVILEGES_UNQUALIFIED');
-  for(const table of ['action_audit','business_configuration','contacts','messages']){
+  for(const table of ['action_audit','business_configuration','contacts','messages','ai_policy','ai_requests']){
    const name='musitu.'+table;const r=(await c.query(`SELECT has_table_privilege(current_user,$1,'SELECT') AS readable,
     has_any_column_privilege(current_user,$1,'INSERT') AS insertable,
     has_any_column_privilege(current_user,$1,'UPDATE') AS updateable,
@@ -25,6 +25,6 @@ export async function qualifyPostgresExtensionPrivileges({pool}={}){
   const policies=(await c.query("SELECT policyname,qual,with_check FROM pg_policies WHERE schemaname='musitu_identity' AND tablename='sessions'")).rows;
   const norm=s=>s?.replace(/::text\b/g,'').replace(/[()\s]/g,'').toLowerCase();const expected="token_hash=nullifcurrent_setting'app.session_hash',true,''";
   if(tables.length!==1||tables[0].relrowsecurity!==true||tables[0].relforcerowsecurity!==true||policies.length!==1||policies[0].policyname!=='session_boundary'||norm(policies[0].qual)!==expected||norm(policies[0].with_check)!==expected)throw Error('SESSION_POLICY_UNQUALIFIED');
-  return {qualified:true,extensionReadOnlyTables:4,opaqueSessionRls:true,temporaryDatabaseObjectsDenied:true};
+  return {qualified:true,extensionReadOnlyTables:6,opaqueSessionRls:true,temporaryDatabaseObjectsDenied:true};
  }finally{c.release();}
 }

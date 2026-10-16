@@ -1,8 +1,12 @@
 # Groq Free staging qualification
 
-The user selected **Groq** on 15 October 2026. This replaces OpenAI Platform key setup as the chosen provider path. No Groq account, credential, Free-plan verification or real model request is currently qualified. Phase 1 remains incomplete.
+The user selected **Groq**. On 16 October the signed-in console verified **Free ($0)**, GPT-OSS 20B limits of 30 RPM / 1,000 requests per day / 8,000 TPM / 200,000 tokens per day, and enabled **Inference APIs ZDR**. Global ZDR remains off; batch and fine-tuning settings were preserved. No payment method or upgrade was added by this work.
 
-The prepared application is deployed privately from `f0f3fb00345ba7669e50577213641b887a3773d9`, deployment `dpl_EMnaGBjQ1CZje5kg9RyLLhdyLdKn`, at `https://musitu-whatsapp-phase1-private-20261014-9rp9jv3le-evansmusitu.vercel.app`. Local suite 236/236 and optimized build pass. Its build passed the 26 real PostgreSQL checks again on 16 October, run `e99ef076-d0b5-4f74-88ca-643dbd699d92`; provider fixtures in that database run remain synthetic. Live Groq tests have not run. The next human step is secure Groq sign-in/account creation and Services Agreement acceptance; do not add a payment method or upgrade.
+The user created the dedicated staging key and copied it in the browser. It was securely transferred to encrypted Preview `GROQ_API_KEY` in the protected SaaS project; temporary credential copies were cleared. The resulting console row says **Expires: Never**, despite the initially prepared seven-day expiry. It cannot be changed in the observed edit form. Do not claim an expiring key or rotate/delete it without authorization for that action.
+
+**Genuine Groq qualification: 5/5 passed**, run `d82792fc-54ee-4a7f-92e2-8d2ea5e068e5`, 16 October at 05:23 UTC, 1,296 input + 245 output = **1,541 reported tokens**. Exact approved answer, paraphrase review, unknown discount, prompt injection, and Shona question passed. Source commit `084ff9bd1d0c3a2919dfba93d1f21c810d7bcf61`, protected deployment `dpl_BmwthjSaPRtdUn9uat1QsfM4oPTu`, READY. This proves transport/model selection on synthetic fixtures; it does not prove SaaS login, WhatsApp delivery, billing balances or production readiness. Evidence: `evidence/20261016/real-groq-qualification.json`.
+
+The first one-off build failed before any model call because the per-deployment settings omitted the monorepo root. The next deployment specified the root, framework, install command and Node version explicitly. Failure evidence is retained. The project default build was restored to PostgreSQL qualification plus Next build, so model calls do not run on automatic builds.
 
 ## Implemented boundary
 
@@ -38,4 +42,4 @@ After a genuine pass, a separate engineering slice must wire tenant-scoped knowl
 - https://console.groq.com/docs/rate-limits — published Free limits; verify actual account limits.
 - https://console.groq.com/docs/your-data — retention exceptions and optional Zero Data Retention.
 
-Local verification evidence: `evidence/20261015/groq-gateway-red.log`, `groq-gateway-green.log`, `groq-full-tests.log` and `groq-next-build.log`. Live provider execution remains pending secure account setup.
+Local verification evidence: `evidence/20261015/groq-gateway-red.log`, `groq-gateway-green.log`, `groq-full-tests.log` and `groq-next-build.log`. Live provider transport passed the five synthetic cases above. Authenticated tenant workflow qualification is tracked separately.
