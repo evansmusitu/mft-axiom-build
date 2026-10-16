@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   denyall:
-    if: github.event.before == '14410ce2396bd8f592cc3dc81d7464327e1fc656'
+    if: github.event.before == 'e0fc57013a7e4073bac08bf3d8a8e53b76aeeb28'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -85,11 +85,8 @@ jobs:
            }
            // An Access app with ZERO Allow policies is DENY by default.
            // This does not create a Worker, DNS, hostname route, token or tenant.
-           const body={name:'MUSITU Mail Fabric private closed staging — NO ALLOW POLICY',
-             type:'self_hosted',domain:host,session_duration:'15m',
-             app_launcher_visible:false,auto_redirect_to_identity:false,
-             allowed_idps:[idps[0].id],
-             mfa_config:{mfa_disabled:false,session_duration:'15m',allowed_authenticators:['totp','security_key']}};
+           const body={name:'MUSITU Mail Fabric closed private stage (deny all)',type:'self_hosted',
+             domain:host,session_duration:'15m',app_launcher_visible:false,allowed_idps:[idps[0].id]};
            const resp=await fetch(root+'accounts/'+a+'/access/apps',{method:'POST',headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(15000)});
            evidence.createHttpStatus=resp.status;
            const s=await resp.text();if(s.length>32768){stop('MMF_ACCESS_CREATE_RESPONSE_OVERSIZE');process.exit()}
@@ -105,12 +102,10 @@ jobs:
               get('accounts/'+a+'/access/apps/'+appid),
               get('accounts/'+a+'/access/apps/'+appid+'/policies')]);
            evidence.readbackVerified=readback.id===appid&&readback.domain===host&&readback.type==='self_hosted'&&
-             readback.mfa_config?.mfa_disabled===false&&readback.mfa_config?.session_duration==='15m'&&
-             Array.isArray(readback.mfa_config?.allowed_authenticators)&&readback.mfa_config.allowed_authenticators.includes('totp')&&
              Array.isArray(readback.allowed_idps)&&readback.allowed_idps.length===1&&readback.allowed_idps[0]===idps[0].id;
            evidence.zeroAccessPolicies=Array.isArray(policies)&&policies.length===0;
-           evidence.gate=evidence.readbackVerified&&evidence.zeroAccessPolicies?
-            'MMF_CLOUDFLARE_ACCESS_DENYALL_APP_CREATED_NOT_ACTIVE':'MMF_ACCESS_READBACK_FAIL_CLOSED';
+           evidence.mfaConfigured=false; evidence.gate=evidence.readbackVerified&&evidence.zeroAccessPolicies?
+            'MMF_CLOUDFLARE_ACCESS_DENYALL_CREATED_MFA_STILL_REQUIRED':'MMF_ACCESS_READBACK_FAIL_CLOSED';
            write();console.log(JSON.stringify({gate:evidence.gate,created:true,readback:evidence.readbackVerified,zeroAllowPolicies:evidence.zeroAccessPolicies}));
            if(!evidence.readbackVerified||!evidence.zeroAccessPolicies)process.exitCode=2;
           }catch{if(!evidence.applicationCreated){stop('MMF_ACCESS_PREFLIGHT_ERROR_NO_MUTATION');}else{stop('MMF_ACCESS_CREATED_READBACK_INCOMPLETE');}}
