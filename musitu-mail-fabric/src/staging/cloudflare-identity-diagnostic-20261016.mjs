@@ -48,10 +48,9 @@ try {
   if (!Array.isArray(zones) || zones.length !== 1 || zones[0].account?.id !== account || zones[0].status !== 'active') throw Error('ACCOUNT_ZONE_NOT_VERIFIED');
   summary.accountAndZoneVerified = true;
   detail.zone = { id: zones[0].id, name: zones[0].name, status: zones[0].status, accountId: zones[0].account.id };
-  detail.organization = org ? { auth_domain: org.auth_domain, name: org.name,
-    mfa_required_for_all_apps: org.mfa_required_for_all_apps, mfa_config: mfa(org.mfa_config), keys: Object.keys(org).sort() } : null;
+  detail.organization = org ? { ...org, keys: Object.keys(org).sort() } : null;
   summary.organizationMfaEnabled = Boolean(org?.mfa_config?.allowed_authenticators?.length);
-  detail.identityProviders = Array.isArray(idps) ? idps.map(x => ({ id: x.id, name: x.name, type: x.type, configKeys: Object.keys(x.config || {}).sort() })) : null;
+  detail.identityProviders = Array.isArray(idps) ? idps.map(x => ({ id: x.id, name: x.name, type: x.type, restrictToAccountMembers: x.config?.restrict_to_account_members, configKeys: Object.keys(x.config || {}).sort() })) : null;
   detail.apps = Array.isArray(apps) ? apps.map(appSafe) : null;
   summary.identityProviderTypes = Array.isArray(idps) ? [...new Set(idps.map(x => x.type))] : [];
   const matches = Array.isArray(apps) ? apps.filter(x => x.name === label && x.domain === hostname && x.type === 'self_hosted') : [];

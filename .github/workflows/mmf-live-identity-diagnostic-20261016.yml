@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   diagnostic:
-    if: github.event.before == '175b21c7575653237edeeb834db4918d994e0c4d'
+    if: github.event.before == '116352a164ec10bbdd42da3d4c9f6cd21b08c886'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -51,5 +51,22 @@ jobs:
           path: |
             ${{ runner.temp }}/mmf-identity-diagnostic.encrypted.json
             ${{ runner.temp }}/mmf-identity-diagnostic-summary.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Export exact MMF-only source for private continuation
+        run: |
+          set -euo pipefail
+          git ls-files -z -- musitu-mail-fabric '.github/workflows/mmf*' '.github/workflows/musitu-mail*' > "$RUNNER_TEMP/mmf-source-files"
+          tar --null -T "$RUNNER_TEMP/mmf-source-files" -czf "$RUNNER_TEMP/mmf-source-exact.tar.gz"
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/mmf-source-commit.txt"
+          sha256sum "$RUNNER_TEMP/mmf-source-exact.tar.gz" > "$RUNNER_TEMP/mmf-source-sha256.txt"
+      - name: Export public source snapshot only
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-current-exact-source-20261016
+          path: |
+            ${{ runner.temp }}/mmf-source-exact.tar.gz
+            ${{ runner.temp }}/mmf-source-commit.txt
+            ${{ runner.temp }}/mmf-source-sha256.txt
           retention-days: 7
           if-no-files-found: error
