@@ -47,7 +47,9 @@ try{
   await api(p+'organizations','PUT',orgBody);evidence.mutations.push('organization_mfa_methods_enabled_global_enforcement_false');
  }
  const orgAfter=await api(p+'organizations');
- if(orgAfter.mfa_required_for_all_apps!==false||!orgAfter.mfa_config?.allowed_authenticators?.includes('totp')||!orgAfter.mfa_config?.allowed_authenticators?.includes('security_key'))throw Error('ORGANIZATION_MFA_READBACK_FAILED');
+ // Cloudflare omits the false default on GET. A true value is prohibited;
+ // the write explicitly requests false and the MMF app is checked separately.
+ if(orgAfter.mfa_required_for_all_apps===true||!orgAfter.mfa_config?.allowed_authenticators?.includes('totp')||!orgAfter.mfa_config?.allowed_authenticators?.includes('security_key'))throw Error('ORGANIZATION_MFA_READBACK_FAILED');
  const policyProjection=o=>Object.fromEntries(Object.entries(o).filter(([k])=>!['created_at','updated_at','mfa_config','mfa_required_for_all_apps'].includes(k)));
  if(hash(policyProjection(org))!==hash(policyProjection(orgAfter)))throw Error('UNRELATED_ORGANIZATION_SETTINGS_DRIFT');
  evidence.after.organization=orgAfter;
