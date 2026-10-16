@@ -2,6 +2,8 @@
 
 The user selected **Groq** on 15 October 2026. This replaces OpenAI Platform key setup as the chosen provider path. No Groq account, credential, Free-plan verification or real model request is currently qualified. Phase 1 remains incomplete.
 
+The prepared application is deployed privately from `f0f3fb00345ba7669e50577213641b887a3773d9`, deployment `dpl_EMnaGBjQ1CZje5kg9RyLLhdyLdKn`, at `https://musitu-whatsapp-phase1-private-20261014-9rp9jv3le-evansmusitu.vercel.app`. Local suite 236/236 and optimized build pass. Its build passed the 26 real PostgreSQL checks again on 16 October, run `e99ef076-d0b5-4f74-88ca-643dbd699d92`; provider fixtures in that database run remain synthetic. Live Groq tests have not run. The next human step is secure Groq sign-in/account creation and Services Agreement acceptance; do not add a payment method or upgrade.
+
 ## Implemented boundary
 
 `createGroqQualificationGateway` pins `https://api.groq.com/openai/v1/chat/completions` and `openai/gpt-oss-20b`. It uses strict JSON-schema FAQ selection, low reasoning effort, a 512 completion-token ceiling, bounded responses and deadlines. No tools, paid-plan fallback, automatic retry or messaging capability exist. Questions and approved candidate questions may reach the model; approved answers and tenant identifiers do not. The server returns only existing approved answer text, so generated business facts cannot become a reply. Paraphrases require human review; ordinary model selection never authorizes sending.
