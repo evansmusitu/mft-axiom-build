@@ -2,6 +2,8 @@
 
 **Phase 1 is IN PROGRESS; public release and customer messaging remain disabled.**
 
+Groq Free is now the user-selected model provider. Its pinned synthetic-qualification gateway and tests are implemented; secure account/key setup and genuine model execution remain pending. See [Groq staging qualification](docs/GROQ_STAGING_QUALIFICATION.md). Current local suite: 236 passing tests.
+
 The verified original v1.7.0 source now includes a protected Next.js staging application, restricted Neon runtime and ingress roles, 19 tenant-scoped business tables, encrypted contact/message persistence and opaque identity sessions. Current evidence: **225 local automated tests**, **26 hosted native PostgreSQL checks**, **three genuine Meta read-only API checks** and **six configured callback HTTP checks** pass. Meta verified and saved the new app's callback. Official incoming/status sample events reached it and were rejected because their sample channel is unbound; no genuine customer message or delivery receipt was admitted. Keycloak, live model and full acceptance remain pending.
 
 - [Current execution status and blockers](docs/PHASE1_EXECUTION_STATUS_20261015.md)

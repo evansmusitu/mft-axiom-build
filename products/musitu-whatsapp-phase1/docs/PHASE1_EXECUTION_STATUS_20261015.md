@@ -2,6 +2,8 @@
 
 **Phase 1 is incomplete. Private candidate only; customer messaging and public launch remain disabled.** This report supersedes earlier status snapshots. No simulated result is classified as genuine provider integration.
 
+Latest continuation, 16 October: the user selected Groq Free. Its pinned `openai/gpt-oss-20b` qualification gateway now has eleven additional local cases (236 total), finite request admission, strict FAQ selection and sanitized token telemetry. Groq's console requires human sign-in/account creation and terms acceptance; no key or genuine Groq call exists yet. See `GROQ_STAGING_QUALIFICATION.md`. Earlier 225-test counts below describe the previous tested deployment.
+
 ## Source and deployed components
 
 The original v1.7.0 ZIP and internal source manifest passed before editing. Its SHA-256 is `cdb198bf187e6812cadef49d6382c7eb65d215be0fc29689ab703c44ae235bb3`; the original baseline was 196 passing tests. Development remains isolated in `saas/musitu-whatsapp-phase1-private-20261014`, under `products/musitu-whatsapp-phase1`, with draft PR https://github.com/evansmusitu/mft-axiom-build/pull/29 .

@@ -1,0 +1,32 @@
+✔ secure private dashboard serves static shell, denies arbitrary file routes and has no token persistence (44.347602ms)
+✔ authenticated private dashboard APIs isolate conversations and bookings across tenants (25.77115ms)
+✔ authenticated booking API enforces tenant membership, conflicts and exact idempotency (24.263652ms)
+✔ model gateway fails closed by default, enforces endpoint and never sends merchant answers (2.22779ms)
+✔ model gateway handles provider errors, malformed results and disallowed FAQ ids as handover (0.80894ms)
+✔ AXIOM analytics adapter validates numerical result, allowlist and non-data-changing behavior (0.545913ms)
+✔ private human handover endpoint is authenticated, scoped and prevents subsequent bot drafts (19.805285ms)
+✔ model gateway carries an explicit qualified model identifier and refuses accidental unsafe configuration (0.470088ms)
+✔ real streamed response under 8KiB selects approved FAQ only (7.517987ms)
+✔ misleading content-length cannot bypass actual 8KiB streaming limit (1.819684ms)
+✔ fetch implementation ignoring AbortSignal still times out without approving a result (101.297456ms)
+✔ gateway rejects an endpoint not explicitly pinned by an operator allowlist (1.642947ms)
+✔ gateway refuses insecure or malicious allowlist records (0.398962ms)
+✔ gateway permits exactly pinned HTTPS origin without granting sends or tool actions (0.242676ms)
+✔ the external AI provider never receives phone numbers, emails, URLs or credential-like content (2.650386ms)
+✔ owner-approved FAQ candidates with contact data are not transmitted to model either (0.670451ms)
+✔ ordinary low-risk exact FAQ questions retain an AI-selection path without revealing approved answer (1.451479ms)
+✔ Groq factory requires explicit verified free-plan admission and a separate Groq credential (1.391508ms)
+✔ Groq pins its official endpoint/model, disables tools and accepts only approved source text (8.141617ms)
+✔ Groq refuses foreign-tenant sources and potential credentials before network admission (0.481646ms)
+✔ Groq 429, malformed response and foreign source identifiers fall back without retries (2.604758ms)
+✔ Groq paraphrases require review; returned data never authorizes a send (0.51113ms)
+✔ finite Groq request admission prevents parallel requests and caps total attempts (0.856291ms)
+✔ Groq deadline ends unresponsive transport without admitting another attempt (100.821348ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 289.408147
