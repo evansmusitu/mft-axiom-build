@@ -1,0 +1,100 @@
+name: MMF Live Private Identity GET-Only Qualification
+# Isolated one-time GET-only account inventory. Does not register an IdP, create
+# an Access app, configure MFA, change routes, or deploy a Worker.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-live-private-identity-inventory-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  account-private-inventory:
+    if: github.event.before == '5b37d91f624e397f42980bdd0c886a5a1cd2a28e'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Require sealed main and unchanged draft PR 1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '5b37d91f624e397f42980bdd0c886a5a1cd2a28e'
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const g=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('MMF_GITHUB_REF_READ_DENIED');return r.json()};
+          const [m,p]=await Promise.all([g('git/ref/heads/main'),g('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_GITHUB_PROTECTED_REFS_VERIFIED');
+          NODE
+      - name: Read Cloudflare Access providers applications MFA metadata and Worker custom domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          if(!token||token.length<20||account!=='93f395f5121954671f92fffa453d6b61')throw Error('MMF_TOKEN_NOT_PRESENT');
+          const root='https://api.cloudflare.com/client/v4/accounts/'+account+'/';
+          const endpoints=['access/identity_providers','access/apps','access/organizations','workers/domains'];
+          async function get(p){
+            try{
+              const r=await fetch(root+p,{method:'GET',headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12000)});
+              if(!r.ok||r.redirected||!r.headers.get('content-type')?.includes('application/json'))return {readable:false,httpStatus:r.status};
+              if(Number(r.headers.get('content-length')||'0')>131072)return {readable:false,httpStatus:r.status};
+              let bytes=0;const parts=[];const reader=r.body.getReader();
+              try{while(true){const {value,done}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>131072)return {readable:false,httpStatus:r.status};parts.push(value)}}finally{try{await reader.cancel()}catch{};reader.releaseLock()}
+              const b=new Uint8Array(bytes);let k=0;for(const part of parts){b.set(part,k);k+=part.length}
+              const o=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(b));
+              if(o.success!==true||!Object.hasOwn(o,'result')||o.result_info?.total_pages>1)return {readable:false,httpStatus:r.status};
+              return {readable:true,result:o.result,httpStatus:r.status}
+            }catch{return {readable:false,httpStatus:null}}
+          }
+          const out=await Promise.all(endpoints.map(get));
+          const [idps,apps,org,domains]=out;
+          const okApps=apps.readable&&Array.isArray(apps.result);
+          const okIdps=idps.readable&&Array.isArray(idps.result);
+          const okDomains=domains.readable&&Array.isArray(domains.result);
+          const mmf=okApps?apps.result.filter(x=>typeof x?.name==='string'&&/(?:^|[^a-z])mmf(?:$|[^a-z])|musitu mail fabric/i.test(x.name)):[];
+          const mfa=mmf.filter(x=>x?.mfa_config?.mfa_disabled===false&&x?.mfa_config?.session_duration==='0m'&&Array.isArray(x.mfa_config.allowed_authenticators)&&x.mfa_config.allowed_authenticators.some(y=>['totp','security_key','biometrics'].includes(y)));
+          const result={schema:'mmf-cloudflare-live-identity-preflight-v1',observedAtUtc:new Date().toISOString(),
+            readOnly:true,cloudflareGetCount:endpoints.length,mutationCount:0,
+            identityProvidersReadable:!!okIdps,identityProviderCount:okIdps?idps.result.length:null,
+            accessAppsReadable:!!okApps,mmfAccessAppCount:okApps?mmf.length:null,
+            mmfAccessAppsWithExplicitMfaEveryLogin:okApps?mfa.length:null,
+            accessOrgReadable:org.readable&&!!org.result,
+            workerCustomDomainsReadable:!!okDomains,
+            mmfWorkerCustomDomainCount:okDomains?domains.result.filter(x=>/(?:^|[^a-z])mmf(?:$|[^a-z])|musitu-mail-fabric/i.test(x?.service||'')).length:null,
+            customZoneRoutesEnumerated:false,approvedProviderVerified:false,
+            enrolledClientVerified:false,mfaChallengeCompleted:false,
+            tlsGatewayVerified:false,realBrowserAcceptanceCompleted:false,
+            customerAccessEnabled:false,realEmailEnabled:false,commerceEnabled:false,
+            productionReleaseAuthorized:false,gate:'MMF_REAL_IDENTITY_GATE_NOT_PROVEN'};
+          const file=join(process.env.RUNNER_TEMP,'mmf-live-identity-getonly-sanitized.json');
+          writeFileSync(file,JSON.stringify(result,null,2)+'\n',{mode:0o600,flag:'wx'});
+          console.log(JSON.stringify({gate:result.gate,identityProvidersReadable:result.identityProvidersReadable,
+            accessAppsReadable:result.accessAppsReadable,accessOrgReadable:result.accessOrgReadable,
+            workerCustomDomainsReadable:result.workerCustomDomainsReadable,mutationCount:0}));
+          NODE
+      - name: Save only sanitized non-identifying evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-live-identity-readonly-20261016
+          path: ${{ runner.temp }}/mmf-live-identity-getonly-sanitized.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove transient evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-live-identity-getonly-sanitized.json"
