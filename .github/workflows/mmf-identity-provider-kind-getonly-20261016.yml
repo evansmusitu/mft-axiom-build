@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   inspector:
-    if: github.event.before == '8008de0d69ffbb809ba8f96c0432b1bb51562bca'
+    if: github.event.before == '93bc17f7b176ba621f54825659d51c86b299cb6f'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 7
@@ -78,7 +78,7 @@ jobs:
           };
           const out=join(process.env.RUNNER_TEMP,'mmf-oidc-provider-safe-kind-20261016.json');
           writeFileSync(out,JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o600});
-          console.log(JSON.stringify({gate:result.gate,providerTypes,appCount:result.allAccessAppsCount,mmfApps:result.mmfAccessApps,
+          console.log(JSON.stringify({gate:result.gate,providerTypes:providers,appCount:result.allAccessAppsCount,mmfApps:result.mmfAccessApps,
             verifiedOwnedZone:result.approvedOwnedZonePresent,mmfWorkerDomains:result.mmfWorkerDomains,mutationCount:0}));
           NODE
       - name: Save de-identified evidence
