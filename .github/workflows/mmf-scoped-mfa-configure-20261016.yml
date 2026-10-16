@@ -1,0 +1,55 @@
+name: MMF Scoped Organization MFA and Closed App 20261016
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-scoped-mfa-configure-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    if: github.event.before == '4291e8f4595ca5aac40aa60d74d1965651ac40f9'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify protected refs before using the existing connection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('GIT_READ_DENIED');return r.json()};
+          const [main,pr]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||pr.state!=='open'||!pr.draft||pr.merged)throw Error('PROTECTED_REFS_DRIFT');
+          console.log('PROTECTED_REFS_PRESERVED');
+          NODE
+      - name: Enable enrollment methods without global enforcement and require MFA on closed MMF app
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          MMF_EVIDENCE_PUBLIC_KEY: |
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAlNcCOZxsajDx0a1bsO5B
+            ilCAaDtFWU+bQiaqHbYM9acE2qitluoj7COk+R6owKAST64MHQebWcHV4js0Th1+
+            fvrcA3g+8wiVBPvnV2yeybnfXLzoddCt3e94BWZJ1S2px1dbRvtNd8Yq/DJfXefz
+            QkZyJ72fb2CdeIedPLEtfyhKPlldgOxoFWv+Kks5I1dXo7NXxZzAcV3Q3IwZEIGw
+            ITbKTWzbjQyGbXux4d+D/u+Kdxh6JdZ7/FI5xS70MPgkU9CZlWY1KlKdLvcemZp7
+            2SxyVBevNCisE6IhAIySDQBsULdc0ipfc6Nn2bMA6+N2O6A7ZuOBFIDyqipVEtp9
+            HouyVAGocEbPdTnJ7L8R0mjULLAMIZWsD2yIBFTPBKqw4yRyv9jfmqqYhUrBanLv
+            IZwbpBynPGlSd/jy6gpJa1bn3+AEA+eH9zCykr3cBTh5zArL0UBWxkCPkTFCaFfT
+            CKSiJUDWCbdwA9sWeuuLMC2YOD45dHFRU4/dAqurMjI7AgMBAAE=
+            -----END PUBLIC KEY-----
+        run: node musitu-mail-fabric/src/staging/cloudflare-mfa-configure-20261016.mjs
+      - name: Preserve encrypted configuration and non-sensitive status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-scoped-mfa-configure-20261016
+          path: |
+            ${{ runner.temp }}/mmf-mfa-configuration.encrypted.json
+            ${{ runner.temp }}/mmf-mfa-configuration-summary.json
+          retention-days: 7
+          if-no-files-found: error
