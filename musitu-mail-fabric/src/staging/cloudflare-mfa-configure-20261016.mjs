@@ -41,8 +41,8 @@ try{
  const orgBody={...org,mfa_config:{...(org.mfa_config||{}),allowed_authenticators:allowed,session_duration:org.mfa_config?.session_duration||'15m'},mfa_required_for_all_apps:false};
  // GET includes response-only metadata and a disabled inactivity object with
  // null enum/integer fields. Those values are not valid PUT parameters.
- for(const k of ['created_at','updated_at','has_migrated_private_apps','trusted_accounts'])delete orgBody[k];
- if(orgBody.service_token_inactivity)orgBody.service_token_inactivity=Object.fromEntries(Object.entries(orgBody.service_token_inactivity).filter(([,v])=>v!==null));
+ for(const k of ['created_at','updated_at','has_migrated_private_apps','trusted_accounts','cache_device_posture'])delete orgBody[k];
+ if(orgBody.service_token_inactivity?.enabled===false&&orgBody.service_token_inactivity.action===null&&orgBody.service_token_inactivity.inactivity_threshold_days===null)delete orgBody.service_token_inactivity;
  if(!existing.includes('totp')||!existing.includes('security_key')){
   await api(p+'organizations','PUT',orgBody);evidence.mutations.push('organization_mfa_methods_enabled_global_enforcement_false');
  }
