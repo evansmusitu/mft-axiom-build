@@ -39,11 +39,17 @@ try{
  const existing=org.mfa_config?.allowed_authenticators||[];
  const allowed=[...new Set([...existing,'totp','security_key'])];
  const orgBody={...org,mfa_config:{...(org.mfa_config||{}),allowed_authenticators:allowed,session_duration:org.mfa_config?.session_duration||'15m'},mfa_required_for_all_apps:false};
+ // GET includes response-only metadata and a disabled inactivity object with
+ // null enum/integer fields. Those values are not valid PUT parameters.
+ for(const k of ['created_at','updated_at','has_migrated_private_apps','trusted_accounts'])delete orgBody[k];
+ if(orgBody.service_token_inactivity)orgBody.service_token_inactivity=Object.fromEntries(Object.entries(orgBody.service_token_inactivity).filter(([,v])=>v!==null));
  if(!existing.includes('totp')||!existing.includes('security_key')){
   await api(p+'organizations','PUT',orgBody);evidence.mutations.push('organization_mfa_methods_enabled_global_enforcement_false');
  }
  const orgAfter=await api(p+'organizations');
  if(orgAfter.mfa_required_for_all_apps!==false||!orgAfter.mfa_config?.allowed_authenticators?.includes('totp')||!orgAfter.mfa_config?.allowed_authenticators?.includes('security_key'))throw Error('ORGANIZATION_MFA_READBACK_FAILED');
+ const policyProjection=o=>Object.fromEntries(Object.entries(o).filter(([k])=>!['created_at','updated_at','mfa_config','mfa_required_for_all_apps'].includes(k)));
+ if(hash(policyProjection(org))!==hash(policyProjection(orgAfter)))throw Error('UNRELATED_ORGANIZATION_SETTINGS_DRIFT');
  evidence.after.organization=orgAfter;
  const options={...app,mfa_config:{mfa_disabled:false,allowed_authenticators:['totp','security_key'],session_duration:'15m'}};
  delete options.allow_authenticate_via_warp;
