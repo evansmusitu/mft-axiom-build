@@ -1,0 +1,90 @@
+name: MMF Private Cloudflare Access MFA Closed Stage 20261016
+# Only the newly registered MMF deny-all Access application; NO policy/route/DNS.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-private-access-mfa-stage-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  mfa-readback:
+    if: github.event.before == '8659830d52e33d47d0b0a1384d5d5714e192beb7'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify Git protected refs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const b='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const g=async p=>{const r=await fetch(b+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN}});if(!r.ok)throw Error('GITHUB_READ_CLOSED');return r.json()};
+          const [m,p]=await Promise.all([g('git/ref/heads/main'),g('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          NODE
+      - name: Add MFA only to closed MMF Access app if permissions allow
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';import {join} from 'node:path';
+          const t=process.env.CLOUDFLARE_API_TOKEN,a=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const appName='MUSITU Mail Fabric closed private stage (deny all)',hostname='mail-stage.mftintelligence.com';
+          const root='https://api.cloudflare.com/client/v4/accounts/'+a+'/access/';
+          const evidence={schema:'mmf-access-mfa-closed-stage-v1',at:new Date().toISOString(),
+            hostname,appExists:false,zeroAllowPolicies:false,mfaUpdateAttempted:false,
+            mfaReadbackVerified:false,accessGranted:false,dnsCreated:false,workerDeployed:false,
+            oidcClientRegistered:false,realMfaPassed:false,realBrowserPassed:false,realSending:false,
+            realPayments:false,productionRelease:false,gate:'MMF_ACCESS_MFA_UNVERIFIED'};
+          const save=()=>writeFileSync(join(process.env.RUNNER_TEMP,'mmf-mfa-access-closed-readback.json'),JSON.stringify(evidence,null,2)+'\n',{mode:0o600,flag:'wx'});
+          const stop=code=>{evidence.gate=code;save();console.log(JSON.stringify({gate:evidence.gate,mfaVerified:false,accessGranted:false}));process.exitCode=2};
+          try{
+           if(a!=='93f395f5121954671f92fffa453d6b61'||!t||t.length<20)throw Error('NO_AUTH');
+           const get=async p=>{const r=await fetch(root+p,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12000)});if(!r.ok||r.redirected)throw Error('GET_DENIED');const s=await r.text();if(s.length>100000)throw Error('OVERSIZED');const j=JSON.parse(s);if(j.success!==true||!Object.hasOwn(j,'result')||j.result_info?.total_pages>1)throw Error('BAD_API');return j.result};
+           const apps=await get('apps');
+           if(!Array.isArray(apps)||apps.length!==4)throw Error('APP_COUNT_DRIFT');
+           const mine=apps.filter(x=>x?.name===appName&&x?.domain===hostname&&x?.type==='self_hosted');
+           if(mine.length!==1||!/^[a-f0-9-]{36}$/i.test(mine[0].id))throw Error('MMF_APP_AMBIGUOUS');
+           const id=mine[0].id;
+           const [readback,policies]=await Promise.all([get('apps/'+id),get('apps/'+id+'/policies')]);
+           if(readback.id!==id||readback.name!==appName||readback.domain!==hostname||
+              !Array.isArray(policies)||policies.length!==0)throw Error('NOT_DENY_ALL');
+           evidence.appExists=true;evidence.zeroAllowPolicies=true;
+           // Only an app which denies EVERY user can be modified.
+           const options={...readback,mfa_config:{mfa_disabled:false,session_duration:'15m',
+              allowed_authenticators:['totp','security_key']}};
+           evidence.mfaUpdateAttempted=true;
+           const response=await fetch(root+'apps/'+id,{method:'PUT',headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},redirect:'error',signal:AbortSignal.timeout(15000),body:JSON.stringify(options)});
+           evidence.updateHttpStatus=response.status;
+           const st=await response.text();if(st.length>50000)throw Error('WRITE_RESULT_OVERSIZE');
+           const j=JSON.parse(st);if(!response.ok||j.success!==true){
+              evidence.errorCodes=Array.isArray(j.errors)?j.errors.map(x=>Number.isInteger(x.code)?x.code:null):[];
+              stop('MMF_MFA_UPDATE_REJECTED_APP_REMAINS_DENY_ALL');process.exit();
+           }
+           const [verified,policiesAfter]=await Promise.all([get('apps/'+id),get('apps/'+id+'/policies')]);
+           evidence.mfaReadbackVerified=verified.domain===hostname&&verified.mfa_config?.mfa_disabled===false&&
+              verified.mfa_config?.session_duration==='15m'&&Array.isArray(verified.mfa_config?.allowed_authenticators)&&
+              verified.mfa_config.allowed_authenticators.includes('totp')&&Array.isArray(policiesAfter)&&policiesAfter.length===0;
+           evidence.gate=evidence.mfaReadbackVerified?'MMF_ACCESS_MFA_SET_APP_STILL_DENY_ALL':'MMF_MFA_READBACK_MISMATCH';
+           save();console.log(JSON.stringify({gate:evidence.gate,mfaVerified:evidence.mfaReadbackVerified,accessGranted:false}));
+           if(!evidence.mfaReadbackVerified)process.exitCode=2;
+          }catch{stop('MMF_MFA_PREFLIGHT_OR_READBACK_FAILED')}
+          NODE
+      - name: Store de-identified evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-closed-access-mfa-readback-20261016
+          path: ${{ runner.temp }}/mmf-mfa-access-closed-readback.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Clean temporary evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-mfa-access-closed-readback.json"
