@@ -112,3 +112,17 @@ test('no data mutation when stale R2 CAS tries to overwrite a newer state',async
  assert.equal(stale,null);
  assert.equal((await req(e,'/api/projects')).data.projects.length,2);
 });
+
+test('qualification state uses isolated R2 key, not live Studio state object',async()=>{
+  const e=env();e.STUDIO_STATE_KEY='studio-control/qa-endtoend-20261017.json';
+  const p=await req(e,'/api/projects','POST',{title:'QA isolated'});
+  assert.equal(p.status,201);
+  assert.ok(await e.STUDIO_ASSETS.get('studio-control/qa-endtoend-20261017.json'));
+  assert.equal(await e.STUDIO_ASSETS.get('studio-control/v1/state.json'),null);
+});
+test('unsafe state-key override is not accepted',async()=>{
+  const e=env();e.STUDIO_STATE_KEY='studio-control/v1/state.json/../../axiom';
+  const p=await req(e,'/api/projects','POST',{title:'Live default'});
+  assert.equal(p.status,201);
+  assert.ok(await e.STUDIO_ASSETS.get('studio-control/v1/state.json'));
+});
