@@ -33,6 +33,8 @@ def verify_request(job_id,scene_json,sha,device):
     if device not in ("CPU","GPU"):raise ValueError("INVALID_DEVICE")
     if device=="GPU" and os.getenv("STUDIO_GPU_GATE_ON_MODAL")!="1":
         raise RuntimeError("MODAL_GPU_GATE_CLOSED")
+    if not isinstance(scene_json,str) or not isinstance(sha,str) or not isinstance(job_id,str):
+        raise ValueError("INVALID_TYPES")
     if len(scene_json.encode())>65536 or hashlib.sha256(scene_json.encode()).hexdigest()!=sha:
         raise ValueError("INPUT_DIGEST_MISMATCH")
     scene=json.loads(scene_json)
@@ -116,17 +118,21 @@ def submit_asgi():
             raise HTTPException(401,"UNAUTHORIZED")
         if os.getenv("STUDIO_BILLING_GUARD_APPROVED")!="1":
             raise HTTPException(503,"BILLING_GUARD_CLOSED")
-        raw=await req.body()
-        if len(raw)>90000:raise HTTPException(413,"TOO_LARGE")
+        parts=[];length=0
+        async for chunk in req.stream():
+            length+=len(chunk)
+            if length>90000:raise HTTPException(413,"TOO_LARGE")
+            parts.append(chunk)
+        raw=b"".join(parts)
         try:
             doc=json.loads(raw)
             device=doc["device"];scene_json=doc["scene_json"];sha=doc["input_sha256"];jid=doc["job_id"]
+            if device == "GPU" and (os.getenv("STUDIO_GPU_GATE_ON_MODAL") != "1"
+                                     or os.getenv("STUDIO_REGISTER_GPU_FUNCTIONS")!="1"):
+                raise HTTPException(status_code=503, detail="GPU_ENTITLEMENT_NOT_READY")
             verify_request(jid,scene_json,sha,device)
         except (KeyError,ValueError,TypeError) as exc:
             raise HTTPException(400,"INVALID_SUBMISSION") from exc
-        if device == "GPU" and (os.getenv("STUDIO_GPU_GATE_ON_MODAL") != "1"
-                                or os.getenv("STUDIO_REGISTER_GPU_FUNCTIONS")!="1"):
-            raise HTTPException(status_code=503, detail="GPU_ENTITLEMENT_NOT_READY")
         fn=render_gpu if device=="GPU" else render_cpu
         try:
             await fn.spawn.aio(jid,scene_json,sha)

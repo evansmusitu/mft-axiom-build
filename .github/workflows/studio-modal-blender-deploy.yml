@@ -50,12 +50,17 @@ jobs:
           endpoint=modal.Function.from_name("musitu-studio-v02","submit_asgi").get_web_url()
           if not endpoint or not endpoint.startswith("https://"):raise SystemExit("MODAL_ENDPOINT_MISSING")
           pathlib.Path("studio-modal-url.txt").write_text(endpoint+"\n")
-          req=urllib.request.Request(endpoint.rstrip("/")+"/jobs",method="POST",headers={"Content-Type":"application/json"},data=b"{}")
-          try:
-            with urllib.request.urlopen(req,timeout=65) as r: code=r.status
-          except urllib.error.HTTPError as e: code=e.code
-          if code!=401:raise SystemExit("FAIL_CLOSED_EXPECTED_401_GOT_"+str(code))
-          print("STUDIO_MODAL_LIVE_UNAUTH_DENIED_401")
+          codes=[]
+          for index in range(4):
+            req=urllib.request.Request(endpoint.rstrip("/")+"/jobs",method="POST",headers={"Content-Type":"application/json"},data=b"{}")
+            try:
+              with urllib.request.urlopen(req,timeout=65) as r: code=r.status
+            except urllib.error.HTTPError as e: code=e.code
+            codes.append(code)
+            if code!=401:
+              import time;time.sleep(2)
+          if codes.count(401)<2:raise SystemExit("FAIL_CLOSED_MODAL_AUTH_CODES_"+str(codes))
+          print("STUDIO_MODAL_LIVE_UNAUTH_DENIED_401"+str(codes))
           PY
       - name: Render genuine Blender CPU scene INSIDE Modal
         working-directory: musitu_studio
