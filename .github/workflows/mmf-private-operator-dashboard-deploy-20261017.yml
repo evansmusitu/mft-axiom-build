@@ -1,0 +1,184 @@
+name: MMF Access-Verified Operator Console Preview Release 20261017
+# One-shot: replace content of the existing Access-protected Worker only. Preserve Access, five bindings, DNS, inactive commerce. No tenant data is linked.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-private-operator-dashboard-deploy-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  deploy-pins:
+    if: github.event.before == 'e3cfd659f18f9b2d9723274ccc6c84d36581d0b2'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify source, frozen refs and red-green regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'e3cfd659f18f9b2d9723274ccc6c84d36581d0b2'
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('GIT_PROTECTED_REF_UNAVAILABLE');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('GIT_REF_DRIFT');
+          console.log('MMF_PROTECTED_GIT_REFS_UNCHANGED');
+          NODE
+          cd musitu-mail-fabric
+          node --check src/edge/mmf-access-stage-gateway.mjs
+          node --test test/mmf-private-access-stage-gateway.test.mjs
+          npm run check
+      - name: Independently fetch current real public JWKs and update ONLY controlled MMF Worker content
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {createPublicKey,createHash} from 'node:crypto';
+          const account='93f395f5121954671f92fffa453d6b61';
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const worker='mmf-private-identity-edge-20261017',host='mail-stage.mftintelligence.com';
+          const appId='f8ab12fe-251f-44fa-80de-1c2f2bdc4055';
+          const launcherId='9dfc2a78-0dae-463b-9235-03ae134be007';
+          const idp='ec04a8ab-9382-4df0-9589-d2c98618e6af';
+          const P='accounts/'+account+'/access/';
+          const summary={schema:'mmf-private-operator-dashboard-access-verified-v1',when:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA,
+            publicKeysDownloaded:false,keyCount:0,keyFingerprints:[],keySetValidityDays:7,
+            verifiedAccessProtection:false,verifiedBindings:false,verifiedOriginalSource:false,
+            scriptContentUpdated:false,scriptContentReadback:false,anonymousStillDenied:false,
+            browserLoginObserved:false,actualOidcCallbackVerified:false,readOnlyDashboardMounted:false,realCustomerSending:false,realPayments:false,cloudflareMutations:0,gate:'MMF_READONLY_OPERATOR_DASHBOARD_NOT_DEPLOYED'};
+          const save=()=>{writeFileSync(join(process.env.RUNNER_TEMP,'mmf-private-operator-dashboard-deploy-proof.json'),JSON.stringify(summary,null,2)+'\n',{mode:0o600,flag:'wx'});
+             console.log(JSON.stringify({gate:summary.gate,publicKeys:summary.keyCount,keysVerified:summary.publicKeysDownloaded,sourceVerified:summary.verifiedOriginalSource,scriptChanged:summary.scriptContentUpdated,readback:summary.scriptContentReadback,anonymousDenied:summary.anonymousStillDenied,mutations:summary.cloudflareMutations}));};
+          const api=async(path,method='GET',body)=>{
+            if(method!=='GET'&&!(method==='PUT'&&path==='accounts/'+account+'/workers/scripts/'+worker+'/content'&&body instanceof FormData))throw Error('MMF_MUTATION_NOT_ALLOWED');
+            if(method!=='GET')summary.cloudflareMutations++;
+            const response=await fetch('https://api.cloudflare.com/client/v4/'+path,{method,headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(20000),...(body?{body}:{})});
+            if(!response.ok||response.redirected)throw Error('MMF_CLOUDFLARE_HTTP_DENIED');
+            if(path.endsWith('/content/v2'))return response;
+            const text=await response.text();if(text.length>250000)throw Error('MMF_RESPONSE_OVERSIZE');
+            const j=JSON.parse(text);if(j.success!==true||!Object.hasOwn(j,'result')||j.result_info?.total_pages>1)throw Error('MMF_CLOUDFLARE_API_DENIED');return j.result;
+          };
+          try{
+            if(process.env.CLOUDFLARE_ACCOUNT_ID!==account||!token||token.length<20)throw Error('MMF_TOKEN_UNAVAILABLE');
+            const [app,policies,launcher,launcherPolicies,settings,subdomain,domains]=await Promise.all([
+              api(P+'apps/'+appId),api(P+'apps/'+appId+'/policies?per_page=100'),
+              api(P+'apps/'+launcherId),api(P+'apps/'+launcherId+'/policies?per_page=100'),
+              api('accounts/'+account+'/workers/scripts/'+worker+'/settings'),
+              api('accounts/'+account+'/workers/scripts/'+worker+'/subdomain'),
+              api('accounts/'+account+'/workers/domains?per_page=100')
+            ]);
+            const email=launcherPolicies?.[0]?.include?.[0]?.email?.email;
+            summary.verifiedAccessProtection=app?.id===appId&&app.type==='self_hosted'&&app.domain===host&&
+              app.mfa_config?.mfa_disabled===false&&app.mfa_config?.allowed_authenticators?.includes('totp')&&
+              policies?.length===1&&policies[0].decision==='allow'&&policies[0].include?.length===1&&policies[0].include[0].email?.email===email&&
+              policies[0].require?.length===1&&policies[0].require[0].login_method?.id===idp&&
+              typeof email==='string'&&email.includes('@')&&launcher?.type==='app_launcher'&&
+              Array.isArray(domains)&&domains.filter(x=>x.hostname===host&&x.service===worker).length===1&&
+              subdomain?.enabled===false&&subdomain?.previews_enabled===false;
+            if(!summary.verifiedAccessProtection)throw Error('MMF_PROTECTED_APP_DRIFT');
+            const names=['MMF_ACCESS_AUD','MMF_APPROVED_ADMIN_SHA256','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'];
+            const b=settings?.bindings;
+            summary.verifiedBindings=Array.isArray(b)&&b.length===5&&names.every(name=>b.some(x=>x.name===name&&x.type==='plain_text'))&&
+              b.find(x=>x.name==='MMF_ACCESS_AUD')?.text===app.aud&&
+              b.find(x=>x.name==='MMF_APPROVED_ADMIN_SHA256')?.text===createHash('sha256').update(email.toLowerCase()).digest('hex')&&
+              ['MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'].every(name=>b.find(x=>x.name===name)?.text==='false');
+            if(!summary.verifiedBindings)throw Error('MMF_PROTECTED_BINDINGS_DRIFT');
+            const url='https://musitu-axiom.cloudflareaccess.com/cdn-cgi/access/certs';
+            const r=await fetch(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(16000)});
+            if(!r.ok||r.redirected||!(r.headers.get('content-type')||'').startsWith('application/json'))throw Error('MMF_ACCESS_PUBLIC_CERT_ENDPOINT_UNAVAILABLE');
+            const text=await r.text();if(text.length>32768)throw Error('MMF_JWKS_RESPONSE_OVERSIZE');
+            const certs=JSON.parse(text);
+            if(!Array.isArray(certs.keys)||certs.keys.length<1||certs.keys.length>5)throw Error('MMF_JWKS_INVALID');
+            const keys=certs.keys.map(x=>({kid:x.kid,kty:x.kty,alg:x.alg,use:x.use,n:x.n,e:x.e}));
+            if(!keys.every(k=>typeof k.kid==='string'&&k.kid.length>=10&&k.kid.length<=100&&k.kty==='RSA'&&
+                k.alg==='RS256'&&k.use==='sig'&&typeof k.n==='string'&&k.n.length>200&&
+                typeof k.e==='string'&&k.e.length>=2&&k.e.length<=10&&!k.d&&
+                createPublicKey({key:{kty:'RSA',n:k.n,e:k.e},format:'jwk'}).asymmetricKeyDetails.modulusLength>=2048)||
+                new Set(keys.map(k=>k.kid)).size!==keys.length)throw Error('MMF_ACCESS_JWKS_KEY_INVALID');
+            // Stronger consistency: PEM certificates from the same protected TLS origin must correspond exactly to all JWKs.
+            if(!Array.isArray(certs.public_certs)||certs.public_certs.length!==keys.length)throw Error('MMF_CERTS_PEM_JWK_SET_MISMATCH');
+            const fingerprint=k=>createHash('sha256').update(createPublicKey({key:k,format:'jwk'}).export({type:'spki',format:'der'})).digest('hex');
+            const pem=await import('node:crypto').then(x=>x.X509Certificate);
+            for(const k of keys){
+              const candidate=certs.public_certs.filter(c=>c.kid===k.kid);
+              if(candidate.length!==1||typeof candidate[0].cert!=='string'||fingerprint(k)!==createHash('sha256').update(new pem(candidate[0].cert).publicKey.export({type:'spki',format:'der'})).digest('hex'))throw Error('MMF_CERTIFICATE_PROOF_MISMATCH');
+            }
+            summary.publicKeysDownloaded=true;summary.keyCount=keys.length;summary.keyFingerprints=keys.map(k=>fingerprint(k).slice(0,16));
+            const marker='const PINNED_ACCESS_CERTS={keys:[],validUntil:0};';
+            const source=readFileSync('musitu-mail-fabric/src/edge/mmf-access-stage-gateway.mjs','utf8');
+            if(source.split(marker).length!==2||!source.includes('MMF_PINNED_ACCESS_CERTS'))throw Error('MMF_SOURCE_TEMPLATE_DRIFT');
+            const oldSource=await (await import('node:child_process')).execSync('git show da156c4e576ae6c0de2d3c0f5e37b7c45c1fde48:musitu-mail-fabric/src/edge/mmf-access-stage-gateway.mjs',{encoding:'utf8'});
+            const oldRemote=await api('accounts/'+account+'/workers/scripts/'+worker+'/content/v2');
+            const oldText=await oldRemote.text();if(oldText.length>250000)throw Error('MMF_REMOTE_SOURCE_OVERSIZE');
+            const pinnedMatches=[...oldText.matchAll(/const PINNED_ACCESS_CERTS=Object\.freeze\((\{[^;\n]+\})\);/g)];
+            if(pinnedMatches.length!==1)throw Error('MMF_REMOTE_PUBLIC_PINS_DRIFT');
+            const originalPin='const PINNED_ACCESS_CERTS=Object.freeze('+pinnedMatches[0][1]+');';
+            const actualCurrentPins=JSON.parse(pinnedMatches[0][1]);
+            // The approved old code must match exactly, except for the public key set
+            // that was injected by the previous Cloudflare-authenticated deployment.
+            summary.verifiedOriginalSource=oldSource.split(marker).length===2&&
+              oldText.includes(oldSource.replace(marker,originalPin).trimEnd())&&
+              !oldText.includes('privateOperatorDashboard')&&
+              actualCurrentPins?.validUntil>Date.now()&&
+              actualCurrentPins?.validUntil<=Date.now()+15*86400000&&
+              Array.isArray(actualCurrentPins.keys)&&actualCurrentPins.keys.length===keys.length&&
+              keys.every(k=>actualCurrentPins.keys.some(t=>t.kid===k.kid&&fingerprint(t)===fingerprint(k)));
+            if(!summary.verifiedOriginalSource)throw Error('MMF_REMOTE_WORKER_SOURCE_DRIFT');
+            const now=Date.now();const expiry=now+7*86400000;
+            const replacement='const PINNED_ACCESS_CERTS=Object.freeze('+JSON.stringify({keys,validUntil:expiry})+');';
+            const rendered=source.replace(marker,replacement);
+            if(rendered.length>33000||rendered===source||!rendered.includes("u.pathname==='/private/dashboard'")||!rendered.includes('form-action \'none\'')||!rendered.includes('not a live customer dashboard'))throw Error('MMF_DASHBOARD_SOURCE_INVALID');
+            const form=new FormData();
+            form.set('metadata',new Blob([JSON.stringify({main_module:'mmf-access-stage-gateway.mjs'})],{type:'application/json'}));
+            form.set('mmf-access-stage-gateway.mjs',new Blob([rendered],{type:'application/javascript+module'}),'mmf-access-stage-gateway.mjs');
+            const updated=await api('accounts/'+account+'/workers/scripts/'+worker+'/content','PUT',form);
+            summary.scriptContentUpdated=updated?.id===worker;
+            if(!summary.scriptContentUpdated)throw Error('MMF_SCRIPT_WRITE_NOT_ACKNOWLEDGED');
+            const after=await api('accounts/'+account+'/workers/scripts/'+worker+'/content/v2');
+            const afterText=await after.text();
+            summary.scriptContentReadback=afterText.includes(rendered.trimEnd())&&afterText.includes(replacement)&&afterText.includes('privateOperatorDashboard');
+            if(!summary.scriptContentReadback)throw Error('MMF_DEPLOYED_CONTENT_MISMATCH');
+            summary.readOnlyDashboardMounted=true;
+            const [b2,sub2,dom2,policy2]=await Promise.all([
+              api('accounts/'+account+'/workers/scripts/'+worker+'/settings'),
+              api('accounts/'+account+'/workers/scripts/'+worker+'/subdomain'),
+              api('accounts/'+account+'/workers/domains?per_page=100'),
+              api(P+'apps/'+appId+'/policies?per_page=100')]);
+            if(JSON.stringify(settings?.bindings)!==JSON.stringify(b2?.bindings)||sub2?.enabled!==false||sub2?.previews_enabled!==false||
+              dom2?.filter(x=>x.hostname===host&&x.service===worker).length!==1||policy2?.length!==1)throw Error('MMF_UNAUTHORIZED_POST_DEPLOY_DRIFT');
+            const probe=await fetch('https://'+host+'/private/gateway',{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
+            summary.anonymousHttpStatus=probe.status;
+            summary.anonymousStillDenied=[302,303,307,308,401,403].includes(probe.status);
+            const d=await fetch('https://'+host+'/private/dashboard',{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
+            summary.anonDashboardHttpStatus=d.status;
+            summary.anonDashboardDenied=[302,303,307,308,401,403].includes(d.status);
+            await d.body?.cancel().catch(()=>{});
+            if(!summary.anonDashboardDenied)throw Error('MMF_UNAUTHORIZED_DASHBOARD_LEAK');
+            await probe.body?.cancel().catch(()=>{});
+            summary.gate=summary.anonymousStillDenied&&summary.anonDashboardDenied?'MMF_READONLY_OPERATOR_DASHBOARD_DEPLOYED_ANONYMOUS_DENIED':'MMF_DASHBOARD_ANONYMOUS_PROBE_INCONCLUSIVE';
+          }catch(e){summary.gate=summary.scriptContentUpdated?'MMF_WORKER_MODIFIED_REVIEW_REQUIRED':'MMF_PINNING_FAILED_CLOSED';
+             summary.failure=/^MMF_[A-Z_]+$/.test(e.message||'')?e.message:'MMF_UNKNOWN_FAILURE'}
+          finally{save();if(summary.gate!=='MMF_READONLY_OPERATOR_DASHBOARD_DEPLOYED_ANONYMOUS_DENIED')process.exitCode=2}
+          NODE
+      - name: Save sanitized public-key pin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-private-operator-dashboard-deployment-20261017
+          path: ${{ runner.temp }}/mmf-private-operator-dashboard-deploy-proof.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove local proof
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-private-operator-dashboard-deploy-proof.json"
