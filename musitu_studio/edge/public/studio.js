@@ -6,12 +6,21 @@ const seed={schema:'musitu.blender.job.v1',job_id:'StudioProof01',frame_end:32,o
 ],animations:[{object:'Feature',axis:'Z',degrees:180,start:1,end:32}]};
 $('scene').value=JSON.stringify(seed,null,2);
 let token=sessionStorage.getItem('musitu_studio_session')||'';
+let accessSessionReady=false;
+async function signInWithCloudflare(){
+ const response=await fetch('/api/session',{method:'GET',credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)throw Error('Cloudflare Access staff sign-in is required. Use your approved MUSITU staff account.');
+ accessSessionReady=true;
+}
 $('token').value=token;
 const state={projects:[],jobs:[]};
 function notice(s,bad=false){$('message').textContent=s;$('message').className='note'+(bad?' error':'');}
-async function api(path,method='GET',body){
- if(!token)throw Error('Connect with your admin token first.');
- const res=await fetch(path,{method,headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
+async function api(path,method='GET',body,retry=true){
+ if(!token&&!accessSessionReady)await signInWithCloudflare();
+ const res=await fetch(path,{method,credentials:'same-origin',
+   headers:{...(token?{'Authorization':'Bearer '+token}:{}),'Content-Type':'application/json'},
+   body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
+ if(res.status===401&&!token&&retry){accessSessionReady=false;await signInWithCloudflare();return api(path,method,body,false);}
  let result;try{result=await res.json()}catch{throw Error('Unexpected server response '+res.status);}
  if(!res.ok)throw Error(result.error||'HTTP '+res.status);
  return result;
@@ -54,7 +63,7 @@ async function refresh(){
   if(j.state==='COMPLETED'){
     for(const name of ['scene.blend','scene.glb','preview.png']){
       const b=el('button',name,'ghost');
-      b.onclick=()=>action(async()=>{const res=await fetch('/api/jobs/'+j.id+'/assets/'+name,{headers:{Authorization:'Bearer '+token}});
+      b.onclick=()=>action(async()=>{const res=await fetch('/api/jobs/'+j.id+'/assets/'+name,{credentials:'same-origin',headers:token?{Authorization:'Bearer '+token}:{}});
         if(!res.ok)throw Error('Download failed');const blob=await res.blob();const url=URL.createObjectURL(blob);
         const a=document.createElement('a');a.href=url;a.download=j.id+'-'+name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
       });right.append(b);
@@ -63,10 +72,10 @@ async function refresh(){
   card.append(left,right);queue.append(card);
  }
  if(!state.jobs.length)queue.textContent='No jobs yet. Submit an approved JSON scene.';
- notice('Connected. Project and job data were loaded from Cloudflare D1.');
+ notice('Connected to '+status.backend+'. New CPU renders use verified Modal execution and Cloudflare R2 storage.');
 }
-$('connect').onclick=()=>action(async()=>{token=$('token').value.trim();if(token.length<32)throw Error('Token must be at least 32 characters.');sessionStorage.setItem('musitu_studio_session',token);await refresh();});
-$('forget').onclick=()=>{token='';$('token').value='';sessionStorage.removeItem('musitu_studio_session');$('state').textContent='DISCONNECTED';$('project-list').textContent='Disconnected.';$('job-list').textContent='Disconnected.';notice('Session access removed from this browser tab.')};
+$('connect').onclick=()=>action(async()=>{const entered=$('token').value.trim();if(entered){if(entered.length<32)throw Error('Token must be at least 32 characters.');token=entered;sessionStorage.setItem('musitu_studio_session',token);}else{token='';await signInWithCloudflare();}await refresh();});
+$('forget').onclick=()=>{token='';accessSessionReady=false;$('token').value='';sessionStorage.removeItem('musitu_studio_session');$('state').textContent='DISCONNECTED';$('project-list').textContent='Disconnected.';$('job-list').textContent='Disconnected.';notice('Local token removed. Cloudflare Access remains responsible for your staff sign-in.')};
 $('refresh').onclick=()=>action(refresh);
 $('project-form').onsubmit=(e)=>{e.preventDefault();action(async()=>{await api('/api/projects','POST',{title:$('project-title').value});$('project-title').value='';await refresh();})};
 $('job-form').onsubmit=(e)=>{e.preventDefault();action(async()=>{let scene;try{scene=JSON.parse($('scene').value)}catch{throw Error('Scene JSON is invalid.');}
@@ -74,4 +83,4 @@ $('job-form').onsubmit=(e)=>{e.preventDefault();action(async()=>{let scene;try{s
  const result=await api('/api/jobs','POST',{project_id,scene,device:$('device').value,submission_key:crypto.randomUUID().replaceAll('-','')});
  notice('Submitted '+result.job_id+' for explicit approval.');await refresh();
 })};
-if(token)action(refresh);
+action(refresh);
