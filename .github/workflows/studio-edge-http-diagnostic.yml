@@ -1,0 +1,45 @@
+name: MUSITU Studio — Public Edge HTTP 403 Classification
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-edge-http-diagnostic.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify public Cloudflare edge response without credentials
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,json,re
+          endpoints=[
+            ('staff_custom','https://studio.mftintelligence.com/','GET'),
+            ('staff_workers_dev','https://musitu-studio-v02.mft-education-nexus-93f395f5.workers.dev/api/status','GET'),
+            ('callback_custom','https://studio-callback.mftintelligence.com/internal/callback','POST'),
+            ('callback_workers_dev','https://musitu-studio-callback-v02.mft-education-nexus-93f395f5.workers.dev/internal/callback','POST')]
+          rows=[]
+          for name,url,method in endpoints:
+            req=urllib.request.Request(url,method=method,
+                data=b'{}' if method=='POST' else None,
+                headers={'Content-Type':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                code=r.status;headers=r.headers;body=r.read(1100)
+            except urllib.error.HTTPError as e:
+              code=e.code;headers=e.headers;body=e.read(1100)
+            except Exception as e:
+              rows.append({'probe':name,'status':'NETWORK_'+type(e).__name__})
+              continue
+            text=body.decode('utf-8',errors='ignore').lower()
+            classifiers=[x for x in ['cloudflare','access','attention','error 1020','captcha','forbidden','403',
+                    'invalid','unauthorized','browser check','challenge'] if x in text]
+            rows.append({'probe':name,'status':code,
+               'content_type':headers.get('Content-Type','').split(';')[0],
+               'server':headers.get('Server',''),
+               'cf_mitigated':headers.get('cf-mitigated',''),
+               'location_login':('/cdn-cgi/access/' in headers.get('Location','')),
+               'html_markers':classifiers})
+          print('STUDIO_PUBLIC_EDGE_CLASSIFICATION='+json.dumps(rows,sort_keys=True))
+          PY
