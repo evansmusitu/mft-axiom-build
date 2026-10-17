@@ -8,6 +8,7 @@ on:
       - 'ops/studio_live_readonly_probe.py'
       - 'ops/studio_cloudflare_readonly_diagnostic.py'
       - 'ops/studio_modal_readonly_qualification.py'
+      - 'ops/studio_exact_resource_readonly.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -52,6 +53,14 @@ jobs:
         run: |
           set -euo pipefail
           python ops/studio_modal_readonly_qualification.py
+      - name: Verify exact dedicated Studio resource names, read-only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python ops/studio_exact_resource_readonly.py
       - name: Verify fail-closed spending and no live deployment
         run: |
           python - <<'PY'
@@ -71,5 +80,6 @@ jobs:
             studio-provider-readonly.json
             studio-cloudflare-connection-diagnostic.json
             studio-modal-readonly-qualification.json
+            studio-exact-resource-readonly.json
           retention-days: 7
           if-no-files-found: warn
