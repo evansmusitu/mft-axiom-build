@@ -32,6 +32,17 @@ function fakeFetch({meta=metadata,keys=fixtureJwks,override}={}){
  return {fetchImpl,calls};
 }
 const config={issuer,authorizationEndpoint:auth,tokenEndpoint:token,jwksUri:jwks,approvedKeys:approved};
+test('root HTTPS issuer without trailing slash is preserved exactly through discovery',async()=>{
+ const root='https://idp.example.net';
+ const endpoints={issuer:root,authorizationEndpoint:root+'/oauth/v2/authorize',tokenEndpoint:root+'/oauth/v2/token',jwksUri:root+'/oauth/v2/keys',approvedKeys:approved};
+ const meta={...metadata,issuer:root,authorization_endpoint:endpoints.authorizationEndpoint,token_endpoint:endpoints.tokenEndpoint,jwks_uri:endpoints.jwksUri};
+ const calls=[];
+ const fetchImpl=async(url)=>{calls.push(url);return httpJson(url===root+'/.well-known/openid-configuration'?meta:fixtureJwks)};
+ assert.equal((await qualifyPrivateMmfOidcProvider({...endpoints,fetchImpl})).issuer,root);
+ assert.deepEqual(calls,[root+'/.well-known/openid-configuration',endpoints.jwksUri]);
+ await assert.rejects(()=>qualifyPrivateMmfOidcProvider({...endpoints,fetchImpl:async()=>httpJson({...meta,issuer:root+'/'})}),/MMF_OIDC_PROVIDER_DISCOVERY_DENIED/);
+ await assert.rejects(()=>qualifyPrivateMmfOidcProvider({...endpoints,tokenEndpoint:'https://other.example.net/oauth/v2/token',fetchImpl}),/MMF_OIDC_PROVIDER_DISCOVERY_DENIED/);
+});
 test('operator-pinned OIDC discovery and JWKS validate signing key without auto-adopting unapproved keys',async()=>{
  const x=fakeFetch({keys:{keys:[...fixtureJwks.keys,{...otherPublic,kid:'unapproved-rsa',alg:'RS256',use:'sig'}]}});
  const result=await qualifyPrivateMmfOidcProvider({...config,fetchImpl:x.fetchImpl});

@@ -10,6 +10,35 @@ const input={code:'EXAMPLE-AUTH-CODE-2026',codeVerifier:'A'.repeat(43),
 const jwt='eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0In0.c2ln';
 const ok=(value)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json; charset=utf-8'}});
 
+test('root HTTPS issuer permits its pinned token endpoint without rewriting the issuer',async()=>{
+ const root='https://login.example.org';const tokenEndpoint=root+'/oauth/v2/token';
+ const exchange=createPrivateOidcCodeExchanger({...opts,issuer:root,tokenEndpoint,fetchImpl:async(url)=>{
+  assert.equal(url,tokenEndpoint);return ok({id_token:jwt});
+ }});
+ assert.deepEqual(await exchange(input),{id_token:jwt});
+ for(const issuer of [root+'?x=1',root+'#frag','https://user@login.example.org','http://login.example.org'])
+  assert.throws(()=>createPrivateOidcCodeExchanger({...opts,issuer,tokenEndpoint}),/MMF_PRIVATE_OIDC_EXCHANGE_DENIED/);
+ assert.throws(()=>createPrivateOidcCodeExchanger({...opts,issuer:root,tokenEndpoint:'https://other.example.org/oauth/v2/token'}),/MMF_PRIVATE_OIDC_EXCHANGE_DENIED/);
+});
+
+test('registered @ client ID is form-encoded exactly and cannot be substituted',async()=>{
+ const clientId='170086824411201793@portal';let calls=0;
+ const exchange=createPrivateOidcCodeExchanger({...opts,clientId,fetchImpl:async(url,req)=>{
+  calls++;assert.equal(url,opts.tokenEndpoint);
+  assert.match(req.body,/client_id=170086824411201793%40portal(?:&|$)/);
+  const form=new URLSearchParams(req.body);
+  assert.equal(form.get('client_id'),clientId);
+  assert.equal(form.get('code_verifier'),input.codeVerifier);
+  assert.equal(form.get('grant_type'),'authorization_code');
+  return ok({id_token:jwt});
+ }});
+ assert.deepEqual(await exchange({...input,clientId}),{id_token:jwt});
+ await assert.rejects(()=>exchange({...input,clientId:'170086824411201793@other'}),/MMF_PRIVATE_OIDC_EXCHANGE_DENIED/);
+ assert.equal(calls,1);
+ for(const bad of ['client\n@portal','client @portal','client@portal/other','client@portal?x=1'])
+  assert.throws(()=>createPrivateOidcCodeExchanger({...opts,clientId:bad}),/MMF_PRIVATE_OIDC_EXCHANGE_DENIED/);
+});
+
 test('exchange uses exact approved endpoint, confidential POST, PKCE, and returns only ID token',async()=>{
  let calls=0;
  const exchanger=createPrivateOidcCodeExchanger({...opts,fetchImpl:async(url,req)=>{

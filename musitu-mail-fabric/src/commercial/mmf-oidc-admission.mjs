@@ -12,7 +12,9 @@ import {mmfTransaction} from './mmf-db-transaction.mjs';
 const deny=()=>{throw Error('MMF_OIDC_DENIED')};
 const STR=/^[A-Za-z0-9_-]+$/;
 const FINGERPRINT=/^[a-f0-9]{64}$/;
-const CLIENT=/^[A-Za-z0-9._:-]{4,128}$/;
+// Registered client identifiers may contain @ (for example ZITADEL IDs).
+// This is an opaque exact-match identifier, never an email or URL to resolve.
+const CLIENT=/^[A-Za-z0-9._:@-]{4,128}$/;
 const KID=/^[A-Za-z0-9._:-]{4,100}$/;
 const subject=x=>typeof x==='string'&&x.length>=4&&x.length<=180&&!/[\s\x00-\x1f]/.test(x);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&Object.getPrototypeOf(x)===Object.prototype;

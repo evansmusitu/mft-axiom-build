@@ -26,6 +26,23 @@ function fixture(t){
 }
 function token(nonce,changes={},header={}){return jwt(nonce,changes,header)}
 
+test('registered client IDs containing @ keep exact audience, authorized-party and MFA checks',()=>{
+ const audience='170086824411201793@portal';
+ const options={issuer:ISSUER,audience,keyId:'owner-identity-rsa-2026',publicJwk:jwk,spkiFingerprint:PIN,nonce:'challenge-abc',nowMs:NOW};
+ const claims={aud:[audience,'170086774599581953'],azp:audience};
+ assert.equal(verifyPinnedOidcIdToken(token(options.nonce,claims),options).audience,audience);
+ assert.equal(verifyPinnedOidcIdToken(token(options.nonce,{aud:audience}),options).audience,audience);
+ for(const bad of [
+  {...claims,azp:undefined},{...claims,azp:'170086824411201793@other'},
+  {aud:'170086824411201793@other'},
+  {...claims,amr:['pwd']},{...claims,amr:['pwd','mfa']},
+  {...claims,auth_time:Math.floor(NOW/1000)-301},
+  {...claims,nonce:'different-challenge'},
+ ])assert.throws(()=>verifyPinnedOidcIdToken(token(options.nonce,bad),options),/MMF_OIDC_DENIED/);
+ for(const bad of ['client\n@portal','client @portal','client@portal/other','client@portal?x=1'])
+  assert.throws(()=>verifyPinnedOidcIdToken(token(options.nonce,{aud:bad}),{...options,audience:bad}),/MMF_OIDC_DENIED/);
+});
+
 test('pinned OIDC signature, issuer, audience, nonce and subject are mandatory',()=>{
  const result=verifyPinnedOidcIdToken(token('challenge-abc'),{issuer:ISSUER,audience:AUD,keyId:'owner-identity-rsa-2026',publicJwk:jwk,spkiFingerprint:PIN,nonce:'challenge-abc',nowMs:NOW});
  assert.match(result.actorSubject,/^oidc:[a-f0-9]{64}$/);

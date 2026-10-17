@@ -9,13 +9,15 @@
 const deny=()=>{throw Error('MMF_PRIVATE_OIDC_EXCHANGE_DENIED')};
 const CODE=/^[A-Za-z0-9._~-]{8,2048}$/;
 const VERIFIER=/^[A-Za-z0-9_-]{43}$/;
-const CLIENT=/^[A-Za-z0-9._:-]{4,128}$/;
+// Preserve the registered opaque ID, including @, through form encoding.
+const CLIENT=/^[A-Za-z0-9._:@-]{4,128}$/;
 const MAX_RESPONSE=16384;
-function secureUrl(input){
+function secureUrl(input,issuerOrigin=false){
  if(typeof input!=='string'||input.length>500)deny();
  let u;try{u=new URL(input)}catch{deny()}
  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.port||
-  u.hostname==='localhost'||u.hostname==='127.0.0.1'||u.href!==input)deny();
+  u.hostname==='localhost'||u.hostname==='127.0.0.1'||
+  (u.href!==input&&!(issuerOrigin&&u.origin===input)))deny();
  return u;
 }
 async function boundedJson(response){
@@ -45,7 +47,7 @@ async function boundedJson(response){
 /** Construct once with independently pinned operator configuration; never use HTTP-provided URLs. */
 export function createPrivateOidcCodeExchanger({issuer,tokenEndpoint,clientId,redirectUri,
  fetchImpl=globalThis.fetch,timeoutMs=8000}={}){
- const base=secureUrl(issuer),endpoint=secureUrl(tokenEndpoint),redirect=secureUrl(redirectUri);
+ const base=secureUrl(issuer,true),endpoint=secureUrl(tokenEndpoint),redirect=secureUrl(redirectUri);
  const prefix=base.pathname==='/'?'/':base.pathname.replace(/\/$/,'')+'/';
  if(endpoint.origin!==base.origin||!endpoint.pathname.startsWith(prefix)||
   endpoint.pathname.length<=prefix.length||

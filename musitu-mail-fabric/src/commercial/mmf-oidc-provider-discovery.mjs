@@ -13,11 +13,12 @@ const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&Object.getProto
 const KID=/^[A-Za-z0-9._:-]{4,100}$/;
 const SHA=/^[a-f0-9]{64}$/;
 const URI_LIMIT=500;
-function httpsUrl(text){
+function httpsUrl(text,issuerOrigin=false){
  if(typeof text!=='string'||text.length<12||text.length>URI_LIMIT)deny();
  let u;try{u=new URL(text)}catch{deny()}
  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.port||
-    u.hostname==='localhost'||u.hostname==='127.0.0.1'||u.href!==text||
+    u.hostname==='localhost'||u.hostname==='127.0.0.1'||
+    (u.href!==text&&!(issuerOrigin&&u.origin===text))||
     /%|\\|\/\//.test(u.pathname)||!u.hostname.includes('.'))deny();
  return u;
 }
@@ -83,7 +84,7 @@ function inspectKeys(set,pins){
 export async function qualifyPrivateMmfOidcProvider({issuer,authorizationEndpoint,tokenEndpoint,
  jwksUri,approvedKeys,fetchImpl=globalThis.fetch}={}){
  try{
-  const issuerUrl=httpsUrl(issuer),auth=httpsUrl(authorizationEndpoint),
+  const issuerUrl=httpsUrl(issuer,true),auth=httpsUrl(authorizationEndpoint),
    token=httpsUrl(tokenEndpoint),jwks=httpsUrl(jwksUri);
   if(!underIssuer(auth,issuerUrl)||!underIssuer(token,issuerUrl)||!underIssuer(jwks,issuerUrl)||
     typeof fetchImpl!=='function')deny();
