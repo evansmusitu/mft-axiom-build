@@ -18,6 +18,12 @@ const headers=Object.freeze({'cache-control':'no-store','referrer-policy':'no-re
 const cookie=(state,age)=>`${COOKIE}=${state}; Path=/; Max-Age=${age}; Secure; HttpOnly; SameSite=Lax`;
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...headers,'content-type':'application/json; charset=utf-8'}});
 const redirect=(location,setCookie)=>new Response(null,{status:303,headers:{...headers,location,...(setCookie?{'set-cookie':setCookie}:{})}});
+function landing(){
+ // A passive, authenticated landing page permits ordinary links from the
+ // user's phone. Only the subsequent same-origin click starts any OIDC state.
+ return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Mail Fabric · Private sign-in check</title></head><body><main><h1>Private sign-in check</h1><p>Continue with your administrator account and complete the requested verification.</p><p><a href="/private/oidc/qualify">Continue to secure sign-in</a></p><p>This check does not enable mail sending or payments.</p><p><a href="/private/dashboard">Return to dashboard</a></p></main></body></html>`,
+  {status:200,headers:{...headers,'content-type':'text/html; charset=utf-8'}});
+}
 const emptyResult=()=>({attempted:false,pkceAndSignedMfaVerified:false,applicationLoginEnabled:false,
  sessionCreated:false,strictDiscoveryQualified:false,realSending:false,payments:false,customerApi:false});
 const equal=(a,b)=>TOKEN.test(a||'')&&TOKEN.test(b||'')&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
@@ -31,7 +37,9 @@ export class MmfOidcQualificationFlow {
  constructor(storage,config,env,{now=Date.now,fetchImpl=globalThis.fetch,allowExpired=false}={}){
   if(!storage?.transaction||!storage?.getAlarm||!storage?.setAlarm||typeof now!=='function'||!Number.isSafeInteger(config?.validUntil)||
    !allowExpired&&config.validUntil<=now()||config?.validUntil>now()+2*86400000)deny();
-  this.storage=storage;this.config=config;this.now=now;this.fetchImpl=fetchImpl;
+  this.storage=storage;this.config=config;this.now=now;
+  // Preserve a plain function call for injected platform fetch implementations.
+  this.fetchImpl=(...args)=>fetchImpl(...args);
   // Validate pins/flags eagerly. The per-flow instance's code guard supplements
   // the durable ledger; it is not the cross-isolate replay boundary.
   this.qualifyConfig={...config,env,now,fetchImpl};
@@ -73,8 +81,14 @@ export class MmfOidcQualificationFlow {
    await tx.put('qualification',data);return value;
   });
   let requests=0,successfulTokenResponses=0,result;
-  const boundedFetch=async(...args)=>{
-   requests++;const response=await this.fetchImpl(...args);
+  const boundedFetch=async(url,options)=>{
+   // Workers does not implement redirect:'error'. Manual transport plus an
+   // explicit 3xx rejection preserves the existing no-redirect contract.
+   if(options?.redirect!=='error')deny();
+   requests++;const response=await this.fetchImpl(url,{...options,redirect:'manual'});
+   if(response.redirected||response.status>=300&&response.status<400){
+    try{await response.body?.cancel()}catch{};deny();
+   }
    if(response.status===200)successfulTokenResponses++;
    return response;
   };
@@ -107,10 +121,11 @@ export class MmfOidcQualificationFlow {
 /** HTTP boundary: exact routes/queries, no cross-site initiation or methods,
  * unchanged Access cryptographic gate before any durable state access. */
 export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
+ let supportCode='REQUEST_CONTEXT';
  try{
   if(!(req instanceof Request)||typeof authorize!=='function'||typeof getFlow!=='function')deny();
   const u=new URL(req.url);
-  if(!['/private/oidc/qualify','/private/oidc/callback','/private/oidc/qualification'].includes(u.pathname))return null;
+  if(!['/private/oidc','/private/oidc/qualify','/private/oidc/callback','/private/oidc/qualification'].includes(u.pathname))return null;
   if(req.method!=='GET'||u.origin!==ORIGIN||u.username||u.password||u.hash||u.href.length>3000||
    req.headers.has('forwarded')||req.headers.has('x-forwarded-host')||req.headers.has('x-original-url')||
    req.headers.has('range')||req.headers.has('purpose')||req.headers.has('sec-purpose')||
@@ -120,9 +135,13 @@ export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
   if(u.pathname==='/private/oidc/callback'){
    if(u.searchParams.size!==2||u.searchParams.getAll('state').length!==1||u.searchParams.getAll('code').length!==1||
     !TOKEN.test(u.searchParams.get('state')||'')||!CODE.test(u.searchParams.get('code')||''))deny();
-  }else if(u.search||site&&!['same-origin','none'].includes(site))deny();
+  }else if(u.search||u.pathname!=='/private/oidc'&&site&&!['same-origin','none'].includes(site))deny();
+  supportCode='ACCESS_GATE';
   if(!await authorize(req))deny();
+  if(u.pathname==='/private/oidc')return landing();
+  supportCode='FLOW_UNAVAILABLE';
   const flow=await getFlow();
+  supportCode='FLOW_OPERATION';
   if(u.pathname==='/private/oidc/qualify'){
    const begin=await flow.begin();return redirect(begin.authorizationUrl,begin.setCookie);
   }
@@ -132,5 +151,5 @@ export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
    return redirect(ORIGIN+'/private/oidc/qualification',done.setCookie);
   }
   return json(await flow.status());
- }catch{return json({error:'MMF_PRIVATE_QUALIFICATION_DENIED',applicationLoginEnabled:false},403)}
+ }catch{return json({error:'MMF_PRIVATE_QUALIFICATION_DENIED',supportCode,applicationLoginEnabled:false},403)}
 }

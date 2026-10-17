@@ -14,6 +14,25 @@ new routes accept their own strictly parsed callback query:
   existing negative/positive PKCE and signed recent-MFA checks.
 - `/private/oidc/qualification`: sanitized outcome only.
 
+The passive `/private/oidc` landing page supports phone links from another
+application. It still requires cryptographic administrator Access, creates no
+state/cookie and loads no scripts or external resources. Only its same-origin
+Continue to secure sign-in link starts qualification. Direct cross-site calls
+to the start route remain denied. Safe enumerated support codes distinguish
+request context, Access gate and flow availability/operation failures without
+returning credentials or raw provider exceptions.
+
+Worker transport uses manual redirect handling and rejects all 3xx responses
+before any follow-up request. workerd does not support redirect:error; this
+adapter preserves the generic exchangers' existing no-redirect contract. The
+generic discovery, code-exchange and signed-MFA validation modules are unchanged.
+
+An explicit workerd integration probe uses generated fixture keys, an isolated
+SQLite DO, and a local outbound provider stub. A test-only transport bridge
+restores browser Host/fetch-mode values overwritten by Miniflare's Node client;
+it is never deployed. This verifies the real runtime's module/RPC/storage and
+crypto behavior, but is not evidence of real provider login or signed MFA.
+
 The `__Host-` state cookie is Secure, HttpOnly, SameSite=Lax and lasts five
 minutes. A dedicated SQLite-backed Durable Object stores pending nonce/verifier
 material privately for at most five minutes; alarms remove expired pending

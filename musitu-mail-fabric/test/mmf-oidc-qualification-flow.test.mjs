@@ -133,3 +133,46 @@ test('HTTP callback removes sensitive query via redirect and never echoes code, 
  assert.equal(response.headers.get('referrer-policy'),'no-referrer');assert.match(response.headers.get('set-cookie'),/Max-Age=0/);
  assert.equal(await response.text(),'');
 });
+test('cross-site phone launch can render only an authenticated passive landing page; sign-in still requires same-origin initiation',async()=>{
+ let starts=0,access=false;
+ const options={authorize:async()=>access,getFlow:()=>{starts++;throw Error('fixture-state-must-not-be-created')}};
+ const phone=request('/private/oidc',{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'});
+ const denied=await routeMmfOidcQualification(phone,options);assert.equal(denied.status,403);
+ assert.equal((await denied.json()).supportCode,'ACCESS_GATE');assert.equal(starts,0);
+ access=true;
+ const response=await routeMmfOidcQualification(phone,options);assert.equal(response.status,200);
+ const html=await response.text();assert.match(html,/href="\/private\/oidc\/qualify"/);
+ assert.doesNotMatch(html,/<(?:script|form|iframe)|code_verifier|fixture-state/);
+ assert.match(response.headers.get('content-security-policy'),/default-src 'none'/);
+ assert.equal(response.headers.get('cache-control'),'no-store');assert.equal(response.headers.has('set-cookie'),false);assert.equal(starts,0);
+ const rejected=await routeMmfOidcQualification(request('/private/oidc/qualify',{'sec-fetch-site':'cross-site'}),options);
+ assert.equal(rejected.status,403);assert.equal((await rejected.json()).supportCode,'REQUEST_CONTEXT');assert.equal(starts,0);
+});
+test('safe denial support codes identify the failed boundary without exposing errors or secrets',async()=>{
+ for(const [options,expected] of [
+  [{authorize:async()=>false,getFlow:()=>null},'ACCESS_GATE'],
+  [{authorize:async()=>true,getFlow:()=>{throw Error('fixture-secret')}},'FLOW_UNAVAILABLE'],
+  [{authorize:async()=>true,getFlow:()=>({begin:()=>{throw Error('fixture-secret')}})},'FLOW_OPERATION']]){
+  const response=await routeMmfOidcQualification(request('/private/oidc/qualify'),options);
+  const body=await response.json();assert.equal(response.status,403);assert.equal(body.supportCode,expected);
+  assert.equal(body.applicationLoginEnabled,false);assert.ok(!JSON.stringify(body).includes('fixture-secret'));
+ }
+});
+test('provider fetch is called without a class receiver, as required by Worker-native fetch',async()=>{
+ const receivers=[];
+ const s=await setup({fetchImpl:async function(){receivers.push(this);return json({error:'invalid_grant'},400)}});
+ await s.flow.callback(s.input);
+ assert.equal(receivers.length,3);
+ assert.ok(receivers.every(receiver=>receiver===undefined));
+});
+test('Worker-compatible manual transport rejects redirects without following or retrying',async()=>{
+ const calls=[];
+ const s=await setup({fetchImpl:async(url,options)=>{
+  calls.push({url,redirect:options.redirect});
+  return new Response(null,{status:302,headers:{location:'https://untrusted.example/token'}});
+ }});
+ await s.flow.callback(s.input);
+ assert.deepEqual(calls,[{url:config.tokenEndpoint,redirect:'manual'}]);
+ const proof=await s.flow.status();assert.equal(proof.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(proof.tokenRequests,1);
+ await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls.length,1);
+});

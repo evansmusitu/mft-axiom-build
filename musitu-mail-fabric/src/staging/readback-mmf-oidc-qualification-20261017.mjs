@@ -89,7 +89,7 @@ try{
  report.networkIsolationVerified=subdomain.enabled===false&&subdomain.previews_enabled===false&&domains.filter(d=>d.hostname===host&&d.service===worker).length===1;
  if(![report.accountVerified,report.adminOnlyMfa,report.bindingsVerified,report.runtimeSettingsVerified,report.sourceVerified,report.publicPinsVerified,report.networkIsolationVerified].every(Boolean))fail('MMF_READBACK_ASSERTION_FAILED');
  report.anonymousStatuses={};
- for(const path of ['/private/dashboard','/private/gateway','/private/oidc/qualify','/private/oidc/qualification','/private/oidc/callback?state=invalid&code=invalid']){
+ for(const path of ['/private/dashboard','/private/gateway','/private/oidc','/private/oidc/qualify','/private/oidc/qualification','/private/oidc/callback?state=invalid&code=invalid']){
   const r=await fetch('https://'+host+path,{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
   report.anonymousStatuses[path.split('?')[0]]=r.status;await r.body?.cancel().catch(()=>{});
   if(![302,303,307,308,401,403].includes(r.status))fail('MMF_ANONYMOUS_ROUTE_EXPOSED');
