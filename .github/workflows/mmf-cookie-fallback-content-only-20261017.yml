@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   update-isolated-worker:
-    if: github.event.before == '9d92677aae35ecaf2f0d57c5b9749099e84ba198'
+    if: github.event.before == '5c1aa8dd84b8202eca79eb9cab52f8c582c5c820'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -19,14 +19,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Verify protected Git and red-green tests
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = '9d92677aae35ecaf2f0d57c5b9749099e84ba198'
+          test "$(git rev-parse HEAD^)" = '5c1aa8dd84b8202eca79eb9cab52f8c582c5c820'
           node --input-type=module <<'NODE'
           const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('MMF_PROTECTED_REF_UNKNOWN');return r.json()};
