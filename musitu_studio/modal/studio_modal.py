@@ -4,8 +4,9 @@ Requires a dedicated named Modal Secret: musitu-studio-v02, containing:
  STUDIO_MODAL_CONTROL_KEY, STUDIO_CALLBACK_TOKEN, STUDIO_CALLBACK_URL,
  STUDIO_BILLING_GUARD_APPROVED=1, and optional STUDIO_GPU_GATE_ON_MODAL=1.
 """
-import base64, hashlib, hmac, json, os, pathlib, subprocess, tempfile, urllib.request
+import base64, hashlib, hmac, json, os, pathlib, subprocess, tempfile, urllib.request, sys
 import modal
+sys.path.insert(0,'/opt')  # Modal image stores the strict Studio validator under /opt/studio
 
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 ARCHIVE="blender-4.5.14-linux-x64.tar.xz"
