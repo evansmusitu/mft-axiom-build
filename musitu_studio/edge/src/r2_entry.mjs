@@ -172,7 +172,7 @@ async function api(req,env,url){
     });
     return r.fail?err(r.fail,r.status):json({ok:true,...r.data},r.data.duplicate?200:201);
   }
-  const m=url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})(?:\/(approve|dispatch|assets\/([a-z.]+)))?$/);
+  const m=url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})(?:\/(approve|dispatch|sync|assets\/([a-z.]+)))?$/);
   if(!m)return err('NOT_FOUND',404);
   const id=m[1],action=m[2]||'';
   const {state}=await loadState(env),job=state.jobs.find(j=>j.id===id);
@@ -190,6 +190,32 @@ async function api(req,env,url){
     return new Response(bytes,{headers:{'content-type':assetType(name),
       'content-disposition':'attachment; filename="'+name+'"','cache-control':'no-store',
       'x-content-type-options':'nosniff','x-artifact-sha256':meta.sha256}});
+  }
+  if(req.method==='POST'&&action==='sync'){
+    if(job.state==='COMPLETED'||job.state==='FAILED')return json({ok:true,state:job.state,job_id:id});
+    if(job.state!=='RUNNING'||!/^fc-[A-Za-z0-9_-]{8,128}$/.test(job.call_id||''))
+      return err('JOB_NOT_POLLABLE',409);
+    let dest;try{dest=new URL(env.STUDIO_MODAL_URL)}catch{return err('MODAL_URL_MISSING',503);}
+    if(dest.protocol!=='https:'||!dest.hostname.endsWith('.modal.run'))return err('UNAPPROVED_MODAL_DESTINATION',503);
+    if(!env.STUDIO_MODAL_CONTROL_KEY||env.STUDIO_MODAL_CONTROL_KEY.length<32)return err('MODAL_CONTROL_KEY_MISSING',503);
+    const pollUrl=dest.origin+'/jobs/pull/'+job.call_id;
+    let remote;
+    try{
+      const response=await fetch(pollUrl,{method:'GET',headers:{'x-studio-control-key':env.STUDIO_MODAL_CONTROL_KEY},
+        signal:AbortSignal.timeout(20000)});
+      if(response.status===202)return json({ok:true,state:'RUNNING',job_id:id},202);
+      if(!response.ok)throw Error('MODAL_POLL_REJECTED');
+      remote=await response.json();
+    }catch{return err('MODAL_POLL_UNAVAILABLE',502);}
+    const result=remote?.result;
+    if(remote?.state!=='COMPLETED'||!result||result.result!=='FINISHED'||
+       result.input_sha256!==job.payload_sha256||result.job_id!==id)return err('MODAL_RESULT_INTEGRITY_FAILURE',409);
+    const receipt={job_id:id,input_sha256:job.payload_sha256,state:'COMPLETED',
+      gpu_verified:result.gpu_verified,files:result.files};
+    const constructed=new Request(url.origin+'/internal/callback',{method:'POST',
+      headers:{'Authorization':'Bearer '+env.STUDIO_MODAL_CALLBACK_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify(receipt)});
+    return callback(constructed,env);
   }
   if(req.method==='POST'&&action==='approve'){
     const r=await atomic(env,s=>{
@@ -216,16 +242,19 @@ async function api(req,env,url){
     });
     if(started.fail)return err(started.fail,started.status);
     try{
-      const response=await fetch(destination.href,{method:'POST',headers:{
+      const response=await fetch(destination.href.replace(/\/jobs$/,'/jobs/pull'),{method:'POST',headers:{
         'content-type':'application/json','x-studio-control-key':env.STUDIO_MODAL_CONTROL_KEY},
         body:JSON.stringify({job_id:id,scene_json:job.payload_json,
           input_sha256:job.payload_sha256,device:'CPU'}),signal:AbortSignal.timeout(20000)});
       if(!response.ok)throw Error('MODAL_HTTP_'+response.status);
+      const remote=await response.json();
+      if(remote?.accepted!==true||remote?.job_id!==id||!/^fc-[A-Za-z0-9_-]{8,128}$/.test(remote.call_id||''))
+        throw Error('INVALID_MODAL_CALL_ID');
       const ack=await atomic(env,s=>{
         const j=s.jobs.find(x=>x.id===id);
         if(j?.state==='COMPLETED'||j?.state==='FAILED')return{state:j.state};
         if(j?.state!=='DISPATCHING')return{fail:'DISPATCH_STATE_MISMATCH'};
-        j.state='RUNNING';audit(s,id,'DISPATCH_ACCEPTED');
+        j.state='RUNNING';j.call_id=remote.call_id; audit(s,id,'DISPATCH_ACCEPTED',{mode:'PULL'});
         return{state:j.state};
       });
       return ack.fail?err(ack.fail,ack.status):json({ok:true,job_id:id,state:ack.data.state},202);
