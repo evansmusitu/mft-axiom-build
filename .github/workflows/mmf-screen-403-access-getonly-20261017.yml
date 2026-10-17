@@ -1,0 +1,103 @@
+name: MMF Screenshot 403 Cloudflare Access Read-Only Diagnosis 20261017
+# One-shot operator-only diagnostics: no mutations or sensitive values in logs.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-screen-403-access-getonly-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.before == '03ec49058faa5e211c32d3eeca4207827128ade2'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Confirm frozen main and PR1 before account access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const g=async path=>{const r=await fetch('https://api.github.com/repos/evansmusitu/mft-axiom-build/'+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('GIT_READ_UNAVAILABLE');return r.json()};
+          const [main,pr]=await Promise.all([g('git/ref/heads/main'),g('pulls/1')]);
+          if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||pr.state!=='open'||pr.draft!==true||pr.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_PROTECTED_REFS_VERIFIED');
+          NODE
+      - name: Check real Access logs and Worker routing without changing anything
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const acct='93f395f5121954671f92fffa453d6b61',token=process.env.CLOUDFLARE_API_TOKEN;
+          if(process.env.CLOUDFLARE_ACCOUNT_ID!==acct||!token||token.length<20)throw Error('MMF_ACCOUNT_TOKEN_MISSING');
+          const host='mail-stage.mftintelligence.com';
+          const gw='f8ab12fe-251f-44fa-80de-1c2f2bdc4055';
+          const worker='mmf-private-identity-edge-20261017';
+          let gets=0;
+          async function get(path){
+            gets++;
+            try{
+              const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method:'GET',headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12000)});
+              if(!r.ok||r.redirected)return {ok:false,status:r.status};
+              const cl=r.headers.get('content-length');if(cl!==null&&Number(cl)>131072)return {ok:false,status:413};
+              const tx=await r.text();if(tx.length>131072)return {ok:false,status:413};
+              const obj=JSON.parse(tx);if(obj.success!==true||!Object.hasOwn(obj,'result')||Number(obj.result_info?.total_pages||1)>1)return {ok:false,status:r.status};
+              return {ok:true,data:obj.result,status:r.status};
+            }catch{return {ok:false,status:null}}
+          }
+          const p='accounts/'+acct+'/access/';
+          const [a,pol,dom,settings,sub,zones,logs]=await Promise.all([
+            get(p+'apps/'+gw),get(p+'apps/'+gw+'/policies?per_page=100'),
+            get('accounts/'+acct+'/workers/domains?per_page=100'),
+            get('accounts/'+acct+'/workers/scripts/'+worker+'/settings'),
+            get('accounts/'+acct+'/workers/scripts/'+worker+'/subdomain'),
+            get('zones?name=mftintelligence.com&per_page=100'),
+            get(p+'logs/access_requests?per_page=100&limit=100&since=2026-10-17T06%3A35%3A00Z&until=2026-10-17T07%3A15%3A00Z')
+          ]);
+          const proof={schema:'mmf-screenshot-403-real-readonly-v1',observedAt:new Date().toISOString(),
+            accountVerified:zones.ok&&Array.isArray(zones.data)&&zones.data.length===1&&zones.data[0].account?.id===acct,
+            accessAppPresent:a.ok&&a.data?.id===gw,policyCount:pol.ok&&Array.isArray(pol.data)?pol.data.length:null,
+            appMfaConfigured:a.ok&&a.data?.mfa_config?.mfa_disabled===false,
+            accessAppDomainExact:a.ok&&a.data?.domain===host,
+            selfHostedDomains:Array.isArray(a.data?.self_hosted_domains)?a.data.self_hosted_domains.map(x=>({type:x.type||null,publicHostnameMatches:x.domain===host||x.hostname===host})):null,
+            workerDomainBound:dom.ok&&Array.isArray(dom.data)&&dom.data.some(x=>x.hostname===host&&x.service===worker),
+            workerSettingsReadable:settings.ok,
+            plainTextBindingNames:settings.ok&&Array.isArray(settings.data?.bindings)?settings.data.bindings.filter(x=>x.type==='plain_text').map(x=>x.name).sort():null,
+            workerSubdomainOff:sub.ok&&sub.data?.enabled===false&&sub.data?.previews_enabled===false,
+            accessLogsReadable:logs.ok,accessLogCount:logs.ok&&Array.isArray(logs.data)?logs.data.length:null,
+            gatewayAccessEventsInWindow:null,gatewayAllowEventsInWindow:null,gatewayDenyEventsInWindow:null,
+            liveBrowserUserAgentAndCookiesUnknown:true,realUserJwtUnknown:true,
+            realBrowserAcceptancePassed:false,mutationCount:0,
+            gate:'MMF_SCREENSHOT_403_NOT_PROOF_OF_AUTHENTICATION'};
+          if(logs.ok&&Array.isArray(logs.data)){
+            const matches=logs.data.filter(x=>x.app_uid===gw||x.app_id===gw||x.application?.id===gw);
+            proof.gatewayAccessEventsInWindow=matches.length;
+            proof.gatewayAllowEventsInWindow=matches.filter(x=>x.allowed===true||x.action==='allow').length;
+            proof.gatewayDenyEventsInWindow=matches.filter(x=>x.allowed===false||x.action==='deny').length;
+          }
+          proof.getCount=gets;
+          writeFileSync(join(process.env.RUNNER_TEMP,'mmf-403-private-getonly-summary.json'),JSON.stringify(proof,null,2)+'\n',{flag:'wx',mode:0o600});
+          console.log(JSON.stringify({gate:proof.gate,account:proof.accountVerified,app:proof.accessAppPresent,
+            policies:proof.policyCount,mfa:proof.appMfaConfigured,customDomain:proof.workerDomainBound,
+            selfHostedDomainsCount:proof.selfHostedDomains?.length??null,logsReadable:proof.accessLogsReadable,
+            events:proof.gatewayAccessEventsInWindow,allowed:proof.gatewayAllowEventsInWindow,
+            denied:proof.gatewayDenyEventsInWindow,mutations:0}));
+          if(!proof.accountVerified||!proof.accessAppPresent||!proof.workerDomainBound)process.exitCode=2;
+          NODE
+      - name: Preserve redacted read-only proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-screenshot-403-getonly-20261017
+          path: ${{ runner.temp }}/mmf-403-private-getonly-summary.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove transient report
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-403-private-getonly-summary.json"
