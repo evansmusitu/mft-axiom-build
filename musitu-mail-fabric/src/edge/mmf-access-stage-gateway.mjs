@@ -12,29 +12,27 @@ const safeHeaders=Object.freeze({'cache-control':'no-store','x-content-type-opti
  'referrer-policy':'no-referrer','x-frame-options':'DENY',
  'content-security-policy':"default-src 'none'; frame-ancestors 'none'",'strict-transport-security':'max-age=31536000',
  'content-type':'application/json; charset=utf-8'});
-// Closed staging ONLY: a small, non-identifying support code helps distinguish
-// application routing errors from real Access assertion verification failures.
-// Never echo cookies, JWTs, identities, request URLs or cryptographic material.
-const safeSupportCodes=Object.freeze(new Set([
- 'REQUEST_CONTEXT','TOKEN_NOT_PRESENT','TOKEN_FORMAT','SIGNING_KEY','SIGNATURE',
- 'CLAIMS','ADMIN_IDENTITY','SERVER_UNAVAILABLE','CONFIG_BLOCKED','UNKNOWN'
-]));
-const denied=(code='UNKNOWN')=>new Response(JSON.stringify({error:'MMF_PRIVATE_ACCESS_DENIED',
- supportCode:safeSupportCodes.has(code)?code:'UNKNOWN'}),{status:403,headers:safeHeaders});
+// These support codes contain no tokens, user identifiers, header values or secrets.
+const safeSupportCodes=new Set(['REQUEST_CONTEXT','TOKEN_NOT_PRESENT','TOKEN_FORMAT','SIGNING_KEY',
+ 'SIGNATURE','CLAIMS','ADMIN_IDENTITY','CONFIG_BLOCKED','SERVER_UNAVAILABLE',
+ 'KEY_TRANSPORT','KEY_IMPORT','VERIFY_RUNTIME','IDENTITY_HASH_RUNTIME']);
+const denied=(code='SERVER_UNAVAILABLE')=>new Response(JSON.stringify({error:'MMF_PRIVATE_ACCESS_DENIED',
+ supportCode:safeSupportCodes.has(code)?code:'SERVER_UNAVAILABLE'}),{status:403,headers:safeHeaders});
 const denialClass=e=>{
  const reason=e?.message||'';
  if(reason.startsWith('ACCESS_COOKIE_MISSING')||reason==='ACCESS_COOKIE_INVALID')return 'TOKEN_NOT_PRESENT';
  if(reason.startsWith('ACCESS_COOKIE')||reason==='HEADER_NOT_APPROVED'||reason==='TOKEN_MALFORMED'||reason==='TOKEN_UNTRUSTED'||reason.startsWith('JWT_'))return 'TOKEN_FORMAT';
+ if(reason==='CERTS_TRANSPORT')return 'KEY_TRANSPORT';
+ if(reason==='CERTS_IMPORT_FAILED')return 'KEY_IMPORT';
+ if(reason==='SIGNATURE_RUNTIME')return 'VERIFY_RUNTIME';
+ if(reason==='IDENTITY_HASH_RUNTIME')return 'IDENTITY_HASH_RUNTIME';
  if(reason==='CERTS_UNAVAILABLE'||reason==='CERTS_TOO_LARGE'||reason==='CERTS_INVALID'||reason==='UNKNOWN_ACCESS_SIGNER')return 'SIGNING_KEY';
  if(reason==='SIGNATURE_INVALID')return 'SIGNATURE';
  if(reason==='ACCESS_CLAIMS_INVALID')return 'CLAIMS';
  if(reason==='ADMIN_NOT_APPROVED')return 'ADMIN_IDENTITY';
  return 'SERVER_UNAVAILABLE';
 };
-// Cloudflare Access presents browser JWTs in CF_Authorization as well as the
-// preferred origin assertion. If the origin header is absent, verify the exact
-// same signed JWT from a single cookie. No unsigned cookie or identity claim is
-// ever accepted. A malformed/present assertion NEVER downgrades to a cookie.
+// Preserve signed assertion priority: an invalid present header NEVER falls back to a cookie.
 function browserAccessCookie(raw){
  if(typeof raw!=='string'||!raw||raw.length>8192||/[\r\n\x00-\x1f]/.test(raw))throw Error('ACCESS_COOKIE_INVALID');
  const fields=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('CF_Authorization='));
@@ -48,26 +46,26 @@ const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const validAud=x=>typeof x==='string'&&x.length>20&&x.length<200&&/^[A-Za-z0-9_-]+$/.test(x);
 const bytes=b=>{
  if(typeof b!=='string'||!b.length||b.length>5000||!/^[A-Za-z0-9_-]+$/.test(b)||b.length%4===1)throw Error('JWT_MALFORMED');
- const x=Uint8Array.from(atob(b.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-b.length%4)%4)),c=>c.charCodeAt(0));
+ let x;try{x=Uint8Array.from(atob(b.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-b.length%4)%4)),c=>c.charCodeAt(0))}catch{throw Error('JWT_MALFORMED')}
  if(x.length===0)throw Error('JWT_EMPTY');return x;
 };
 const json=b=>{
- const x=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes(b)));
+ let x;try{x=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes(b)))}catch{throw Error('JWT_MALFORMED')}
  if(!x||typeof x!=='object'||Array.isArray(x))throw Error('JWT_NOT_OBJECT');return x;
 };
 async function getPublicKey(kid){
- const response=await fetch(JWKS,{method:'GET',redirect:'error',cache:'no-store',
-  signal:AbortSignal.timeout(4000),headers:{accept:'application/json'}});
+ let response;try{response=await fetch(JWKS,{method:'GET',redirect:'error',cache:'no-store',
+  signal:AbortSignal.timeout(10000),headers:{accept:'application/json'}})}catch{throw Error('CERTS_TRANSPORT')}
  if(!response.ok||response.redirected||!response.headers.get('content-type')?.startsWith('application/json'))throw Error('CERTS_UNAVAILABLE');
  const len=response.headers.get('content-length');if(len&&Number(len)>32768)throw Error('CERTS_TOO_LARGE');
  const data=await response.text();if(data.length>32768)throw Error('CERTS_TOO_LARGE');
- const obj=JSON.parse(data);
+ let obj;try{obj=JSON.parse(data)}catch{throw Error('CERTS_INVALID')}
  if(!Array.isArray(obj.keys)||obj.keys.length===0||obj.keys.length>15)throw Error('CERTS_INVALID');
  const match=obj.keys.filter(j=>j.kid===kid&&j.kty==='RSA'&&typeof j.n==='string'&&typeof j.e==='string'&&
   (!j.alg||j.alg==='RS256')&&(!j.use||j.use==='sig')&&!j.d);
  if(match.length!==1)throw Error('UNKNOWN_ACCESS_SIGNER');
- return crypto.subtle.importKey('jwk',{kty:'RSA',n:match[0].n,e:match[0].e},
-  {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+ try{return await crypto.subtle.importKey('jwk',{kty:'RSA',n:match[0].n,e:match[0].e},
+  {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify'])}catch{throw Error('CERTS_IMPORT_FAILED')}
 }
 async function verified(token,env){
  if(typeof token!=='string'||token.length<64||token.length>8192)throw Error('TOKEN_UNTRUSTED');
@@ -77,7 +75,7 @@ async function verified(token,env){
   !/^[A-Za-z0-9._:-]+$/.test(h.kid))throw Error('HEADER_NOT_APPROVED');
  const sig=bytes(parts[2]);
  const pk=await getPublicKey(h.kid);
- const valid=await crypto.subtle.verify('RSASSA-PKCS1-v1_5',pk,sig,new TextEncoder().encode(parts[0]+'.'+parts[1]));
+ let valid;try{valid=await crypto.subtle.verify('RSASSA-PKCS1-v1_5',pk,sig,new TextEncoder().encode(parts[0]+'.'+parts[1]))}catch{throw Error('SIGNATURE_RUNTIME')}
  if(!valid)throw Error('SIGNATURE_INVALID');
  const now=Math.floor(Date.now()/1000);
  const audiences=typeof p.aud==='string'?[p.aud]:p.aud;
@@ -86,7 +84,7 @@ async function verified(token,env){
   !Number.isSafeInteger(p.exp)||p.exp<=now||p.exp>now+3600||
   (p.nbf!==undefined&&(!Number.isSafeInteger(p.nbf)||p.nbf>now+60))||
   typeof p.email!=='string'||p.email.length<5||p.email.length>254)throw Error('ACCESS_CLAIMS_INVALID');
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p.email.toLowerCase()));
+ let digest;try{digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p.email.toLowerCase()))}catch{throw Error('IDENTITY_HASH_RUNTIME')}
  const candidate=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
  if(candidate!==env.MMF_APPROVED_ADMIN_SHA256)throw Error('ADMIN_NOT_APPROVED');
  return true;

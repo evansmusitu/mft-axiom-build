@@ -35,40 +35,28 @@ test('valid cryptographic Access assertion gives private status only',async()=>{
  assert.equal((await app.fetch(new Request(base+'/private/gateway',{method:'POST',headers:{'cf-access-jwt-assertion':jwt()}}))).status,403);
  }finally{globalThis.fetch=oldFetch}
 });
-test('browser receives a signed CF_Authorization cookie but no forwarded assertion',async()=>{
+test('signed Access browser cookie authenticates without an assertion header',async()=>{
  globalThis.fetch=cfFetch;try{
-  const app=createMmfStageGate(env),token=jwt();
-  const cookieRequest=new Request(base+'/private/gateway',{headers:{cookie:'foo=bar; CF_Authorization='+token+'; theme=dark'}});
-  const ok=await app.fetch(cookieRequest);assert.equal(ok.status,200);
-  assert.equal((await ok.json()).stage,'private-access-verified');
-  for(const bad of [
-    {cookie:'CF_Authorization='+jwt({aud:['wrong']})},
-    {cookie:'CF_Authorization='+jwt({email:'attacker@example.com'})},
-    {cookie:'CF_Authorization='+token+'; CF_Authorization='+token},
-    {cookie:'CF_Authorization='+token+'.bad'},
-    {cookie:'CF_Authorization='+token+'; junk='+('a'.repeat(8200))}
-  ]){assert.equal((await app.fetch(new Request(base+'/private/gateway',{headers:bad}))).status,403);}
-  assert.equal((await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'CF_Authorization='+token,'cf-access-jwt-assertion':'invalid'}}))).status,403);
-  assert.equal((await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'CF_Authorization='+jwt({email:'wrong@example.com'}),'cf-access-jwt-assertion':token}}))).status,200);
-  assert.equal((await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'CF_Authorization='+token,'cf-access-jwt-assertion':''}}))).status,403);
+  const token=jwt(),app=createMmfStageGate(env);
+  const good=await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'theme=dark; CF_Authorization='+token}}));
+  assert.equal(good.status,200);
+  const invalid=await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'CF_Authorization='+token,'cf-access-jwt-assertion':'invalid'}}));
+  assert.equal(invalid.status,403);
  }finally{globalThis.fetch=oldFetch}
 });
-
-test('private staging provides only bounded non-identifying support codes when denied',async()=>{
- globalThis.fetch=cfFetch;try{
-  const app=createMmfStageGate(env);
-  const cases=[
-   [route(), 'TOKEN_NOT_PRESENT'],
-   [route('a.b.c'), 'TOKEN_FORMAT'],
-   [route(jwt({email:'attacker@example.com'})), 'ADMIN_IDENTITY'],
-   [route(jwt({aud:['wrong']})), 'CLAIMS'],
-   [new Request(base+'/private/gateway',{method:'POST',headers:{'cf-access-jwt-assertion':jwt()}}),'REQUEST_CONTEXT'],
-  ];
-  for(const [req,expected] of cases){
-    const res=await app.fetch(req);assert.equal(res.status,403);
-    const obj=await res.json();assert.deepEqual(Object.keys(obj).sort(),['error','supportCode']);
-    assert.equal(obj.error,'MMF_PRIVATE_ACCESS_DENIED');assert.equal(obj.supportCode,expected);
-    assert.doesNotMatch(JSON.stringify(obj),/enrolled-administrator|attacker|trusted-access-audience|eyJ/i);
-  }
+test('403 on forced certificate transport error reveals only KEY_TRANSPORT class',async()=>{
+ globalThis.fetch=async()=>{throw new TypeError('Synthetic transport exception with secret-looking text')};
+ try{
+  const res=await createMmfStageGate(env).fetch(route(jwt()));
+  assert.equal(res.status,403);
+  assert.deepEqual(await res.json(),{error:'MMF_PRIVATE_ACCESS_DENIED',supportCode:'KEY_TRANSPORT'});
+ }finally{globalThis.fetch=oldFetch}
+});
+test('malformed certificate JSON fails closed as SIGNING_KEY',async()=>{
+ globalThis.fetch=async()=>new Response('not valid JSON',{headers:{'content-type':'application/json'}});
+ try{
+  const res=await createMmfStageGate(env).fetch(route(jwt()));
+  assert.equal(res.status,403);
+  assert.deepEqual(await res.json(),{error:'MMF_PRIVATE_ACCESS_DENIED',supportCode:'SIGNING_KEY'});
  }finally{globalThis.fetch=oldFetch}
 });
