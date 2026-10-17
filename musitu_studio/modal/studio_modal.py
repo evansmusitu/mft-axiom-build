@@ -33,8 +33,9 @@ def verify_request(job_id,scene_json,sha,device):
     if len(scene_json.encode())>65536 or hashlib.sha256(scene_json.encode()).hexdigest()!=sha:
         raise ValueError("INPUT_DIGEST_MISMATCH")
     scene=json.loads(scene_json)
-    if not isinstance(scene,dict) or scene.get("schema")!="musitu.blender.job.v1" or not isinstance(scene.get("objects"),list):
-        raise ValueError("INVALID_SCENE")
+    # The same strict declarative schema enforced by the Cloudflare Worker:
+    from studio.job_schema import validate_job
+    validate_job(scene)
     if not isinstance(job_id,str) or len(job_id)!=36:
         raise ValueError("INVALID_JOB_ID")
     return scene
@@ -61,6 +62,12 @@ def run_render(job_id,scene_json,sha,device):
             env={"PATH":"/usr/local/bin:/usr/bin:/bin","HOME":tmp,
                  "LANG":"C.UTF-8","OMP_NUM_THREADS":"2",
                  "STUDIO_RENDER_DEVICE":device}
+            if device=="GPU":
+                # Preserve Modal's NVIDIA runtime library injection without
+                # forwarding unrelated application secrets into Blender.
+                for name in ("LD_LIBRARY_PATH","CUDA_VISIBLE_DEVICES",
+                             "NVIDIA_VISIBLE_DEVICES","NVIDIA_DRIVER_CAPABILITIES"):
+                    if os.getenv(name):env[name]=os.environ[name]
             cmd=[BLENDER,"--background","--factory-startup","--threads","2",
                  "--python","/opt/studio/execute_job.py","--",
                  "--job",str(inp),"--outdir",str(out)]
@@ -122,3 +129,62 @@ def submit_asgi():
             raise HTTPException(status_code=503, detail="MODAL_DISPATCH_UNAVAILABLE") from exc
         return {"ok":True,"accepted":True,"job_id":jid}
     return app
+
+
+def _smoke_render(device):
+    """Real Modal Blender/Cycles qualification, intentionally no edge callback."""
+    from importlib.machinery import SourceFileLoader
+    check=SourceFileLoader("verify_outputs_smoke","/opt/verify_outputs.py").load_module()
+    import uuid
+    scene={"schema":"musitu.blender.job.v1","job_id":"StudioSmoke01",
+           "frame_end":16,"objects":[
+             {"name":"Foundation","type":"cube","location":[0,0,0],
+              "dimensions":[4,4,0.2],"material":"graphite"},
+             {"name":"Feature","type":"sphere","location":[0,0,1.5],
+              "dimensions":[1.4,1.4,1.4],"material":"copper"}
+           ],"animations":[{"object":"Feature","axis":"Z","degrees":90,"start":1,"end":16}]}
+    raw=json.dumps(scene,separators=(",",":"))
+    sha=hashlib.sha256(raw.encode()).hexdigest()
+    if os.getenv("STUDIO_BILLING_GUARD_APPROVED")!="1":
+        raise RuntimeError("STUDIO_EXECUTION_NOT_AUTHORIZED")
+    if device=="GPU" and os.getenv("STUDIO_GPU_GATE_ON_MODAL")!="1":
+        raise RuntimeError("STUDIO_GPU_NOT_AUTHORIZED")
+    verify_request(str(uuid.uuid4()),raw,sha,device)
+    with tempfile.TemporaryDirectory(prefix="musitu-qualification-") as tmp:
+        folder=pathlib.Path(tmp);job=folder/"scene.json";job.write_text(raw)
+        output=folder/"out";output.mkdir()
+        env={"PATH":"/usr/local/bin:/usr/bin:/bin","HOME":tmp,"LANG":"C.UTF-8",
+             "OMP_NUM_THREADS":"2","STUDIO_RENDER_DEVICE":device}
+        if device=="GPU":
+            for name in ("LD_LIBRARY_PATH","CUDA_VISIBLE_DEVICES",
+                         "NVIDIA_VISIBLE_DEVICES","NVIDIA_DRIVER_CAPABILITIES"):
+                if os.getenv(name):env[name]=os.environ[name]
+        result=subprocess.run([BLENDER,"-b","--factory-startup","--threads","2",
+          "--python","/opt/studio/execute_job.py","--","--job",str(job),"--outdir",str(output)],
+          cwd=tmp,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+          timeout=190,check=False)
+        if result.returncode:
+            return {"status":"FAILED","device_requested":device,
+                    "reason":"BLENDER_PROCESS_"+str(result.returncode),
+                    "blender_log_tail":result.stdout.decode(errors="replace")[-2000:]}
+        try:
+            artifacts,evidence=check.verify(output,sha,device)
+            return {"status":"PASS","device_requested":device,
+                    "renderer":evidence.get("renderer"),
+                    "gpu_verified":bool(evidence.get("gpu_verified")),
+                    "gpu_device_names":str(evidence.get("gpu_device_names",""))[:120],
+                    "files":{k:{"bytes":len(v[0]),"sha256":v[1]}
+                             for k,v in artifacts.items()}}
+        except Exception as exc:
+            return {"status":"FAILED","device_requested":device,
+                    "reason":type(exc).__name__}
+
+@APP.function(image=IMAGE,secrets=SECRETS,cpu=2,memory=4096,
+              min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
+def smoke_cpu():
+    return _smoke_render("CPU")
+
+@APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
+              min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
+def smoke_gpu():
+    return _smoke_render("GPU")
