@@ -50,8 +50,16 @@ try{
   MMF_REAL_SEND_ENABLED:'false',MMF_COMMERCE_ENABLED:'false',MMF_CUSTOMER_API_ENABLED:'false'};
  const durable=bindings.filter(b=>b.name==='MMF_OIDC_QUALIFICATION'&&b.type==='durable_object_namespace'&&b.class_name==='MmfOidcQualificationDO'&&/^[a-f0-9]{32}$/.test(b.namespace_id||''));
  report.bindingsVerified=bindings.length===6&&Object.entries(original).every(([k,v])=>value(k).length===1&&value(k)[0].text===v)&&durable.length===1;
+ // This API omits the optional observability object. Do not invent an explicit
+ // false readback. The upload submitted disabled observability; that field is
+ // independently confirmed only when the API actually returns it. All auth,
+ // binding, source and runtime checks below still require affirmative evidence.
+ report.observabilityReadback=settings.observability===undefined&&record.observability===undefined?
+  'OPTIONAL_OBJECT_OMITTED_NOT_INDEPENDENTLY_CONFIRMED':
+  (settings.observability??record.observability)?.enabled===false?'EXPLICITLY_DISABLED':'UNEXPECTED_ENABLED_OR_INVALID';
  report.runtimeSettingsVerified=settings.compatibility_date==='2026-10-17'&&settings.compatibility_flags?.includes('nodejs_compat')&&
-  settings.observability?.enabled===false&&record.logpush===false&&!settings.tail_consumers?.length&&record.migration_tag==='mmf-oidc-qualification-v1-20261017';
+  settings.logpush===false&&record.logpush===false&&!settings.tail_consumers?.length&&record.migration_tag==='mmf-oidc-qualification-v1-20261017'&&
+  report.observabilityReadback!=='UNEXPECTED_ENABLED_OR_INVALID';
  const contentType=response.headers.get('content-type')||'';
  if(!contentType.startsWith('multipart/'))fail('MMF_SOURCE_FORMAT_DENIED');
  const bytes=await response.arrayBuffer();if(bytes.byteLength>250000)fail('MMF_SOURCE_OVERSIZE');
