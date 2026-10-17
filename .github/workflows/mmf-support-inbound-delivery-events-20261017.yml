@@ -1,0 +1,127 @@
+name: MMF Support DNS and Email Delivery Event Check 20261017
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-support-inbound-delivery-events-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.before == '34f14d967202568da17fe5898d1a6cc6cace8023'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Inspect authoritative root MX and redacted routing outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {resolveMx} from 'node:dns/promises';
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const acct='93f395f5121954671f92fffa453d6b61',t=process.env.CLOUDFLARE_API_TOKEN;
+          if(process.env.CLOUDFLARE_ACCOUNT_ID!==acct||!t||t.length<20)throw Error('MMF_CLOUDFLARE_TOKEN_NOT_AVAILABLE');
+          const report={schema:'mmf-support-mail-live-event-redacted-v20261017',observedAt:new Date().toISOString(),
+           cloudflareGetCount:0,cloudflareGraphqlQueries:0,mutations:0,
+           rootMxVerified:false,rootMxCloudflareCount:null,rootMxOtherCount:null,subdomainMxCount:null,
+           publicMxCount:null,publicMxCloudflareCount:null,mxMatchesPublicDns:false,
+           analyticsReadable:false,analyticsErrorCategory:null,routingEventsToSupport:0,
+           routingEventsOtherAddresses:0,routingStatusCounts:{},recentSupportEvents:[],
+           gate:'MMF_SUPPORT_MAIL_LOGS_NOT_YET_VERIFIED'};
+          let gets=0;
+          const get=async path=>{
+            gets++;
+            const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(13000)});
+            if(!r.ok||r.redirected)throw Error('MMF_CLOUDFLARE_GET_DENIED');
+            const body=await r.text();if(body.length>150000)throw Error('MMF_CLOUDFLARE_RESPONSE_TOO_BIG');
+            const j=JSON.parse(body);
+            if(j.success!==true||!Object.hasOwn(j,'result')||Number(j.result_info?.total_pages||1)>1)throw Error('MMF_CLOUDFLARE_GET_INCOMPLETE');
+            return j.result;
+          };
+          try{
+            const zones=await get('zones?name=mftintelligence.com&per_page=30');
+            if(!Array.isArray(zones)||zones.length!==1||zones[0].account?.id!==acct||zones[0].status!=='active')throw Error('MMF_VERIFIED_ZONE_NOT_FOUND');
+            const z=zones[0].id;
+            const mx=await get('zones/'+z+'/dns_records?type=MX&per_page=100');
+            if(!Array.isArray(mx))throw Error('MMF_MX_READ_ERROR');
+            const root=mx.filter(x=>String(x.name||'').replace(/\.$/,'').toLowerCase()==='mftintelligence.com');
+            const isCf=x=>String(x.content||x.exchange||'').replace(/\.$/,'').toLowerCase().endsWith('.mx.cloudflare.net');
+            report.rootMxCloudflareCount=root.filter(isCf).length;
+            report.rootMxOtherCount=root.length-report.rootMxCloudflareCount;
+            report.subdomainMxCount=mx.length-root.length;
+            report.rootMxVerified=root.length===3&&report.rootMxCloudflareCount===3&&report.rootMxOtherCount===0;
+            try{
+              const pub=await resolveMx('mftintelligence.com');
+              report.publicMxCount=pub.length;report.publicMxCloudflareCount=pub.filter(isCf).length;
+              report.mxMatchesPublicDns=pub.length===3&&pub.every(isCf)&&root.map(x=>String(x.content).replace(/\.$/,'').toLowerCase()).sort().join()===pub.map(x=>String(x.exchange).replace(/\.$/,'').toLowerCase()).sort().join();
+            }catch{report.publicDnsQueryFailed=true}
+            const query=`query SupportMail($zoneTag: string, $filter: EmailRoutingAdaptiveFilter_InputObject) {
+              viewer { zones(filter:{zoneTag:$zoneTag}) {
+                emailRoutingAdaptive(filter:$filter,limit:300,orderBy:[datetime_DESC]) {
+                  datetime to status action spf dkim dmarc errorDetail
+                }
+              } }
+            }`;
+            report.cloudflareGraphqlQueries++;
+            const response=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',
+              headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},
+              body:JSON.stringify({query,variables:{zoneTag:z,filter:{datetime_geq:'2026-10-10T00:00:00Z',datetime_leq:'2026-10-18T00:00:00Z'}}}),
+              redirect:'error',signal:AbortSignal.timeout(20000)});
+            const text=await response.text();
+            if(text.length>230000)throw Error('MMF_ANALYTICS_RESPONSE_TOO_LARGE');
+            let parsed;try{parsed=JSON.parse(text)}catch{throw Error('MMF_ANALYTICS_INVALID_JSON')}
+            if(!response.ok||parsed.errors?.length||parsed.data?.viewer?.zones?.length!==1){
+              report.analyticsErrorCategory=response.status===403?'DENIED':response.status===401?'UNAUTHORIZED':parsed.errors?.length?'GRAPHQL_NOT_AVAILABLE':'UNAVAILABLE';
+            }else{
+              report.analyticsReadable=true;
+              const events=parsed.data.viewer.zones[0].emailRoutingAdaptive;
+              if(!Array.isArray(events))throw Error('MMF_ANALYTICS_INVALID_EVENTS');
+              const normalize=x=>String(x||'').trim().toLowerCase();
+              for(const event of events){
+                const match=normalize(event.to)==='support@mftintelligence.com';
+                if(!match){report.routingEventsOtherAddresses++;continue}
+                report.routingEventsToSupport++;
+                const status=normalize(event.status).replace(/[^a-z0-9_]/g,'_').slice(0,35)||'unknown';
+                report.routingStatusCounts[status]=(report.routingStatusCounts[status]||0)+1;
+                if(report.recentSupportEvents.length<15){
+                  const detail=normalize(event.errorDetail);
+                  const errorCategory=detail.includes('spf')||detail.includes('dkim')||detail.includes('dmarc')?'AUTHENTICATION':
+                    detail.includes('timeout')?'TIMEOUT':detail.includes('spam')?'SPAM':
+                    detail.includes('bounce')||detail.includes('delivery')||detail.includes('reject')?'DELIVERY':detail?'OTHER':'NONE';
+                  report.recentSupportEvents.push({at:typeof event.datetime==='string'?event.datetime.slice(0,19):null,
+                    status,action:normalize(event.action).slice(0,25),
+                    spf:normalize(event.spf).slice(0,20),dkim:normalize(event.dkim).slice(0,20),dmarc:normalize(event.dmarc).slice(0,20),errorCategory});
+                }
+              }
+            }
+            report.gate=!report.rootMxVerified?'MMF_SUPPORT_ROOT_MX_MISCONFIGURED':
+              !report.analyticsReadable?'MMF_SUPPORT_ROOT_MX_OK_ANALYTICS_PERMISSION_OR_SCHEMA_BLOCKER':
+              'MMF_SUPPORT_ROOT_MX_OK_ACTUAL_DELIVERY_EVENTS_READ';
+          }catch(e){report.gate='MMF_SUPPORT_MAIL_AUDIT_INCONCLUSIVE';report.failure=/^MMF_[A-Z_]+$/.test(e.message)?e.message:'MMF_OTHER_READ_ERROR';}
+          finally{
+            report.cloudflareGetCount=gets;
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-support-inbound-delivery-events-20261017.json'),
+             JSON.stringify(report,null,2)+'\n',{mode:0o600,flag:'wx'});
+            console.log(JSON.stringify({gate:report.gate,rootCloudflareMx:report.rootMxCloudflareCount,rootOtherMx:report.rootMxOtherCount,
+              subdomainMx:report.subdomainMxCount,publicMxMatch:report.mxMatchesPublicDns,
+              analyticsRead:report.analyticsReadable,analyticsError:report.analyticsErrorCategory,
+              supportEvents:report.routingEventsToSupport,statusCounts:report.routingStatusCounts,
+              latest:report.recentSupportEvents.slice(0,8),mutations:0}));
+          }
+          NODE
+      - name: Preserve sanitized evidence without customer content
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-support-inbound-event-proof-20261017
+          path: ${{ runner.temp }}/mmf-support-inbound-delivery-events-20261017.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove ephemeral report
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-support-inbound-delivery-events-20261017.json"
