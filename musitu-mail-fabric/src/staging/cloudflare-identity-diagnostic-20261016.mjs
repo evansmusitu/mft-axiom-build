@@ -75,6 +75,39 @@ try {
   detail.mmfWorkers = await Promise.all(mmfScripts.map(async x => ({ name: x.id,
     subdomain: await get('accounts/' + account + '/workers/scripts/' + encodeURIComponent(x.id) + '/subdomain', 'mmfWorkerSubdomain'),
   })));
+  // Diagnose the approved enrollment subject through the existing admin API.
+  // The address and all configuration evidence remain encrypted; never export
+  // a roster, login IP, cookie, token, or authenticator secret to public logs.
+  const launcherId = '9dfc2a78-0dae-463b-9235-03ae134be007';
+  const [launcher, launcherPolicies] = await Promise.all([
+    get('accounts/' + account + '/access/apps/' + launcherId, 'enrollmentLauncher'),
+    get('accounts/' + account + '/access/apps/' + launcherId + '/policies?per_page=100', 'enrollmentPolicies'),
+  ]);
+  const enrollmentPolicy = launcherPolicies?.[0];
+  const subject = enrollmentPolicy?.include?.[0]?.email?.email;
+  if (launcher?.type !== 'app_launcher' || launcher.domain !== 'musitu-axiom.cloudflareaccess.com' || launcher.session_duration !== '15m' || JSON.stringify(launcher.allowed_idps) !== JSON.stringify(['ec04a8ab-9382-4df0-9589-d2c98618e6af']) || launcherPolicies?.length !== 1 || enrollmentPolicy.decision !== 'allow' || enrollmentPolicy.include?.length !== 1 || enrollmentPolicy.require?.length !== 1 || enrollmentPolicy.require[0].login_method?.id !== 'ec04a8ab-9382-4df0-9589-d2c98618e6af' || (enrollmentPolicy.exclude || []).length || typeof subject !== 'string') throw Error('ENROLLMENT_SCOPE_DRIFT');
+  const [members, users, logs] = await Promise.all([
+    get('accounts/' + account + '/members?per_page=100', 'accountMembershipPermission'),
+    get('accounts/' + account + '/access/users?per_page=100', 'accessUsersPermission'),
+    get('accounts/' + account + '/access/logs/access_requests?per_page=100&limit=100&since=' + encodeURIComponent('2026-10-17T03:50:00Z') + '&email=' + encodeURIComponent(subject), 'accessAuthenticationLogsPermission'),
+  ]);
+  const sameEmail = x => typeof x === 'string' && x.toLowerCase() === subject.toLowerCase();
+  const matchedMembers = Array.isArray(members) ? members.filter(x => sameEmail(x.user?.email)) : null;
+  const matchedUsers = Array.isArray(users) ? users.filter(x => sameEmail(x.email) || x.emails?.some(e => sameEmail(e.value))) : null;
+  detail.enrollmentDiagnostic = { launcherId, subject, launcherScopeVerified: true,
+    membershipReadAvailable: matchedMembers !== null,
+    members: matchedMembers?.map(x => ({status:x.status, nativeAccountTwoFactorEnabled:x.user?.two_factor_authentication_enabled})),
+    accessUsersReadAvailable: matchedUsers !== null,
+    users: matchedUsers?.map(x => ({id:x.id,email:x.email,accessSeat:x.access_seat,lastSuccessfulLogin:x.last_successful_login,keys:Object.keys(x).sort()})),
+    logsReadAvailable: Array.isArray(logs),
+    events: Array.isArray(logs) ? logs.filter(x => [launcherId,'f8ab12fe-251f-44fa-80de-1c2f2bdc4055','4ae515a1-189d-41c2-8020-c99ea157b021'].includes(x.app_uid) && sameEmail(x.user_email)).map(x => ({action:x.action,allowed:x.allowed,appId:x.app_uid,connection:x.connection,createdAt:x.created_at,rayId:x.ray_id})) : null,
+    realMfaCompletionVerified: false,
+  };
+  if (matchedUsers?.length === 1 && /^[a-zA-Z0-9-]{20,64}$/.test(matchedUsers[0].id)) {
+    const user = await get('accounts/' + account + '/access/users/' + matchedUsers[0].id, 'approvedAccessUserDetails');
+    if (user) detail.enrollmentDiagnostic.userDetails = { keys:Object.keys(user).sort(), lastSuccessfulLogin:user.last_successful_login,
+      mfaAuthenticators:Array.isArray(user.mfa_authenticators) ? user.mfa_authenticators.map(x => ({type:x.type,method:x.method})) : null };
+  }
   // Read the existing dedicated OIDC client; this diagnostic never registers or
   // updates one, and never treats an unauthenticated probe as proof of PKCE/MFA.
   const clients = (apps || []).filter(x => x.id === '4ae515a1-189d-41c2-8020-c99ea157b021' && x.type === 'saas');
