@@ -1,0 +1,57 @@
+name: MUSITU Studio — Dedicated Modal Callback Worker
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_callback_worker_deploy.py'
+      - '.github/workflows/studio-callback-worker.yml'
+permissions: {contents: read}
+concurrency:
+  group: studio-callback-worker-v02-only
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Static confirmation and separate callback-only build
+        working-directory: musitu_studio/edge
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          node --check src/callback_entry.mjs
+          node --check src/r2_entry.mjs
+      - name: Deploy separate machine-only Worker with strong callback secret
+        run: python ops/studio_callback_worker_deploy.py
+      - name: Verify public URL denies unsigned callbacks, never serves dashboard
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,json,pathlib
+          out=json.loads(pathlib.Path("studio-callback-worker-live.json").read_text())
+          endpoint=out["callback_url"]
+          req=urllib.request.Request(endpoint,method="POST",data=b"{}",headers={"Content-Type":"application/json"})
+          try:
+            with urllib.request.urlopen(req,timeout=40) as r:
+              code=r.status;body=r.read(160)
+          except urllib.error.HTTPError as e:
+            code=e.code;body=e.read(160)
+          print("STUDIO_CALLBACK_WORKER_UNSIGNED_HTTP="+str(code))
+          print("STUDIO_CALLBACK_RESPONSE_JSON="+str(body.startswith(b'{')))
+          if code!=401 or not body.startswith(b'{'):
+            raise SystemExit("MODAL_CALLBACK_PUBLIC_BOUNDARY_NOT_VERIFIED")
+          print("STUDIO_CALLBACK_SECRET_ENFORCED_NO_ACCESS_COOKIE")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-isolated-callback-live
+          path: studio-callback-worker-live.json
+          if-no-files-found: warn
+          retention-days: 14
