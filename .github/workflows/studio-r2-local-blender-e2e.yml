@@ -1,0 +1,89 @@
+name: MUSITU Studio — R2 Local Wrangler Real Blender E2E
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'musitu_studio/edge/tests/r2_local_runtime.mjs'
+      - 'musitu_studio/edge/src/r2_entry.mjs'
+      - '.github/workflows/studio-r2-local-blender-e2e.yml'
+permissions: {contents: read}
+jobs:
+  live-api-local-storage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Create disposable local-only Cloudflare config and token fixtures
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-fund --no-audit
+          node - <<'JS'
+          const fs=require('node:fs');
+          const cfg=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8'));
+          delete cfg.d1_databases;
+          cfg.main='src/r2_entry.mjs';
+          cfg.workers_dev=false;
+          cfg.vars.ENABLE_RENDER_DISPATCH='false';
+          cfg.vars.GPU_EXECUTION_APPROVED='false';
+          cfg.vars.STUDIO_LOCAL_TEST_ONLY='true';
+          fs.writeFileSync('wrangler.r2.local.json',JSON.stringify(cfg,null,2));
+          fs.writeFileSync('.dev.vars','STUDIO_ADMIN_TOKEN='+'A'.repeat(48)+'\nSTUDIO_MODAL_CALLBACK_KEY='+'B'.repeat(48)+'\n');
+          JS
+      - name: Genuine official Blender 4.5.14 CPU software QA render
+        run: |
+          set -euo pipefail
+          f=blender-4.5.14-linux-x64.tar.xz
+          curl --fail --location --retry 2 --max-time 160 -o "$f" "https://download.blender.org/release/Blender4.5/$f"
+          echo '9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3  blender-4.5.14-linux-x64.tar.xz' | sha256sum -c -
+          tar -xJf "$f"
+          mkdir -p musitu_studio/proof-r2
+          STUDIO_RENDER_DEVICE=CPU ./blender-4.5.14-linux-x64/blender -b --factory-startup --threads 2 \
+            --python musitu_studio/studio/execute_job.py -- \
+            --job musitu_studio/examples/approved_demo.json --outdir "$PWD/musitu_studio/proof-r2" \
+            >musitu_studio/proof-r2/blender_stdout.log 2>&1
+          python musitu_studio/studio/verify_job.py musitu_studio/examples/approved_demo.json musitu_studio/proof-r2
+      - name: R2 local Worker → approval → manual test-only state advance → real Blender callback
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          ROOT="$PWD"
+          npx wrangler dev --local --config wrangler.r2.local.json --persist-to .wrangler/r2-state --ip 127.0.0.1 --port 8787 >wrangler-r2.log 2>&1 &
+          WRANGLER_PID=$!
+          trap 'kill "$WRANGLER_PID" 2>/dev/null || true' EXIT
+          for t in $(seq 1 70); do
+            if curl -fsS --max-time 1 http://127.0.0.1:8787/ >/dev/null 2>&1;then break;fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8787/ >/dev/null
+          node tests/r2_local_runtime.mjs stage
+          KEY='musitu-studio-v02-assets/studio-control/v1/state.json'
+          npx wrangler r2 object get "$KEY" --file state-r2.json --local --persist-to .wrangler/r2-state --config wrangler.r2.local.json
+          python - <<'PY'
+          import json,pathlib
+          f=pathlib.Path('state-r2.json')
+          doc=json.loads(f.read_text())
+          job=pathlib.Path('local-r2-job.txt').read_text().strip()
+          hit=[j for j in doc['jobs'] if j['id']==job]
+          assert len(hit)==1 and hit[0]['state']=='APPROVED'
+          hit[0]['state']='RUNNING'
+          f.write_text(json.dumps(doc,separators=(',',':')))
+          print('LOCAL_TEST_ONLY_MANUAL_MODAL_STATE_SIMULATION_NO_MODAL_COMPUTE')
+          PY
+          npx wrangler r2 object put "$KEY" --file state-r2.json --local --persist-to .wrangler/r2-state --config wrangler.r2.local.json --force
+          node tests/r2_local_runtime.mjs complete ../proof-r2
+          echo 'STUDIO_R2_WRANGLER_REAL_BLENDER_FULL_LOCAL_INTEGRATION_PASS'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-r2-wrangler-real-blender-proof
+          path: |
+            musitu_studio/proof-r2/scene.blend
+            musitu_studio/proof-r2/scene.glb
+            musitu_studio/proof-r2/preview.png
+            musitu_studio/proof-r2/evidence.json
+            musitu_studio/proof-r2/verification.json
+          retention-days: 7
+          if-no-files-found: warn
