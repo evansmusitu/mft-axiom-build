@@ -1,0 +1,36 @@
+name: MUSITU Studio — Modal ASGI Runtime Error Inspection
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-modal-api-error-diagnostic.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'modal>=1.5,<2'
+      - name: Read existing Modal Studio logs without starting new render jobs
+        run: |
+          python - <<'PY'
+          import modal,re
+          app=modal.App.lookup("musitu-studio-v02")
+          messages=[]
+          try:
+            for entry in app.logs.tail(140):
+              line=str(getattr(entry,'message',''))
+              line=re.sub(r'(Bearer\s+)[^\s]+',r'\1[REDACTED]',line)
+              line=re.sub(r'(?i)(token|password|secret|authorization)=([^\s]+)',r'\1=[REDACTED]',line)
+              messages.append(line[:450])
+          except Exception as e:
+            print("MODAL_LOGS_QUERY_ERROR="+type(e).__name__)
+            raise
+          print("MODAL_RECENT_LOG_LINES="+str(len(messages)))
+          for msg in messages[-70:]:print("MODAL_LOG="+msg.rstrip())
+          PY
