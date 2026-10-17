@@ -7,6 +7,7 @@ on:
       - '.github/workflows/studio-cloudflare-modal-readonly.yml'
       - 'ops/studio_live_readonly_probe.py'
       - 'ops/studio_cloudflare_readonly_diagnostic.py'
+      - 'ops/studio_modal_readonly_qualification.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -44,6 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           python ops/studio_cloudflare_readonly_diagnostic.py
+      - name: Read workspace metadata and billing access without running compute
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          python ops/studio_modal_readonly_qualification.py
       - name: Verify fail-closed spending and no live deployment
         run: |
           python - <<'PY'
@@ -62,5 +70,6 @@ jobs:
           path: |
             studio-provider-readonly.json
             studio-cloudflare-connection-diagnostic.json
+            studio-modal-readonly-qualification.json
           retention-days: 7
           if-no-files-found: warn
