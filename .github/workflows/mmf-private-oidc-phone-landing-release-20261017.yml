@@ -1,4 +1,4 @@
-name: MMF Private OIDC Phone Landing and Worker Transport Fix 20261017
+name: MMF Private OIDC Request Context Diagnostic 20261017
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   release:
-    if: github.event.before == '2a55659bf24afbc87b8c964ae41056e3c00d6116'
+    if: github.event.before == '4a0847dd7b31ce739a80ca4a9d25815dcd2f11ab'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 12
@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = '2a55659bf24afbc87b8c964ae41056e3c00d6116'
+          test "$(git rev-parse HEAD^)" = '4a0847dd7b31ce739a80ca4a9d25815dcd2f11ab'
           node --input-type=module <<'NODE'
           const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           const get=async path=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GIT_READ_DENIED');return r.json()};
