@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   inspector:
-    if: github.event.before == 'e67fab5ce5c4683daa2d579c97ef490a53730c2e'
+    if: github.event.before == '19993e4878169272f8d9a5208859cd635328381b'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 7
@@ -46,7 +46,7 @@ jobs:
           const appId='4ae515a1-189d-41c2-8020-c99ea157b021',idpId='ec04a8ab-9382-4df0-9589-d2c98618e6af';
           const prefix='accounts/'+account+'/access/';
           const report={schema:'mmf-existing-oidc-real-qualification-v1',when:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA,
-            managementConnection:false,accountVerified:false,clientRegistered:false,clientClosed:false,exactCallback:false,
+            managementConnection:false,accountVerified:false,clientRegistered:false,clientAdminOnly:false,exactCallback:false,
             registeredPkceOnly:false,mfaRequired:false,apiCertificateMatchesPublicJwks:false,
             strictProviderQualified:false,s256Declared:false,standardCodeGrantDeclared:false,
             loginAttempted:false,tokenExchangeAttempted:false,signedMfaVerified:false,
@@ -68,16 +68,20 @@ jobs:
           const fingerprint=key=>createHash('sha256').update(key.export({format:'der',type:'spki'})).digest('hex');
           try{
             if(process.env.CLOUDFLARE_ACCOUNT_ID!==account||!token||token.length<20)throw Error('MMF_AUTHORIZED_CONNECTION_MISSING');
-            const [zones,org,app,policies]=await Promise.all([api('zones?name=mftintelligence.com&per_page=100'),api(prefix+'organizations'),api(prefix+'apps/'+appId),api(prefix+'apps/'+appId+'/policies?per_page=100')]);
+            const [zones,org,app,policies,launcher,launcherPolicies]=await Promise.all([api('zones?name=mftintelligence.com&per_page=100'),api(prefix+'organizations'),api(prefix+'apps/'+appId),api(prefix+'apps/'+appId+'/policies?per_page=100'),api(prefix+'apps/9dfc2a78-0dae-463b-9235-03ae134be007'),api(prefix+'apps/9dfc2a78-0dae-463b-9235-03ae134be007/policies?per_page=100')]);
             report.managementConnection=true;
             report.accountVerified=zones?.length===1&&zones[0].account?.id===account&&zones[0].status==='active'&&org?.auth_domain==='musitu-axiom.cloudflareaccess.com';
             const cfg=app?.saas_app;
             report.clientRegistered=app?.id===appId&&app.type==='saas'&&cfg?.auth_type==='oidc'&&/^[A-Za-z0-9._:@-]{4,128}$/.test(cfg.client_id||'');
-            report.clientClosed=Array.isArray(policies)&&policies.length===0;
+            const email=launcherPolicies?.[0]?.include?.[0]?.email?.email;
+            report.clientAdminOnly=launcher?.type==='app_launcher'&&launcherPolicies?.length===1&&typeof email==='string'&&email.includes('@')&&
+              Array.isArray(policies)&&policies.length===1&&policies[0].decision==='allow'&&policies[0].name==='MMF sole administrator private staging only'&&
+              policies[0].session_duration==='15m'&&policies[0].include?.length===1&&policies[0].include[0]?.email?.email===email&&
+              policies[0].require?.length===1&&policies[0].require[0]?.login_method?.id===idpId&&Array.isArray(policies[0].exclude)&&policies[0].exclude.length===0;
             report.exactCallback=JSON.stringify(cfg?.redirect_uris)===JSON.stringify(['https://mail-stage.mftintelligence.com/private/oidc/callback']);
             report.registeredPkceOnly=JSON.stringify(cfg?.grant_types)===JSON.stringify(['authorization_code_with_pkce'])&&cfg?.allow_pkce_without_client_secret===true;
             report.mfaRequired=app?.mfa_config?.mfa_disabled===false&&app.mfa_config.allowed_authenticators?.includes('totp')&&Array.isArray(app.allowed_idps)&&app.allowed_idps.length===1&&app.allowed_idps[0]===idpId;
-            if(![report.accountVerified,report.clientRegistered,report.clientClosed,report.exactCallback,report.registeredPkceOnly,report.mfaRequired].every(Boolean))throw Error('MMF_EXISTING_CLOSED_OIDC_CLIENT_DRIFT');
+            if(![report.accountVerified,report.clientRegistered,report.clientAdminOnly,report.exactCallback,report.registeredPkceOnly,report.mfaRequired].every(Boolean))throw Error('MMF_EXISTING_ADMIN_ONLY_OIDC_CLIENT_DRIFT');
             const issuer='https://'+org.auth_domain+'/cdn-cgi/access/sso/oidc/'+cfg.client_id;
             const expected={issuer,authorizationEndpoint:issuer+'/authorization',tokenEndpoint:issuer+'/token',jwksUri:issuer+'/jwks'};
             const [meta,jwks]=await Promise.all([publicJson(issuer+'/.well-known/openid-configuration',16384),publicJson(expected.jwksUri,32768)]);
