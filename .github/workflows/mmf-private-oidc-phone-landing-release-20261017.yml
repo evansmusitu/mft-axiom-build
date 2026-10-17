@@ -1,4 +1,4 @@
-name: MMF Private OIDC Request Context Diagnostic 20261017
+name: MMF Private OIDC Redirect Status Correction 20261017
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   release:
-    if: github.event.before == '4a0847dd7b31ce739a80ca4a9d25815dcd2f11ab'
+    if: github.event.before == 'd32196eb31e3380d1584dc5b14afc38df6e0f833'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 12
@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = '4a0847dd7b31ce739a80ca4a9d25815dcd2f11ab'
+          test "$(git rev-parse HEAD^)" = 'd32196eb31e3380d1584dc5b14afc38df6e0f833'
           node --input-type=module <<'NODE'
           const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           const get=async path=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GIT_READ_DENIED');return r.json()};
