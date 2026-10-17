@@ -1,0 +1,75 @@
+name: MMF Access Public Signing-Key Runtime Readonly 20261017
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-access-certs-runtime-readonly-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.before == 'ef8ea5120a1c637f4ea6e125637efe693e8f96ca'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inspect public Cloudflare signing key runtime compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {createPublicKey,webcrypto} from 'node:crypto';
+          const report={schema:'mmf-public-access-certs-compat-v1',observedAt:new Date().toISOString(),
+            publicCertificateEndpointResponds:false,jsonType:false,keyCount:null,
+            rsaSigningKeysWellFormed:false,publicJwkImportCompatible:false,
+            nodeCryptoImportCompatible:false,hostAnonymousStillDenied:false,
+            cloudflareMutations:0,gate:'MMF_PUBLIC_KEY_RUNTIME_DIAGNOSTIC_INCOMPLETE'};
+          try{
+            const url='https://musitu-axiom.cloudflareaccess.com/cdn-cgi/access/certs';
+            const r=await fetch(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(14000)});
+            report.publicHttpStatus=r.status;
+            report.jsonType=(r.headers.get('content-type')||'').toLowerCase().startsWith('application/json');
+            report.publicCertificateEndpointResponds=r.ok&&!r.redirected;
+            if(!report.publicCertificateEndpointResponds||!report.jsonType)throw Error('MMF_PUBLIC_CERTS_HTTP_UNAVAILABLE');
+            const data=await r.text();if(data.length>32768)throw Error('MMF_CERTS_OVERSIZE');
+            const obj=JSON.parse(data);
+            report.keyCount=Array.isArray(obj.keys)?obj.keys.length:null;
+            if(!Array.isArray(obj.keys)||!obj.keys.length||obj.keys.length>15)throw Error('MMF_PUBLIC_CERTS_INVALID');
+            report.rsaSigningKeysWellFormed=obj.keys.every(j=>typeof j.kid==='string'&&j.kty==='RSA'&&
+              typeof j.n==='string'&&typeof j.e==='string'&&(!j.alg||j.alg==='RS256')&&(!j.use||j.use==='sig'));
+            if(!report.rsaSigningKeysWellFormed)throw Error('MMF_CERTS_NOT_RSA');
+            report.nodeCryptoImportCompatible=obj.keys.every(j=>{try{const pk=createPublicKey({format:'jwk',key:{kty:'RSA',n:j.n,e:j.e}});return pk.asymmetricKeyType==='rsa'}catch{return false}});
+            const imported=await Promise.all(obj.keys.map(j=>webcrypto.subtle.importKey('jwk',
+              {kty:'RSA',n:j.n,e:j.e},{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify'])
+              .then(()=>true,()=>false)));
+            report.publicJwkImportCompatible=imported.every(Boolean);
+          }catch(error){
+            report.errorClass=/^MMF_[A-Z_]+$/.test(error.message||'')?error.message:'MMF_NETWORK_OR_RUNTIME_ERROR';
+          }
+          try{
+            const response=await fetch('https://mail-stage.mftintelligence.com/private/gateway',{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(13000)});
+            report.hostAnonymousHttpStatus=response.status;
+            report.hostAnonymousStillDenied=[301,302,303,307,308,401,403].includes(response.status);
+            await response.body?.cancel();
+          }catch{report.anonymousProbeInconclusive=true}
+          report.gate=report.publicCertificateEndpointResponds&&report.jsonType&&report.rsaSigningKeysWellFormed&&
+            report.nodeCryptoImportCompatible&&report.publicJwkImportCompatible&&report.hostAnonymousStillDenied?
+            'MMF_PUBLIC_JWKS_NODE_WEBCRYPTO_COMPAT_VERIFIED':'MMF_PUBLIC_JWKS_OR_TRANSPORT_BLOCKER';
+          writeFileSync(join(process.env.RUNNER_TEMP,'mmf-public-access-certs-runtime-readonly.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+          console.log(JSON.stringify({gate:report.gate,certsStatus:report.publicHttpStatus??null,json:report.jsonType,keys:report.keyCount,
+            rsa:report.rsaSigningKeysWellFormed,cryptoCompatible:report.publicJwkImportCompatible,
+            anonymousDenied:report.hostAnonymousStillDenied,errorClass:report.errorClass??null,mutations:0}));
+          if(report.gate!=='MMF_PUBLIC_JWKS_NODE_WEBCRYPTO_COMPAT_VERIFIED')process.exitCode=2;
+          NODE
+      - name: Preserve sanitized runtime proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-access-certs-runtime-readonly-20261017
+          path: ${{ runner.temp }}/mmf-public-access-certs-runtime-readonly.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove evidence
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-public-access-certs-runtime-readonly.json"
