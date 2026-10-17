@@ -1,0 +1,29 @@
+name: MUSITU Studio — Isolated Cloudflare D1 and R2 Provision
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['ops/studio_provision_resources.py','.github/workflows/studio-provision-resources.yml']
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-cloudflare-provision
+  cancel-in-progress: false
+jobs:
+  provision-isolated-studio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Create only new named Studio D1/R2 resources and verify remote readback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_provision_resources.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-cloudflare-d1-r2-creation
+          path: studio-resources.json
+          retention-days: 14
+          if-no-files-found: warn
