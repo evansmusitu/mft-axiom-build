@@ -53,3 +53,22 @@ test('browser receives a signed CF_Authorization cookie but no forwarded asserti
   assert.equal((await app.fetch(new Request(base+'/private/gateway',{headers:{cookie:'CF_Authorization='+token,'cf-access-jwt-assertion':''}}))).status,403);
  }finally{globalThis.fetch=oldFetch}
 });
+
+test('private staging provides only bounded non-identifying support codes when denied',async()=>{
+ globalThis.fetch=cfFetch;try{
+  const app=createMmfStageGate(env);
+  const cases=[
+   [route(), 'TOKEN_NOT_PRESENT'],
+   [route('a.b.c'), 'TOKEN_FORMAT'],
+   [route(jwt({email:'attacker@example.com'})), 'ADMIN_IDENTITY'],
+   [route(jwt({aud:['wrong']})), 'CLAIMS'],
+   [new Request(base+'/private/gateway',{method:'POST',headers:{'cf-access-jwt-assertion':jwt()}}),'REQUEST_CONTEXT'],
+  ];
+  for(const [req,expected] of cases){
+    const res=await app.fetch(req);assert.equal(res.status,403);
+    const obj=await res.json();assert.deepEqual(Object.keys(obj).sort(),['error','supportCode']);
+    assert.equal(obj.error,'MMF_PRIVATE_ACCESS_DENIED');assert.equal(obj.supportCode,expected);
+    assert.doesNotMatch(JSON.stringify(obj),/enrolled-administrator|attacker|trusted-access-audience|eyJ/i);
+  }
+ }finally{globalThis.fetch=oldFetch}
+});

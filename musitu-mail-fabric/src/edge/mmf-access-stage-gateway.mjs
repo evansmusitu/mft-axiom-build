@@ -12,7 +12,25 @@ const safeHeaders=Object.freeze({'cache-control':'no-store','x-content-type-opti
  'referrer-policy':'no-referrer','x-frame-options':'DENY',
  'content-security-policy':"default-src 'none'; frame-ancestors 'none'",'strict-transport-security':'max-age=31536000',
  'content-type':'application/json; charset=utf-8'});
-const denied=()=>new Response(JSON.stringify({error:'MMF_PRIVATE_ACCESS_DENIED'}),{status:403,headers:safeHeaders});
+// Closed staging ONLY: a small, non-identifying support code helps distinguish
+// application routing errors from real Access assertion verification failures.
+// Never echo cookies, JWTs, identities, request URLs or cryptographic material.
+const safeSupportCodes=Object.freeze(new Set([
+ 'REQUEST_CONTEXT','TOKEN_NOT_PRESENT','TOKEN_FORMAT','SIGNING_KEY','SIGNATURE',
+ 'CLAIMS','ADMIN_IDENTITY','SERVER_UNAVAILABLE','CONFIG_BLOCKED','UNKNOWN'
+]));
+const denied=(code='UNKNOWN')=>new Response(JSON.stringify({error:'MMF_PRIVATE_ACCESS_DENIED',
+ supportCode:safeSupportCodes.has(code)?code:'UNKNOWN'}),{status:403,headers:safeHeaders});
+const denialClass=e=>{
+ const reason=e?.message||'';
+ if(reason.startsWith('ACCESS_COOKIE_MISSING')||reason==='ACCESS_COOKIE_INVALID')return 'TOKEN_NOT_PRESENT';
+ if(reason.startsWith('ACCESS_COOKIE')||reason==='HEADER_NOT_APPROVED'||reason==='TOKEN_MALFORMED'||reason==='TOKEN_UNTRUSTED'||reason.startsWith('JWT_'))return 'TOKEN_FORMAT';
+ if(reason==='CERTS_UNAVAILABLE'||reason==='CERTS_TOO_LARGE'||reason==='CERTS_INVALID'||reason==='UNKNOWN_ACCESS_SIGNER')return 'SIGNING_KEY';
+ if(reason==='SIGNATURE_INVALID')return 'SIGNATURE';
+ if(reason==='ACCESS_CLAIMS_INVALID')return 'CLAIMS';
+ if(reason==='ADMIN_NOT_APPROVED')return 'ADMIN_IDENTITY';
+ return 'SERVER_UNAVAILABLE';
+};
 // Cloudflare Access presents browser JWTs in CF_Authorization as well as the
 // preferred origin assertion. If the origin header is absent, verify the exact
 // same signed JWT from a single cookie. No unsigned cookie or identity claim is
@@ -80,18 +98,18 @@ export function createMmfStageGate(env){
  return Object.freeze({async fetch(req){
   try{
    if(!(req instanceof Request)||req.method!=='GET'||req.headers.has('x-forwarded-host')||
-    req.headers.has('x-original-url')||req.headers.has('forwarded'))return denied();
+    req.headers.has('x-original-url')||req.headers.has('forwarded'))return denied('REQUEST_CONTEXT');
    const u=new URL(req.url);
-   if(u.protocol!=='https:'||u.hostname!==HOST||u.port||u.username||u.password||u.hash||u.search)return denied();
+   if(u.protocol!=='https:'||u.hostname!==HOST||u.port||u.username||u.password||u.hash||u.search)return denied('REQUEST_CONTEXT');
    const assertion=req.headers.has('cf-access-jwt-assertion')?
      req.headers.get('cf-access-jwt-assertion'):browserAccessCookie(req.headers.get('cookie'));
-   if(!assertion||!(await verified(assertion,env)))return denied();
+   if(!assertion||!(await verified(assertion,env)))return denied('TOKEN_NOT_PRESENT');
    if(u.pathname!=='/private/gateway')return noRoute();
    return new Response(JSON.stringify({stage:'private-access-verified',realSending:false,payments:false,
     customerApi:false,realOidcLoginVerified:false,tenantDashboardDeployed:false}),{status:200,headers:safeHeaders});
-  }catch{return denied()}
+  }catch(error){return denied(denialClass(error))}
  }});
 }
 export default {fetch(req,env){
- try{return createMmfStageGate(env).fetch(req)}catch{return denied()}
+ try{return createMmfStageGate(env).fetch(req)}catch{return denied('CONFIG_BLOCKED')}
 }};
