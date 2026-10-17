@@ -1,0 +1,52 @@
+name: MMF OIDC Auth Time Claim Capability GET Only 20261017
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-private-oidc-claim-capability-getonly-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.before == 'f951faeb858d44d513384d8fd8668204365092eb'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify exact parent and protected refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'f951faeb858d44d513384d8fd8668204365092eb'
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async path=>{const r=await fetch(root+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GITHUB_READ_DENIED');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_PROTECTED_REFS_UNCHANGED');
+          NODE
+      - name: GET-only provider claim inventory and independent protection readback
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          node --check musitu-mail-fabric/src/staging/mmf-oidc-claim-capability-getonly-20261017.mjs
+          node musitu-mail-fabric/src/staging/mmf-oidc-claim-capability-getonly-20261017.mjs
+          node musitu-mail-fabric/src/staging/readback-mmf-oidc-qualification-20261017.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mmf-oidc-auth-time-claim-getonly-20261017
+          path: |
+            ${{ runner.temp }}/mmf-oidc-claim-capability-getonly-proof.json
+            ${{ runner.temp }}/mmf-oidc-qualification-readback-proof.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove ephemeral proof
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-oidc-claim-capability-getonly-proof.json" "$RUNNER_TEMP/mmf-oidc-qualification-readback-proof.json"
