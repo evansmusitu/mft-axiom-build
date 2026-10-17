@@ -1,0 +1,49 @@
+name: MUSITU Studio — Export Verified Live CPU Source Release
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - 'musitu_studio/docs/LIVE_CPU_STUDIO_RELEASE_RECEIPT_20261017.md'
+      - '.github/workflows/studio-export-live-source.yml'
+permissions: {contents: read}
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create credential-free release ZIP using only Git-tracked Studio files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,subprocess,zipfile
+          selected=[]
+          tracked=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          for p in tracked:
+            if (p.startswith('musitu_studio/') or
+                (p.startswith('ops/studio_') and p.endswith('.py')) or
+                (p.startswith('.github/workflows/studio-') and p.endswith('.yml'))):
+              if not p:continue
+              assert not any(x in p for x in ['.env','.dev.vars','__pycache__','node_modules','.wrangler/'])
+              selected.append(p)
+          assert len(selected)>=35,len(selected)
+          out=Path('MUSITU_Studio_Live_CPU_v09_20261017.zip')
+          with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+            for p in sorted(selected):z.write(p)
+          assert zipfile.ZipFile(out).testzip() is None
+          info={'schema':'musitu.studio.source-release.v09',
+                'tracked_file_count':len(selected),'source_release_sha256':hashlib.sha256(out.read_bytes()).hexdigest(),
+                'source_branch':'experiments/studio-remote-r2-modal-e2e-20261017',
+                'external_cloudflare_android_1010_still_unverified':True,
+                'modal_t4_payment_method_required':True}
+          Path('MUSITU_Studio_Live_CPU_v09_MANIFEST.json').write_text(json.dumps(info,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V09_TRACKED_CREDENTIAL_FREE_RELEASE_BUILT='+json.dumps(info,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-live-cpu-v09-source-release
+          path: |
+            MUSITU_Studio_Live_CPU_v09_20261017.zip
+            MUSITU_Studio_Live_CPU_v09_MANIFEST.json
+          if-no-files-found: error
+          retention-days: 14
