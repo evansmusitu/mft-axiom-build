@@ -1,4 +1,4 @@
-name: MMF Private OIDC Pinned Negative Error Adapter 20261017
+name: MMF Private OIDC Single Use Positive Exchange 20261017
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   release:
-    if: github.event.before == '26b1bf2e4b4f4de6c8d53a205a4b7e9cbdd39bfa'
+    if: github.event.before == '9bf496e4b062e5bc5373e14bf1ec0778ea994b04'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 12
@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = '26b1bf2e4b4f4de6c8d53a205a4b7e9cbdd39bfa'
+          test "$(git rev-parse HEAD^)" = '9bf496e4b062e5bc5373e14bf1ec0778ea994b04'
           node --input-type=module <<'NODE'
           const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           const get=async path=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GIT_READ_DENIED');return r.json()};
