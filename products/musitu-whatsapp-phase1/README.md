@@ -1,3 +1,5 @@
+> **17 October identity update:** The real ZITADEL account is verified on its Free plan. A tested, explicit ZITADEL OIDC adapter is implemented (255 local tests and optimized build pass); instance provisioning awaits the user’s permanent data-region decision. No live ZITADEL login, revocation or browser acceptance is claimed. See `docs/ZITADEL_STAGING_IDENTITY.md`.
+
 > **16 October update:** Groq is securely configured on its verified Free account with inference ZDR. Five real model cases pass, plus 14 real PostgreSQL AI-workflow checks (one additional real model request), 26 standard real PostgreSQL checks and 241 local tests. See `docs/PHASE1_EXECUTION_STATUS_20261016.md`. Owner/staff OIDC login, genuine WhatsApp message E2E, AXIOM service transport and release/recovery gates remain incomplete. Private staging only.
 
 # MUSITU WhatsApp AI Employee SaaS — Phase 1 v1.8.0 private candidate

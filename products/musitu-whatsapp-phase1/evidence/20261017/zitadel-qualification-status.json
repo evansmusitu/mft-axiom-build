@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-17",
+  "scope": "LOCAL_SYNTHETIC_IDENTITY_TESTS_WITH_REAL_PORTAL_ACCOUNT_OBSERVATION",
+  "baseCommit": "312923c9e300a8c61d20c28302ebf29f60c02e8d",
+  "originalArchiveSha256": "cdb198bf187e6812cadef49d6382c7eb65d215be0fc29689ab703c44ae235bb3",
+  "recoveredArchiveSha256": "7a3af3c30f7df782f99809b0bd2a19ff33f3b4305b47a8d5d7d794ffc4fa3610",
+  "account": {
+    "provider": "ZITADEL Cloud",
+    "team": "MUSITU",
+    "realBrowserSignedIn": true,
+    "observedPlan": "FREE",
+    "onboardingQuestionnaireCompleted": true,
+    "instanceNamePrepared": "musitu-whatsapp-staging",
+    "instanceProvisioned": false,
+    "regionApproved": false,
+    "blocker": "Automatic approval review rejected the irreversible EU region choice pending explicit user confirmation."
+  },
+  "verification": {
+    "localTests": {
+      "passed": 255,
+      "failed": 0,
+      "skipped": 0
+    },
+    "mjsSyntax": 115,
+    "sourceManifest": 353,
+    "nextProductionBuild": "PASS",
+    "realZitadelTokenExchange": false,
+    "realZitadelRevocation": false,
+    "realSaasBrowserLogin": false
+  },
+  "runtimeChanges": {
+    "deployed": false,
+    "identityEnvironmentConfigured": false,
+    "databaseChanged": false,
+    "metaChanged": false,
+    "axiomChanged": false,
+    "paidPlanSelected": false,
+    "paymentDetailsAdded": false
+  },
+  "phase1Complete": false
+}

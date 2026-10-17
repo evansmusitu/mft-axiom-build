@@ -106,3 +106,15 @@ For recovery, first disable the affected tenant's AI policy. Retain the request 
 The one-off workflow qualifier requires pre-seeded synthetic tenants `00000000-0000-4000-8000-00000000aa14` and `00000000-0000-4000-8000-00000000bb14`, verifies their names and rejects existing request history. It must not be rerun by clearing its ledgers. It makes at most one real model request; all other provider failure cases are labelled injected. It does not verify OIDC or Meta. Both fixture policies were disabled after qualification, and the synthetic UNKNOWN evidence remains retained.
 
 When adding FORCE-RLS tables, regenerate `scripts/prepare-meta-ingress.mjs`, run its `--check` and inspect the exact shared import closure. The receiver policy matrix must recognize the new reviewed relations. Deploy that receiver and move only the dedicated app's callback from its exact previously verified endpoint; retain handshake and Graph readback evidence. Keep default receiver build `node scripts/build.mjs`; never leave subscription writes on automatic builds.
+
+## 17 October ZITADEL alternative
+
+The user selected an alternative to Cloud-IAM; ZITADEL Cloud Free is the chosen
+provider. The real MUSITU Free portal account is verified, but no instance exists.
+The permanent data-region choice requires explicit user confirmation after an
+automatic approval-review rejection. See `ZITADEL_STAGING_IDENTITY.md` for the
+exact isolated setup, separate web/API credentials, synthetic test classification
+and remaining real acceptance. Do not change runtime identity environment values
+until the actual generated issuer, clients, exact callbacks and secrets exist.
+The hosted application remains on the previous verified deployment with business
+identity disabled. This source update does not change that deployed state.
