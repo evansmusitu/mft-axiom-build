@@ -1,0 +1,99 @@
+name: MUSITU Studio — Real Worker + Remote R2 + Modal CPU E2E
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - 'musitu_studio/edge/src/r2_entry.mjs'
+      - 'musitu_studio/edge/tests/remote_r2_modal_real.mjs'
+      - '.github/workflows/studio-worker-real-r2-modal-e2e.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-e2e-real-modal-remote-r2-isolated
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify local software regression tests
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-fund --no-audit
+          node --check src/r2_entry.mjs
+          node --test tests/r2_control.test.mjs tests/access.test.mjs tests/validation.test.mjs
+      - name: Configure distinct QA state, verified Modal HTTPS, remote Cloudflare R2 binding
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'modal>=1.5,<2'
+          python - <<'PY'
+          import os,modal,hashlib,hmac,base64,json,pathlib
+          modal_token=os.environ['MODAL_TOKEN_SECRET']
+          cf=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          if not cf:raise SystemExit('CF_CREDENTIALS_MISSING')
+          uri=modal.Function.from_name('musitu-studio-v02','submit_asgi').get_web_url()
+          if not uri or not uri.startswith('https://') or not uri.endswith('.modal.run'):
+            raise SystemExit('MODAL_API_NOT_AVAILABLE')
+          master=hashlib.sha256(('MUSITU_STUDIO_V02|'+modal_token+'|'+cf).encode()).digest()
+          def key(typ):
+            return base64.urlsafe_b64encode(hmac.new(master,typ.encode(),hashlib.sha256).digest()).decode().rstrip('=')
+          config=json.loads(pathlib.Path('wrangler.jsonc').read_text())
+          if config.get('name')!='musitu-studio-v02':raise SystemExit('STUDIO_SOURCE_MISMATCH')
+          config.pop('d1_databases',None)
+          config['name']='musitu-studio-remote-r2-qa'
+          config['main']='src/r2_entry.mjs'
+          config['r2_buckets'][0]['remote']=True
+          config['vars']={
+            'ENABLE_RENDER_DISPATCH':'true',
+            'BUDGET_GUARD_APPROVED':'true',
+            'GPU_EXECUTION_APPROVED':'false',
+            'STUDIO_LOCAL_TEST_ONLY':'true',
+            'STUDIO_MODAL_URL':uri.rstrip('/')+'/jobs',
+            'STUDIO_STATE_KEY':'studio-control/qa-cloudflare-modal-20261017.json'
+          }
+          pathlib.Path('wrangler.r2remote.qa.json').write_text(json.dumps(config,indent=2))
+          pathlib.Path('.dev.vars').write_text(
+            'STUDIO_ADMIN_TOKEN='+key('admin')+'\n'
+            'STUDIO_MODAL_CONTROL_KEY='+key('modal-control')+'\n'
+            'STUDIO_MODAL_CALLBACK_KEY='+key('callback')+'\n')
+          with open(os.environ['GITHUB_ENV'],'a') as r:
+            print('STUDIO_QA_ADMIN='+key('admin'),file=r)
+          print('STUDIO_REMOTE_R2_BINDING_AND_REAL_MODAL_URL_CONFIGURED')
+          PY
+      - name: Execute real approved CPU job through actual Worker runtime and remote Cloudflare R2
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config wrangler.r2remote.qa.json --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/studio-r2remote-runtime.log" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for n in $(seq 1 65); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8787/ > /dev/null 2>&1; then break;fi
+            sleep 2
+          done
+          if ! curl -fsS --max-time 3 http://127.0.0.1:8787/ >/dev/null;then
+            tail -n 15 "$RUNNER_TEMP/studio-r2remote-runtime.log" | sed -E 's/[A-Za-z0-9_-]{40,}/[REDACTED]/g'
+            exit 1
+          fi
+          node tests/remote_r2_modal_real.mjs
+      - name: Retain sanitized actual cross-provider QA proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-real-worker-modal-remote-r2-e2e
+          path: musitu_studio/edge/studio-real-r2-modal-e2e.json
+          if-no-files-found: warn
+          retention-days: 14
