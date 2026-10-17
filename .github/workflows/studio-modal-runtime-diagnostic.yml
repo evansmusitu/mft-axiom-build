@@ -1,0 +1,41 @@
+name: MUSITU Studio — Live Modal CPU Runtime Diagnostic
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-modal-runtime-diagnostic.yml']
+permissions: {contents: read}
+jobs:
+  actual-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'modal>=1.5,<2'
+      - name: Execute real deployed Studio Blender CPU qualification directly
+        run: |
+          python - <<'PY'
+          import json,modal,pathlib
+          f=modal.Function.from_name("musitu-studio-v02","smoke_cpu")
+          try:
+            result=f.remote()
+            print("STUDIO_DIRECT_MODAL_CPU="+json.dumps(result,sort_keys=True))
+            pathlib.Path('studio-direct-modal-cpu.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+            if result.get("status")!="PASS" or result.get("renderer")!="CYCLES_CPU":
+              raise SystemExit("STUDIO_MODAL_CPU_PROOF_FAILED")
+          except Exception as e:
+            print("MODAL_CPU_ERROR_TYPE="+type(e).__name__)
+            print("MODAL_CPU_ERROR="+str(e)[:1200])
+            raise
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-direct-modal-cpu-evidence
+          path: studio-direct-modal-cpu.json
+          if-no-files-found: warn
+          retention-days: 7
