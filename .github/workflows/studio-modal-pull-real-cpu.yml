@@ -1,0 +1,87 @@
+name: MUSITU Studio — Real Modal CPU Pull API Render and Artifact Proof
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-modal-pull-real-cpu.yml']
+permissions: {contents: read}
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'modal>=1.5,<2'
+      - name: Post real declarative job to Modal and poll receipt over HTTPS
+        run: |
+          python - <<'PY'
+          import modal,os,json,hashlib,hmac,base64,uuid,urllib.request,urllib.error,time,pathlib,struct
+          cf=os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CF_API_TOKEN")
+          secret=os.getenv("MODAL_TOKEN_SECRET")
+          if not cf or not secret:raise SystemExit("SECRETS_MISSING")
+          master=hashlib.sha256(("MUSITU_STUDIO_V02|"+secret+"|"+cf).encode()).digest()
+          control=base64.urlsafe_b64encode(hmac.new(master,b"modal-control",hashlib.sha256).digest()).decode().rstrip("=")
+          url=modal.Function.from_name("musitu-studio-v02","submit_asgi").get_web_url()
+          if not url or not url.startswith("https://"):raise SystemExit("URL_NOT_FOUND")
+          scene=json.loads(pathlib.Path('musitu_studio/examples/approved_demo.json').read_text())
+          job=str(uuid.uuid4())
+          raw=json.dumps(scene,separators=(',',':'))
+          sha=hashlib.sha256(raw.encode()).hexdigest()
+          payload={"job_id":job,"scene_json":raw,"input_sha256":sha,"device":"CPU"}
+          headers={"Content-Type":"application/json","x-studio-control-key":control}
+          req=urllib.request.Request(url.rstrip('/')+'/jobs/pull',data=json.dumps(payload).encode(),method="POST",headers=headers)
+          with urllib.request.urlopen(req,timeout=35) as resp:
+            if resp.status!=200:raise SystemExit("PULL_SUBMIT_NON_200")
+            submission=json.load(resp)
+          call=submission.get("call_id")
+          if not submission.get("accepted") or not isinstance(call,str) or not call.startswith('fc-'):
+            raise SystemExit("PULL_SUBMISSION_UNVERIFIED")
+          result=None
+          for i in range(75):
+            req=urllib.request.Request(url.rstrip('/')+'/jobs/pull/'+call,headers={"x-studio-control-key":control})
+            with urllib.request.urlopen(req,timeout=25) as resp:
+              body=json.load(resp);code=resp.status
+            if code==202:
+              time.sleep(2);continue
+            if code==200 and body.get("state")=="COMPLETED":
+              result=body.get("result");break
+            raise SystemExit("PULL_UNEXPECTED_STATUS_"+str(code))
+          if not isinstance(result,dict) or result.get("result")!="FINISHED" or result.get("gpu_verified") is not False:
+            raise SystemExit("PULL_NO_VERIFIABLE_RESULT")
+          if result.get("job_id")!=job or result.get("input_sha256")!=sha:
+            raise SystemExit("PULL_SCENE_ID_MISMATCH")
+          root=pathlib.Path("studio-pull-proof");root.mkdir(exist_ok=True)
+          evidence={}
+          for item in result.get("files",[]):
+            name=item["name"]
+            if name not in ('scene.blend','scene.glb','preview.png') or name in evidence:
+              raise SystemExit("UNAPPROVED_FILE")
+            blob=base64.b64decode(item["data_base64"],validate=True)
+            checksum=hashlib.sha256(blob).hexdigest()
+            if checksum!=item["sha256"] or len(blob)<1024:raise SystemExit("MODAL_RESULT_HASH_MISMATCH")
+            if name=='scene.blend' and not blob.startswith(b'BLENDER'):raise SystemExit("INVALID_BLEND_HEADER")
+            if name=='scene.glb' and not (blob[:4]==b'glTF' and struct.unpack_from('<I',blob,4)[0]==2 and struct.unpack_from('<I',blob,8)[0]==len(blob)):raise SystemExit("INVALID_GLB")
+            if name=='preview.png' and not (blob[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack_from('>II',blob,16)==(320,200)):raise SystemExit("INVALID_PNG")
+            (root/name).write_bytes(blob)
+            evidence[name]={"bytes":len(blob),"sha256":checksum}
+          if len(evidence)!=3:raise SystemExit("MODAL_OUTPUT_SET_INCOMPLETE")
+          receipt={"schema":"musitu.studio.real_modal_pull_cpu.v1",
+                   "job_id":job,"call_id":call,"renderer":"CYCLES_CPU",
+                   "gpu_verified":False,"cpu_pull_https_qualified":True,
+                   "cloudflare_r2_upload_not_claimed":True,"files":evidence}
+          (root/"receipt.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+          print("STUDIO_MODAL_REAL_CPU_PULL_COMPLETE="+json.dumps(receipt,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-real-modal-cpu-pull-deliverables
+          path: studio-pull-proof/
+          retention-days: 14
+          if-no-files-found: warn
