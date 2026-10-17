@@ -1,0 +1,80 @@
+TAP version 13
+# (node:1932) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 1 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 6.981426
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 2 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 2.637103
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 3 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 2.666076
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 4 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 3.836744
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 5 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 2.734077
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 6 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 2.14718
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 7 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 40.506451
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 8 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 2.591056
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 9 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 3.466367
+  type: 'test'
+  ...
+# (node:1933) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed retry with reused message ID and changed text is rejected, even after restart
+ok 10 - signed retry with reused message ID and changed text is rejected, even after restart
+  ---
+  duration_ms: 8.890845
+  type: 'test'
+  ...
+# Subtest: a conflicting duplicate within one signed batch cannot partially ingest
+ok 11 - a conflicting duplicate within one signed batch cannot partially ingest
+  ---
+  duration_ms: 2.383859
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 168.075748

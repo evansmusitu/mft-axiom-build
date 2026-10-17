@@ -1,0 +1,74 @@
+TAP version 13
+# Subtest: factory must expose an explicitly role-bound signed webhook ingestion path
+not ok 1 - factory must expose an explicitly role-bound signed webhook ingestion path
+  ---
+  duration_ms: 1.803086
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'undefined'
+    - 'function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'function'
+  actual: 'undefined'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:37:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: signed ingress rejects privileged lease before starting transaction or reading tenant records
+not ok 2 - signed ingress rejects privileged lease before starting transaction or reading tenant records
+  ---
+  duration_ms: 0.478808
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: 'signed.createRoleBoundSignedWebhookIngestor is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:42:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: incoming messages recheck runtime identity every webhook, denying a second privileged lease
+not ok 3 - incoming messages recheck runtime identity every webhook, denying a second privileged lease
+  ---
+  duration_ms: 0.34609
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:49:1'
+  failureType: 'testCodeFailure'
+  error: 'signed.createRoleBoundSignedWebhookIngestor is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-signed-ingress-role.test.mjs:51:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 75.255796

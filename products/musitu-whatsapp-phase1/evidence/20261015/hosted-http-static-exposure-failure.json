@@ -1,0 +1,364 @@
+{
+  "deployment": "dpl_AuRCLKZS3vxuem7t8DxVvrHQdb4d",
+  "testedDeployment": "dpl_8q2byEFn9xxJWHcjGsKToyvpjVzQ",
+  "scope": "GENUINE_HTTP_SECURITY_FAILURE",
+  "finding": "Vercel filesystem routing preceded rewrites, exposing generated source-digests.json (public source hashes) with HTTP 200. No credentials or real customer records were configured. All receiver deployments were placed behind SSO immediately; no secrets will be installed until strict routing passes.",
+  "result": {
+    "events": [
+      {
+        "created": 1792035121695,
+        "date": 1792035121695,
+        "type": "stdout",
+        "text": "Running build in Washington, D.C., USA (East) – iad1",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035121695,
+        "date": 1792035121695,
+        "type": "stdout",
+        "text": "Build machine configuration: 2 cores, 8 GB",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035121815,
+        "date": 1792035121815,
+        "type": "stdout",
+        "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: 435dcd7af2b65119fe5658ec1cfefe33229fa61c, Commit: 435dcd7)",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035122383,
+        "date": 1792035122383,
+        "type": "stdout",
+        "text": "Cloning completed: 568.000ms",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035122489,
+        "date": 1792035122489,
+        "type": "stdout",
+        "text": "Restored build cache from previous deployment (8q2byEFn9xxJWHcjGsKToyvpjVzQ)",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035122766,
+        "date": 1792035122766,
+        "type": "stdout",
+        "text": "Running \"vercel build\"",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035122773,
+        "date": 1792035122773,
+        "type": "stderr",
+        "text": "Vercel CLI 62.7.0",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035123475,
+        "date": 1792035123475,
+        "type": "stdout",
+        "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`...",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035123917,
+        "date": 1792035123917,
+        "type": "stderr",
+        "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124188,
+        "date": 1792035124188,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124189,
+        "date": 1792035124189,
+        "type": "stdout",
+        "text": "added 14 packages in 604ms",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "node:internal/modules/run_main:107",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "    triggerUncaughtException(",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "    ^",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "AssertionError [ERR_ASSERTION]: no exposed surface /runtime/source-digests.json",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "200 !== 404",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124653,
+        "date": 1792035124653,
+        "type": "stderr",
+        "text": "    at probe (file:///vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/qualify-receiver.mjs:11:40)",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "    at async file:///vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/qualify-receiver.mjs:28:94 {",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  generatedMessage: false,",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  code: 'ERR_ASSERTION',",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  actual: 200,",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  expected: 404,",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  operator: 'strictEqual',",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "  diff: 'simple'",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "}",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124654,
+        "date": 1792035124654,
+        "type": "stderr",
+        "text": "Node.js v24.21.0",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035124662,
+        "date": 1792035124662,
+        "type": "stderr",
+        "text": "Error: Command \"node scripts/qualify-receiver.mjs https://musitu-whatsapp-dev-ingress-20261015-7sc2uxo7y-evansmusitu.vercel.app\" exited with 1",
+        "level": "error",
+        "info": {
+          "type": "build",
+          "name": "bld_lk5vz35we",
+          "entrypoint": "."
+        }
+      }
+    ]
+  }
+}

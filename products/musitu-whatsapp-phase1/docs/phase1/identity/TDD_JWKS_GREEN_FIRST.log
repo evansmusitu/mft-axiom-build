@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+ok 1 - private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+  ---
+  duration_ms: 41.21137
+  type: 'test'
+  ...
+# Subtest: unknown key forces one rotation refresh; removed keys are immediately rejected
+ok 2 - unknown key forces one rotation refresh; removed keys are immediately rejected
+  ---
+  duration_ms: 16.919689
+  type: 'test'
+  ...
+# Subtest: JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+ok 3 - JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+  ---
+  duration_ms: 16.628331
+  type: 'test'
+  ...
+# Subtest: remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+ok 4 - remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+  ---
+  duration_ms: 0.81777
+  type: 'test'
+  ...
+# Subtest: simultaneous valid requests share one JWKS refresh
+ok 5 - simultaneous valid requests share one JWKS refresh
+  ---
+  duration_ms: 24.954129
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 490.50856

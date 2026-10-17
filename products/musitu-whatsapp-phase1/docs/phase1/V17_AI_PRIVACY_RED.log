@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: the external AI provider never receives phone numbers, emails, URLs or credential-like content
+not ok 1 - the external AI provider never receives phone numbers, emails, URLs or credential-like content
+  ---
+  duration_ms: 3.834746
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-model-privacy-gate.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    My number is +263 77 123 4567. When are you open?
+    + actual - expected
+    
+    + 'HUMAN_REVIEW_REQUIRED'
+    - 'HANDOVER_REQUIRED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'HANDOVER_REQUIRED'
+  actual: 'HUMAN_REVIEW_REQUIRED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-model-privacy-gate.test.mjs:19:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: owner-approved FAQ candidates with contact data are not transmitted to model either
+not ok 2 - owner-approved FAQ candidates with contact data are not transmitted to model either
+  ---
+  duration_ms: 0.565439
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-model-privacy-gate.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'HUMAN_REVIEW_REQUIRED'
+    - 'HANDOVER_REQUIRED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'HANDOVER_REQUIRED'
+  actual: 'HUMAN_REVIEW_REQUIRED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-model-privacy-gate.test.mjs:30:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ordinary low-risk exact FAQ questions retain an AI-selection path without revealing approved answer
+ok 3 - ordinary low-risk exact FAQ questions retain an AI-selection path without revealing approved answer
+  ---
+  duration_ms: 0.621082
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 1
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 74.866402

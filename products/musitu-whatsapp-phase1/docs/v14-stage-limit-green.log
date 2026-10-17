@@ -1,0 +1,106 @@
+TAP version 13
+# (node:3643) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+ok 1 - signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+  ---
+  duration_ms: 11.621838
+  type: 'test'
+  ...
+# Subtest: unknown question and non-text inbound hand over without hallucinating responses
+ok 2 - unknown question and non-text inbound hand over without hallucinating responses
+  ---
+  duration_ms: 5.058667
+  type: 'test'
+  ...
+# Subtest: offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+ok 3 - offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+  ---
+  duration_ms: 4.491419
+  type: 'test'
+  ...
+# Subtest: local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+ok 4 - local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+  ---
+  duration_ms: 41.310191
+  type: 'test'
+  ...
+# (node:3644) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 5 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 10.659826
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 6 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 4.194389
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 7 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 5.902545
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 8 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 5.369527
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 9 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 4.097507
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 10 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 3.662062
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 11 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 64.637462
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 12 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 3.067324
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 13 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 4.184114
+  type: 'test'
+  ...
+# (node:3645) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed 256 KiB oversize payload fails before local persistence
+ok 14 - signed 256 KiB oversize payload fails before local persistence
+  ---
+  duration_ms: 15.868626
+  type: 'test'
+  ...
+# Subtest: signed 51 event batch fails atomically instead of expanding work without limit
+ok 15 - signed 51 event batch fails atomically instead of expanding work without limit
+  ---
+  duration_ms: 5.506569
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 254.707515

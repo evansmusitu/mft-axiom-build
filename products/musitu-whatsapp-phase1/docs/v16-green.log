@@ -1,0 +1,48 @@
+TAP version 13
+# Subtest: already opted-out customer cannot have a fresh draft approved via direct API bypassing UI
+ok 1 - already opted-out customer cannot have a fresh draft approved via direct API bypassing UI
+  ---
+  duration_ms: 1.713361
+  type: 'test'
+  ...
+# Subtest: unsuppressed source-grounded reply can still be approved offline
+ok 2 - unsuppressed source-grounded reply can still be approved offline
+  ---
+  duration_ms: 0.630722
+  type: 'test'
+  ...
+# (node:14717) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: owner can revoke a member once; revocation persists and disables existing JWT membership immediately
+ok 3 - owner can revoke a member once; revocation persists and disables existing JWT membership immediately
+  ---
+  duration_ms: 50.957231
+  type: 'test'
+  ...
+# Subtest: owner cannot revoke self; tenant B owner and tenant A viewer cannot revoke staff A
+ok 4 - owner cannot revoke self; tenant B owner and tenant A viewer cannot revoke staff A
+  ---
+  duration_ms: 3.054243
+  type: 'test'
+  ...
+# Subtest: private staff listing is owner-only and tenant-scoped with no password or JWT data
+ok 5 - private staff listing is owner-only and tenant-scoped with no password or JWT data
+  ---
+  duration_ms: 18.344945
+  type: 'test'
+  ...
+# Subtest: revoke API rejects extra payload, impersonation, unsupported methods and unknown member without writing audit
+ok 6 - revoke API rejects extra payload, impersonation, unsupported methods and unknown member without writing audit
+  ---
+  duration_ms: 12.557995
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 417.076333

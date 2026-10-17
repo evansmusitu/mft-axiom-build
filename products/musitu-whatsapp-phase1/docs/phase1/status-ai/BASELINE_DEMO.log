@@ -1,0 +1,39 @@
+
+> musitu-whatsapp-phase1-status-ai-candidate@0.6.0 demo
+> node scripts/local-demo.mjs
+
+(node:1717) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "simulation": "PRIVATE_LOCAL_ONLY",
+  "externalMessagesSent": 0,
+  "amountCharged": 0,
+  "providerQualification": "NOT_ESTABLISHED",
+  "webhook": {
+    "statuses": [
+      "ACCEPTED"
+    ]
+  },
+  "approvedAnswer": {
+    "status": "ANSWER",
+    "sourceId": "hours",
+    "answer": "We open at 09:00."
+  },
+  "bookingStatus": "CONFIRMED",
+  "tenant1": {
+    "tenantId": "salon-1",
+    "inquiries": 1,
+    "bookings": 1,
+    "humanConversations": 0,
+    "verifiedRevenue": null,
+    "revenueStatus": "NO_VERIFIED_PAYMENTS"
+  },
+  "tenant2": {
+    "tenantId": "salon-2",
+    "inquiries": 0,
+    "bookings": 0,
+    "humanConversations": 0,
+    "verifiedRevenue": null,
+    "revenueStatus": "NO_VERIFIED_PAYMENTS"
+  }
+}

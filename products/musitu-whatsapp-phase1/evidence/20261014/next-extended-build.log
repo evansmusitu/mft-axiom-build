@@ -1,0 +1,29 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+✓ Running next.config.mjs took 12ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 524ms
+  Running TypeScript ...
+  Finished TypeScript in 2ms ...
+  Collecting page data using 8 workers ...
+  Generating static pages using 8 workers (0/2) ...
+✓ Generating static pages using 8 workers (2/2) in 356ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/onboard
+├ ƒ /api/status
+├ ƒ /api/tenants/[tenant]/[...operation]
+└ ƒ /auth/[action]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

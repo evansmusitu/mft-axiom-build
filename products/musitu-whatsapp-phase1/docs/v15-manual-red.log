@@ -1,0 +1,91 @@
+TAP version 13
+# (node:9636) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: authenticated staff can record a customer opt-out reported outside WhatsApp; exact retries are idempotent
+not ok 1 - authenticated staff can record a customer opt-out reported outside WhatsApp; exact retries are idempotent
+  ---
+  duration_ms: 7.86071
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:29:1'
+  failureType: 'testCodeFailure'
+  error: 'store.suppressConversation is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:32:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: wrong member or tenant and unknown conversation are rejected; no unsuppress operation exists
+not ok 2 - wrong member or tenant and unknown conversation are rejected; no unsuppress operation exists
+  ---
+  duration_ms: 3.378931
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /ACCESS_DENIED/. Input:
+    
+    'TypeError: store.suppressConversation is not a function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'store.suppressConversation is not a function'
+  name: 'TypeError'
+  stack: |-
+    file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:42:26
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:42:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:42:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: private HTTP requires pinned JWT and explicit reason; never offers a revoke-suppression endpoint
+not ok 3 - private HTTP requires pinned JWT and explicit reason; never offers a revoke-suppression endpoint
+  ---
+  duration_ms: 191.139284
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:48:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 401
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 401
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-manual-suppression.test.mjs:53:113)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 272.529657

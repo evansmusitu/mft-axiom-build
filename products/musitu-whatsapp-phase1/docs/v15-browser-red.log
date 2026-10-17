@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/mnt/data/musitu-whatsapp-phase1-v15/scripts/browser-private-smoke.py", line 59, in <module>
+    assert 'SUPPRESSED' in page.locator('#draft-list').inner_text(), 'previous draft not marked suppressed after STOP'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: previous draft not marked suppressed after STOP

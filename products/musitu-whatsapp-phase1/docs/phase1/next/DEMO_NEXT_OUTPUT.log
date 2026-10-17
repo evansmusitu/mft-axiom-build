@@ -1,0 +1,21 @@
+
+> musitu-whatsapp-phase1-private-stage@0.3.0 demo:next
+> node scripts/local-next-demo.mjs
+
+(node:7027) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "status": "OFFLINE_PRIVATE_STAGE_PASS",
+  "whatsappProviderConnected": false,
+  "providerMessagesSent": 0,
+  "customerPaymentsCaptured": 0,
+  "signedInbound": [
+    "ACCEPTED"
+  ],
+  "offlineDraftCount": 1,
+  "draftDelivery": "NEVER_SUBMITTED",
+  "tenantAInquiries": 1,
+  "tenantBCrossAccessHttp": 403,
+  "adminOidcFormatToken": "EPHEMERAL_RSA_LOCAL_ONLY",
+  "commercialRelease": "BLOCKED"
+}

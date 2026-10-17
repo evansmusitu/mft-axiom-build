@@ -1,0 +1,11 @@
+{
+  "scope": "BROWSER_BLOCKER_EVIDENCE_NOT_AUTHENTICATED_ACCEPTANCE",
+  "staging_url": "https://musitu-whatsapp-phase1-private-20261014-h4l86w43q-evansmusitu.vercel.app",
+  "vercel": "Log in to Vercel",
+  "meta_developer": "Account confirmation needed; unusual activity on this developer account; confirmation needed to regain access",
+  "meta_confirmation": "We need more information; confirm your profile on Meta for Developers",
+  "meta_continue": "disabled/loading",
+  "sensitive_inputs_submitted": false,
+  "meta_apps_modified": false,
+  "screenshot": "browser-evidence/vercel-sign-in-boundary.jpg"
+}

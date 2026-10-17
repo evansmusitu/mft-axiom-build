@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-10-14T18:15:13.936Z",
+  "scope": "REAL_POSTGRES_EXPECTED_DENIAL_PROBES_NOT_SIMULATED_FAILURES",
+  "role": "musitu_runtime",
+  "branch": "br-jolly-fire-b4klddds",
+  "note": "Direct FOR SHARE intentionally remains unavailable. Application row-lock operations use reviewed constrained commands instead. Invalid context must fail closed.",
+  "probes": [
+    {
+      "name": "runtime_direct_row_lock_denied",
+      "expected": "42501",
+      "sql_statements": [
+        "SELECT set_config('app.tenant_id','00000000-0000-4000-8000-00000000000a',true)",
+        "SELECT answer FROM musitu.faqs FOR SHARE"
+      ],
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "NeonDbError: permission denied for table faqs"
+          }
+        ],
+        "structuredContent": {
+          "error_code": "INVALID_ARGUMENT"
+        },
+        "isError": true
+      }
+    },
+    {
+      "name": "invalid_tenant_context_denied",
+      "expected": "22P02",
+      "sql_statements": [
+        "SELECT set_config('app.tenant_id','not-a-uuid',true)",
+        "SELECT count(*) FROM musitu.messages"
+      ],
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "NeonDbError: invalid input syntax for type uuid: \"not-a-uuid\""
+          }
+        ],
+        "structuredContent": {
+          "error_code": "INVALID_ARGUMENT"
+        },
+        "isError": true
+      }
+    }
+  ]
+}

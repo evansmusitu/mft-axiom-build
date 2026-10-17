@@ -1,0 +1,1014 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.4.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+ok 1 - Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+  ---
+  duration_ms: 0.968351
+  type: 'test'
+  ...
+# Subtest: provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+ok 2 - provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+  ---
+  duration_ms: 0.788876
+  type: 'test'
+  ...
+# Subtest: WABA mismatch and unknown phone fail closed
+ok 3 - WABA mismatch and unknown phone fail closed
+  ---
+  duration_ms: 0.455613
+  type: 'test'
+  ...
+# Subtest: inbox ingress is idempotent per tenant/provider message ID
+ok 4 - inbox ingress is idempotent per tenant/provider message ID
+  ---
+  duration_ms: 0.248487
+  type: 'test'
+  ...
+# Subtest: human takeover disables automated replies and other tenants cannot control conversation
+ok 5 - human takeover disables automated replies and other tenants cannot control conversation
+  ---
+  duration_ms: 0.174257
+  type: 'test'
+  ...
+# Subtest: all real sends, live checkout, production email and signup fail closed regardless of env variables
+ok 6 - all real sends, live checkout, production email and signup fail closed regardless of env variables
+  ---
+  duration_ms: 0.140307
+  type: 'test'
+  ...
+# Subtest: rejected cross-tenant conversation collision must not change message ledger
+ok 7 - rejected cross-tenant conversation collision must not change message ledger
+  ---
+  duration_ms: 0.240836
+  type: 'test'
+  ...
+# Subtest: exact approved FAQ is a provenance-linked draft, model text never becomes the answer
+ok 8 - exact approved FAQ is a provenance-linked draft, model text never becomes the answer
+  ---
+  duration_ms: 2.496508
+  type: 'test'
+  ...
+# Subtest: non-exact AI-selected FAQ is always human review only, never auto-send
+ok 9 - non-exact AI-selected FAQ is always human review only, never auto-send
+  ---
+  duration_ms: 0.294425
+  type: 'test'
+  ...
+# Subtest: unknown, hallucinated or revoked source never returns an answer
+ok 10 - unknown, hallucinated or revoked source never returns an answer
+  ---
+  duration_ms: 0.523003
+  type: 'test'
+  ...
+# Subtest: provider failure and invalid structured results fail closed without drafting invented text
+ok 11 - provider failure and invalid structured results fail closed without drafting invented text
+  ---
+  duration_ms: 0.441923
+  type: 'test'
+  ...
+# Subtest: invalid tenant-scoped inputs and oversized sensitive prompts are rejected before model call
+ok 12 - invalid tenant-scoped inputs and oversized sensitive prompts are rejected before model call
+  ---
+  duration_ms: 0.907781
+  type: 'test'
+  ...
+# Subtest: builds exact official Graph text-message contract without credentials or side effects
+ok 13 - builds exact official Graph text-message contract without credentials or side effects
+  ---
+  duration_ms: 1.199031
+  type: 'test'
+  ...
+# Subtest: rejects invalid Graph versions, phones, raw recipients, unapproved extensions and long bodies
+ok 14 - rejects invalid Graph versions, phones, raw recipients, unapproved extensions and long bodies
+  ---
+  duration_ms: 1.878135
+  type: 'test'
+  ...
+# Subtest: accepted Graph response is only ACCEPTED, never DELIVERED; validates recipient correlation
+ok 15 - accepted Graph response is only ACCEPTED, never DELIVERED; validates recipient correlation
+  ---
+  duration_ms: 0.300894
+  type: 'test'
+  ...
+# Subtest: 4xx and transport uncertainty are not treated as delivery; no blind retry
+ok 16 - 4xx and transport uncertainty are not treated as delivery; no blind retry
+  ---
+  duration_ms: 0.192755
+  type: 'test'
+  ...
+# Subtest: invalid receipt context cannot be classified as accepted
+ok 17 - invalid receipt context cannot be classified as accepted
+  ---
+  duration_ms: 0.122431
+  type: 'test'
+  ...
+# Subtest: Meta GET challenge returns exactly challenge for matching token and noncacheable text
+ok 18 - Meta GET challenge returns exactly challenge for matching token and noncacheable text
+  ---
+  duration_ms: 24.011827
+  type: 'test'
+  ...
+# Subtest: Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+ok 19 - Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+  ---
+  duration_ms: 10.291074
+  type: 'test'
+  ...
+# Subtest: signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+ok 20 - signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+  ---
+  duration_ms: 8.72468
+  type: 'test'
+  ...
+# Subtest: unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+ok 21 - unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+  ---
+  duration_ms: 9.959775
+  type: 'test'
+  ...
+# Subtest: upstream rejection and uncertain persistence are not acknowledged as success
+ok 22 - upstream rejection and uncertain persistence are not acknowledged as success
+  ---
+  duration_ms: 6.794829
+  type: 'test'
+  ...
+# Subtest: webhook bridge refuses invalid configuration and binds only loopback
+ok 23 - webhook bridge refuses invalid configuration and binds only loopback
+  ---
+  duration_ms: 0.782246
+  type: 'test'
+  ...
+# (node:9245) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+ok 24 - signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+  ---
+  duration_ms: 8.574188
+  type: 'test'
+  ...
+# Subtest: unknown question and non-text inbound hand over without hallucinating responses
+ok 25 - unknown question and non-text inbound hand over without hallucinating responses
+  ---
+  duration_ms: 3.723562
+  type: 'test'
+  ...
+# Subtest: offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+ok 26 - offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+  ---
+  duration_ms: 3.087052
+  type: 'test'
+  ...
+# Subtest: local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+ok 27 - local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+  ---
+  duration_ms: 31.509249
+  type: 'test'
+  ...
+# Subtest: private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+ok 28 - private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+  ---
+  duration_ms: 44.262737
+  type: 'test'
+  ...
+# Subtest: unknown key forces one rotation refresh; removed keys are immediately rejected
+ok 29 - unknown key forces one rotation refresh; removed keys are immediately rejected
+  ---
+  duration_ms: 20.995139
+  type: 'test'
+  ...
+# Subtest: JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+ok 30 - JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+  ---
+  duration_ms: 19.977286
+  type: 'test'
+  ...
+# Subtest: remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+ok 31 - remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+  ---
+  duration_ms: 0.972366
+  type: 'test'
+  ...
+# Subtest: simultaneous valid requests share one JWKS refresh
+ok 32 - simultaneous valid requests share one JWKS refresh
+  ---
+  duration_ms: 30.114744
+  type: 'test'
+  ...
+# (node:9277) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+ok 33 - pinned RS256 OIDC JWT authenticates exact issuer, audience, subject and time
+  ---
+  duration_ms: 5.771567
+  type: 'test'
+  ...
+# Subtest: rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+ok 34 - rejects alg none, key-switch tricks, malformed JWT, unknown kid and signature changes
+  ---
+  duration_ms: 2.012864
+  type: 'test'
+  ...
+# Subtest: rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+ok 35 - rejects stale bearer tokens and missing mandatory claims rather than trusting caller headers
+  ---
+  duration_ms: 2.154083
+  type: 'test'
+  ...
+# Subtest: private admin API serves member-scoped metrics only with pinned verified JWT
+ok 36 - private admin API serves member-scoped metrics only with pinned verified JWT
+  ---
+  duration_ms: 49.209491
+  type: 'test'
+  ...
+# Subtest: private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+ok 37 - private admin API returns tenant-scoped draft listing, no public enrollment or write routes
+  ---
+  duration_ms: 19.36354
+  type: 'test'
+  ...
+# (node:9288) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: secure private dashboard serves static shell, denies arbitrary file routes and has no token persistence
+ok 38 - secure private dashboard serves static shell, denies arbitrary file routes and has no token persistence
+  ---
+  duration_ms: 50.753598
+  type: 'test'
+  ...
+# Subtest: authenticated private dashboard APIs isolate conversations and bookings across tenants
+ok 39 - authenticated private dashboard APIs isolate conversations and bookings across tenants
+  ---
+  duration_ms: 26.76242
+  type: 'test'
+  ...
+# Subtest: authenticated booking API enforces tenant membership, conflicts and exact idempotency
+ok 40 - authenticated booking API enforces tenant membership, conflicts and exact idempotency
+  ---
+  duration_ms: 25.043837
+  type: 'test'
+  ...
+# Subtest: model gateway fails closed by default, enforces endpoint and never sends merchant answers
+ok 41 - model gateway fails closed by default, enforces endpoint and never sends merchant answers
+  ---
+  duration_ms: 2.175665
+  type: 'test'
+  ...
+# Subtest: model gateway handles provider errors, malformed results and disallowed FAQ ids as handover
+ok 42 - model gateway handles provider errors, malformed results and disallowed FAQ ids as handover
+  ---
+  duration_ms: 1.379368
+  type: 'test'
+  ...
+# Subtest: AXIOM analytics adapter validates numerical result, allowlist and non-data-changing behavior
+ok 43 - AXIOM analytics adapter validates numerical result, allowlist and non-data-changing behavior
+  ---
+  duration_ms: 0.800553
+  type: 'test'
+  ...
+# Subtest: private human handover endpoint is authenticated, scoped and prevents subsequent bot drafts
+ok 44 - private human handover endpoint is authenticated, scoped and prevents subsequent bot drafts
+  ---
+  duration_ms: 22.587112
+  type: 'test'
+  ...
+# Subtest: model gateway carries an explicit qualified model identifier and refuses accidental unsafe configuration
+ok 45 - model gateway carries an explicit qualified model identifier and refuses accidental unsafe configuration
+  ---
+  duration_ms: 0.775526
+  type: 'test'
+  ...
+# (node:9299) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+ok 46 - FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+  ---
+  duration_ms: 11.991126
+  type: 'test'
+  ...
+# Subtest: unknown FAQ never fabricates a response; handover disables drafts and remains durable
+ok 47 - unknown FAQ never fabricates a response; handover disables drafts and remains durable
+  ---
+  duration_ms: 4.573287
+  type: 'test'
+  ...
+# Subtest: handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+ok 48 - handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+  ---
+  duration_ms: 4.266493
+  type: 'test'
+  ...
+# Subtest: signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+ok 49 - signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+  ---
+  duration_ms: 4.885238
+  type: 'test'
+  ...
+# Subtest: unknown or cross-tenant status and mixed invalid batch roll back completely
+ok 50 - unknown or cross-tenant status and mixed invalid batch roll back completely
+  ---
+  duration_ms: 3.632206
+  type: 'test'
+  ...
+# Subtest: same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+ok 51 - same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+  ---
+  duration_ms: 3.72892
+  type: 'test'
+  ...
+# Subtest: status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+ok 52 - status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+  ---
+  duration_ms: 58.886489
+  type: 'test'
+  ...
+# Subtest: a member can approve an exact, current source-grounded draft, with no sending or external action
+ok 53 - a member can approve an exact, current source-grounded draft, with no sending or external action
+  ---
+  duration_ms: 2.590317
+  type: 'test'
+  ...
+# Subtest: same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+ok 54 - same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+  ---
+  duration_ms: 0.782686
+  type: 'test'
+  ...
+# Subtest: viewer and revoked membership cannot approve and no insert runs
+ok 55 - viewer and revoked membership cannot approve and no insert runs
+  ---
+  duration_ms: 0.242568
+  type: 'test'
+  ...
+# Subtest: missing, stale, changed-source or handed-over drafts require renewed review
+ok 56 - missing, stale, changed-source or handed-over drafts require renewed review
+  ---
+  duration_ms: 0.6698
+  type: 'test'
+  ...
+# Subtest: invalid IDs and keys are rejected before database access; cross-tenant draft never found
+ok 57 - invalid IDs and keys are rejected before database access; cross-tenant draft never found
+  ---
+  duration_ms: 0.480911
+  type: 'test'
+  ...
+# Subtest: database failure rolls back, and connection cannot commit partial approval
+ok 58 - database failure rolls back, and connection cannot commit partial approval
+  ---
+  duration_ms: 0.411999
+  type: 'test'
+  ...
+# Subtest: authenticated private review endpoint persists only offline approval and requires exact JSON body
+ok 59 - authenticated private review endpoint persists only offline approval and requires exact JSON body
+  ---
+  duration_ms: 69.880367
+  type: 'test'
+  ...
+# Subtest: draft listing reflects immutable offline approval without claiming WhatsApp delivery
+ok 60 - draft listing reflects immutable offline approval without claiming WhatsApp delivery
+  ---
+  duration_ms: 0.971605
+  type: 'test'
+  ...
+# Subtest: a reused approval key for a different draft is a conflict, not a generic server crash
+ok 61 - a reused approval key for a different draft is a conflict, not a generic server crash
+  ---
+  duration_ms: 0.680916
+  type: 'test'
+  ...
+# Subtest: listing invalidates reviewed state when approved source changes or a human takes over
+ok 62 - listing invalidates reviewed state when approved source changes or a human takes over
+  ---
+  duration_ms: 0.693044
+  type: 'test'
+  ...
+# Subtest: offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+ok 63 - offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+  ---
+  duration_ms: 3.002746
+  type: 'test'
+  ...
+# Subtest: identical reservation replays are idempotent; changed key and reused key conflict
+ok 64 - identical reservation replays are idempotent; changed key and reused key conflict
+  ---
+  duration_ms: 0.939118
+  type: 'test'
+  ...
+# Subtest: revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+ok 65 - revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+  ---
+  duration_ms: 2.79536
+  type: 'test'
+  ...
+# Subtest: closed service window, missing verified consent, revoked consent and expired consent are blocked
+ok 66 - closed service window, missing verified consent, revoked consent and expired consent are blocked
+  ---
+  duration_ms: 0.746122
+  type: 'test'
+  ...
+# Subtest: invalid ids/keys and storage fault never cause partial staging
+ok 67 - invalid ids/keys and storage fault never cause partial staging
+  ---
+  duration_ms: 0.651143
+  type: 'test'
+  ...
+# Subtest: issuer-pinned private API allows stage-offline but has no outbound send endpoint
+ok 68 - issuer-pinned private API allows stage-offline but has no outbound send endpoint
+  ---
+  duration_ms: 282.40625
+  type: 'test'
+  ...
+# Subtest: a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+ok 69 - a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+  ---
+  duration_ms: 0.364258
+  type: 'test'
+  ...
+# Subtest: PostgreSQL console read paths use transaction-local tenant and authorized member
+ok 70 - PostgreSQL console read paths use transaction-local tenant and authorized member
+  ---
+  duration_ms: 1.892976
+  type: 'test'
+  ...
+# Subtest: PostgreSQL human handover locks conversation and is prohibited for viewer
+ok 71 - PostgreSQL human handover locks conversation and is prohibited for viewer
+  ---
+  duration_ms: 0.657031
+  type: 'test'
+  ...
+# Subtest: least-privilege runtime has only read and three explicit insert tables
+ok 72 - least-privilege runtime has only read and three explicit insert tables
+  ---
+  duration_ms: 1.784226
+  type: 'test'
+  ...
+# Subtest: runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+ok 73 - runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+  ---
+  duration_ms: 0.685303
+  type: 'test'
+  ...
+# Subtest: column-level UPDATE grant is not mistaken for least privilege
+ok 74 - column-level UPDATE grant is not mistaken for least privilege
+  ---
+  duration_ms: 0.164132
+  type: 'test'
+  ...
+# Subtest: snapshot starts a transaction, pins transaction-local tenant, authorizes active membership and commits before releasing
+ok 75 - snapshot starts a transaction, pins transaction-local tenant, authorizes active membership and commits before releasing
+  ---
+  duration_ms: 1.978924
+  type: 'test'
+  ...
+# Subtest: missing or revoked membership fails closed, always rolls back and releases
+ok 76 - missing or revoked membership fails closed, always rolls back and releases
+  ---
+  duration_ms: 0.613486
+  type: 'test'
+  ...
+# Subtest: rejects malformed tenant ID and actor ID before acquiring a connection
+ok 77 - rejects malformed tenant ID and actor ID before acquiring a connection
+  ---
+  duration_ms: 0.199655
+  type: 'test'
+  ...
+# Subtest: query failure rolls back; the next pooled request must set its own distinct context
+ok 78 - query failure rolls back; the next pooled request must set its own distinct context
+  ---
+  duration_ms: 0.450435
+  type: 'test'
+  ...
+# Subtest: viewer may inspect metrics but cannot list drafts or reserve a booking
+ok 79 - viewer may inspect metrics but cannot list drafts or reserve a booking
+  ---
+  duration_ms: 1.866768
+  type: 'test'
+  ...
+# Subtest: draft rows are isolated to requested tenant and do not claim delivery
+ok 80 - draft rows are isolated to requested tenant and do not claim delivery
+  ---
+  duration_ms: 0.403796
+  type: 'test'
+  ...
+# Subtest: booking creation uses a parameterized tenant + resource key, preserving half-open time ranges
+ok 81 - booking creation uses a parameterized tenant + resource key, preserving half-open time ranges
+  ---
+  duration_ms: 0.600016
+  type: 'test'
+  ...
+# Subtest: identical effect-key replay returns the existing booking, but mutated request is rejected
+ok 82 - identical effect-key replay returns the existing booking, but mutated request is rejected
+  ---
+  duration_ms: 0.386201
+  type: 'test'
+  ...
+# Subtest: Postgres exclusion errors are surfaced as SLOT_UNAVAILABLE with rollback; other SQL faults are not hidden
+ok 83 - Postgres exclusion errors are surfaced as SLOT_UNAVAILABLE with rollback; other SQL faults are not hidden
+  ---
+  duration_ms: 0.978105
+  type: 'test'
+  ...
+# Subtest: invalid booking interval is rejected before any DB connection
+ok 84 - invalid booking interval is rejected before any DB connection
+  ---
+  duration_ms: 0.387192
+  type: 'test'
+  ...
+# Subtest: failed rollback discards leased connection once rather than releasing it twice
+ok 85 - failed rollback discards leased connection once rather than releasing it twice
+  ---
+  duration_ms: 0.363347
+  type: 'test'
+  ...
+# Subtest: private HTTP control surface awaits asynchronous Postgres store results
+ok 86 - private HTTP control surface awaits asynchronous Postgres store results
+  ---
+  duration_ms: 197.591198
+  type: 'test'
+  ...
+# Subtest: malformed pooled client is discarded rather than leaked
+ok 87 - malformed pooled client is discarded rather than leaked
+  ---
+  duration_ms: 0.357919
+  type: 'test'
+  ...
+# Subtest: trusted non-bypass role and full RLS plus tenant policy matrix qualify in one leased client
+ok 88 - trusted non-bypass role and full RLS plus tenant policy matrix qualify in one leased client
+  ---
+  duration_ms: 1.928479
+  type: 'test'
+  ...
+# Subtest: native PostgreSQL pg_policies expression formatting and text-array roles are accepted without weakening tenant scope
+ok 89 - native PostgreSQL pg_policies expression formatting and text-array roles are accepted without weakening tenant scope
+  ---
+  duration_ms: 0.659624
+  type: 'test'
+  ...
+# Subtest: Neon owner BYPASSRLS detected despite FORCE ROW LEVEL SECURITY
+ok 90 - Neon owner BYPASSRLS detected despite FORCE ROW LEVEL SECURITY
+  ---
+  duration_ms: 0.403967
+  type: 'test'
+  ...
+# Subtest: superusers, role mismatch, weak or incomplete RLS matrix fail closed
+ok 91 - superusers, role mismatch, weak or incomplete RLS matrix fail closed
+  ---
+  duration_ms: 0.52163
+  type: 'test'
+  ...
+# Subtest: missing, duplicated or broadened tenant policy rejects an otherwise secure RLS role
+ok 92 - missing, duplicated or broadened tenant policy rejects an otherwise secure RLS role
+  ---
+  duration_ms: 1.555648
+  type: 'test'
+  ...
+# Subtest: qualification errors release leased client and never return success
+ok 93 - qualification errors release leased client and never return success
+  ---
+  duration_ms: 0.265383
+  type: 'test'
+  ...
+# Subtest: authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+ok 94 - authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+  ---
+  duration_ms: 4.035191
+  type: 'test'
+  ...
+# Subtest: invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+ok 95 - invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+  ---
+  duration_ms: 1.84827
+  type: 'test'
+  ...
+# Subtest: idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+ok 96 - idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+  ---
+  duration_ms: 1.99005
+  type: 'test'
+  ...
+# Subtest: unsupported message type and existing human handover must not create bot drafts
+ok 97 - unsupported message type and existing human handover must not create bot drafts
+  ---
+  duration_ms: 0.666515
+  type: 'test'
+  ...
+# Subtest: database failures roll back and release; no partial inbound commit or provider sends
+ok 98 - database failures roll back and release; no partial inbound commit or provider sends
+  ---
+  duration_ms: 0.73136
+  type: 'test'
+  ...
+# Subtest: private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+ok 99 - private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+  ---
+  duration_ms: 63.625672
+  type: 'test'
+  ...
+# Subtest: provider message replay cannot silently change an image attachment reference
+ok 100 - provider message replay cannot silently change an image attachment reference
+  ---
+  duration_ms: 0.821794
+  type: 'test'
+  ...
+# Subtest: signed provider timestamp is persisted as the only usable source for a customer-service session window
+ok 101 - signed provider timestamp is persisted as the only usable source for a customer-service session window
+  ---
+  duration_ms: 1.183798
+  type: 'test'
+  ...
+# Subtest: authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+ok 102 - authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+  ---
+  duration_ms: 0.869514
+  type: 'test'
+  ...
+# Subtest: persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+ok 103 - persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+  ---
+  duration_ms: 0.44639
+  type: 'test'
+  ...
+# Subtest: a PostgreSQL STOP write failure rolls back all ingress rows
+ok 104 - a PostgreSQL STOP write failure rolls back all ingress rows
+  ---
+  duration_ms: 0.758461
+  type: 'test'
+  ...
+# Subtest: signed, known Meta status is verified and changes only matching tenant outbound attempt
+ok 105 - signed, known Meta status is verified and changes only matching tenant outbound attempt
+  ---
+  duration_ms: 4.522792
+  type: 'test'
+  ...
+# Subtest: unknown, wrong-recipient, and missing-recipient statuses fail closed without ACK or ledger writes
+ok 106 - unknown, wrong-recipient, and missing-recipient statuses fail closed without ACK or ledger writes
+  ---
+  duration_ms: 1.545483
+  type: 'test'
+  ...
+# Subtest: exact duplicate callbacks are idempotent, but conflicting replays fail closed
+ok 107 - exact duplicate callbacks are idempotent, but conflicting replays fail closed
+  ---
+  duration_ms: 1.984692
+  type: 'test'
+  ...
+# Subtest: late sent after delivered cannot downgrade; read preserves delivered and records event
+ok 108 - late sent after delivered cannot downgrade; read preserves delivered and records event
+  ---
+  duration_ms: 0.670981
+  type: 'test'
+  ...
+# Subtest: failure after delivery and delivery after terminal failure are rejected, not silently overwritten
+ok 109 - failure after delivery and delivery after terminal failure are rejected, not silently overwritten
+  ---
+  duration_ms: 1.923181
+  type: 'test'
+  ...
+# Subtest: mixed messages and statuses and multi-tenant batches fail before database access
+ok 110 - mixed messages and statuses and multi-tenant batches fail before database access
+  ---
+  duration_ms: 0.507149
+  type: 'test'
+  ...
+# Subtest: database failures roll back an entire status batch and release the connection
+ok 111 - database failures roll back an entire status batch and release the connection
+  ---
+  duration_ms: 0.408874
+  type: 'test'
+  ...
+# Subtest: private HTTP receiver acknowledges known signed statuses but rejects unknown ids and forged callbacks
+ok 112 - private HTTP receiver acknowledges known signed statuses but rejects unknown ids and forged callbacks
+  ---
+  duration_ms: 40.156792
+  type: 'test'
+  ...
+# Subtest: read-only three-scope probe verifies A, B, and empty context without leaving session tenant state
+ok 113 - read-only three-scope probe verifies A, B, and empty context without leaving session tenant state
+  ---
+  duration_ms: 1.687283
+  type: 'test'
+  ...
+# Subtest: probe blocks data visibility leakage under permissive policy
+ok 114 - probe blocks data visibility leakage under permissive policy
+  ---
+  duration_ms: 0.486479
+  type: 'test'
+  ...
+# Subtest: probe fails closed on non-distinct fixtures, invalid UUID, unexpected role, bypass role
+ok 115 - probe fails closed on non-distinct fixtures, invalid UUID, unexpected role, bypass role
+  ---
+  duration_ms: 0.418398
+  type: 'test'
+  ...
+# Subtest: query failure rolls back and failed rollback discards connection
+ok 116 - query failure rolls back and failed rollback discards connection
+  ---
+  duration_ms: 0.664301
+  type: 'test'
+  ...
+# Subtest: repository factory refuses to qualify from policy metadata alone
+ok 117 - repository factory refuses to qualify from policy metadata alone
+  ---
+  duration_ms: 0.225914
+  type: 'test'
+  ...
+# (node:9409) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 118 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 7.556283
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 119 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 3.143023
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 120 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 3.561622
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 121 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 3.83196
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 122 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 3.403088
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 123 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 2.519302
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 124 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 53.299719
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 125 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 3.668009
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 126 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 5.228134
+  type: 'test'
+  ...
+# Subtest: Phase 1 release is blocked in absence of independently earned live approvals
+ok 127 - Phase 1 release is blocked in absence of independently earned live approvals
+  ---
+  duration_ms: 40.384914
+  type: 'test'
+  ...
+# Subtest: tenant-scoped dashboard capabilities describe only available offline actions
+ok 128 - tenant-scoped dashboard capabilities describe only available offline actions
+  ---
+  duration_ms: 31.824273
+  type: 'test'
+  ...
+# Subtest: SQLite private stage truthfully disables review and staging, never authorizes sending
+ok 129 - SQLite private stage truthfully disables review and staging, never authorizes sending
+  ---
+  duration_ms: 9.103879
+  type: 'test'
+  ...
+# Subtest: real streamed response under 8KiB selects approved FAQ only
+ok 130 - real streamed response under 8KiB selects approved FAQ only
+  ---
+  duration_ms: 25.860954
+  type: 'test'
+  ...
+# Subtest: misleading content-length cannot bypass actual 8KiB streaming limit
+ok 131 - misleading content-length cannot bypass actual 8KiB streaming limit
+  ---
+  duration_ms: 0.925648
+  type: 'test'
+  ...
+# Subtest: fetch implementation ignoring AbortSignal still times out without approving a result
+ok 132 - fetch implementation ignoring AbortSignal still times out without approving a result
+  ---
+  duration_ms: 100.724219
+  type: 'test'
+  ...
+# Subtest: offline review client builds same-origin authenticated URLs and reuses idempotency key after ambiguous failure
+ok 133 - offline review client builds same-origin authenticated URLs and reuses idempotency key after ambiguous failure
+  ---
+  duration_ms: 2.054435
+  type: 'test'
+  ...
+# Subtest: stage-offline never calls provider or send endpoint and validates reply identity and transport
+ok 134 - stage-offline never calls provider or send endpoint and validates reply identity and transport
+  ---
+  duration_ms: 0.94784
+  type: 'test'
+  ...
+# Subtest: approval and stage fail closed on missing session, invalid draft, server errors and unexpected result
+ok 135 - approval and stage fail closed on missing session, invalid draft, server errors and unexpected result
+  ---
+  duration_ms: 0.706013
+  type: 'test'
+  ...
+# (node:9475) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: private audit endpoint is authenticated, tenant-scoped and read-only
+ok 136 - private audit endpoint is authenticated, tenant-scoped and read-only
+  ---
+  duration_ms: 43.872312
+  type: 'test'
+  ...
+# Subtest: implicit, null and truthy approval are never usable as customer-facing evidence
+ok 137 - implicit, null and truthy approval are never usable as customer-facing evidence
+  ---
+  duration_ms: 1.042901
+  type: 'test'
+  ...
+# Subtest: explicit boolean true approval remains an owner-sourced draft
+ok 138 - explicit boolean true approval remains an owner-sourced draft
+  ---
+  duration_ms: 0.821544
+  type: 'test'
+  ...
+# Subtest: provider receives a retryable 503 when authorized persistence never returns
+ok 139 - provider receives a retryable 503 when authorized persistence never returns
+  ---
+  duration_ms: 188.657961
+  type: 'test'
+  ...
+# (node:9508) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed retry with reused message ID and changed text is rejected, even after restart
+ok 140 - signed retry with reused message ID and changed text is rejected, even after restart
+  ---
+  duration_ms: 10.847786
+  type: 'test'
+  ...
+# Subtest: a conflicting duplicate within one signed batch cannot partially ingest
+ok 141 - a conflicting duplicate within one signed batch cannot partially ingest
+  ---
+  duration_ms: 3.658545
+  type: 'test'
+  ...
+# Subtest: gateway rejects an endpoint not explicitly pinned by an operator allowlist
+ok 142 - gateway rejects an endpoint not explicitly pinned by an operator allowlist
+  ---
+  duration_ms: 1.295143
+  type: 'test'
+  ...
+# Subtest: gateway refuses insecure or malicious allowlist records
+ok 143 - gateway refuses insecure or malicious allowlist records
+  ---
+  duration_ms: 1.159403
+  type: 'test'
+  ...
+# Subtest: gateway permits exactly pinned HTTPS origin without granting sends or tool actions
+ok 144 - gateway permits exactly pinned HTTPS origin without granting sends or tool actions
+  ---
+  duration_ms: 0.172435
+  type: 'test'
+  ...
+# (node:9530) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: booking is audited exactly once and per-tenant audit is durable across restart
+ok 145 - booking is audited exactly once and per-tenant audit is durable across restart
+  ---
+  duration_ms: 9.895768
+  type: 'test'
+  ...
+# Subtest: independent SQLite write cannot silently change logged business action
+ok 146 - independent SQLite write cannot silently change logged business action
+  ---
+  duration_ms: 3.886942
+  type: 'test'
+  ...
+# Subtest: approved-source updates and channel revocation are audited without storing answer contents
+ok 147 - approved-source updates and channel revocation are audited without storing answer contents
+  ---
+  duration_ms: 3.257362
+  type: 'test'
+  ...
+# Subtest: HMAC chain detects a forged log record even if local SQLite DDL privileges bypass triggers
+ok 148 - HMAC chain detects a forged log record even if local SQLite DDL privileges bypass triggers
+  ---
+  duration_ms: 3.131626
+  type: 'test'
+  ...
+# (node:9541) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed 256 KiB oversize payload fails before local persistence
+ok 149 - signed 256 KiB oversize payload fails before local persistence
+  ---
+  duration_ms: 9.00317
+  type: 'test'
+  ...
+# Subtest: signed 51 event batch fails atomically instead of expanding work without limit
+ok 150 - signed 51 event batch fails atomically instead of expanding work without limit
+  ---
+  duration_ms: 6.217905
+  type: 'test'
+  ...
+# Subtest: oversized declared Content-Length is rejected before waiting for attacker-supplied body
+ok 151 - oversized declared Content-Length is rejected before waiting for attacker-supplied body
+  ---
+  duration_ms: 19.930273
+  type: 'test'
+  ...
+# Subtest: incomplete signed POST cannot hold a webhook handler indefinitely
+ok 152 - incomplete signed POST cannot hold a webhook handler indefinitely
+  ---
+  duration_ms: 155.925737
+  type: 'test'
+  ...
+# Subtest: oversized chunked stream is rejected without waiting for attacker EOF
+ok 153 - oversized chunked stream is rejected without waiting for attacker EOF
+  ---
+  duration_ms: 4.485296
+  type: 'test'
+  ...
+# (node:9563) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: online backup captures committed WAL rows; encrypted restore preserves opt-out and audit across reopening
+ok 154 - online backup captures committed WAL rows; encrypted restore preserves opt-out and audit across reopening
+  ---
+  duration_ms: 15.957028
+  type: 'test'
+  ...
+# Subtest: tampered and wrong-key backups are rejected without creating or overwriting destination
+ok 155 - tampered and wrong-key backups are rejected without creating or overwriting destination
+  ---
+  duration_ms: 6.413665
+  type: 'test'
+  ...
+# Subtest: existing target path is never overwritten and source identity remains a separate requirement
+ok 156 - existing target path is never overwritten and source identity remains a separate requirement
+  ---
+  duration_ms: 5.651118
+  type: 'test'
+  ...
+# Subtest: missing, malformed and truncated archive or key fail closed
+ok 157 - missing, malformed and truncated archive or key fail closed
+  ---
+  duration_ms: 2.704275
+  type: 'test'
+  ...
+# (node:9574) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+ok 158 - signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+  ---
+  duration_ms: 11.525357
+  type: 'test'
+  ...
+# Subtest: signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+ok 159 - signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+  ---
+  duration_ms: 5.054046
+  type: 'test'
+  ...
+# Subtest: only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+ok 160 - only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+  ---
+  duration_ms: 3.585407
+  type: 'test'
+  ...
+# Subtest: a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+ok 161 - a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+  ---
+  duration_ms: 3.282029
+  type: 'test'
+  ...
+# Subtest: cross-tenant replay and changed STOP body fail without new suppression records
+ok 162 - cross-tenant replay and changed STOP body fail without new suppression records
+  ---
+  duration_ms: 2.696083
+  type: 'test'
+  ...
+# Subtest: an existing approved-source draft is visibly suppressed after later STOP, including across restart
+ok 163 - an existing approved-source draft is visibly suppressed after later STOP, including across restart
+  ---
+  duration_ms: 5.712604
+  type: 'test'
+  ...
+1..163
+# tests 163
+# suites 0
+# pass 163
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2277.052255
