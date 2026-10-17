@@ -1,0 +1,28 @@
+name: MUSITU Studio — Read Back Live CPU and Staff Access Security
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - 'ops/studio_live_cpu_readback.py'
+      - '.github/workflows/studio-live-cpu-readback.yml'
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Read real deployed Worker settings, dedicated bucket and email-only Access policy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_live_cpu_readback.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-live-cpu-staff-access-readback
+          path: studio-live-cpu-acceptance.json
+          if-no-files-found: warn
+          retention-days: 14
