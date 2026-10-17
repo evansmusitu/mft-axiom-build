@@ -200,3 +200,34 @@ if os.environ.get("STUDIO_REGISTER_GPU_FUNCTIONS")=="1":
                   min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
     def smoke_gpu():
         return _smoke_render("GPU")
+
+@APP.function(image=modal.Image.debian_slim(python_version="3.11"),
+              secrets=SECRETS,cpu=0.25,memory=256,
+              min_containers=0,max_containers=1,timeout=40,scaledown_window=10)
+def callback_network_diagnostic():
+    """Probe separate callback host FROM the real Modal cloud without rendering."""
+    import urllib.error
+    reports=[]
+    base=os.environ.get("STUDIO_CALLBACK_URL","")
+    if not base.startswith("https://studio-callback.mftintelligence.com/"):
+        return {"status":"INVALID_CALLBACK_URL"}
+    for label,token in [("anonymous",None),("with_callback_key",os.getenv("STUDIO_CALLBACK_TOKEN"))]:
+        headers={"Content-Type":"application/json","Accept":"application/json"}
+        if token:headers["Authorization"]="Bearer "+token
+        req=urllib.request.Request(base,data=b'{}',method="POST",headers=headers)
+        try:
+            with urllib.request.urlopen(req,timeout=14) as response:
+                code=response.status;body=response.read(180)
+        except urllib.error.HTTPError as exc:
+            code=exc.code;body=exc.read(180)
+        except Exception as exc:
+            reports.append({"probe":label,"status":type(exc).__name__})
+            continue
+        reports.append({"probe":label,"status":code,
+                        "body_json":body.lstrip().startswith(b'{'),
+                        "cloudflare_1010":b'1010' in body})
+    return {"schema":"musitu.studio.modal_to_cloudflare_callback.v1",
+            "probes":reports,
+            "verified":len(reports)==2 and
+               reports[0].get("status")==401 and reports[1].get("status")==400 and
+               all(x.get("body_json") for x in reports)}
