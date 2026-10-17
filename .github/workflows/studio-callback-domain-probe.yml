@@ -1,0 +1,66 @@
+name: MUSITU Studio — Live Callback Domain Secret Challenge
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-callback-domain-probe.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Challenge dedicated callback receiver using actual production hostname
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,hashlib,hmac,base64,os,time,json,pathlib
+          base="https://studio-callback.mftintelligence.com"
+          cf=os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CF_API_TOKEN")
+          modal=os.getenv("MODAL_TOKEN_SECRET")
+          if not cf or not modal:raise SystemExit("CREDENTIALS_UNAVAILABLE")
+          master=hashlib.sha256(("MUSITU_STUDIO_V02|"+modal+"|"+cf).encode()).digest()
+          key=base64.urlsafe_b64encode(hmac.new(master,b"callback",hashlib.sha256).digest()).decode().rstrip("=")
+          results=[]
+          for name,auth,path,method in [
+            ("anonymous",None,"/internal/callback","POST"),
+            ("authenticated_invalid_scene",key,"/internal/callback","POST"),
+            ("no_unrelated_ui",None,"/","GET")]:
+            code=None;kind="UNKNOWN"
+            for attempt in range(5):
+              headers={"Content-Type":"application/json"}
+              if auth:headers["Authorization"]="Bearer "+auth
+              request=urllib.request.Request(base+path,method=method,
+                  data=b'{}' if method=="POST" else None,headers=headers)
+              try:
+                with urllib.request.urlopen(request,timeout=15) as r:
+                  code=r.status;data=r.read(160)
+              except urllib.error.HTTPError as e:
+                code=e.code;data=e.read(160)
+              except Exception:
+                code=None;data=b''
+              if code is not None:break
+              time.sleep(6)
+            kind="JSON" if data.lstrip().startswith(b'{') else "OTHER"
+            results.append({"probe":name,"http_status":code,"body_type":kind})
+          report={"schema":"musitu.studio.callback-public-challenge.v1",
+            "callback_hostname":base,"checks":results,
+            "authenticator_enforced":results[0]["http_status"]==401 and results[0]["body_type"]=="JSON",
+            "authorized_input_validation":results[1]["http_status"]==400 and results[1]["body_type"]=="JSON",
+            "no_browser_ui":results[2]["http_status"]==404}
+          pathlib.Path("studio-callback-domain-proof.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+          print("STUDIO_CALLBACK_DOMAIN_CHALLENGE="+json.dumps(report,sort_keys=True))
+          if not all((report["authenticator_enforced"],report["authorized_input_validation"],report["no_browser_ui"])):
+            raise SystemExit("CALLBACK_RECEIVER_LIVE_AUTH_NOT_VERIFIED")
+          print("STUDIO_MODAL_CALLBACK_DOMAIN_SECRET_GATE_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-live-callback-verified
+          path: studio-callback-domain-proof.json
+          if-no-files-found: warn
+          retention-days: 7
