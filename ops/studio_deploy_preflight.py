@@ -46,6 +46,9 @@ def main():
      entries=records if isinstance(records,list) else records.get("buckets",[]) if isinstance(records,dict) else []
      expected="musitu-studio-v02" if key=="d1" else "musitu-studio-v02-assets"
      entry["resource_exists"]=any(isinstance(x,dict) and x.get("name")==expected for x in entries)
+     if key=="d1":
+      entry["database_count_first_page"]=len(entries)
+      entry["ten_db_free_tier_limit_reached"]=len(entries)>=10
     if key=="dns" and isinstance(records,list):
      zones=[z for z in records if isinstance(z,dict) and z.get("name")=="mftintelligence.com" and z.get("account",{}).get("id")==ACCOUNT]
      entry["expected_zone_access"]=len(zones)==1
