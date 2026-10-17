@@ -1,6 +1,5 @@
 name: MMF OIDC Provider and Gateway Safe Inventory 20261016
-# One-time Cloudflare account metadata inspection. GET ONLY. Redacted artifact;
-# never print provider ids, email, names, OAuth client secrets, org hostnames.
+# Reuse the existing authorized management connection. No login or Cloudflare writes.
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
@@ -9,7 +8,7 @@ permissions:
   contents: read
 jobs:
   inspector:
-    if: github.event.before == '93bc17f7b176ba621f54825659d51c86b299cb6f'
+    if: github.event.before == 'e67fab5ce5c4683daa2d579c97ef490a53730c2e'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 7
@@ -17,78 +16,112 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Safely inspect identity, no mutations
-        shell: bash
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify frozen Git refs and existing OIDC validation tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GITHUB_READ_UNAVAILABLE');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||!p.draft||p.merged)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_PROTECTED_REFS_OK');
+          NODE
+          cd musitu-mail-fabric
+          node --test test/mmf-oidc-provider-discovery.test.mjs test/mmf-oidc-admission.test.mjs test/mmf-oidc-private-token-exchange.test.mjs
+      - name: Independently qualify existing closed OIDC client and real metadata with API-pinned signing keys
         run: |
           set -euo pipefail
           umask 077
           node --input-type=module <<'NODE'
+          import {createPublicKey,X509Certificate,createHash} from 'node:crypto';
           import {writeFileSync} from 'node:fs';
           import {join} from 'node:path';
-          const t=process.env.CLOUDFLARE_API_TOKEN,a=process.env.CLOUDFLARE_ACCOUNT_ID;
-          if(!t||t.length<20||a!=='93f395f5121954671f92fffa453d6b61')throw Error('MMF_IDP_TOKEN_MISSING');
-          const base='https://api.cloudflare.com/client/v4/';
-          const path=[
-            'accounts/'+a+'/access/identity_providers',
-            'accounts/'+a+'/access/apps',
-            'accounts/'+a+'/access/organizations',
-            'accounts/'+a+'/workers/domains',
-            'zones?name=mftintelligence.com&per_page=20',
-            'accounts/'+a+'/workers/subdomain'
-          ];
-          async function safeGet(p){
-            try{
-              const r=await fetch(base+p,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(13000)});
-              if(!r.ok||r.redirected||!(r.headers.get('content-type')||'').startsWith('application/json'))return {ok:false,status:r.status};
-              const cl=r.headers.get('content-length');
-              if(cl!==null&&Number(cl)>131072)return {ok:false,status:413};
-              let size=0,chunks=[];for await(const c of r.body){size+=c.length;if(size>131072)throw Error('TOO_LARGE');chunks.push(c);}
-              const obj=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks)));
-              if(obj.success!==true||!Object.hasOwn(obj,'result')||obj.result_info?.total_pages>1)return {ok:false,status:r.status};
-              return {ok:true,result:obj.result,status:r.status}
-            }catch{return {ok:false,status:null}}
-          }
-          const [idps,apps,org,domains,zones,sub]=await Promise.all(path.map(safeGet));
-          const known=new Set(['cloudflare','onetimepin','oidc','google','google-apps','github','azureAD','okta','saml','duo','passkeys','other']);
-          const providers=idps.ok&&Array.isArray(idps.result)?idps.result.map(p=>known.has(p?.type)?p.type:'other'):[];
-          const configured=idps.ok&&Array.isArray(idps.result)?idps.result.map(p=>({
-            kind:known.has(p?.type)?p.type:'other',
-            readOnly:p?.read_only===true,
-            hasClientId:typeof p?.config?.client_id==='string'&&p.config.client_id.length>3,
-            hasClientSecret:typeof p?.config?.client_secret==='string'&&p.config.client_secret.length>4,
-            enabled:p?.enabled!==false
-          })):[];
-          const entries=apps.ok&&Array.isArray(apps.result)?apps.result:[];
-          const matches=entries.filter(p=>/mmf|musitu.mail.fabric/i.test(p?.name||''));
-          const zoneMatches=zones.ok&&Array.isArray(zones.result)?zones.result.filter(z=>z?.name==='mftintelligence.com'&&z?.account?.id===a):[];
-          const result={
-            schema:'mmf-provider-safe-inventory-v20261016',observedAt:new Date().toISOString(),
-            providerInventoryReadable:idps.ok,providerTypes:providers,providerCapabilities:configured,
-            appInventoryReadable:apps.ok,allAccessAppsCount:apps.ok?entries.length:null,mmfAccessApps:matches.length,
-            configuredAccessMfaApps:matches.filter(p=>p?.mfa_config?.mfa_disabled===false).length,
-            accessOrgReadable:org.ok&&!!org.result,
-            zoneApiReadable:zones.ok,approvedOwnedZonePresent:zoneMatches.length===1,
-            workerDomainsReadable:domains.ok,mmfWorkerDomains:domains.ok&&Array.isArray(domains.result)?
-              domains.result.filter(p=>/mmf|musitu.mail.fabric/i.test(p?.service||'')).length:null,
-            workersSubdomainReadable:sub.ok,workersSubdomainConfigured:sub.ok&&typeof sub.result?.subdomain==='string',
-            operation:'GET_ONLY',getCount:path.length,mutations:0,
-            credentialsExposed:false,providerApproved:false,mmfClientRegistered:false,
-            realMfaObserved:false,realBrowserPassed:false,prodEnabled:false,
-            gate:'MMF_IDENTITY_APPROVAL_AND_GATEWAY_NOT_ESTABLISHED'
+          import {qualifyPrivateMmfOidcProvider} from './musitu-mail-fabric/src/commercial/mmf-oidc-provider-discovery.mjs';
+          const account='93f395f5121954671f92fffa453d6b61',token=process.env.CLOUDFLARE_API_TOKEN;
+          const appId='4ae515a1-189d-41c2-8020-c99ea157b021',idpId='ec04a8ab-9382-4df0-9589-d2c98618e6af';
+          const prefix='accounts/'+account+'/access/';
+          const report={schema:'mmf-existing-oidc-real-qualification-v1',when:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA,
+            managementConnection:false,accountVerified:false,clientRegistered:false,clientClosed:false,exactCallback:false,
+            registeredPkceOnly:false,mfaRequired:false,apiCertificateMatchesPublicJwks:false,
+            strictProviderQualified:false,s256Declared:false,standardCodeGrantDeclared:false,
+            loginAttempted:false,tokenExchangeAttempted:false,signedMfaVerified:false,
+            publicRegistration:false,realSending:false,payments:false,cloudflareMutations:0,
+            gate:'MMF_OIDC_PREFLIGHT_INCOMPLETE'};
+          const publicJson=async(url,limit)=>{
+            const r=await fetch(url,{method:'GET',redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(12000),headers:{accept:'application/json'}});
+            if(!r.ok||r.redirected||!(r.headers.get('content-type')||'').startsWith('application/json'))throw Error('MMF_PUBLIC_METADATA_HTTP');
+            const chunks=[];let size=0;
+            for await(const part of r.body){size+=part.length;if(size>limit)throw Error('MMF_METADATA_TOO_BIG');chunks.push(part)}
+            return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks)));
           };
-          const out=join(process.env.RUNNER_TEMP,'mmf-oidc-provider-safe-kind-20261016.json');
-          writeFileSync(out,JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o600});
-          console.log(JSON.stringify({gate:result.gate,providerTypes:providers,appCount:result.allAccessAppsCount,mmfApps:result.mmfAccessApps,
-            verifiedOwnedZone:result.approvedOwnedZonePresent,mmfWorkerDomains:result.mmfWorkerDomains,mutationCount:0}));
+          const api=async path=>{
+            const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method:'GET',headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+            if(!r.ok||r.redirected)throw Error('MMF_CF_API_READ');
+            const text=await r.text();if(text.length>200000)throw Error('MMF_CF_RESPONSE_TOO_BIG');
+            const j=JSON.parse(text);if(j.success!==true||!Object.hasOwn(j,'result')||Number(j.result_info?.total_pages||1)>1)throw Error('MMF_CF_RESPONSE_INCOMPLETE');return j.result;
+          };
+          const fingerprint=key=>createHash('sha256').update(key.export({format:'der',type:'spki'})).digest('hex');
+          try{
+            if(process.env.CLOUDFLARE_ACCOUNT_ID!==account||!token||token.length<20)throw Error('MMF_AUTHORIZED_CONNECTION_MISSING');
+            const [zones,org,app,policies]=await Promise.all([api('zones?name=mftintelligence.com&per_page=100'),api(prefix+'organizations'),api(prefix+'apps/'+appId),api(prefix+'apps/'+appId+'/policies?per_page=100')]);
+            report.managementConnection=true;
+            report.accountVerified=zones?.length===1&&zones[0].account?.id===account&&zones[0].status==='active'&&org?.auth_domain==='musitu-axiom.cloudflareaccess.com';
+            const cfg=app?.saas_app;
+            report.clientRegistered=app?.id===appId&&app.type==='saas'&&cfg?.auth_type==='oidc'&&/^[A-Za-z0-9._:@-]{4,128}$/.test(cfg.client_id||'');
+            report.clientClosed=Array.isArray(policies)&&policies.length===0;
+            report.exactCallback=JSON.stringify(cfg?.redirect_uris)===JSON.stringify(['https://mail-stage.mftintelligence.com/private/oidc/callback']);
+            report.registeredPkceOnly=JSON.stringify(cfg?.grant_types)===JSON.stringify(['authorization_code_with_pkce'])&&cfg?.allow_pkce_without_client_secret===true;
+            report.mfaRequired=app?.mfa_config?.mfa_disabled===false&&app.mfa_config.allowed_authenticators?.includes('totp')&&Array.isArray(app.allowed_idps)&&app.allowed_idps.length===1&&app.allowed_idps[0]===idpId;
+            if(![report.accountVerified,report.clientRegistered,report.clientClosed,report.exactCallback,report.registeredPkceOnly,report.mfaRequired].every(Boolean))throw Error('MMF_EXISTING_CLOSED_OIDC_CLIENT_DRIFT');
+            const issuer='https://'+org.auth_domain+'/cdn-cgi/access/sso/oidc/'+cfg.client_id;
+            const expected={issuer,authorizationEndpoint:issuer+'/authorization',tokenEndpoint:issuer+'/token',jwksUri:issuer+'/jwks'};
+            const [meta,jwks]=await Promise.all([publicJson(issuer+'/.well-known/openid-configuration',16384),publicJson(expected.jwksUri,32768)]);
+            report.exactMetadataEndpoints=meta.issuer===issuer&&meta.authorization_endpoint===expected.authorizationEndpoint&&meta.token_endpoint===expected.tokenEndpoint&&meta.jwks_uri===expected.jwksUri;
+            report.standardCodeGrantDeclared=Array.isArray(meta.grant_types_supported)&&meta.grant_types_supported.includes('authorization_code');
+            report.s256Declared=Array.isArray(meta.code_challenge_methods_supported)&&meta.code_challenge_methods_supported.includes('S256');
+            report.signedAmrClaimAdvertised=Array.isArray(meta.claims_supported)&&meta.claims_supported.includes('amr');
+            report.signedAuthTimeClaimAdvertised=Array.isArray(meta.claims_supported)&&meta.claims_supported.includes('auth_time');
+            report.codeResponseDeclared=Array.isArray(meta.response_types_supported)&&meta.response_types_supported.includes('code');
+            report.rs256Declared=Array.isArray(meta.id_token_signing_alg_values_supported)&&meta.id_token_signing_alg_values_supported.includes('RS256');
+            const cert=cfg.public_key;
+            if(typeof cert!=='string'||!Array.isArray(jwks.keys)||jwks.keys.length>24)throw Error('MMF_SIGNING_KEY_CONFIG_MISSING');
+            const pinned=cert.includes('BEGIN CERTIFICATE')?new X509Certificate(cert).publicKey:createPublicKey(cert);
+            const fp=fingerprint(pinned);
+            const matches=jwks.keys.filter(j=>{try{return fingerprint(createPublicKey({key:j,format:'jwk'}))===fp}catch{return false}});
+            report.apiCertificateMatchesPublicJwks=matches.length===1;
+            if(!report.apiCertificateMatchesPublicJwks)throw Error('MMF_API_PUBLIC_KEY_MISMATCH');
+            const approvedKeys=[{kid:matches[0].kid,spkiFingerprint:fp}];
+            try{
+              await qualifyPrivateMmfOidcProvider({...expected,approvedKeys});
+              report.strictProviderQualified=true;
+            }catch(e){report.strictQualificationError=e.message==='MMF_OIDC_PROVIDER_DISCOVERY_DENIED'?e.message:'MMF_UNEXPECTED_QUALIFICATION_FAILURE';}
+            report.blockers=[];
+            if(!report.standardCodeGrantDeclared)report.blockers.push('STANDARD_AUTHORIZATION_CODE_METADATA_ABSENT');
+            if(!report.s256Declared)report.blockers.push('EXPLICIT_S256_METADATA_ABSENT');
+            if(!report.exactMetadataEndpoints)report.blockers.push('EXACT_ENDPOINT_MISMATCH');
+            if(!report.strictProviderQualified&&report.blockers.length===0)report.blockers.push('STRICT_PROVIDER_QUALIFICATION_OTHER_FAILURE');
+            report.gate=report.strictProviderQualified?'MMF_REAL_OIDC_METADATA_QUALIFIED_HUMAN_MFA_AND_CALLBACK_PENDING':'MMF_REAL_OIDC_METADATA_INCOMPATIBLE_FAIL_CLOSED';
+          }catch(e){report.failure=/^MMF_[A-Z_]+$/.test(e.message||'')?e.message:'MMF_NETWORK_OR_RUNTIME_FAILURE';}
+          finally{
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-existing-oidc-real-qualification.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+            console.log(JSON.stringify(report));
+          }
+          // Observing an incompatible provider is a successful diagnostic, not a successful login.
+          if(report.gate==='MMF_OIDC_PREFLIGHT_INCOMPLETE')process.exitCode=2;
           NODE
-      - name: Save de-identified evidence
+      - name: Preserve sanitized real-provider qualification
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mmf-private-idp-kind-gateway-preflight-20261016
-          path: ${{ runner.temp }}/mmf-oidc-provider-safe-kind-20261016.json
+          name: mmf-existing-oidc-real-qualification-20261017
+          path: ${{ runner.temp }}/mmf-existing-oidc-real-qualification.json
           retention-days: 14
           if-no-files-found: warn
-      - name: Delete ephemeral evidence
+      - name: Remove ephemeral proof
         if: always()
-        run: rm -f "$RUNNER_TEMP/mmf-oidc-provider-safe-kind-20261016.json"
+        run: rm -f "$RUNNER_TEMP/mmf-existing-oidc-real-qualification.json"
