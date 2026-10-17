@@ -111,3 +111,31 @@ test('concurrent replay of one code cannot trigger a second qualification exchan
  assert.equal(results.filter(x=>x.status==='rejected').length,1);
  assert.equal(p.calls.length,3);
 });
+
+test('failure diagnostics report fixed stages/reasons and allowlisted OAuth errors without provider details',async()=>{
+ const cases=[
+  [()=>{throw Error('fixture-secret-network-detail')},{stage:'NEGATIVE_WRONG_VERIFIER',reason:'TOKEN_REQUEST_FAILED'}],
+  [()=>json({error:'invalid_grant'},401),{stage:'NEGATIVE_WRONG_VERIFIER',reason:'NEGATIVE_HTTP_STATUS'}],
+  [()=>json({error:'invalid_client',error_description:'fixture-secret-provider-detail'},400),{stage:'NEGATIVE_WRONG_VERIFIER',reason:'NEGATIVE_OAUTH_ERROR',oauthError:'invalid_client'}],
+  [()=>json({error:'fixture-secret-error'},400),{stage:'NEGATIVE_WRONG_VERIFIER',reason:'NEGATIVE_OAUTH_ERROR',oauthError:'OTHER_OR_MISSING'}],
+  [()=>new Response('{fixture-secret',{status:400,headers:{'content-type':'application/json'}}),{stage:'NEGATIVE_WRONG_VERIFIER',reason:'NEGATIVE_JSON'}],
+  [()=>json({error:'invalid_grant',id_token:'fixture-secret-token'},400),{stage:'NEGATIVE_WRONG_VERIFIER',reason:'NEGATIVE_TOKEN_RETURNED',oauthError:'invalid_grant'}]
+ ];
+ for(const [override,expected]of cases){
+  const p=provider({override});
+  await assert.rejects(()=>createCloudflareMmfPkceQualification({...config,fetchImpl:p.fetchImpl})(request()),e=>{
+   assert.equal(e.message,'MMF_CLOUDFLARE_PKCE_QUALIFICATION_DENIED');assert.deepEqual(e.qualificationDiagnostic,expected);
+   assert.ok(!JSON.stringify(e.qualificationDiagnostic).includes('fixture-secret'));return true;
+  });assert.equal(p.calls.length,1);
+ }
+ for(const [at,stage] of [[2,'NEGATIVE_CHALLENGE_VERIFIER'],[3,'CORRECT_VERIFIER_EXCHANGE']]){
+  const p=provider({override:({index})=>index<at?json({error:'invalid_grant'},400):json({error:'invalid_client'},400)});
+  await assert.rejects(()=>createCloudflareMmfPkceQualification({...config,fetchImpl:p.fetchImpl})(request()),e=>{
+   assert.equal(e.qualificationDiagnostic.stage,stage);return true;
+  });assert.equal(p.calls.length,at);
+ }
+ const p=provider({token:jwt({amr:['pwd']})});
+ await assert.rejects(()=>createCloudflareMmfPkceQualification({...config,fetchImpl:p.fetchImpl})(request()),e=>{
+  assert.deepEqual(e.qualificationDiagnostic,{stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED'});return true;
+ });assert.equal(p.calls.length,3);
+});

@@ -80,13 +80,17 @@ export class MmfOidcQualificationFlow {
    data.result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'IN_PROGRESS'};
    await tx.put('qualification',data);return value;
   });
-  let requests=0,successfulTokenResponses=0,result;
+  let requests=0,successfulTokenResponses=0,result,lastTokenHttpStatus=null,tokenTransport='NOT_STARTED';
   const boundedFetch=async(url,options)=>{
    // Workers does not implement redirect:'error'. Manual transport plus an
    // explicit 3xx rejection preserves the existing no-redirect contract.
    if(options?.redirect!=='error')deny();
-   requests++;const response=await this.fetchImpl(url,{...options,redirect:'manual'});
+   requests++;let response;tokenTransport='FETCH_REJECTED';
+   response=await this.fetchImpl(url,{...options,redirect:'manual'});
+   tokenTransport='RESPONSE_RECEIVED';
+   lastTokenHttpStatus=Number.isInteger(response.status)&&response.status>=100&&response.status<=599?response.status:null;
    if(response.redirected||response.status>=300&&response.status<400){
+    tokenTransport='REDIRECT_BLOCKED';
     try{await response.body?.cancel()}catch{};deny();
    }
    if(response.status===200)successfulTokenResponses++;
@@ -96,9 +100,20 @@ export class MmfOidcQualificationFlow {
    const qualify=createCloudflareMmfPkceQualification({...this.qualifyConfig,fetchImpl:boundedFetch});
    await qualify({code,codeVerifier:pending.verifier,nonce:pending.nonce,signal});
    result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'QUALIFICATION_PASSED',pkceAndSignedMfaVerified:true};
-  }catch{
+  }catch(error){
    result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'QUALIFICATION_FAILED_CLOSED'};
+   const d=error?.qualificationDiagnostic;
+   const stages=['INPUT_VALIDATION','NEGATIVE_WRONG_VERIFIER','NEGATIVE_CHALLENGE_VERIFIER','CORRECT_VERIFIER_EXCHANGE','SIGNED_ID_TOKEN_VALIDATION'];
+   const reasons=['INPUT_REJECTED','TOKEN_REQUEST_FAILED','NEGATIVE_RESPONSE_TYPE','NEGATIVE_HTTP_STATUS','NEGATIVE_REDIRECT',
+    'NEGATIVE_MEDIA_TYPE','NEGATIVE_LENGTH','NEGATIVE_BODY','NEGATIVE_BODY_READ','NEGATIVE_JSON','NEGATIVE_OAUTH_ERROR',
+    'NEGATIVE_TOKEN_RETURNED','TOKEN_RESPONSE_REJECTED','SIGNED_ID_TOKEN_REJECTED'];
+   if(d&&stages.includes(d.stage)&&reasons.includes(d.reason)){
+    result.failureStage=d.stage;result.failureReason=d.reason;
+    if(['invalid_request','invalid_client','invalid_grant','unauthorized_client','unsupported_grant_type','invalid_scope',
+     'access_denied','temporarily_unavailable','server_error','OTHER_OR_MISSING'].includes(d.oauthError))result.oauthError=d.oauthError;
+   }
   }
+  result.diagnosticsVersion=1;result.tokenTransport=tokenTransport;result.lastTokenHttpStatus=lastTokenHttpStatus;
   result.tokenRequests=requests;result.successfulTokenResponses=successfulTokenResponses;
   await this.storage.transaction(async tx=>{
    const data=await tx.get('qualification');data.result=result;await tx.put('qualification',data);

@@ -22,27 +22,34 @@ const sha=x=>createHash('sha256').update(x).digest('hex');
 const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&Object.getPrototypeOf(x)===Object.prototype;
 const CALLBACK='https://mail-stage.mftintelligence.com/private/oidc/callback';
 
-async function negativeEvidence(response){
- if(!(response instanceof Response)||response.status!==400||response.redirected||
-  !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get('content-type')||''))deny();
+const OAUTH_ERRORS=new Set(['invalid_request','invalid_client','invalid_grant','unauthorized_client',
+ 'unsupported_grant_type','invalid_scope','access_denied','temporarily_unavailable','server_error']);
+async function negativeEvidence(response,diagnostic){
+ const reject=reason=>{diagnostic.reason=reason;deny()};
+ if(!(response instanceof Response))reject('NEGATIVE_RESPONSE_TYPE');
+ if(response.status!==400)reject('NEGATIVE_HTTP_STATUS');
+ if(response.redirected)reject('NEGATIVE_REDIRECT');
+ if(!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get('content-type')||''))reject('NEGATIVE_MEDIA_TYPE');
  const length=response.headers.get('content-length');
- if(length!==null&&(!/^(0|[1-9]\d*)$/.test(length)||Number(length)>4096))deny();
- if(!response.body)deny();
+ if(length!==null&&(!/^(0|[1-9]\d*)$/.test(length)||Number(length)>4096))reject('NEGATIVE_LENGTH');
+ if(!response.body)reject('NEGATIVE_BODY');
+ diagnostic.reason='NEGATIVE_BODY_READ';
  const reader=response.body.getReader();let size=0;const parts=[];
  try{
   while(true){
    const {value,done}=await reader.read();if(done)break;
-   if(!(value instanceof Uint8Array)||value.length===0)deny();
-   size+=value.length;if(size>4096)deny();parts.push(value);
+   if(!(value instanceof Uint8Array)||value.length===0)reject('NEGATIVE_BODY');
+   size+=value.length;if(size>4096)reject('NEGATIVE_LENGTH');parts.push(value);
   }
  }finally{try{await reader.cancel()}catch{};try{reader.releaseLock()}catch{}}
  const bytes=new Uint8Array(size);let offset=0;
  for(const p of parts){bytes.set(p,offset);offset+=p.length}
- let body;try{body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes))}catch{deny()}
+ let body;try{body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes))}catch{reject('NEGATIVE_JSON')}
  // An outage, invalid client, generic denial or successful response says
  // nothing about correct S256 verification and must not qualify this probe.
- if(!plain(body)||body.error!=='invalid_grant'||Object.hasOwn(body,'id_token')||
-  Object.hasOwn(body,'access_token')||Object.hasOwn(body,'refresh_token'))deny();
+ diagnostic.oauthError=plain(body)&&OAUTH_ERRORS.has(body.error)?body.error:'OTHER_OR_MISSING';
+ if(!plain(body)||body.error!=='invalid_grant')reject('NEGATIVE_OAUTH_ERROR');
+ if(Object.hasOwn(body,'id_token')||Object.hasOwn(body,'access_token')||Object.hasOwn(body,'refresh_token'))reject('NEGATIVE_TOKEN_RETURNED');
 }
 
 export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpoint,redirectUri,
@@ -70,6 +77,7 @@ export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpo
   const exchange=createPrivateOidcCodeExchanger({issuer,tokenEndpoint,clientId,redirectUri,fetchImpl,timeoutMs});
   const usedCodes=new Set();
   return async function qualify(input){
+   let diagnostic={stage:'INPUT_VALIDATION',reason:'INPUT_REJECTED'};
    try{
     if(!plain(input)||Object.keys(input).sort().join(',')!=='code,codeVerifier,nonce,signal')deny();
     const {code,codeVerifier,nonce,signal}=input;
@@ -83,25 +91,33 @@ export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpo
     const challenge=createHash('sha256').update(codeVerifier).digest('base64url');
     const wrong=(codeVerifier[0]==='A'?'B':'A')+codeVerifier.slice(1);
     if(challenge===codeVerifier||wrong===challenge)deny();
-    for(const probe of [wrong,challenge]){
+    for(const [index,probe] of [wrong,challenge].entries()){
+     diagnostic={stage:index===0?'NEGATIVE_WRONG_VERIFIER':'NEGATIVE_CHALLENGE_VERIFIER',reason:'TOKEN_REQUEST_FAILED'};
      totalSignal.throwIfAborted();
      const body=new URLSearchParams({grant_type:'authorization_code',client_id:clientId,
       redirect_uri:redirectUri,code,code_verifier:probe});
      const response=await fetchImpl(tokenEndpoint,{method:'POST',
       headers:{'content-type':'application/x-www-form-urlencoded'},body:body.toString(),
       redirect:'error',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:totalSignal});
-     await negativeEvidence(response);
+     await negativeEvidence(response,diagnostic);
     }
+    diagnostic={stage:'CORRECT_VERIFIER_EXCHANGE',reason:'TOKEN_RESPONSE_REJECTED'};
     totalSignal.throwIfAborted();
     const result=await exchange({code,codeVerifier,clientId,redirectUri,signal:totalSignal});
     totalSignal.throwIfAborted();
     const at=now();if(!Number.isSafeInteger(at)||at<=0)deny();
     // This is the unchanged signature/issuer/audience/nonce/recent-MFA verifier.
     // No unsigned flag or provider policy metadata can substitute for its claims.
+    diagnostic={stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED'};
     verifyPinnedOidcIdToken(result.id_token,{...pinned,nonce,nowMs:at});
     return Object.freeze({pkceChecksPassed:true,signedMfaAndNonceChecksPassed:true,sessionCreated:false,
      strictDiscoveryQualified:false,customerApiEnabled:false,realSendingEnabled:false,paymentsEnabled:false,productionReady:false});
-   }catch{deny()}
+   }catch{
+    // Only local fixed enums cross this boundary. Never copy caught provider
+    // errors, descriptions, response bodies, tokens or input values.
+    throw Object.assign(new Error('MMF_CLOUDFLARE_PKCE_QUALIFICATION_DENIED'),
+     {qualificationDiagnostic:Object.freeze({...diagnostic})});
+   }
   };
  }catch{deny()}
 }

@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
 import {createHash,createPublicKey,X509Certificate} from 'node:crypto';
 import {createCloudflareMmfPkceQualification} from './mmf-cloudflare-pkce-qualification.mjs';
-const baseline='5c21f06f07f8c4d331cc9acfdfa89450f43b2a4c';
+const baseline='0032b028aedb117a0ea1a32a7fd5539ff84f1810';
 const account='93f395f5121954671f92fffa453d6b61',worker='mmf-private-identity-edge-20261017';
 const prefix='accounts/'+account+'/',target=prefix+'workers/scripts/'+worker;
 const access=prefix+'access/',appId='f8ab12fe-251f-44fa-80de-1c2f2bdc4055',oidcId='4ae515a1-189d-41c2-8020-c99ea157b021';
@@ -65,7 +65,7 @@ try{
  createCloudflareMmfPkceQualification({...cfg,env:values});
  const desired=new Map(names.map(p=>[p,render(p,load(p))]));
  const changed=names.filter(p=>desired.get(p)!==remote.get(p));
- if(changed.length!==1||changed[0]!=='src/staging/mmf-oidc-qualification-flow.mjs')deny('MMF_UNEXPECTED_RUNTIME_CHANGE');
+ if(!isDeepStrictEqual(changed,['src/staging/mmf-oidc-qualification-flow.mjs','src/staging/mmf-cloudflare-pkce-qualification.mjs']))deny('MMF_UNEXPECTED_RUNTIME_CHANGE');
  report.baselineVerified=true;report.changedModules=changed;report.qualificationExpiresAt=new Date(cfg.validUntil).toISOString();
  const form=new FormData();form.set('metadata',new Blob([JSON.stringify({main_module:names[0]})],{type:'application/json'}));
  for(const [name,source] of desired)form.set(name,new Blob([source],{type:'application/javascript+module'}),name);

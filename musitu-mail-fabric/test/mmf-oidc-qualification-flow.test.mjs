@@ -225,3 +225,22 @@ test('context diagnostics identify only the rejected rule, preserving denial and
  }
  assert.equal(calls,0,'every failed request rule precedes Access authorization and durable state access');
 });
+
+test('persisted token failure diagnostics contain only bounded enums/status and do not retry consumed state',async()=>{
+ const cases=[
+  [async()=>{throw Object.assign(Error('fixture-secret'),{qualificationDiagnostic:{stage:'forged-private',reason:'fixture-secret'}})},'TOKEN_REQUEST_FAILED','FETCH_REJECTED',null,undefined],
+  [async()=>json({error:'invalid_client',error_description:'fixture-secret'},400),'NEGATIVE_OAUTH_ERROR','RESPONSE_RECEIVED',400,'invalid_client'],
+  [async()=>json({error:'invalid_grant'},401),'NEGATIVE_HTTP_STATUS','RESPONSE_RECEIVED',401,undefined],
+  [async()=>new Response(null,{status:302,headers:{location:'https://fixture-secret.example'}}),'TOKEN_REQUEST_FAILED','REDIRECT_BLOCKED',302,undefined]
+ ];
+ for(const [fetchImpl,reason,transport,httpStatus,oauthError] of cases){
+  let requests=0;const s=await setup({fetchImpl:async(...args)=>{requests++;return fetchImpl(...args)}});
+  await s.flow.callback(s.input);const result=await s.flow.status();
+  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.diagnosticsVersion,1);
+  assert.equal(result.failureStage,'NEGATIVE_WRONG_VERIFIER');assert.equal(result.failureReason,reason);
+  assert.equal(result.tokenTransport,transport);assert.equal(result.lastTokenHttpStatus,httpStatus);assert.equal(result.oauthError,oauthError);
+  assert.equal(result.tokenRequests,1);assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
+  assert.ok(!JSON.stringify(await s.db.get('qualification')).includes('fixture-secret'));
+  await assert.rejects(()=>s.flow.callback(s.input));assert.equal(requests,1);
+ }
+});

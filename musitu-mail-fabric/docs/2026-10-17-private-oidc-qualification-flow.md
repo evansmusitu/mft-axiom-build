@@ -83,3 +83,19 @@ Deployment does not constitute real browser acceptance: the approved
 administrator must complete the provider's own authentication and MFA on their
 phone, then inspect the sanitized status. No login code or token is requested
 from the administrator outside that browser flow.
+
+## Bounded token-failure diagnostics
+
+The sanitized result now records diagnosticsVersion:1, a fixed failureStage and
+failureReason, the last numeric token HTTP status (or null), and a fixed
+transport outcome. For a parsed negative-probe JSON response, oauthError is
+restricted to known OAuth error names or OTHER_OR_MISSING. Provider descriptions,
+raw error strings, headers, bodies, codes, verifiers, nonces, tokens and identity
+claims are never copied into the diagnostic. Failed input, wrong-verifier,
+challenge-as-verifier, correct exchange and signed-token stages are distinct.
+All existing negative-evidence, bounded-body, redirect, timeout and signed-MFA
+requirements remain in force. The diagnostics do not retry a consumed code.
+
+Old persisted results are preserved; they cannot acquire response details that
+were never retained. One fresh legitimate browser flow is needed to obtain a
+versioned result. Harness expiry, counters, replay ledger and pins are unchanged.

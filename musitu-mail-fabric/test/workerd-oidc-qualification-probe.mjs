@@ -85,6 +85,7 @@ try{
  const result=await resultResponse.json();
  if(result.status!=='QUALIFICATION_PASSED')throw Error('MMF_WORKERD_FIXTURE_TOKEN_CHECK_FAILED_'+JSON.stringify({result,stubRequests:requests}));
  assert.equal(result.pkceAndSignedMfaVerified,true);assert.equal(result.sessionCreated,false);
+ assert.equal(result.diagnosticsVersion,1);assert.equal(result.lastTokenHttpStatus,200);assert.equal(result.tokenTransport,'RESPONSE_RECEIVED');
  assert.equal(requests,3);
  assert.equal((await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}})).status,403);assert.equal(requests,3);
  const proof={schema:'mmf-local-workerd-qualification-probe-v1',result:'PASS',fixtureKeysOnly:true,realIdentityProviderContacted:false,
