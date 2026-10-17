@@ -12,7 +12,8 @@ ARCHIVE="blender-4.5.14-linux-x64.tar.xz"
 DIGEST="9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3"
 IMAGE=(modal.Image.debian_slim(python_version="3.11")
     .apt_install("curl","xz-utils","libx11-6","libxkbcommon0","libxi6","libxrender1",
-                 "libxfixes3","libgl1","libegl1","libsm6","libglib2.0-0")
+                 "libxfixes3","libgl1","libegl1","libsm6","libglib2.0-0",
+                 "libxext6","libxrandr2","libxinerama1","libxcursor1","libgomp1")
     .run_commands(
      "set -e; cd /opt; curl -fLsS --retry 3 --max-time 180 -o "+ARCHIVE+
      " https://download.blender.org/release/Blender4.5/"+ARCHIVE+
@@ -21,6 +22,7 @@ IMAGE=(modal.Image.debian_slim(python_version="3.11")
     .add_local_dir(ROOT/"studio","/opt/studio",copy=True)
     .add_local_file(ROOT/"modal"/"verify_outputs.py","/opt/verify_outputs.py",copy=True))
 APP=modal.App("musitu-studio-v02")
+app=APP  # Modal CLI requires module-level `app` variable.
 SECRETS=[modal.Secret.from_name("musitu-studio-v02")]
 BLENDER="/opt/blender-4.5.14-linux-x64/blender"
 
