@@ -13,6 +13,18 @@ const safeHeaders=Object.freeze({'cache-control':'no-store','x-content-type-opti
  'content-security-policy':"default-src 'none'; frame-ancestors 'none'",'strict-transport-security':'max-age=31536000',
  'content-type':'application/json; charset=utf-8'});
 const denied=()=>new Response(JSON.stringify({error:'MMF_PRIVATE_ACCESS_DENIED'}),{status:403,headers:safeHeaders});
+// Cloudflare Access presents browser JWTs in CF_Authorization as well as the
+// preferred origin assertion. If the origin header is absent, verify the exact
+// same signed JWT from a single cookie. No unsigned cookie or identity claim is
+// ever accepted. A malformed/present assertion NEVER downgrades to a cookie.
+function browserAccessCookie(raw){
+ if(typeof raw!=='string'||!raw||raw.length>8192||/[\r\n\x00-\x1f]/.test(raw))throw Error('ACCESS_COOKIE_INVALID');
+ const fields=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('CF_Authorization='));
+ if(fields.length!==1)throw Error('ACCESS_COOKIE_MISSING_OR_DUPLICATED');
+ const value=fields[0].slice('CF_Authorization='.length);
+ if(value.length<64||value.length>8192||!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value))throw Error('ACCESS_COOKIE_MALFORMED');
+ return value;
+}
 const noRoute=()=>new Response(JSON.stringify({error:'NOT_AVAILABLE'}),{status:404,headers:safeHeaders});
 const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const validAud=x=>typeof x==='string'&&x.length>20&&x.length<200&&/^[A-Za-z0-9_-]+$/.test(x);
@@ -71,7 +83,8 @@ export function createMmfStageGate(env){
     req.headers.has('x-original-url')||req.headers.has('forwarded'))return denied();
    const u=new URL(req.url);
    if(u.protocol!=='https:'||u.hostname!==HOST||u.port||u.username||u.password||u.hash||u.search)return denied();
-   const assertion=req.headers.get('cf-access-jwt-assertion');
+   const assertion=req.headers.has('cf-access-jwt-assertion')?
+     req.headers.get('cf-access-jwt-assertion'):browserAccessCookie(req.headers.get('cookie'));
    if(!assertion||!(await verified(assertion,env)))return denied();
    if(u.pathname!=='/private/gateway')return noRoute();
    return new Response(JSON.stringify({stage:'private-access-verified',realSending:false,payments:false,
