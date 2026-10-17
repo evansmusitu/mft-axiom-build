@@ -33,8 +33,8 @@ test('Cloudflare Access signed RS256 JWT requires matching issuer, AUD and subje
  const {publicKey,privateKey}=await generateKeyPair('RS256');
  const jwk=await exportJWK(publicKey);jwk.kid='kid-1';jwk.alg='RS256';jwk.use='sig';
  const keys=createLocalJWKSet({keys:[jwk]});
- const signed=async ({issuer=domain,audience=aud,subject='owner-1',expires='10m',type='app'}={})=>
-   await new SignJWT({type,sub:subject})
+ const signed=async ({issuer=domain,audience=aud,subject='owner-1',expires='10m',type='app',commonName}={})=>
+   await new SignJWT({type,sub:subject,...(commonName?{common_name:commonName}:{})})
      .setProtectedHeader({alg:'RS256',kid:'kid-1'})
      .setIssuer(issuer).setAudience(audience).setIssuedAt()
      .setExpirationTime(expires).sign(privateKey);
@@ -47,6 +47,8 @@ test('Cloudflare Access signed RS256 JWT requires matching issuer, AUD and subje
  assert.equal(await evaluate({issuer:'https://wrong.cloudflareaccess.com'}),false);
  assert.equal(await evaluate({audience:'b'.repeat(64)}),false);
  assert.equal(await evaluate({subject:''}),false);
+ assert.equal(await evaluate({subject:'',commonName:'e367826f93b8d71185e03fe518aff3b4.access'}),true);
+ assert.equal(await evaluate({subject:'',commonName:'malformed'}),false);
  assert.equal(await evaluate({type:'org'}),false);
  assert.equal(await evaluate({expires:'-1h'}),false);
 });
