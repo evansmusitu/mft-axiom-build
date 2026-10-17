@@ -4,6 +4,11 @@ import {validateScene,sha256,equalSecret,assetType,validArtifactHeader} from './
 // Limited single-admin Studio control plane using one R2 compare-and-swap state
 // object. D1 remains the preferred transactional multiuser production database.
 const KEY='studio-control/v1/state.json';
+function stateKey(env){
+  const candidate=env.STUDIO_STATE_KEY;
+  return typeof candidate==='string'&&/^studio-control\/qa-[a-z0-9-]{8,64}\.json$/.test(candidate)
+    ? candidate : KEY;
+}
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer'};
 const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:HEADERS});
 const err=(code,status=400)=>json({ok:false,error:code},status);
@@ -32,7 +37,7 @@ async function bodyJson(req,max=65536){
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
 }
 async function loadState(env){
-  const blob=await env.STUDIO_ASSETS.get(KEY);
+  const blob=await env.STUDIO_ASSETS.get(stateKey(env));
   if(!blob)return {state:clean(),etag:null};
   if(blob.size>MAXSTATE)throw Error('STATE_TOO_LARGE');
   const state=JSON.parse(await blob.text());
@@ -48,7 +53,7 @@ async function atomic(env,update){
     const raw=JSON.stringify(state);
     if(raw.length>MAXSTATE)return {fail:'STATE_CAP_REACHED',status:507};
     const condition=etag?{etagMatches:etag}:new Headers({'If-None-Match':'*'});
-    const saved=await env.STUDIO_ASSETS.put(KEY,raw,{
+    const saved=await env.STUDIO_ASSETS.put(stateKey(env),raw,{
       onlyIf:condition,httpMetadata:{contentType:'application/json'}});
     if(saved)return {ok:true,data:result};
   }
