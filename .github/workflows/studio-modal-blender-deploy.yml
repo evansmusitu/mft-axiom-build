@@ -4,6 +4,7 @@ on:
     branches: [experiments/studio-full-deploy-20261017]
     paths:
       - 'ops/studio_modal_secrets.py'
+      - 'musitu_studio/modal/**'
       - '.github/workflows/studio-modal-blender-deploy.yml'
   workflow_dispatch:
 permissions: {contents: read}
