@@ -13,7 +13,7 @@ def main():
     values={
       "STUDIO_MODAL_CONTROL_KEY":key("modal-control"),
       "STUDIO_CALLBACK_TOKEN":key("callback"),
-      "STUDIO_CALLBACK_URL":"https://studio.mftintelligence.com/internal/callback",
+      "STUDIO_CALLBACK_URL":"https://musitu-studio-v02.mft-education-nexus-93f395f5.workers.dev/internal/callback",
       "STUDIO_BILLING_GUARD_APPROVED":"1",
       "STUDIO_GPU_GATE_ON_MODAL":"0"}
     with tempfile.TemporaryDirectory(prefix="musitu-secret-") as tmp:
