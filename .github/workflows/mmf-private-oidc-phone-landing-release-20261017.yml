@@ -1,0 +1,74 @@
+name: MMF Private OIDC Phone Landing and Worker Transport Fix 20261017
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-private-oidc-phone-landing-release-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  release:
+    if: github.event.before == '2a55659bf24afbc87b8c964ae41056e3c00d6116'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify exact parent and protected refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '2a55659bf24afbc87b8c964ae41056e3c00d6116'
+          node --input-type=module <<'NODE'
+          const base='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async path=>{const r=await fetch(base+path,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GIT_READ_DENIED');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_PROTECTED_REFS_UNCHANGED');
+          NODE
+      - name: Complete automated tests
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --check src/staging/mmf-oidc-qualification-flow.mjs
+          node --check src/staging/deploy-mmf-oidc-phone-landing-20261017.mjs
+          node --check test/workerd-oidc-qualification-probe.mjs
+          npm run check
+          npm test
+      - name: Install pinned local test runtime without production credentials
+        run: npm install --prefix "$RUNNER_TEMP/mmf-runtime" --no-save miniflare@4.20260730.0 workerd@1.20261016.1
+      - name: Local workerd SQLite RPC, S256, MFA and replay fixture integration
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          export MMF_MINIFLARE_MODULE="$RUNNER_TEMP/mmf-runtime/node_modules/miniflare/dist/src/index.js"
+          export MINIFLARE_WORKERD_PATH="$RUNNER_TEMP/mmf-runtime/node_modules/workerd/bin/workerd"
+          node test/workerd-oidc-qualification-probe.mjs
+      - name: Existing connection content-only correction and exact readback
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node musitu-mail-fabric/src/staging/deploy-mmf-oidc-phone-landing-20261017.mjs
+      - name: Independent GET-only protection and anonymous-route readback
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node musitu-mail-fabric/src/staging/readback-mmf-oidc-qualification-20261017.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mmf-phone-landing-fix-proof-20261017
+          path: |
+            ${{ runner.temp }}/mmf-local-workerd-qualification-proof.json
+            ${{ runner.temp }}/mmf-phone-landing-release-proof.json
+            ${{ runner.temp }}/mmf-oidc-qualification-readback-proof.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove ephemeral proof and test packages
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/mmf-local-workerd-qualification-proof.json" "$RUNNER_TEMP/mmf-phone-landing-release-proof.json" "$RUNNER_TEMP/mmf-oidc-qualification-readback-proof.json"
+          rm -rf "$RUNNER_TEMP/mmf-runtime"
