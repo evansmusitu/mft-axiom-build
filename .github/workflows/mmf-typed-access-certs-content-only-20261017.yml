@@ -3,12 +3,12 @@ name: MMF Typed Certificate Transport and Crypto Diagnostics 20261017
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
-    paths: ['.github/workflows/mmf-cookie-fallback-content-only-20261017.yml']
+    paths: ['.github/workflows/mmf-typed-access-certs-content-only-20261017.yml']
 permissions:
   contents: read
 jobs:
   update-isolated-worker:
-    if: github.event.before == 'f5bec6ad43db7972e3d810487aaa050629494811'
+    if: github.event.before == '3bdcf869c966a178ae575a73f9417dbb95e92756'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 'f5bec6ad43db7972e3d810487aaa050629494811'
+          test "$(git rev-parse HEAD^)" = '3bdcf869c966a178ae575a73f9417dbb95e92756'
           node --input-type=module <<'NODE'
           const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
           const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('MMF_PROTECTED_REF_UNKNOWN');return r.json()};
