@@ -1,5 +1,5 @@
 name: MMF Live Private HTTPS Gateway Readback 20261017
-# GET-only safety evidence after domain was attached; no access tokens/cookies in logs.
+# Existing authenticated connection. Cloudflare API access is GET-only.
 on:
   push:
     branches: ['product/musitu-mail-fabric-isolated-20261009']
@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   readback:
-    if: github.event.before == '32e2d886f18e7c18fc9c442f4886220992566389'
+    if: github.event.before == 'e9387cc5a31b1939b08c9a4cba96ad0d4ff2e3f7'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -16,85 +16,106 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Inspect actual HTTPS, Worker subdomain and sole administrator Access
-        shell: bash
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify protected refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('MMF_GIT_READ_FAILED');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_GIT_DRIFT');
+          console.log('MMF_PROTECTED_GIT_REFS_VERIFIED');
+          NODE
+      - name: Read existing Cloudflare account, exact dashboard code, MFA and recent Access outcomes
         run: |
           set -euo pipefail
           umask 077
           node --input-type=module <<'NODE'
-          import {writeFileSync} from 'node:fs';import {join} from 'node:path';
-          const a='93f395f5121954671f92fffa453d6b61',t=process.env.CLOUDFLARE_API_TOKEN;
-          if(a!==process.env.CLOUDFLARE_ACCOUNT_ID||!t||t.length<20)throw Error('MMF_TOKEN_NOT_PRESENT');
-          const p='accounts/'+a+'/access/',host='mail-stage.mftintelligence.com',
-                worker='mmf-private-identity-edge-20261017',
-                id='f8ab12fe-251f-44fa-80de-1c2f2bdc4055',idp='ec04a8ab-9382-4df0-9589-d2c98618e6af';
-          let count=0;
-          const api=async name=>{count++;
-            const r=await fetch('https://api.cloudflare.com/client/v4/'+name,{method:'GET',headers:{authorization:'Bearer '+t,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12000)});
-            const str=await r.text();if(str.length>100000)throw Error('MMF_RESPONSE_BIG');
-            const j=JSON.parse(str);if(!r.ok||j.success!==true||j.result_info?.total_pages>1)throw Error('MMF_CF_READ_FAILED');return j.result;
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {createHash} from 'node:crypto';
+          const account='93f395f5121954671f92fffa453d6b61',token=process.env.CLOUDFLARE_API_TOKEN;
+          const host='mail-stage.mftintelligence.com',worker='mmf-private-identity-edge-20261017';
+          const prefix='accounts/'+account+'/access/';
+          const appId='f8ab12fe-251f-44fa-80de-1c2f2bdc4055',launcherId='9dfc2a78-0dae-463b-9235-03ae134be007',idpId='ec04a8ab-9382-4df0-9589-d2c98618e6af';
+          let getCount=0;
+          const report={schema:'mmf-dashboard-existing-connection-getonly-v2',observedAt:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA,
+            cloudflareConnectionVerified:false,accountVerified:false,adminOnly:false,mfaRequired:false,bindingsVerified:false,
+            customDomainVerified:false,previewsDisabled:false,exactDashboardSourceVerified:false,pinnedKeysValid:false,
+            realSending:false,payments:false,customerApi:false,ownerBrowserAcceptance:false,applicationOidcAcceptance:false,
+            cloudflareMutationCount:0,gate:'MMF_EXISTING_CONNECTION_READBACK_INCOMPLETE'};
+          const get=async(path,raw=false)=>{
+            getCount++;
+            const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method:'GET',headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});
+            if(!r.ok||r.redirected)throw Error('MMF_CF_READ_HTTP_'+r.status);
+            const text=await r.text();if(text.length>500000)throw Error('MMF_CF_READ_TOO_BIG');
+            if(raw)return text;
+            const j=JSON.parse(text);if(j.success!==true||!Object.hasOwn(j,'result')||Number(j.result_info?.total_pages||1)>1)throw Error('MMF_CF_READ_INCOMPLETE');return j.result;
           };
-          const out={schema:'mmf-https-gateway-final-real-getonly-20261017',observedAt:new Date().toISOString(),
-            configuredHostname:host,accountVerified:false,appMfaRequired:false,adminOnlyPolicyVerified:false,
-            customDomainBoundToOwnedWorker:false,workersDevAndPreviewsOff:false,identityWorkerSettingsVerified:false,
-            noAnonymousSuccess:false,realBrowserMfaAccepted:false,realOidcLoginVerified:false,
-            noRealCustomerSending:true,noPayments:true,noPublicCustomerApis:true,
-            cfGetCount:0,mutations:0,gate:'MMF_PRIVATE_GATEWAY_NOT_VERIFIED'};
           try{
-            const [zones,org,app,policies,domains,sub,settings,launcher,lp]=await Promise.all([
-              api('zones?name=mftintelligence.com&per_page=100'),api(p+'organizations'),
-              api(p+'apps/'+id),api(p+'apps/'+id+'/policies?per_page=100'),
-              api('accounts/'+a+'/workers/domains?per_page=100'),
-              api('accounts/'+a+'/workers/scripts/'+worker+'/subdomain'),
-              api('accounts/'+a+'/workers/scripts/'+worker+'/settings'),
-              api(p+'apps/9dfc2a78-0dae-463b-9235-03ae134be007'),
-              api(p+'apps/9dfc2a78-0dae-463b-9235-03ae134be007/policies?per_page=100')]);
-            out.accountVerified=zones?.length===1&&zones[0].account?.id===a&&zones[0].status==='active'&&org?.auth_domain==='musitu-axiom.cloudflareaccess.com';
-            out.appMfaRequired=app?.id===id&&app.domain===host&&app.mfa_config?.mfa_disabled===false&&app.mfa_config.allowed_authenticators?.includes('totp')===true;
+            if(process.env.CLOUDFLARE_ACCOUNT_ID!==account||!token||token.length<20)throw Error('MMF_EXISTING_TOKEN_MISSING');
+            const [zones,org,app,policies,launcher,lp,settings,sub,domains,remote]=await Promise.all([
+              get('zones?name=mftintelligence.com&per_page=100'),get(prefix+'organizations'),get(prefix+'apps/'+appId),get(prefix+'apps/'+appId+'/policies?per_page=100'),
+              get(prefix+'apps/'+launcherId),get(prefix+'apps/'+launcherId+'/policies?per_page=100'),
+              get('accounts/'+account+'/workers/scripts/'+worker+'/settings'),get('accounts/'+account+'/workers/scripts/'+worker+'/subdomain'),
+              get('accounts/'+account+'/workers/domains?per_page=100'),get('accounts/'+account+'/workers/scripts/'+worker+'/content/v2',true)]);
+            report.cloudflareConnectionVerified=true;
+            report.accountVerified=zones?.length===1&&zones[0].account?.id===account&&zones[0].status==='active'&&org?.auth_domain==='musitu-axiom.cloudflareaccess.com';
             const email=lp?.[0]?.include?.[0]?.email?.email;
-            out.adminOnlyPolicyVerified=launcher?.type==='app_launcher'&&typeof email==='string'&&email.length>5&&policies?.length===1&&
-              policies[0].decision==='allow'&&policies[0].include?.length===1&&policies[0].include[0].email?.email===email&&
-              policies[0].require?.length===1&&policies[0].require[0].login_method?.id===idp;
-            out.customDomainBoundToOwnedWorker=Array.isArray(domains)&&domains.filter(d=>d.hostname===host&&d.service===worker).length===1;
-            out.workersDevAndPreviewsOff=sub?.enabled===false&&sub?.previews_enabled===false;
-            const b=settings?.bindings;
-            const allowed=['MMF_ACCESS_AUD','MMF_APPROVED_ADMIN_SHA256','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'];
-            out.identityWorkerSettingsVerified=Array.isArray(b)&&b.length===5&&b.every(x=>x.type==='plain_text'&&allowed.includes(x.name))&&
-              ['MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'].every(name=>b.some(x=>x.name===name&&x.text==='false'));
-            if(!out.accountVerified||!out.appMfaRequired||!out.adminOnlyPolicyVerified||!out.customDomainBoundToOwnedWorker||!out.workersDevAndPreviewsOff||!out.identityWorkerSettingsVerified)throw Error('MMF_PRIVATE_CONFIG_READBACK_DRIFT');
-            for(let n=0;n<3;n++){
-              try{
-                const r=await fetch('https://'+host+'/private/gateway',{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(9000)});
-                out.lastAnonymousHttpStatus=r.status;
-                const location=r.headers.get('location')||'';
-                out.accessRedirectObserved=[301,302,303,307,308].includes(r.status)&&
-                   (location.includes('/cdn-cgi/access/')||location.includes('musitu-axiom.cloudflareaccess.com'));
-                out.noAnonymousSuccess=out.accessRedirectObserved||r.status===403||r.status===401;
-                await r.body?.cancel();
-                if(out.noAnonymousSuccess)break;
-              }catch{out.httpsProbeTransportUnavailable=true}
-              if(n<2)await new Promise(res=>setTimeout(res,4000));
+            report.adminOnly=app?.id===appId&&app.type==='self_hosted'&&app.domain===host&&launcher?.type==='app_launcher'&&typeof email==='string'&&email.includes('@')&&
+              policies?.length===1&&policies[0].decision==='allow'&&policies[0].include?.length===1&&policies[0].include[0].email?.email===email&&
+              policies[0].require?.length===1&&policies[0].require[0].login_method?.id===idpId;
+            report.mfaRequired=app.mfa_config?.mfa_disabled===false&&app.mfa_config?.allowed_authenticators?.includes('totp')===true;
+            const b=settings?.bindings,names=['MMF_ACCESS_AUD','MMF_APPROVED_ADMIN_SHA256','MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'];
+            report.bindingsVerified=Array.isArray(b)&&b.length===5&&names.every(name=>b.some(x=>x.name===name&&x.type==='plain_text'))&&
+              b.find(x=>x.name==='MMF_ACCESS_AUD')?.text===app.aud&&
+              typeof email==='string'&&b.find(x=>x.name==='MMF_APPROVED_ADMIN_SHA256')?.text===createHash('sha256').update(email.toLowerCase()).digest('hex')&&
+              ['MMF_REAL_SEND_ENABLED','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED'].every(name=>b.find(x=>x.name===name)?.text==='false');
+            report.customDomainVerified=Array.isArray(domains)&&domains.filter(x=>x.hostname===host&&x.service===worker).length===1;
+            report.previewsDisabled=sub?.enabled===false&&sub?.previews_enabled===false;
+            const match=[...remote.matchAll(/const PINNED_ACCESS_CERTS=Object\.freeze\((\{[^;\n]+\})\);/g)];
+            if(match.length===1){
+              const pins=JSON.parse(match[0][1]);
+              report.pinnedKeysValid=Array.isArray(pins.keys)&&pins.keys.length>0&&pins.keys.length<=5&&Number.isSafeInteger(pins.validUntil)&&pins.validUntil>Date.now()&&pins.validUntil<Date.now()+15*86400000;
+              report.keyCount=Array.isArray(pins.keys)?pins.keys.length:null;
+              report.pinValidUntil=Number.isSafeInteger(pins.validUntil)?new Date(pins.validUntil).toISOString():null;
+              const template=readFileSync('musitu-mail-fabric/src/edge/mmf-access-stage-gateway.mjs','utf8');
+              const marker='const PINNED_ACCESS_CERTS={keys:[],validUntil:0};';
+              report.exactDashboardSourceVerified=template.split(marker).length===2&&remote.includes(template.replace(marker,match[0][0]).trimEnd())&&remote.includes('privateOperatorDashboard')&&remote.includes("u.pathname==='/private/dashboard'");
             }
-            out.gate=out.noAnonymousSuccess?'MMF_REAL_HTTPS_ACCESS_CHALLENGE_VERIFIED_AUTHENTICATED_BROWSER_PENDING':
-              'MMF_HTTPS_CUSTOM_DOMAIN_BOUND_TLS_OR_ANON_PROBE_PENDING';
-          }catch(error){out.gate='MMF_CLOUDFLARE_READBACK_INCOMPLETE';out.reason=/^[A-Z_]+$/.test(error.message)?error.message:'UNKNOWN';}
+            const since=new Date(Date.now()-2*3600000).toISOString(),until=new Date().toISOString();
+            try{
+              const logs=await get(prefix+'logs/access_requests?per_page=100&limit=100&since='+encodeURIComponent(since)+'&until='+encodeURIComponent(until));
+              report.accessLogsReadable=Array.isArray(logs);
+              const matches=Array.isArray(logs)?logs.filter(x=>x.app_uid===appId||x.app_id===appId||x.application?.id===appId):[];
+              report.gatewayEventsLastTwoHours=matches.length;
+              report.gatewayAllowedLastTwoHours=matches.filter(x=>x.allowed===true||x.action==='allow').length;
+              report.gatewayDeniedLastTwoHours=matches.filter(x=>x.allowed===false||x.action==='deny').length;
+            }catch(e){report.accessLogsReadable=false;report.logReadFailure=/^MMF_[A-Z0-9_]+$/.test(e.message)?e.message:'MMF_LOG_READ_UNAVAILABLE';}
+            report.gate=[report.cloudflareConnectionVerified,report.accountVerified,report.adminOnly,report.mfaRequired,report.bindingsVerified,report.customDomainVerified,report.previewsDisabled,report.exactDashboardSourceVerified,report.pinnedKeysValid].every(Boolean)?
+              'MMF_EXISTING_CLOUDFLARE_CONNECTION_AND_DEPLOYED_DASHBOARD_VERIFIED_BROWSER_PENDING':'MMF_EXISTING_CONNECTION_CONFIGURATION_DRIFT';
+          }catch(e){report.failure=/^MMF_[A-Z0-9_]+$/.test(e.message||'')?e.message:'MMF_READ_UNEXPECTED_FAILURE';}
           finally{
-            out.cfGetCount=count;
-            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-private-https-final-proof.json'),JSON.stringify(out,null,2)+'\n',{flag:'wx',mode:0o600});
-            console.log(JSON.stringify({gate:out.gate,domain:out.customDomainBoundToOwnedWorker,
-              mfa:out.appMfaRequired,adminOnly:out.adminOnlyPolicyVerified,workerSubdomainsDisabled:out.workersDevAndPreviewsOff,
-              readback:out.identityWorkerSettingsVerified,anonymousDenied:out.noAnonymousSuccess,status:out.lastAnonymousHttpStatus??null,mutations:0}));
+            report.cfGetCount=getCount;
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-dashboard-existing-connection-getonly.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+            console.log(JSON.stringify(report));
           }
-          if(out.gate!=='MMF_REAL_HTTPS_ACCESS_CHALLENGE_VERIFIED_AUTHENTICATED_BROWSER_PENDING')process.exitCode=2;
+          if(report.gate!=='MMF_EXISTING_CLOUDFLARE_CONNECTION_AND_DEPLOYED_DASHBOARD_VERIFIED_BROWSER_PENDING')process.exitCode=2;
           NODE
-      - name: Preserve only redacted GET-only observations
+      - name: Preserve non-identifying readback proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mmf-private-https-final-getonly-20261017
-          path: ${{ runner.temp }}/mmf-private-https-final-proof.json
+          name: mmf-dashboard-existing-connection-getonly-20261017
+          path: ${{ runner.temp }}/mmf-dashboard-existing-connection-getonly.json
           retention-days: 14
           if-no-files-found: warn
-      - name: Clean ephemeral evidence
+      - name: Remove ephemeral proof
         if: always()
-        run: rm -f "$RUNNER_TEMP/mmf-private-https-final-proof.json"
+        run: rm -f "$RUNNER_TEMP/mmf-dashboard-existing-connection-getonly.json"
