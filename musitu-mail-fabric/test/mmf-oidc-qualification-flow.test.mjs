@@ -176,3 +176,34 @@ test('Worker-compatible manual transport rejects redirects without following or 
  const proof=await s.flow.status();assert.equal(proof.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(proof.tokenRequests,1);
  await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls.length,1);
 });
+test('context diagnostics identify only the rejected rule, preserving denial and never echoing callback values',async()=>{
+ let calls=0;
+ const options={authorize:async()=>{calls++;return true},getFlow:()=>{calls++;throw Error('must-not-reach-state')}};
+ const state='A'.repeat(43),base='/private/oidc/callback?state='+state;
+ const cases=[
+  [request('/private/oidc',{},'POST'),'REQUEST_METHOD'],
+  [new Request('https://untrusted.example/private/oidc'),'REQUEST_URL'],
+  [request(base+'&code='+('x'.repeat(3000))),'REQUEST_URL_LENGTH'],
+  [request('/private/oidc',{forwarded:'host=untrusted.example'}),'FORWARDING_HEADER'],
+  [request('/private/oidc',{range:'bytes=0-10'}),'RANGE_REQUEST'],
+  [request('/private/oidc',{'sec-purpose':'prefetch'}),'PREFETCH_REQUEST'],
+  [request('/private/oidc',{host:'untrusted.example'}),'REQUEST_HOST'],
+  [request('/private/oidc',{'sec-fetch-mode':'cors'}),'FETCH_MODE'],
+  [request('/private/oidc',{'sec-fetch-dest':'iframe'}),'FETCH_DESTINATION'],
+  [request(base+'&error=access_denied&error_description=fixture-sensitive-detail'),'CALLBACK_PROVIDER_ERROR'],
+  [request(base+'&code=fixture-code&code=fixture-other'),'CALLBACK_DUPLICATE_PARAMETER'],
+  [request(base+'&code=fixture-code&iss=https%3A%2F%2Ffixture-issuer.example'),'CALLBACK_UNEXPECTED_PARAMETER'],
+  [request(base),'CALLBACK_MISSING_PARAMETER'],
+  [request('/private/oidc/callback?state=bad-state&code=fixture-code'),'CALLBACK_STATE_FORMAT'],
+  [request(base+'&code=short'),'CALLBACK_CODE_LENGTH'],
+  [request(base+'&code=fixture%2Bcode'),'CALLBACK_CODE_FORMAT'],
+  [request('/private/oidc?extra=fixture-private'),'UNEXPECTED_QUERY'],
+  [request('/private/oidc/qualify',{'sec-fetch-site':'cross-site'}),'CROSS_SITE_INITIATION']
+ ];
+ for(const [req,reason] of cases){
+  const response=await routeMmfOidcQualification(req,options),body=await response.json();
+  assert.equal(response.status,403);assert.deepEqual(body,{error:'MMF_PRIVATE_QUALIFICATION_DENIED',supportCode:'REQUEST_CONTEXT',requestReason:reason,applicationLoginEnabled:false});
+  const encoded=JSON.stringify(body);for(const secret of [state,'fixture-code','fixture-sensitive-detail','fixture-issuer.example','fixture-private'])assert.ok(!encoded.includes(secret));
+ }
+ assert.equal(calls,0,'every failed request rule precedes Access authorization and durable state access');
+});

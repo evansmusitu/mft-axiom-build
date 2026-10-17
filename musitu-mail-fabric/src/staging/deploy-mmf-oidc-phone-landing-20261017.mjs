@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
 import {createHash,createPublicKey,X509Certificate} from 'node:crypto';
 import {createCloudflareMmfPkceQualification} from './mmf-cloudflare-pkce-qualification.mjs';
-const baseline='9185ad7edc48eb6e2073ae14ae26fb2f51c6e3f5';
+const baseline='80979a47719291e1ad040ef96a39a1d7debee6d3';
 const account='93f395f5121954671f92fffa453d6b61',worker='mmf-private-identity-edge-20261017';
 const prefix='accounts/'+account+'/',target=prefix+'workers/scripts/'+worker;
 const access=prefix+'access/',appId='f8ab12fe-251f-44fa-80de-1c2f2bdc4055',oidcId='4ae515a1-189d-41c2-8020-c99ea157b021';

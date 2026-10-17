@@ -1,5 +1,12 @@
 # Private real-provider qualification flow
 
+For REQUEST_CONTEXT denials, requestReason names only the failed rule (method,
+URL/length, forwarding/Host, prefetch/range, fetch metadata, query shape,
+state/code format, provider error response or cross-site initiation). It never
+returns query names/values, code/state lengths, headers, provider error details
+or credentials. The same requests remain accepted or denied as before; this
+diagnostic does not admit extra callback parameters or change Access/MFA.
+
 This bounded harness continues the existing S256 qualification tool without
 collecting authorization codes, cookies or ID tokens in chat. It does not admit
 an application session or qualify the generic discovery module.

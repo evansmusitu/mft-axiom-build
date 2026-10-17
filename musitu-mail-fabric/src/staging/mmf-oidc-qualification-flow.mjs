@@ -122,20 +122,38 @@ export class MmfOidcQualificationFlow {
  * unchanged Access cryptographic gate before any durable state access. */
 export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
  let supportCode='REQUEST_CONTEXT';
+ let requestReason='REQUEST_TYPE';
  try{
   if(!(req instanceof Request)||typeof authorize!=='function'||typeof getFlow!=='function')deny();
   const u=new URL(req.url);
   if(!['/private/oidc','/private/oidc/qualify','/private/oidc/callback','/private/oidc/qualification'].includes(u.pathname))return null;
-  if(req.method!=='GET'||u.origin!==ORIGIN||u.username||u.password||u.hash||u.href.length>3000||
-   req.headers.has('forwarded')||req.headers.has('x-forwarded-host')||req.headers.has('x-original-url')||
-   req.headers.has('range')||req.headers.has('purpose')||req.headers.has('sec-purpose')||
-   req.headers.has('host')&&req.headers.get('host')!==new URL(ORIGIN).hostname)deny();
+  requestReason='REQUEST_METHOD';if(req.method!=='GET')deny();
+  requestReason='REQUEST_URL';if(u.origin!==ORIGIN||u.username||u.password||u.hash)deny();
+  requestReason='REQUEST_URL_LENGTH';if(u.href.length>3000)deny();
+  requestReason='FORWARDING_HEADER';
+  if(req.headers.has('forwarded')||req.headers.has('x-forwarded-host')||req.headers.has('x-original-url'))deny();
+  requestReason='RANGE_REQUEST';if(req.headers.has('range'))deny();
+  requestReason='PREFETCH_REQUEST';if(req.headers.has('purpose')||req.headers.has('sec-purpose'))deny();
+  requestReason='REQUEST_HOST';if(req.headers.has('host')&&req.headers.get('host')!==new URL(ORIGIN).hostname)deny();
   const site=req.headers.get('sec-fetch-site'),mode=req.headers.get('sec-fetch-mode'),dest=req.headers.get('sec-fetch-dest');
-  if(mode&&mode!=='navigate'||dest&&dest!=='document')deny();
+  requestReason='FETCH_MODE';if(mode&&mode!=='navigate')deny();
+  requestReason='FETCH_DESTINATION';if(dest&&dest!=='document')deny();
   if(u.pathname==='/private/oidc/callback'){
-   if(u.searchParams.size!==2||u.searchParams.getAll('state').length!==1||u.searchParams.getAll('code').length!==1||
-    !TOKEN.test(u.searchParams.get('state')||'')||!CODE.test(u.searchParams.get('code')||''))deny();
-  }else if(u.search||u.pathname!=='/private/oidc'&&site&&!['same-origin','none'].includes(site))deny();
+   requestReason='CALLBACK_PROVIDER_ERROR';if(u.searchParams.has('error'))deny();
+   requestReason='CALLBACK_DUPLICATE_PARAMETER';
+   if([...u.searchParams.keys()].some(key=>u.searchParams.getAll(key).length>1))deny();
+   requestReason='CALLBACK_UNEXPECTED_PARAMETER';
+   if([...u.searchParams.keys()].some(key=>!['state','code'].includes(key)))deny();
+   requestReason='CALLBACK_MISSING_PARAMETER';
+   if(u.searchParams.size!==2||u.searchParams.getAll('state').length!==1||u.searchParams.getAll('code').length!==1)deny();
+   requestReason='CALLBACK_STATE_FORMAT';if(!TOKEN.test(u.searchParams.get('state')||''))deny();
+   const code=u.searchParams.get('code')||'';
+   requestReason='CALLBACK_CODE_LENGTH';if(code.length<8||code.length>2048)deny();
+   requestReason='CALLBACK_CODE_FORMAT';if(!CODE.test(code))deny();
+  }else{
+   requestReason='UNEXPECTED_QUERY';if(u.search)deny();
+   requestReason='CROSS_SITE_INITIATION';if(u.pathname!=='/private/oidc'&&site&&!['same-origin','none'].includes(site))deny();
+  }
   supportCode='ACCESS_GATE';
   if(!await authorize(req))deny();
   if(u.pathname==='/private/oidc')return landing();
@@ -151,5 +169,6 @@ export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
    return redirect(ORIGIN+'/private/oidc/qualification',done.setCookie);
   }
   return json(await flow.status());
- }catch{return json({error:'MMF_PRIVATE_QUALIFICATION_DENIED',supportCode,applicationLoginEnabled:false},403)}
+ }catch{return json({error:'MMF_PRIVATE_QUALIFICATION_DENIED',supportCode,
+  ...(supportCode==='REQUEST_CONTEXT'?{requestReason}:{}),applicationLoginEnabled:false},403)}
 }
