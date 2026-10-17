@@ -1,0 +1,38 @@
+name: MUSITU Studio — Legitimate Machine User-Agent Compatibility
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-callback-useragent-probe.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Identify accepted HTTP user-agent for owned callback endpoint
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,json
+          base="https://studio-callback.mftintelligence.com/internal/callback"
+          variants={
+            "curl":"curl/8.5.0",
+            "studio_machine":"MUSITU-Enterprise-Studio/0.8 (+https://studio.mftintelligence.com)",
+            "browser_compatible_studio":"Mozilla/5.0 (compatible; MUSITU-Enterprise-Studio/0.8; +https://studio.mftintelligence.com)",
+            "standard_chrome":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+          }
+          reports=[]
+          for label,user_agent in variants.items():
+            req=urllib.request.Request(base,data=b'{}',method='POST',headers={
+              "User-Agent":user_agent,"Accept":"application/json","Content-Type":"application/json"})
+            try:
+              with urllib.request.urlopen(req,timeout=16) as resp:
+                code=resp.status;body=resp.read(120)
+            except urllib.error.HTTPError as ex:
+              code=ex.code;body=ex.read(120)
+            except Exception as ex:
+              code=type(ex).__name__;body=b''
+            reports.append({"agent":label,"status":code,
+                            "json_response":body.lstrip().startswith(b'{'),
+                            "bic_1010":b'1010' in body})
+          print("STUDIO_CALLBACK_USER_AGENT_COMPARISON="+json.dumps(reports,sort_keys=True))
+          PY
