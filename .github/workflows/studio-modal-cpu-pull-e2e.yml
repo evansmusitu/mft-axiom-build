@@ -1,0 +1,42 @@
+name: MUSITU Studio — Real Modal CPU Pull-Mode E2E
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_modal_cpu_pull_e2e.py'
+      - '.github/workflows/studio-modal-cpu-pull-e2e.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-modal-pull-cpu-only
+  cancel-in-progress: false
+jobs:
+  live-modal-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify immutable submitter code
+        run: python -m py_compile ops/studio_modal_cpu_pull_e2e.py
+      - name: Install read-only Modal client for verified Studio endpoint lookup
+        run: python -m pip install -q --disable-pip-version-check 'modal>=1.5,<2'
+      - name: Submit one real Blender CPU job, poll and integrity-check exported files
+        run: python ops/studio_modal_cpu_pull_e2e.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-live-modal-cpu-pull-verified
+          path: |
+            studio-modal-cpu-pull-evidence.json
+            studio-pull-proof/scene.blend
+            studio-pull-proof/scene.glb
+            studio-pull-proof/preview.png
+          retention-days: 7
+          if-no-files-found: warn
