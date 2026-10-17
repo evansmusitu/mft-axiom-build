@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/studio-cloudflare-modal-readonly.yml'
       - 'ops/studio_live_readonly_probe.py'
+      - 'ops/studio_cloudflare_readonly_diagnostic.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -33,6 +34,16 @@ jobs:
         run: |
           set -euo pipefail
           python ops/studio_live_readonly_probe.py
+      - name: Diagnose Cloudflare credential scopes via GET only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python ops/studio_cloudflare_readonly_diagnostic.py
       - name: Verify fail-closed spending and no live deployment
         run: |
           python - <<'PY'
@@ -48,6 +59,8 @@ jobs:
         if: always()
         with:
           name: musitu-studio-live-provider-readonly-inventory
-          path: studio-provider-readonly.json
+          path: |
+            studio-provider-readonly.json
+            studio-cloudflare-connection-diagnostic.json
           retention-days: 7
           if-no-files-found: warn
