@@ -1,0 +1,64 @@
+name: MUSITU Studio — Isolated Locked Cloudflare Worker Deployment
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['ops/studio_worker_shell_deploy.py','.github/workflows/studio-worker-shell-deploy.yml']
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-cloudflare-worker-isolated
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify dedicated Worker names and compile edge API
+        run: |
+          set -euo pipefail
+          cd musitu_studio/edge
+          npm install --no-audit --no-fund
+          npm test
+          npm run check
+      - name: Resolve live dedicated Modal endpoint
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'modal>=1.5,<2'
+          python - <<'PY' >> "$GITHUB_ENV"
+          import modal
+          url=modal.Function.from_name("musitu-studio-v02","submit_asgi").get_web_url()
+          if not url or not url.startswith("https://") or not url.endswith(".modal.run"):
+            raise SystemExit("MODAL_URL_INVALID")
+          print("STUDIO_MODAL_ENDPOINT="+url.rstrip("/")+"/jobs")
+          PY
+      - name: Deploy new locked Worker without D1 and configure isolated secrets
+        run: python ops/studio_worker_shell_deploy.py
+      - name: Probe live Worker enforces Access boundary (untrusted browser denied)
+        run: |
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error
+          x=json.loads(pathlib.Path("studio-live-worker.json").read_text())
+          uri=x["workers_dev_url"]+"/"
+          try:
+            with urllib.request.urlopen(uri,timeout=45) as r:code=r.status
+          except urllib.error.HTTPError as e:code=e.code
+          if code!=403:raise SystemExit("WORKER_ACCESS_BOUNDARY_EXPECTED_403_GOT_"+str(code))
+          print("STUDIO_WORKER_LIVE_ACCESS_DENIED_UNAUTH_403")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-locked-worker-live
+          path: studio-live-worker.json
+          retention-days: 14
+          if-no-files-found: warn
