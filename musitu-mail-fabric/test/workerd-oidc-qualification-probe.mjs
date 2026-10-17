@@ -80,13 +80,15 @@ try{
  const url=origin+'/private/oidc/callback?state='+auth.searchParams.get('state')+'&code=fixture-workerd-code';
  const callback=await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}});
  assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),origin+'/private/oidc/qualification');
- const result=await (await dispatch(origin+'/private/oidc/qualification',{headers})).json();
+ const resultResponse=await dispatch(origin+'/private/oidc/qualification',{headers:{...headers,'sec-fetch-site':'cross-site'}});
+ assert.equal(resultResponse.status,200,'provider redirect chain must be able to read authorized status');
+ const result=await resultResponse.json();
  if(result.status!=='QUALIFICATION_PASSED')throw Error('MMF_WORKERD_FIXTURE_TOKEN_CHECK_FAILED_'+JSON.stringify({result,stubRequests:requests}));
  assert.equal(result.pkceAndSignedMfaVerified,true);assert.equal(result.sessionCreated,false);
  assert.equal(requests,3);
  assert.equal((await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}})).status,403);assert.equal(requests,3);
  const proof={schema:'mmf-local-workerd-qualification-probe-v1',result:'PASS',fixtureKeysOnly:true,realIdentityProviderContacted:false,
-  anonymousDenied:true,authenticatedCrossSiteLanding:true,crossSiteInitiationDenied:true,sqliteStateAndRpc:true,
+  anonymousDenied:true,authenticatedCrossSiteLanding:true,authenticatedCrossSiteStatus:true,crossSiteInitiationDenied:true,sqliteStateAndRpc:true,
   fixtureS256AndSignedMfa:true,replayDenied:true,applicationSessionCreated:false,tokenRequestsToLocalStub:requests};
  console.log(JSON.stringify(proof));
  if(process.env.RUNNER_TEMP)writeFileSync(join(process.env.RUNNER_TEMP,'mmf-local-workerd-qualification-proof.json'),JSON.stringify(proof,null,2)+'\n');

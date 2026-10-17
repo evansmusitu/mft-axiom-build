@@ -118,11 +118,29 @@ test('real Access signature and administrator check precede flow state access; u
  const options={authorize:async req=>(await gate.fetch(new Request(origin+'/private/gateway',{headers:req.headers}))).status===200,
   getFlow:()=>{states++;return {status:async()=>({applicationLoginEnabled:false})}}};
  for(const token of ['', 'invalid',signed('wrong@example.com')]){
-  assert.equal((await routeMmfOidcQualification(request('/private/oidc/qualification',{'cf-access-jwt-assertion':token}),options)).status,403);
+  assert.equal((await routeMmfOidcQualification(request('/private/oidc/qualification',{'cf-access-jwt-assertion':token,'sec-fetch-site':'cross-site'}),options)).status,403);
  }
  assert.equal(states,0);
- const good=await routeMmfOidcQualification(request('/private/oidc/qualification',{'cf-access-jwt-assertion':signed(email)}),options);
+ const good=await routeMmfOidcQualification(request('/private/oidc/qualification',{'cf-access-jwt-assertion':signed(email),'sec-fetch-site':'cross-site'}),options);
  assert.equal(good.status,200);assert.equal(states,1);assert.equal(good.headers.get('cache-control'),'no-store');
+});
+test('cross-site redirect result navigation reads status only behind the administrator gate',async()=>{
+ let authorized=false,reads=0;
+ const options={authorize:async()=>authorized,getFlow:()=>({
+  status:async()=>{reads++;return {attempted:false,applicationLoginEnabled:false}},
+  begin:()=>{throw Error('must-not-create-state')},callback:()=>{throw Error('must-not-exchange-code')}
+ })};
+ const headers={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+ const path='/private/oidc/qualification';
+ assert.equal((await routeMmfOidcQualification(request(path,headers),options)).status,403);assert.equal(reads,0);
+ authorized=true;
+ const response=await routeMmfOidcQualification(request(path,headers),options);
+ assert.equal(response.status,200);assert.equal((await response.json()).attempted,false);assert.equal(reads,1);
+ assert.equal(response.headers.get('cache-control'),'no-store');assert.equal(response.headers.has('set-cookie'),false);
+ for(const rejected of [request('/private/oidc/qualify',headers),request(path,{...headers,'sec-fetch-mode':'cors'}),
+  request(path,{...headers,'sec-fetch-dest':'iframe'}),request(path+'?extra=1',headers)])
+  assert.equal((await routeMmfOidcQualification(rejected,options)).status,403);
+ assert.equal(reads,1);
 });
 test('HTTP callback removes sensitive query via redirect and never echoes code, state, cookies or provider tokens',async()=>{
  const s=await setup();

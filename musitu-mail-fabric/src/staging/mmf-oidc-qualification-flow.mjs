@@ -152,7 +152,7 @@ export async function routeMmfOidcQualification(req,{authorize,getFlow}={}){
    requestReason='CALLBACK_CODE_FORMAT';if(!CODE.test(code))deny();
   }else{
    requestReason='UNEXPECTED_QUERY';if(u.search)deny();
-   requestReason='CROSS_SITE_INITIATION';if(u.pathname!=='/private/oidc'&&site&&!['same-origin','none'].includes(site))deny();
+   requestReason='CROSS_SITE_INITIATION';if(u.pathname==='/private/oidc/qualify'&&site&&!['same-origin','none'].includes(site))deny();
   }
   supportCode='ACCESS_GATE';
   if(!await authorize(req))deny();

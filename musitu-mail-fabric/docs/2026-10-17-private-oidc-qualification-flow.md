@@ -4,8 +4,8 @@ For REQUEST_CONTEXT denials, requestReason names only the failed rule (method,
 URL/length, forwarding/Host, prefetch/range, fetch metadata, query shape,
 state/code format, provider error response or cross-site initiation). It never
 returns query names/values, code/state lengths, headers, provider error details
-or credentials. The same requests remain accepted or denied as before; this
-diagnostic does not admit extra callback parameters or change Access/MFA.
+or credentials. This diagnostic does not admit extra callback parameters or
+change Access/MFA.
 
 This bounded harness continues the existing S256 qualification tool without
 collecting authorization codes, cookies or ID tokens in chat. It does not admit
@@ -28,6 +28,15 @@ Continue to secure sign-in link starts qualification. Direct cross-site calls
 to the start route remain denied. Safe enumerated support codes distinguish
 request context, Access gate and flow availability/operation failures without
 returning credentials or raw provider exceptions.
+
+The read-only status route also accepts authenticated top-level cross-site GET
+navigation. A browser can retain cross-site fetch metadata across the provider's
+redirect chain. Only sanitized status is read: this route cannot start a flow,
+exchange a code or create a session/cookie. The signed administrator gate and
+method, host, query, fetch-mode/destination and prefetch guards still apply.
+Cross-site initiation remains denied. Unit tests and the local workerd probe
+cover cross-site result navigation, unsigned/non-admin rejection and denied
+cross-site initiation; fixture results do not qualify real provider behavior.
 
 Worker transport uses manual redirect handling and rejects all 3xx responses
 before any follow-up request. workerd does not support redirect:error; this
@@ -61,8 +70,10 @@ the existing MMF Worker. It adds one private Durable Object binding and SQLite
 class migration, enables Node compatibility for the existing crypto verifier,
 and pins the real OIDC public key against the authenticated Access app certificate.
 Access policies, MFA, domain, five existing bindings and disabled previews are
-read back independently. Worker observability/logpush remain disabled; callback
-query redaction is enabled. No credentials are logged or stored in source.
+read back independently. The upload requests disabled observability and callback query redaction; the
+read API omits its optional observability object, so those settings are not
+independently confirmed. Logpush is false and tails are empty on readback.
+No credentials are logged or stored in source.
 
 The one-shot workflow is pinned to the exact source commit before it. A rejected
 write or any source/settings drift stops the release; do not force, remove drift
