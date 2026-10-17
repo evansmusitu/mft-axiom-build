@@ -1,0 +1,32 @@
+name: MUSITU Studio — Independent R2 Bucket Provision
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['ops/studio_r2_only.py','.github/workflows/studio-r2-only.yml']
+permissions: {contents: read}
+jobs:
+  r2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Create or verify only dedicated Studio R2 bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_WORKERS_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_TOKEN }}
+          CF_WORKERS_TOKEN: ${{ secrets.CF_WORKERS_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python ops/studio_r2_only.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-r2-only-status
+          path: studio-r2-only.json
+          if-no-files-found: warn
+          retention-days: 7
