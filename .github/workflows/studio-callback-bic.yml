@@ -1,0 +1,24 @@
+name: MUSITU Studio — Callback-only Browser Integrity Exception
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['ops/studio_callback_bic_rule.py','.github/workflows/studio-callback-bic.yml']
+permissions: {contents: read}
+jobs:
+  provision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip only Browser Integrity Check for signed Studio callback POST path
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_callback_bic_rule.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-callback-bic-route-scope
+          path: studio-callback-bic.json
+          retention-days: 10
+          if-no-files-found: warn
