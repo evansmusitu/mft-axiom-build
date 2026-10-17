@@ -7,19 +7,33 @@ ACCOUNT="93f395f5121954671f92fffa453d6b61"
 NAME="musitu-studio-v02"
 BUCKET=NAME+"-assets"
 def call(method,path,body=None):
-  key=os.environ.get("CLOUDFLARE_API_TOKEN") or os.environ.get("CF_API_TOKEN")
-  if not key:raise RuntimeError("CLOUDFLARE_SCOPED_TOKEN_REQUIRED")
-  data=None if body is None else json.dumps(body).encode()
-  req=urllib.request.Request(API+path,data=data,method=method,
-    headers={"Authorization":"Bearer "+key,"Accept":"application/json","Content-Type":"application/json"})
-  try:
-    with urllib.request.urlopen(req,timeout=40) as r:
-      response=json.load(r)
-      if not response.get("success"):raise RuntimeError("CLOUDFLARE_"+method+"_REJECTED")
-      return response.get("result")
-  except urllib.error.HTTPError as exc:
-    # Return no Cloudflare error body because it may include account internals.
-    raise RuntimeError("CLOUDFLARE_"+method+"_HTTP_"+str(exc.code)) from None
+  methods=[]
+  for k in ("CLOUDFLARE_API_TOKEN","CF_API_TOKEN","CLOUDFLARE_TOKEN",
+            "CLOUDFLARE_DEPLOY_TOKEN","CLOUDFLARE_WORKERS_TOKEN","CF_WORKERS_TOKEN"):
+    v=os.environ.get(k)
+    if v and v not in [t[1] for t in methods]:methods.append((k,v))
+  legacy=os.environ.get("CLOUDFLARE_GLOBAL_API_KEY")
+  email=os.environ.get("CLOUDFLARE_EMAIL")
+  if not methods and not (legacy and email):raise RuntimeError("CLOUDFLARE_PROVIDER_CREDENTIALS_MISSING")
+  last_error="NO_AUTHORIZED_CREDENTIAL"
+  for kind,value in methods+[("LEGACY_GLOBAL_API_KEY",legacy)] if legacy and email else methods:
+    headers={"Content-Type":"application/json","Accept":"application/json"}
+    if kind=="LEGACY_GLOBAL_API_KEY":
+      headers.update({"X-Auth-Email":email,"X-Auth-Key":value})
+    else:headers["Authorization"]="Bearer "+value
+    data=None if body is None else json.dumps(body).encode()
+    req=urllib.request.Request(API+path,data=data,method=method,headers=headers)
+    try:
+      with urllib.request.urlopen(req,timeout=40) as r:
+        response=json.load(r)
+        if not response.get("success"):raise RuntimeError("CLOUDFLARE_"+method+"_REJECTED")
+        return response.get("result")
+    except urllib.error.HTTPError as exc:
+      last_error="CLOUDFLARE_"+method+"_HTTP_"+str(exc.code)
+      if exc.code in (401,403):continue
+      raise RuntimeError(last_error) from None
+  raise RuntimeError(last_error)
+
 def main():
   acc=call("GET","/accounts/"+ACCOUNT)
   if acc.get("id")!=ACCOUNT:raise RuntimeError("CLOUDFLARE_ACCOUNT_MISMATCH")
