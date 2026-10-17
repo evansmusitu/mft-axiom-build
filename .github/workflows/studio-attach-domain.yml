@@ -1,0 +1,45 @@
+name: MUSITU Studio — Dedicated Hostname Attachment
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_attach_domain.py'
+      - '.github/workflows/studio-attach-domain.yml'
+permissions: {contents: read}
+concurrency:
+  group: studio-custom-domain-only
+  cancel-in-progress: false
+jobs:
+  attach:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attach new dedicated Studio domain to existing isolated Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_attach_domain.py
+      - name: Check production Access login enforcement from public internet
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error
+          url="https://studio.mftintelligence.com/"
+          try:
+              with urllib.request.urlopen(url,timeout=45) as resp:
+                  code=resp.status
+                  location=resp.geturl()
+          except urllib.error.HTTPError as error:
+              code=error.code;location=error.geturl()
+          print("STUDIO_PUBLIC_ANONYMOUS_STATUS="+str(code))
+          if code not in (302,303,307,308,401,403):
+              raise SystemExit("STUDIO_ACCESS_PUBLIC_BOUNDARY_FAILURE")
+          print("STUDIO_ANONYMOUS_ACCESS_BLOCKED")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-live-custom-domain
+          path: studio-hostname.json
+          if-no-files-found: warn
+          retention-days: 14
