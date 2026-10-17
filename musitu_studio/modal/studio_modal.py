@@ -94,10 +94,11 @@ def run_render(job_id,scene_json,sha,device):
 def render_cpu(job_id:str,scene_json:str,input_sha256:str):
     return run_render(job_id,scene_json,input_sha256,"CPU")
 
-@APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
-              min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
-def render_gpu(job_id:str,scene_json:str,input_sha256:str):
-    return run_render(job_id,scene_json,input_sha256,"GPU")
+if os.environ.get("STUDIO_REGISTER_GPU_FUNCTIONS")=="1":
+    @APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
+                  min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
+    def render_gpu(job_id:str,scene_json:str,input_sha256:str):
+        return run_render(job_id,scene_json,input_sha256,"GPU")
 
 # Use FastAPI ASGI for exact HTTP header enforcement and body-size limits.
 @APP.function(image=IMAGE,secrets=SECRETS,cpu=0.25,memory=512,
@@ -122,8 +123,9 @@ def submit_asgi():
             verify_request(jid,scene_json,sha,device)
         except (KeyError,ValueError,TypeError) as exc:
             raise HTTPException(400,"INVALID_SUBMISSION") from exc
-        if device == "GPU" and os.getenv("STUDIO_GPU_GATE_ON_MODAL") != "1":
-            raise HTTPException(status_code=503, detail="GPU_GATE_CLOSED")
+        if device == "GPU" and (os.getenv("STUDIO_GPU_GATE_ON_MODAL") != "1"
+                                or os.getenv("STUDIO_REGISTER_GPU_FUNCTIONS")!="1"):
+            raise HTTPException(status_code=503, detail="GPU_ENTITLEMENT_NOT_READY")
         fn=render_gpu if device=="GPU" else render_cpu
         try:
             await fn.spawn.aio(jid,scene_json,sha)
@@ -186,7 +188,8 @@ def _smoke_render(device):
 def smoke_cpu():
     return _smoke_render("CPU")
 
-@APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
-              min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
-def smoke_gpu():
-    return _smoke_render("GPU")
+if os.environ.get("STUDIO_REGISTER_GPU_FUNCTIONS")=="1":
+    @APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
+                  min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
+    def smoke_gpu():
+        return _smoke_render("GPU")
