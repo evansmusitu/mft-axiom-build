@@ -124,7 +124,7 @@ async function callback(req,env){
 }
 async function api(req,env,url){
   if(req.method==='POST'&&url.pathname==='/internal/callback')return callback(req,env);
-  if(!auth(req,env))return err('UNAUTHORIZED',401);
+  if(env.STUDIO_ACCESS_ONLY_ADMIN!=='true'&&!auth(req,env))return err('UNAUTHORIZED',401);
   if(!env.STUDIO_ASSETS||!env.STUDIO_ADMIN_TOKEN||env.STUDIO_ADMIN_TOKEN.length<32)return err('STUDIO_NOT_CONFIGURED',503);
   if(req.method==='GET'&&url.pathname==='/api/status')return json({
     ok:true,product:'MUSITU Studio',version:'0.8-r2-pilot',
