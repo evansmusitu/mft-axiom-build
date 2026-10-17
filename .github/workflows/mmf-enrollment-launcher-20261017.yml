@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   diagnostic:
-    if: github.event.before == '2a8c74a90ae2439e8a4dc330c146882cffc4cca6'
+    if: github.event.before == 'be8bf86e61c314e4b2c12fc0a9875510c40b9acd'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -26,9 +26,9 @@ jobs:
           if(main.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||pr.state!=='open'||!pr.draft||pr.merged)throw Error('PROTECTED_REFS_DRIFT');
           console.log('PROTECTED_REFS_PRESERVED');
           NODE
-      - name: Prepare private enrollment input transfer
+      - name: Configure sole administrator enrollment launcher
         env:
-          MMF_ENROLLMENT_MODE: prepare
+          MMF_ENROLLMENT_MODE: configure
           CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           MMF_EVIDENCE_PUBLIC_KEY: |
