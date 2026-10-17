@@ -1,0 +1,30 @@
+name: MUSITU Studio Provider Deployment Preflight
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_deploy_preflight.py'
+      - '.github/workflows/studio-deploy-preflight.yml'
+permissions: {contents: read}
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'modal>=1.5,<2'
+      - name: Read exact Axiom-linked account and Studio-only namespace
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: python ops/studio_deploy_preflight.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-live-deploy-preflight
+          path: studio-deploy-preflight.json
+          if-no-files-found: error
+          retention-days: 7
