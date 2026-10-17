@@ -30,6 +30,16 @@ def main():
      entry["existing_axiom_candidate_count"]=sum(1 for a in records if isinstance(a,dict) and (
         "axiom" in str(a.get("name","")).lower() or "axiom" in str(a.get("domain","")).lower()))
      entry["studio_access_app_exists"]=any(isinstance(a,dict) and a.get("domain")==HOST for a in records)
+     entry["axiom_policy_shapes"]=[
+        {"name":str(a.get("name",""))[:60],
+         "domain":str(a.get("domain",""))[:80],
+         "type":a.get("type"),
+         "policies":len(a.get("policies") or []),
+         "allowed":sum(1 for p in a.get("policies",[]) if isinstance(p,dict) and p.get("decision")=="allow"),
+         "rule_types":sorted({k for p in a.get("policies",[]) if isinstance(p,dict)
+                             for rule in p.get("include",[]) if isinstance(rule,dict) for k in rule})}
+        for a in records if isinstance(a,dict) and "axiom" in str(a.get("name","")).lower()
+     ]
     if key=="workers_subdomain" and isinstance(records,dict):
      entry["available"]=bool(records.get("subdomain"))
     if key in ("d1","r2"):
