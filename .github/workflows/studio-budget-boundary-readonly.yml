@@ -1,0 +1,40 @@
+name: MUSITU Studio — Billing Boundary Read-only Probe
+on:
+  push:
+    branches:
+      - experiments/studio-hard-budget-scope-readonly-20261017
+    paths:
+      - 'ops/studio_budget_boundary_readonly.py'
+      - '.github/workflows/studio-budget-boundary-readonly.yml'
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install --disable-pip-version-check -q 'modal>=1.5,<2'
+      - name: Inspect existing workspace settings and Cloudflare subscription categories without writes
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_budget_boundary_readonly.py
+      - name: Enforce no deployment and no spend proof
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('studio-budget-boundary.json'))
+          assert r['read_only'] and r['billing_changes'] is False
+          assert r['modal_compute_launched'] is False
+          assert r['zero_out_of_pocket_proven'] is False
+          print('STUDIO_PRODUCTION_NO_GO_UNTIL_PROVIDER_HARD_CAP_PROVEN')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-provider-budget-boundary
+          path: studio-budget-boundary.json
+          retention-days: 7
