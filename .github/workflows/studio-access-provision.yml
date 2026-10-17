@@ -1,0 +1,26 @@
+name: MUSITU Studio — Isolated Staff-Only Cloudflare Access Application
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['ops/studio_access_provision.py','.github/workflows/studio-access-provision.yml']
+permissions: {contents: read}
+jobs:
+  provision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Create dedicated Studio staff-only Cloudflare Access app, clone Axiom operator emails
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_access_provision.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-cloudflare-staff-access
+          path: studio-access-app.json
+          retention-days: 14
+          if-no-files-found: warn
