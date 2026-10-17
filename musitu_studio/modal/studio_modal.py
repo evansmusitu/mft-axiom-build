@@ -55,7 +55,7 @@ def deliver(callback):
     with urllib.request.urlopen(req,timeout=30) as resp:
         if resp.status!=200:raise RuntimeError("CALLBACK_REJECTED")
 
-def run_render(job_id,scene_json,sha,device):
+def run_render(job_id,scene_json,sha,device,callback_enabled=True):
     from importlib.machinery import SourceFileLoader
     check=SourceFileLoader("verify_outputs","/opt/verify_outputs.py").load_module()
     verify_request(job_id,scene_json,sha,device)
@@ -84,18 +84,28 @@ def run_render(job_id,scene_json,sha,device):
             if total>5000000:raise RuntimeError("OUTPUT_TOO_LARGE_FOR_CALLBACK_V02")
             files=[{"name":name,"data_base64":base64.b64encode(data).decode(),
                     "sha256":digest} for name,(data,digest) in artifacts.items()]
-            deliver({"job_id":job_id,"input_sha256":sha,"state":"COMPLETED",
-                     "gpu_verified":evidence["gpu_verified"],"files":files})
-            return {"result":"DELIVERED","gpu_verified":evidence["gpu_verified"]}
+            if callback_enabled:
+                deliver({"job_id":job_id,"input_sha256":sha,"state":"COMPLETED",
+                         "gpu_verified":evidence["gpu_verified"],"files":files})
+                return {"result":"DELIVERED","gpu_verified":evidence["gpu_verified"]}
+            return {"result":"FINISHED","gpu_verified":evidence["gpu_verified"],"files":files,
+                    "input_sha256":sha,"job_id":job_id}
     except Exception as exc:
-        try:deliver({"job_id":job_id,"input_sha256":sha,"state":"FAILED","error":type(exc).__name__})
-        except Exception:pass
+        if callback_enabled:
+            try:deliver({"job_id":job_id,"input_sha256":sha,"state":"FAILED","error":type(exc).__name__})
+            except Exception:pass
         raise
 
 @APP.function(image=IMAGE,secrets=SECRETS,cpu=2,memory=4096,
               min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
 def render_cpu(job_id:str,scene_json:str,input_sha256:str):
     return run_render(job_id,scene_json,input_sha256,"CPU")
+
+@APP.function(image=IMAGE,secrets=SECRETS,cpu=2,memory=4096,
+              min_containers=0,max_containers=1,timeout=240,scaledown_window=10)
+def render_cpu_pull(job_id:str,scene_json:str,input_sha256:str):
+    """Return verified small Blender files through authenticated Modal polling."""
+    return run_render(job_id,scene_json,input_sha256,"CPU",callback_enabled=False)
 
 if os.environ.get("STUDIO_REGISTER_GPU_FUNCTIONS")=="1":
     @APP.function(image=IMAGE,secrets=SECRETS,gpu="T4",cpu=2,memory=8192,
@@ -139,6 +149,51 @@ def submit_asgi():
         except Exception as exc:
             raise HTTPException(status_code=503, detail="MODAL_DISPATCH_UNAVAILABLE") from exc
         return {"ok":True,"accepted":True,"job_id":jid}
+    @app.post("/jobs/pull")
+    async def jobs_pull(req:Request):
+        expected=os.environ.get("STUDIO_MODAL_CONTROL_KEY","")
+        key=req.headers.get("x-studio-control-key","")
+        if len(expected)<32 or not hmac.compare_digest(key,expected):
+            raise HTTPException(401,"UNAUTHORIZED")
+        if os.getenv("STUDIO_BILLING_GUARD_APPROVED")!="1":
+            raise HTTPException(503,"BILLING_GUARD_CLOSED")
+        raw=await req.body()
+        if len(raw)>90000:raise HTTPException(413,"TOO_LARGE")
+        try:
+            b=json.loads(raw)
+            device=b["device"];scene_json=b["scene_json"]
+            sha=b["input_sha256"];jid=b["job_id"]
+            if device!="CPU":raise HTTPException(503,"GPU_ENTITLEMENT_UNAVAILABLE")
+            verify_request(jid,scene_json,sha,device)
+        except HTTPException:raise
+        except (ValueError,TypeError,KeyError) as exc:
+            raise HTTPException(400,"INVALID_SUBMISSION") from exc
+        try:
+            call=await render_cpu_pull.spawn.aio(jid,scene_json,sha)
+        except Exception as exc:
+            raise HTTPException(503,"MODAL_SPAWN_FAILED") from exc
+        return {"ok":True,"accepted":True,"job_id":jid,"call_id":call.object_id}
+
+    @app.get("/jobs/pull/{call_id}")
+    async def job_result(call_id:str,req:Request):
+        import re
+        expected=os.environ.get("STUDIO_MODAL_CONTROL_KEY","")
+        key=req.headers.get("x-studio-control-key","")
+        if len(expected)<32 or not hmac.compare_digest(key,expected):
+            raise HTTPException(401,"UNAUTHORIZED")
+        if not re.fullmatch(r"fc-[A-Za-z0-9_-]{8,128}",call_id):
+            raise HTTPException(400,"INVALID_CALL_ID")
+        try:
+            handle=modal.FunctionCall.from_id(call_id)
+            result=await handle.get.aio(timeout=0)
+        except Exception as exc:
+            if "timeout" in type(exc).__name__.lower():
+                from fastapi.responses import JSONResponse
+                return JSONResponse({"ok":True,"state":"RUNNING"},status_code=202)
+            raise HTTPException(503,"MODAL_RESULT_UNAVAILABLE") from exc
+        if not isinstance(result,dict) or result.get("result")!="FINISHED":
+            raise HTTPException(503,"MODAL_RESULT_INVALID")
+        return {"ok":True,"state":"COMPLETED","result":result}
     return app
 
 
