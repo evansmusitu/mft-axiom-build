@@ -17,7 +17,7 @@ def main():
   good=[a for a in z if a.get("name")=="mftintelligence.com" and (a.get("account") or {}).get("id")==ACCOUNT] if isinstance(z,list) else []
   if len(good)==1:
    out["zone_verified"]=True
-   q,r=get("/zones/"+good[0]["id"]+"/pagerules?per_page=100",token)
+   q,r=get("/zones/"+good[0]["id"]+"/pagerules",token)
    out["page_rules_status"]="AUTHORIZED" if q==200 else "HTTP_"+str(q)
    if isinstance(r,list):
     out["count"]=len(r)
