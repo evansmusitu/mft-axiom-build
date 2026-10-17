@@ -65,3 +65,20 @@ Reference guides: https://docs.360dialog.com/docs/hub/embedded-signup/coexistenc
 **Next owner checkpoint:** establish that the Business app has been used for at least 7 days; check country/number eligibility with a Meta-approved provider's **read-only / pre-enrollment eligibility** process without accepting charges or number linking. Continue sandbox `messages` webhook testing independently.
 
 **MFT EDUCATION NEXUS | WhatsApp 0781572008**
+
+
+## October 17 owner verification and Coexistence cost/eligibility checkpoint
+
+The owner explicitly confirmed that `+263781572008` has used the official **WhatsApp Business mobile application for more than seven days**. This satisfies the stated seven-day account-tenure prerequisite described by 360dialog, but **is not sufficient proof that the actual number is eligible**. Eligibility still depends on Meta-controlled country rollout, account history/quality, phone app version and an approved provider's dedicated Embedded Signup configuration.
+
+Relevant current provider references:
+- Coexistence onboarding details and explicit 7-day requirement: https://docs.360dialog.com/docs/hub/embedded-signup/coexistence-onboarding
+- 8x8's published eligibility summary does **not** independently certify Zimbabwe +263: https://developer.8x8.com/connect/docs/whatsapp/whatsapp-business-app-coexistence/
+- Meta WhatsApp Business Platform's general sanctioned-country restrictions are separate from Coexistence rollout; Zimbabwe's absence from the sanctions list alone does **not** guarantee Coexistence is available.
+- **Significant 2026-10-01 billing change:** the first **1,000 service messages per connected phone number per month are free**; further service messages are billed and in-window utility templates can be billed. Verify current Meta/provider terms before any account linkage: https://www.courier.com/blog/whatsapp-pricing-changes-october-2026 and https://support.wati.io/en/articles/11561654-overview-of-meta-s-pricing-changes. The **WhatsApp Business mobile app remains free**, but provider monthly subscriptions, additional webhook-routing fees and Meta fees may apply even if few messages are sent.
+- Many providers require a paid plan to keep number connected. Do not enroll in a trial that automatically converts to paid or supplies another provider with access to the number or private chat history without separate owner approval.
+- **Account inspection now:** log in to existing MFT Education NEXUS Meta Business Portfolio `2069296827284277` at https://business.facebook.com/settings/ and inspect **Accounts → WhatsApp Accounts → Add → Link a WhatsApp Business account** only to evaluate whether the official link path appears. Do not complete OTP or link/scan QR before provider, country, security and cost checks.
+
+Guardrails remain: no deletions/migration/production phone cutover/billing/app publication. Existing Meta test sender, currently allowlisted Cloudflare sandbox and web chatbot remain separately operational. Production remains off.
+
+**MFT EDUCATION NEXUS | WhatsApp 0781572008**
