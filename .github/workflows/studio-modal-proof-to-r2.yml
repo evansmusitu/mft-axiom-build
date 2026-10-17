@@ -1,0 +1,96 @@
+name: MUSITU Studio — Live Modal CPU Assets to Dedicated Cloudflare R2
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-modal-proof-to-r2.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: musitu-studio-remote-r2-qualified-proof
+  cancel-in-progress: false
+jobs:
+  transfer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-live-modal-cpu-pull-verified
+          run-id: 39060405530
+          github-token: ${{ github.token }}
+          path: ./original-modal-proof
+      - name: Strict receipt and binary verification before cloud writes
+        run: |
+          python - <<'PY'
+          import json,pathlib,hashlib,struct
+          base=pathlib.Path('original-modal-proof')
+          r=json.loads((base/'studio-modal-cpu-pull-evidence.json').read_text())
+          assert r['result']=='PASS' and r['modal_real_cpu_render'] and r['cloudflare_callback_not_required']
+          expected={'scene.blend','scene.glb','preview.png'}
+          assert {f['name'] for f in r['files']}==expected
+          for f in r['files']:
+            p=base/'studio-pull-proof'/f['name']
+            data=p.read_bytes()
+            assert len(data)==f['bytes'] and hashlib.sha256(data).hexdigest()==f['sha256']
+            if f['name']=='scene.blend':assert data.startswith(b'BLENDER')
+            if f['name']=='scene.glb':assert data.startswith(b'glTF') and struct.unpack('<II',data[4:12])==(2,len(data))
+            if f['name']=='preview.png':assert data.startswith(b'\x89PNG\r\n\x1a\n')
+          print('REAL_MODAL_CPU_VERIFIED_FILES_READY_FOR_DEDICATED_R2')
+          PY
+      - name: Install Wrangler to use existing owner-approved R2 bucket
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Transfer only three verified artifacts into dedicated Studio R2
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          KEY_PREFIX='qualifications/modal-cpu-pull-39060405530'
+          BUCKET='musitu-studio-v02-assets'
+          for file in scene.blend scene.glb preview.png; do
+            input="$GITHUB_WORKSPACE/original-modal-proof/studio-pull-proof/$file"
+            object="$BUCKET/$KEY_PREFIX/$file"
+            if [ "$file" = scene.blend ]; then mime=application/octet-stream
+            elif [ "$file" = scene.glb ]; then mime=model/gltf-binary
+            else mime=image/png; fi
+            npx wrangler r2 object put "$object" --file "$input" --remote --content-type "$mime" --force
+            out="$RUNNER_TEMP/verified-$file"
+            npx wrangler r2 object get "$object" --file "$out" --remote
+            cmp --silent "$input" "$out"
+            sha256sum "$input" "$out" | awk '{print $1}' | uniq -c | grep -q '^ *2 '
+            echo "LIVE_R2_MODAL_CPU_ASSET_INTEGRITY_PASS=$file"
+          done
+          echo 'STUDIO_MODAL_REAL_CPU_TO_CLOUDFLARE_R2_STORAGE_PASS'
+      - name: Publish sanitized transfer manifest only
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          source=json.loads(pathlib.Path('original-modal-proof/studio-modal-cpu-pull-evidence.json').read_text())
+          receipt={
+            'schema':'musitu.studio.real-modal-cpu-to-real-r2.v1',
+            'source_github_run':39060405530,
+            'bucket':'musitu-studio-v02-assets',
+            'key_prefix':'qualifications/modal-cpu-pull-39060405530',
+            'user_existing_axiom_objects_modified':False,
+            'cloudflare_r2_remote_readback_verified':True,
+            'modal_real_blender_cpu_render_verified':True,
+            'files':source['files'],
+            'full_browser_to_modal_flow_verified':False,
+            'modal_gpu_entitlement':'PAYMENT_METHOD_REQUIRED',
+          }
+          pathlib.Path('studio-modal-real-r2-proof.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_MODAL_CPU_R2_READBACK_EVIDENCE=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-modal-cpu-to-cloudflare-r2-remote-proof
+          path: studio-modal-real-r2-proof.json
+          if-no-files-found: warn
+          retention-days: 14
