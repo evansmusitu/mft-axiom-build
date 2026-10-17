@@ -87,3 +87,32 @@ test('pinned keys fail closed on stale set, unknown key and absent proof',async(
     assert.equal((await createMmfStageGate({...env,MMF_PINNED_ACCESS_CERTS:undefined}).fetch(route(jwt()))).status,403);
   } finally {globalThis.fetch=original}
 });
+test('private dashboard renders a responsive non-commercial operator interface only after signed Access identity', async()=>{
+ const app=createMmfStageGate(env);
+ const req=token=>new Request(base+'/private/dashboard',{headers:token?{'cf-access-jwt-assertion':token}:{}});
+ const resp=await app.fetch(req(jwt()));
+ assert.equal(resp.status,200);
+ assert.match(resp.headers.get('content-type'),/^text\/html/);
+ assert.equal(resp.headers.get('cache-control'),'no-store');
+ const csp=resp.headers.get('content-security-policy');
+ assert.match(csp,/script-src 'none'/);
+ assert.match(csp,/connect-src 'none'/);
+ assert.match(csp,/form-action 'none'/);
+ const body=await resp.text();
+ assert.match(body,/MUSITU Mail Fabric/);
+ assert.match(body,/name="viewport"/);
+ assert.match(body,/Private operator workspace/);
+ assert.match(body,/Access verified/);
+ assert.match(body,/Application OIDC/);
+ assert.match(body,/callback unverified/);
+ assert.match(body,/No domain inventory is exposed here/);
+ assert.match(body,/Real outbound sending disabled/);
+ assert.match(body,/href="\/private\/gateway"/);
+ assert.doesNotMatch(body,/<script\b|<form\b|onclick=|API_KEY|client_secret|@example\.com/i);
+ for(const rejected of [req(),req(jwt({email:'attacker@example.com'})),req(jwt({aud:['WRONG']}))]){
+  const r=await app.fetch(rejected);assert.equal(r.status,403);
+  assert.notEqual(r.headers.get('content-type'),'text/html; charset=utf-8');
+ }
+ assert.equal((await app.fetch(new Request(base+'/private/dashboard?x=1',{headers:{'cf-access-jwt-assertion':jwt()}}))).status,403);
+ assert.equal((await app.fetch(new Request(base+'/private/dashboard',{method:'POST',headers:{'cf-access-jwt-assertion':jwt()}}))).status,403);
+});
