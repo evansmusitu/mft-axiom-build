@@ -1,0 +1,43 @@
+name: MUSITU Studio — R2-Only Pilot State/Approval Integrity Tests
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'musitu_studio/edge/src/r2_entry.mjs'
+      - 'musitu_studio/edge/tests/r2_control.test.mjs'
+      - '.github/workflows/studio-r2-control-ci.yml'
+permissions: {contents: read}
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install bounded Studio dependencies
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Static and functional checks
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          node --check src/r2_entry.mjs
+          node --test tests/r2_control.test.mjs
+          node --test tests/access.test.mjs tests/validation.test.mjs
+      - name: Worker deployment bundle dry run without live mutation
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const fs=require('node:fs');
+          const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8'));
+          delete c.d1_databases;
+          c.main='src/r2_entry.mjs';
+          c.vars.ENABLE_RENDER_DISPATCH='false';
+          c.vars.GPU_EXECUTION_APPROVED='false';
+          fs.writeFileSync('wrangler.r2dry.json',JSON.stringify(c));
+          JS
+          npx wrangler deploy --dry-run --config wrangler.r2dry.json --outdir /tmp/studio-r2-worker-bundle
+          test -d /tmp/studio-r2-worker-bundle
+          echo 'STUDIO_R2_CONTROL_DRYRUN_PASS_NO_CLOUDFLARE_OR_MODAL_COMPUTE'
