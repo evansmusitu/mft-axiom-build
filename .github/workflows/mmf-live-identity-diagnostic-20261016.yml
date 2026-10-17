@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   diagnostic:
-    if: github.event.before == 'c696c1d8b2201a423017fb0e5011f177c9c64c93'
+    if: github.event.before == '61efcdb7558fe34c88173a340efeafee9b688a8f'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -32,15 +32,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           MMF_EVIDENCE_PUBLIC_KEY: |
             -----BEGIN PUBLIC KEY-----
-            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAlNcCOZxsajDx0a1bsO5B
-            ilCAaDtFWU+bQiaqHbYM9acE2qitluoj7COk+R6owKAST64MHQebWcHV4js0Th1+
-            fvrcA3g+8wiVBPvnV2yeybnfXLzoddCt3e94BWZJ1S2px1dbRvtNd8Yq/DJfXefz
-            QkZyJ72fb2CdeIedPLEtfyhKPlldgOxoFWv+Kks5I1dXo7NXxZzAcV3Q3IwZEIGw
-            ITbKTWzbjQyGbXux4d+D/u+Kdxh6JdZ7/FI5xS70MPgkU9CZlWY1KlKdLvcemZp7
-            2SxyVBevNCisE6IhAIySDQBsULdc0ipfc6Nn2bMA6+N2O6A7ZuOBFIDyqipVEtp9
-            HouyVAGocEbPdTnJ7L8R0mjULLAMIZWsD2yIBFTPBKqw4yRyv9jfmqqYhUrBanLv
-            IZwbpBynPGlSd/jy6gpJa1bn3+AEA+eH9zCykr3cBTh5zArL0UBWxkCPkTFCaFfT
-            CKSiJUDWCbdwA9sWeuuLMC2YOD45dHFRU4/dAqurMjI7AgMBAAE=
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAgmHj/TdhsrVKKuRrPkHQ
+            kl9uZyVcBaC1IxEnfaDwFyWCwNOS9p7ElhybBKVKWNNDylEGCvYotges3PY+B2GR
+            YygiDmxC+C0rYgwwajQUKx4js6fj1Jufi/2Ps7fnzj3KnF2gKoKznaK0cDrKWZH7
+            p3GUubC4XgO0AZyek1vscnzj+01gXFooNXEaew6Hk7au7IWdGAseU7vWAxb1Mf0o
+            maDE95Zgvgnx5us1KziF1QzUnR8951KmCt1JH2p+alrQSgv8wLSSMyXyCeZSNLr9
+            7/5rRZqkRJR3wbYO59yYibbe+9cF/nFfoMRNGAqsAqfO+O98YH30ugq6fOtZl7Aa
+            6eg2hkRtQF7eanQwhlbonqk0iWep3vmHGv1E189rcIfZgtOIUGyExi+GBHEBLf44
+            3XleKzQKEImnPPGA+8ueAIUHPmXpnZfwlT/2SV4dJexhphI8ffDna2j6lJjk1Sk3
+            gHU3SmbuYW7OY+JREcBzYToqvm2jdY2qWZlsbylWOnh1AgMBAAE=
             -----END PUBLIC KEY-----
         run: node musitu-mail-fabric/src/staging/cloudflare-identity-diagnostic-20261016.mjs
       - name: Preserve encrypted configuration and non-sensitive status

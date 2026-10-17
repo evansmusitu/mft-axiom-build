@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomBytes, createCipheriv, publicEncrypt, constants } from 'node:crypto';
+import { randomBytes, createCipheriv, publicEncrypt, constants, createHash, createPublicKey, X509Certificate } from 'node:crypto';
+import { qualifyPrivateMmfOidcProvider } from '../commercial/mmf-oidc-provider-discovery.mjs';
 
 const account = '93f395f5121954671f92fffa453d6b61';
 const hostname = 'mail-stage.mftintelligence.com';
@@ -74,6 +75,61 @@ try {
   detail.mmfWorkers = await Promise.all(mmfScripts.map(async x => ({ name: x.id,
     subdomain: await get('accounts/' + account + '/workers/scripts/' + encodeURIComponent(x.id) + '/subdomain', 'mmfWorkerSubdomain'),
   })));
+  // Read the existing dedicated OIDC client; this diagnostic never registers or
+  // updates one, and never treats an unauthenticated probe as proof of PKCE/MFA.
+  const clients = (apps || []).filter(x => x.id === '4ae515a1-189d-41c2-8020-c99ea157b021' && x.type === 'saas');
+  if (clients.length !== 1) throw Error('EXISTING_OIDC_CLIENT_NOT_FOUND');
+  const [client, clientPolicies] = await Promise.all([
+    get('accounts/' + account + '/access/apps/' + clients[0].id, 'oidcClient'),
+    get('accounts/' + account + '/access/apps/' + clients[0].id + '/policies?per_page=100', 'oidcPolicies'),
+  ]);
+  const cfg = client?.saas_app;
+  if (!cfg || !Array.isArray(clientPolicies) || clientPolicies.length !== 0) throw Error('OIDC_CLOSED_STATE_DRIFT');
+  detail.oidc = { application: appSafe(client), policyCount: clientPolicies.length,
+    redirectUris: cfg.redirect_uris, grants: cfg.grant_types,
+    publicPkceClient: cfg.allow_pkce_without_client_secret === true,
+    livePkceVerified: false, liveMfaClaimsVerified: false, probes: [] };
+  if (org?.auth_domain !== 'musitu-axiom.cloudflareaccess.com' || cfg.client_id !== 'cf09992056460080b94aa85a4906ad386356e21cdb0d0d317218a21cc228785a') throw Error('OIDC_ISSUER_DRIFT');
+  const issuer = 'https://' + org.auth_domain + '/cdn-cgi/access/sso/oidc/' + cfg.client_id;
+  const expected = { issuer, authorizationEndpoint: issuer + '/authorization', tokenEndpoint: issuer + '/token', jwksUri: issuer + '/jwks' };
+  const fingerprint = key => createHash('sha256').update(key.export({ format: 'der', type: 'spki' })).digest('hex');
+  const readPublic = async url => {
+    const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000), cache: 'no-store' });
+    const body = await r.text();
+    if (!r.ok || body.length > 100000 || !r.headers.get('content-type')?.includes('json')) throw Error('OIDC_PUBLIC_METADATA_UNAVAILABLE');
+    return { status: r.status, body: JSON.parse(body) };
+  };
+  const [metadata, jwks] = await Promise.all([readPublic(issuer + '/.well-known/openid-configuration'), readPublic(expected.jwksUri)]);
+  detail.oidc.discovery = metadata;
+  const pin = fingerprint(new X509Certificate(cfg.public_key).publicKey);
+  const matching = (jwks.body.keys || []).filter(j => { try { return fingerprint(createPublicKey({key:j,format:'jwk'})) === pin; } catch { return false; } });
+  if (matching.length !== 1) throw Error('OIDC_SIGNING_PIN_DRIFT');
+  detail.oidc.authenticatedSigningKey = { kid: matching[0].kid, spkiFingerprint: pin, publicJwksStatus: jwks.status };
+  try {
+    await qualifyPrivateMmfOidcProvider({ ...expected, approvedKeys: [{kid:matching[0].kid,spkiFingerprint:pin}] });
+    detail.oidc.strictMetadataQualified = true;
+  } catch (error) {
+    detail.oidc.strictMetadataQualified = false;
+    detail.oidc.qualificationFailure = /^[A-Z_]+$/.test(error.message) ? error.message : 'OIDC_QUALIFICATION_ERROR';
+  }
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  for (const [name, pkce] of [
+    ['s256', {code_challenge:challenge,code_challenge_method:'S256'}],
+    ['missing_pkce', {}],
+    ['plain', {code_challenge:verifier,code_challenge_method:'plain'}],
+    ['invalid_method', {code_challenge:challenge,code_challenge_method:'MMF_INVALID_METHOD'}],
+  ]) {
+    const u = new URL(expected.authorizationEndpoint);
+    u.search = new URLSearchParams({client_id:cfg.client_id,response_type:'code',scope:'openid',redirect_uri:'https://' + hostname + '/private/oidc/callback',state:randomBytes(24).toString('base64url'),nonce:randomBytes(24).toString('base64url'),...pkce});
+    const r = await fetch(u, {redirect:'manual',signal:AbortSignal.timeout(15000),cache:'no-store'});
+    // Do not persist response bodies, cookies, authorization codes, or query strings.
+    const location = r.headers.get('location');
+    let destination = null;
+    try { const v = new URL(location, u); destination = { origin:v.origin,path:v.pathname,error:v.searchParams.get('error') }; } catch {}
+    await r.body?.cancel();
+    detail.oidc.probes.push({name,status:r.status,destination,interpretation:'PRE_AUTHENTICATION_OBSERVATION_ONLY'});
+  }
   // Inspect policy MFA overrides, never policy email addresses, names or rules.
   detail.otherApplicationPolicyMfa = [];
   for (const other of (apps || []).filter(x => x.id !== matches[0].id)) {
@@ -98,5 +154,5 @@ try {
   writeFileSync(join(process.env.RUNNER_TEMP, 'mmf-identity-diagnostic.encrypted.json'), JSON.stringify(envelope), { mode: 0o600, flag: 'wx' });
   writeFileSync(join(process.env.RUNNER_TEMP, 'mmf-identity-diagnostic-summary.json'), JSON.stringify(summary, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
   console.log(JSON.stringify({ gate: summary.gate, mutations: 0, accountVerified: summary.accountAndZoneVerified, closed: summary.closedApplicationVerified, noIngress: summary.publicIngressAbsent, organizationMfaEnabled: summary.organizationMfaEnabled, applicationMfaEnforced: summary.applicationMfaEnforced }));
-  if (!summary.closedApplicationVerified || !summary.publicIngressAbsent) process.exitCode = 2;
+  if (detail.failure || !summary.closedApplicationVerified || !summary.publicIngressAbsent) process.exitCode = 2;
 }
