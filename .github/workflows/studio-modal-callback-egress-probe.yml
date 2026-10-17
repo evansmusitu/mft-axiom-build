@@ -1,0 +1,35 @@
+name: MUSITU Studio — Actual Modal-to-Cloudflare Callback Reachability
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-modal-callback-egress-probe.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'modal>=1.5,<2'
+      - name: Run actual network probe inside Modal CPU to signed callback-only Worker
+        run: |
+          python - <<'PY'
+          import json,modal,pathlib
+          result=modal.Function.from_name("musitu-studio-v02","callback_network_diagnostic").remote()
+          print("STUDIO_MODAL_TO_CF_CALLBACK_PROOF="+json.dumps(result,sort_keys=True))
+          pathlib.Path("modal-to-cf-callback-proof.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          if not result.get("verified"):raise SystemExit("MODAL_CALLBACK_ACCESS_BLOCKED")
+          print("STUDIO_ACTUAL_MODAL_TO_CLOUDFLARE_SECRET_AUTH_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-modal-cloudflare-callback-network
+          path: modal-to-cf-callback-proof.json
+          retention-days: 7
+          if-no-files-found: warn
