@@ -1,4 +1,5 @@
 import {validateAccess} from './access.mjs';
+import {issueStaffCookie,verifyStaffCookie} from './session.mjs';
 import {validateScene,sha256,equalSecret,assetType,validArtifactHeader} from './validation.mjs';
 
 // Limited single-admin Studio control plane using one R2 compare-and-swap state
@@ -127,9 +128,9 @@ async function callback(req,env){
   });
   return r.fail?err(r.fail,r.status):json({ok:true,state:'COMPLETED'});
 }
-async function api(req,env,url){
+async function api(req,env,url,accessPassed){
   if(req.method==='POST'&&url.pathname==='/internal/callback')return callback(req,env);
-  if(!auth(req,env))return err('UNAUTHORIZED',401);
+  if(!auth(req,env)&&!(accessPassed&&await verifyStaffCookie(req,env)))return err('UNAUTHORIZED',401);
   if(!env.STUDIO_ASSETS||!env.STUDIO_ADMIN_TOKEN||env.STUDIO_ADMIN_TOKEN.length<32)return err('STUDIO_NOT_CONFIGURED',503);
   if(req.method==='GET'&&url.pathname==='/api/status')return json({
     ok:true,product:'MUSITU Studio',version:'0.8-r2-pilot',
@@ -275,14 +276,21 @@ async function api(req,env,url){
 }
 export default {async fetch(req,env){
   const url=new URL(req.url);
-  if(url.pathname!=='/internal/callback'&&!await validateAccess(req,env))return err('ACCESS_DENIED',403);
+  const accessPassed=url.pathname!=='/internal/callback'&&await validateAccess(req,env);
+  if(url.pathname!=='/internal/callback'&&!accessPassed)return err('ACCESS_DENIED',403);
+  if(url.pathname==='/api/session'&&req.method==='GET'){
+    const cookie=accessPassed?await issueStaffCookie(req,env):null;
+    if(!cookie)return err('SESSION_UNAVAILABLE',403);
+    return new Response(JSON.stringify({ok:true,session:'CLOUDFLARE_ACCESS_BOUND'}),
+      {headers:{...HEADERS,'set-cookie':cookie}});
+  }
   if(!url.pathname.startsWith('/api/')&&url.pathname!=='/internal/callback')
     return env.ASSETS?env.ASSETS.fetch(req):err('NO_ASSETS',404);
   if(['POST','PUT','PATCH','DELETE'].includes(req.method)){
     const origin=req.headers.get('origin');
     if(origin&&origin!==url.origin)return err('FOREIGN_ORIGIN',403);
   }
-  try{return await api(req,env,url)}
+  try{return await api(req,env,url,accessPassed)}
   catch(e){
     if(e.message==='PAYLOAD_TOO_LARGE')return err('PAYLOAD_TOO_LARGE',413);
     if(e instanceof SyntaxError)return err('INVALID_JSON',400);
