@@ -1,0 +1,46 @@
+name: MUSITU Studio — Verified Staff Session and Android UI CI
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - 'musitu_studio/edge/src/session.mjs'
+      - 'musitu_studio/edge/public/studio.js'
+      - 'musitu_studio/edge/public/index.html'
+      - 'musitu_studio/edge/tests/session.test.mjs'
+      - '.github/workflows/studio-staff-session-ci.yml'
+permissions: {contents: read}
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install fixed Studio runtime packages
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Full Cloudflare R2, Access JWT, session-HMAC security regression
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          node --test tests/*.test.mjs
+          node --check src/session.mjs
+          node --check src/r2_entry.mjs
+          node --check public/studio.js
+      - name: Produce static deploy bundle without modifying Cloudflare resources
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const fs=require('node:fs');
+          const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8'));
+          delete c.d1_databases;
+          c.main='src/r2_entry.mjs';
+          c.vars.ENABLE_RENDER_DISPATCH='false';
+          c.vars.STUDIO_SESSION_ENABLED='true';
+          fs.writeFileSync('wrangler.staff.qa.json',JSON.stringify(c,null,2));
+          JS
+          npx wrangler deploy --dry-run --config wrangler.staff.qa.json --outdir "$RUNNER_TEMP/studio-staff-frontend-bundle"
+          test -d "$RUNNER_TEMP/studio-staff-frontend-bundle"
+          echo 'STUDIO_SIGNED_STAFF_SESSION_AND_FRONTEND_DRYRUN_PASS'
