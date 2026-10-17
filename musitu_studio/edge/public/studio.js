@@ -45,6 +45,12 @@ async function refresh(){
   if(j.state==='APPROVED'){
     const b=el('button','Dispatch');b.onclick=()=>action(async()=>{await api('/api/jobs/'+j.id+'/dispatch','POST',{});await refresh();});right.append(b);
   }
+  if(j.state==='RUNNING'){
+    const b=el('button','↻ Check render');
+    b.onclick=()=>action(async()=>{const result=await api('/api/jobs/'+j.id+'/sync','POST',{});await refresh();
+      notice(result.state==='COMPLETED'?'Blender results verified and available to download.':'Render is still running on Modal.');});
+    right.append(b);
+  }
   if(j.state==='COMPLETED'){
     for(const name of ['scene.blend','scene.glb','preview.png']){
       const b=el('button',name,'ghost');
