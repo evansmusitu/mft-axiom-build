@@ -37,6 +37,10 @@ export async function validateAccess(request,env,options={}){
     const {payload}=await jwtVerify(token,keys,{
       issuer:config.domain,audience:config.audience,algorithms:['RS256'],clockTolerance:5
     });
-    return payload.type==='app' && typeof payload.sub==='string' && payload.sub.length>0;
+    return payload.type==='app' && (
+      (typeof payload.sub==='string'&&payload.sub.length>0) ||
+      (payload.sub===''&&typeof payload.common_name==='string'&&
+       /^[A-Za-z0-9.-]{8,160}\.access$/.test(payload.common_name))
+    );
   }catch{return false;}
 }
