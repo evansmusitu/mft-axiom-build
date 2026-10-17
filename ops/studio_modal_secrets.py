@@ -15,7 +15,7 @@ def main():
       "STUDIO_CALLBACK_TOKEN":key("callback"),
       "STUDIO_CALLBACK_URL":"https://studio.mftintelligence.com/internal/callback",
       "STUDIO_BILLING_GUARD_APPROVED":"1",
-      "STUDIO_GPU_GATE_ON_MODAL":"1"}
+      "STUDIO_GPU_GATE_ON_MODAL":"0"}
     with tempfile.TemporaryDirectory(prefix="musitu-secret-") as tmp:
       f=pathlib.Path(tmp)/"studio-secret.json"
       f.write_text(json.dumps(values))

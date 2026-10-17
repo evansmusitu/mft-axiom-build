@@ -18,6 +18,7 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      STUDIO_REGISTER_GPU_FUNCTIONS: '0'  # Modal account refused T4: payment method required
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -71,7 +72,12 @@ jobs:
           assert set(result.get("files",{}))=={"scene.blend","scene.glb","preview.png"}
           print("REAL_MODAL_BLENDER_CPU_QUALIFIED")
           PY
+      - name: Record GPU entitlement restriction
+        run: |
+          echo "GPU_QUALIFICATION_NOT_RUN_ACCOUNT_REQUIRES_PAYMENT_METHOD"
+          echo '{"gpu_qualification":"BLOCKED_PAYMENT_METHOD_REQUIRED","gpu_render_started":false}' > musitu_studio/studio-modal-gpu-proof.json
       - name: Render genuine Blender GPU scene INSIDE NVIDIA Modal T4
+        if: env.STUDIO_REGISTER_GPU_FUNCTIONS == '1'
         working-directory: musitu_studio
         run: |
           set -euo pipefail
