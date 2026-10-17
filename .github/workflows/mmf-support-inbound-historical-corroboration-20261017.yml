@@ -1,0 +1,108 @@
+name: MMF Support Mail Historical Control and Recipient Classification 20261017
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-support-inbound-historical-corroboration-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.before == '9dbd2c2ff7b4b5e2d1f03721e1abbefb4a40b9e1'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Query private delivery statuses without disclosing customer identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';import {join} from 'node:path';
+          const a='93f395f5121954671f92fffa453d6b61',t=process.env.CLOUDFLARE_API_TOKEN;
+          if(process.env.CLOUDFLARE_ACCOUNT_ID!==a||!t||t.length<20)throw Error('MMF_CREDENTIAL_UNAVAILABLE');
+          const result={schema:'mmf-support-historical-email-trace-redacted-v20261017',at:new Date().toISOString(),
+            priorTestControlReadable:false,recentTraceReadable:false,priorWeekRoutingEvents:0,priorWeekSupportEvents:0,
+            recentRoutingEvents:0,recentExactSupportEvents:0,recentSupportSubstringEvents:0,
+            recentOtherSameDomainEvents:0,recentToOwnerGmailEvents:0,recentOtherDomainEvents:0,
+            statusCountsForSupport:{},allRecentStatuses:{},priorWeekSupportStatuses:{},
+            recentEventCategories:[],failures:[],mutations:0,gate:'MMF_HISTORICAL_TRACE_NOT_COMPLETE'};
+          try{
+            const zr=await fetch('https://api.cloudflare.com/client/v4/zones?name=mftintelligence.com&per_page=30',
+              {headers:{authorization:'Bearer '+t,accept:'application/json'},signal:AbortSignal.timeout(10000)});
+            const zj=await zr.json();if(!zr.ok||!zj.success||zj.result?.length!==1||zj.result[0].account?.id!==a)throw Error('MMF_ZONE_UNVERIFIED');
+            const z=zj.result[0].id;
+            const query=`query EmailTrace($zoneTag:string,$filter:EmailRoutingAdaptiveFilter_InputObject){
+              viewer {zones(filter:{zoneTag:$zoneTag}){
+                emailRoutingAdaptive(filter:$filter,limit:300,orderBy:[datetime_DESC]){
+                  datetime to status action spf dkim dmarc errorDetail
+                }
+              }}
+            }`;
+            async function requestWindow(key,since,until){
+              const r=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',
+                headers:{authorization:'Bearer '+t,accept:'application/json','content-type':'application/json'},
+                body:JSON.stringify({query,variables:{zoneTag:z,filter:{datetime_geq:since,datetime_leq:until}}}),
+                redirect:'error',signal:AbortSignal.timeout(18000)});
+              const raw=await r.text();if(raw.length>220000)throw Error('MMF_QUERY_RESPONSE_TOO_BIG');
+              const json=JSON.parse(raw);
+              if(!r.ok||json.errors?.length||json.data?.viewer?.zones?.length!==1)throw Error('MMF_GRAPHQL_NOT_AVAILABLE_'+key);
+              const events=json.data.viewer.zones[0].emailRoutingAdaptive;
+              if(!Array.isArray(events))throw Error('MMF_QUERY_DATA_BAD_'+key);
+              return events;
+            }
+            const old=await requestWindow('OCT5','2026-10-05T00:00:00Z','2026-10-07T23:59:59Z');
+            const current=await requestWindow('RECENT','2026-10-10T00:00:00Z','2026-10-18T00:00:00Z');
+            const normalize=x=>String(x||'').trim().toLowerCase();
+            result.priorTestControlReadable=true;result.recentTraceReadable=true;result.priorWeekRoutingEvents=old.length;result.recentRoutingEvents=current.length;
+            for(const e of old){
+              if(normalize(e.to).includes('support@mftintelligence.com')){
+                result.priorWeekSupportEvents++;let state=normalize(e.status)||'unknown';
+                result.priorWeekSupportStatuses[state]=(result.priorWeekSupportStatuses[state]||0)+1;
+              }
+            }
+            for(const e of current){
+              const to=normalize(e.to);
+              const exact=to==='support@mftintelligence.com';
+              const contained=to.includes('support@mftintelligence.com');
+              if(exact)result.recentExactSupportEvents++;
+              if(contained)result.recentSupportSubstringEvents++;
+              if(!contained&&to.includes('@mftintelligence.com'))result.recentOtherSameDomainEvents++;
+              if(to.includes('evansmusitu5@gmail.com'))result.recentToOwnerGmailEvents++;
+              if(!contained&&!to.includes('@mftintelligence.com')&&!to.includes('evansmusitu5@gmail.com'))result.recentOtherDomainEvents++;
+              const status=normalize(e.status).replace(/[^a-z0-9_]/g,'_').slice(0,30)||'unknown';
+              result.allRecentStatuses[status]=(result.allRecentStatuses[status]||0)+1;
+              if(contained)result.statusCountsForSupport[status]=(result.statusCountsForSupport[status]||0)+1;
+              if(result.recentEventCategories.length<15)result.recentEventCategories.push({
+                at:typeof e.datetime==='string'?e.datetime.slice(0,16):null,
+                category:contained?'SUPPORT':to.includes('@mftintelligence.com')?'OTHER_BUSINESS_ALIAS':
+                  to.includes('evansmusitu5@gmail.com')?'OWNER_DESTINATION':'EXTERNAL',
+                status,action:normalize(e.action).slice(0,25)
+              });
+            }
+            result.gate=result.priorWeekSupportEvents>0?'MMF_HISTORICAL_POSITIVE_CONTROL_WITH_RECENT_TRACE':'MMF_HISTORICAL_CONTROL_NOT_FOUND';
+          }catch(e){result.gate='MMF_CLOUDFLARE_HISTORICAL_TRACE_INCONCLUSIVE';result.failures=[String(e.message||'UNKNOWN').slice(0,80)]}
+          finally{
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-support-historical-trace-redacted.json'),JSON.stringify(result,null,2)+'\n',
+              {flag:'wx',mode:0o600});
+            console.log(JSON.stringify({gate:result.gate,priorEvents:result.priorWeekRoutingEvents,
+              priorSupport:result.priorWeekSupportEvents,priorSupportStatuses:result.priorWeekSupportStatuses,
+              recentEvents:result.recentRoutingEvents,recentSupport:result.recentSupportSubstringEvents,
+              otherAliases:result.recentOtherSameDomainEvents,otherExternal:result.recentOtherDomainEvents,
+              recentStatuses:result.allRecentStatuses,categories:result.recentEventCategories,mutations:0}));
+          }
+          NODE
+      - name: Save redacted verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-support-delivery-historical-trace-20261017
+          path: ${{ runner.temp }}/mmf-support-historical-trace-redacted.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Cleanup
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-support-historical-trace-redacted.json"
