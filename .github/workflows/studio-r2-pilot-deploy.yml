@@ -1,0 +1,72 @@
+name: MUSITU Studio — Live Isolated R2 Control Plane Deployment
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_r2_pilot_deploy.py'
+      - '.github/workflows/studio-r2-pilot-deploy.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-live-worker-only
+  cancel-in-progress: false
+jobs:
+  deploy-r2-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify R2 pilot source and signed-Access/JWT constraints
+        working-directory: musitu_studio/edge
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node --check src/r2_entry.mjs
+          node --test tests/r2_control.test.mjs tests/access.test.mjs tests/validation.test.mjs
+      - name: Discover actual dedicated Modal endpoint without any GPU invocation
+        run: |
+          python -m pip install -q 'modal>=1.5,<2'
+          python - <<'PY' >> "$GITHUB_ENV"
+          import modal
+          endpoint=modal.Function.from_name('musitu-studio-v02','submit_asgi').get_web_url()
+          if not endpoint or not endpoint.startswith('https://') or not endpoint.endswith('.modal.run'):
+            raise SystemExit('STUDIO_MODAL_ENDPOINT_NOT_VERIFIED')
+          print('STUDIO_MODAL_ENDPOINT='+endpoint.rstrip('/')+'/jobs')
+          PY
+      - name: Deploy only existing MUSITU Studio Worker, with R2 CAS queue and dispatch locked
+        run: python ops/studio_r2_pilot_deploy.py
+      - name: Verify live Worker authorization gates independently
+        run: |
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error
+          report=json.loads(pathlib.Path('studio-r2-pilot-live.json').read_text())
+          base=report['workers_dev_url']
+          def code(path,method='GET'):
+            request=urllib.request.Request(base+path,method=method)
+            try:
+              with urllib.request.urlopen(request,timeout=35) as r:return r.status
+            except urllib.error.HTTPError as e:return e.code
+          api=code('/api/status')
+          callback=code('/internal/callback','POST')
+          if api!=403 or callback!=401:
+            raise SystemExit('STUDIO_PUBLIC_SECURITY_GATES_MISMATCH_API_'+str(api)+'_CALLBACK_'+str(callback))
+          print('STUDIO_LIVE_R2_ACCESS_JWT_REQUIRED_403')
+          print('STUDIO_LIVE_R2_CALLBACK_SECRET_REQUIRED_401')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-r2-control-live-deploy
+          path: studio-r2-pilot-live.json
+          retention-days: 14
+          if-no-files-found: warn
