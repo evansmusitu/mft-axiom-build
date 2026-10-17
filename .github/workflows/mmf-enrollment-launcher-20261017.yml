@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   diagnostic:
-    if: github.event.before == 'be8bf86e61c314e4b2c12fc0a9875510c40b9acd'
+    if: github.event.before == '2a82239b49987cabfb80b61dd41b6cf530e967fc'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10

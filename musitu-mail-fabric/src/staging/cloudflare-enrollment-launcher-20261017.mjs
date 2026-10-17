@@ -5,6 +5,9 @@ import {generateKeyPairSync,randomBytes,hkdfSync,createCipheriv,createDecipheriv
 const account='93f395f5121954671f92fffa453d6b61';
 const idp='ec04a8ab-9382-4df0-9589-d2c98618e6af';
 const label='MUSITU Mail Fabric administrator MFA enrollment';
+// Cloudflare assigns its singleton launcher the fixed display name App Launcher.
+// This ID was returned by our successful scoped creation, never inferred by name.
+const ownedLauncherId='9dfc2a78-0dae-463b-9235-03ae134be007';
 const closedIds=['f8ab12fe-251f-44fa-80de-1c2f2bdc4055','4ae515a1-189d-41c2-8020-c99ea157b021'];
 const scope='mmf-enrollment-only:v1:evansmusitu/mft-axiom-build:product/musitu-mail-fabric-isolated-20261009:'+account;
 const token=process.env.CLOUDFLARE_API_TOKEN;
@@ -35,7 +38,7 @@ try{
  if(zones.length!==1||zones[0].account?.id!==account||zones[0].status!=='active'||org.auth_domain!=='musitu-axiom.cloudflareaccess.com')throw Error('ACCOUNT_ZONE_DRIFT');
  if(!org.mfa_config?.allowed_authenticators?.includes('totp')||!org.mfa_config?.allowed_authenticators?.includes('security_key'))throw Error('ORGANIZATION_MFA_UNAVAILABLE');
  if(!providers.some(x=>x.id===idp&&x.type==='cloudflare'&&x.config?.restrict_to_account_members===true))throw Error('APPROVED_IDP_DRIFT');
- const launchers=apps.filter(x=>x.type==='app_launcher');if(launchers.length>1||launchers.some(x=>x.name!==label))throw Error('EXISTING_SHARED_LAUNCHER_REQUIRES_REVIEW');
+ const launchers=apps.filter(x=>x.type==='app_launcher');if(launchers.length>1||launchers.some(x=>x.id!==ownedLauncherId||!['App Launcher',label].includes(x.name)))throw Error('EXISTING_SHARED_LAUNCHER_REQUIRES_REVIEW');
  evidence.before=await snapshot();
  if(process.env.MMF_ENROLLMENT_MODE==='prepare'){
   // Transfer key is not an identity credential. Seal it with a token-derived,
@@ -63,7 +66,7 @@ try{
   else if(policies.length!==1||!exactPolicy(policies[0]))throw Error('EXISTING_LAUNCHER_POLICY_DRIFT');
   const [readback,readPolicies]=await Promise.all([api(path),api(path+'/policies?per_page=100')]);
   evidence.launcher=readback;evidence.policies=readPolicies;
-  if(readback.type!=='app_launcher'||readback.name!==label||JSON.stringify(readback.allowed_idps)!==JSON.stringify([idp])||readback.session_duration!=='15m'||readPolicies.length!==1||!exactPolicy(readPolicies[0]))throw Error('LAUNCHER_READBACK_MISMATCH');
+  if(readback.type!=='app_launcher'||readback.id!==ownedLauncherId||readback.domain!==org.auth_domain||!['App Launcher',label].includes(readback.name)||JSON.stringify(readback.allowed_idps)!==JSON.stringify([idp])||readback.session_duration!=='15m'||readPolicies.length!==1||!exactPolicy(readPolicies[0]))throw Error('LAUNCHER_READBACK_MISMATCH');
   evidence.after=await snapshot();
   if(JSON.stringify(canonical(evidence.before))!==JSON.stringify(canonical(evidence.after)))throw Error('UNRELATED_OR_CLOSED_APP_DRIFT');
   evidence.approvedAdministrator=email;evidence.verified=true;evidence.mmfAppsStillClosed=true;
