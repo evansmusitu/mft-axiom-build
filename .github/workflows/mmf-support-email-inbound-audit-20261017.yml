@@ -1,0 +1,128 @@
+name: MUSITU Support Inbound Mail Readonly Audit 20261017
+# One time; read-only Cloudflare Email Routing+MX inventory. No secrets or customer messages exposed.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-support-email-inbound-audit-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.event.before == 'a888e64c748abe50dcaa9a4552b6059245d4953f'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read Cloudflare routing status, MX, destination and forwarding rule without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {resolveMx} from 'node:dns/promises';
+          const a=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          if(a!=='93f395f5121954671f92fffa453d6b61'||!token||token.length<20)throw Error('MMF_ACCOUNT_UNAVAILABLE');
+          const address='support@mftintelligence.com',destination='evansmusitu5@gmail.com';
+          const record={schema:'mmf-support-inbound-readonly-v20261017',at:new Date().toISOString(),
+            accountVerified:false,zoneActive:false,emailRoutingReadable:false,emailRoutingEnabled:null,emailRoutingStatus:null,
+            destinationListReadable:false,destinationPresent:null,destinationVerified:null,
+            routingRulesReadable:false,supportRuleCount:null,supportRuleEnabled:null,forwardsToOwner:null,
+            catchAllReadable:false,catchAllEnabled:null,
+            zoneMxReadable:false,cfMxCount:null,nonCloudflareMxCount:null,externalDnsMxReadable:false,
+            externalCfMxCount:null,externalNonCfMxCount:null,
+            routingDnsReadable:false,cloudflareApiGetCount:0,cloudflareApiMutations:0,
+            noMailSent:true,noMailboxDeleted:true,gate:'MMF_SUPPORT_MAIL_DIAGNOSIS_INCOMPLETE'};
+          let getCount=0;
+          const get=async path=>{
+            getCount++;
+            try{
+              const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method:'GET',redirect:'error',
+                headers:{authorization:'Bearer '+token,accept:'application/json'},
+                signal:AbortSignal.timeout(13000),cache:'no-store'});
+              if(!r.ok||r.redirected)return {ok:false,http:r.status};
+              const ct=r.headers.get('content-length');
+              if(ct!==null&&Number(ct)>200000)return{ok:false,http:413};
+              const body=await r.text();if(body.length>200000)return{ok:false,http:413};
+              const json=JSON.parse(body);
+              if(json.success!==true||!Object.hasOwn(json,'result')||Number(json.result_info?.total_pages||1)>1)return{ok:false,http:r.status};
+              return{ok:true,result:json.result,http:r.status};
+            }catch{return{ok:false,http:null}}
+          };
+          try{
+            const zoneList=await get('zones?name=mftintelligence.com&per_page=50');
+            const zones=zoneList.result;
+            record.accountVerified=zoneList.ok&&Array.isArray(zones)&&zones.length===1&&zones[0].account?.id===a;
+            record.zoneActive=record.accountVerified&&zones[0].status==='active';
+            if(!record.zoneActive)throw Error('NO_VERIFIED_ZONE');
+            const z=zones[0].id;
+            const [routing,rules,catchall,dests,mx,dns]=await Promise.all([
+              get('zones/'+z+'/email/routing'),get('zones/'+z+'/email/routing/rules?per_page=100'),
+              get('zones/'+z+'/email/routing/rules/catch_all'),
+              get('accounts/'+a+'/email/routing/addresses?per_page=100'),
+              get('zones/'+z+'/dns_records?type=MX&per_page=100'),get('zones/'+z+'/email/routing/dns')
+            ]);
+            record.emailRoutingReadable=routing.ok;
+            record.emailRoutingEnabled=routing.ok?routing.result?.enabled===true:null;
+            record.emailRoutingStatus=routing.ok?String(routing.result?.status||'unknown').slice(0,40):null;
+            record.routingRulesReadable=rules.ok&&Array.isArray(rules.result);
+            record.destinationListReadable=dests.ok&&Array.isArray(dests.result);
+            record.zoneMxReadable=mx.ok&&Array.isArray(mx.result);
+            record.catchAllReadable=catchall.ok;
+            record.catchAllEnabled=catchall.ok?catchall.result?.enabled===true:null;
+            record.routingDnsReadable=dns.ok;
+            if(record.destinationListReadable){
+              const rows=dests.result.filter(d=>String(d.email||'').toLowerCase()===destination);
+              record.destinationPresent=rows.length===1;
+              record.destinationVerified=rows.length===1?typeof rows[0].verified==='string'&&rows[0].verified.length>8:null;
+            }
+            if(record.routingRulesReadable){
+              const selected=rules.result.filter(rule=>rule.matchers?.some(m=>m.field==='to'&&m.type==='literal'&&String(m.value||'').toLowerCase()===address));
+              record.supportRuleCount=selected.length;
+              record.supportRuleEnabled=selected.length===1?selected[0].enabled===true:null;
+              record.forwardsToOwner=selected.length===1?selected[0].actions?.some(act=>act.type==='forward'&&act.value?.some(v=>String(v).toLowerCase()===destination))===true:null;
+              record.supportActionTypes=selected.length===1?selected[0].actions?.map(act=>act.type):null;
+            }
+            if(record.zoneMxReadable){
+              record.cfMxCount=mx.result.filter(x=>/\\.mx\\.cloudflare\\.net\\.?$/i.test(String(x.content||''))).length;
+              record.nonCloudflareMxCount=mx.result.length-record.cfMxCount;
+              record.mxCount=mx.result.length;
+            }
+            try{
+              const ans=await resolveMx('mftintelligence.com');
+              record.externalDnsMxReadable=true;
+              record.externalCfMxCount=ans.filter(x=>/\\.mx\\.cloudflare\\.net\\.?$/i.test(x.exchange)).length;
+              record.externalNonCfMxCount=ans.length-record.externalCfMxCount;
+            }catch{record.externalDnsMxReadable=false}
+            record.gate=record.emailRoutingEnabled&&record.emailRoutingStatus==='ready'&&record.supportRuleEnabled&&record.forwardsToOwner&&record.destinationVerified&&record.zoneMxReadable&&record.cfMxCount===3&&record.nonCloudflareMxCount===0?
+              'MMF_SUPPORT_ROUTING_CONFIG_MATCHES_REQUIRE_MESSAGE_TRACE':'MMF_SUPPORT_ROUTING_MISCONFIGURED_OR_UNVERIFIED';
+          }catch{record.gate='MMF_SUPPORT_ACCOUNT_READ_INCONCLUSIVE'}
+          finally{
+            record.cloudflareApiGetCount=getCount;
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-support-routing-20261017-redacted.json'),
+              JSON.stringify(record,null,2)+'\n',{mode:0o600,flag:'wx'});
+            console.log(JSON.stringify({gate:record.gate,account:record.accountVerified,zoneActive:record.zoneActive,
+              routingEnabled:record.emailRoutingEnabled,routingStatus:record.emailRoutingStatus,
+              destinationPresent:record.destinationPresent,destinationVerified:record.destinationVerified,
+              ruleCount:record.supportRuleCount,ruleEnabled:record.supportRuleEnabled,
+              forwardsToOwner:record.forwardsToOwner,cfMx:record.cfMxCount,otherMx:record.nonCloudflareMxCount,
+              externalCfMx:record.externalCfMxCount,externalOtherMx:record.externalNonCfMxCount,
+              readOnly:true,mutations:0}));
+          }
+          if(record.gate==='MMF_SUPPORT_ACCOUNT_READ_INCONCLUSIVE')process.exitCode=2;
+          NODE
+      - name: Upload sanitized report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-support-routing-redacted-20261017
+          path: ${{ runner.temp }}/mmf-support-routing-20261017-redacted.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Delete ephemeral report
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-support-routing-20261017-redacted.json"
