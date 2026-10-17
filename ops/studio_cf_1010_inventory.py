@@ -1,0 +1,56 @@
+"""Status-only Cloudflare Studio 1010 cause inventory. GET calls only.
+No emails, IPs, UA strings, rule expressions or auth credentials in receipts.
+"""
+import json,os,pathlib,urllib.request,urllib.error
+BASE="https://api.cloudflare.com/client/v4"
+ACCOUNT="93f395f5121954671f92fffa453d6b61"
+def fetch(path,token):
+ req=urllib.request.Request(BASE+path,method="GET",headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+ try:
+  with urllib.request.urlopen(req,timeout=20) as response:
+   body=json.load(response)
+   return (200,body.get("result") if body.get("success") is True else None)
+ except urllib.error.HTTPError as exc:return(exc.code,None)
+ except (OSError,ValueError):return(0,None)
+def main():
+ token=os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CF_API_TOKEN")
+ out={"schema":"musitu.studio.cloudflare-1010-origin-inventory.v1",
+      "read_only":True,"all_existing_axiom_rules_unchanged":True,"zone":{"verified":False},
+      "checks":{}}
+ if token:
+  status,zones=fetch("/zones?name=mftintelligence.com&status=active",token)
+  match=[z for z in zones if isinstance(z,dict) and z.get("name")=="mftintelligence.com" and (z.get("account") or {}).get("id")==ACCOUNT] if isinstance(zones,list) else []
+  if status==200 and len(match)==1:
+   zid=match[0]["id"];out["zone"]["verified"]=True
+   paths=[
+    ("browser_integrity_setting",f"/zones/{zid}/settings/browser_check"),
+    ("security_level",f"/zones/{zid}/settings/security_level"),
+    ("user_agent_rules",f"/zones/{zid}/firewall/ua_rules?per_page=100"),
+    ("config_ruleset",f"/zones/{zid}/rulesets/phases/http_config_settings/entrypoint"),
+    ("custom_firewall",f"/zones/{zid}/rulesets/phases/http_request_firewall_custom/entrypoint"),
+    ("account_custom_firewall",f"/accounts/{ACCOUNT}/rulesets/phases/http_request_firewall_custom/entrypoint"),
+   ]
+   for name,path in paths:
+    code,payload=fetch(path,token)
+    record={"http_status":code,"readable":code==200}
+    if code==200 and name in ("browser_integrity_setting","security_level"):
+      record["value"]=(payload or {}).get("value") if isinstance(payload,dict) else "UNRECOGNIZED"
+    elif code==200 and name=="user_agent_rules" and isinstance(payload,list):
+      active=[r for r in payload if isinstance(r,dict) and not r.get("paused")]
+      record["total"]=len(payload)
+      record["active"]=len(active)
+      record["blocking"]=sum(1 for r in active if r.get("mode")=="block")
+    elif code==200 and name in ("config_ruleset","custom_firewall","account_custom_firewall") and isinstance(payload,dict):
+      rules=payload.get("rules") or []
+      record["rule_count"]=len(rules)
+      record["studio_scoped_count"]=sum(1 for r in rules if isinstance(r,dict) and
+         ("studio.mftintelligence.com" in str(r.get("expression","")) or
+          "studio-callback.mftintelligence.com" in str(r.get("expression",""))))
+      if name=="config_ruleset":
+       record["studio_callback_bic_off"]=any(isinstance(r,dict) and
+           r.get("action")=="set_config" and r.get("action_parameters",{}).get("bic") is False and
+           "studio-callback.mftintelligence.com" in str(r.get("expression","")) for r in rules)
+    out["checks"][name]=record
+ pathlib.Path("studio-cloudflare-1010-cause-readonly.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+ print("STUDIO_CLOUDFLARE_1010_RULE_INVENTORY="+json.dumps(out,sort_keys=True))
+if __name__=="__main__":main()
