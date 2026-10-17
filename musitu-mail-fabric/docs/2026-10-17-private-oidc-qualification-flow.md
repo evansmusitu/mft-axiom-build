@@ -38,8 +38,9 @@ Cross-site initiation remains denied. Unit tests and the local workerd probe
 cover cross-site result navigation, unsigned/non-admin rejection and denied
 cross-site initiation; fixture results do not qualify real provider behavior.
 
-Worker transport uses manual redirect handling and rejects all 3xx responses
-before any follow-up request. workerd does not support redirect:error; this
+Worker transport uses manual redirect handling and never follows a 3xx. The
+provider-specific negative-error adaptation below recognizes only two bounded
+error responses; every redirect during positive exchange remains rejected. workerd does not support redirect:error; this
 adapter preserves the generic exchangers' existing no-redirect contract. The
 generic discovery, code-exchange and signed-MFA validation modules are unchanged.
 
@@ -99,3 +100,26 @@ requirements remain in force. The diagnostics do not retry a consumed code.
 Old persisted results are preserved; they cannot acquire response details that
 were never retained. One fresh legitimate browser flow is needed to obtain a
 versioned result. Harness expiry, counters, replay ledger and pins are unchanged.
+
+## Verified provider token-error transport
+
+A fresh administrator result showed NEGATIVE_WRONG_VERIFIER / REDIRECT_BLOCKED,
+HTTP 302, one attempted token request and zero successful responses. Independent
+POSTs to the configured public token endpoint with a synthetic invalid code
+reproduced HTTP 302 with a bodyless Location to the exact registered callback,
+error=invalid_grant and error_description. The authorization_code grant is
+correct: the provider rejects authorization_code_with_pkce as unsupported.
+No real user code/token was used and no redirect was followed in these probes.
+
+The bounded flow adapter normalizes this error into the qualification tool's
+existing invalid_grant JSON contract only for token requests one and two. It
+requires the pinned token URL and POST, native non-redirected HTTP 302, canonical
+exact registered HTTPS callback, exactly one error=invalid_grant and one bounded
+non-control description, no userinfo/port/fragment, and an empty body. The raw
+Location/description is never returned or stored. It does not contact the
+callback URL. Wrong targets, extra/duplicate parameters, other errors/statuses,
+nonempty bodies and all positive-exchange redirects still fail closed.
+Diagnostics version 2 counts negativeRedirectResponses. Only the final correct
+exchange's signed nonce/audience/issuer/recent-MFA checks can pass qualification;
+negative errors alone cannot establish identity or create a session. Generic
+qualification, exchange, discovery and MFA modules are unchanged by this adapter.

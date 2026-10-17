@@ -236,11 +236,58 @@ test('persisted token failure diagnostics contain only bounded enums/status and 
  for(const [fetchImpl,reason,transport,httpStatus,oauthError] of cases){
   let requests=0;const s=await setup({fetchImpl:async(...args)=>{requests++;return fetchImpl(...args)}});
   await s.flow.callback(s.input);const result=await s.flow.status();
-  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.diagnosticsVersion,1);
+  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.diagnosticsVersion,2);
   assert.equal(result.failureStage,'NEGATIVE_WRONG_VERIFIER');assert.equal(result.failureReason,reason);
   assert.equal(result.tokenTransport,transport);assert.equal(result.lastTokenHttpStatus,httpStatus);assert.equal(result.oauthError,oauthError);
   assert.equal(result.tokenRequests,1);assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
   assert.ok(!JSON.stringify(await s.db.get('qualification')).includes('fixture-secret'));
   await assert.rejects(()=>s.flow.callback(s.input));assert.equal(requests,1);
  }
+});
+
+const providerNegativeRedirect=(location=origin+'/private/oidc/callback?error=invalid_grant&error_description=fixture-private-description',status=302,body=null)=>new Response(body,{status,headers:{location}});
+test('pinned Cloudflare negative-error redirects qualify without following them or retaining descriptions',async()=>{
+ let auth,calls=0;
+ const s=await setup({fetchImpl:async(url,options)=>{
+  calls++;assert.equal(options.redirect,'manual');assert.equal(url,config.tokenEndpoint);
+  if(calls<=2)return providerNegativeRedirect();
+  return json({id_token:jwt(auth.searchParams.get('nonce'),initial)});
+ }});auth=s.auth;
+ await s.flow.callback(s.input);const result=await s.flow.status();
+ assert.equal(result.status,'QUALIFICATION_PASSED');assert.equal(result.pkceAndSignedMfaVerified,true);
+ assert.equal(result.negativeRedirectResponses,2);assert.equal(result.diagnosticsVersion,2);assert.equal(calls,3);
+ assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
+ assert.ok(!JSON.stringify(await s.db.get('qualification')).includes('fixture-private-description'));
+ await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls,3);
+});
+test('negative redirect adaptation rejects all unpinned, malformed, ambiguous or successful-token shapes',async()=>{
+ const base=origin+'/private/oidc/callback?error=invalid_grant&error_description=fixture-private-description';
+ const cases=[
+  ()=>providerNegativeRedirect(base.replace(origin,'https://untrusted.example')),
+  ()=>providerNegativeRedirect(base.replace('/callback?','/qualification?')),
+  ()=>providerNegativeRedirect(base.replace('https://','http://')),
+  ()=>providerNegativeRedirect(base.replace('https://','https://user@')),
+  ()=>providerNegativeRedirect(base+'#fragment'),()=>providerNegativeRedirect(base+'&error=invalid_grant'),
+  ()=>providerNegativeRedirect(base+'&state='+('A'.repeat(43))),()=>providerNegativeRedirect(base+'&id_token=fixture-token'),
+  ()=>providerNegativeRedirect(base.replace('invalid_grant','invalid_client')),
+  ()=>providerNegativeRedirect(base.replace('invalid_grant','unsupported_grant_type')),
+  ()=>providerNegativeRedirect(base.replace('fixture-private-description','x'.repeat(513))),
+  ()=>providerNegativeRedirect(base.replace('fixture-private-description','%0Aprivate')),
+  ()=>providerNegativeRedirect(base,303),()=>providerNegativeRedirect(base,307),
+  ()=>providerNegativeRedirect(base,302,'fixture-private-body-token')
+ ];
+ for(const response of cases){let calls=0;const s=await setup({fetchImpl:async()=>{calls++;return response()}});
+  await s.flow.callback(s.input);const result=await s.flow.status();
+  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.tokenTransport,'REDIRECT_BLOCKED');
+  assert.equal(result.negativeRedirectResponses,0);assert.equal(calls,1);assert.equal(result.sessionCreated,false);
+  assert.ok(!JSON.stringify(await s.db.get('qualification')).includes('fixture-private'));
+ }
+});
+test('the correct-verifier exchange still rejects even an exactly pinned invalid_grant redirect',async()=>{
+ let calls=0;const s=await setup({fetchImpl:async()=>{calls++;return providerNegativeRedirect()}});
+ await s.flow.callback(s.input);const result=await s.flow.status();
+ assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.failureStage,'CORRECT_VERIFIER_EXCHANGE');
+ assert.equal(result.tokenTransport,'REDIRECT_BLOCKED');assert.equal(result.lastTokenHttpStatus,302);
+ assert.equal(result.negativeRedirectResponses,2);assert.equal(calls,3);assert.equal(result.successfulTokenResponses,0);
+ await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls,3);
 });

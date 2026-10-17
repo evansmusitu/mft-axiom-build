@@ -33,6 +33,26 @@ function stateCookie(raw){
  if(values.length!==1)deny();
  const value=values[0].slice(COOKIE.length+1);if(!TOKEN.test(value))deny();return value;
 }
+// This provider returns token errors as 302s to its registered callback.
+// Recognize only a bounded, bodyless invalid_grant error for negative probes.
+// Never follow it or copy provider text; the positive exchange cannot use this.
+async function pinnedNegativeError(response,redirectUri){
+ if(!(response instanceof Response)||response.redirected||response.status!==302)return false;
+ const raw=response.headers.get('location');
+ if(typeof raw!=='string'||raw.length>3000||/[\x00-\x20\x7f]/.test(raw))return false;
+ let target;try{target=new URL(raw)}catch{return false}
+ if(target.href!==raw||target.origin+target.pathname!==redirectUri||target.username||target.password||target.hash||target.port)return false;
+ if(target.searchParams.size!==2||target.searchParams.getAll('error').length!==1||
+  target.searchParams.getAll('error_description').length!==1||target.searchParams.get('error')!=='invalid_grant')return false;
+ const description=target.searchParams.get('error_description');
+ if(!description||description.length>512||/[\x00-\x1f\x7f]/.test(description))return false;
+ if(response.body){
+  const reader=response.body.getReader();
+  try{const {done,value}=await reader.read();if(!done||value!==undefined)return false}
+  finally{try{await reader.cancel()}catch{};try{reader.releaseLock()}catch{}}
+ }
+ return true;
+}
 export class MmfOidcQualificationFlow {
  constructor(storage,config,env,{now=Date.now,fetchImpl=globalThis.fetch,allowExpired=false}={}){
   if(!storage?.transaction||!storage?.getAlarm||!storage?.setAlarm||typeof now!=='function'||!Number.isSafeInteger(config?.validUntil)||
@@ -80,15 +100,21 @@ export class MmfOidcQualificationFlow {
    data.result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'IN_PROGRESS'};
    await tx.put('qualification',data);return value;
   });
-  let requests=0,successfulTokenResponses=0,result,lastTokenHttpStatus=null,tokenTransport='NOT_STARTED';
+  let requests=0,successfulTokenResponses=0,negativeRedirectResponses=0,result,lastTokenHttpStatus=null,tokenTransport='NOT_STARTED';
   const boundedFetch=async(url,options)=>{
    // Workers does not implement redirect:'error'. Manual transport plus an
-   // explicit 3xx rejection preserves the existing no-redirect contract.
+   // explicit rejection prevents following 3xxs. Only pinned, bodyless
+   // invalid_grant redirects from the two negative probes are normalized.
    if(options?.redirect!=='error')deny();
    requests++;let response;tokenTransport='FETCH_REJECTED';
    response=await this.fetchImpl(url,{...options,redirect:'manual'});
    tokenTransport='RESPONSE_RECEIVED';
    lastTokenHttpStatus=Number.isInteger(response.status)&&response.status>=100&&response.status<=599?response.status:null;
+   if(requests<=2&&url===this.config.tokenEndpoint&&options.method==='POST'&&
+    await pinnedNegativeError(response,this.config.redirectUri)){
+    negativeRedirectResponses++;tokenTransport='PROVIDER_NEGATIVE_ERROR';
+    return new Response('{"error":"invalid_grant"}',{status:400,headers:{'content-type':'application/json'}});
+   }
    if(response.redirected||response.status>=300&&response.status<400){
     tokenTransport='REDIRECT_BLOCKED';
     try{await response.body?.cancel()}catch{};deny();
@@ -113,7 +139,7 @@ export class MmfOidcQualificationFlow {
      'access_denied','temporarily_unavailable','server_error','OTHER_OR_MISSING'].includes(d.oauthError))result.oauthError=d.oauthError;
    }
   }
-  result.diagnosticsVersion=1;result.tokenTransport=tokenTransport;result.lastTokenHttpStatus=lastTokenHttpStatus;
+  result.diagnosticsVersion=2;result.negativeRedirectResponses=negativeRedirectResponses;result.tokenTransport=tokenTransport;result.lastTokenHttpStatus=lastTokenHttpStatus;
   result.tokenRequests=requests;result.successfulTokenResponses=successfulTokenResponses;
   await this.storage.transaction(async tx=>{
    const data=await tx.get('qualification');data.result=result;await tx.put('qualification',data);

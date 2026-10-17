@@ -55,7 +55,8 @@ const mf=new Miniflare({modules,modulesRoot:root,compatibilityDate:'2026-10-17',
   const valid=challenge===auth.searchParams.get('code_challenge');
   const result=valid?{id_token:token({iss:issuer,aud:clientId,sub:'fixture-workerd-admin',nonce:auth.searchParams.get('nonce'),
    amr:['pwd','otp'],auth_time:at,iat:at,exp:at+300})}:{error:'invalid_grant'};
-  return new TestResponse(JSON.stringify(result),{status:valid?200:400,headers:{'content-type':'application/json'}});
+  if(!valid)return new TestResponse(null,{status:302,headers:{location:config.redirectUri+'?error=invalid_grant&error_description=fixture-private-provider-detail'}});
+  return new TestResponse(JSON.stringify(result),{status:200,headers:{'content-type':'application/json'}});
  }});
 const headers={'cf-access-jwt-assertion':assertion,'sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document','x-mmf-fixture-mode':'navigate'};
 const dispatch=(url,options={})=>mf.dispatchFetch(url,{...options,redirect:'manual'});
@@ -85,12 +86,12 @@ try{
  const result=await resultResponse.json();
  if(result.status!=='QUALIFICATION_PASSED')throw Error('MMF_WORKERD_FIXTURE_TOKEN_CHECK_FAILED_'+JSON.stringify({result,stubRequests:requests}));
  assert.equal(result.pkceAndSignedMfaVerified,true);assert.equal(result.sessionCreated,false);
- assert.equal(result.diagnosticsVersion,1);assert.equal(result.lastTokenHttpStatus,200);assert.equal(result.tokenTransport,'RESPONSE_RECEIVED');
+ assert.equal(result.diagnosticsVersion,2);assert.equal(result.negativeRedirectResponses,2);assert.equal(result.lastTokenHttpStatus,200);assert.equal(result.tokenTransport,'RESPONSE_RECEIVED');
  assert.equal(requests,3);
  assert.equal((await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}})).status,403);assert.equal(requests,3);
  const proof={schema:'mmf-local-workerd-qualification-probe-v1',result:'PASS',fixtureKeysOnly:true,realIdentityProviderContacted:false,
   anonymousDenied:true,authenticatedCrossSiteLanding:true,authenticatedCrossSiteStatus:true,crossSiteInitiationDenied:true,sqliteStateAndRpc:true,
-  fixtureS256AndSignedMfa:true,replayDenied:true,applicationSessionCreated:false,tokenRequestsToLocalStub:requests};
+  fixtureS256AndSignedMfa:true,pinnedNegativeRedirectsWithoutFollowing:true,replayDenied:true,applicationSessionCreated:false,tokenRequestsToLocalStub:requests};
  console.log(JSON.stringify(proof));
  if(process.env.RUNNER_TEMP)writeFileSync(join(process.env.RUNNER_TEMP,'mmf-local-workerd-qualification-proof.json'),JSON.stringify(proof,null,2)+'\n');
 }finally{await mf.dispose()}
