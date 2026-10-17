@@ -136,6 +136,6 @@ test('failure diagnostics report fixed stages/reasons and allowlisted OAuth erro
  }
  const p=provider({token:jwt({amr:['pwd']})});
  await assert.rejects(()=>createCloudflareMmfPkceQualification({...config,fetchImpl:p.fetchImpl})(request()),e=>{
-  assert.deepEqual(e.qualificationDiagnostic,{stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED'});return true;
+  assert.deepEqual(e.qualificationDiagnostic,{stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED',unverifiedClaimPresence:{amr:true,authTime:true,nonce:true}});return true;
  });assert.equal(p.calls.length,3);
 });

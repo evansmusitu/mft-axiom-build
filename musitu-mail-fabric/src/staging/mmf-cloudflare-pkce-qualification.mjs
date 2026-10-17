@@ -52,8 +52,18 @@ async function negativeEvidence(response,diagnostic){
  if(Object.hasOwn(body,'id_token')||Object.hasOwn(body,'access_token')||Object.hasOwn(body,'refresh_token'))reject('NEGATIVE_TOKEN_RETURNED');
 }
 
-export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpoint,redirectUri,
- keyId,publicJwk,spkiFingerprint,env,fetchImpl=globalThis.fetch,now=Date.now,timeoutMs=8000}={}){
+// Destructive provider tests must use sacrificial codes, never a login code.
+export function createCloudflareMmfPkceQualification(options){return createQualification(options,true)}
+// Normal OIDC exchange: exactly one correct-verifier request; no session issued.
+export function createCloudflareMmfPositiveOidcQualification(options){return createQualification(options,false)}
+function unverifiedPresence(token){
+ let claims;try{claims=JSON.parse(Buffer.from(token.split('.')[1],'base64url').toString('utf8'))}catch{}
+ return Object.freeze({amr:plain(claims)&&Array.isArray(claims.amr),
+  authTime:plain(claims)&&Number.isSafeInteger(claims.auth_time),
+  nonce:plain(claims)&&typeof claims.nonce==='string'});
+}
+function createQualification({clientId,issuer,tokenEndpoint,redirectUri,
+ keyId,publicJwk,spkiFingerprint,env,fetchImpl=globalThis.fetch,now=Date.now,timeoutMs=8000}={},negativeProbes=true){
  try{
   if(!CLIENT.test(clientId||'')||
    issuer!=='https://musitu-axiom.cloudflareaccess.com/cdn-cgi/access/sso/oidc/'+clientId||
@@ -91,7 +101,7 @@ export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpo
     const challenge=createHash('sha256').update(codeVerifier).digest('base64url');
     const wrong=(codeVerifier[0]==='A'?'B':'A')+codeVerifier.slice(1);
     if(challenge===codeVerifier||wrong===challenge)deny();
-    for(const [index,probe] of [wrong,challenge].entries()){
+    for(const [index,probe] of (negativeProbes?[wrong,challenge]:[]).entries()){
      diagnostic={stage:index===0?'NEGATIVE_WRONG_VERIFIER':'NEGATIVE_CHALLENGE_VERIFIER',reason:'TOKEN_REQUEST_FAILED'};
      totalSignal.throwIfAborted();
      const body=new URLSearchParams({grant_type:'authorization_code',client_id:clientId,
@@ -108,8 +118,11 @@ export function createCloudflareMmfPkceQualification({clientId,issuer,tokenEndpo
     const at=now();if(!Number.isSafeInteger(at)||at<=0)deny();
     // This is the unchanged signature/issuer/audience/nonce/recent-MFA verifier.
     // No unsigned flag or provider policy metadata can substitute for its claims.
-    diagnostic={stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED'};
+    diagnostic={stage:'SIGNED_ID_TOKEN_VALIDATION',reason:'SIGNED_ID_TOKEN_REJECTED',unverifiedClaimPresence:unverifiedPresence(result.id_token)};
     verifyPinnedOidcIdToken(result.id_token,{...pinned,nonce,nowMs:at});
+    if(!negativeProbes)return Object.freeze({positivePkceExchangeVerified:true,negativePkceChecksQualified:false,
+     signedMfaAndNonceChecksPassed:true,sessionCreated:false,strictDiscoveryQualified:false,customerApiEnabled:false,
+     realSendingEnabled:false,paymentsEnabled:false,productionReady:false});
     return Object.freeze({pkceChecksPassed:true,signedMfaAndNonceChecksPassed:true,sessionCreated:false,
      strictDiscoveryQualified:false,customerApiEnabled:false,realSendingEnabled:false,paymentsEnabled:false,productionReady:false});
    }catch{

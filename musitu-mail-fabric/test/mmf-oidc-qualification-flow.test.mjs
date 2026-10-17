@@ -26,7 +26,7 @@ function storage(){
   transaction(fn){const p=queue.then(async()=>{const before=structuredClone(entries);try{return await fn(api)}catch(e){entries.clear();for(const [k,v]of before)entries.set(k,v);throw e}});queue=p.catch(()=>{});return p;}};
  return api;
 }
-async function setup({override,fetchImpl}={}){
+async function setup({override,fetchImpl,positiveExchangeOnly=false}={}){
  const db=storage();let at=initial,calls=0,auth;
  const provider=fetchImpl||(async(url,options)=>{
   calls++;assert.equal(url,config.tokenEndpoint);
@@ -34,7 +34,7 @@ async function setup({override,fetchImpl}={}){
   if(createHash('sha256').update(verifier).digest('base64url')!==auth.searchParams.get('code_challenge'))return json({error:'invalid_grant'},400);
   return json({id_token:jwt(auth.searchParams.get('nonce'),at,override)});
  });
- const options={now:()=>at,fetchImpl:provider};
+ const options={now:()=>at,fetchImpl:provider,positiveExchangeOnly};
  const flow=new MmfOidcQualificationFlow(db,config,env,options);
  const begin=await flow.begin();auth=new URL(begin.authorizationUrl);
  const input={state:auth.searchParams.get('state'),code:'fixture-code-2026',cookieHeader:begin.setCookie.split(';')[0],signal:AbortSignal.timeout(3000)};
@@ -236,7 +236,7 @@ test('persisted token failure diagnostics contain only bounded enums/status and 
  for(const [fetchImpl,reason,transport,httpStatus,oauthError] of cases){
   let requests=0;const s=await setup({fetchImpl:async(...args)=>{requests++;return fetchImpl(...args)}});
   await s.flow.callback(s.input);const result=await s.flow.status();
-  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.diagnosticsVersion,2);
+  assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');assert.equal(result.diagnosticsVersion,3);
   assert.equal(result.failureStage,'NEGATIVE_WRONG_VERIFIER');assert.equal(result.failureReason,reason);
   assert.equal(result.tokenTransport,transport);assert.equal(result.lastTokenHttpStatus,httpStatus);assert.equal(result.oauthError,oauthError);
   assert.equal(result.tokenRequests,1);assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
@@ -255,7 +255,7 @@ test('pinned Cloudflare negative-error redirects qualify without following them 
  }});auth=s.auth;
  await s.flow.callback(s.input);const result=await s.flow.status();
  assert.equal(result.status,'QUALIFICATION_PASSED');assert.equal(result.pkceAndSignedMfaVerified,true);
- assert.equal(result.negativeRedirectResponses,2);assert.equal(result.diagnosticsVersion,2);assert.equal(calls,3);
+ assert.equal(result.negativeRedirectResponses,2);assert.equal(result.diagnosticsVersion,3);assert.equal(calls,3);
  assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
  assert.ok(!JSON.stringify(await s.db.get('qualification')).includes('fixture-private-description'));
  await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls,3);
@@ -290,4 +290,37 @@ test('the correct-verifier exchange still rejects even an exactly pinned invalid
  assert.equal(result.tokenTransport,'REDIRECT_BLOCKED');assert.equal(result.lastTokenHttpStatus,302);
  assert.equal(result.negativeRedirectResponses,2);assert.equal(calls,3);assert.equal(result.successfulTokenResponses,0);
  await assert.rejects(()=>s.flow.callback(s.input));assert.equal(calls,3);
+});
+
+test('normal positive exchange never spends a login code on deliberately wrong verifier probes',async()=>{
+ let auth,requests=0,spent=false;
+ const s=await setup({positiveExchangeOnly:true,fetchImpl:async(url,options)=>{
+  requests++;const verifier=new URLSearchParams(options.body).get('code_verifier');
+  const correct=createHash('sha256').update(verifier).digest('base64url')===auth.searchParams.get('code_challenge');
+  if(spent||!correct){spent=true;return providerNegativeRedirect()}
+  spent=true;return json({id_token:jwt(auth.searchParams.get('nonce'),initial)});
+ }});auth=s.auth;
+ await s.flow.callback(s.input);const result=await s.flow.status();
+ assert.equal(requests,1);assert.equal(result.status,'POSITIVE_OIDC_VERIFIED');
+ assert.equal(result.positivePkceAndSignedMfaVerified,true);assert.equal(result.negativePkceChecksQualified,false);
+ assert.equal(result.pkceAndSignedMfaVerified,false);assert.equal(result.applicationLoginEnabled,false);assert.equal(result.sessionCreated,false);
+ assert.equal(result.negativeRedirectResponses,0);assert.equal(result.qualificationMode,'positive-exchange');
+ await assert.rejects(()=>s.flow.callback(s.input));assert.equal(requests,1);
+});
+test('normal positive exchange still blocks error redirects and never treats them as negative probe success',async()=>{
+ let requests=0;const s=await setup({positiveExchangeOnly:true,fetchImpl:async()=>{requests++;return providerNegativeRedirect()}});
+ await s.flow.callback(s.input);const result=await s.flow.status();
+ assert.equal(requests,1);assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');
+ assert.equal(result.failureStage,'CORRECT_VERIFIER_EXCHANGE');assert.equal(result.tokenTransport,'REDIRECT_BLOCKED');
+ assert.equal(result.negativeRedirectResponses,0);assert.equal(result.positivePkceAndSignedMfaVerified,false);
+ assert.equal(result.sessionCreated,false);await assert.rejects(()=>s.flow.callback(s.input));assert.equal(requests,1);
+});
+test('positive exchange preserves strict signed MFA and exposes only explicitly unverified claim-presence booleans',async()=>{
+ const s=await setup({positiveExchangeOnly:true,override:{amr:undefined,auth_time:undefined}});
+ await s.flow.callback(s.input);const result=await s.flow.status();
+ assert.equal(s.calls(),1);assert.equal(result.successfulTokenResponses,1);assert.equal(result.status,'QUALIFICATION_FAILED_CLOSED');
+ assert.equal(result.failureStage,'SIGNED_ID_TOKEN_VALIDATION');assert.equal(result.positivePkceAndSignedMfaVerified,false);
+ assert.deepEqual(result.unverifiedClaimPresence,{amr:false,authTime:false,nonce:true});
+ const saved=JSON.stringify(await s.db.get('qualification'));
+ for(const privateValue of [s.input.code,s.input.state,s.auth.searchParams.get('nonce'),'fixture-admin'])assert.ok(!saved.includes(privateValue));
 });

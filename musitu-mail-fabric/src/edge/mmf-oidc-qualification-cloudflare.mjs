@@ -4,7 +4,7 @@ import {MmfOidcQualificationFlow,routeMmfOidcQualification} from '../staging/mmf
 // Populated only by the account-verified, API-public-key-pinned deployment.
 const PINNED_QUALIFICATION_CONFIG=null;
 export class MmfOidcQualificationDO extends DurableObject {
- constructor(ctx,env){super(ctx,env);this.flow=new MmfOidcQualificationFlow(ctx.storage,PINNED_QUALIFICATION_CONFIG,env,{allowExpired:true})}
+ constructor(ctx,env){super(ctx,env);this.flow=new MmfOidcQualificationFlow(ctx.storage,PINNED_QUALIFICATION_CONFIG,env,{allowExpired:true,positiveExchangeOnly:true})}
  async fetch(){return new Response(null,{status:403})}
  begin(){return this.flow.begin()}
  callback(input){return this.flow.callback({...input,signal:AbortSignal.timeout(8000)})}

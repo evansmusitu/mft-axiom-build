@@ -1,125 +1,95 @@
-# Private real-provider qualification flow
+# Private OIDC exchange and provider qualification
 
-For REQUEST_CONTEXT denials, requestReason names only the failed rule (method,
-URL/length, forwarding/Host, prefetch/range, fetch metadata, query shape,
-state/code format, provider error response or cross-site initiation). It never
-returns query names/values, code/state lengths, headers, provider error details
-or credentials. This diagnostic does not admit extra callback parameters or
-change Access/MFA.
+The deployed browser path uses a single normal Authorization Code + S256 PKCE
+exchange with the correct verifier. The Cloudflare Durable Object constructor
+selects positiveExchangeOnly:true in trusted server code. No HTTP query, header
+or callback input selects a qualification mode. Deliberately wrong-verifier and
+challenge-as-verifier tests are retained as a separate destructive tool and
+fixture mode; they are not run against a browser login code.
 
-This bounded harness continues the existing S256 qualification tool without
-collecting authorization codes, cookies or ID tokens in chat. It does not admit
-an application session or qualify the generic discovery module.
+A user result showed two accepted negative errors followed by a rejected HTTP
+302 during the correct exchange. That does not prove code invalidation, but
+reusing the same authorization code for destructive probes before normal login
+is an unsuitable test design. A provider fixture that burns a code on a wrong
+verifier reproduces this failure; the corrected normal exchange succeeds with
+one request. Real negative S256 qualification must use separately authorized
+sacrificial codes. Those independent real-provider tests remain unqualified.
 
 The existing cryptographic Access gate, exact administrator hash, issuer,
-audience and key validity checks run before the dedicated Durable Object is
-accessed. Existing dashboard and gateway source are unchanged. Only the exact
-new routes accept their own strictly parsed callback query:
+audience and signing-key validity checks run before durable state access. The
+existing dashboard and gateway implementation remain unchanged. Exact routes:
 
-- `/private/oidc/qualify`: legitimate authorization redirect, S256 and nonce.
-- `/private/oidc/callback`: cookie-bound state consumption followed by the
-  existing negative/positive PKCE and signed recent-MFA checks.
-- `/private/oidc/qualification`: sanitized outcome only.
+- /private/oidc: passive, authenticated landing page, no state or cookie.
+- /private/oidc/qualify: same-origin start with fresh state, nonce and S256.
+- /private/oidc/callback: strictly parsed code/state, cookie binding and durable
+  single consumption before the normal token exchange.
+- /private/oidc/qualification: read-only sanitized result.
 
-The passive `/private/oidc` landing page supports phone links from another
-application. It still requires cryptographic administrator Access, creates no
-state/cookie and loads no scripts or external resources. Only its same-origin
-Continue to secure sign-in link starts qualification. Direct cross-site calls
-to the start route remain denied. Safe enumerated support codes distinguish
-request context, Access gate and flow availability/operation failures without
-returning credentials or raw provider exceptions.
+Passive landing and result pages support authenticated top-level cross-site
+navigation. Browsers can retain cross-site fetch metadata through a provider
+redirect chain. Cross-site starts, CORS/iframe requests, forwarding, prefetch,
+range and unexpected query input remain denied. The landing uses a same-origin
+Continue link, creates no state and loads no scripts or external resources.
+Request-context diagnostics contain fixed reason enums and never echo inputs.
 
-The read-only status route also accepts authenticated top-level cross-site GET
-navigation. A browser can retain cross-site fetch metadata across the provider's
-redirect chain. Only sanitized status is read: this route cannot start a flow,
-exchange a code or create a session/cookie. The signed administrator gate and
-method, host, query, fetch-mode/destination and prefetch guards still apply.
-Cross-site initiation remains denied. Unit tests and the local workerd probe
-cover cross-site result navigation, unsigned/non-admin rejection and denied
-cross-site initiation; fixture results do not qualify real provider behavior.
+The __Host- state cookie is Secure, HttpOnly, SameSite=Lax and five minutes.
+Private SQLite DO pending nonce/verifier material lasts at most five minutes.
+The state and code digest are consumed before token I/O; pending secrets are
+removed then. Raw codes and ID tokens are not stored or returned. Limits remain
+four pending flows, one root start per minute, sixteen starts/codes and the
+original 24-hour harness expiry. Alarms clear expired pending entries and delete
+the active ledger after expiry. Existing provider storage/PITR retention is not
+claimed to be immediate physical erasure. No counters, pins or expiry are reset.
 
-Worker transport uses manual redirect handling and never follows a 3xx. The
-provider-specific negative-error adaptation below recognizes only two bounded
-error responses; every redirect during positive exchange remains rejected. workerd does not support redirect:error; this
-adapter preserves the generic exchangers' existing no-redirect contract. The
-generic discovery, code-exchange and signed-MFA validation modules are unchanged.
+The normal exchange uses the existing bounded HTTPS code exchanger and unchanged
+RS256 signature, pinned issuer/audience/key, nonce, expiry and recent signed
+pwd plus otp/hwk MFA verifier. Missing MFA claims, SMS-only claims, stale MFA,
+forged signatures or any other verifier failure still deny. It makes at most
+one token request, with the existing eight-second total timeout. Worker fetch
+uses manual transport and never follows redirects; every 3xx fails normal
+exchange. No Access identity, policy metadata or unsigned flag substitutes for
+the required signed ID token claims.
 
-An explicit workerd integration probe uses generated fixture keys, an isolated
-SQLite DO, and a local outbound provider stub. A test-only transport bridge
-restores browser Host/fetch-mode values overwritten by Miniflare's Node client;
-it is never deployed. This verifies the real runtime's module/RPC/storage and
-crypto behavior, but is not evidence of real provider login or signed MFA.
+A passing normal result is POSITIVE_OIDC_VERIFIED with
+positivePkceAndSignedMfaVerified:true. It does not assert negative PKCE testing:
+negativePkceChecksQualified:false and the legacy combined
+pkceAndSignedMfaVerified:false remain. Strict discovery, application login,
+application sessions, registration, real sending, payments and customer API
+remain disabled. Real callback/session/logout acceptance must continue after
+actual signed-token verification. Deployment or fixture success is not real
+provider authentication evidence.
 
-The `__Host-` state cookie is Secure, HttpOnly, SameSite=Lax and lasts five
-minutes. A dedicated SQLite-backed Durable Object stores pending nonce/verifier
-material privately for at most five minutes; alarms remove expired pending
-entries. Raw authorization codes and provider tokens are never persisted or
-returned. A code digest and state consumption are committed before token I/O,
-including on failed attempts. There are at most four pending flows, one start
-per minute and sixteen starts per deployment. The harness expires after 24 hours;
-its alarm deletes its active ledger. Cloudflare storage/PITR retention is managed
-by the existing provider and is not claimed to be immediate physical erasure.
+Diagnostics version 3 records qualificationMode, fixed failure stage/reason,
+last HTTP status (or null), transport and request counts. For signed-token
+failures only, unverifiedClaimPresence has three booleans: amr, authTime and
+nonce. They describe parsed field presence only, and do not assert authenticity,
+MFA or accepted identity. Provider error strings/descriptions, raw bodies,
+headers, URLs, tokens, code/state/verifier/nonce values and subject claims are
+never copied into status. Old persisted results remain unchanged and retain
+their original diagnostic version.
 
-The real token endpoint may consume the code after an invalid verifier. That
-fails this diagnostic, with no retry or weaker login. A passing harness proves
-only the specific PKCE and signed MFA assertions tested. It leaves strict
-discovery and app login disabled, and does not activate tenant/session operations.
+The separate destructive fixture tool still recognizes the independently
+observed Cloudflare bodyless HTTP 302 error shape only for its two negative
+requests: exact pinned token URL/POST, canonical registered HTTPS callback,
+exactly one invalid_grant error and one bounded non-control description, no
+userinfo/port/fragment/extra/duplicate parameters, and no response body. It
+normalizes that error locally and never contacts Location. Its positive
+exchange still rejects every redirect. This adapter is inactive in the normal
+browser exchange. Real synthetic probes reproduced that provider error format;
+no real identity or valid code was used in those probes.
 
-The release uses the existing Actions environment and token. It checks the exact
-current single-module dashboard source and public keys before its sole write to
-the existing MMF Worker. It adds one private Durable Object binding and SQLite
-class migration, enables Node compatibility for the existing crypto verifier,
-and pins the real OIDC public key against the authenticated Access app certificate.
-Access policies, MFA, domain, five existing bindings and disabled previews are
-read back independently. The upload requests disabled observability and callback query redaction; the
-read API omits its optional observability object, so those settings are not
-independently confirmed. Logpush is false and tails are empty on readback.
-No credentials are logged or stored in source.
+The explicit workerd probe invokes the real entrypoint, generated fixture keys,
+a local outbound provider stub and isolated SQLite DO. A test-only bridge
+restores Host/fetch-mode metadata overwritten by Miniflare's Node transport;
+it is never deployed. The normal path verifies one correct-verifier request,
+signed MFA, cross-site result readability, denied cross-site start and replay
+rejection. The generic destructive-tool tests remain separately exercised.
 
-The one-shot workflow is pinned to the exact source commit before it. A rejected
-write or any source/settings drift stops the release; do not force, remove drift
-guards or change Access. Main and draft PR #1 are checked and left unchanged.
-
-Deployment does not constitute real browser acceptance: the approved
-administrator must complete the provider's own authentication and MFA on their
-phone, then inspect the sanitized status. No login code or token is requested
-from the administrator outside that browser flow.
-
-## Bounded token-failure diagnostics
-
-The sanitized result now records diagnosticsVersion:1, a fixed failureStage and
-failureReason, the last numeric token HTTP status (or null), and a fixed
-transport outcome. For a parsed negative-probe JSON response, oauthError is
-restricted to known OAuth error names or OTHER_OR_MISSING. Provider descriptions,
-raw error strings, headers, bodies, codes, verifiers, nonces, tokens and identity
-claims are never copied into the diagnostic. Failed input, wrong-verifier,
-challenge-as-verifier, correct exchange and signed-token stages are distinct.
-All existing negative-evidence, bounded-body, redirect, timeout and signed-MFA
-requirements remain in force. The diagnostics do not retry a consumed code.
-
-Old persisted results are preserved; they cannot acquire response details that
-were never retained. One fresh legitimate browser flow is needed to obtain a
-versioned result. Harness expiry, counters, replay ledger and pins are unchanged.
-
-## Verified provider token-error transport
-
-A fresh administrator result showed NEGATIVE_WRONG_VERIFIER / REDIRECT_BLOCKED,
-HTTP 302, one attempted token request and zero successful responses. Independent
-POSTs to the configured public token endpoint with a synthetic invalid code
-reproduced HTTP 302 with a bodyless Location to the exact registered callback,
-error=invalid_grant and error_description. The authorization_code grant is
-correct: the provider rejects authorization_code_with_pkce as unsupported.
-No real user code/token was used and no redirect was followed in these probes.
-
-The bounded flow adapter normalizes this error into the qualification tool's
-existing invalid_grant JSON contract only for token requests one and two. It
-requires the pinned token URL and POST, native non-redirected HTTP 302, canonical
-exact registered HTTPS callback, exactly one error=invalid_grant and one bounded
-non-control description, no userinfo/port/fragment, and an empty body. The raw
-Location/description is never returned or stored. It does not contact the
-callback URL. Wrong targets, extra/duplicate parameters, other errors/statuses,
-nonempty bodies and all positive-exchange redirects still fail closed.
-Diagnostics version 2 counts negativeRedirectResponses. Only the final correct
-exchange's signed nonce/audience/issuer/recent-MFA checks can pass qualification;
-negative errors alone cannot establish identity or create a session. Generic
-qualification, exchange, discovery and MFA modules are unchanged by this adapter.
+Release uses the existing authorized Actions connection only for deploy and
+GET readback. Tests/package installation have no production token. It verifies
+the exact seven-module baseline and permits only the reviewed content change.
+Settings, six bindings, Access apps/policies/MFA, domain and disabled previews
+are checked before/after. Logpush is false and tails empty. The optional
+observability object is omitted by the read API, so requested disabled logging
+and callback-query redaction are not independently confirmed. Main and draft
+PR #1 remain unchanged. No new permission or credential is requested.

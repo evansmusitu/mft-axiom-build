@@ -4,7 +4,7 @@
  * before network I/O. Codes and ID tokens are never persisted or returned.
  */
 import {createHash,randomBytes,timingSafeEqual} from 'node:crypto';
-import {createCloudflareMmfPkceQualification} from './mmf-cloudflare-pkce-qualification.mjs';
+import {createCloudflareMmfPkceQualification,createCloudflareMmfPositiveOidcQualification} from './mmf-cloudflare-pkce-qualification.mjs';
 const ORIGIN='https://mail-stage.mftintelligence.com';
 const COOKIE='__Host-mmf_pkce_qualification';
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
@@ -24,7 +24,7 @@ function landing(){
  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Mail Fabric · Private sign-in check</title></head><body><main><h1>Private sign-in check</h1><p>Continue with your administrator account and complete the requested verification.</p><p><a href="/private/oidc/qualify">Continue to secure sign-in</a></p><p>This check does not enable mail sending or payments.</p><p><a href="/private/dashboard">Return to dashboard</a></p></main></body></html>`,
   {status:200,headers:{...headers,'content-type':'text/html; charset=utf-8'}});
 }
-const emptyResult=()=>({attempted:false,pkceAndSignedMfaVerified:false,applicationLoginEnabled:false,
+const emptyResult=()=>({attempted:false,pkceAndSignedMfaVerified:false,positivePkceAndSignedMfaVerified:false,negativePkceChecksQualified:false,applicationLoginEnabled:false,
  sessionCreated:false,strictDiscoveryQualified:false,realSending:false,payments:false,customerApi:false});
 const equal=(a,b)=>TOKEN.test(a||'')&&TOKEN.test(b||'')&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 function stateCookie(raw){
@@ -54,10 +54,10 @@ async function pinnedNegativeError(response,redirectUri){
  return true;
 }
 export class MmfOidcQualificationFlow {
- constructor(storage,config,env,{now=Date.now,fetchImpl=globalThis.fetch,allowExpired=false}={}){
-  if(!storage?.transaction||!storage?.getAlarm||!storage?.setAlarm||typeof now!=='function'||!Number.isSafeInteger(config?.validUntil)||
+ constructor(storage,config,env,{now=Date.now,fetchImpl=globalThis.fetch,allowExpired=false,positiveExchangeOnly=false}={}){
+  if(typeof positiveExchangeOnly!=='boolean'||!storage?.transaction||!storage?.getAlarm||!storage?.setAlarm||typeof now!=='function'||!Number.isSafeInteger(config?.validUntil)||
    !allowExpired&&config.validUntil<=now()||config?.validUntil>now()+2*86400000)deny();
-  this.storage=storage;this.config=config;this.now=now;
+  this.storage=storage;this.config=config;this.now=now;this.positiveExchangeOnly=positiveExchangeOnly;
   // Preserve a plain function call for injected platform fetch implementations.
   this.fetchImpl=(...args)=>fetchImpl(...args);
   // Validate pins/flags eagerly. The per-flow instance's code guard supplements
@@ -110,7 +110,7 @@ export class MmfOidcQualificationFlow {
    response=await this.fetchImpl(url,{...options,redirect:'manual'});
    tokenTransport='RESPONSE_RECEIVED';
    lastTokenHttpStatus=Number.isInteger(response.status)&&response.status>=100&&response.status<=599?response.status:null;
-   if(requests<=2&&url===this.config.tokenEndpoint&&options.method==='POST'&&
+   if(!this.positiveExchangeOnly&&requests<=2&&url===this.config.tokenEndpoint&&options.method==='POST'&&
     await pinnedNegativeError(response,this.config.redirectUri)){
     negativeRedirectResponses++;tokenTransport='PROVIDER_NEGATIVE_ERROR';
     return new Response('{"error":"invalid_grant"}',{status:400,headers:{'content-type':'application/json'}});
@@ -123,9 +123,12 @@ export class MmfOidcQualificationFlow {
    return response;
   };
   try{
-   const qualify=createCloudflareMmfPkceQualification({...this.qualifyConfig,fetchImpl:boundedFetch});
+   const qualify=(this.positiveExchangeOnly?createCloudflareMmfPositiveOidcQualification:createCloudflareMmfPkceQualification)({...this.qualifyConfig,fetchImpl:boundedFetch});
    await qualify({code,codeVerifier:pending.verifier,nonce:pending.nonce,signal});
-   result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'QUALIFICATION_PASSED',pkceAndSignedMfaVerified:true};
+   result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),
+    status:this.positiveExchangeOnly?'POSITIVE_OIDC_VERIFIED':'QUALIFICATION_PASSED',
+    positivePkceAndSignedMfaVerified:true,negativePkceChecksQualified:!this.positiveExchangeOnly,
+    pkceAndSignedMfaVerified:!this.positiveExchangeOnly};
   }catch(error){
    result={...emptyResult(),attempted:true,when:new Date(at).toISOString(),status:'QUALIFICATION_FAILED_CLOSED'};
    const d=error?.qualificationDiagnostic;
@@ -135,11 +138,14 @@ export class MmfOidcQualificationFlow {
     'NEGATIVE_TOKEN_RETURNED','TOKEN_RESPONSE_REJECTED','SIGNED_ID_TOKEN_REJECTED'];
    if(d&&stages.includes(d.stage)&&reasons.includes(d.reason)){
     result.failureStage=d.stage;result.failureReason=d.reason;
+    const presence=d.unverifiedClaimPresence;
+    if(d.stage==='SIGNED_ID_TOKEN_VALIDATION'&&presence&&['amr','authTime','nonce'].every(k=>typeof presence[k]==='boolean'))
+     result.unverifiedClaimPresence={amr:presence.amr,authTime:presence.authTime,nonce:presence.nonce};
     if(['invalid_request','invalid_client','invalid_grant','unauthorized_client','unsupported_grant_type','invalid_scope',
      'access_denied','temporarily_unavailable','server_error','OTHER_OR_MISSING'].includes(d.oauthError))result.oauthError=d.oauthError;
    }
   }
-  result.diagnosticsVersion=2;result.negativeRedirectResponses=negativeRedirectResponses;result.tokenTransport=tokenTransport;result.lastTokenHttpStatus=lastTokenHttpStatus;
+  result.diagnosticsVersion=3;result.qualificationMode=this.positiveExchangeOnly?'positive-exchange':'destructive-qualification';result.negativeRedirectResponses=negativeRedirectResponses;result.tokenTransport=tokenTransport;result.lastTokenHttpStatus=lastTokenHttpStatus;
   result.tokenRequests=requests;result.successfulTokenResponses=successfulTokenResponses;
   await this.storage.transaction(async tx=>{
    const data=await tx.get('qualification');data.result=result;await tx.put('qualification',data);

@@ -84,14 +84,14 @@ try{
  const resultResponse=await dispatch(origin+'/private/oidc/qualification',{headers:{...headers,'sec-fetch-site':'cross-site'}});
  assert.equal(resultResponse.status,200,'provider redirect chain must be able to read authorized status');
  const result=await resultResponse.json();
- if(result.status!=='QUALIFICATION_PASSED')throw Error('MMF_WORKERD_FIXTURE_TOKEN_CHECK_FAILED_'+JSON.stringify({result,stubRequests:requests}));
- assert.equal(result.pkceAndSignedMfaVerified,true);assert.equal(result.sessionCreated,false);
- assert.equal(result.diagnosticsVersion,2);assert.equal(result.negativeRedirectResponses,2);assert.equal(result.lastTokenHttpStatus,200);assert.equal(result.tokenTransport,'RESPONSE_RECEIVED');
- assert.equal(requests,3);
- assert.equal((await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}})).status,403);assert.equal(requests,3);
+ if(result.status!=='POSITIVE_OIDC_VERIFIED')throw Error('MMF_WORKERD_FIXTURE_TOKEN_CHECK_FAILED_'+JSON.stringify({result,stubRequests:requests}));
+ assert.equal(result.positivePkceAndSignedMfaVerified,true);assert.equal(result.pkceAndSignedMfaVerified,false);assert.equal(result.negativePkceChecksQualified,false);assert.equal(result.sessionCreated,false);
+ assert.equal(result.diagnosticsVersion,3);assert.equal(result.negativeRedirectResponses,0);assert.equal(result.lastTokenHttpStatus,200);assert.equal(result.tokenTransport,'RESPONSE_RECEIVED');
+ assert.equal(requests,1);
+ assert.equal((await dispatch(url,{headers:{...headers,cookie,'sec-fetch-site':'cross-site'}})).status,403);assert.equal(requests,1);
  const proof={schema:'mmf-local-workerd-qualification-probe-v1',result:'PASS',fixtureKeysOnly:true,realIdentityProviderContacted:false,
   anonymousDenied:true,authenticatedCrossSiteLanding:true,authenticatedCrossSiteStatus:true,crossSiteInitiationDenied:true,sqliteStateAndRpc:true,
-  fixtureS256AndSignedMfa:true,pinnedNegativeRedirectsWithoutFollowing:true,replayDenied:true,applicationSessionCreated:false,tokenRequestsToLocalStub:requests};
+  fixtureS256AndSignedMfa:true,singleCorrectVerifierExchange:true,replayDenied:true,applicationSessionCreated:false,tokenRequestsToLocalStub:requests};
  console.log(JSON.stringify(proof));
  if(process.env.RUNNER_TEMP)writeFileSync(join(process.env.RUNNER_TEMP,'mmf-local-workerd-qualification-proof.json'),JSON.stringify(proof,null,2)+'\n');
 }finally{await mf.dispose()}
