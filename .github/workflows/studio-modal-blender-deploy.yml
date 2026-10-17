@@ -1,0 +1,97 @@
+name: MUSITU Studio — Dedicated Modal Blender CPU and T4 Deploy
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths:
+      - 'ops/studio_modal_secrets.py'
+      - '.github/workflows/studio-modal-blender-deploy.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-modal-isolated-deploy
+  cancel-in-progress: false
+jobs:
+  modal-blender:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install Modal CLI and verify workspace authentication
+        run: |
+          set -euo pipefail
+          python -m pip install -q --disable-pip-version-check 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'MODAL_WORKSPACE_AUTH_VERIFIED'
+      - name: Create only dedicated Studio Modal Secret from protected Axiom credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_modal_secrets.py
+      - name: Deploy genuine Blender 4.5 CPU and NVIDIA T4 GPU functions
+        working-directory: musitu_studio
+        run: |
+          set -euo pipefail
+          python -m py_compile modal/studio_modal.py studio/job_schema.py
+          modal deploy modal/studio_modal.py --name musitu-studio-v02 --tag STUDIO-V07-20261017 --strategy recreate 2>&1 | tee modal-deploy.log
+          echo 'STUDIO_MODAL_DEPLOY_COMMAND_PASS'
+      - name: Verify real Modal API endpoint protected by Studio control key
+        working-directory: musitu_studio
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import modal,pathlib,urllib.request,urllib.error,json
+          endpoint=modal.Function.from_name("musitu-studio-v02","submit_asgi").get_web_url()
+          if not endpoint or not endpoint.startswith("https://"):raise SystemExit("MODAL_ENDPOINT_MISSING")
+          pathlib.Path("studio-modal-url.txt").write_text(endpoint+"\n")
+          req=urllib.request.Request(endpoint.rstrip("/")+"/jobs",method="POST",headers={"Content-Type":"application/json"},data=b"{}")
+          try:
+            with urllib.request.urlopen(req,timeout=65) as r: code=r.status
+          except urllib.error.HTTPError as e: code=e.code
+          if code!=401:raise SystemExit("FAIL_CLOSED_EXPECTED_401_GOT_"+str(code))
+          print("STUDIO_MODAL_LIVE_UNAUTH_DENIED_401")
+          PY
+      - name: Render genuine Blender CPU scene INSIDE Modal
+        working-directory: musitu_studio
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,modal,pathlib
+          f=modal.Function.from_name("musitu-studio-v02","smoke_cpu")
+          result=f.remote()
+          pathlib.Path("studio-modal-cpu-proof.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          print("MODAL_CPU_RENDER_RESULT="+json.dumps(result,sort_keys=True))
+          if result.get("status")!="PASS" or result.get("renderer")!="CYCLES_CPU" or result.get("gpu_verified") is not False:
+            raise SystemExit("REAL_MODAL_BLENDER_CPU_QUALIFICATION_FAILED")
+          assert set(result.get("files",{}))=={"scene.blend","scene.glb","preview.png"}
+          print("REAL_MODAL_BLENDER_CPU_QUALIFIED")
+          PY
+      - name: Render genuine Blender GPU scene INSIDE NVIDIA Modal T4
+        working-directory: musitu_studio
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,modal,pathlib
+          f=modal.Function.from_name("musitu-studio-v02","smoke_gpu")
+          result=f.remote()
+          pathlib.Path("studio-modal-gpu-proof.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          print("MODAL_T4_CUDA_RESULT="+json.dumps(result,sort_keys=True))
+          if result.get("status")!="PASS" or result.get("renderer")!="CYCLES_CUDA" or result.get("gpu_verified") is not True or not result.get("gpu_device_names"):
+            raise SystemExit("REAL_MODAL_NVIDIA_GPU_QUALIFICATION_FAILED")
+          assert set(result.get("files",{}))=={"scene.blend","scene.glb","preview.png"}
+          print("REAL_MODAL_NVIDIA_CUDA_GPU_QUALIFIED")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-real-modal-blender-cpu-gpu
+          path: |
+            musitu_studio/studio-modal-url.txt
+            musitu_studio/studio-modal-cpu-proof.json
+            musitu_studio/studio-modal-gpu-proof.json
+          retention-days: 14
+          if-no-files-found: warn
