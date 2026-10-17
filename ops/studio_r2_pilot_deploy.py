@@ -49,14 +49,16 @@ def main():
   return base64.urlsafe_b64encode(hmac.new(master,label.encode(),hashlib.sha256).digest()).decode().rstrip("=")
  config=json.loads((ROOT/"wrangler.jsonc").read_text())
  if config.get("name")!="musitu-studio-v02":raise RuntimeError("WRONG_WORKER_NAME")
- config.pop("d1_databases",None)\n config["main"]="src/r2_entry.mjs"
+ config.pop("d1_databases",None)
+ config["main"]="src/r2_entry.mjs"
  config["workers_dev"]=True
  config["vars"].update({
    "STUDIO_ACCESS_TEAM_DOMAIN":"https://"+authdomain,
    "STUDIO_ACCESS_POLICY_AUD":audience,
    "STUDIO_MODAL_URL":os.environ.get("STUDIO_MODAL_ENDPOINT",""),
    "ENABLE_RENDER_DISPATCH":"false",
-   "GPU_EXECUTION_APPROVED":"false",\n   "STUDIO_STORAGE_MODE":"R2_CAS_SINGLE_ADMIN"})
+   "GPU_EXECUTION_APPROVED":"false",
+   "STUDIO_STORAGE_MODE":"R2_CAS_SINGLE_ADMIN"})
  config["vars"].pop("STUDIO_LOCAL_TEST_ONLY",None)
  dest=ROOT/"wrangler.live.ci.json"
  dest.write_text(json.dumps(config,indent=2))
