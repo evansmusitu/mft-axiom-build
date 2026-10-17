@@ -1,0 +1,29 @@
+name: MUSITU Studio — Cloudflare 403 Cause
+on:
+  push:
+    branches: [experiments/studio-full-deploy-20261017]
+    paths: ['.github/workflows/studio-edge-denial-reason.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Inspect only public Cloudflare denial response body
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,re
+          url="https://studio-callback.mftintelligence.com/internal/callback"
+          req=urllib.request.Request(url,data=b'{}',method='POST')
+          try:
+            with urllib.request.urlopen(req,timeout=15) as r:
+              data=r.read(320);status=r.status
+          except urllib.error.HTTPError as e:
+            data=e.read(320);status=e.code
+          print("STUDIO_PUBLIC_HTTP="+str(status))
+          # Public error response only; redacts anything resembling a token, email or URI.
+          snippet=data.decode('utf-8','replace')[:180]
+          snippet=re.sub(r'[A-Za-z0-9_-]{28,}','[OPAQUE]',snippet)
+          snippet=re.sub(r'[^\x20-\x7e]','?',snippet)
+          print("STUDIO_PUBLIC_RESPONSE_BODY="+snippet)
+          PY
