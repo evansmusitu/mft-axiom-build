@@ -1,0 +1,11 @@
+{
+  "$schema":"./node_modules/wrangler/config-schema.json",
+  "name":"musitu-studio-v02",
+  "main":"src/index.mjs",
+  "compatibility_date":"2026-10-17",
+  "workers_dev":false,
+  "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true},
+  "d1_databases":[{"binding":"STUDIO_DB","database_name":"musitu-studio-v02","database_id":"REPLACE_ONLY_AFTER_DEDICATED_DB_CREATED"}],
+  "r2_buckets":[{"binding":"STUDIO_ASSETS","bucket_name":"musitu-studio-v02-assets"}],
+  "vars":{"ENABLE_RENDER_DISPATCH":"false","GPU_EXECUTION_APPROVED":"false"}
+}
