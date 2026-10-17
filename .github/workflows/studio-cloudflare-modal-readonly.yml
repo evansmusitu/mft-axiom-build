@@ -1,0 +1,53 @@
+name: MUSITU Studio — Live Provider Read-only Credential and Resource Check
+on:
+  push:
+    branches:
+      - experiments/studio-cloudflare-modal-readonly-20261017
+    paths:
+      - '.github/workflows/studio-cloudflare-modal-readonly.yml'
+      - 'ops/studio_live_readonly_probe.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: musitu-studio-provider-readonly-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  inspect-existing-provider-accounts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Modal CLI for metadata list only
+        run: python -m pip install -q --disable-pip-version-check 'modal>=1.5,<2'
+      - name: Read current connected Cloudflare and Modal inventory (no mutations)
+        env:
+          STUDIO_CF_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          python ops/studio_live_readonly_probe.py
+      - name: Verify fail-closed spending and no live deployment
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('studio-provider-readonly.json'))
+          assert r['schema']=='musitu.studio.live-provider-readonly.v1'
+          assert r['read_only'] is True
+          assert r['provider_zero_charge_cap_verified'] is False
+          assert r['deployment_authorized'] is False and r['render_authorized'] is False
+          print('MUSITU_STUDIO_NO_DEPLOYMENT_NO_RENDER_NO_BILLING_CHANGES')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-live-provider-readonly-inventory
+          path: studio-provider-readonly.json
+          retention-days: 7
+          if-no-files-found: warn
