@@ -1,0 +1,158 @@
+name: MMF Authenticated Browser Cookie Fallback Content-Only 20261017
+# Dedicated staging Worker only; no DNS, Access policy, bindings, main, PR, payments or email changes.
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['.github/workflows/mmf-cookie-fallback-content-only-20261017.yml']
+permissions:
+  contents: read
+jobs:
+  update-isolated-worker:
+    if: github.event.before == '9d92677aae35ecaf2f0d57c5b9749099e84ba198'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify protected Git and red-green tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '9d92677aae35ecaf2f0d57c5b9749099e84ba198'
+          node --input-type=module <<'NODE'
+          const root='https://api.github.com/repos/evansmusitu/mft-axiom-build/';
+          const get=async p=>{const r=await fetch(root+p,{headers:{authorization:'Bearer '+process.env.GH_TOKEN},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('MMF_PROTECTED_REF_UNKNOWN');return r.json()};
+          const [m,p]=await Promise.all([get('git/ref/heads/main'),get('pulls/1')]);
+          if(m.object?.sha!=='bc48ab8aed137e61b76e25f113bb29e1efd7b11a'||p.state!=='open'||p.draft!==true||p.merged!==false)throw Error('MMF_PROTECTED_REF_DRIFT');
+          console.log('MMF_PROTECTED_REFS_INTACT');
+          NODE
+          cd musitu-mail-fabric
+          node --test test/mmf-private-access-stage-gateway.test.mjs
+          node --check src/edge/mmf-access-stage-gateway.mjs
+      - name: Update only verified isolated Worker script content
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {createHash} from 'node:crypto';
+          const acct='93f395f5121954671f92fffa453d6b61';
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const script='mmf-private-identity-edge-20261017';
+          const host='mail-stage.mftintelligence.com';
+          const accessId='f8ab12fe-251f-44fa-80de-1c2f2bdc4055';
+          const launcherId='9dfc2a78-0dae-463b-9235-03ae134be007';
+          const idpId='ec04a8ab-9382-4df0-9589-d2c98618e6af';
+          const prefix='accounts/'+acct+'/access/';
+          const report={schema:'mmf-browser-cookie-only-worker-content-v1',observedAt:new Date().toISOString(),
+            branch:'product/musitu-mail-fabric-isolated-20261009',commit:process.env.GITHUB_SHA,
+            priorWorkerSourceVerified:false,accessProtected:false,bindingsPreserved:false,
+            workerContentUpdated:false,contentReadbackVerified:false,anonymousStillDenied:false,
+            authBrowserVerified:false,customerSending:false,payments:false,customerApi:false,
+            nonMmfMutations:0,cloudflareMutations:0,gate:'MMF_WORKER_AUTH_PATCH_NOT_APPLIED'};
+          const save=()=>{
+            writeFileSync(join(process.env.RUNNER_TEMP,'mmf-cookie-content-only-evidence.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+            console.log(JSON.stringify({gate:report.gate,sourceVerified:report.priorWorkerSourceVerified,
+              accessProtected:report.accessProtected,changed:report.workerContentUpdated,
+              readback:report.contentReadbackVerified,anonymousDenied:report.anonymousStillDenied,
+              browserPassed:false,mutations:report.cloudflareMutations}));
+          };
+          const api=async(path,method='GET',body=null)=>{
+            const headers={authorization:'Bearer '+token,accept:'application/json'};
+            if(method!=='GET'){
+              if(method!=='PUT'||path!=='accounts/'+acct+'/workers/scripts/'+script+'/content'||!(body instanceof FormData))throw Error('MMF_SCOPE_VIOLATION');
+              report.cloudflareMutations++;
+            }
+            const r=await fetch('https://api.cloudflare.com/client/v4/'+path,{method,headers,
+              ...(body?{body}:{}),redirect:'error',signal:AbortSignal.timeout(20000),cache:'no-store'});
+            if(!r.ok||r.redirected)throw Error('MMF_CLOUDFLARE_API_HTTP_REJECTED');
+            if(path.endsWith('/content/v2'))return r;
+            const txt=await r.text();if(txt.length>180000)throw Error('MMF_CF_RESPONSE_TOO_LARGE');
+            const j=JSON.parse(txt);if(j.success!==true||!Object.hasOwn(j,'result')||Number(j.result_info?.total_pages||1)>1)throw Error('MMF_CF_API_INCOMPLETE');
+            return j.result;
+          };
+          try{
+            if(process.env.CLOUDFLARE_ACCOUNT_ID!==acct||!token||token.length<20)throw Error('MMF_CF_NOT_CONNECTED');
+            const [app,policies,launcher,lp,settings,sub,domains]=await Promise.all([
+              api(prefix+'apps/'+accessId),api(prefix+'apps/'+accessId+'/policies?per_page=100'),
+              api(prefix+'apps/'+launcherId),api(prefix+'apps/'+launcherId+'/policies?per_page=100'),
+              api('accounts/'+acct+'/workers/scripts/'+script+'/settings'),
+              api('accounts/'+acct+'/workers/scripts/'+script+'/subdomain'),
+              api('accounts/'+acct+'/workers/domains?per_page=100')]);
+            const email=lp?.[0]?.include?.[0]?.email?.email;
+            report.accessProtected=app?.id===accessId&&app.type==='self_hosted'&&app.domain===host&&
+              app.mfa_config?.mfa_disabled===false&&app.mfa_config.allowed_authenticators?.includes('totp')===true&&
+              policies?.length===1&&policies[0].decision==='allow'&&policies[0].include?.length===1&&
+              policies[0].include[0].email?.email===email&&policies[0].require?.length===1&&
+              policies[0].require[0].login_method?.id===idpId&&
+              typeof email==='string'&&email.includes('@')&&launcher?.type==='app_launcher'&&
+              Array.isArray(domains)&&domains.some(x=>x.hostname===host&&x.service===script)&&
+              sub?.enabled===false&&sub?.previews_enabled===false;
+            if(!report.accessProtected)throw Error('MMF_ACCESS_POLICY_OR_ROUTE_DRIFT');
+            const bindings=settings?.bindings;
+            const names=['MMF_ACCESS_AUD','MMF_APPROVED_ADMIN_SHA256','MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_REAL_SEND_ENABLED'];
+            const by=new Map(Array.isArray(bindings)?bindings.map(x=>[x.name,x]):[]);
+            report.bindingsPreserved=bindings?.length===5&&names.every(n=>by.get(n)?.type==='plain_text')&&
+              by.get('MMF_ACCESS_AUD')?.text===app.aud&&
+              by.get('MMF_APPROVED_ADMIN_SHA256')?.text===createHash('sha256').update(email.toLowerCase()).digest('hex')&&
+              ['MMF_COMMERCE_ENABLED','MMF_CUSTOMER_API_ENABLED','MMF_REAL_SEND_ENABLED'].every(n=>by.get(n)?.text==='false');
+            if(!report.bindingsPreserved)throw Error('MMF_WORKER_BINDING_DRIFT');
+            const oldSource=readFileSync('musitu-mail-fabric/src/edge/mmf-access-stage-gateway.mjs','utf8');
+            const beforeSource=await (await import('node:child_process')).execSync('git show 17e5583ff3276ea01b3c42efd69db21cf65a6570:musitu-mail-fabric/src/edge/mmf-access-stage-gateway.mjs',{encoding:'utf8'});
+            if(!beforeSource.includes("const assertion=req.headers.get('cf-access-jwt-assertion');")||
+               !oldSource.includes('function browserAccessCookie(raw)'))throw Error('MMF_GIT_SOURCE_NOT_PINNED');
+            const oldRemote=await api('accounts/'+acct+'/workers/scripts/'+script+'/content/v2');
+            const oldText=await oldRemote.text();if(oldText.length>200000)throw Error('MMF_REMOTE_SCRIPT_OVERSIZE');
+            report.priorWorkerSourceVerified=oldText.includes(beforeSource.trimEnd())&&
+              !oldText.includes('function browserAccessCookie(raw)');
+            if(!report.priorWorkerSourceVerified)throw Error('MMF_REMOTE_SOURCE_DRIFT');
+            const form=new FormData();
+            form.set('metadata',new Blob([JSON.stringify({main_module:'mmf-access-stage-gateway.mjs'})],{type:'application/json'}));
+            form.set('mmf-access-stage-gateway.mjs',new Blob([oldSource],{type:'application/javascript+module'}),'mmf-access-stage-gateway.mjs');
+            const updated=await api('accounts/'+acct+'/workers/scripts/'+script+'/content','PUT',form);
+            report.workerContentUpdated=updated?.id===script;
+            if(!report.workerContentUpdated)throw Error('MMF_WORKER_UPDATE_NOT_CONFIRMED');
+            const newRemote=await api('accounts/'+acct+'/workers/scripts/'+script+'/content/v2');
+            const newText=await newRemote.text();if(newText.length>200000)throw Error('MMF_REMOTE_SCRIPT_OVERSIZE');
+            report.contentReadbackVerified=newText.includes('function browserAccessCookie(raw)')&&
+              newText.includes('CF_Authorization')&&newText.includes(oldSource.trimEnd());
+            const after=await Promise.all([
+              api('accounts/'+acct+'/workers/scripts/'+script+'/settings'),
+              api('accounts/'+acct+'/workers/scripts/'+script+'/subdomain'),
+              api('accounts/'+acct+'/workers/domains?per_page=100'),
+              api(prefix+'apps/'+accessId+'/policies?per_page=100')]);
+            report.configStillProtected=after[0]?.bindings?.length===5&&names.every(n=>
+              after[0].bindings.find(b=>b.name===n)?.text===by.get(n).text)&&
+              after[1]?.enabled===false&&after[1]?.previews_enabled===false&&
+              after[2]?.some(x=>x.hostname===host&&x.service===script)&&after[3]?.length===1;
+            const probe=await fetch('https://'+host+'/private/gateway',{method:'GET',redirect:'manual',signal:AbortSignal.timeout(12000)}).catch(()=>null);
+            report.anonStatus=probe?.status??null;
+            report.anonymousStillDenied=probe!==null&&[302,303,307,308,401,403].includes(probe.status);
+            await probe?.body?.cancel().catch(()=>{});
+            report.gate=report.contentReadbackVerified&&report.configStillProtected&&report.anonymousStillDenied?
+              'MMF_SAFE_SIGNED_BROWSER_COOKIE_FALLBACK_LIVE_ANON_DENIED':'MMF_LIVE_READBACK_OR_ANON_INCOMPLETE';
+          }catch(error){report.gate=report.workerContentUpdated?'MMF_WORKER_CHANGED_POSTDEPLOY_REVIEW_REQUIRED':'MMF_WORKER_UPDATE_SAFE_ABORT';
+            report.failure=/^[A-Z0-9_]+$/.test(error.message)?error.message:'MMF_UNKNOWN_ERROR';}
+          finally{save();if(report.gate!=='MMF_SAFE_SIGNED_BROWSER_COOKIE_FALLBACK_LIVE_ANON_DENIED')process.exitCode=2}
+          NODE
+      - name: Store sanitized proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-cookie-only-worker-patch-20261017
+          path: ${{ runner.temp }}/mmf-cookie-content-only-evidence.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Delete transient proof
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mmf-cookie-content-only-evidence.json"
