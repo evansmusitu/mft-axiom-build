@@ -1,0 +1,46 @@
+name: AXIOM ISO appointment preflight S0 — production DENIED
+on:
+  push:
+    branches:
+      - security/axiom-iso-appointment-preflight-s0-20261017
+    paths:
+      - ops/iso_activation/**
+      - .github/workflows/axiom-iso-appointment-preflight-s0.yml
+permissions:
+  contents: read
+jobs:
+  verify-observed-denial:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'security/axiom-iso-appointment-preflight-s0-20261017'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: No credentials and no live execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${AXIOM_WITNESS_PRIVATE_KEY:-}"
+          python3 -m unittest discover -s ops/iso_activation/test -p 'test*.py' -v
+          python3 ops/iso_activation/preflight.py | tee /tmp/iso-output.log
+          grep -Fqx 'AXIOM_ISO_APPOINTMENT_RECORDED_EXTERNAL_AUTHORITY_NOT_CERTIFIED_PRODUCTION_DENIED' /tmp/iso-output.log
+          echo ISO_PREFLIGHT_S0_DENIAL_VERIFIED_NOT_AN_EXTERNAL_SECURITY_CERTIFICATION
+  independent-process-regression-not-independent-operator:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'security/axiom-iso-appointment-preflight-s0-20261017'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Re-run negative regression without production authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/iso_activation/test -p 'test*.py' -v
+          python3 ops/iso_activation/preflight.py
+          echo AXIOM_ISO_SEPARATE_RUNNER_S0_DENIAL_NOT_EXTERNAL_CUSTODY
