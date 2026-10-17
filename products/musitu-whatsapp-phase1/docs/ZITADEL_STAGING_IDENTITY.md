@@ -5,20 +5,29 @@
 The user completed registration in the real browser. The ZITADEL customer portal
 at `https://zitadel.com/admin/dashboard` showed team **MUSITU**, **FREE**, and
 "Welcome back Evans". The onboarding questionnaire was completed. No payment
-method, paid subscription, identity instance or application credential was created
-by this continuation.
+method or paid subscription was added. After the user approved the EU region and
+completed administrator password setup, the portal showed the isolated instance
+`musitu-whatsapp-staging` **Running**, ID `395558180471472294`, region **EU**.
+Support access remained disabled. The earlier region approval blocker is resolved.
 
-An isolated instance name `musitu-whatsapp-staging` was prepared. The wizard offers
-US, EU, Switzerland and Australia as FREE. It says data region is permanent.
-Automatic approval review rejected selecting EU because the user has not approved
-the irreversible data-residency choice. The wizard remains at region selection.
-Do not select another region or use an indirect API to bypass that rejection.
+Its generated issuer is
+`https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud`.
+The public discovery document was retrieved from that real service and saved in
+`evidence/20261017/zitadel-real-discovery.json`. This proves public endpoint and
+protocol metadata availability, not authenticated application access.
+
+The separate instance console requires administrator sign-in. A secure login-name
+submission returned **User not found in the system**. The entered value is not
+recorded or reconstructed. No application clients or secrets have been created;
+administrator authentication remains the next human-only dependency.
 
 ## Implemented compatibility
 
 `OIDC_PROVIDER` defaults to `keycloak`, preserving the existing realm endpoint
 layout. Explicit `zitadel` permits only an operator-configured, canonical generated
-`https://<instance>.zitadel.cloud` origin. It rejects extra paths, userinfo, custom
+`https://<instance>.zitadel.cloud` or observed
+`https://<instance>.eu1.zitadel.cloud` origin. Other regional/nested suffixes remain
+rejected. It rejects extra paths, userinfo, custom
 ports, queries, fragments, arbitrary providers and deceptive host suffixes.
 Custom domains are intentionally not supported by this qualification slice.
 
@@ -50,9 +59,10 @@ not from untrusted URLs or a provider's general organization administrator role.
 
 ## Remaining real setup and acceptance
 
-1. Obtain the user's explicit permanent region selection, then confirm the actual
-   wizard stays FREE with no payment details or paid features.
-2. Review the instance's final admin setup. New human passwords/passkeys require
+1. Complete administrator sign-in in the existing isolated instance. The account,
+   EU region and Running state are already verified; do not create a replacement
+   instance or change plans to work around a rejected login name.
+2. Review the instance's admin setup. New human passwords/passkeys require
    secure user entry; creation of security-sensitive admin/client access requires
    action-time approval. Never read login values or reset/verification links.
 3. In this isolated instance only, create one SaaS project with a confidential web
@@ -76,12 +86,18 @@ not from untrusted URLs or a provider's general organization administrator role.
 
 The new test files run real local RSA/JWT cryptography, the real login route and
 injected HTTP boundaries. They are **LOCAL_SYNTHETIC_IDENTITY_TESTS**, not genuine
-ZITADEL token exchanges or browser login acceptance. No live provider credentials
-exist, no identity instance is provisioned, and Phase 1 remains blocked.
+ZITADEL token exchanges or browser login acceptance. The real instance and its
+public discovery response are separately identified as live observations. No live
+application client credentials exist, and Phase 1 remains blocked.
 
-Fresh verification: **255/255 local tests**, **115 MJS syntax checks**, optimized
+Before the regional issuer correction: **255/255 local tests**, **115 MJS syntax checks**, optimized
 Next.js build and **353-file complete source manifest** pass. Logs are recorded
 under `evidence/20261017`.
+The EU1 correction adds one regression case: **256/256 local tests**, **115 MJS
+syntax checks**, **353-file manifest**, and a clean optimized Next.js build pass.
+The first cached build failed in Turbopack persistence; its failure log is retained
+alongside the successful clean build. Fresh results are recorded separately in
+`zitadel-eu1-*.log` and `zitadel-instance-status.json`.
 A failing pre-implementation module-export check is retained; it demonstrates the
 missing adapter, not a provider error. The previous genuine Groq, PostgreSQL and
 Meta qualification results are preserved in their original evidence folders.

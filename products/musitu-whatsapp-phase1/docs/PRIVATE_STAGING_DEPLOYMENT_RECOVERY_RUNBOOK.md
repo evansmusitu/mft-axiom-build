@@ -110,9 +110,14 @@ When adding FORCE-RLS tables, regenerate `scripts/prepare-meta-ingress.mjs`, run
 ## 17 October ZITADEL alternative
 
 The user selected an alternative to Cloud-IAM; ZITADEL Cloud Free is the chosen
-provider. The real MUSITU Free portal account is verified, but no instance exists.
-The permanent data-region choice requires explicit user confirmation after an
-automatic approval-review rejection. See `ZITADEL_STAGING_IDENTITY.md` for the
+provider. The real MUSITU Free portal account and Running EU instance
+`395558180471472294` are verified. The user approved the permanent region and
+completed administrator password setup. The exact issuer is
+`https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud`; its real discovery
+response is retained. Separate console login returned “User not found in the
+system” after a secure login-name submission. Preserve the existing instance and
+resolve administrator authentication; do not create replacements or upgrade.
+See `ZITADEL_STAGING_IDENTITY.md` for the
 exact isolated setup, separate web/API credentials, synthetic test classification
 and remaining real acceptance. Do not change runtime identity environment values
 until the actual generated issuer, clients, exact callbacks and secrets exist.

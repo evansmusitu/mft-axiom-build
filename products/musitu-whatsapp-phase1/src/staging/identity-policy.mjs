@@ -13,7 +13,7 @@ export function identityConfig(env){
  }else if(provider==='zitadel'){
   // Only operator-pinned generated ZITADEL Cloud instance origins are supported.
   // Custom domains require separate review; no user-controlled discovery endpoints.
-  if(issuer!==u.origin||u.port||!/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.zitadel\.cloud$/.test(u.hostname))throw Error('IDENTITY_CONFIGURATION_REJECTED');
+  if(issuer!==u.origin||u.port||!/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.eu1)?\.zitadel\.cloud$/.test(u.hostname))throw Error('IDENTITY_CONFIGURATION_REJECTED');
   introspectionClient=env.OIDC_INTROSPECTION_CLIENT_ID;introspectionSecret=env.OIDC_INTROSPECTION_CLIENT_SECRET;
   if(!introspectionClient||!introspectionSecret||!env.OIDC_AUDIENCE||audience!==introspectionClient)throw Error('IDENTITY_INTROSPECTION_NOT_CONFIGURED');
   endpoints={authorization:issuer+'/oauth/v2/authorize',token:issuer+'/oauth/v2/token',introspection:issuer+'/oauth/v2/introspect',jwks:issuer+'/oauth/v2/keys',logout:issuer+'/oidc/v1/end_session'};

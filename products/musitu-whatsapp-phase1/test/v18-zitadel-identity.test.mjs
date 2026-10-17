@@ -34,3 +34,10 @@ test('ZITADEL online validation requires exact issuer, client, subject, expirati
 test('ZITADEL logout preserves exact callback and state without exposing tokens or secrets',()=>{
  const c=cfg(),url=new URL(providerLogoutUrl(c,'s'.repeat(43)));assert.equal(url.pathname,'/oidc/v1/end_session');assert.equal(url.searchParams.get('post_logout_redirect_uri'),c.origin+'/auth/logged-out');assert.deepEqual([...url.searchParams.keys()],['client_id','post_logout_redirect_uri','state']);assert.equal(url.href.includes(c.secret),false);
 });
+
+test('observed EU1 issuer is accepted without trusting arbitrary nested or regional suffixes',()=>{
+ const issuer='https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud';
+ const c=identityConfig({...env,OIDC_ISSUER:issuer});
+ assert.equal(c.endpoints.token,issuer+'/oauth/v2/token');
+ for(const bad of ['https://nested.tenant.eu1.zitadel.cloud','https://tenant.eu1.zitadel.cloud.evil.invalid','https://tenant.unknown.zitadel.cloud','https://eu1.zitadel.cloud/path'])assert.throws(()=>identityConfig({...env,OIDC_ISSUER:bad}),/IDENTITY_/);
+});

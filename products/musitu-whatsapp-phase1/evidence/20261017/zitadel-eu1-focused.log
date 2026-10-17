@@ -1,0 +1,23 @@
+✔ ZITADEL requires explicit provider, canonical generated HTTPS origin and separate API audience credentials (1.9474ms)
+✔ Keycloak remains the default with its original pinned realm paths (0.2531ms)
+✔ ZITADEL uses separately scoped Basic authentication for token exchange and introspection (0.80575ms)
+✔ discovery is an assertion against pinned endpoints, never an instruction to follow an arbitrary URL (0.819188ms)
+✔ ZITADEL online validation requires exact issuer, client, subject, expiration and API audience (0.358795ms)
+✔ ZITADEL logout preserves exact callback and state without exposing tokens or secrets (1.167768ms)
+✔ observed EU1 issuer is accepted without trusting arbitrary nested or regional suffixes (0.363638ms)
+✔ cryptographic JWT verification precedes online introspection; revoked tokens fail on immediate reuse (26.994142ms)
+✔ wrong issuer, audience, client, expiry, signature and algorithm never reach introspection (68.786711ms)
+✔ provider failure after an earlier successful request cannot reuse cached active status (3.130038ms)
+✔ ID token must bind nonce, subject and authorized client to the same login flow (5.781682ms)
+✔ code exchange forwards PKCE to pinned token endpoint and uses web credentials only (0.737453ms)
+✔ unresponsive HTTP or response stream is bounded even if the transport ignores abort (40.976271ms)
+✔ identity transport rejects redirects, unexpected status/type and oversized JSON (1.87363ms)
+✔ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (9.07393ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 441.219497
