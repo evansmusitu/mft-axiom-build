@@ -1,5 +1,7 @@
 # Signed ZITADEL MFA enforcement — 18 October 2026
 
+> Current verified continuation: [Genuine ZITADEL owner acceptance](ZITADEL_OWNER_ACCEPTANCE_20261018.md). Real MFA, owner operations, foreign-tenant denial, natural session expiry and corrected logout have passed. Provider factor-check windows are 1 hour, the supported UI minimum. Phase 1 remains incomplete. Statements below are historical where superseded.
+
 > Later 18 October: the pinned candidate is deployed privately, both client
 > secrets are sensitive Preview variables, and Vercel MFA is active. The real
 > application reaches mandatory ZITADEL factor enrollment; completed signed-token

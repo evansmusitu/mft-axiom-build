@@ -1,5 +1,7 @@
 # Private ZITADEL deployment qualification — 18 October 2026
 
+> Current verified continuation: [Genuine ZITADEL owner acceptance](ZITADEL_OWNER_ACCEPTANCE_20261018.md). Real MFA, owner operations, foreign-tenant denial, natural session expiry and corrected logout have passed. Provider factor-check windows are 1 hour, the supported UI minimum. Phase 1 remains incomplete. Statements below are historical where superseded.
+
 Phase 1 remains **INCOMPLETE**. This dated continuation supersedes the earlier missing-client-secret / Vercel-MFA-inactive / source-not-deployed statements.
 
 ## Actual cloud work

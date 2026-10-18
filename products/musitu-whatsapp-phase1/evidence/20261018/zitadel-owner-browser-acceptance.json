@@ -1,0 +1,184 @@
+{
+  "timestamp": "2026-10-18T15:06:14Z",
+  "phase1": "INCOMPLETE",
+  "source": "33865e0123e78a48bd4d584ab4c45e7edff15a5a",
+  "deployment": "dpl_2Gv1r9CXy2MueB3Hj6gPTKaDGvy4",
+  "deploymentState": "READY",
+  "target": "staging",
+  "protection": {
+    "ssoAllDeployments": true,
+    "live": false
+  },
+  "scope": "GENUINE_ZITADEL_MFA_OWNER_BROWSER_WITH_SYNTHETIC_BUSINESS_RECORDS",
+  "credentials": "Secure browser entry only; no passwords, seeds, OTPs, authorization codes, cookies, JWTs or client secrets retained.",
+  "providerPolicy": {
+    "forceMfaAllUsers": true,
+    "secondFactorCheckHours": 1,
+    "multifactorCheckHours": 1,
+    "uiMinimumHours": 1,
+    "requestedPoint16HoursRejectedByUiValidation": true,
+    "tokenDefaultSeconds": 576,
+    "applicationAuthFreshnessSeconds": 600
+  },
+  "genuinePasses": [
+    "Existing enrolled authenticator challenged and completed through secure entry",
+    "Fresh password plus TOTP application login returned to SaaS",
+    "Real token exchange, verified access/ID JWT and online introspection admitted opaque database session",
+    "Synthetic tenant onboarding, configuration revision 2, full reload and own-business readback",
+    "Foreign tenant denied; own tenant restored and read successfully",
+    "Synthetic resource and booking persisted; overlapping occupied slot denied",
+    "Independent SQL confirms one confirmed booking",
+    "Natural session expiry denied protected business access",
+    "Fresh real MFA sign-in on logout-corrected deployment admitted protected owner overview",
+    "Same-origin logout revoked database session, navigated to provider account logout, and returned to SaaS",
+    "Post-logout owned business request denied; business records absent",
+    "Latest session row revoked while expiry was still in future; active unexpired count zero"
+  ],
+  "limits": [
+    "Booking resource identifier obtained via scoped operator SQL because UI does not display it; complete unassisted booking UI not qualified",
+    "Expiry denial is cookie/session-row boundary evidence, not isolated old-JWT reuse",
+    "Provider logout completed visibly; independent token revocation/old-JWT reuse and JWKS rotation remain unqualified",
+    "No separate staff identity or mobile browser acceptance",
+    "Build PostgreSQL fixtures are separate synthetic checks, without Meta, model or IdP traffic",
+    "No Meta sends or model requests in this continuation"
+  ],
+  "owner": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+        "legal_name": "MUSITU Phase1 Synthetic Owner QA 20261018",
+        "status": "ACTIVE",
+        "timezone": "Africa/Harare",
+        "business_description": "Synthetic acceptance tenant; no customers or outbound messaging.",
+        "revision": 2,
+        "active_owners": "1",
+        "onboard_audit": "1",
+        "configuration_audit": "1"
+      }
+    ]
+  ],
+  "resource": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+        "resource_id": "2660e3a0-c471-4bc0-ba22-c3e99c2d6f9a",
+        "label": "Synthetic MFA acceptance resource 20261018"
+      }
+    ]
+  ],
+  "booking": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "bookings": "1",
+        "starts_at": "2027-01-01T08:00:00.000Z",
+        "ends_at": "2027-01-01T08:30:00.000Z",
+        "states": [
+          "CONFIRMED"
+        ]
+      }
+    ],
+    [
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "events": "1"
+      },
+      {
+        "action": "BUSINESS_ONBOARDED",
+        "events": "1"
+      },
+      {
+        "action": "RESOURCE_ADDED",
+        "events": "1"
+      }
+    ]
+  ],
+  "expiration": [
+    {
+      "checked_at": "2026-10-18T14:50:33.621Z",
+      "active_unexpired": "0",
+      "unrevoked_expired": "1",
+      "latest_expiry": "2026-10-18T14:50:00.809Z"
+    }
+  ],
+  "logoutAggregate": [
+    {
+      "checked_at": "2026-10-18T15:05:29.804Z",
+      "active_unexpired": "0",
+      "revoked": "12",
+      "unrevoked_expired": "1",
+      "latest_expiry": "2026-10-18T15:11:46.010Z"
+    }
+  ],
+  "latestSessionRevoked": [
+    {
+      "expires_at": "2026-10-18T15:11:46.010Z",
+      "revoked": true,
+      "checked_at": "2026-10-18T15:05:59.810Z"
+    }
+  ],
+  "runtimeFailures": [
+    {
+      "timestamp": "2026-10-18T14:27:10.162Z",
+      "stage": "ACCESS_VALIDATION",
+      "reason": "TOKEN_CLIENT_REJECTED",
+      "source": "d92f5ec706e79bcedcf7af736dba77f1b33405ac"
+    },
+    {
+      "timestamp": "2026-10-18T14:31:44.338Z",
+      "stage": "ID_VALIDATION",
+      "reason": "OIDC_AUTH_TIME_REJECTED",
+      "source": "8f9409af4c55cf23fa4ce6200cb7a6e4a8a9fc82"
+    },
+    {
+      "timestamp": "2026-10-18T14:46:37.622Z",
+      "stage": "CONFIGURATION",
+      "reason": "ORIGIN_REJECTED",
+      "source": "d6e9923c874a5e2ad24fb2ccd1c3d4e761daff2f"
+    }
+  ],
+  "localValidation": {
+    "tests": 274,
+    "failures": 0,
+    "mjsSyntaxFiles": 122,
+    "optimizedBuild": "PASS"
+  },
+  "postgresQualification": {
+    "runId": "8b768cde-e5cf-48e4-83c6-aae426b02b92",
+    "passed": 26,
+    "failed": 0,
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP"
+  },
+  "remaining": [
+    "Independent staff/role/provider-revocation/old-JWT/JWKS tests",
+    "Owner/staff mobile/desktop matrix and resource-ID UI gap",
+    "Bound unpublished Meta development inbound/delivery/receipts",
+    "Authenticated governed AI and authorized AXIOM service transport",
+    "Expiring Groq replacement credential",
+    "Schedules, alerts, full recovery, second custodian and independent approval"
+  ],
+  "preserved": [
+    "Protected main",
+    "Production AXIOM",
+    "MAIL FABRIC",
+    "FMI",
+    "Meta receiver",
+    "Original database mappings",
+    "AI UNKNOWN/idempotency/quota evidence",
+    "Both fixture AI policies disabled"
+  ]
+}

@@ -1,5 +1,7 @@
 # ZITADEL staging identity — 17 October 2026
 
+> Current verified continuation: [Genuine ZITADEL owner acceptance](ZITADEL_OWNER_ACCEPTANCE_20261018.md). Real MFA, owner operations, foreign-tenant denial, natural session expiry and corrected logout have passed. Provider factor-check windows are 1 hour, the supported UI minimum. Phase 1 remains incomplete. Statements below are historical where superseded.
+
 > Latest cloud continuation: `ZITADEL_PRIVATE_DEPLOYMENT_20261018.md` records the
 > private pinned deployment, sensitive Preview secrets, active Vercel MFA and
 > genuine mandatory ZITADEL factor-enrollment challenge. Earlier missing-secret,
