@@ -71,7 +71,8 @@ def inspect_fold_coverage(*, source: Path, manifest_path: Path, mapping_path: Pa
                     fold['positive'] += int(bool(example.label))
                 break
 
-    if (_sha256_file(source) != source_sha or _sha256_file(mapping_path) != mapping_sha
+    if (_sha256_file(source) != source_sha or _sha256_file(manifest_path) != manifest_sha
+            or _sha256_file(mapping_path) != mapping_sha
             or _sha256_file(seal_path) != initial_seal_sha or
             state['source_rows'] != manifest['declared_source_rows'] or
             state['first_time'] != _parsed_time(manifest['declared_start_time']) or
