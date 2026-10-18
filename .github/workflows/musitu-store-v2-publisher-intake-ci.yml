@@ -68,6 +68,8 @@ jobs:
           "$BUILD_TOOLS/zipalign" -f 4 "$UNSIGNED" "$SIGN_DIR/unsigned-aligned.apk"
           "$BUILD_TOOLS/apksigner" sign --ks "$SIGN_DIR/key.p12" --ks-type PKCS12 --ks-key-alias fixture --ks-pass "pass:$PASSWORD" --key-pass "pass:$PASSWORD" --min-sdk-version 24 --out "$SIGN_DIR/disposable-signed.apk" "$SIGN_DIR/unsigned-aligned.apk"
           "$BUILD_TOOLS/apksigner" verify --min-sdk-version 24 "$SIGN_DIR/disposable-signed.apk"
+          # Disposable fixture only: expose metadata labels but redact all hashes.
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$SIGN_DIR/disposable-signed.apk" | sed -E 's/(digest: ).*/\1[REDACTED]/'
           python3 store/phase1/publisher_intake/signed_apk_integration.py "$SIGN_DIR/disposable-signed.apk"
           rm -f "$SIGN_DIR/disposable-signed.apk"
           echo MUSITU_STORE_DISPOSABLE_PUBLISHER_FIXTURE_CLEANED=PASS
