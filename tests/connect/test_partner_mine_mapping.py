@@ -191,4 +191,53 @@ class PartnerMineMappingTests(unittest.TestCase):
             self.run_adapter()
         self.assertFalse(self.manifest.exists())
 
+    def test_duplicate_raw_sensor_json_key_fails_closed_before_publication(self):
+        raw=self.source.read_text(encoding='utf-8')
+        original='"raw_MM263": 0.2'
+        self.assertIn(original,raw)
+        self.source.write_text(raw.replace(original,'"raw_MM263": 99.0, '+original,1),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'partner_mapping_duplicate_json_key'):
+            self.run_adapter()
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+
+    def test_duplicate_nested_binding_json_key_fails_closed(self):
+        raw=self.mapping.read_text(encoding='utf-8')
+        original='"transform": "identity"'
+        self.assertIn(original,raw)
+        self.mapping.write_text(raw.replace(original,original+', '+original,1),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'partner_mapping_duplicate_json_key'):
+            self.run_adapter()
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+
+    def test_duplicate_rights_declaration_even_identical_rejected(self):
+        raw=self.mapping.read_text(encoding='utf-8')
+        original='"rights_basis": "DECLARED_OWNER_PERMISSION_PENDING_EXTERNAL_REVIEW"'
+        self.assertIn(original,raw)
+        self.mapping.write_text(raw.replace(original,original+', '+original,1),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'partner_mapping_duplicate_json_key'):
+            self.run_adapter()
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+
+    def test_mapping_swapped_during_stream_fails_closed_no_published_files(self):
+        from unittest.mock import patch
+        import connect.partner_mine_mapping as mapper
+        original=mapper._converted_row
+        counter=[0]
+        def mutate_mapping(*args,**kwargs):
+            counter[0]+=1
+            if counter[0]==700:
+                # Syntactically valid but no longer the reviewed mapping bytes.
+                self.mapping.write_text(self.mapping.read_text()+' ',encoding='utf-8')
+            return original(*args,**kwargs)
+        with patch.object(mapper,'_converted_row',side_effect=mutate_mapping):
+            with self.assertRaisesRegex(ValueError,'partner_mapping_mapping_mutated'):
+                self.run_adapter()
+        self.assertEqual(counter[0],1400)
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+        self.assertFalse(list(self.canonical.parent.glob('.partner-intake-*')))
+
 if __name__=='__main__':unittest.main()
