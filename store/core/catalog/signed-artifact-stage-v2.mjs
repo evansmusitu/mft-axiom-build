@@ -8,6 +8,7 @@ import {constants as C,openSync,closeSync,fstatSync,lstatSync,readSync,
   writeSync,fsyncSync,linkSync,unlinkSync} from 'node:fs';
 import {join} from 'node:path';
 import {verifySignedRegistryV2} from './signed-registry-v2.mjs';
+import {verifyAndCommitSignedRegistryV2} from './signed-registry-v2-watermark.mjs';
 
 const NOFOLLOW=C.O_NOFOLLOW??0;
 const STAGE_LIMIT=512*1024*1024;
@@ -65,6 +66,13 @@ export function stageSignedLocalArtifactV2({verificationOptions,appId,platform,
   if(typeof appId!=='string'||typeof platform!=='string'||
       !['android','windows','web'].includes(platform))deny('authorized app and platform required');
   const verified=verifySignedRegistryV2(verificationOptions);
+  return stageVerifiedLocalArtifactV2({verified,appId,platform,sourceFile,cacheDirectory});
+}
+
+// Private implementation; deliberately NOT exported. Unverified callers cannot
+// provide fake catalog/release objects to bypass root signature verification.
+function stageVerifiedLocalArtifactV2({verified,appId,platform,sourceFile,cacheDirectory}){
+  checkCacheDirectory(cacheDirectory);
   const matching=verified.registry.apps.filter(a=>a.id===appId);
   if(matching.length!==1)deny('unknown signed application identity');
   const selected=matching[0].releases.filter(r=>r.platform===platform);
@@ -118,4 +126,24 @@ export function stageSignedLocalArtifactV2({verificationOptions,appId,platform,
     if(sourceFd!==undefined)closeSync(sourceFd);
     if(tempPath!==null){try{unlinkSync(tempPath);}catch(err){if(err.code!=='ENOENT')throw err;}}
   }
+}
+
+/**
+ * Operator-private all-or-nothing signed catalog revision admission:
+ * under the exclusive durable watermark lock, independently verify the
+ * root-signed catalog, stage exact artifact bytes, THEN commit the revision.
+ * This is NOT a live install/publish/payment or network delivery service.
+ */
+export function stageAndCommitSignedArtifactV2({storeDirectory,cacheDirectory,
+  verificationOptions,bootstrapAuthorized=false,appId,platform,sourceFile}={}){
+  let staged=null;
+  const validated=verifyAndCommitSignedRegistryV2({
+    storeDirectory,verificationOptions,bootstrapAuthorized,
+    beforeCommit:(signedCatalog)=>{
+      staged=stageVerifiedLocalArtifactV2({verified:signedCatalog,appId,platform,sourceFile,cacheDirectory});
+    }
+  });
+  if(!staged||staged.catalogRevision!==validated.registry.revision||
+      !staged.sha256)deny('verified staging transaction incomplete');
+  return staged;
 }
