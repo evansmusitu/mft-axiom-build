@@ -6,6 +6,7 @@ on:
       - feature/musitu-store-v2-package-state-20261012
     paths:
       - 'store/phase1/payments/**'
+      - 'store/phase1/RELEASE_GATES_AND_EXTERNAL_REQUIREMENTS_20261018.md'
       - '.github/workflows/musitu-store-v2-paynow-review-ci.yml'
 
 permissions:
@@ -46,3 +47,4 @@ jobs:
           set -euo pipefail
           node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs
           echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
+          echo MUSITU_STORE_V2_PAYNOW_DURABLE_PRIVATE_LEDGER_TESTS=PASS
