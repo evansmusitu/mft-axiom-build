@@ -51,7 +51,7 @@ jobs:
           node --check store/core/catalog/signed-registry-v2.mjs
           node --check store/core/catalog/signed-registry-v2-watermark.mjs
           node --check store/core/catalog/signed-artifact-stage-v2.mjs
-          node --test store/core/catalog/signed-registry-v2.test.mjs store/core/catalog/signed-registry-v2-watermark.test.mjs store/core/catalog/signed-artifact-stage-v2.test.mjs
+          node --test store/core/catalog/signed-registry-v2.test.mjs store/core/catalog/signed-registry-v2-watermark.test.mjs store/core/catalog/signed-artifact-stage-v2.test.mjs store/core/catalog/signed-artifact-delivery-v2.test.mjs
           echo MUSITU_STORE_V2_CROSS_RUNTIME_NODE_POLICY=PASS
       - name: Verify fail-closed offline publisher intake and precise integer ceiling
         shell: bash
