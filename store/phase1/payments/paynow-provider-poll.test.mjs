@@ -179,3 +179,35 @@ test('TLS request close before receiving HTTP headers rejects promptly without w
   await assert.rejects(deadlineGuard(result),/^Error: private Paynow provider poll: provider request closed before completion$/i);
   assert.deepEqual(readdirSync(d.ledgerDirectory),[]);
 });
+
+
+test('trickled unending HTTPS bytes cannot evade the absolute 8-second provider deadline',async t=>{
+  const d=fixture(t);
+  let stream,interval,guard;
+  const requestImpl=(target,options,onResponse)=>{
+    const req=new EventEmitter();
+    req.setTimeout=()=>req; // Simulates trickle activity that never triggers idle timeout.
+    req.destroy=()=>{
+      if(interval)clearInterval(interval);
+      if(stream&&!stream.destroyed)stream.destroy();
+    };
+    req.end=()=>queueMicrotask(()=>{
+      stream=new PassThrough();
+      stream.statusCode=200;
+      stream.headers={'content-type':'text/plain'};
+      onResponse(stream);
+      stream.write('reference=ORDER-POLL-103');
+      interval=setInterval(()=>{if(!stream.destroyed)stream.write('.');},25);
+    });
+    return req;
+  };
+  t.after(()=>{if(interval)clearInterval(interval);if(guard)clearTimeout(guard);if(stream)stream.destroy();});
+  const result=pollAndRecordPaynowReviewEvent({
+    ledgerDirectory:d.ledgerDirectory,callbackBody:signed(),integrationKey:key,order,requestImpl
+  });
+  const stale=new Promise((_,reject)=>{
+    guard=setTimeout(()=>reject(new Error('TEST_ABSOLUTE_PROVIDER_DEADLINE_NOT_ENFORCED')),9400);
+  });
+  await assert.rejects(Promise.race([result,stale]),/private Paynow provider poll: absolute provider response deadline exceeded/);
+  assert.deepEqual(readdirSync(d.ledgerDirectory),[]);
+});
