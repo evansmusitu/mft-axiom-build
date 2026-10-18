@@ -1,0 +1,46 @@
+name: MUSITU Store V2 private signed Paynow callback review gate
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - 'store/phase1/payments/**'
+      - '.github/workflows/musitu-store-v2-paynow-review-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v2-paynow-private
+  cancel-in-progress: true
+
+jobs:
+  offline-payment-review-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Protect original signed MUSITU Store V1
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = 395b488a7841cd5f32065cac9826983e0454d955
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = d5ee6821877a151abfe95c50e8677b2f1b19ae5f
+      - name: Verify no provider credentials, no payout and no network side effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/payments/paynow-review.mjs
+          node --check store/phase1/payments/paynow-review.test.mjs
+          ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs
+          echo MUSITU_STORE_PAYNOW_OFFLINE_ONLY_AND_V1_UNCHANGED=PASS
+      - name: Qualify synthetic signed Paynow callbacks and negative security cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/payments/paynow-review.test.mjs
+          echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
