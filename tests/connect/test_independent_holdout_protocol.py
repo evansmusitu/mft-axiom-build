@@ -71,6 +71,28 @@ class HoldoutProtocolTests(unittest.TestCase):
                 verify_holdout_seal(seal_path=seal, expected_protocol_sha256=info['protocol_sha256'])
             self.assertTrue(seal.exists())
 
+    def test_seal_creation_rejects_ambiguous_duplicate_protocol_json_keys(self):
+        with tempfile.TemporaryDirectory() as d:
+            draft, seal = Path(d) / 'draft.json', Path(d) / 'seal.json'
+            raw = json.dumps(candidate())
+            raw = raw.replace('"history_seconds":', '"history_seconds":600,"history_seconds":', 1)
+            draft.write_text(raw, encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'independent_protocol_duplicate_json_key'):
+                seal_holdout_protocol(protocol_path=draft, output_path=seal)
+            self.assertFalse(seal.exists())
+
+    def test_seal_verification_rejects_ambiguous_duplicate_seal_json_keys(self):
+        with tempfile.TemporaryDirectory() as d:
+            draft, seal = Path(d) / 'draft.json', Path(d) / 'seal.json'
+            draft.write_text(json.dumps(candidate()), encoding='utf-8')
+            pinned = seal_holdout_protocol(protocol_path=draft, output_path=seal)['protocol_sha256']
+            raw = seal.read_text(encoding='utf-8')
+            raw = raw.replace('"protocol_sha256":',
+                              '"protocol_sha256":"' + pinned + '","protocol_sha256":', 1)
+            seal.write_text(raw, encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'independent_protocol_duplicate_json_key'):
+                verify_holdout_seal(seal_path=seal, expected_protocol_sha256=pinned)
+
     def test_preexisting_output_and_untrusted_pin_are_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             draft, seal=Path(d)/'draft.json',Path(d)/'seal.json'
