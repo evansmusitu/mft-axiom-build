@@ -139,6 +139,25 @@ jobs:
           assert code==429 and body['error']=='PROJECT_JOB_QUOTA_EXCEEDED',(code,body)
           print('REAL_DURABLE_OBJECT_FREE_TIER_QUOTAS=PASS')
           PY
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          root='http://127.0.0.1:8795'
+          def get(actor):
+            req=urllib.request.Request(root+'/api/recovery/readiness',headers={'x-local-test-actor':actor})
+            try:
+              with urllib.request.urlopen(req,timeout=12) as response:
+                return response.status,json.load(response)
+            except urllib.error.HTTPError as e:
+              return e.code,json.load(e)
+          code,owner=get('owner-ci')
+          assert code==200 and owner['ok'] is True,(code,owner)
+          assert owner['backup_bookmark_exposed'] is False
+          assert owner['destructive_restore_triggered'] is False
+          assert owner['schema_version']==2
+          code,outsider=get('outsider-ci')
+          assert code==403 and outsider['error']=='FORBIDDEN',(code,outsider)
+          print('REAL_SQLITE_DO_RECOVERY_READINESS_OWNER_ONLY=PASS')
+          PY
           echo 'REAL_WORKER_DURABLE_OBJECT_ACCOUNT_BOUNDARY=PASS'
       - name: Write safe evidence summary
         if: success()
