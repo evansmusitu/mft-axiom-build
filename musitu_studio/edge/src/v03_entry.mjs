@@ -22,8 +22,7 @@ async function readJson(req,limit=65536){
   const all=new Uint8Array(n);let i=0;for(const p of parts){all.set(p,i);i+=p.length}
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));
 }
-function configured(env){return Boolean(env.STUDIO_DB&&env.STUDIO_ASSETS&&
-  typeof env.STUDIO_MODAL_CALLBACK_KEY==='string'&&env.STUDIO_MODAL_CALLBACK_KEY.length>=32)}
+function configured(env){return Boolean(env.STUDIO_DB&&env.STUDIO_ASSETS)}
 function cpuReady(env){return env.ENABLE_RENDER_DISPATCH==='true'&&
   env.BUDGET_GUARD_APPROVED==='true'&&isModalDestination(env.STUDIO_MODAL_URL)&&
   typeof env.STUDIO_MODAL_CONTROL_KEY==='string'&&env.STUDIO_MODAL_CONTROL_KEY.length>=32}
