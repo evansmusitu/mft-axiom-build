@@ -8,6 +8,7 @@ on:
       - 'musitu_studio/edge/src/v03_entry.mjs'
       - 'musitu_studio/edge/tests/v03_do_adapter.test.mjs'
       - 'musitu_studio/edge/tests/v03_enterprise.test.mjs'
+      - 'musitu_studio/edge/tests/v03_identity.test.mjs'
       - 'musitu_studio/edge/wrangler.v03.do.jsonc'
   workflow_dispatch:
 permissions: {contents: read}
@@ -28,7 +29,7 @@ jobs:
           node --check src/v03_do_entry.mjs
           node --check src/v03_do_adapter.mjs
           node --check src/v03_do_schema.mjs
-          node --test tests/v03_do_adapter.test.mjs tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+          node --test tests/v03_identity.test.mjs tests/v03_do_adapter.test.mjs tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
       - name: Real workerd negative test with actual production entry (no secrets)
         working-directory: musitu_studio/edge
         shell: bash
