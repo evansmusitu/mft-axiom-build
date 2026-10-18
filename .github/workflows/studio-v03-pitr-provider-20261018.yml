@@ -118,6 +118,18 @@ jobs:
             --config "$config" >/tmp/studio-v03-pitr-secret.log 2>&1
           export STUDIO_PITR_URL="$(cat /tmp/studio-v03-pitr-worker-url)"
           python - <<'PY'
+          import os,json,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          url='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/workers/scripts/musitu-studio-v03-pitr-proof-20261018/settings'
+          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token})
+          with urllib.request.urlopen(req,timeout=18) as r:
+            data=json.load(r);assert data.get('success')
+          bindings=(data.get('result') or {}).get('bindings') or []
+          assert any(b.get('name')=='STUDIO_PITR_PROOF_BEARER' and b.get('type')=='secret_text' for b in bindings),'SCOPED_TEST_BEARER_SECRET_NOT_BOUND'
+          assert any(b.get('name')=='STUDIO_PITR_PROOF' and b.get('type')=='durable_object_namespace' for b in bindings),'DISPOSABLE_DO_NOT_BOUND'
+          print('SCOPED_PROVIDER_TEST_SECRET_AND_DO_BINDINGS=PASS')
+          PY
+          python - <<'PY'
           import os,json,urllib.request,urllib.error,time,pathlib
           root=os.environ['STUDIO_PITR_URL']
           bearer=os.environ['STUDIO_PITR_SECRET']
@@ -156,6 +168,24 @@ jobs:
               except (OSError,ValueError):pass
               time.sleep(1)
             assert result['unauthenticated_requests_rejected'],'DISPOSABLE_WORKER_ANONYMOUS_GATE_FAILED'
+            stage='AUTHENTICATED_READ'
+            authenticated=False
+            auth_code=0
+            auth_error=None
+            for attempt in range(20):
+              try:
+                auth_code,seen=ask('/snapshot',timeout=10)
+                auth_error=seen.get('error') if isinstance(seen,dict) else None
+                if auth_code==200 and seen.get('names')==[]:
+                  authenticated=True;break
+              except (OSError,ValueError):pass
+              time.sleep(1)
+            result['authenticated_disposable_read_usable']=authenticated
+            if not authenticated:
+              result['authenticated_disposable_http_status']=auth_code
+              if auth_error in ('UNAUTHORIZED','NOT_FOUND'):
+                result['authenticated_allowlisted_error']=auth_error
+            assert authenticated,'SCOPED_AUTHENTICATED_READER_NOT_WORKING'
             stage='SEED'
             code,seed=ask('/seed','POST',data={})
             assert code==200 and seed.get('ok') and seed.get('names')==['original'],(code,seed.get('error'))
