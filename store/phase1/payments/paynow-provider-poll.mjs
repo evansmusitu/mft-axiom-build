@@ -55,7 +55,7 @@ function requestStatus(url,requestImpl){
         const chunks=[];
         res.on('error',()=>finish(Error('provider response transport failure')));
         res.on('aborted',()=>finish(Error('provider response aborted')));
-        res.on('close',()=>finish(Error('provider response closed before completion')));
+        res.on('close',()=>finish(Error('private Paynow provider poll: provider response closed before completion')));
         res.on('data',chunk=>{
           if(completed)return;
           const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
@@ -76,7 +76,7 @@ function requestStatus(url,requestImpl){
         deny('unsupported private HTTPS client');
       req.on('error',()=>finish(Error('provider HTTPS request failed')));
       req.on('close',()=>{
-        if(!responseStarted)finish(Error('provider request closed before completion'));
+        if(!responseStarted)finish(Error('private Paynow provider poll: provider request closed before completion'));
       });
       req.setTimeout(TIMEOUT_MS,()=>{
         finish(Error('provider HTTPS timeout; review held'));
