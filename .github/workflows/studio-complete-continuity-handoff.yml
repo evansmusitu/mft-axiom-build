@@ -1,0 +1,91 @@
+name: MUSITU Studio — Complete Clean New Chat Handoff
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - ops/studio_create_continuity_handoff.py
+      - .github/workflows/studio-complete-continuity-handoff.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: studio-clean-handoff-20261018
+  cancel-in-progress: true
+jobs:
+  produce_verified_portable_studio_handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch genuine Modal Blender CPU binary artifacts from successful run
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-live-modal-cpu-pull-verified
+          run-id: 39060405530
+          github-token: ${{ github.token }}
+          path: _studio_handoff_evidence/modal_cpu
+      - name: Fetch actual Worker-runtime / Modal / remote Cloudflare R2 acceptance
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-real-worker-modal-remote-r2-e2e
+          run-id: 39060820517
+          github-token: ${{ github.token }}
+          path: _studio_handoff_evidence/cross_provider
+      - name: Fetch live deployed Studio Worker/Access/R2 readback
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-live-cpu-staff-access-readback
+          run-id: 39061504060
+          github-token: ${{ github.token }}
+          path: _studio_handoff_evidence/production_readback
+      - name: Fetch live account Cloudflare Error 1010 security inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-cf1010-sanitized-cause
+          run-id: 39065129067
+          github-token: ${{ github.token }}
+          path: _studio_handoff_evidence/error_1010
+      - name: Fetch read-only Page Rule limit inspection
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-studio-pagerule-availability
+          run-id: 39065355637
+          github-token: ${{ github.token }}
+          path: _studio_handoff_evidence/page_rules
+      - name: Build complete isolated product tree, SHA manifest and exact new-chat prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/studio_create_continuity_handoff.py
+          python ops/studio_create_continuity_handoff.py
+          test -s MUSITU_STUDIO_COMPLETE_HANDOFF_20261018/00_READ_FIRST/NEW_CHAT_COMMAND.txt
+          test -s MUSITU_STUDIO_COMPLETE_HANDOFF_20261018/02_VERIFIED_EXECUTION_EVIDENCE/modal_real_cpu_outputs/scene.blend
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          home=Path('MUSITU_STUDIO_COMPLETE_HANDOFF_20261018')
+          index=json.loads((home/'FILE_MANIFEST.json').read_text())
+          for name,m in index['files'].items():
+            p=home/name
+            assert p.is_file()
+            assert hashlib.sha256(p.read_bytes()).hexdigest()==m['sha256']
+          state=json.loads((home/'00_READ_FIRST/CURRENT_STATE.json').read_text())
+          assert not state['public_android_login_and_render_verified']
+          assert not state['modal_gpu_qualified']
+          assert not state['d1_database_deployed']
+          assert state['cpu_render_verified_in_real_modal']
+          assert state['real_worker_code_modal_cpu_live_r2_cross_provider_verified']
+          print('STUDIO_COMPLETE_HANDOFF_SHA256_PASS',index['file_count'])
+          PY
+      - name: Upload portable self-contained Studio source and evidence as clean ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_COMPLETE_HANDOFF_20261018
+          path: MUSITU_STUDIO_COMPLETE_HANDOFF_20261018/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
