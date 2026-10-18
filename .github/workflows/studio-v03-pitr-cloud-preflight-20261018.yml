@@ -1,0 +1,52 @@
+name: MUSITU Studio V03 — Disposable PITR Cloud Capability Read-only Preflight
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-pitr-cloud-preflight-20261018.yml']
+permissions: {contents: read}
+jobs:
+  read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify workers.dev subdomain, exact new name and account without writes
+        run: |
+          python - <<'PY'
+          import os,json,pathlib,urllib.request,urllib.error
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          base='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61'
+          output={'schema':'studio.v03.disposable-pitr-cloud-preflight.v1',
+            'read_only':True,'account_changed':False,'new_script_name_available':False,
+            'workers_dev_subdomain_exists':False,'workers_dev_subdomain_api_status':None,
+            'script_name_api_status':None,'worker_plan_readable':False,'worker_plan_category':None}
+          if token:
+            def get(path):
+              req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                with urllib.request.urlopen(req,timeout=20) as r:
+                  j=json.load(r);return r.status,j.get('result') if j.get('success') else None
+              except urllib.error.HTTPError as e:return e.code,None
+              except (OSError,ValueError):return 0,None
+            code,sub=get('/workers/subdomain')
+            output['workers_dev_subdomain_api_status']=code
+            output['workers_dev_subdomain_exists']=code==200 and isinstance(sub,dict) and isinstance(sub.get('subdomain'),str) and bool(sub['subdomain'])
+            code,script=get('/workers/scripts/musitu-studio-v03-pitr-proof-20261018')
+            output['script_name_api_status']=code
+            output['new_script_name_available']=code==404
+            code,plan=get('/workers/plan')
+            output['worker_plan_readable']=code==200 and isinstance(plan,dict)
+            if output['worker_plan_readable']:
+              output['worker_plan_category']='FREE' if plan.get('id')=='free' else 'UNVERIFIED_OTHER'
+          pathlib.Path('studio-v03-pitr-cloud-preflight.json').write_text(json.dumps(output,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_CLOUD_PITR_PREFLIGHT='+json.dumps(output,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-disposable-pitr-readonly-preflight
+          path: studio-v03-pitr-cloud-preflight.json
+          retention-days: 7
