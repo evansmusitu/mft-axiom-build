@@ -1,0 +1,81 @@
+name: MUSITU Studio V0.3 — Safe Staff Access Provisioning Preflight
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-access-preflight-20261018.yml']
+permissions: {contents: read}
+jobs:
+  readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect ONLY Studio's existing policies, v03 target status and Worker settings
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,pathlib,re
+          account='93f395f5121954671f92fffa453d6b61'
+          host='studio-v03.mftintelligence.com'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN')
+          base='https://api.cloudflare.com/client/v4'
+          def get(path):
+            req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                d=json.load(r);return r.status,d.get('result') if d.get('success') else None
+            except urllib.error.HTTPError as e:return e.code,None
+            except (OSError,ValueError):return 0,None
+          report={'schema':'musitu.studio.v03.staff-access-preflight.v1',
+            'read_only':True,'account_mutated':False,
+            'v02_approved_access_template':False,'v02_email_only_allow_count':0,
+            'v03_target_access_present':None,'v03_target_domain_present':None,
+            'v02_team_domain_verified':False,'v03_private_worker_present':False,
+            'zone_verified':False,'provider_http_statuses':[]}
+          if token:
+            x,apps=get('/accounts/'+account+'/access/apps?per_page=100')
+            report['provider_http_statuses'].append(x)
+            candidates=[a for a in apps or [] if isinstance(a,dict) and a.get('domain')=='studio.mftintelligence.com'
+              and a.get('name')=='MUSITU Studio Android Control' and a.get('type')=='self_hosted']
+            targets=[a for a in apps or [] if isinstance(a,dict) and a.get('domain')==host]
+            report['v03_target_access_present']=bool(targets) if isinstance(apps,list) else None
+            if len(candidates)==1:
+              x,policies=get('/accounts/'+account+'/access/apps/'+candidates[0]['id']+'/policies')
+              report['provider_http_statuses'].append(x)
+              allows=[p for p in policies or [] if isinstance(p,dict) and p.get('decision')=='allow']
+              check=lambda p: isinstance(p.get('include'),list) and len(p['include'])>0 and all(
+                isinstance(rule,dict) and list(rule)==['email'] and isinstance(rule['email'],dict)
+                and isinstance(rule['email'].get('email'),str) and '@' in rule['email']['email']
+                for rule in p['include'])
+              report['v02_approved_access_template']=(x==200 and len(allows)>=1 and all(check(p) for p in allows)
+                and all(p.get('decision') in ('allow','deny') for p in policies or []))
+              report['v02_email_only_allow_count']=len(allows) if report['v02_approved_access_template'] else 0
+            x,domains=get('/accounts/'+account+'/workers/domains')
+            report['provider_http_statuses'].append(x)
+            report['v03_target_domain_present']=(any(d.get('hostname')==host for d in domains or [])
+              if isinstance(domains,list) else None)
+            x,settings=get('/accounts/'+account+'/workers/scripts/musitu-studio-v02/settings')
+            report['provider_http_statuses'].append(x)
+            if x==200 and isinstance(settings,dict):
+              vals={b.get('name'):b.get('text') for b in settings.get('bindings') or []
+                if isinstance(b,dict) and b.get('type')=='plain_text'}
+              domain=vals.get('STUDIO_ACCESS_TEAM_DOMAIN','')
+              report['v02_team_domain_verified']=bool(re.fullmatch(r'https://[a-z0-9-]+\.cloudflareaccess\.com',str(domain)))
+            x,worker=get('/accounts/'+account+'/workers/scripts/musitu-studio-v03-do/settings')
+            report['provider_http_statuses'].append(x)
+            report['v03_private_worker_present']=(x==200 and isinstance(worker,dict))
+            x,zones=get('/zones?name=mftintelligence.com&status=active')
+            report['provider_http_statuses'].append(x)
+            report['zone_verified']=(len([z for z in zones or [] if isinstance(z,dict)
+              and z.get('name')=='mftintelligence.com' and (z.get('account') or {}).get('id')==account])==1)
+          out=pathlib.Path('studio-v03-access-preflight.json')
+          out.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_ACCESS_READONLY_PREFLIGHT='+json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-v03-access-preflight
+          path: studio-v03-access-preflight.json
+          retention-days: 7
