@@ -118,6 +118,23 @@ class HoldoutCoverageTests(unittest.TestCase):
         self.assertLess(result['complete_fold_grids'], 4)
         self.assertGreater(result['source_timestamp_discontinuities'], 0)
 
+    def test_manifest_modified_during_sealed_audit_fails_closed(self):
+        from unittest.mock import patch
+        import benchmarks.mining_adapter.independent_holdout_coverage as auditor
+        original_stream = auditor._stream_source
+
+        def mutate_manifest(source, state):
+            for index, row in enumerate(original_stream(source, state)):
+                if index == 700:
+                    # A syntactically valid manifest with different bytes is
+                    # not the pinned input read before this scan.
+                    self.manifest.write_text(self.manifest.read_text() + ' ')
+                yield row
+
+        with patch.object(auditor, '_stream_source', mutate_manifest):
+            with self.assertRaisesRegex(ValueError, 'holdout_coverage_input_changed_or_manifest_mismatch'):
+                self.audit()
+
     def test_source_and_mapping_frozen_sha_mismatch_are_rejected(self):
         self.mapping.write_text('changed')
         with self.assertRaisesRegex(ValueError, 'mapping_pin_mismatch'):
