@@ -12,6 +12,7 @@ on:
       - 'store/phase1/android-client/fixturebeta/**'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi26PermissionTest.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2SignedAndroidCatalog.java'
       - 'store/phase1/android-client/app/build.gradle'
       - 'store/phase1/android-client/test_device_suite_scope.py'
 
