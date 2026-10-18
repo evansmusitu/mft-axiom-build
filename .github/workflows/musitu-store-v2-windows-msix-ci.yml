@@ -147,6 +147,36 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/os-install-acceptance.test.ps1'
+      - name: Construct and independently sign disposable native MSIX update v1.0.0.1
+        run: |
+          $ErrorActionPreference='Stop'
+          $scratch=Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix'
+          $layout=Join-Path $scratch 'layout'
+          $manifestPath=Join-Path $layout 'AppxManifest.xml'
+          $xml=[IO.File]::ReadAllText($manifestPath)
+          $old='Version="1.0.0.0"'
+          if ($xml.Split(@($old),[StringSplitOptions]::None).Count -ne 2){
+            throw 'Unexpected original package version; refusing to generate upgrade'
+          }
+          $new=$xml.Replace($old,'Version="1.0.0.1"')
+          [IO.File]::WriteAllText($manifestPath,$new,[Text.UTF8Encoding]::new($false))
+          $upgrade=Join-Path $scratch 'signed-upgrade.msix'
+          & $env:MUSITU_MAKEAPPX pack /d $layout /p $upgrade /o /h SHA256
+          if ($LASTEXITCODE -ne 0){throw 'Windows SDK failed to construct new MSIX version'}
+          & $env:MUSITU_SIGNTOOL sign /fd SHA256 /sha1 $env:MUSITU_TEST_CERT_THUMBPRINT $upgrade
+          if ($LASTEXITCODE -ne 0){throw 'Windows SDK failed to sign new MSIX version'}
+          & $env:MUSITU_SIGNTOOL verify /pa /all $upgrade
+          if ($LASTEXITCODE -ne 0){throw 'Windows SDK failed to verify new MSIX version'}
+          "MUSITU_TEST_UPGRADE_MSIX=$upgrade" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output 'MUSITU_WINDOWS_DISPOSABLE_UPGRADE_SIGNED=PASS'
+      - name: Upgrade only disposable Windows fixture via OS AppX deployment
+        shell: powershell
+        env:
+          MUSITU_WINDOWS_DISPOSABLE_INSTALL: 'true'
+          MUSITU_WINDOWS_DISPOSABLE_UPGRADE: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          & 'store/phase1/windows/install-disposable-msix-ci.ps1' -Upgrade
       - name: Require native Windows to apply a signed version upgrade
         shell: powershell
         run: |
