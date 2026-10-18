@@ -95,8 +95,8 @@ jobs:
                     if method=='GET' and path=='/api/session':counts['session']+=n
                     if method=='POST' and path=='/api/projects':counts['project']+=n
                     if method=='POST' and path=='/api/jobs':counts['submit']+=n
-                    if method=='POST' and isinstance(path,str) and path.startswith('/api/jobs/') and
-                      path.endswith(('/approve','/dispatch','/sync')):counts['actions']+=n
+                    if (method=='POST' and isinstance(path,str) and path.startswith('/api/jobs/') and
+                      path.endswith(('/approve','/dispatch','/sync'))):counts['actions']+=n
                   for k,out in [('session','sampled_mobile_2xx_session_gets'),
                     ('project','sampled_mobile_2xx_project_creates'),
                     ('submit','sampled_mobile_2xx_job_submits'),
