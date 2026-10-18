@@ -135,6 +135,10 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/verify-msix.test.ps1'
+      - name: Qualify actual OS-installed MSIX identity and package state
+        run: |
+          $ErrorActionPreference='Stop'
+          & 'store/phase1/windows/os-install-acceptance.test.ps1'
       - name: Cleanup ephemeral local signing identity
         if: always()
         run: |
