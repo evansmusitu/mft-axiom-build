@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timedelta
+from decimal import Decimal
 from math import isfinite
 from pathlib import Path
 import tempfile
@@ -43,10 +44,24 @@ def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+class _JSONNumericPrecisionLoss(ValueError):
+    """JSON float token cannot be transferred without losing numeric value."""
+
+
+def _lossless_float_token(token: str) -> float:
+    # Python's float parser may silently round significant decimal digits or
+    # convert very small numbers to 0.0. Never silently alter mine readings.
+    value = float(token)
+    if not isfinite(value) or Decimal(str(value)) != Decimal(token):
+        raise _JSONNumericPrecisionLoss('partner_mapping_numeric_precision_loss')
+    return value
+
+
 def _strict_json(payload: str | bytes) -> Any:
-    # Python's default last-key-wins parsing silently changes both rights
-    # statements and readings. Reject duplicate object keys at every depth.
-    return json.loads(payload, object_pairs_hook=_unique_object_pairs)
+    # Reject ambiguous keys, underflow/overflow and silent decimal precision
+    # loss. Native finite numeric semantics must survive the 1:1 conversion.
+    return json.loads(payload, object_pairs_hook=_unique_object_pairs,
+                      parse_float=_lossless_float_token)
 
 
 def _valid_native_direction(value: Any) -> bool:
@@ -185,7 +200,7 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
     profile_raw=mapping_path.read_bytes()
     try:
         profile=_strict_json(profile_raw)
-    except _DuplicateJSONKey:
+    except (_DuplicateJSONKey, _JSONNumericPrecisionLoss):
         raise
     except (UnicodeError,ValueError):
         raise ValueError('partner_mapping_schema_invalid') from None
@@ -204,7 +219,7 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
                     if not line.strip():
                         raise ValueError('partner_mapping_raw_schema_mismatch')
                     try:raw=_strict_json(line)
-                    except _DuplicateJSONKey:
+                    except (_DuplicateJSONKey, _JSONNumericPrecisionLoss):
                         raise
                     except (ValueError,UnicodeError):
                         raise ValueError('partner_mapping_raw_schema_mismatch') from None
