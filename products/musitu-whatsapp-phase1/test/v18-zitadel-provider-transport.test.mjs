@@ -34,6 +34,17 @@ test('wrong issuer, audience, client, expiry, signature and algorithm never reac
 test('provider failure after an earlier successful request cannot reuse cached active status',async()=>{
  const f=fixture(),p=createIdentityProvider(cfg,{request:f.request}),token=await signed();await p.verifyAccess(token);f.setStatus(503);await assert.rejects(p.verifyAccess(token),/PROVIDER_UNAVAILABLE/);
 });
+test('signed ZITADEL access client_id can identify the exact web client when azp is absent',async()=>{
+ const f=fixture(),p=createIdentityProvider(cfg,{request:f.request});
+ assert.equal((await p.verifyAccess(await signed({azp:undefined,client_id:cfg.client}))).sub,'staff-synthetic');
+ assert.equal((await p.verifyAccess(await signed({client_id:cfg.client}))).sub,'staff-synthetic');
+ assert.equal(f.calls.filter(c=>c.url===cfg.endpoints.introspection).length,2);
+});
+test('missing, malformed or conflicting signed client identifiers never reach introspection',async()=>{
+ const f=fixture(),p=createIdentityProvider(cfg,{request:f.request});
+ for(const claims of [{azp:undefined},{azp:undefined,client_id:'other-client'},{client_id:'other-client'},{azp:'other-client',client_id:cfg.client},{azp:null,client_id:cfg.client},{azp:undefined,client_id:[cfg.client]},{azp:undefined,client_id:''}])await assert.rejects(p.verifyAccess(await signed(claims)));
+ assert.equal(f.calls.filter(c=>c.url===cfg.endpoints.introspection).length,0);
+});
 test('ID token must bind nonce, subject and authorized client to the same login flow',async()=>{
  const f=fixture(),p=createIdentityProvider(cfg,{request:f.request}),flow={nonce:'synthetic-nonce'},claims={sub:'staff-synthetic'};
  const idClaims={aud:cfg.client,nonce:flow.nonce,amr:['pwd','mfa'],auth_time:now};

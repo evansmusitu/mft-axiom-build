@@ -1,0 +1,5 @@
+✔ identity diagnostics report only bounded stages, error codes and claim names (1.859375ms)
+✔ callback failure stages distinguish flow rejection from actual token transport without exposing flow material (22.764844ms)
+✔ signed ZITADEL ID token requires explicit well-formed MFA evidence (26.306209ms)
+✔ fresh explicitly signed MFA proof succeeds with either password or hardware factor evidence (4.709189ms)
+✔ signed MFA cannot substitute for missing, stale, malformed or future authentication time (10.729606ms)

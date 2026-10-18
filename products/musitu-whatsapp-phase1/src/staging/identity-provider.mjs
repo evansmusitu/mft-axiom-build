@@ -29,7 +29,11 @@ export function createIdentityProvider(cfg,{request=globalThis.fetch}={}){
   },
   async verifyAccess(accessToken){
    const {payload}=await jwtVerify(accessToken,keys,{issuer:cfg.issuer,audience:cfg.audience,algorithms:['RS256'],maxTokenAge:'10m',requiredClaims:['sub','iat','exp']});
-   if(typeof payload.sub!=='string'||!payload.sub||payload.azp!==cfg.client)throw Error('TOKEN_CLIENT_REJECTED');
+   if(typeof payload.sub!=='string'||!payload.sub)throw Error('TOKEN_SUBJECT_REJECTED');
+   // ZITADEL may use the signed OAuth client_id instead of OIDC azp. Every
+   // supplied identifier must match; a matching claim cannot hide a conflict.
+   const clients=cfg.provider==='zitadel'?[payload.azp,payload.client_id].filter(value=>value!==undefined):[payload.azp];
+   if(!clients.length||clients.some(value=>value!==cfg.client))throw Error('TOKEN_CLIENT_REJECTED');
    // Every request rechecks revocation online; an unavailable provider denies access.
    const info=await identityJson(cfg.endpoints.introspection,providerClientRequest(cfg,'introspection',{token:accessToken}),request);
    assertActiveIntrospection(info,payload,cfg);
