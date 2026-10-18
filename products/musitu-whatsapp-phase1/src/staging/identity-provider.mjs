@@ -47,7 +47,8 @@ export function createIdentityProvider(cfg,{request=globalThis.fetch}={}){
     // tokens, introspection, browser fields and general admin roles cannot supply it.
     if(!Array.isArray(payload.amr)||!payload.amr.every(method=>typeof method==='string'&&method.length>0)||!payload.amr.includes('mfa'))throw Error('OIDC_MFA_REQUIRED');
     const now=Math.floor(Date.now()/1000);
-    if(!Number.isSafeInteger(payload.auth_time)||payload.auth_time<=0||!Number.isSafeInteger(payload.iat)||payload.iat>now||payload.auth_time>payload.iat||now-payload.auth_time>ZITADEL_MAX_AUTH_AGE_SECONDS)throw Error('OIDC_AUTH_TIME_REJECTED');
+    const timeFailure=payload.auth_time===undefined?'OIDC_AUTH_TIME_MISSING':!Number.isSafeInteger(payload.auth_time)||payload.auth_time<=0?'OIDC_AUTH_TIME_MALFORMED':!Number.isSafeInteger(payload.iat)||payload.iat>now?'OIDC_AUTH_ISSUED_AT_REJECTED':payload.auth_time>payload.iat?'OIDC_AUTH_TIME_AFTER_ISSUED':now-payload.auth_time>ZITADEL_MAX_AUTH_AGE_SECONDS?'OIDC_AUTH_TIME_STALE':null;
+    if(timeFailure)throw Object.assign(Error('OIDC_AUTH_TIME_REJECTED'),{code:timeFailure});
    }
    return payload;
   },

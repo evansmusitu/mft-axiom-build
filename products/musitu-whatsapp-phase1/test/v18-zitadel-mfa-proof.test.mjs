@@ -29,6 +29,11 @@ test('signed MFA cannot substitute for missing, stale, malformed or future authe
 test('forged MFA proof fails cryptographic verification even with the expected issuer and nonce',async()=>{
  const other=await generateKeyPair('RS256');await assert.rejects(provider().verifyId(await token({},other.privateKey),flow,accessClaims));
 });
+test('missing and stale signed authentication times have distinct bounded diagnostics and both remain denied',async()=>{
+ const p=provider();
+ await assert.rejects(p.verifyId(await token({auth_time:undefined}),flow,accessClaims),e=>e.message==='OIDC_AUTH_TIME_REJECTED'&&e.code==='OIDC_AUTH_TIME_MISSING');
+ await assert.rejects(p.verifyId(await token({auth_time:Math.floor(Date.now()/1000)-601}),flow,accessClaims),e=>e.message==='OIDC_AUTH_TIME_REJECTED'&&e.code==='OIDC_AUTH_TIME_STALE');
+});
 test('existing Keycloak ID-token contract is unchanged by the explicit ZITADEL MFA policy',async()=>{
  const keycloak=identityConfig({...env,OIDC_PROVIDER:'keycloak',OIDC_ISSUER:'https://id.example.invalid/realms/staging'});
  assert.equal((await provider(keycloak).verifyId(await token({amr:undefined,auth_time:undefined},pair.privateKey,keycloak),flow,accessClaims)).sub,accessClaims.sub);

@@ -39,7 +39,11 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
   const state=randomBytes(32).toString('base64url'),nonce=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const target=new URL(cfg.endpoints.authorization);
   target.search=new URLSearchParams({client_id:cfg.client,redirect_uri:cfg.origin+'/auth/callback',response_type:'code',scope:'openid profile',state,nonce,code_challenge:Buffer.from(hash(verifier),'hex').toString('base64url'),code_challenge_method:'S256'}).toString();
-  if(cfg.provider==='zitadel')target.searchParams.set('max_age',String(ZITADEL_MAX_AUTH_AGE_SECONDS));
+  if(cfg.provider==='zitadel'){
+   target.searchParams.set('max_age',String(ZITADEL_MAX_AUTH_AGE_SECONDS));
+   target.searchParams.set('prompt','login');
+   target.searchParams.set('claims',JSON.stringify({id_token:{auth_time:{essential:true}}}));
+  }
   onStage('SESSION_ENCRYPTION');
   return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
  }
