@@ -9,7 +9,7 @@ const SECURITY={
 };
 const LOCALES={default:'en',supported:['en','sn','nd']};
 const HOME_TITLE={en:'Open MUSITU instantly in your browser.',sn:'Vhura MUSITU pakarepo mubrowser yako.',nd:'Vula i-MUSITU khonokho kusiphequluli sakho.'};
-const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.'})+'\n';
+const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store/',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.'})+'\n';
 const STORE_JS=String.raw`'use strict';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load',()=>{
@@ -18,11 +18,11 @@ if ('serviceWorker' in navigator) {
 }
 `;
 const STORE_SW=String.raw`'use strict';
-const CACHE='musitu-store-r2';
+const CACHE='musitu-store-r3';
 // Detached catalog+signature cannot be independently cached: pairing an old
 // signed manifest with new signature bytes is not verified as an atomic unit.
 // Until signed-bundle atomic offline validation ships, both remain network-only.
-const PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
+const PUBLIC_SHELL=['/store/','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
 const CACHEABLE=new Set(PUBLIC_SHELL);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(PUBLIC_SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
