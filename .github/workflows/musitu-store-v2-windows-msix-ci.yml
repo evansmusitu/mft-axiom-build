@@ -15,6 +15,24 @@ permissions:
   contents: read
 
 jobs:
+  fail-closed-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject a deliberately unsigned package before native inspection
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          . 'store/phase1/windows/verify-msix.ps1'
+          $invalid=Join-Path $env:RUNNER_TEMP 'unsigned-msix-fixture.msix'
+          [System.IO.File]::WriteAllText($invalid,'not a signed native Windows package')
+          $rejected=$false
+          try {
+            Test-MusituWindowsMsix -PackagePath $invalid -ExpectedSha256 ('a'*64) -ExpectedCertificateThumbprint ('b'*40) -ExpectedPackageName 'MUSITU.Private.WindowsFixture' -ExpectedPublisher 'CN=MUSITU Disposable MSIX Test' -ExpectedVersion '1.0.0.0' -SignToolPath '/bin/true' | Out-Null
+          } catch { $rejected=$true }
+          if (-not $rejected){throw 'SECURITY_DEFECT: unsigned and untrusted file passed Windows intake'}
+          Write-Output 'MUSITU_WINDOWS_UNSIGNED_FAIL_CLOSED_CONTRACT=PASS'
   disposable-windows-signed-msix:
     runs-on: windows-2022
     timeout-minutes: 25
