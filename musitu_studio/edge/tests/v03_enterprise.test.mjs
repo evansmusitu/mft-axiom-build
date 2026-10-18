@@ -215,6 +215,8 @@ test('signed reviewer dispatches exactly once, actual Modal-shaped CPU pull comp
    assert.equal(go.status,202,JSON.stringify(go.body));
    assert.equal(sends,1);
    assert.equal((await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{})).status,429);
+   assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='DISPATCH_STARTED'").get(id).n,1,
+     'Rejected duplicate dispatch must not invent another audit event');
    const done=await f.call('person-b','/api/jobs/'+id+'/sync','POST',{});
    assert.equal(done.status,200,JSON.stringify(done.body));
    assert.equal(done.body.state,'COMPLETED');
