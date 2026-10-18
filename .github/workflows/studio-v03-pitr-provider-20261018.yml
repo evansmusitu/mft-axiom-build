@@ -185,6 +185,24 @@ jobs:
               result['authenticated_disposable_http_status']=auth_code
               if auth_error in ('UNAUTHORIZED','NOT_FOUND'):
                 result['authenticated_allowlisted_error']=auth_error
+              # Headers-only classification; never log HTML bodies, auth headers, IPs,
+              # cookies or token-bearing callback paths.
+              try:
+                request=urllib.request.Request(root+'/snapshot',
+                  headers={'Authorization':'Bearer '+bearer},method='GET')
+                with urllib.request.urlopen(request,timeout=12) as response:
+                  result['auth_diagnostic_status']=response.status
+              except urllib.error.HTTPError as exception:
+                result['auth_diagnostic_status']=exception.code
+                result['auth_cf_mitigated_header']=exception.headers.get('cf-mitigated') or None
+                result['auth_looks_like_access_login']=(
+                  '/cdn-cgi/access/login' in (exception.headers.get('Location') or ''))
+                result['auth_response_is_json']=(
+                  'application/json' in (exception.headers.get('Content-Type') or ''))
+                result['auth_server_header_is_cloudflare']=(
+                  'cloudflare' in (exception.headers.get('Server') or '').lower())
+              except OSError:
+                result['auth_diagnostic_status']=0
             assert authenticated,'SCOPED_AUTHENTICATED_READER_NOT_WORKING'
             stage='SEED'
             code,seed=ask('/seed','POST',data={})
