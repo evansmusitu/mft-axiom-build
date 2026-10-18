@@ -54,3 +54,56 @@ trusted publisher onboarding, checked update paths, operating system
 consent, certificate revocation handling, release governance and
 commercial/compliance approval. Preserve V1 signed Store and
 GitHub protected main/frozen OpenAI submission. Phase 2 remains PENDING.
+
+## New real Windows OS installation and update qualification
+
+A separate **disposable CI-only** harness now also verifies real Windows
+AppX deployment behavior. It is not integrated with customer-facing
+MUSITU Store, and its normal intake API still returns `REVIEW_REQUIRED`
+with `permittedInstallation=false`.
+
+On an isolated `windows-2022` hosted runner, the gated test harness:
+
+1. Builds a genuine `MUSITU.Private.WindowsFixture` MSIX using
+   Windows SDK MakeAppx and signs it with an ephemeral, test-only identity.
+2. Re-verifies signed file SHA-256, signer, package name, version and
+   publisher through the review-only `Test-MusituWindowsMsix`.
+3. **Only after an explicit CI-only gate** invokes the Windows OS
+   `Add-AppxPackage` deployment API for version `1.0.0.0`.
+   An independent `Get-AppxPackage` test confirms actual installed
+   package name, version, publisher, install path and signing certificate.
+4. Independently builds/signs an update MSIX with version `1.0.0.1`.
+   The update test refuses any existing installation other than the
+   original disposable version `1.0.0.0` by the exact test publisher.
+5. Applies the update via `Add-AppxPackage`. Independent Windows
+   `Get-AppxPackage` verification confirms `1.0.0.1` is installed.
+6. **Always** removes the disposable package using `Remove-AppxPackage`
+   and checks that the expected package is absent. It separately deletes
+   test certificate material and temporary source/signed packages.
+
+**Verified success:** GitHub Actions run
+`39148478007` at
+`https://github.com/evansmusitu/mft-axiom-build/actions/runs/39148478007`.
+The logs show
+`MUSITU_WINDOWS_NATIVE_MSIX_OS_INSTALL_PASS`,
+`MUSITU_WINDOWS_DISPOSABLE_UPGRADE_SIGNED=PASS`, and
+`MUSITU_WINDOWS_NATIVE_MSIX_REMOVAL_PASS installed=false`
+following the real Windows AppX operations.
+
+The first test intentionally failed without an OS-installed package,
+run `39147825737`. The signed-update version acceptance test then
+failed before a real update, run `39148277384`, demonstrating the
+test was sensitive to absent behavior. Native Windows PowerShell 5.1
+compatibility issues (zip assembly resolution and `$IsWindows` variable)
+were fixed as revealed by the real OS tests, not assumed from cross-
+platform PowerShell Core checks.
+
+**Not production readiness:** This is an OS-mediated **automated,
+ephemeral Windows CI fixture** installation and update, *not* a real
+person consenting through Windows App Installer, not MUSITU Store's
+production client and not a genuine independent publisher package.
+The test-only self-signed certificate is deliberately removed. Live
+distribution still needs a recognized issuer, approved root-signed
+catalog, publisher ownership/legal review, true download/update UX,
+physical retail-device testing, user consent, rollback/resilience
+tests, monitoring, billing and explicit release authorization.
