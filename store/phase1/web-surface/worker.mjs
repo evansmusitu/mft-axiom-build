@@ -19,7 +19,10 @@ if ('serviceWorker' in navigator) {
 `;
 const STORE_SW=String.raw`'use strict';
 const CACHE='musitu-store-r2';
-// Detached catalog+signature cannot be independently cached: pairing an old\n// signed manifest with new signature bytes is not verified as an atomic unit.\n// Until signed-bundle atomic offline validation ships, both remain network-only.\nconst PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
+// Detached catalog+signature cannot be independently cached: pairing an old
+// signed manifest with new signature bytes is not verified as an atomic unit.
+// Until signed-bundle atomic offline validation ships, both remain network-only.
+const PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
 const CACHEABLE=new Set(PUBLIC_SHELL);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(PUBLIC_SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
