@@ -23,6 +23,22 @@ FROZEN_MODEL_SHA = '3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab0
 FROZEN_THRESHOLD = 0.022545819099925965
 HEX_SHA = re.compile(r'[a-f0-9]{64}\Z')
 ALIAS = re.compile(r'[A-Za-z0-9_.-]{1,128}\Z')
+
+
+def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('independent_protocol_duplicate_json_key')
+        result[key] = value
+    return result
+
+
+def _load_unique_json(value: str) -> Any:
+    # Canonical SHA-256 cannot unambiguously seal JSON when distinct parsers
+    # may disagree on which of two repeated keys is authoritative.
+    return json.loads(value, object_pairs_hook=_unique_pairs)
+
 _FIELDS = frozenset((
     'schema','candidate_alias','source_lineage_identifier','canonical_source_sha256',
     'frozen_model_manifest_sha256','frozen_model_sha256','sensor_mapping_sha256',
@@ -134,7 +150,7 @@ def seal_holdout_protocol(*, protocol_path: Path, output_path: Path) -> dict[str
     protocol_path, output_path = Path(protocol_path), Path(output_path)
     if protocol_path.resolve() == output_path.resolve() or output_path.exists():
         raise FileExistsError('independent_protocol_output_exists_or_input')
-    protocol=json.loads(protocol_path.read_text(encoding='utf-8'))
+    protocol=_load_unique_json(protocol_path.read_text(encoding='utf-8'))
     result=inspect_protocol(protocol)
     seal = {
         'schema':SEAL_SCHEMA,
@@ -154,7 +170,7 @@ def seal_holdout_protocol(*, protocol_path: Path, output_path: Path) -> dict[str
 def verify_holdout_seal(*,seal_path: Path, expected_protocol_sha256: str | None) -> dict[str, Any]:
     if not _sha(expected_protocol_sha256):
         raise ValueError('independent_protocol_external_protocol_pin_required')
-    seal=json.loads(Path(seal_path).read_text(encoding='utf-8'))
+    seal=_load_unique_json(Path(seal_path).read_text(encoding='utf-8'))
     if not isinstance(seal,dict) or set(seal) != {
             'schema','protocol','protocol_sha256','status',
             'pre_test_seal_timestamp_independently_proven','independent_validation','production_admission'}:
