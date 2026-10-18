@@ -30,6 +30,25 @@ _REQUIRED_DECLARATIONS = (
 )
 
 
+class _DuplicateJSONKey(ValueError):
+    """Ambiguous provenance, binding or sensor declaration in a JSON object."""
+
+
+def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateJSONKey('partner_mapping_duplicate_json_key')
+        result[key] = value
+    return result
+
+
+def _strict_json(payload: str | bytes) -> Any:
+    # Python's default last-key-wins parsing silently changes both rights
+    # statements and readings. Reject duplicate object keys at every depth.
+    return json.loads(payload, object_pairs_hook=_unique_object_pairs)
+
+
 def _valid_native_direction(value: Any) -> bool:
     """Accept the original mining state codes without importing Axiom."""
     if isinstance(value, bool) or type(value) not in (int, float, str):
@@ -165,10 +184,13 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
         raise FileExistsError('partner_mapping_output_already_exists_or_input')
     profile_raw=mapping_path.read_bytes()
     try:
-        profile=json.loads(profile_raw)
+        profile=_strict_json(profile_raw)
+    except _DuplicateJSONKey:
+        raise
     except (UnicodeError,ValueError):
         raise ValueError('partner_mapping_schema_invalid') from None
     adapter=_validate_profile(profile)
+    mapping_sha=hashlib.sha256(profile_raw).hexdigest()
     before=_sha_file(source)
     output_source.parent.mkdir(parents=True,exist_ok=True)
     output_manifest.parent.mkdir(parents=True,exist_ok=True)
@@ -181,7 +203,9 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
                 for line in src:
                     if not line.strip():
                         raise ValueError('partner_mapping_raw_schema_mismatch')
-                    try:raw=json.loads(line)
+                    try:raw=_strict_json(line)
+                    except _DuplicateJSONKey:
+                        raise
                     except (ValueError,UnicodeError):
                         raise ValueError('partner_mapping_raw_schema_mismatch') from None
                     converted,t = _converted_row(raw,adapter=adapter,
@@ -212,6 +236,12 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
             tmp_manifest=Path(dest.name)
             dest.write(json.dumps(manifest,sort_keys=True,indent=2,allow_nan=False)+'\n')
             dest.flush();os.fsync(dest.fileno())
+        # Both inputs must still be byte-identical immediately before we publish
+        # the two final files. No mutation may silently alter the evidence chain.
+        if _sha_file(mapping_path)!=mapping_sha:
+            raise ValueError('partner_mapping_mapping_mutated')
+        if _sha_file(source)!=before:
+            raise ValueError('partner_mapping_source_empty_or_mutated')
         # Link-without-replacement: existing files are never overwritten, even
         # if another process creates them between the initial guard and publish.
         os.link(tmp_source,output_source)
@@ -224,7 +254,7 @@ def transcode_partner_mine_telemetry(*, source: Path, mapping_path: Path,
             'schema':'musitu.connect.mining.partner_transcode_evidence.v1',
             'status':'RESEARCH_ONLY_NOT_ADMITTED',
             'original_sha256':before,
-            'mapping_sha256':hashlib.sha256(profile_raw).hexdigest(),
+            'mapping_sha256':mapping_sha,
             'canonical_sha256':canonical_sha,
             'canonical_manifest_sha256':_sha_file(output_manifest),
             'source_rows':rows,
