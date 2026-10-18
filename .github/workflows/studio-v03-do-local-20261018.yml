@@ -105,6 +105,39 @@ jobs:
           python -c "import json,sys; d=json.loads(sys.argv[1]);assert d['projects']==[];print('REAL_DURABLE_OBJECT_MULTITENANT_PROJECT_ISOLATION=PASS')" "$outsider"
           code=$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8795' -H 'x-local-test-actor: outsider-ci' --data '{"device":"CPU"}' http://127.0.0.1:8795/api/jobs)
           test "$code" = 400
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          endpoint='http://127.0.0.1:8795'
+          def post(path,payload):
+            req=urllib.request.Request(endpoint+path,
+              data=json.dumps(payload).encode(),method='POST',
+              headers={'Content-Type':'application/json','Origin':endpoint})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as r:
+                return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              return e.code,json.load(e)
+          first=json.load(open('/tmp/studio-do-created.json'))['project_id']
+          for n in range(9):
+            code,body=post('/api/projects',{'title':'Free workspace '+str(n)})
+            assert code==201,(code,body)
+          code,body=post('/api/projects',{'title':'Over-quota denied'})
+          assert code==429 and body['error']=='PROJECT_QUOTA_EXCEEDED',(code,body)
+          scene={'schema':'musitu.blender.job.v1','job_id':'FreeTierProof01',
+            'objects':[{'name':'Cube','type':'cube','location':[0,0,0],
+              'dimensions':[1,1,1],'material':'teal'}]}
+          def submit(n):
+            return {'project_id':first,'device':'CPU','scene':scene,
+              'submission_key':'quota-checked-'+str(n).zfill(6)}
+          for n in range(50):
+            code,body=post('/api/jobs',submit(n))
+            assert code==201,(n,code,body)
+          code,body=post('/api/jobs',submit(0))
+          assert code==200 and body.get('duplicate') is True,(code,body)
+          code,body=post('/api/jobs',submit(50))
+          assert code==429 and body['error']=='PROJECT_JOB_QUOTA_EXCEEDED',(code,body)
+          print('REAL_DURABLE_OBJECT_FREE_TIER_QUOTAS=PASS')
+          PY
           echo 'REAL_WORKER_DURABLE_OBJECT_ACCOUNT_BOUNDARY=PASS'
       - name: Write safe evidence summary
         if: success()
