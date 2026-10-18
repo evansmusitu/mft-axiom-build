@@ -1,0 +1,73 @@
+name: MUSITU Studio V0.3 — Verified Enterprise Source Handoff
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-d1-20261018]
+    paths:
+      - '.github/workflows/studio-v03-source-handoff-20261018.yml'
+permissions: {contents: read}
+jobs:
+  complete-source-handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble immutable source/operations handoff with independent SHA-256 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,shutil,hashlib,json,zipfile
+          dst=pathlib.Path('MUSITU_STUDIO_ENTERPRISE_V03_20261018')
+          root=pathlib.Path('musitu_studio/edge')
+          allow=[
+            'src/access.mjs','src/session.mjs','src/validation.mjs',
+            'src/r2_entry.mjs','src/v03_entry.mjs','src/v03_identity.mjs','src/v03_policy.mjs',
+            'public_v03/index.html','public_v03/studio.css','public_v03/studio.js','public_v03/_headers',
+            'migrations/v03/0001_enterprise.sql','migrations/v03/0002_runtime_guards.sql',
+            'tests/v03_enterprise.test.mjs','tests/r2_control.test.mjs',
+            'tests/session.test.mjs','tests/validation.test.mjs',
+            'package.json','wrangler.v03.jsonc'
+          ]
+          additions=[
+            'docs/STUDIO_ENTERPRISE_V03_SOURCE_QUALIFICATION_20261018.md',
+            '.github/workflows/studio-v03-d1-enterprise-offline-20261018.yml',
+            '.github/workflows/studio-v03-d1-permission-readonly-20261018.yml'
+          ]
+          for path in allow:
+            source=root/path; assert source.is_file(),path
+            dest=dst/'01_CODE'/path;dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(source,dest)
+          for name in additions:
+            source=pathlib.Path(name);assert source.is_file(),name
+            dest=dst/'02_EVIDENCE_OPERATIONS'/name;dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(source,dest)
+          start=dst/'00_START_HERE.md'
+          start.write_text('# MUSITU Studio Enterprise V0.3 (source-only)\n\n'
+            'This is a fully hashed enterprise implementation candidate. It is NOT live deployed.\n'
+            'Open 02_EVIDENCE_OPERATIONS/docs/STUDIO_ENTERPRISE_V03_SOURCE_QUALIFICATION_20261018.md '
+            'for CI evidence, free-plan D1 capacity blocker and controlled release procedure.\n'
+            'Current v02 CPU Blender/R2 production runs independently and was not changed.\n')
+          records=[]
+          for f in sorted(dst.rglob('*')):
+            if f.is_file() and f.name not in ('SHA256SUMS.txt','FILE_MANIFEST.json'):
+              payload=f.read_bytes();records.append({'path':str(f.relative_to(dst)),
+                'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()})
+          (dst/'FILE_MANIFEST.json').write_text(json.dumps({'schema':'musitu.studio.enterprise-handoff.v03',
+            'source_only':True,'files':records},indent=2)+'\n')
+          (dst/'SHA256SUMS.txt').write_text(''.join(x['sha256']+'  '+x['path']+'\n' for x in records))
+          target=pathlib.Path('MUSITU_STUDIO_ENTERPRISE_V03_20261018.zip')
+          with zipfile.ZipFile(target,'w',compression=zipfile.ZIP_DEFLATED) as z:
+            for f in sorted(dst.rglob('*')):
+              if f.is_file():z.write(f,str(f.relative_to(dst.parent)))
+          with zipfile.ZipFile(target) as z:
+            assert z.testzip() is None
+            assert len(z.namelist())==len(records)+2
+          print('STUDIO_V03_HANDOFF='+json.dumps({'file_count':len(records),
+            'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),
+            'zip_test':'PASS','source_only':True}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_ENTERPRISE_V03_SOURCE_HANDOFF_20261018
+          path: MUSITU_STUDIO_ENTERPRISE_V03_20261018.zip
+          retention-days: 30
