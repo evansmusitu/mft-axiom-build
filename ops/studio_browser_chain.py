@@ -19,14 +19,19 @@ END='2026-10-18T06:37:30Z'
 
 def correlate_mobile_chain(job_id, created_at, groups, access, cpu, assets):
     actions={action:0 for action in ('submit', 'approve', 'dispatch', 'sync')}
+    downloads={name:0 for name in ('scene.blend','scene.glb','preview.png')}
     if not isinstance(job_id,str) or not re.fullmatch(r'[a-f0-9-]{36}',job_id):
         return {'mobile_access_cpu_r2_provider_correlated':False,'physical_android_attested':False}
     for row in groups if isinstance(groups,list) else []:
         if not isinstance(row,dict) or not isinstance(row.get('dimensions'),dict):continue
         dim=row['dimensions'];n=row.get('count')
         if type(n) is not int or not 1<=n<=100000 or str(dim.get('clientDeviceType','')).lower()!='mobile':continue
-        if dim.get('clientRequestHTTPMethodName')!='POST' or not isinstance(dim.get('edgeResponseStatus'),int) or not 200<=dim['edgeResponseStatus']<300:continue
+        if not isinstance(dim.get('edgeResponseStatus'),int) or not 200<=dim['edgeResponseStatus']<300:continue
         path=dim.get('clientRequestPath')
+        if dim.get('clientRequestHTTPMethodName') == 'GET':
+            for name in downloads:
+                if path == f'/api/jobs/{job_id}/assets/{name}':downloads[name] += n
+        if dim.get('clientRequestHTTPMethodName') != 'POST':continue
         if path=='/api/jobs':actions['submit']+=n
         for action in ('approve','dispatch','sync'):
             if path==f'/api/jobs/{job_id}/{action}':actions[action]+=n
@@ -47,6 +52,8 @@ def correlate_mobile_chain(job_id, created_at, groups, access, cpu, assets):
             'staff_access_allowed_human_identity_login_preceded_job':bool(human_logins),
             'cpu_completed_in_production_state':bool(cpu),
             'three_r2_assets_sha256_verified':bool(assets),
+            'all_three_assets_downloaded_from_android_ua':all(downloads.values()),
+            'android_asset_get_sampled_counts':downloads,
             'same_job_uuid_matched_in_mobile_approve_dispatch_sync':all(actions[x]>0 for x in ('approve','dispatch','sync')),
             'mobile_access_cpu_r2_provider_correlated':full,
             'physical_android_attested':False,
