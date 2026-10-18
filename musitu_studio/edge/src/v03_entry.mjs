@@ -7,9 +7,9 @@ const json=(value,status=200)=>new Response(JSON.stringify(value),{status,header
 const err=(value,status=400)=>json({ok:false,error:value},status);
 const q=(db,sql,...values)=>db.prepare(sql).bind(...values);
 const rows=async statement=>(await statement.all()).results||[];
-const trace=j=>({id:j.id,project_id:j.project_id,device:j.render_device,state:j.state,
+const trace=(j,actor)=>({id:j.id,project_id:j.project_id,device:j.render_device,state:j.state,
   created_at:j.created_at,approved_at:j.approved_at,dispatched_at:j.dispatched_at,
-  finished_at:j.finished_at,sha256:j.payload_sha256,error:j.error_code||null});
+  finished_at:j.finished_at,sha256:j.payload_sha256,error:j.error_code||null,created_by_me:actor?.sub===j.created_by_sub});
 async function readJson(req,limit=65536){
   if(req.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')throw Error('CONTENT_TYPE');
   const declared=req.headers.get('content-length');
@@ -155,7 +155,7 @@ async function api(req,env,url,actor){
     const statement=globalAdmin(env,actor.sub)
       ?q(env.STUDIO_DB,'SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100')
       :q(env.STUDIO_DB,'SELECT j.* FROM jobs j JOIN memberships m ON m.project_id=j.project_id WHERE m.member_sub=? ORDER BY j.created_at DESC LIMIT 100',actor.sub);
-    return json({ok:true,jobs:(await rows(statement)).map(trace)});
+    return json({ok:true,jobs:(await rows(statement)).map(j=>trace(j,actor))});
   }
   if(req.method==='POST'&&path==='/api/jobs'){
     const b=await readJson(req);
@@ -170,7 +170,7 @@ async function api(req,env,url,actor){
     if(old){
       if(old.project_id!==b.project_id||old.created_by_sub!==actor.sub||
          old.payload_sha256!==digest)return err('SUBMISSION_KEY_CONFLICT',409);
-      return json({ok:true,duplicate:true,job:trace(old)});
+      return json({ok:true,duplicate:true,job:trace(old,actor)});
     }
     const id=crypto.randomUUID();
     try{
@@ -189,7 +189,7 @@ async function api(req,env,url,actor){
   if(!job)return err('JOB_NOT_FOUND',404);
   const capability=['approve','dispatch','sync'].includes(action)?'approve':action==='audit'?'audit':'view';
   if(!await permit(env,job.project_id,actor,capability))return err('FORBIDDEN',403);
-  if(req.method==='GET'&&!action)return json({ok:true,job:trace(job)});
+  if(req.method==='GET'&&!action)return json({ok:true,job:trace(job,actor)});
   if(req.method==='GET'&&action==='audit')
     return json({ok:true,events:await rows(q(env.STUDIO_DB,'SELECT action,actor_sub,at FROM audit_events WHERE job_id=? ORDER BY at DESC LIMIT 100',id))});
   if(req.method==='GET'&&action.startsWith('assets/')){
