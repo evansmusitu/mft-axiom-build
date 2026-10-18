@@ -1,0 +1,19 @@
+# MUSITU Studio continuation checkpoint — 18 October 2026
+
+Scope: **Studio-only**; pinned handoff commit `9439cdae2fbb8073c6300558ae01441d12d1425d` on `experiments/studio-remote-r2-modal-e2e-20261017`. The canonical handoff ZIP was independently verified as 98/98 SHA256SUMS and 98/98 FILE_MANIFEST entries; GitHub Actions artifact 12126138168, digest `sha256:0e3c6daa63cc06f4ea371b1d412f29a1d25bbbdc31847d6fd6d3a7e5506c65f8`.
+
+## Validated read-only checkpoints
+
+- [Cloudflare first-hop diagnostic / TDD action 39101667632](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39101667632): SUCCESS; two no-network tests PASS; live Cloudflare readback 2026-10-18 05:45:54 UTC. Both anonymous GET requests to `studio.mftintelligence.com` returned HTTP 403 and `cf-mitigated: challenge`; neither reached an Access redirect. Response-body bounded inspection did **not** prove these were 1010 pages. Cloudflare security has Browser Integrity Check ON and security level `under_attack`; 10 http_config_settings rules, zero Studio scoped. Prior real Android Error 1010 remains unresolved. Check the artifact Ray IDs in Cloudflare **Security Events** to identify the exact matching product/rule before any change. Do not weaken global security or bypass Access.
+- [Modal read-only app inventory 39101591733](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39101591733): SUCCESS at 2026-10-18 05:44:47 UTC. Modal app `musitu-studio-v02` and `render_cpu_pull` metadata readable; `smoke_gpu` is **not registered**. No Modal deployment or CPU/GPU jobs started. Registration is not a GPU entitlement or render proof.
+- Historic [real Modal CPU 39060405530](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39060405530), [remote R2 39060544185](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39060544185), [local Worker-runtime→Modal→remote R2 39060820517](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39060820517), [Cloudflare CPU Worker deploy 39061325303](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39061325303), and [staff-only Access/R2 live readback 39061504060](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39061504060) are confirmed successful previous runs—not a new real-browser acceptance.
+
+## Changes and release boundaries
+
+Four read-only Studio diagnostic commits since pinned source: `5b1e2d5c` (privacy tests), `b7ecc305` (first-hop edge probe), `4e594a55` (Modal read-only inventory workflow), `19c9e475` (regression-gated Cloudflare diagnostic workflow). Fresh Actions test log: **Ran 2 tests ... OK**. No production Cloudflare Worker or Modal release/deployment was made, and no configuration mutation occurred. GitHub `main` remained `bc48ab8aed137e61b76e25f113bb29e1efd7b11a` at checkpoint.
+
+**UNVERIFIED:** public Android staff browser → Access → Studio approval → real CPU dispatch → Modal → dedicated R2 → authenticated asset download. It cannot be qualified while the edge blocks/challenges anonymous first-hop traffic and no actual staff-browser evidence exists. Existing Wrangler-local cross-provider E2E does not fulfill this criterion.
+
+**BLOCKED:** Dedicated D1 creation permission (R2 CAS is still limited single-admin pilot); Modal T4 GPU payment-method/entitlement and independently proven hard cap; genuine human Android Access session. Do not create alternate infrastructure, borrow Axiom D1, or run billable GPU workloads.
+
+**Safe order:** (1) Cloudflare admin inspects exact Ray ID events and narrows only a proven Studio-host rule with Access intact; (2) staff performs one real browser-initiated CPU render and preserves provider-side R2 checksums; (3) separately pursue D1 scoped entitlement; (4) GPU only with billing guard and explicit entitlement.
