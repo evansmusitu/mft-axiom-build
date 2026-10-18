@@ -1,7 +1,7 @@
 import {randomBytes,createHash} from 'node:crypto';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {database} from './database.mjs';
-import {identityConfig,assertIdentityFlow,providerLogoutUrl} from './identity-policy.mjs';
+import {identityConfig,assertIdentityFlow,providerLogoutUrl,ZITADEL_MAX_AUTH_AGE_SECONDS} from './identity-policy.mjs';
 import {createIdentityProvider} from './identity-provider.mjs';
 const COOKIE='__Host-musitu-session',FLOW='__Host-musitu-flow';
 let providerCache;
@@ -27,7 +27,7 @@ async function sessionRow(raw,work){
 export async function authenticate(req){
  const row=await sessionRow(cookies(req,COOKIE),async c=>(await c.query("SELECT encrypted_payload FROM musitu_identity.sessions WHERE revoked=false AND expires_at>now()")).rows[0]);
  if(!row)throw Error('SESSION_REVOKED');
- const data=await unseal(row.encrypted_payload),claims=await validate(data.accessToken);
+ const data=await unseal(row.encrypted_payload),claims=await provider().verifySession(data);
  return {subject:claims.sub};
 }
 export async function identityAction(req,action){
@@ -37,6 +37,7 @@ export async function identityAction(req,action){
   const state=randomBytes(32).toString('base64url'),nonce=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const target=new URL(cfg.endpoints.authorization);
   target.search=new URLSearchParams({client_id:cfg.client,redirect_uri:cfg.origin+'/auth/callback',response_type:'code',scope:'openid profile',state,nonce,code_challenge:Buffer.from(hash(verifier),'hex').toString('base64url'),code_challenge_method:'S256'}).toString();
+  if(cfg.provider==='zitadel')target.searchParams.set('max_age',String(ZITADEL_MAX_AUTH_AGE_SECONDS));
   return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
  }
  if(action==='callback'&&req.method==='GET'){
@@ -49,7 +50,8 @@ export async function identityAction(req,action){
   const accessClaims=await validate(tokens.access_token);
   await provider(cfg).verifyId(tokens.id_token,flow,accessClaims);
   if(!Number.isSafeInteger(tokens.expires_in)||tokens.expires_in<1||tokens.expires_in>86400)throw Error('OIDC_EXPIRATION_REJECTED');
-  const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token},Math.min(3600,tokens.expires_in));
+  const proof=cfg.provider==='zitadel'?{idToken:tokens.id_token,nonce:flow.nonce}:{};
+  const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token,...proof},Math.min(3600,tokens.expires_in));
   await sessionRow(raw,async(c,h)=>c.query('INSERT INTO musitu_identity.sessions(token_hash,encrypted_payload,expires_at) VALUES($1,$2,now()+($3::int * interval \'1 second\'))',[h,encrypted,Math.min(3600,tokens.expires_in)]));
   const headers=new Headers({location:'/', 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));
   return new Response(null,{status:302,headers});

@@ -1,5 +1,12 @@
 # ZITADEL staging identity — 17 October 2026
 
+> **18 October update:** Administrator sign-in and the two explicitly approved
+> isolated clients were subsequently verified. Signed ID-token MFA/freshness and
+> per-session proof validation now pass 267 local tests; this code is not deployed.
+> The two Preview client secrets and genuine browser/MFA acceptance remain blocked.
+> See `ZITADEL_SIGNED_MFA_20261018.md` for current state; the dated account/client
+> observations below are retained historical evidence.
+
 ## Observed account state
 
 The user completed registration in the real browser. The ZITADEL customer portal

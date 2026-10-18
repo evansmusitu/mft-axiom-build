@@ -1,4 +1,5 @@
 /** Explicit provider configuration. Provider metadata never chooses network destinations. */
+export const ZITADEL_MAX_AUTH_AGE_SECONDS=600;
 export function identityConfig(env){
  const issuer=env.OIDC_ISSUER,client=env.OIDC_CLIENT_ID,secret=env.OIDC_CLIENT_SECRET,origin=env.APP_ORIGIN;
  if(!issuer||!client||!secret||!origin)throw Error('IDENTITY_NOT_CONFIGURED');

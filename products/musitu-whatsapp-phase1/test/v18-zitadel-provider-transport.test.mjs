@@ -36,8 +36,9 @@ test('provider failure after an earlier successful request cannot reuse cached a
 });
 test('ID token must bind nonce, subject and authorized client to the same login flow',async()=>{
  const f=fixture(),p=createIdentityProvider(cfg,{request:f.request}),flow={nonce:'synthetic-nonce'},claims={sub:'staff-synthetic'};
- const token=await signed({aud:cfg.client,nonce:flow.nonce});assert.equal((await p.verifyId(token,flow,claims)).sub,claims.sub);
- for(const changes of [{nonce:'other-nonce'},{sub:'other-staff'},{azp:'other-client'},{aud:'other-web'}])await assert.rejects(p.verifyId(await signed({aud:cfg.client,nonce:flow.nonce,...changes}),flow,claims));
+ const idClaims={aud:cfg.client,nonce:flow.nonce,amr:['pwd','mfa'],auth_time:now};
+ const token=await signed(idClaims);assert.equal((await p.verifyId(token,flow,claims)).sub,claims.sub);
+ for(const changes of [{nonce:'other-nonce'},{sub:'other-staff'},{azp:'other-client'},{aud:'other-web'}])await assert.rejects(p.verifyId(await signed({...idClaims,...changes}),flow,claims));
 });
 test('code exchange forwards PKCE to pinned token endpoint and uses web credentials only',async()=>{
  let count=0;
@@ -54,6 +55,6 @@ test('identity transport rejects redirects, unexpected status/type and oversized
 test('real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie',async()=>{
  const oldFetch=globalThis.fetch,saved={};for(const key of [...Object.keys(env),'SESSION_ENCRYPTION_KEY'])saved[key]=process.env[key];Object.assign(process.env,env,{SESSION_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')});
  globalThis.fetch=async(url)=>{assert.equal(String(url),cfg.issuer+'/.well-known/openid-configuration');return Response.json({issuer:cfg.issuer,authorization_endpoint:cfg.endpoints.authorization,token_endpoint:cfg.endpoints.token,introspection_endpoint:cfg.endpoints.introspection,jwks_uri:cfg.endpoints.jwks,end_session_endpoint:cfg.endpoints.logout,id_token_signing_alg_values_supported:['RS256'],code_challenge_methods_supported:['S256'],response_types_supported:['code'],token_endpoint_auth_methods_supported:['client_secret_basic']});};
- try{const response=await identityAction(new Request(cfg.origin+'/auth/login'),'login'),url=new URL(response.headers.get('location'));assert.equal(response.status,302);assert.equal(url.origin+url.pathname,cfg.endpoints.authorization);for(const name of ['state','nonce','code_challenge'])assert.match(url.searchParams.get(name),/^[A-Za-z0-9_-]{43}$/);assert.equal(url.searchParams.get('code_challenge_method'),'S256');assert.equal(url.searchParams.get('response_type'),'code');assert.equal(url.searchParams.get('redirect_uri'),cfg.origin+'/auth/callback');assert.match(response.headers.get('set-cookie'),/HttpOnly; Secure; SameSite=Lax; Max-Age=600/);assert.equal(url.href.includes(cfg.secret),false);}
+ try{const response=await identityAction(new Request(cfg.origin+'/auth/login'),'login'),url=new URL(response.headers.get('location'));assert.equal(response.status,302);assert.equal(url.origin+url.pathname,cfg.endpoints.authorization);for(const name of ['state','nonce','code_challenge'])assert.match(url.searchParams.get(name),/^[A-Za-z0-9_-]{43}$/);assert.equal(url.searchParams.get('code_challenge_method'),'S256');assert.equal(url.searchParams.get('response_type'),'code');assert.equal(url.searchParams.get('max_age'),'600');assert.equal(url.searchParams.get('redirect_uri'),cfg.origin+'/auth/callback');assert.match(response.headers.get('set-cookie'),/HttpOnly; Secure; SameSite=Lax; Max-Age=600/);assert.equal(url.href.includes(cfg.secret),false);}
  finally{globalThis.fetch=oldFetch;for(const [key,value]of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
 });
