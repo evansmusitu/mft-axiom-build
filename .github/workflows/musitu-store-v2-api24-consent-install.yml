@@ -134,7 +134,7 @@ jobs:
           assert len(real_cases)>=6,('missing genuine APK tests',len(real_cases),paths)
           assert not any(any(child.tag in ('failure','error','skipped') for child in case) for case in real_cases),'real-APK test failed or skipped'
           assert len(consent_cases)==1,('missing real user consent test',len(consent_cases),paths)
-          assert total>=14 and failed==0 and errors==0,(total,failed,errors)
+          assert total==len(real_cases)+len(consent_cases)==7 and failed==0 and errors==0,(total,failed,errors)
           print(f'MUSITU_STORE_V2_UI_APPROVED_APK_INSTALL_PASS tests={total} real_apk_tests={len(real_cases)} consent_tests={len(consent_cases)} failures={failed} errors={errors}')
           PY
       - name: Retain public test checksums without ephemeral private key material
