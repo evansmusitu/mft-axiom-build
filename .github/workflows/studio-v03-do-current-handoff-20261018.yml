@@ -1,0 +1,117 @@
+name: MUSITU Studio V0.3 — Live Free SQLite DO Qualified Source Handoff
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
+permissions: {contents: read}
+jobs:
+  source-integrity-and-handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify signed identity, quotas, SQLite adapter and original Studio
+        working-directory: musitu_studio/edge
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          node --check src/v03_entry.mjs
+          node --check src/v03_do_entry.mjs
+          node --check src/v03_identity.mjs
+          node --check public_v03/studio.js
+          node --test tests/v03_identity.test.mjs tests/v03_do_adapter.test.mjs tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+      - name: Build allowlisted V0.3 source and production evidence report with verified manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,hashlib,pathlib,shutil,zipfile
+          root=pathlib.Path('MUSITU_STUDIO_V03_LIVE_FREE_SQLITE_DO_20261018')
+          paths=[
+            'musitu_studio/edge/src/v03_entry.mjs',
+            'musitu_studio/edge/src/v03_identity.mjs',
+            'musitu_studio/edge/src/v03_policy.mjs',
+            'musitu_studio/edge/src/v03_do_entry.mjs',
+            'musitu_studio/edge/src/v03_do_adapter.mjs',
+            'musitu_studio/edge/src/v03_do_schema.mjs',
+            'musitu_studio/edge/src/validation.mjs',
+            'musitu_studio/edge/src/access.mjs',
+            'musitu_studio/edge/src/session.mjs',
+            'musitu_studio/edge/src/r2_entry.mjs',
+            'musitu_studio/edge/wrangler.v03.do.jsonc',
+            'musitu_studio/edge/package.json',
+            'musitu_studio/edge/migrations/v03/0001_enterprise.sql',
+            'musitu_studio/edge/migrations/v03/0002_runtime_guards.sql',
+            'musitu_studio/edge/public_v03/index.html',
+            'musitu_studio/edge/public_v03/studio.js',
+            'musitu_studio/edge/public_v03/studio.css',
+            'musitu_studio/edge/public_v03/_headers',
+            'musitu_studio/edge/tests/v03_enterprise.test.mjs',
+            'musitu_studio/edge/tests/v03_do_adapter.test.mjs',
+            'musitu_studio/edge/tests/v03_identity.test.mjs',
+            'musitu_studio/edge/tests/r2_control.test.mjs',
+            'musitu_studio/edge/tests/session.test.mjs',
+            'musitu_studio/edge/tests/validation.test.mjs',
+            'docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md',
+            '.github/workflows/studio-v03-do-local-20261018.yml',
+            '.github/workflows/studio-v03-do-manual-guarded-release.yml',
+            '.github/workflows/studio-v03-do-quota-rollout-20261018.yml',
+            '.github/workflows/studio-v03-do-final-readback-20261018.yml',
+            '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
+          ]
+          for name in paths:
+            source=pathlib.Path(name)
+            assert source.is_file(),name
+            dest=root/'01_QUALIFIED_SOURCE'/name
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(source,dest)
+          info=(root/'00_READ_FIRST.md')
+          info.write_text(
+            '# MUSITU Enterprise Studio V0.3 — Free SQLite Durable Objects\n\n'
+            'Source branch: experiments/studio-enterprise-v03-sqlite-do-20261018\n'
+            'Source SHA: '+os.environ.get('GITHUB_SHA','UNAVAILABLE')+'\n'
+            'Staff Android URL: https://studio-v03.mftintelligence.com/\n'
+            'Existing v02 URL: https://studio.mftintelligence.com/\n\n'
+            'VERIFIED: dedicated Cloudflare worker, staff-only Access and JWT audience, '
+            'SQLite Durable Object, isolated R2 binding, secure first-hop, 46 unit/integration tests, '
+            'real local Workerd quota tests, bounded quota live release and unchanged V02 domain.\n\n'
+            'SECURITY: CPU dispatch and GPU are disabled; no verified signed real Android user session, '
+            'V0.3 live render or backup restoration exercise yet. This bundle intentionally uses invalid '
+            'Access placeholders; do not directly deploy the checked-in config. Use the guarded manual '
+            'GitHub workflow after checking exact staff Access application bindings.\n\n'
+            'Complete chronology, test links and requirements: '
+            '01_QUALIFIED_SOURCE/docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md\n'
+          )
+          manifest=[]
+          for f in sorted(root.rglob('*')):
+            if f.is_file() and f.name not in ('SHA256SUMS','MANIFEST.json'):
+              content=f.read_bytes()
+              manifest.append({'path':str(f.relative_to(root)),
+                               'bytes':len(content),
+                               'sha256':hashlib.sha256(content).hexdigest()})
+          (root/'MANIFEST.json').write_text(json.dumps({'schema':'musitu.studio.v03.free-do-handoff',
+             'source_branch':'experiments/studio-enterprise-v03-sqlite-do-20261018',
+             'source_sha':os.environ.get('GITHUB_SHA'),'user_sensitive_assets_included':False,
+             'binary_blender_assets_included':False,'files':manifest},indent=2)+'\n')
+          (root/'SHA256SUMS').write_text(''.join(x['sha256']+'  '+x['path']+'\n' for x in manifest))
+          archive=pathlib.Path('MUSITU_STUDIO_V03_LIVE_FREE_SQLITE_DO_20261018.zip')
+          with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
+            for f in sorted(root.rglob('*')):
+              if f.is_file():z.write(f,str(f.relative_to(root.parent)))
+          with zipfile.ZipFile(archive) as z:
+            assert z.testzip() is None
+            assert len(z.namelist())==len(manifest)+2
+          print('STUDIO_V03_CURRENT_HANDOFF='+json.dumps({
+            'source_sha':os.environ.get('GITHUB_SHA'),
+            'manifest_files':len(manifest),'internal_checks_verified':len(manifest),
+            'zip_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
+            'archive_ok':True,'no_secrets_or_customer_blender_files':True},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_V03_LIVE_FREE_SQLITE_DO_VERIFIED_HANDOFF_20261018
+          path: MUSITU_STUDIO_V03_LIVE_FREE_SQLITE_DO_20261018.zip
+          retention-days: 30
+          if-no-files-found: error
