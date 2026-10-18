@@ -14,7 +14,7 @@ from studio_usage_forensics import request_json, BASE, ACCOUNT, HOST
 
 OUT=pathlib.Path('studio-production-android-chain-evidence-20261018.json')
 START='2026-10-18T06:33:00Z'
-END='2026-10-18T06:37:30Z'
+END='2026-10-18T06:53:00Z'
 
 
 def correlate_mobile_chain(job_id, created_at, groups, access, cpu, assets):
