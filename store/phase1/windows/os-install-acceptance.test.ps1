@@ -5,7 +5,7 @@ param([switch]$MustBeAbsent)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 
-if (-not $IsWindows -or $env:CI -ne 'true' -or
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or $env:CI -ne 'true' -or
     -not $env:RUNNER_TEMP -or
     -not $env:MUSITU_TEST_SIGNED_MSIX -or
     -not $env:MUSITU_TEST_CERT_THUMBPRINT) {
