@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/musitu-store-v2-publisher-intake-ci.yml'
       - 'store/phase1/publisher_intake/**'
+      - 'store/core/catalog/**'
       - 'store/phase1/android-client/fixturealpha/**'
   workflow_dispatch:
 
@@ -27,6 +28,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
@@ -71,5 +75,6 @@ jobs:
           # Disposable fixture only: expose metadata labels but redact all hashes.
           "$BUILD_TOOLS/apksigner" verify --print-certs "$SIGN_DIR/disposable-signed.apk" | sed -E 's/(digest: ).*/\1[REDACTED]/'
           python3 store/phase1/publisher_intake/signed_apk_integration.py "$SIGN_DIR/disposable-signed.apk"
+          node store/phase1/publisher_intake/signed_apk_integrated_stage.mjs "$SIGN_DIR/disposable-signed.apk"
           rm -f "$SIGN_DIR/disposable-signed.apk"
           echo MUSITU_STORE_DISPOSABLE_PUBLISHER_FIXTURE_CLEANED=PASS
