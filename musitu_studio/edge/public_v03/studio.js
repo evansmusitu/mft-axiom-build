@@ -146,5 +146,13 @@ async function viewMembers(){
  if(!result.members?.length)list.textContent='No members found.';
 }
 el('view-members').onclick=()=>guarded(viewMembers);
+el('check-recovery').onclick=()=>guarded(async()=>{
+ const info=await api('/api/recovery/readiness');
+ const message='Database schema v'+info.schema_version+' · '+
+   (info.pitr_bookmark_available?'Cloudflare recovery bookmark API available':'Recovery bookmark not available in this environment')+
+   ' · No database restore performed.';
+ el('recovery-readiness').textContent=message;
+ notify('Read-only recovery readiness checked for your authorized Studio owner session.');
+});
 guarded(refresh);
 window.addEventListener('pagehide',()=>{if(state.previewUrl)URL.revokeObjectURL(state.previewUrl)});
