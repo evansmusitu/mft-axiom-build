@@ -1,0 +1,20 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"musitu-studio-v03-do",
+ "main":"src/v03_do_entry.mjs",
+ "compatibility_date":"2026-10-18",
+ "workers_dev":false,
+ "assets":{"directory":"./public_v03","binding":"ASSETS","run_worker_first":true},
+ "durable_objects":{"bindings":[{"name":"STUDIO_LEDGER","class_name":"StudioEnterpriseSqliteLedger"}]},
+ "migrations":[{"tag":"studio-v03-sqlite-ledger-v1","new_sqlite_classes":["StudioEnterpriseSqliteLedger"]}],
+ "r2_buckets":[{"binding":"STUDIO_ASSETS","bucket_name":"musitu-studio-v02-assets"}],
+ "vars":{
+   "ENABLE_RENDER_DISPATCH":"false",
+   "BUDGET_GUARD_APPROVED":"false",
+   "GPU_EXECUTION_APPROVED":"false",
+   "STUDIO_V03_DAILY_CPU_LIMIT":"2",
+   "STUDIO_V03_GLOBAL_ADMINS":"",
+   "STUDIO_ACCESS_TEAM_DOMAIN":"https://invalid-not-configured.cloudflareaccess.com",
+   "STUDIO_ACCESS_POLICY_AUD":"0000000000000000000000000000000000000000000000000000000000000000"
+ }
+}
