@@ -106,3 +106,44 @@ test('dangling symlink masquerading as absent prior ledger cannot reset order hi
   assert.throws(()=>record(d),/symlink|unsafe|ledger/i);
   assert.equal(existsSync(missing),false);
 });
+
+
+function signedOtherOrder(otherOrder, fields={}){
+  const fieldsToSign={reference:otherOrder.reference,paynowreference:'PAYNOW-FIXTURE-1',
+    amount:otherOrder.amount,status:'Paid',pollurl:otherOrder.pollurl,...fields};
+  const items=Object.entries(fieldsToSign);
+  const hash=createHash('sha512').update(items.map(([,v])=>String(v)).join('')+integrationKey).digest('hex').toUpperCase();
+  return items.map(([k,v])=>k+'='+encodeURIComponent(String(v))).join('&')+'&hash='+hash;
+}
+test('one provider transaction cannot be claimed by a second separately signed merchant order',t=>{
+  const d=fixture(t);
+  record(d);
+  const second={...order,reference:'ORDER-LEDGER-005'};
+  const before=readFileSync(paths(d).ledger,'utf8');
+  assert.throws(()=>record(d,{order:second,
+    callbackBody:signedOtherOrder(second),
+    polledBody:signedOtherOrder(second)}),/provider|transaction|claimed|other order/i);
+  assert.equal(readFileSync(paths(d).ledger,'utf8'),before);
+  const secondName=createHash('sha256').update('musitu.store.paynow.review.v1\\0'+second.reference).digest('hex');
+  assert.equal(existsSync(join(d.ledgerDirectory,secondName+'.json')),false);
+});
+test('deleted order history cannot be silently restarted while provider claim remains',t=>{
+  const d=fixture(t);record(d);
+  rmSync(paths(d).ledger);
+  assert.throws(()=>record(d),/provider|claim|history|recovery|review/i);
+  assert.equal(existsSync(paths(d).ledger),false);
+});
+test('provider transaction claim is private, immutable under normal replay, and corrupt state blocks reviews',t=>{
+  const d=fixture(t);record(d);
+  const providerKey=createHash('sha256').update('musitu.store.paynow.provider-claim.v1\\0PAYNOW-FIXTURE-1').digest('hex');
+  const claim=join(d.ledgerDirectory,'provider-'+providerKey+'.json');
+  assert.equal(existsSync(claim),true,'provider reference must be claimed globally before review');
+  assert.equal(statSync(claim).mode&0o777,0o600);
+  const original=readFileSync(claim,'utf8');
+  const replay=record(d);
+  assert.equal(replay.reused,true);
+  assert.equal(readFileSync(claim,'utf8'),original);
+  writeFileSync(claim,'{',{mode:0o600});
+  assert.throws(()=>record(d),/provider|claim|corrupt|review/i);
+  assert.equal(readFileSync(claim,'utf8'),'{');
+});
