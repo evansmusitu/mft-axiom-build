@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-android-api26-permission-20261011
+      - feature/musitu-store-v2-package-state-20261012
     paths:
       - '.github/workflows/musitu-store-v2-api26-permission.yml'
       - 'store/phase1/android-client/settings.gradle'
