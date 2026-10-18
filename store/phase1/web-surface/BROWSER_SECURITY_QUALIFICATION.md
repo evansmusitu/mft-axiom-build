@@ -67,3 +67,34 @@ installation/update, Windows installation, lawful purchases/refunds,
 support operations, physical Android/mobile browser matrix, explicit
 user release authorization, and phase-two independent competitive
 benchmarks. Do not merge protected main or modify frozen PR #1.
+
+## Installability assets and browser-approved Store PWA (October 18 continuation)
+
+Two self-hosted original Store-logo PNG files were committed to the
+isolated branch: `icon-192.png` (192 × 192, 519 bytes) and
+`icon-512.png` (512 × 512, 1,379 bytes). Git blob identities are
+`179c40905d751250032346ab600c89bfbb0d1d2f` and
+`d9a36dcf759983acb0937cf4daa081d84cb38570`. Their generated
+`pwa-icons.mjs` byte module is regression-tested against the original
+binary assets, and the Store Worker now serves both as
+`image/png` with `X-Content-Type-Options: nosniff`. The standalone
+PWA manifest advertises both sizes on same-origin, service-worker-scoped
+URLs, without external tracking or icon hosts.
+
+A new optional `Install MUSITU Store` action is **hidden until the
+browser supplies its own `beforeinstallprompt` event** and never invokes
+a prompt automatically. It requires the user's click, reports the
+browser's acceptance or dismissal, and responds to `appinstalled`.
+The existing Chemistry `Install Web App` link remains a *different*
+carrier and is unchanged. CSS now enforces the HTML `hidden` state
+despite button layout rules. Actual Chrome verifies that both PNGs
+decode at their declared dimensions and that the app manifest parses
+without errors. A separate Chrome acceptance test injects a controlled
+offer to prove the no-silent-prompt/explicit-click contract.
+
+**Limitations:** a synthetic offer is not proof that the real browser
+offered installation to a real user; the CI browser did not actually
+install the PWA on a physical phone. App install approval, kiosk
+restrictions, iOS Add to Home Screen and genuine Chrome/mobile
+installability must still be qualified independently before declaring
+MUSITU Store natively installed or globally published.
