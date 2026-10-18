@@ -186,3 +186,67 @@ test('policy enforces global staff separation, CPU-only and destination allowlis
   assert.equal(safeObjectKey(uu,'scene.glb'),'studio-v03/jobs/'+uu+'/scene.glb');
   assert.throws(()=>safeObjectKey(uu,'../../token'));
 });
+
+test('signed reviewer dispatches exactly once, actual Modal-shaped CPU pull completes',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+   {member_sub:'person-b',role:'reviewer'})).status,200);
+ assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ const remoteFetch=globalThis.fetch;let sends=0;
+ try{
+   globalThis.fetch=async(url,opts)=>{
+     if(String(url).endsWith('/jobs/pull')&&opts?.method==='POST'){
+       sends++;
+       assert.equal(opts.headers['x-studio-control-key'],'D'.repeat(48));
+       const body=JSON.parse(opts.body);assert.equal(body.device,'CPU');
+       assert.equal(body.job_id,id);
+       return Response.json({accepted:true,job_id:id,call_id:'fc-test-job-accepted-001'});
+     }
+     if(String(url).endsWith('/jobs/pull/fc-test-job-accepted-001')){
+       return Response.json({state:'COMPLETED',result:{
+         result:'FINISHED',job_id:id,input_sha256:f.db.db.prepare('SELECT payload_sha256 FROM jobs WHERE id=?').get(id).payload_sha256,
+         gpu_verified:false,files:output()
+       }});
+     }
+     throw Error('UNAPPROVED_REMOTE_TEST_URL');
+   };
+   const go=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.equal(go.status,202,JSON.stringify(go.body));
+   assert.equal(sends,1);
+   assert.equal((await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{})).status,429);
+   const done=await f.call('person-b','/api/jobs/'+id+'/sync','POST',{});
+   assert.equal(done.status,200,JSON.stringify(done.body));
+   assert.equal(done.body.state,'COMPLETED');
+   assert.equal(f.db.db.prepare('SELECT COUNT(*) AS n FROM assets WHERE job_id=?').get(id).n,3);
+   assert.equal((await f.call('person-a','/api/jobs/'+id+'/assets/scene.glb')).status,200);
+ }finally{globalThis.fetch=remoteFetch}
+});
+test('uncertain Modal dispatch never retries automatically or charges GPU',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
+ await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ const old=globalThis.fetch;let calls=0;
+ try{
+   globalThis.fetch=async()=>{calls++;throw Error('UNKNOWN_NETWORK_OUTCOME')};
+   const result=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.equal(result.status,502);
+   assert.equal(result.body.error,'DISPATCH_OUTCOME_UNKNOWN_NO_AUTOMATIC_RETRY');
+   assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'NEEDS_REVIEW');
+   assert.equal((await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{})).status,429);
+   assert.equal(calls,1);
+ }finally{globalThis.fetch=old}
+});
+test('isolated R2 byte mismatch is detected at output download',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ const row=f.db.db.prepare('SELECT * FROM jobs WHERE id=?').get(id);
+ f.db.db.prepare("UPDATE jobs SET state='RUNNING' WHERE id=?").run(id);
+ const receipt={job_id:id,input_sha256:row.payload_sha256,state:'COMPLETED',
+   gpu_verified:false,files:output()};
+ assert.equal((await f.call(null,'/internal/callback','POST',receipt,'C'.repeat(48))).status,200);
+ const key='studio-v03/jobs/'+id+'/scene.glb';
+ const raw=f.r2.data.get(key);raw.bytes[100]^=0xff;
+ const failed=await f.call('person-a','/api/jobs/'+id+'/assets/scene.glb');
+ assert.equal(failed.status,409);assert.equal(failed.body.error,'ASSET_INTEGRITY_FAILED');
+});
