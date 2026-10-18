@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
       - 'docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md'
+      - '.github/workflows/studio-v03-do-final-readback-20261018.yml'
 permissions: {contents: read}
 jobs:
   source-integrity-and-handoff:
