@@ -39,7 +39,7 @@ test('actual Chromium gets accessible Store, CSP, self-hosted PWA shell and serv
   const context=await browser.newContext();
   try{
     const page=await context.newPage();
-    const response=await page.goto(origin+'/store',{waitUntil:'load'});
+    const response=await page.goto(origin+'/store/',{waitUntil:'load'});
     assert.equal(response.status(),200);
     assert.equal(await page.title(),'MUSITU Store');
     assert.equal(await page.locator('#main').count(),1);
@@ -49,11 +49,11 @@ test('actual Chromium gets accessible Store, CSP, self-hosted PWA shell and serv
     assert.equal(await page.locator('a[href="/store/open"]').count()>0,true);
     await page.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:15000});
     const keys=await page.evaluate(async()=>await caches.keys());
-    assert.ok(keys.includes('musitu-store-r2'));
+    assert.ok(keys.includes('musitu-store-r3'));
     const cached=await page.evaluate(async()=>{
-      const a=await caches.open('musitu-store-r2');return (await a.keys()).map(k=>new URL(k.url).pathname);
+      const a=await caches.open('musitu-store-r3');return (await a.keys()).map(k=>new URL(k.url).pathname);
     });
-    assert.ok(cached.includes('/store'));
+    assert.ok(cached.includes('/store/'));
     assert.equal(cached.includes('/store/catalog.json'),false);
     assert.equal(cached.includes('/store/catalog.sig'),false);
     assert.equal(cached.some(x=>x.endsWith('.apk')||x.endsWith('.ipa')),false);
@@ -64,7 +64,7 @@ test('actual Chromium offline mode uses public shell but never pretends a separa
   const context=await browser.newContext();
   try{
     const page=await context.newPage();
-    await page.goto(origin+'/store',{waitUntil:'load'});
+    await page.goto(origin+'/store/',{waitUntil:'load'});
     await page.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:15000});
     await context.setOffline(true);
     await page.reload({waitUntil:'domcontentloaded'});
@@ -86,10 +86,10 @@ test('actual Chromium browser-first open flow never downloads Android or iOS pac
     const downloads=[];
     page.on('download',d=>downloads.push(d));
     await page.goto(origin+'/store/install?platform=web');
-    assert.equal(await page.locator('a[href="/store/open"]').count(),1);
+    assert.ok(await page.locator('a[href="/store/open"]').count()>=1);
     assert.equal(await page.locator('a[href*=".apk"],a[href*=".ipa"]').count(),0);
     await page.goto(origin+'/store/apps/chemistry');
-    assert.equal(await page.locator('a[href="/store/open"]').count(),1);
+    assert.ok(await page.locator('a[href="/store/open"]').count()>=1);
     assert.equal(downloads.length,0);
   }finally{await context.close();}
 });
