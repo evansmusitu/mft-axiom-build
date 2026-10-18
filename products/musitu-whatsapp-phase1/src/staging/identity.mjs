@@ -12,6 +12,13 @@ async function seal(payload,seconds){return new EncryptJWT(payload).setProtected
 async function unseal(token){return (await jwtDecrypt(token,key(),{keyManagementAlgorithms:['dir'],contentEncryptionAlgorithms:['A256GCM'],maxTokenAge:'1h'})).payload;}
 function cookies(req,name){return (req.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1);}
 export function sessionCookie(value,age=3600,name=COOKIE){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
+export function logoutResponse(req,headers){
+ if(req.headers.get('accept')==='application/json'){
+  const redirect=headers.get('location');headers.delete('location');
+  return Response.json({redirect},{status:200,headers});
+ }
+ return new Response(null,{status:303,headers});
+}
 function provider(cfg=config()){
  const fingerprint=JSON.stringify(cfg);
  if(providerCache?.fingerprint!==fingerprint)providerCache={fingerprint,service:createIdentityProvider(cfg)};
@@ -75,6 +82,7 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
  }
  if(action==='logout'&&req.method==='POST'){
   if(req.headers.get('origin')!==cfg.origin)throw Error('ORIGIN_REJECTED');
+  onStage('LOGOUT_PERSISTENCE');
   await sessionRow(cookies(req,COOKIE),async c=>c.query('UPDATE musitu_identity.sessions SET revoked=true'));
   // Commit local revocation before redirecting; a failed/cancelled provider flow
   // must never restore the application's session.
@@ -82,7 +90,7 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
   const headers=new Headers({location:providerLogoutUrl(cfg,state),'cache-control':'no-store','referrer-policy':'no-referrer'});
   headers.append('set-cookie',sessionCookie('',0));
   headers.append('set-cookie',sessionCookie(await seal({purpose:'logout',state},600),600,FLOW));
-  return new Response(null,{status:303,headers});
+  return logoutResponse(req,headers);
  }
  if(action==='logged-out'&&req.method==='GET'){
   const flow=await unseal(cookies(req,FLOW));
