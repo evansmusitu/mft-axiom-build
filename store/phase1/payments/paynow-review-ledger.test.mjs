@@ -147,3 +147,38 @@ test('provider transaction claim is private, immutable under normal replay, and 
   assert.throws(()=>record(d),/provider|claim|corrupt|review/i);
   assert.equal(readFileSync(claim,'utf8'),'{');
 });
+
+
+test('historical refund review lock cannot be cleared by replacing canonical JSON state',t=>{
+  const d=fixture(t);
+  record(d);
+  record(d,{polledBody:signed({status:'Refunded'})});
+  const file=paths(d).ledger;
+  const data=JSON.parse(readFileSync(file,'utf8'));
+  assert.equal(data.manualReviewLocked,true);
+  data.manualReviewLocked=false;
+  writeFileSync(file,JSON.stringify(data)+'\n',{mode:0o600});
+  const corrupted=readFileSync(file,'utf8');
+  assert.throws(()=>record(d,{
+    callbackBody:signed({status:'Refunded'}),
+    polledBody:signed({status:'Paid'})
+  }),/lock|histor|inconsistent|invalid|ledger|corrupt/i);
+  assert.equal(readFileSync(file,'utf8'),corrupted,
+    'corrupt prior review state may never be promoted');
+});
+test('historical refunded provider status cannot falsely claim confirmed Paid outcome',t=>{
+  const d=fixture(t);
+  record(d);
+  record(d,{polledBody:signed({status:'Refunded'})});
+  const file=paths(d).ledger;
+  const data=JSON.parse(readFileSync(file,'utf8'));
+  assert.equal(data.events[1].outcome,'PAYMENT_HOLD_REVIEW_REQUIRED');
+  data.events[1].outcome='PAYMENT_CONFIRMED_REVIEW_REQUIRED';
+  writeFileSync(file,JSON.stringify(data)+'\n',{mode:0o600});
+  const corrupted=readFileSync(file,'utf8');
+  assert.throws(()=>record(d,{
+    callbackBody:signed({status:'Refunded'}),
+    polledBody:signed({status:'Paid'})
+  }),/histor|refund|event|outcome|invalid|ledger|corrupt/i);
+  assert.equal(readFileSync(file,'utf8'),corrupted);
+});
