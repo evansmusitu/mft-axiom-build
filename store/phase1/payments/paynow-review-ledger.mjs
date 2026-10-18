@@ -15,7 +15,7 @@ import {reconcilePaynowPaymentForReview,verifyPaynowStatusUpdate} from './paynow
 
 const PREFIX='musitu.store.paynow.review.v1\0';
 const SCHEMA='musitu.store.paynow-review-ledger.v1';
-const PROVIDER_PREFIX='musitu.store.paynow.provider-claim.v1\\0';
+const PROVIDER_PREFIX='musitu.store.paynow.provider-claim.v1'+String.fromCharCode(0);
 const PROVIDER_SCHEMA='musitu.store.paynow-provider-claim.v1';
 const MAX_EVENTS=100;
 const NOFOLLOW=C.O_NOFOLLOW??0;
@@ -97,7 +97,7 @@ function readProviderClaim(path,providerReference){
     let claim;
     try{claim=JSON.parse(raw);}catch{fail('corrupt provider transaction claim');}
     if(!claim||Object.getPrototypeOf(claim)!==Object.prototype||
-       JSON.stringify(claim)+'\\n'!==raw||
+       JSON.stringify(claim)+String.fromCharCode(10)!==raw||
        claim.schema!==PROVIDER_SCHEMA||
        claim.providerReference!==providerReference||
        typeof claim.merchantReference!=='string'||
@@ -122,7 +122,7 @@ function reserveProviderReference(directory,providerReference,merchantReference,
   catch{fail('concurrent or unsafe provider transaction claim; manual review required');}
   try{
     fileCheck(fd);
-    writeFileSync(fd,JSON.stringify(claim)+'\\n','utf8');
+    writeFileSync(fd,JSON.stringify(claim)+String.fromCharCode(10),'utf8');
     fsyncSync(fd);
   }finally{closeSync(fd);}
   // The immutable provider claim must be durable BEFORE publishing review
