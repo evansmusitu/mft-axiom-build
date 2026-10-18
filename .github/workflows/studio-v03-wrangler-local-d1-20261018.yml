@@ -34,7 +34,7 @@ jobs:
         env:
           CLOUDFLARE_SEND_METRICS: 'false'
         run: |
-          npx wrangler d1 migrations apply musitu-studio-v03 --local --config wrangler.v03.local-ci.jsonc --yes
+          npx wrangler d1 migrations apply musitu-studio-v03 --local --config wrangler.v03.local-ci.jsonc
           npx wrangler d1 execute musitu-studio-v03 --local --config wrangler.v03.local-ci.jsonc --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects','memberships','jobs','assets','audit_events') ORDER BY name;" --json > v03-local-tables.json
           python - <<'PY'
           import json,pathlib
