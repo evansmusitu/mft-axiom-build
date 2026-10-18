@@ -93,3 +93,32 @@ test('actual Chromium browser-first open flow never downloads Android or iOS pac
     assert.equal(downloads.length,0);
   }finally{await context.close();}
 });
+
+test('real Chromium reads installable app manifest and decodes both self-hosted PNG icons',async()=>{
+  const context=await browser.newContext();
+  try{
+    const page=await context.newPage();
+    await page.goto(origin+'/store/',{waitUntil:'load'});
+    const manifest=await page.evaluate(async()=>{
+      const r=await fetch('/store/manifest.webmanifest');
+      return r.json();
+    });
+    assert.equal(manifest.id,'/store/');
+    assert.equal(manifest.start_url,'/store/');
+    assert.equal(manifest.display,'standalone');
+    const widths=await page.evaluate(async()=>{
+      const sizes=[192,512];
+      return Promise.all(sizes.map(async size=>{
+        const image=new Image();
+        image.src='/store/assets/icon-'+size+'.png';
+        await image.decode();
+        return {size,width:image.naturalWidth,height:image.naturalHeight};
+      }));
+    });
+    assert.deepEqual(widths,[{size:192,width:192,height:192},{size:512,width:512,height:512}]);
+    const cdp=await context.newCDPSession(page);
+    const app=await cdp.send('Page.getAppManifest');
+    assert.match(app.url,/\/store\/manifest\.webmanifest$/);
+    assert.equal(app.errors.length,0,'Chrome must parse the actual install manifest without warnings');
+  }finally{await context.close();}
+});
