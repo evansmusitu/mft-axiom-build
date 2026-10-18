@@ -49,6 +49,8 @@ Only verified staff identities can use a granted membership. Owners cannot silen
 <option value="editor">Editor</option><option value="reviewer">Reviewer</option></select></label>
 <div class="row"><button id="add-member">Grant role</button>
 <button id="view-members" class="ghost">View team</button></div>
+<div class="wide row"><button id="check-recovery" type="button" class="ghost">Check database recovery readiness</button></div>
+<div class="wide muted" id="recovery-readiness" role="status" aria-live="polite">Only project owners can inspect recovery readiness. This check never restores or changes data.</div>
 <div class="wide cards" id="member-list"></div>
 </div>
 </section>
