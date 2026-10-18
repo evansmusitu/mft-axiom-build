@@ -80,8 +80,10 @@ def _validate(raw):
     _string(request,'publisherName',128)
     _require(bool(ANDROID_PACKAGE.fullmatch(_string(request,'packageId',255))),
              'invalid Android package identity')
-    _require(type(request['versionCode']) is int and 1<=request['versionCode']<=2**63-1,
-             'invalid versionCode')
+    # Both signed-catalog consumers must agree on the exact numeric value:
+    # Node.js rejects unsigned integers beyond IEEE-754's exact safe range.
+    _require(type(request['versionCode']) is int and 1<=request['versionCode']<=2**53-1,
+             'invalid cross-platform safe versionCode')
     _require(type(request['apkBytes']) is int and 1<=request['apkBytes']<=MAX_APK,
              'invalid APK size')
     for key in ('apkSha256','signingCertificateSha256'):
