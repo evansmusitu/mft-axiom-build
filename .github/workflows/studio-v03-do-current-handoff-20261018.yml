@@ -6,6 +6,7 @@ on:
       - '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
       - 'docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md'
       - '.github/workflows/studio-v03-do-final-readback-20261018.yml'
+      - 'docs/STUDIO_V03_AUTONOMOUS_PROVIDER_QUALIFICATION_20261018.md'
 permissions: {contents: read}
 jobs:
   source-integrity-and-handoff:
@@ -57,6 +58,11 @@ jobs:
             'musitu_studio/edge/tests/session.test.mjs',
             'musitu_studio/edge/tests/validation.test.mjs',
             'docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md',
+            'docs/STUDIO_V03_AUTONOMOUS_PROVIDER_QUALIFICATION_20261018.md',
+            'ops/studio_v03_pitr_disposable_worker.mjs',
+            '.github/workflows/studio-v03-pitr-cloud-preflight-20261018.yml',
+            '.github/workflows/studio-v03-pitr-provider-20261018.yml',
+            '.github/workflows/studio-v03-workersdev-access-readonly-20261018.yml',
             '.github/workflows/studio-v03-do-local-20261018.yml',
             '.github/workflows/studio-v03-do-manual-guarded-release.yml',
             '.github/workflows/studio-v03-do-quota-rollout-20261018.yml',
