@@ -13,6 +13,8 @@ on:
       - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2InstallerUriLeaseContract.java'
       - 'store/phase1/android-client/app/src/main/AndroidManifest.xml'
       - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2AndroidInstalledPackageStateTest.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2SignedAndroidCatalog.java'
+      - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2SignedAndroidCatalogTest.java'
 
 permissions:
   contents: read
@@ -39,6 +41,8 @@ jobs:
           "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
       - name: Run focused visibility and signed-publisher protection tests
         run: gradle -p store/phase1/android-client --no-daemon :app:testDebugUnitTest --tests com.musitu.store.V2AndroidInstalledPackageStateTest
+      - name: Test cross-platform safe-integer policy under pinned signed Android catalog
+        run: gradle -p store/phase1/android-client --no-daemon :app:testDebugUnitTest --tests com.musitu.store.V2SignedAndroidCatalogTest
       - name: Regress all V2 Android JVM tests and compile debug APK
         run: gradle -p store/phase1/android-client --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Enforce complete test suite and unchanged original Store
