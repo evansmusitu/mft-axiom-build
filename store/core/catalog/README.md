@@ -46,3 +46,41 @@ node --test store/core/catalog/signed-registry-v2.test.mjs
 ```
 
 The Node suite uses a newly generated ephemeral P-256 test key; it does **not** use MUSITU's production private key. The historical public PEM is read only to verify trust-anchor fingerprint continuity.
+
+
+## Isolated private catalog rollback-watermark candidate (2026-10-18)
+
+`signed-registry-v2-watermark.mjs` is a **Linux-only, private, offline**
+persistence gate for future signed catalog consumers. It does not authorize
+production publication, onboard actual publishers, or connect a live client.
+The operator must provision a trusted absolute owner-controlled filesystem
+directory (mode 0700) and securely supply the pinned P-256 root public key,
+its fingerprint, trusted artifact-host allowlist and trusted time.
+
+`verifyAndCommitSignedRegistryV2({storeDirectory,verificationOptions,bootstrapAuthorized})`
+takes the usual `verifySignedRegistryV2` inputs **except** the two watermark
+arguments, which this module derives exclusively from its owner-private disk
+state. First-use enrollment requires explicit `bootstrapAuthorized: true`.
+Existing states cannot be silently re-enrolled, and root-fingerprint changes,
+same-revision equivocation, lower-revision replay and altered signatures fail
+closed. State is written via exclusive lock, private temporary file, file fsync,
+same-directory rename and directory fsync. Incomplete pending writes and stale
+locks halt automatic processing for independent operator review; the
+implementation deliberately does **not** auto-delete or bypass evidence of
+interrupted persistence. It never signs or publishes catalog contents.
+
+**Limitations / unmet production gates:** durable state resides only on local
+filesystem custody, not a remotely anchored transparency log or
+hardware-backed monotonic counter. Restoring an old whole-filesystem image or
+deleting the entire trusted state directory can defeat persistence; OS
+permission isolation, a backed-up or externally witnessed watermark, crash
+recovery and multiple-node coordination require independent qualification.
+It is not Windows-compatible. The original signed V1 client, production worker,
+signed root key, and release paths remain unchanged.
+
+Offline isolated tests:
+
+```sh
+node --test store/core/catalog/signed-registry-v2.test.mjs \
+  store/core/catalog/signed-registry-v2-watermark.test.mjs
+```
