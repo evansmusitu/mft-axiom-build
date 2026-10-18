@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
+      - name: Regression-test first-hop error classification without network
+        run: python -m unittest discover -s ops -p 'test_studio_public_edge.py' -v
       - name: Account-scoped Cloudflare GET only
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
