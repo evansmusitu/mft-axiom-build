@@ -24,7 +24,7 @@ test('service worker never pre-caches detached catalog and signature independent
   await new Promise((resolve,reject)=>listeners.get('install')({waitUntil:p=>Promise.resolve(p).then(resolve,reject)}));
   assert.equal(calls.length,1);
   const paths=[...calls[0].paths];
-  assert.ok(paths.includes('/store'),'offline shell must remain available');
+  assert.ok(paths.includes('/store/'),'offline shell must remain available');
   for(const p of ['/store/catalog.json','/store/catalog.sig'])
     assert.equal(paths.includes(p),false,'signed catalog pair must not be independently pinned in offline cache: '+p);
 });
