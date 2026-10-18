@@ -33,8 +33,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python -m py_compile tools/packaging/musitu_clean_handoff.py
-          python tools/packaging/musitu_clean_handoff.py
+          python -c 'import ast,pathlib; ast.parse(pathlib.Path("tools/packaging/musitu_clean_handoff.py").read_text())'
+          PYTHONDONTWRITEBYTECODE=1 python -B tools/packaging/musitu_clean_handoff.py
       - name: Archive all 3 source trees and sealed public research evidence
         uses: actions/upload-artifact@v4
         with:
