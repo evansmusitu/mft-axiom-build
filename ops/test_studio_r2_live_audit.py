@@ -21,6 +21,26 @@ class ReadOnlyAuditTests(unittest.TestCase):
             self.assertNotIn(private, str(result))
         self.assertEqual(sorted(manifest), ['preview.png', 'scene.blend', 'scene.glb'])
 
+    def test_completed_cpu_timeline_is_sanitized_not_browser_attribution(self):
+        uid = 'b' * 8 + '-bbbb-4bbb-bbbb-' + 'b' * 12
+        stamp = '2026-10-18T06:25:00.000Z'
+        meta = {name: {'key': f'jobs/{uid}/{name}', 'sha256': 'a' * 64, 'bytes': 1200}
+                for name in ('scene.blend', 'scene.glb', 'preview.png')}
+        events = [{'action': a, 'at': stamp, 'details': {'identity': 'private@example.net'}}
+                  for a in ('PROJECT_CREATED', 'JOB_SUBMITTED', 'JOB_APPROVED',
+                            'DISPATCH_STARTED', 'DISPATCH_ACCEPTED', 'RENDER_COMPLETED')]
+        state = {'revision': 6, 'projects': [], 'audit': events,
+                 'jobs': [{'id': uid, 'state': 'COMPLETED', 'render_device': 'CPU',
+                           'created_at': stamp, 'finished_at': stamp, 'assets': meta}]}
+        report, _ = summarize_state(json.dumps(state).encode())
+        self.assertEqual(report['latest_completed_device'], 'CPU')
+        self.assertEqual(report['latest_completed_created_at_utc'], stamp)
+        self.assertEqual(report['latest_completed_finished_at_utc'], stamp)
+        self.assertEqual(report['recorded_lifecycle_event_types'], [e['action'] for e in events])
+        self.assertNotIn('private@example.net', str(report))
+        self.assertNotIn(uid, str(report))
+        self.assertFalse(report['browser_initiated_verified'])
+
     def test_reject_path_traversal_and_corrupt_job_records(self):
         j = 'a' * 8 + '-aaaa-4aaa-aaaa-' + 'a' * 12
         bad = {'revision': 1, 'projects': [], 'audit': [], 'jobs': [
