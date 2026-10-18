@@ -10,6 +10,7 @@ const NATIVE_PACKAGE=/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const WINDOWS_PACKAGE=/^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$/;
 const PLATFORMS=new Set(['android','windows','web']);
 const MAX_VALIDITY_MS=30*24*60*60*1000;
+const MAX_ANDROID_APK_BYTES=512*1024*1024;
 const CLOCK_SKEW_MS=60*1000;
 
 const sha256=(bytes)=>createHash('sha256').update(bytes).digest('hex');
@@ -53,13 +54,16 @@ function validSigner(platform,cert,where){
     if(cert!==undefined)throw new Error(where+': web carrier cannot assert native signing certificate');
   } else requireDigest(cert,where+': signingCertificateSha256');
 }
-function validateArtifactURL(url,allowedHosts){
+function validateArtifactURL(url,allowedHosts,platform){
   requireString(url,'artifactURL',2048);
   let u;
   try {u=new URL(url);} catch {throw new Error('invalid artifact URL');}
   if(u.protocol!=='https:'||u.username||u.password||u.hash||u.search||u.port ||
      !allowedHosts.has(u.hostname)||u.href!==url)
     throw new Error('artifact URL requires approved HTTPS host without userinfo, query, fragment, or alternate port');
+  if(platform==='android'&&(!u.pathname.startsWith('/')||u.pathname.includes('%')||
+       u.pathname.includes('..')||!u.pathname.endsWith('.apk')))
+    throw new Error('Android APK artifact URL path is unsafe');
 }
 function deepFreeze(value){
   if(value && typeof value==='object'){
@@ -164,8 +168,10 @@ export function verifySignedRegistryV2({
       requirePositive(release.versionCode,'release.versionCode');
       requireDigest(release.sha256,'release sha256');
       requirePositive(release.bytes,'release bytes');
+      if(release.platform==='android'&&release.bytes>MAX_ANDROID_APK_BYTES)
+        throw new Error('Android APK size exceeds 512 MiB safety ceiling');
       validSigner(release.platform,release.signingCertificateSha256,'release');
-      validateArtifactURL(release.artifactURL,allowed);
+      validateArtifactURL(release.artifactURL,allowed,release.platform);
       const id=release.platform+':'+release.packageId;
       const delegated=grants.get(id);
       if(!delegated||delegated.publisherId!==app.publisherId)
