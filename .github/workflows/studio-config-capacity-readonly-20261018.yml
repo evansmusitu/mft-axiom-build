@@ -1,0 +1,68 @@
+name: MUSITU Studio — Configuration Rule Capacity Read-only
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - .github/workflows/studio-config-capacity-readonly-20261018.yml
+permissions: {contents: read}
+jobs:
+  readonly-capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect Studio-only rule capacity without modifications
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,pathlib
+          tok=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          def get(path):
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,
+                  headers={'Authorization':'Bearer '+tok,'Accept':'application/json'},method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      d=json.load(r);return r.status,d.get('result') if d.get('success') else None
+              except urllib.error.HTTPError as e:return e.code,None
+              except (OSError,ValueError):return 0,None
+          o={'schema':'musitu.studio.config-capacity.v1','read_only':True,
+             'mutation_attempted':False,'zone_verified':False,
+             'plan':'unknown','capacity':None,'used':None,'free_slots':None,
+             'scoped_studio_override_present':False,'api_statuses':[]}
+          if tok:
+              a,z=get('/zones?name=mftintelligence.com&status=active');o['api_statuses'].append(a)
+              matches=[x for x in (z or []) if isinstance(x,dict) and x.get('name')=='mftintelligence.com'
+                and (x.get('account') or {}).get('id')=='93f395f5121954671f92fffa453d6b61']
+              if len(matches)==1:
+                  o['zone_verified']=True
+                  zid=matches[0]['id']
+                  b,v=get('/zones/'+zid);o['api_statuses'].append(b)
+                  if b==200 and isinstance(v,dict):
+                      plan=(v.get('plan') or {}).get('name','')
+                      if plan in ('Free Website','Free','Pro Website','Pro','Business Website','Business','Enterprise'):
+                          tier=plan.split(' ')[0];o['plan']=tier
+                          o['capacity']={'Free':10,'Pro':25,'Business':50,'Enterprise':300}[tier]
+                  c,rs=get('/zones/'+zid+'/rulesets/phases/http_config_settings/entrypoint')
+                  o['api_statuses'].append(c)
+                  if c==200 and isinstance(rs,dict):
+                      rules=rs.get('rules',[])
+                      o['used']=len(rules)
+                      if o['capacity'] is not None:
+                          o['free_slots']=max(0,o['capacity']-len(rules))
+                      o['scoped_studio_override_present']=any(
+                          isinstance(r,dict) and r.get('action')=='set_config'
+                          and 'studio.mftintelligence.com' in r.get('expression','')
+                          and (r.get('action_parameters') or {}).get('security_level') in ('off','essentially_off')
+                          for r in rules)
+          pathlib.Path('studio-config-capacity-readonly.json').write_text(json.dumps(o,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_CONFIG_CAPACITY='+json.dumps(o,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-config-capacity-readonly-20261018
+          path: studio-config-capacity-readonly.json
+          retention-days: 7
