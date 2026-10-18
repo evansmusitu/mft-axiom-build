@@ -68,7 +68,10 @@ test('an independent HTTPS empty POST with bounded response can record review on
  assert.equal(review.entitlementGranted,false);
  assert.equal(review.publisherSettlementAuthorized,false);
  assert.equal(review.refundFinalized,false);
- assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.endsWith('.json')).length,1);
+ assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.endsWith('.json')&&!n.startsWith('provider-')).length,1,
+   'exactly one review journal, independent of immutable provider claim');
+ assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.startsWith('provider-')&&n.endsWith('.json')).length,1,
+   'exactly one globally unique transaction ownership claim');
 });
 test('bad signed callback rejects before any HTTP transport',async t=>{
  const provider=fakeProvider();const {result,d}=execute(t,provider,
@@ -115,7 +118,10 @@ test('real polled Refunded status locks review permanently, never pays out',asyn
  assert.equal(review.manualReviewLocked,true);
  assert.equal(review.entitlementGranted,false);
  assert.equal(review.publisherSettlementAuthorized,false);
- assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.endsWith('.json')).length,1);
+ assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.endsWith('.json')&&!n.startsWith('provider-')).length,1,
+   'exactly one review journal, independent of immutable provider claim');
+ assert.equal(readdirSync(d.ledgerDirectory).filter(n=>n.startsWith('provider-')&&n.endsWith('.json')).length,1,
+   'exactly one globally unique transaction ownership claim');
 });
 test('the full independent poll may only be mocked on explicitly isolated CI',async t=>{
  const p=fakeProvider();
