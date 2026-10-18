@@ -1,0 +1,94 @@
+name: MUSITU Studio V0.3 — Real Local Wrangler D1 and Access Negative Proof
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-d1-20261018]
+    paths:
+      - '.github/workflows/studio-v03-wrangler-local-d1-20261018.yml'
+permissions: {contents: read}
+jobs:
+  workerd-d1-qualification-no-cloud:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install existing public Wrangler with scripts disabled
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Generate TEMPORARY local-only config; source deploy stays intentionally blocked
+        working-directory: musitu_studio/edge
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('wrangler.v03.jsonc'); config=json.loads(p.read_text())
+          assert config['d1_databases'][0]['database_id']=='MISSING_D1_CREATE_AND_EXPLICIT_REVIEW_REQUIRED'
+          assert config['workers_dev'] is False
+          config['d1_databases'][0]['database_id']='11111111-1111-4111-8111-111111111111'
+          config['name']='musitu-v03-local-only'
+          pathlib.Path('wrangler.v03.local-ci.jsonc').write_text(json.dumps(config))
+          print('LOCAL_ONLY_D1_CONFIGURATION=PASS')
+          PY
+      - name: Apply actual D1 migrations in workerd local emulator
+        working-directory: musitu_studio/edge
+        env:
+          CLOUDFLARE_SEND_METRICS: 'false'
+        run: |
+          npx wrangler d1 migrations apply musitu-studio-v03 --local --config wrangler.v03.local-ci.jsonc --yes
+          npx wrangler d1 execute musitu-studio-v03 --local --config wrangler.v03.local-ci.jsonc --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects','memberships','jobs','assets','audit_events') ORDER BY name;" --json > v03-local-tables.json
+          python - <<'PY'
+          import json,pathlib
+          data=json.loads(pathlib.Path('v03-local-tables.json').read_text())
+          def walk(x):
+            if isinstance(x,dict):
+              if x.get('name') in ('projects','memberships','jobs','assets','audit_events'): yield x['name']
+              for v in x.values():yield from walk(v)
+            if isinstance(x,list):
+              for y in x:yield from walk(y)
+          found=set(walk(data))
+          assert found=={'projects','memberships','jobs','assets','audit_events'},found
+          print('ACTUAL_LOCAL_D1_ALL_FIVE_TABLES=PASS')
+          PY
+      - name: Real workerd denies anonymous API/static and unauthenticated Modal callbacks
+        working-directory: musitu_studio/edge
+        shell: bash
+        env:
+          CLOUDFLARE_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          npx wrangler dev --local --config wrangler.v03.local-ci.jsonc --ip 127.0.0.1 --port 8793 > wrangler-v03-local.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 35); do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8793/api/status || true)
+            if [ "$status" = 403 ]; then ready=true;break;fi
+            sleep 1
+          done
+          test "$ready" = true
+          for path in "/" "/studio.js" "/api/projects" "/api/jobs"; do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:8793$path")
+            test "$status" = 403 || { echo "UNEXPECTED_ANONYMOUS_STATUS";exit 1; }
+          done
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:8793/internal/callback)
+          test "$status" = 401
+          echo 'REAL_WORKER_RUNTIME_ANONYMOUS_DENIAL_AND_CALLBACK_AUTH=PASS'
+      - name: Write sanitized local workerd acceptance
+        if: success()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          result={'schema':'musitu.studio.v03.actual-local-cloudflare-runtime.v1',
+           'real_workerd_runtime':True,'real_local_d1_binding':True,
+           'five_d1_tables_created_locally':True,'anonymous_studio_routes_rejected':True,
+           'callback_without_shared_secret_rejected':True,'cloudflare_provider_mutations':False,
+           'production_d1_deployed':False,'physical_android_qualification':False}
+          pathlib.Path('studio-v03-real-local-runtime.json').write_text(json.dumps(result,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-real-local-workerd-d1-acceptance
+          path: studio-v03-real-local-runtime.json
+          retention-days: 14
+          if-no-files-found: warn
