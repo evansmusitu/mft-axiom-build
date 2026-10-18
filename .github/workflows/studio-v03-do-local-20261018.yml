@@ -7,6 +7,7 @@ on:
       - 'musitu_studio/edge/src/v03_do_*.mjs'
       - 'musitu_studio/edge/src/v03_entry.mjs'
       - 'musitu_studio/edge/tests/v03_do_adapter.test.mjs'
+      - 'musitu_studio/edge/tests/v03_enterprise.test.mjs'
       - 'musitu_studio/edge/wrangler.v03.do.jsonc'
   workflow_dispatch:
 permissions: {contents: read}
