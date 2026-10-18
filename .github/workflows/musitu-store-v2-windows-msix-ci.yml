@@ -182,6 +182,24 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/os-install-acceptance.test.ps1' -ExpectedVersion '1.0.0.1'
+      - name: Refuse signed rollback after native Windows has installed newer version
+        shell: powershell
+        env:
+          MUSITU_WINDOWS_DISPOSABLE_INSTALL: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          $rejected=$false
+          try {
+            & 'store/phase1/windows/install-disposable-msix-ci.ps1'
+          } catch {
+            if ($_.Exception.Message -notmatch 'Refusing to replace an existing Windows installation'){
+              throw 'Unexpected rollback error; does not prove fail-closed version gate'
+            }
+            $rejected=$true
+          }
+          if (-not $rejected){throw 'SECURITY_DEFECT: older signed MSIX accepted by Store installer harness'}
+          & 'store/phase1/windows/os-install-acceptance.test.ps1' -ExpectedVersion '1.0.0.1'
+          Write-Output 'MUSITU_WINDOWS_SIGNED_ROLLBACK_DENIED=PASS current=1.0.0.1'
       - name: Remove disposable OS-installed MSIX and verify complete cleanup
         if: always()
         shell: powershell
