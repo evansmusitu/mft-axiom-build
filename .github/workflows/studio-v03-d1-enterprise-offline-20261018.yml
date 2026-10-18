@@ -1,0 +1,61 @@
+name: MUSITU Studio V0.3 — Enterprise D1 Multiuser Offline Acceptance
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-d1-20261018]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: studio-v03-offline-enterprise-acceptance
+  cancel-in-progress: true
+jobs:
+  acceptance-no-provider-mutation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Fetch only public pinned package dependencies (no lifecycle hooks)
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Validate v03 Enterprise D1 schema + SQLite role/integrity integration
+        working-directory: musitu_studio/edge
+        run: |
+          node --check src/v03_entry.mjs
+          node --check src/v03_identity.mjs
+          node --check src/v03_policy.mjs
+          node --test tests/v03_enterprise.test.mjs
+      - name: Verify existing production R2 pilot compatibility (no remote calls)
+        working-directory: musitu_studio/edge
+        run: |
+          node --test tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+      - name: Validate deploy is not secretly enabled
+        working-directory: musitu_studio/edge
+        run: |
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            const c=JSON.parse(fs.readFileSync('wrangler.v03.jsonc','utf8'));
+            if(c.name!=='musitu-studio-v03' ||
+               c.d1_databases[0].database_id!=='MISSING_D1_CREATE_AND_EXPLICIT_REVIEW_REQUIRED' ||
+               c.vars.ENABLE_RENDER_DISPATCH!=='false'||c.vars.GPU_EXECUTION_APPROVED!=='false'||
+               c.workers_dev!==false||c.r2_buckets[0].bucket_name!=='musitu-studio-v02-assets')
+              process.exit(1);
+            console.log('V03_NOT_DEPLOYABLE_WITHOUT_DEDICATED_D1_AND_EXPLICIT_APPROVAL=PASS');"
+      - name: Write evidence receipt
+        if: success()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          d={'schema':'musitu.studio.enterprise-v03-offline-acceptance.v1',
+             'source_only':True,'production_deployed':False,
+             'd1_database_created':False,'gpu_execution_enabled':False,
+             'real_browser_multiuser_verified':False,'d1_enterprise_tests_passed':True}
+          pathlib.Path('studio-v03-ci-receipt.json').write_text(json.dumps(d,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-d1-enterprise-offline-acceptance
+          path: studio-v03-ci-receipt.json
+          retention-days: 14
+          if-no-files-found: warn
