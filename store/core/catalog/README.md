@@ -84,3 +84,42 @@ Offline isolated tests:
 node --test store/core/catalog/signed-registry-v2.test.mjs \
   store/core/catalog/signed-registry-v2-watermark.test.mjs
 ```
+
+## Offline signed-artifact staging candidate (2026-10-18)
+
+`signed-artifact-stage-v2.mjs` introduces an **isolated, Node/Linux-only**
+byte-verification step for a single platform-specific release selected from
+a **root-signed V2 catalog**. The candidate verifies the catalog signature,
+root fingerprint, package delegation, release identity, trusted time and
+revision watermark supplied by an **independently trusted caller**, then
+copies the selected local artifact through a bounded SHA-256-verifying process
+into a 0700 operator-owned private cache. File entries are private (0600),
+must be regular owner-owned single-link files, are never followed through
+their final-component symlinks, and are atomically published using a
+no-overwrite hard link after fsync. Reused cache content is rehashed before
+a path is returned. Tampered sources, size mismatches, cache poisoning,
+ambiguous releases, invalid signatures and expired catalogs are rejected.
+
+This module **does not** download from the network, publish a catalog,
+declare a publisher approved, install an APK, invoke a Windows package
+installer, trigger a browser PWA prompt or issue entitlement/payments. The
+returned status is only `STAGED_PRIVATE_REVIEW_ONLY`.
+
+Important: the caller's `verificationOptions` (pinned root, approved hosts,
+trusted time and last-accepted revision/digest) are a **security dependency**,
+not subscriber-controlled metadata. The standalone byte-staging helper
+does not yet call `verifyAndCommitSignedRegistryV2` and does not itself
+persist rollback protection. Do not expose it to publisher, app-user or
+network inputs until an authenticated, transactional durable watermark
+integration and secure OS-specific consumer handoff have been qualified.
+Filesystem ownership cannot prevent whole-filesystem snapshot rollback or
+a compromised trusted user. All tests use synthetic ephemeral signing
+identities and synthetic local artifact bytes, not commercial apps.
+
+Offline test command:
+
+```sh
+node --test store/core/catalog/signed-registry-v2.test.mjs \
+  store/core/catalog/signed-registry-v2-watermark.test.mjs \
+  store/core/catalog/signed-artifact-stage-v2.test.mjs
+```
