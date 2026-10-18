@@ -17,6 +17,47 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/store/sw.js',{scope:'/store/'}).catch(()=>{});
   });
 }
+// A PWA install prompt is offered by the browser, never by a silent download.
+// The script only displays the approval button after that browser signal;
+// calling prompt() requires a deliberate click on the Store install button.
+let offeredInstall=null;
+window.addEventListener('beforeinstallprompt',event=>{
+  const button=document.getElementById('store-pwa-install');
+  if(!button)return;
+  event.preventDefault();
+  offeredInstall=event;
+  button.hidden=false;
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  const button=document.getElementById('store-pwa-install');
+  const status=document.getElementById('store-pwa-install-status');
+  if(!button||!status)return;
+  if(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches){
+    button.hidden=true;
+    status.textContent='MUSITU Store is already running as an installed web app.';
+    return;
+  }
+  button.addEventListener('click',async()=>{
+    if(!offeredInstall)return;
+    const offer=offeredInstall;offeredInstall=null;button.hidden=true;
+    try{
+      await offer.prompt();
+      const choice=await offer.userChoice;
+      status.textContent=choice&&choice.outcome==='accepted'
+        ?'Store install accepted by the browser; completion remains browser-controlled.'
+        :'Store installation was not approved; you may use your browser menu.';
+    }catch{
+      status.textContent='Browser installation was not completed. Use your browser menu if available.';
+    }
+  });
+});
+window.addEventListener('appinstalled',()=>{
+  const button=document.getElementById('store-pwa-install');
+  const status=document.getElementById('store-pwa-install-status');
+  offeredInstall=null;
+  if(button)button.hidden=true;
+  if(status)status.textContent='MUSITU Store installation completed in this browser.';
+});
 `;
 const STORE_SW=String.raw`'use strict';
 const CACHE='musitu-store-r3';
