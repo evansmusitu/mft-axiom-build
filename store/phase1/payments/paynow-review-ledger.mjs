@@ -34,7 +34,15 @@ function fileCheck(fd){
     fail('unsafe review ledger file, ownership or permissions');
 }
 function readState(path,merchantReference){
-  if(!existsSync(path))return null;
+  // existsSync follows symlinks: dangling links look missing and could reset
+  // an existing order's trusted review history. Inspect the directory entry.
+  let entry;
+  try{entry=lstatSync(path);}catch(err){
+    if(err.code==='ENOENT')return null;
+    fail('cannot inspect existing private review ledger');
+  }
+  if(!entry.isFile()||entry.isSymbolicLink())
+    fail('unsafe or symlinked private review ledger');
   let fd;
   try{fd=openSync(path,C.O_RDONLY|NOFOLLOW);}catch{fail('unsafe or symlinked review ledger');}
   try{
