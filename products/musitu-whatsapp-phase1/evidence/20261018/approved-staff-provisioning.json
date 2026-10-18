@@ -1,0 +1,99 @@
+{
+  "observedAt": "2026-10-18T20:28:08.425Z",
+  "phase1": "INCOMPLETE",
+  "scope": "GENUINE_ZITADEL_IDENTITY_CREATION_AND_OPERATOR_PROVISIONED_SYNTHETIC_TENANT_MEMBERSHIP",
+  "userApproval": "Explicit Approved response to the named QA identity, existing owner-controlled address, AGENT-only synthetic QA business and deferred authentication.",
+  "provider": {
+    "issuer": "https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud",
+    "instanceId": "395558180471472294",
+    "userId": "395706056631686016",
+    "username": "musitu-phase1-staff-qa",
+    "displayName": "MUSITU Phase1 QA Staff",
+    "contactAddress": "Owner-controlled address omitted from repository evidence.",
+    "profileState": "Active",
+    "authenticationSetup": "Deferred",
+    "emailVerifiedAsserted": false,
+    "passwordSetByAgent": false,
+    "initializationOrInvitationSent": false,
+    "organizationOrInstanceAdminGrantPerformed": false
+  },
+  "submissionRecovery": {
+    "firstSubmit": "Console reported expired administrator authorization token; outcome treated as unknown",
+    "recovery": "Normal Login refreshed console authorization; user list independently showed one admin and zero matching QA identities before one resubmission",
+    "created": "Exactly one QA profile subsequently observed with actual provider ID; no blind repeat"
+  },
+  "approvedTenant": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+  "provisioning": {
+    "mechanism": "Existing musitu.add_staff owner-checked command in explicit approved tenant context",
+    "role": "AGENT",
+    "status": "ACTIVE",
+    "operatorProvisioned": true,
+    "ownerUiEnrollmentAcceptance": false
+  },
+  "preflight": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+        "legal_name": "MUSITU Phase1 Synthetic Owner QA 20261018",
+        "status": "ACTIVE",
+        "active_owner_count": "1",
+        "existing_qa_staff_memberships": "0"
+      }
+    ]
+  ],
+  "grant": [
+    [
+      {
+        "approved_synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "provisioned_qa_staff_id": "395706056631686016"
+      }
+    ]
+  ],
+  "independentReadback": [
+    [
+      {
+        "approved_synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+        "actor_id": "395706056631686016",
+        "role": "AGENT",
+        "status": "ACTIVE"
+      }
+    ],
+    [
+      {
+        "action": "MEMBER_ADDED",
+        "reference_id": "395706056631686016",
+        "recorded_at": "2026-10-18T20:28:08.425Z"
+      }
+    ]
+  ],
+  "remaining": [
+    "User-controlled initial password and email verification, then authenticator enrollment",
+    "Genuine staff application sign-in, signed claim/session verification, allowed AGENT operations and denied owner-only operations",
+    "Real staff membership/provider revocation and old-JWT reuse/JWKS tests",
+    "Other retained Meta/AI/AXIOM/mobile/operations/independent approval gates"
+  ],
+  "limitations": "Provider user ID matches the application's raw sub membership convention by source inspection. No signed staff JWT has yet been observed or validated. Account provisioning and database readback are not staff login acceptance.",
+  "preserved": {
+    "productionProducts": true,
+    "main": true,
+    "originalMappings": true,
+    "aiPoliciesDisabled": true,
+    "noCustomerImports": true,
+    "noMetaOrModelRequests": true,
+    "noChargesOrPaidUpgrades": true
+  }
+}
