@@ -29,6 +29,25 @@ NUMERIC_SENSORS = tuple(k for k in MINING_TELEMETRY_SENSORS if k != 'F_SIDE')
 ROW_FIELDS = frozenset(('event_time',) + MINING_TELEMETRY_SENSORS)
 HEX_SHA = re.compile(r'[0-9a-f]{64}\Z')
 
+class _DuplicateJSONKeyError(ValueError):
+    """Reject ambiguous source or manifest JSON, including nested objects."""
+
+
+def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateJSONKeyError('external_source_duplicate_json_key')
+        result[key] = value
+    return result
+
+
+def _load_unique_json(value: str | bytes) -> Any:
+    # Standard json.loads silently overwrites earlier duplicate sensor or
+    # provenance keys. An integrity hash cannot make ambiguous JSON canonical.
+    return json.loads(value, object_pairs_hook=_unique_pairs)
+
+
 
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -53,7 +72,9 @@ def _parsed_time(value: Any) -> datetime:
 def _read_manifest(path: Path) -> tuple[Mapping[str, Any], str]:
     raw = path.read_bytes()
     try:
-        manifest = json.loads(raw)
+        manifest = _load_unique_json(raw)
+    except _DuplicateJSONKeyError:
+        raise
     except (ValueError, UnicodeError):
         raise ValueError('external_source_manifest_invalid') from None
     if not isinstance(manifest, dict) or manifest.get('schema') != SCHEMA or manifest.get('source_format') != FORMAT:
@@ -102,7 +123,9 @@ def _stream_source(source: Path, state: dict[str, Any]) -> Iterator[dict[str, An
             if not line.strip():
                 raise ValueError('external_source_schema_invalid')
             try:
-                row = json.loads(line)
+                row = _load_unique_json(line)
+            except _DuplicateJSONKeyError:
+                raise
             except (ValueError, UnicodeError):
                 raise ValueError('external_source_schema_invalid') from None
             _validate_row(row)
