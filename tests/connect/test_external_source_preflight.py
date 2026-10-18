@@ -73,6 +73,22 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         self.assertNotIn('authorization_reference', report)
         self.assertNotIn('raw_rows', report)
 
+    def test_manifest_modified_while_streaming_fails_closed(self):
+        from unittest.mock import patch
+        module = import_module('benchmarks.mining_adapter.external_source_preflight')
+        stream = module._stream_source
+
+        def tamper_during_scan(source, state):
+            for index, row in enumerate(stream(source, state)):
+                if index == 700:
+                    # JSON still parses, but it is no longer the manifest read at intake.
+                    self.manifest.write_text(self.manifest.read_text() + ' ', encoding='utf-8')
+                yield row
+
+        with patch.object(module, '_stream_source', tamper_during_scan):
+            with self.assertRaisesRegex(ValueError, 'external_source_manifest_modified_during_scan'):
+                self.inspect()
+
     def test_rejects_duplicate_sensor_json_key_even_with_matching_sha(self):
         # Ambiguous duplicate keys are not canonical 28-channel readings.
         raw = self.source.read_text(encoding='utf-8')
