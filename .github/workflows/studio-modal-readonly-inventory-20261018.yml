@@ -1,0 +1,61 @@
+name: MUSITU Studio — Read-only Modal App/CPU/GPU Inventory
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths: ['.github/workflows/studio-modal-readonly-inventory-20261018.yml']
+permissions: {contents: read}
+jobs:
+  readonly-modal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install Modal CLI without deployment or GPU allocation
+        run: python -m pip install -q --disable-pip-version-check 'modal>=1.5,<2'
+      - name: Read only Studio app and registered function metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,subprocess
+          from datetime import datetime,timezone
+          if not os.getenv('MODAL_TOKEN_ID') or not os.getenv('MODAL_TOKEN_SECRET'):
+              raise SystemExit('MODAL_ACCOUNT_CREDENTIALS_UNAVAILABLE')
+          checks={}
+          for label,args in [
+              ('app_metadata_readable',['modal','app','info','musitu-studio-v02','--json']),
+              ('cpu_pull_function_readable',['modal','function','info','musitu-studio-v02/render_cpu_pull','--json']),
+              ('gpu_smoke_function_registered',['modal','function','info','musitu-studio-v02/smoke_gpu','--json']),
+          ]:
+              try:
+                  p=subprocess.run(args,capture_output=True,text=True,timeout=55,check=False)
+                  checks[label]=p.returncode==0
+              except (OSError,subprocess.TimeoutExpired):
+                  checks[label]=False
+          report={
+              'schema':'musitu.studio.modal-readonly-inventory.v1',
+              'checked_at_utc':datetime.now(timezone.utc).isoformat(),
+              'canonical_source_sha':os.getenv('GITHUB_SHA',''),
+              **checks,
+              'compute_jobs_started':False,
+              'app_or_function_deployed':False,
+              'gpu_entitlement_proven':False,
+              'provider_billing_hard_cap_proven':False,
+          }
+          pathlib.Path('studio-modal-readonly-inventory.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_MODAL_READONLY_INVENTORY='+json.dumps(report,sort_keys=True))
+          if not report['app_metadata_readable'] or not report['cpu_pull_function_readable']:
+              raise SystemExit('MODAL_STUDIO_LIVE_READBACK_UNCONFIRMED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-modal-readonly-inventory-20261018
+          path: studio-modal-readonly-inventory.json
+          if-no-files-found: warn
+          retention-days: 14
