@@ -4,6 +4,7 @@ on:
     branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
     paths:
       - '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
+      - 'docs/STUDIO_V03_LIVE_SQLITE_DURABLE_OBJECT_DEPLOYMENT_20261018.md'
 permissions: {contents: read}
 jobs:
   source-integrity-and-handoff:
@@ -59,7 +60,12 @@ jobs:
             '.github/workflows/studio-v03-do-manual-guarded-release.yml',
             '.github/workflows/studio-v03-do-quota-rollout-20261018.yml',
             '.github/workflows/studio-v03-do-final-readback-20261018.yml',
-            '.github/workflows/studio-v03-do-current-handoff-20261018.yml'
+            '.github/workflows/studio-v03-do-current-handoff-20261018.yml',
+            '.github/workflows/studio-v03-do-restart-durability-20261018.yml',
+            '.github/workflows/studio-v03-do-isolated-restore-20261018.yml',
+            '.github/workflows/studio-v03-modal-spend-readonly-20261018.yml',
+            '.github/workflows/studio-v03-do-recovery-readiness-release-20261018.yml',
+            '.github/workflows/studio-v03-live-staff-activity-readonly-20261018.yml' 
           ]
           for name in paths:
             source=pathlib.Path(name)
@@ -76,9 +82,11 @@ jobs:
             'Existing v02 URL: https://studio.mftintelligence.com/\n\n'
             'VERIFIED: dedicated Cloudflare worker, staff-only Access and JWT audience, '
             'SQLite Durable Object, isolated R2 binding, secure first-hop, 46 unit/integration tests, '
-            'real local Workerd quota tests, bounded quota live release and unchanged V02 domain.\n\n'
+            'real local Workerd quotas and two-stop backup/restore drill, live safe recovery-readiness '
+            'release and original V02 domain unchanged.\n\n'
             'SECURITY: CPU dispatch and GPU are disabled; no verified signed real Android user session, '
-            'V0.3 live render or backup restoration exercise yet. This bundle intentionally uses invalid '
+            'V0.3 live render or production Cloudflare PITR restore yet. Local disposable backup/restore '
+            'passed. This bundle intentionally uses invalid '
             'Access placeholders; do not directly deploy the checked-in config. Use the guarded manual '
             'GitHub workflow after checking exact staff Access application bindings.\n\n'
             'Complete chronology, test links and requirements: '
