@@ -70,8 +70,44 @@ function Test-MusituWindowsMsix {
     throw 'Windows MSIX intake: platform signature validation requires Windows OS'
   }
   $tool=Get-Item -LiteralPath $SignToolPath -ErrorAction Stop
-  if ($tool.PSIsContainer -or $tool.Name -ine 'signtool.exe'){
+  if ($tool.PSIsContainer -or $tool.Name -ine 'signtool.exe' -or
+      ($tool.Attributes -band [IO.FileAttributes]::ReparsePoint)){
     throw 'Windows MSIX intake: genuine trusted Windows SDK SignTool is required'
+  }
+  # A binary named signtool.exe in a publisher-writable temp directory is
+  # not an independent verifier, even if copied from Microsoft's actual SDK.
+  $sdkRoot=[IO.Path]::GetFullPath(
+    (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin')).TrimEnd('\')+'\'
+  $toolPath=[IO.Path]::GetFullPath($tool.FullName)
+  if (-not $toolPath.StartsWith($sdkRoot,[StringComparison]::OrdinalIgnoreCase) -or
+      $toolPath.Substring($sdkRoot.Length) -notmatch '^\d+\.\d+\.\d+\.\d+\\x64\\signtool\.exe -LiteralPath $item.FullName -ErrorAction Stop
+  if ($null -eq $auth.SignerCertificate -or $auth.Status -ne 'Valid'){
+    throw 'Windows MSIX intake: missing or untrusted native Authenticode signature'
+  }
+  if ($auth.SignerCertificate.Thumbprint.ToUpperInvariant() -cne
+      $ExpectedCertificateThumbprint.ToUpperInvariant() -or
+      $auth.SignerCertificate.Subject -cne $ExpectedPublisher){
+    throw 'Windows MSIX intake: native signed publisher certificate mismatch'
+  }
+  & $tool.FullName verify /pa /all $item.FullName | Out-Null
+  if ($LASTEXITCODE -ne 0){throw 'Windows MSIX intake: native platform SignTool verification failed'}
+  # Refuse any package mutated while the archive and signature were inspected.
+  $after=(Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($after -cne $digest){throw 'Windows MSIX intake: artifact changed during validation'}
+
+  [PSCustomObject]@{
+    state='REVIEW_REQUIRED'
+    packageName=$ExpectedPackageName
+    publisher=$ExpectedPublisher
+    version=$ExpectedVersion
+    sha256=$digest
+    signingThumbprint=$auth.SignerCertificate.Thumbprint.ToUpperInvariant()
+    permittedInstallation=$false
+    permittedPublication=$false
+  }
+}
+){
+    throw 'Windows MSIX intake: SignTool outside protected Windows SDK path'
   }
   $auth=Get-AuthenticodeSignature -LiteralPath $item.FullName -ErrorAction Stop
   if ($null -eq $auth.SignerCertificate -or $auth.Status -ne 'Valid'){
