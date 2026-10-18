@@ -1,11 +1,12 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from intake import IntakeRejected, verify_local_submission, inspect_apk
+from intake import IntakeRejected, verify_local_submission, inspect_apk, _sdk_tool
 
 CERT = 'a'*64
 APK = b'test-only-not-an-actual-APK; metadata inspection mocked at the trusted tool boundary'
@@ -107,6 +108,16 @@ class PublisherIntakeContract(unittest.TestCase):
         with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one+one.replace('#1','#2'),package]):
             with self.assertRaises(IntakeRejected):
                 inspect_apk(self.apk)
+
+    def test_android_sdk_tool_overrides_untrusted_path_shadowing(self):
+        sdk=Path(self.temp.name)/'android-sdk'/'build-tools'/'36.0.0'
+        sdk.mkdir(parents=True)
+        tool=sdk/'apksigner'
+        tool.write_bytes(b'fixture executable')
+        tool.chmod(0o700)
+        with patch.dict(os.environ,{'ANDROID_HOME':str(sdk.parents[1])}):
+            with patch('intake.shutil.which',return_value='/unknown/apksigner'):
+                self.assertEqual(_sdk_tool('apksigner'),str(tool))
 
     def test_malformed_utf8_or_json_is_blocked(self):
         self.rejected(b'\xff\xfe')
