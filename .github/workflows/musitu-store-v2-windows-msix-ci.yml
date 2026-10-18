@@ -1,0 +1,102 @@
+name: MUSITU Store V2 isolated Windows MSIX signature and publisher intake
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-windows-msix-ci.yml'
+      - 'store/phase1/windows/**'
+      - 'store/phase1/web-surface/icon-192.png'
+      - 'store/phase1/web-surface/icon-512.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-windows-signed-msix:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert protected Store V1 source immutability
+        run: |
+          if ((git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java).Trim() -ne '395b488a7841cd5f32065cac9826983e0454d955'){throw 'V1 StoreCore unexpectedly changed'}
+          if ((git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java).Trim() -ne 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'){throw 'V1 MainActivity unexpectedly changed'}
+      - name: Compile disposable native MSIX and independently sign with test-only certificate
+        run: |
+          $ErrorActionPreference='Stop'
+          $sdk=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $signtool=Get-ChildItem $sdk -Filter signtool.exe -Recurse -File | Where-Object {$_.DirectoryName -match '\\x64$'} | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool){throw 'Windows SDK x64 signtool is missing'}
+          $makeappx=Join-Path $signtool.DirectoryName 'makeappx.exe'
+          if (-not (Test-Path -LiteralPath $makeappx -PathType Leaf)){throw 'Windows SDK makeappx not found'}
+          $scratch=Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix'
+          $layout=Join-Path $scratch 'layout'
+          $assets=Join-Path $layout 'Assets'
+          New-Item -Path $assets -ItemType Directory -Force | Out-Null
+          Copy-Item -LiteralPath 'C:\Windows\System32\notepad.exe' -Destination (Join-Path $layout 'Fixture.exe')
+          Copy-Item -LiteralPath 'store/phase1/web-surface/icon-192.png' -Destination (Join-Path $assets 'Square44x44Logo.png')
+          Copy-Item -LiteralPath 'store/phase1/web-surface/icon-512.png' -Destination (Join-Path $assets 'Square150x150Logo.png')
+          Copy-Item -LiteralPath 'store/phase1/web-surface/icon-192.png' -Destination (Join-Path $assets 'StoreLogo.png')
+          $manifest=@'
+          <?xml version="1.0" encoding="utf-8"?>
+          <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+                   IgnorableNamespaces="uap rescap">
+            <Identity Name="MUSITU.Private.WindowsFixture" Publisher="CN=MUSITU Disposable MSIX Test"
+                      Version="1.0.0.0" ProcessorArchitecture="x64"/>
+            <Properties><DisplayName>MUSITU disposable Windows fixture</DisplayName>
+              <PublisherDisplayName>MUSITU Test Only</PublisherDisplayName>
+              <Logo>Assets\StoreLogo.png</Logo></Properties>
+            <Resources><Resource Language="en-us"/></Resources>
+            <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/></Dependencies>
+            <Applications><Application Id="Fixture" Executable="Fixture.exe" EntryPoint="Windows.FullTrustApplication">
+              <uap:VisualElements DisplayName="MUSITU Disposable Test" Description="Disposable test package, never published"
+                    BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
+                    Square44x44Logo="Assets\Square44x44Logo.png"/>
+            </Application></Applications>
+            <Capabilities><rescap:Capability Name="runFullTrust"/></Capabilities>
+          </Package>
+          '@
+          [System.IO.File]::WriteAllText((Join-Path $layout 'AppxManifest.xml'),$manifest,[System.Text.UTF8Encoding]::new($false))
+          $unsigned=Join-Path $scratch 'unsigned-fixture.msix'
+          $signed=Join-Path $scratch 'signed-fixture.msix'
+          & $makeappx pack /d $layout /p $unsigned /o /h SHA256
+          if ($LASTEXITCODE -ne 0){throw 'MakeAppx did not construct valid disposable package'}
+          Copy-Item -LiteralPath $unsigned -Destination $signed
+          $subject='CN=MUSITU Disposable MSIX Test'
+          $cert=New-SelfSignedCertificate -Type CodeSigningCert -KeyUsage DigitalSignature -Subject $subject -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2) -HashAlgorithm SHA256
+          $public=Join-Path $scratch 'disposable-public.cer'
+          Export-Certificate -Cert $cert -FilePath $public | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint $signed
+          if ($LASTEXITCODE -ne 0){throw 'test-only MSIX signing failed'}
+          & $signtool.FullName verify /pa /all $signed
+          if ($LASTEXITCODE -ne 0){throw 'Windows Authenticode trust validation failed'}
+          "MUSITU_TEST_SIGNED_MSIX=$signed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "MUSITU_TEST_UNSIGNED_MSIX=$unsigned" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "MUSITU_TEST_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "MUSITU_TEST_SIGNTOOL=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output 'MUSITU_WINDOWS_DISPOSABLE_SIGNED_MSIX=PASS'
+      - name: Qualify signed Windows MSIX publisher review, fail-closed negative cases
+        run: |
+          $ErrorActionPreference='Stop'
+          & 'store/phase1/windows/verify-msix.test.ps1'
+      - name: Cleanup ephemeral local signing identity
+        if: always()
+        run: |
+          if ($env:MUSITU_TEST_CERT_THUMBPRINT){
+            foreach($store in @('My','Root','TrustedPeople')){
+              Remove-Item -LiteralPath "Cert:\CurrentUser\$store\$env:MUSITU_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            }
+          }
+          $scratch=Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix'
+          if (Test-Path -LiteralPath $scratch){Remove-Item -LiteralPath $scratch -Recurse -Force}
+          Write-Output 'MUSITU_WINDOWS_DISPOSABLE_PRIVATE_IDENTITY_CLEANUP=PASS'
