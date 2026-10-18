@@ -83,7 +83,7 @@ function writeState(directory,value){
  * first-run bootstrap. Does not write or sign catalog payloads, perform network
  * requests, or grant production/publisher approval.
  */
-export function verifyAndCommitSignedRegistryV2({storeDirectory,verificationOptions,bootstrapAuthorized=false}={}){
+export function verifyAndCommitSignedRegistryV2({storeDirectory,verificationOptions,bootstrapAuthorized=false,beforeCommit}={}){
   ownerDirectory(storeDirectory);
   if(!verificationOptions||typeof verificationOptions!=='object')fail('verification inputs required');
   if('highestAcceptedRevision' in verificationOptions ||
@@ -106,6 +106,14 @@ export function verifyAndCommitSignedRegistryV2({storeDirectory,verificationOpti
       ...verificationOptions,highestAcceptedRevision:old?.revision??0,
       highestAcceptedDigest:old?.catalogSha256??null
     });
+    // Require all synchronous offline verification/staging before advancing
+    // the revision. Hold the same durable transaction lock throughout.
+    if(beforeCommit!==undefined){
+      if(typeof beforeCommit!=='function')fail('beforeCommit must be a synchronous callback');
+      const result=beforeCommit(validated);
+      if(result!==null&&(typeof result==='object'||typeof result==='function')&&
+          typeof result.then==='function')fail('asynchronous beforeCommit is forbidden');
+    }
     if(!old||validated.registry.revision>old.revision){
       writeState(storeDirectory,{
         schema:SCHEMA,revision:validated.registry.revision,
