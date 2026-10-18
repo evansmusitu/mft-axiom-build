@@ -24,6 +24,8 @@ jobs:
           node --check src/v03_entry.mjs
           node --check src/v03_identity.mjs
           node --check src/v03_policy.mjs
+          node --check public_v03/studio.js
+          node --input-type=module -e "import fs from 'node:fs'; const h=fs.readFileSync('public_v03/index.html','utf8'); if(!h.includes('src=\"/studio.js\"')||!h.includes('id=\"team\"'))process.exit(1); console.log('ANDROID_V03_STATIC_REFERENCES=PASS')"
           node --test tests/v03_enterprise.test.mjs
       - name: Verify existing production R2 pilot compatibility (no remote calls)
         working-directory: musitu_studio/edge
@@ -37,7 +39,7 @@ jobs:
             const c=JSON.parse(fs.readFileSync('wrangler.v03.jsonc','utf8'));
             if(c.name!=='musitu-studio-v03' ||
                c.d1_databases[0].database_id!=='MISSING_D1_CREATE_AND_EXPLICIT_REVIEW_REQUIRED' ||
-               c.vars.ENABLE_RENDER_DISPATCH!=='false'||c.vars.GPU_EXECUTION_APPROVED!=='false'||
+               c.assets.directory!=='./public_v03'||c.vars.ENABLE_RENDER_DISPATCH!=='false'||c.vars.GPU_EXECUTION_APPROVED!=='false'||
                c.workers_dev!==false||c.r2_buckets[0].bucket_name!=='musitu-studio-v02-assets')
               process.exit(1);
             console.log('V03_NOT_DEPLOYABLE_WITHOUT_DEDICATED_D1_AND_EXPLICIT_APPROVAL=PASS');"
