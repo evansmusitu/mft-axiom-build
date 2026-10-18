@@ -1,0 +1,197 @@
+name: MUSITU Studio V03 — Disposable Cloudflare PITR Provider Restore
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-pitr-provider-20261018.yml'
+      - 'ops/studio_v03_pitr_disposable_worker.mjs'
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-disposable-provider-pitr-one-time
+  cancel-in-progress: false
+jobs:
+  actual-cloudflare-pitr-disposable-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 11
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install project Wrangler without scripts
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: One-time real provider PITR test, exact new Worker only, always delete
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$CF_API_TOKEN}"
+          export STUDIO_PITR_NAME="musitu-studio-v03-pitr-proof-20261018"
+          export STUDIO_PITR_SECRET="$(openssl rand -hex 32)"
+          config="wrangler.v03.pitr-cloud-ci.jsonc"
+          report="../../studio-v03-real-provider-pitr-restore-20261018.json"
+          deployed=false
+          clean_up() {
+            original_status=$?
+            trap - EXIT
+            set +e
+            if [ "$deployed" = true ]; then
+              printf 'y\n' | npx wrangler delete --config "$config" >/tmp/studio-v03-pitr-delete.log 2>&1
+              delete_status=$?
+            else
+              delete_status=0
+            fi
+            export PITR_DELETE_CLI_STATUS="$delete_status"
+            python - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.error
+          target=pathlib.Path('../../studio-v03-real-provider-pitr-restore-20261018.json')
+          try:report=json.loads(target.read_text())
+          except (OSError,ValueError):report={'schema':'musitu.studio.v03.real-provider-disposable-pitr.v1','pitr_restored':False}
+          root='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61'
+          token=os.getenv('CLOUDFLARE_API_TOKEN')
+          req=urllib.request.Request(root+'/workers/scripts/musitu-studio-v03-pitr-proof-20261018',
+            headers={'Authorization':'Bearer '+token},method='GET')
+          try:
+            with urllib.request.urlopen(req,timeout=18) as r:code=r.status
+          except urllib.error.HTTPError as e:code=e.code
+          except OSError:code=0
+          report['temporary_worker_deleted_and_provider_verified']=code==404
+          report['exact_temporary_script_provider_http_status_after_cleanup']=code
+          report['cleanup_cli_succeeded']=os.environ.get('PITR_DELETE_CLI_STATUS')=='0'
+          report['existing_studio_v02_changed']=False
+          report['existing_studio_v03_changed']=False
+          report['cloudflare_pitr_restore_applied_to_customer_data']=False
+          target.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_DISPOSABLE_CLOUD_PITR='+json.dumps(report,sort_keys=True))
+          PY
+            if [ "$deployed" = true ] && [ "$delete_status" -ne 0 ];then
+              echo "TEMPORARY_WORKER_DELETE_CLI_FAILED"; original_status=1
+            fi
+            if ! python - <<'PY'
+          import json
+          r=json.load(open('../../studio-v03-real-provider-pitr-restore-20261018.json'))
+          assert r['temporary_worker_deleted_and_provider_verified']
+          PY
+            then original_status=1;fi
+            exit "$original_status"
+          }
+          trap clean_up EXIT
+          node --check ../../ops/studio_v03_pitr_disposable_worker.mjs
+          python - <<'PY'
+          import json,pathlib,os,urllib.request,urllib.error
+          name=os.environ['STUDIO_PITR_NAME']
+          token=os.getenv('CLOUDFLARE_API_TOKEN')
+          base='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61'
+          def get(path):
+            req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token},method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                data=json.load(r);return r.status,data.get('result') if data.get('success') else None
+            except urllib.error.HTTPError as e:return e.code,None
+          status,_=get('/workers/scripts/'+name)
+          assert status==404,'REFUSE_TO_OVERWRITE_EXISTING_WORKER'
+          code,sub=get('/workers/subdomain')
+          assert code==200 and isinstance(sub,dict) and isinstance(sub.get('subdomain'),str)
+          domain=sub['subdomain']
+          assert 1<=len(domain)<=100 and all(c.isalnum() or c=='-' for c in domain)
+          pathlib.Path('/tmp/studio-v03-pitr-worker-url').write_text(
+            'https://'+name+'.'+domain+'.workers.dev')
+          cfg={'name':name,'main':'../../ops/studio_v03_pitr_disposable_worker.mjs',
+            'compatibility_date':'2026-10-18','workers_dev':True,
+            'durable_objects':{'bindings':[{'name':'STUDIO_PITR_PROOF',
+              'class_name':'StudioV03DisposablePitrProof'}]},
+            'migrations':[{'tag':'pitr-disposable-20261018-v1',
+              'new_sqlite_classes':['StudioV03DisposablePitrProof']}]}
+          pathlib.Path('wrangler.v03.pitr-cloud-ci.jsonc').write_text(json.dumps(cfg))
+          print('EXACT_NEW_TEMPORARY_CLOUDFLARE_PITR_SCOPE=PASS')
+          PY
+          # Anonymous network access is permanently 403 until a freshly minted
+          # secret is provisioned; no production Access/JWT is bypassed.
+          npx wrangler deploy --config "$config" --outdir .studio-pitr-one-time >/tmp/studio-v03-pitr-deploy.log 2>&1
+          deployed=true
+          printf '%s' "$STUDIO_PITR_SECRET" | npx wrangler secret put STUDIO_PITR_PROOF_BEARER \
+            --config "$config" >/tmp/studio-v03-pitr-secret.log 2>&1
+          export STUDIO_PITR_URL="$(cat /tmp/studio-v03-pitr-worker-url)"
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,time,pathlib
+          root=os.environ['STUDIO_PITR_URL']
+          bearer=os.environ['STUDIO_PITR_SECRET']
+          result={'schema':'musitu.studio.v03.real-provider-disposable-pitr.v1',
+            'used_real_cloudflare_provider':True,'isolated_new_sqlite_durable_object_only':True,
+            'sample_data_only':True,'zero_customer_records_copied':True,
+            'temporary_worker_bearer_secured':True,'user_identity_impersonated':False,
+            'modal_compute_started':False,'gpu_render_started':False,
+            'real_pitr_bookmark_obtained':False,'real_mutation_confirmed':False,
+            'pitr_restored':False,'unauthenticated_requests_rejected':False,
+            'bookmark_logged_or_retained':False,'outcome':'NOT_CHECKED'}
+          def ask(path,method='GET',data=None,authorized=True,timeout=16):
+            headers={'Accept':'application/json'}
+            if authorized:headers['Authorization']='Bearer '+bearer
+            if data is not None:headers['Content-Type']='application/json'
+            req=urllib.request.Request(root+path,headers=headers,method=method,
+              data=json.dumps(data).encode() if data is not None else None)
+            try:
+              with urllib.request.urlopen(req,timeout=timeout) as response:
+                raw=response.read(20000)
+                return response.status,json.loads(raw)
+            except urllib.error.HTTPError as e:
+              try:d=json.loads(e.read(20000))
+              except ValueError:d={}
+              return e.code,d
+          try:
+            for n in range(15):
+              try:
+                code,r=ask('/snapshot',authorized=False,timeout=10)
+                if code==403:
+                  result['unauthenticated_requests_rejected']=True;break
+              except (OSError,ValueError):pass
+              time.sleep(1)
+            assert result['unauthenticated_requests_rejected'],'DISPOSABLE_WORKER_ANONYMOUS_GATE_FAILED'
+            code,seed=ask('/seed','POST',data={})
+            assert code==200 and seed.get('ok') and seed.get('names')==['original'],(code,seed.get('error'))
+            bookmark=seed['bookmark']
+            assert isinstance(bookmark,str) and len(bookmark)>=15
+            result['real_pitr_bookmark_obtained']=True
+            code,snapshot=ask('/snapshot')
+            assert code==200 and snapshot.get('names')==['original'],'BASELINE_DATA_MISMATCH'
+            code,mutation=ask('/mutate','POST',data={})
+            assert code==200 and mutation.get('ok'),'MUTATION_FAILED'
+            code,changed=ask('/snapshot')
+            assert code==200 and changed.get('names')==['later','original'],'POST_MUTATION_NOT_PERSISTED'
+            result['real_mutation_confirmed']=True
+            # This aborts/restarts the one disposable DO; HTTP 500/disconnect is
+            # expected. No production namespace or ID can be addressed.
+            try:ask('/restore','POST',{'bookmark':bookmark},timeout=16)
+            except (OSError,ValueError):pass
+            bookmark=None
+            restored=False
+            for _ in range(35):
+              time.sleep(.8)
+              try:
+                code,current=ask('/snapshot',timeout=10)
+                if code==200 and current.get('names')==['original']:
+                  restored=True;break
+              except (OSError,ValueError):pass
+            result['pitr_restored']=restored
+            result['outcome']='DISPOSABLE_CLOUDFLARE_PITR_RESTORED' if restored else 'RESTORE_NOT_CONFIRMED'
+          except (AssertionError,OSError,ValueError,KeyError,TypeError) as e:
+            result['outcome']='CLOUD_PITR_TEST_FAILED'
+          finally:
+            path=pathlib.Path('../../studio-v03-real-provider-pitr-restore-20261018.json')
+            path.write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+            # Do not print bookmark, tokens, raw HTTP responses or account names.
+            print('PITR_ISOLATED_DATA_QUALIFIED='+str(result['pitr_restored']))
+          assert result['pitr_restored'],'Genuine provider PITR restore was not verified'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-disposable-real-cloudflare-pitr-restore-proof
+          path: studio-v03-real-provider-pitr-restore-20261018.json
+          if-no-files-found: warn
+          retention-days: 21
