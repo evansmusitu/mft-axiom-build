@@ -29,7 +29,7 @@ and operating metrics.
 | Windows | Genuine OS-mediated disposable signed MSIX install 1.0.0.0→1.0.0.1, signed rollback denial, cleanup | Windows runner CI 39150715357; not customer approval or retail distribution |
 | Catalog | P-256 root signature, independent exact APK bytes, private durable watermark | Isolated private ephemeral keys; no production root issued |
 | Publisher | Signed APK independent inspection, two pinned identity/security reviewer signature verification | CI fixture only, **zero genuine publisher approvals** |
-| Payment | Paynow-shaped signed callbacks, correct hashes and references, separate poll reconciliation, owner-private durable review journal with replay/conflict/refund lock | Offline synthetic merchant key and orders only; **zero real purchases, refunds, settlements or entitlements** |
+| Payment | Paynow-style signed callbacks and owner-private durable journal; isolated empty-POST TLS polling adapter with fixed Paynow host, independent signed poll-response verification, timeouts and no redirects | **Synthetic CI transport and merchant key only**; no live Paynow integration, funded purchase, refund, settlement, customer entitlement or publisher payout |
 
 ## Non-negotiable external acceptance requirements
 
