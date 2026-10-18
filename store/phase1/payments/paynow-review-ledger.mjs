@@ -202,3 +202,6 @@ export function recordPaynowReviewEvent({ledgerDirectory,callbackBody,polledBody
     if(lockFd!==undefined){closeSync(lockFd);unlinkSync(lock);}
   }
 }
+
+/** Placeholder for fail-closed read-only operator review (TDD red). */
+export function auditPaynowReviewDirectory(){return Object.freeze({state:'OFFLINE_REVIEW_AUDIT_ONLY',orders:0,providerClaims:0,manualReviewLocked:0,entitlementGranted:false,publisherSettlementAuthorized:false});}
