@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import re
+from decimal import Decimal
 from datetime import datetime, timedelta
 from math import isfinite
 from pathlib import Path
@@ -33,6 +34,14 @@ class _DuplicateJSONKeyError(ValueError):
     """Reject ambiguous source or manifest JSON, including nested objects."""
 
 
+class _LossyJSONNumberError(ValueError):
+    """A JSON numeric literal would not survive the downstream float representation."""
+
+
+class _NonfiniteJSONConstantError(ValueError):
+    """NaN and Infinity are not RFC 8259 JSON numbers."""
+
+
 def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -42,10 +51,36 @@ def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _preserve_float_token(token: str) -> float:
+    value = float(token)
+    if not isfinite(value) or Decimal(str(value)) != Decimal(token):
+        raise _LossyJSONNumberError('external_source_numeric_precision_loss')
+    return value
+
+
+def _preserve_integer_token(token: str) -> int:
+    value = int(token)
+    try:
+        float_value = float(token)
+    except OverflowError:
+        raise _LossyJSONNumberError('external_source_numeric_precision_loss') from None
+    if not isfinite(float_value) or Decimal(str(float_value)) != Decimal(token):
+        raise _LossyJSONNumberError('external_source_numeric_precision_loss')
+    return value
+
+
+def _reject_nonfinite_constant(token: str) -> None:
+    raise _NonfiniteJSONConstantError('external_source_nonfinite_json_constant')
+
+
 def _load_unique_json(value: str | bytes) -> Any:
-    # Standard json.loads silently overwrites earlier duplicate sensor or
-    # provenance keys. An integrity hash cannot make ambiguous JSON canonical.
-    return json.loads(value, object_pairs_hook=_unique_pairs)
+    # The frozen feature builder converts sensor numbers to floats. Require
+    # JSON numeric decimal roundtrip fidelity at this source intake boundary;
+    # hashes cannot establish semantic integrity after a lossy parse.
+    return json.loads(value, object_pairs_hook=_unique_pairs,
+                      parse_float=_preserve_float_token,
+                      parse_int=_preserve_integer_token,
+                      parse_constant=_reject_nonfinite_constant)
 
 
 
@@ -73,7 +108,7 @@ def _read_manifest(path: Path) -> tuple[Mapping[str, Any], str]:
     raw = path.read_bytes()
     try:
         manifest = _load_unique_json(raw)
-    except _DuplicateJSONKeyError:
+    except (_DuplicateJSONKeyError, _LossyJSONNumberError, _NonfiniteJSONConstantError):
         raise
     except (ValueError, UnicodeError):
         raise ValueError('external_source_manifest_invalid') from None
@@ -124,7 +159,10 @@ def _stream_source(source: Path, state: dict[str, Any]) -> Iterator[dict[str, An
                 raise ValueError('external_source_schema_invalid')
             try:
                 row = _load_unique_json(line)
-            except _DuplicateJSONKeyError:
+            except _NonfiniteJSONConstantError:
+                # Preserve the established sensor-not-finite error contract.
+                raise ValueError('external_source_sensor_not_finite') from None
+            except (_DuplicateJSONKeyError, _LossyJSONNumberError):
                 raise
             except (ValueError, UnicodeError):
                 raise ValueError('external_source_schema_invalid') from None
