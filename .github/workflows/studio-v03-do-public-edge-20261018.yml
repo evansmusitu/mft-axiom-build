@@ -1,0 +1,57 @@
+name: MUSITU Studio V0.3 — External Access First-Hop Proof
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-public-edge-20261018.yml']
+permissions: {contents: read}
+jobs:
+  genuine-external-probes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: GET only — Android-like and normal external anonymous, no callback body/PII
+        run: |
+          python - <<'PY'
+          import pathlib,urllib.request,urllib.error,json,re,datetime
+          url='https://studio-v03.mftintelligence.com/'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          report={'schema':'musitu.studio.v03.external-access-edge.v1',
+           'at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+           'hostname':'studio-v03.mftintelligence.com','read_only':True,
+           'staff_login_automated':False,'api_session_authenticated':False,
+           'production_configuration_mutated':False,'first_hop':[]}
+          opener=urllib.request.build_opener(NoRedirect)
+          for name,ua in [
+            ('normal','MUSITU-Studio-ReadOnly-Acceptance/0.3'),
+            ('android','Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36')]:
+            row={'agent':name,'status':0,'cf_mitigated':'','cf_ray':None,
+             'access_login_redirect':False,'error_1010_body':False}
+            try:
+              req=urllib.request.Request(url,headers={'User-Agent':ua},method='GET')
+              try:
+                with opener.open(req,timeout=18) as response:
+                  code=response.status;head=response.headers;body=response.read(5000)
+              except urllib.error.HTTPError as exc:
+                code=exc.code;head=exc.headers;body=exc.read(5000)
+              row['status']=code
+              row['cf_mitigated']=head.get('cf-mitigated','')
+              ray=head.get('cf-ray','')
+              row['cf_ray']=ray if re.fullmatch(r'[a-f0-9]{16}-[A-Z]{3}',ray) else None
+              loc=head.get('Location','')
+              row['access_login_redirect']=code in (301,302,303,307,308) and (
+                '/cdn-cgi/access/login' in loc or '.cloudflareaccess.com/' in loc)
+              row['error_1010_body']=b'Error 1010' in body
+            except (urllib.error.URLError,TimeoutError,OSError) as e:
+              row['outcome']='DNS_TLS_OR_NETWORK_NOT_AVAILABLE'
+            report['first_hop'].append(row)
+          report['both_reach_access']=all(x['access_login_redirect'] for x in report['first_hop'])
+          pathlib.Path('studio-v03-external-edge.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print('STUDIO_V03_EXTERNAL_EDGE='+json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-v03-external-staff-access-first-hop
+          path: studio-v03-external-edge.json
+          retention-days: 14
