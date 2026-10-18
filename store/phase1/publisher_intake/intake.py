@@ -135,9 +135,14 @@ def inspect_apk(path):
     """Inspect an actual signed APK through Android SDK, never applicant claims."""
     path=str(Path(path).absolute())
     cert_output=_tool([_sdk_tool('apksigner'),'verify','--print-certs',path])
-    certs=re.findall(r'(?m)^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$',
-                     cert_output)
-    if len(certs)!=1:
+    certs=[]
+    for line in cert_output.splitlines():
+        match=re.fullmatch(
+            r'Signer #([1-9][0-9]*) certificate SHA-256 digest:[ \t]*([0-9a-fA-F]{64})',
+            line.strip())
+        if match:
+            certs.append((int(match.group(1)),match.group(2)))
+    if len(certs)!=1 or certs[0][0]!=1:
         # Safe parser diagnostics: disclose lengths/shape only, never publisher
         # certificate digests, DN identity, or APK bytes.
         shapes=[]
@@ -154,7 +159,7 @@ def inspect_apk(path):
     _require(len(packages)==1,'APK package identity unavailable')
     return {'package_id':packages[0][0],
             'version_code':int(packages[0][1]),
-            'certificate_sha256':certs[0].lower()}
+            'certificate_sha256':certs[0][1].lower()}
 
 def verify_local_submission(raw,apk_path):
     """Verify independent local APK evidence; return only REVIEW_REQUIRED."""
