@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,existsSync,chmodSync,symlinkSync,readdirSync,rmSync,statSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {recordPaynowReviewEvent} from './paynow-review-ledger.mjs';
+import {recordPaynowReviewEvent,auditPaynowReviewDirectory} from './paynow-review-ledger.mjs';
 
 const integrationKey='isolated-payment-ledger-key-NOT-a-real-Paynow-merchant-key';
 const pollurl='https://www.paynow.co.zw/Interface/CheckPayment/?guid=ad1a986c-3434-44a4-8f5b-111111111111';
@@ -181,4 +181,63 @@ test('historical refunded provider status cannot falsely claim confirmed Paid ou
     polledBody:signed({status:'Paid'})
   }),/histor|refund|event|outcome|invalid|ledger|corrupt/i);
   assert.equal(readFileSync(file,'utf8'),corrupted);
+});
+
+
+test('read-only operator audit detects exactly one internally consistent reserved payment review',t=>{
+  const d=fixture(t);
+  const empty=auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory});
+  assert.equal(empty.state,'OFFLINE_REVIEW_AUDIT_ONLY');
+  assert.equal(empty.orders,0);
+  record(d);
+  const before=readdirSync(d.ledgerDirectory).map(name=>[name,readFileSync(join(d.ledgerDirectory,name),'utf8')]);
+  const result=auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory});
+  assert.equal(result.state,'OFFLINE_REVIEW_AUDIT_ONLY');
+  assert.equal(result.orders,1);
+  assert.equal(result.providerClaims,1);
+  assert.equal(result.manualReviewLocked,0);
+  assert.equal(result.entitlementGranted,false);
+  assert.equal(result.publisherSettlementAuthorized,false);
+  assert.deepEqual(readdirSync(d.ledgerDirectory).map(name=>[name,readFileSync(join(d.ledgerDirectory,name),'utf8')]),before);
+});
+test('audit counts refunded/held reviews without granting settlement',t=>{
+  const d=fixture(t);record(d);
+  record(d,{polledBody:signed({status:'Refunded'})});
+  const result=auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory});
+  assert.equal(result.orders,1);
+  assert.equal(result.manualReviewLocked,1);
+  assert.equal(result.entitlementGranted,false);
+});
+test('operator audit fails closed if an order journal lost its immutable provider claim',t=>{
+  const d=fixture(t);record(d);
+  const claim=readdirSync(d.ledgerDirectory).find(n=>n.startsWith('provider-'));
+  assert.ok(claim);
+  rmSync(join(d.ledgerDirectory,claim));
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/provider|claim|unmatched|orphan|audit/i);
+  assert.equal(existsSync(paths(d).ledger),true);
+});
+test('operator audit fails closed if a provider claim lost its order history',t=>{
+  const d=fixture(t);record(d);rmSync(paths(d).ledger);
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/provider|claim|orphan|history|audit/i);
+});
+test('read-only audit rejects fabricated second order journal using same transaction claim',t=>{
+  const d=fixture(t);record(d);
+  const other='ORDER-LEDGER-005';
+  const original=JSON.parse(readFileSync(paths(d).ledger,'utf8'));
+  original.merchantReference=other;
+  const newName=createHash('sha256').update('musitu.store.paynow.review.v1'+String.fromCharCode(0)+other).digest('hex')+'.json';
+  writeFileSync(join(d.ledgerDirectory,newName),JSON.stringify(original)+'\n',{mode:0o600});
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/provider|claim|duplicate|audit/i);
+});
+test('audit rejects dangling symlinks, unfinished locks and unknown ledger files',t=>{
+  const d=fixture(t);record(d);
+  const spoof=join(d.ledgerDirectory,'provider-untrusted.json');
+  symlinkSync(join(d.root,'absent'),spoof);
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/unsafe|unknown|symlink|claim|audit/i);
+  rmSync(spoof);
+  writeFileSync(paths(d).lock,'abandoned',{mode:0o600});
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/lock|unfinished|pending|audit/i);
+  rmSync(paths(d).lock);
+  writeFileSync(join(d.ledgerDirectory,'unknown.json'),'{}',{mode:0o600});
+  assert.throws(()=>auditPaynowReviewDirectory({ledgerDirectory:d.ledgerDirectory}),/unknown|unsafe|audit/i);
 });
