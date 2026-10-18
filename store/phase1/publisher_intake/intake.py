@@ -140,11 +140,14 @@ def inspect_apk(path):
         if 'certificate SHA-256 digest:' not in line:
             continue
         prefix,value=line.split('certificate SHA-256 digest:',1)
-        signer=re.fullmatch(r'Signer\s+#([1-9][0-9]*)',prefix.strip())
-        fingerprint=value.strip()
-        if signer and HEX.fullmatch(fingerprint.lower()):
-            certs.append((int(signer.group(1)),fingerprint.lower()))
-    if len(certs)!=1 or certs[0][0]!=1:
+        # Android build tools emit both legacy "Signer #1" and newer
+        # "V3.0 Signer:" labels; require one recognized unique signer.
+        signer=re.fullmatch(r'(?:Signer\s+#1|V[1-4]\.[0-9]+ Signer:)',prefix.strip())
+        fingerprint=value.strip().lower()
+        _require(signer is not None and HEX.fullmatch(fingerprint),
+                 'unsupported APK signer label or digest')
+        certs.append(fingerprint)
+    if len(certs)!=1:
         # Safe parser diagnostics: disclose lengths/shape only, never publisher
         # certificate digests, DN identity, or APK bytes.
         shapes=[]
@@ -162,7 +165,7 @@ def inspect_apk(path):
     _require(len(packages)==1,'APK package identity unavailable')
     return {'package_id':packages[0][0],
             'version_code':int(packages[0][1]),
-            'certificate_sha256':certs[0][1].lower()}
+            'certificate_sha256':certs[0]}
 
 def verify_local_submission(raw,apk_path):
     """Verify independent local APK evidence; return only REVIEW_REQUIRED."""
