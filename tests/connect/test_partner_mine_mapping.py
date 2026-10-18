@@ -240,4 +240,32 @@ class PartnerMineMappingTests(unittest.TestCase):
         self.assertFalse(self.manifest.exists())
         self.assertFalse(list(self.canonical.parent.glob('.partner-intake-*')))
 
+    def test_high_precision_sensor_value_must_not_round_silently(self):
+        text=self.source.read_text(encoding='utf-8')
+        assert '"raw_MM263": 0.2' in text
+        self.source.write_text(text.replace('"raw_MM263": 0.2',
+                  '"raw_MM263": 0.1234567890123456789012345',1),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'partner_mapping_numeric_precision_loss'):
+            self.run_adapter()
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+
+    def test_underflowed_sensor_value_must_not_become_zero(self):
+        text=self.source.read_text(encoding='utf-8')
+        self.source.write_text(text.replace('"raw_MM263": 0.2',
+                  '"raw_MM263": 1e-400',1),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'partner_mapping_numeric_precision_loss'):
+            self.run_adapter()
+        self.assertFalse(self.canonical.exists())
+        self.assertFalse(self.manifest.exists())
+
+    def test_preserves_normal_finite_scientific_notation(self):
+        text=self.source.read_text(encoding='utf-8')
+        self.source.write_text(text.replace('"raw_MM263": 0.2',
+                  '"raw_MM263": 2e-1',1),encoding='utf-8')
+        result=self.run_adapter()
+        self.assertEqual(result['source_rows'],1400)
+        records=self.canonical.read_text(encoding='utf-8').splitlines()
+        self.assertEqual(json.loads(records[0])['MM263'],0.2)
+
 if __name__=='__main__':unittest.main()
