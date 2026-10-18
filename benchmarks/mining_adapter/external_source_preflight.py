@@ -166,7 +166,10 @@ def inspect_external_source(*, source: Path, manifest_path: Path) -> dict[str, A
     # (not industrial telemetry records or model features) is retained.
     examples = [(e.feature_time, e.label_window_end, e.label) for e in
                 build_windowed_prediction_examples(_stream_source(source, state), spec)]
-    # Check for a source mutation between the two reads (data might be external).
+    # Recheck both pieces of evidence after the stream, not just the source.
+    # A manifest swapped mid-run cannot substantiate this intake result.
+    if _sha256_file(manifest_path) != manifest_sha:
+        raise ValueError('external_source_manifest_modified_during_scan')
     if _sha256_file(source) != digest:
         raise ValueError('external_source_modified_during_scan')
     if state['source_rows'] != manifest['declared_source_rows']:
