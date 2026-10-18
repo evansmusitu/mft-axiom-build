@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from './worker.mjs';
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {dirname,join} from 'node:path';
+import {createHash} from 'node:crypto';
 
 const ORIGIN='https://payments.mftintelligence.com';
 const request=(path)=>worker.fetch(new Request(ORIGIN+path),{},{});
@@ -38,5 +42,19 @@ test('unknown icon paths never alias valid installability assets',async()=>{
   for(const path of ['/store/assets/icon-192.jpg','/store/assets/icon-400.png','/store/assets/icon-512.png.bak']){
     const res=await request(path);
     assert.equal(res.status,404);
+  }
+});
+
+test('served PWA icon content is byte-identical to audited static 192/512 PNG source files',async()=>{
+  const root=dirname(fileURLToPath(import.meta.url));
+  const sha=b=>createHash('sha256').update(b).digest('hex');
+  for(const n of [192,512]){
+    const expected=readFileSync(join(root,'icon-'+n+'.png'));
+    const response=await request('/store/assets/icon-'+n+'.png');
+    assert.equal(response.status,200);
+    const actual=Buffer.from(await response.arrayBuffer());
+    assert.equal(actual.length,expected.length);
+    assert.equal(sha(actual),sha(expected),'serving exact committed PNG asset is required');
+    assert.deepEqual(actual,expected);
   }
 });
