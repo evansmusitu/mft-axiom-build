@@ -1,0 +1,67 @@
+name: MUSITU Studio V0.3 — Exact Security Events Ray Cause
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-ray-cause-20261018.yml']
+permissions: {contents: read}
+jobs:
+  read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Match only two known Studio V03 Cloudflare Ray IDs, no IPs or user agents
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,pathlib
+          base='https://api.cloudflare.com/client/v4'
+          acct='93f395f5121954671f92fffa453d6b61'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          rays=['a4c66c1f194eb873','a4c66c1f4cf070f0']
+          h={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
+          out={'schema':'musitu.studio.v03.cloudflare-ray-cause.v1','read_only':True,
+            'security_configuration_mutated':False,'exact_rays':[],'source_securitylevel_for_both':False}
+          try:
+            u=urllib.request.Request(base+'/zones?name=mftintelligence.com&status=active',
+              headers=h,method='GET')
+            with urllib.request.urlopen(u,timeout=20) as r:
+              z=json.load(r);zones=z.get('result') or []
+            matched=[x for x in zones if x.get('name')=='mftintelligence.com'
+              and (x.get('account') or {}).get('id')==acct]
+            assert len(matched)==1
+            zone=matched[0]['id']
+            query='''query OneStudioRay($zoneTag: string,$filter: FirewallEventsAdaptiveFilter_InputObject){
+              viewer{zones(filter:{zoneTag:$zoneTag}){firewallEventsAdaptive(filter:$filter,limit:3){
+                rayName action source datetime}}}}'''
+            for ray in rays:
+              filters={'rayName':ray,'datetime_geq':'2026-10-18T09:11:50Z',
+                'datetime_leq':'2026-10-18T09:13:20Z'}
+              req=urllib.request.Request(base+'/graphql',method='POST',headers=h,
+                data=json.dumps({'query':query,'variables':{'zoneTag':zone,'filter':filters}}).encode())
+              with urllib.request.urlopen(req,timeout=20) as r:
+                response=json.load(r)
+                assert r.status==200 and not response.get('errors')
+              found=((((response.get('data') or {}).get('viewer') or {}).get('zones') or [{}])[0]
+                .get('firewallEventsAdaptive') or [])
+              exact=[x for x in found if x.get('rayName')==ray]
+              out['exact_rays'].append({'ray':ray,'found':len(exact)==1,
+                'source':exact[0].get('source') if len(exact)==1 else None,
+                'action':exact[0].get('action') if len(exact)==1 else None})
+            out['source_securitylevel_for_both']=all(x['found'] and x['source']=='securitylevel'
+              and x['action']=='managed_challenge' for x in out['exact_rays'])
+          except (OSError,ValueError,AssertionError,TypeError):
+            out['outcome']='NOT_VERIFIED'
+          out['outcome']='VERIFIED' if out['source_securitylevel_for_both'] else 'NOT_VERIFIED'
+          pathlib.Path('studio-v03-ray-security-cause.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_RAY_CAUSE='+json.dumps(out,sort_keys=True))
+          assert out['source_securitylevel_for_both']
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-exact-ray-security-cause
+          path: studio-v03-ray-security-cause.json
+          retention-days: 14
