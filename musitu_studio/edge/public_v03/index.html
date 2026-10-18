@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c1322"><title>MUSITU Studio V0.3 | Enterprise</title>
+<meta name="description" content="Staff-only MUSITU Studio CPU rendering control center.">
+<link rel="stylesheet" href="/studio.css"></head>
+<body><div class="shell">
+<aside class="sidebar"><div class="mark">M<span>·</span></div>
+<div class="brand">MUSITU<br><small>ENTERPRISE STUDIO V0.3</small></div>
+<nav aria-label="Studio sections"><a href="#overview">◧ <span>Overview</span></a>
+<a href="#projects">▦ <span>Projects</span></a><a href="#team">♙ <span>Team</span></a>
+<a href="#editor">◇ <span>Scene editor</span></a><a href="#jobs">◎ <span>Render queue</span></a></nav>
+<div class="sidefoot">D1 / R2 / MODAL CPU<br><strong>ACCESS PROTECTED</strong></div></aside>
+<main class="content">
+<header><div><div class="eyebrow">ENTERPRISE / STAFF WORKSPACE</div>
+<h1>Studio production</h1><p class="sub">Private projects · two-person render approvals · verified assets</p></div>
+<span class="badge" id="connection">DISCONNECTED</span></header>
+<section class="auth"><div class="auth-label">
+<strong>Signed Cloudflare Access staff identity</strong>
+<span>No shared admin token. Every request uses your signed Access identity and project role.
+Publishing and GPU rendering remain disabled until provider qualification.</span></div>
+<div class="row"><button id="connect">Connect / Refresh</button>
+<button class="ghost" id="copy-subject" disabled>Copy my staff ID</button></div>
+</section>
+<div class="note" id="message" role="status" aria-live="polite">
+Sign in with your authorized staff identity to connect.</div>
+<div class="stats" id="overview">
+<article class="stat"><div>MY PROJECTS</div><strong id="projects-count">—</strong><small>Isolated member access</small></article>
+<article class="stat"><div>VISIBLE JOBS</div><strong id="jobs-count">—</strong><small>Two-person CPU approval</small></article>
+<article class="stat"><div>CPU DISPATCH</div><strong id="render-gate" class="gate">LOCKED</strong><small>Budget and provider gates required</small></article>
+</div>
+<section class="panel" id="projects"><div class="panelhead"><div>
+<div class="eyebrow">01 / PROJECTS</div><h2>Team workspaces</h2></div>
+<button id="refresh" class="ghost">↻ Refresh</button></div>
+<form id="project-form" class="row"><input id="project-title" maxlength="120"
+placeholder="Project name" aria-label="Project name" required>
+<button type="submit">+ New project</button></form>
+<div class="cards muted" id="project-list">Connect to view assigned projects.</div>
+</section>
+<section class="panel" id="team"><div class="panelhead"><div>
+<div class="eyebrow">02 / ACCESS</div><h2>Project team</h2></div>
+<span class="chip">LEAST PRIVILEGE</span></div>
+<p class="muted">Project owners can add staff using their Access subject ID.
+Only verified staff identities can use a granted membership. Owners cannot silently demote the founding owner.</p>
+<div class="team-grid">
+<label>Project<select id="team-project"><option value="">Select a project</option></select></label>
+<label>Team member ID<input id="new-member-sub" maxlength="200" placeholder="Paste the colleague's staff ID"></label>
+<label>Role<select id="member-role"><option value="viewer">Viewer</option>
+<option value="editor">Editor</option><option value="reviewer">Reviewer</option></select></label>
+<div class="row"><button id="add-member">Grant role</button>
+<button id="view-members" class="ghost">View team</button></div>
+<div class="wide cards" id="member-list"></div>
+</div>
+</section>
+<section class="panel" id="editor"><div class="panelhead"><div>
+<div class="eyebrow">03 / CREATE</div><h2>Declarative Blender scene</h2></div>
+<span class="chip">CPU ONLY</span></div>
+<p class="muted">Use approved primitive objects, materials and keyframes. Scripts, arbitrary files and remote URLs are never executed.</p>
+<form id="job-form"><div class="row">
+<label>Project<select id="project-select" required><option value="">Select a project</option></select></label>
+<label>Compute<select id="device"><option value="CPU">CPU — approved only</option></select></label>
+</div><label class="label">Scene JSON<textarea id="scene" spellcheck="false"
+rows="15" aria-label="Blender scene JSON"></textarea></label>
+<button type="submit">Submit for second-person approval →</button></form>
+</section>
+<section class="panel" id="jobs"><div class="panelhead"><div>
+<div class="eyebrow">04 / EXECUTION</div><h2>Authorized job queue</h2></div>
+<span class="chip">AUDITED + INTEGRITY VERIFIED</span></div>
+<p class="muted">The creator cannot approve their own job. Reviewers and owners approve and dispatch; outputs are checked against SHA-256.</p>
+<div class="cards" id="job-list">Connect to view authorized jobs.</div>
+</section>
+<section class="panel" id="assets"><div class="eyebrow">05 / FILES</div><h2>Verified render preview</h2>
+<p class="muted">The preview comes directly from the signed-in job's verified R2 output. GLB can be downloaded and opened in a supported 3D viewer.</p>
+<div id="preview-label" class="scope">Select a completed job's preview.</div>
+<img id="preview-image" class="preview-image" alt="Render output preview" hidden></section>
+<footer>MUSITU Studio v0.3 source-only enterprise candidate · D1 multiuser database and Cloudflare Access<br>
+<small>Production v0.2 remains unchanged until a dedicated D1 deployment and real multiuser acceptance are authorized.</small></footer>
+</main></div><script src="/studio.js" defer></script></body></html>
