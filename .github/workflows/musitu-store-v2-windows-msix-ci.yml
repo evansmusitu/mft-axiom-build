@@ -136,6 +136,7 @@ jobs:
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/verify-msix.test.ps1'
       - name: Qualify actual OS-installed MSIX identity and package state
+        shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/os-install-acceptance.test.ps1'
