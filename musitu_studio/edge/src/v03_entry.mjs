@@ -48,9 +48,13 @@ async function complete(env,b){
   }
   if(j.state!=='RUNNING'&&j.state!=='DISPATCHING')return err('JOB_NOT_ACTIVE',409);
   if(b.state==='FAILED'){
-    const u=await q(env.STUDIO_DB,"UPDATE jobs SET state='FAILED',error_code='RENDER_FAILED',finished_at=? WHERE id=? AND state IN ('RUNNING','DISPATCHING')",now(),j.id).run();
-    if(u.meta?.changes!==1)return err('RESULT_RACE',409);
-    await audit(env,j.project_id,j.id,'RENDER_FAILED',null);
+    try{
+      const updates=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,"UPDATE jobs SET state='FAILED',error_code='RENDER_FAILED',finished_at=? WHERE id=? AND state IN ('RUNNING','DISPATCHING')",now(),j.id),
+        auditStmt(env,j.project_id,j.id,'RENDER_FAILED',null)
+      ]);
+      if(updates[0]?.meta?.changes!==1)return err('RESULT_RACE',409);
+    }catch{return err('RESULT_TRANSACTION_FAILED',503)}
     return json({ok:true,state:'FAILED'});
   }
   if(j.render_device!=='CPU'||b.gpu_verified!==false||!Array.isArray(b.files)||b.files.length!==3)
@@ -224,11 +228,19 @@ async function api(req,env,url,actor){
   }
   if(req.method==='POST'&&action==='approve'){
     if(actor.sub===job.created_by_sub)return err('SEPARATION_OF_DUTIES',403);
-    const outcome=await q(env.STUDIO_DB,
-      "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL'",
-      actor.sub,now(),id).run();
-    if(outcome.meta?.changes!==1)return err('NOT_PENDING_APPROVAL',409);
-    await audit(env,job.project_id,id,'JOB_APPROVED',actor.sub);
+    try{
+      const updates=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,
+          "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL'",
+          actor.sub,now(),id),
+        auditStmt(env,job.project_id,id,'JOB_APPROVED',actor.sub)
+      ]);
+      if(updates[0]?.meta?.changes!==1)return err('NOT_PENDING_APPROVAL',409);
+    }catch{
+      const current=await q(env.STUDIO_DB,'SELECT state FROM jobs WHERE id=?',id).first();
+      if(current?.state!=='PENDING_APPROVAL')return err('NOT_PENDING_APPROVAL',409);
+      return err('APPROVAL_TRANSACTION_FAILED',503);
+    }
     return json({ok:true,state:'APPROVED'});
   }
   if(req.method==='POST'&&action==='dispatch'){
