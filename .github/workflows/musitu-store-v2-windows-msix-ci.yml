@@ -49,7 +49,12 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $sdk=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-          $signtool=Get-ChildItem $sdk -Filter signtool.exe -Recurse -File | Where-Object {$_.DirectoryName -match '\\x64$'} | Sort-Object FullName -Descending | Select-Object -First 1
+          $sdkVersionFolders=Get-ChildItem -LiteralPath $sdk -Directory | Sort-Object Name -Descending
+          $signtool=$null
+          foreach($versionFolder in $sdkVersionFolders){
+            $candidate=Join-Path $versionFolder.FullName 'x64\signtool.exe'
+            if(Test-Path -LiteralPath $candidate -PathType Leaf){$signtool=Get-Item -LiteralPath $candidate;break}
+          }
           if (-not $signtool){throw 'Windows SDK x64 signtool is missing'}
           $makeappx=Join-Path $signtool.DirectoryName 'makeappx.exe'
           if (-not (Test-Path -LiteralPath $makeappx -PathType Leaf)){throw 'Windows SDK makeappx not found'}
