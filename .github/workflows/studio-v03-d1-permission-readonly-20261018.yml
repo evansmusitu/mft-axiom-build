@@ -1,0 +1,49 @@
+name: MUSITU Studio V0.3 — Dedicated D1 Permission and Capacity Inventory
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-d1-20261018]
+    paths:
+      - '.github/workflows/studio-v03-d1-permission-readonly-20261018.yml'
+permissions: {contents: read}
+jobs:
+  cloudflare-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read D1 account inventory and exact Studio target only
+        run: |
+          python - <<'PY'
+          import os,json,pathlib,urllib.request,urllib.error
+          account='93f395f5121954671f92fffa453d6b61'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN')
+          report={'read_only':True,'provider_configuration_mutated':False,
+                  'target':'musitu-studio-v03','d1_list_http_status':None,
+                  'target_already_exists':None,'can_read_d1_inventory':False,
+                  'd1_database_count':None,'outcome':'NO_TOKEN'}
+          if token:
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database?per_page=100',
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json'},method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                d=json.load(r);report['d1_list_http_status']=r.status
+                if d.get('success') and isinstance(d.get('result'),list):
+                  dbs=d['result'];report['can_read_d1_inventory']=True
+                  report['d1_database_count']=len(dbs)
+                  report['target_already_exists']=any(x.get('name')=='musitu-studio-v03' for x in dbs)
+                  report['outcome']='READ_ONLY_INVENTORY_AVAILABLE'
+                else:report['outcome']='D1_DATA_NOT_READABLE'
+            except urllib.error.HTTPError as e:
+              report['d1_list_http_status']=e.code;report['outcome']='D1_LIST_PERMISSION_DENIED_OR_UNAVAILABLE'
+            except OSError:report['outcome']='D1_PROVIDER_UNREACHABLE'
+          pathlib.Path('studio-v03-d1-permission-readonly.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('STUDIO_D1_V03_PREFLIGHT='+json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-studio-v03-d1-permission-readonly
+          path: studio-v03-d1-permission-readonly.json
+          retention-days: 14
