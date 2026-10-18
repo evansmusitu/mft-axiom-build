@@ -210,3 +210,46 @@ The new reservation scheme preserves independent provider identity and
 fails closed on missing order history. Final regression in run
 `39173772545` passed **37/37 total payment tests**. All provider
 references, keys and transactions are synthetic CI fixtures.
+
+
+## Journal consistency and read-only migration preflight
+
+The private review-journal reader now independently checks historic entries
+before accepting a replay or recording another event. A past
+`PAYMENT_HOLD_REVIEW_REQUIRED` event **cannot** coexist with an
+unexpectedly cleared `manualReviewLocked=false` flag. Likewise, a
+historical non-`Paid` provider status cannot claim a
+`PAYMENT_CONFIRMED_REVIEW_REQUIRED` outcome. These checks stop
+inconsistent canonical JSON from silently rewriting the interpretation of
+refund and dispute history. They do not add cryptographic tamper-proofing
+against a compromised filesystem owner.
+
+`auditPaynowReviewDirectory({ledgerDirectory})` provides an **offline,
+read-only operator preflight** for payment-review journal consistency. It
+enumerates a private ledger directory and confirms a one-to-one bijection
+between owner-private order review journals and their immutable,
+domain-separated provider-transaction claim files. An orphaned ledger,
+missing order history, second order claiming the same provider transaction,
+uncanonical journal, dangling symlink, unreviewed pending write, stale lock,
+or unexpected file **fails closed**; no records are deleted, migrated,
+recovered or overwritten. Success returns only bounded aggregate counts
+and `OFFLINE_REVIEW_AUDIT_ONLY`, with entitlements, refunds and publisher
+settlement explicitly denied. A zero-record audit is not evidence of
+financial readiness.
+
+This is a prerequisite for **human-reviewed legacy migration**,
+not the migration or the financial audit itself. Existing pre-index
+journals with missing provider claims must be reconciled independently
+against authentic Paynow settlement records by an authorized operator.
+Whole-filesystem rollback, privileged replacement, independent backups,
+cross-machine provider uniqueness and production merchant authentication
+remain separate unqualified controls.
+
+Focused behavior-first tests reproduced two vulnerabilities:
+previously canonical history could clear a refund hold or relabel a
+refunded event as Paid (red run `39177280788`). Six read-only audit
+contracts first failed against a deliberately inert audit stub (red run
+`39177430430`). The implemented consistency checks and auditor passed
+all **45/45** synthetic payment-policy, ledger and transport tests in
+run `39177500620`. No production Paynow calls or genuine financial
+transactions occurred.
