@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . "$PSScriptRoot/verify-msix.ps1"
 
 if (-not $env:MUSITU_TEST_SIGNED_MSIX -or -not $env:MUSITU_TEST_UNSIGNED_MSIX -or
-    -not $env:MUSITU_TEST_CERT_THUMBPRINT -or -not $env:MUSITU_TEST_SIGNTOOL) {
+    -not $env:MUSITU_TEST_CERT_THUMBPRINT -or -not $env:MUSITU_SIGNTOOL) {
   throw 'Windows CI fixture credentials and paths are required (test-only)'
 }
 
@@ -14,7 +14,7 @@ $inputArgs=@{
   ExpectedPackageName='MUSITU.Private.WindowsFixture'
   ExpectedPublisher='CN=MUSITU Disposable MSIX Test'
   ExpectedVersion='1.0.0.0'
-  SignToolPath=$env:MUSITU_TEST_SIGNTOOL
+  SignToolPath=$env:MUSITU_SIGNTOOL
 }
 function Assert-Rejected([hashtable]$Overrides,[string]$Reason) {
   $candidate=$inputArgs.Clone()
