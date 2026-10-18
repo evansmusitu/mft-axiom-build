@@ -149,11 +149,15 @@ final class V2AndroidInstallBridge {
       throw new SecurityException("APK installer is not a system application");
     String installerPackage=handler.activityInfo.packageName;
     systemInstaller.setPackage(installerPackage);
-    context.grantUriPermission(installerPackage,packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    // Arm a private one-APK expiry before granting access; persistent explicit
+    // URI grants may otherwise survive this process until revocation/reboot.
+    V2InstallerUriLeaseReceiver.arm(context,stagedApk);
     try{
+      context.grantUriPermission(installerPackage,packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
       context.startActivity(systemInstaller);
     }catch(RuntimeException failed){
-      context.revokeUriPermission(packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      try{context.revokeUriPermission(packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+      finally{V2InstallerUriLeaseReceiver.disarm(context,stagedApk);}
       throw failed;
     }
     return Result.SYSTEM_INSTALLER_LAUNCHED;
@@ -166,12 +170,11 @@ final class V2AndroidInstallBridge {
    */
   static void revokeInstallerUriGrant(Context context,File stagedApk)throws Exception{
     if(context==null||stagedApk==null)throw new SecurityException("grant cleanup requires APK");
-    File base=new File(context.getFilesDir(),"downloads/v2").getCanonicalFile();
-    File apk=stagedApk.getCanonicalFile();
-    if(!apk.getPath().startsWith(base.getPath()+File.separator))
-      throw new SecurityException("cannot revoke outside verified Store downloads");
+    File apk=V2InstallerUriLeasePolicy.checkedLeasePath(context.getFilesDir(),stagedApk);
     Uri uri=FileProvider.getUriForFile(context,"com.musitu.store.files",apk);
+    // Always revoke before removing the expiry backstop.
     context.revokeUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    V2InstallerUriLeaseReceiver.disarm(context,apk);
   }
   private V2AndroidInstallBridge(){}
 }
