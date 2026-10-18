@@ -118,12 +118,22 @@ async function api(req,env,url,actor){
   if(req.method==='POST'&&path==='/api/projects'){
     const data=await readJson(req);
     if(typeof data?.title!=='string'||!data.title.trim()||data.title.trim().length>120)return err('INVALID_TITLE');
+    const current=await q(env.STUDIO_DB,'SELECT COUNT(*) AS n FROM projects WHERE owner_sub=?',actor.sub).first();
+    if(Number(current?.n??0)>=10)return err('PROJECT_QUOTA_EXCEEDED',429);
     const id=crypto.randomUUID(),stamp=now();
-    await env.STUDIO_DB.batch([
-      q(env.STUDIO_DB,'INSERT INTO projects(id,title,owner_sub,created_at) VALUES(?,?,?,?)',id,data.title.trim(),actor.sub,stamp),
-      q(env.STUDIO_DB,"INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,'owner',?)",id,actor.sub,stamp),
-      auditStmt(env,id,null,'PROJECT_CREATED',actor.sub)
-    ]);
+    try{
+      const written=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,
+          'INSERT INTO projects(id,title,owner_sub,created_at) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM projects WHERE owner_sub=?)<10',
+          id,data.title.trim(),actor.sub,stamp,actor.sub),
+        q(env.STUDIO_DB,"INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,'owner',?)",id,actor.sub,stamp),
+        auditStmt(env,id,null,'PROJECT_CREATED',actor.sub)
+      ]);
+      if(written[0]?.meta?.changes!==1)return err('PROJECT_QUOTA_EXCEEDED',429);
+    }catch{
+      const current=await q(env.STUDIO_DB,'SELECT COUNT(*) AS n FROM projects WHERE owner_sub=?',actor.sub).first();
+      return Number(current?.n??0)>=10?err('PROJECT_QUOTA_EXCEEDED',429):err('PROJECT_TRANSACTION_FAILED',503);
+    }
     return json({ok:true,project_id:id},201);
   }
   const members=path.match(/^\/api\/projects\/([a-f0-9-]{36})\/members$/);
@@ -171,14 +181,21 @@ async function api(req,env,url,actor){
          old.payload_sha256!==digest)return err('SUBMISSION_KEY_CONFLICT',409);
       return json({ok:true,duplicate:true,job:trace(old,actor)});
     }
+    const existing=await q(env.STUDIO_DB,'SELECT COUNT(*) AS n FROM jobs WHERE project_id=?',b.project_id).first();
+    if(Number(existing?.n??0)>=50)return err('PROJECT_JOB_QUOTA_EXCEEDED',429);
     const id=crypto.randomUUID();
     try{
-      await env.STUDIO_DB.batch([
-        q(env.STUDIO_DB,"INSERT INTO jobs(id,project_id,submission_key,payload_json,payload_sha256,render_device,state,created_by_sub,created_at) VALUES(?,?,?,?,?,'CPU','PENDING_APPROVAL',?,?)",
-          id,b.project_id,b.submission_key,raw,digest,actor.sub,now()),
+      const committed=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,"INSERT INTO jobs(id,project_id,submission_key,payload_json,payload_sha256,render_device,state,created_by_sub,created_at) SELECT ?,?,?,?,?, 'CPU','PENDING_APPROVAL',?,? WHERE (SELECT COUNT(*) FROM jobs WHERE project_id=?)<50",
+          id,b.project_id,b.submission_key,raw,digest,actor.sub,now(),b.project_id),
         auditStmt(env,b.project_id,id,'JOB_SUBMITTED',actor.sub,{device:'CPU'})
       ]);
-    }catch{return err('CONCURRENT_SUBMISSION_RETRY_LOOKUP',409)}
+      if(committed[0]?.meta?.changes!==1)return err('PROJECT_JOB_QUOTA_EXCEEDED',429);
+    }catch{
+      const count=await q(env.STUDIO_DB,'SELECT COUNT(*) AS n FROM jobs WHERE project_id=?',b.project_id).first();
+      if(Number(count?.n??0)>=50)return err('PROJECT_JOB_QUOTA_EXCEEDED',429);
+      return err('CONCURRENT_SUBMISSION_RETRY_LOOKUP',409);
+    }
     return json({ok:true,job_id:id,state:'PENDING_APPROVAL'},201);
   }
   const parts=path.match(/^\/api\/jobs\/([a-f0-9-]{36})(?:\/(approve|dispatch|sync|audit|assets\/([a-z.]+)))?$/);
