@@ -107,3 +107,17 @@ The Android Studio dashboard includes **Check database recovery readiness**; the
 - **Actual Cloudflare PITR provider restore rehearsal** must be executed only against an isolated disposable object; local backup/restore and PITR-readiness are not interchangeable with 30-day provider recovery.
 
 Existing staff-only V0.3 live site: https://studio-v03.mftintelligence.com/ . Existing independent working V0.2: https://studio.mftintelligence.com/ . No credentials, login cookies, actual customer scene content or staff addresses are included in this evidence.
+
+## 18 October 2026 UTC / 19 October Harare — transactional CPU dispatch audit hardening
+
+The live V0.3 dispatch service previously risked split state/audit transitions when an audit insert failed after a job state change. Added production-entry regression tests for dispatch start, accepted remote acknowledgment, and ambiguous remote outcome, plus a check that denied duplicate dispatches cannot create phantom audit events.
+
+RED: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176410208 — 48 pass, 3 fail. GREEN: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176505452 — 51/51. The duplicate-audit regression was then observed RED in https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176602658 — 50 pass, 1 fail, and GREEN 51/51 in https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176658280.
+
+Implementation: atomic Studio SQLite DB batches now bind each CPU dispatch transition to its audit record. Conditional SQL INSERT ... SELECT ... WHERE changes()=1 prevents phantom audit entries on a rejected repeat. Failed start audit leaves APPROVED and sends no remote request; failed accepted-ack audit locks NEEDS_REVIEW and blocks retries; a failed unknown-outcome audit leaves DISPATCHING, also non-retryable.
+
+DEPLOY: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176739325 — guarded V0.3-only production release SUCCESS with 51/51 tests and signed Cloudflare Access provider audience checked. CPU budget/dispatch and GPU execution remain off.
+
+INDEPENDENT POST-DEPLOY PROVIDER READBACK: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39147347026 — latest rerun SUCCESS: all eight unauthenticated sensitive endpoints redirected to Cloudflare Access; original V0.2 and dedicated V0.3 Worker mappings, signed Access JWT audience, SQLite DO and R2 bindings all verified; CPU/GPU budget controls remain off.
+
+Human two-person production approval, cost-protected V0.3 CPU rendering, and actual hosted Cloudflare disposable PITR recovery are not yet verified. No second user identity was fabricated and no paid rendering or live customer restore was executed.
