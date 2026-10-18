@@ -4,6 +4,7 @@ on:
     branches: [experiments/studio-enterprise-v03-d1-20261018]
     paths:
       - '.github/workflows/studio-v03-source-handoff-20261018.yml'
+      - 'docs/STUDIO_ENTERPRISE_V03_SOURCE_QUALIFICATION_20261018.md'
 permissions: {contents: read}
 jobs:
   complete-source-handoff:
@@ -31,7 +32,8 @@ jobs:
           additions=[
             'docs/STUDIO_ENTERPRISE_V03_SOURCE_QUALIFICATION_20261018.md',
             '.github/workflows/studio-v03-d1-enterprise-offline-20261018.yml',
-            '.github/workflows/studio-v03-d1-permission-readonly-20261018.yml'
+            '.github/workflows/studio-v03-d1-permission-readonly-20261018.yml',
+            '.github/workflows/studio-v03-wrangler-local-d1-20261018.yml'
           ]
           for path in allow:
             source=root/path; assert source.is_file(),path
