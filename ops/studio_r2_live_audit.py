@@ -57,10 +57,20 @@ def summarize_state(raw):
         'browser_initiated_verified': False,
         'staff_identity_verified': False,
     }
+    allowed_actions = {'PROJECT_CREATED', 'JOB_SUBMITTED', 'JOB_APPROVED',
+                       'DISPATCH_STARTED', 'DISPATCH_ACCEPTED', 'DISPATCH_FAILED',
+                       'RENDER_COMPLETED', 'RENDER_FAILED'}
+    receipt['recorded_lifecycle_event_types'] = [ev['action'] for ev in state['audit'][-20:]
+        if isinstance(ev, dict) and isinstance(ev.get('action'), str) and ev['action'] in allowed_actions]
     completed = [j for j in reversed(jobs) if j.get('state') == 'COMPLETED']
     manifest = {}
     if completed:
         job = completed[0]
+        receipt['latest_completed_device'] = job.get('render_device') if job.get('render_device') in ('CPU', 'GPU') else 'UNKNOWN'
+        for key in ('created_at', 'finished_at'):
+            value = job.get(key)
+            receipt['latest_completed_' + key + '_utc'] = (value if isinstance(value, str)
+                and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z', value) else None)
         uid = job.get('id')
         assets = job.get('assets')
         if not isinstance(uid, str) or not UUID.fullmatch(uid) or not isinstance(assets, dict) or set(assets) != set(FILES):
