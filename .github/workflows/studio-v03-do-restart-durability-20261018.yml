@@ -48,7 +48,7 @@ jobs:
           persistent="$PWD/.wrangler/v03-restart-qualification"
           local_url="http://127.0.0.1:8797"
           start() {
-            npx wrangler dev --local --config wrangler.v03.restart-ci.jsonc \
+            setsid npx wrangler dev --local --config wrangler.v03.restart-ci.jsonc \
               --persist-to "$persistent" --ip 127.0.0.1 --port 8797 \
               > /tmp/studio-v03-restart-ci.log 2>&1 &
             worker=$!
@@ -61,8 +61,15 @@ jobs:
             if [ "$ready" != true ]; then tail -35 /tmp/studio-v03-restart-ci.log;exit 1;fi
           }
           stop() {
-            kill "$worker" 2>/dev/null || true
+            kill -TERM -- "-$worker" 2>/dev/null || true
             wait "$worker" 2>/dev/null || true
+            closed=false
+            for trial in $(seq 1 20); do
+              http=$(curl --silent --max-time 1 --output /dev/null --write-out '%{http_code}' "$local_url/api/projects" || true)
+              if [ "$http" = 000 ] || [ -z "$http" ];then closed=true;break;fi
+              sleep 1
+            done
+            test "$closed" = true || { echo 'ORPHAN_WORKER_STILL_LISTENING';exit 1; }
           }
           trap 'stop 2>/dev/null || true' EXIT
           start
