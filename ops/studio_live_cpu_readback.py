@@ -20,7 +20,7 @@ def get(path):
 def main():
  out={"schema":"musitu.studio.live-cpu-worker-acceptance.v1","read_only":True,
    "existing_axiom_resources_mutated":False,"worker":NAME,
-   "custom_hostname":HOST,"external_browser_access_verification":"BLOCKED_BY_CF_ERROR_1010",
+   "custom_hostname":HOST,"external_browser_access_verification":"NOT_YET_VERIFIED_REQUIRES_REAL_STAFF_ANDROID_BROWSER_SESSION",
    "live_cloudflare_modal_cpu_job_via_browser_verified":False}
  settings=get(f"/accounts/{AID}/workers/scripts/{NAME}/settings")
  bindings=settings.get("bindings") if isinstance(settings,dict) else None
