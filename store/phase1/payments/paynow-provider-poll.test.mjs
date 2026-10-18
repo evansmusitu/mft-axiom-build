@@ -133,3 +133,49 @@ test('the full independent poll may only be mocked on explicitly isolated CI',as
    assert.equal(p.calls.length,0);
  }finally{if(before===undefined)delete process.env.CI;else process.env.CI=before;}
 });
+
+
+function abruptlyClosedProvider(phase){
+  const calls=[];
+  const requestImpl=(target,options,onResponse)=>{
+    calls.push({target:String(target),options});
+    const req=new EventEmitter();
+    req.setTimeout=()=>req;
+    req.destroy=()=>{};
+    req.end=()=>queueMicrotask(()=>{
+      if(phase==='request'){
+        req.emit('close');
+        return;
+      }
+      const res=new PassThrough();
+      res.statusCode=200;
+      res.headers={'content-type':'text/plain'};
+      onResponse(res);
+      res.write('reference=ORDER-POLL-103&paynowreference=PARTIAL');
+      // A real socket may close prematurely without an 'error' or 'aborted'
+      // event. Such a response never becomes a signed provider confirmation.
+      res.destroy();
+    });
+    return req;
+  };
+  return {requestImpl,calls};
+}
+function deadlineGuard(promise){
+  let timer;
+  const deadline=new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Error('TEST_HUNG_UNHANDLED_PROVIDER_CONNECTION')),600);
+  });
+  return Promise.race([promise,deadline]).finally(()=>clearTimeout(timer));
+}
+test('early TLS response close without end rejects promptly and never journals partial payment',async t=>{
+  const provider=abruptlyClosedProvider('response');
+  const {result,d}=execute(t,provider);
+  await assert.rejects(deadlineGuard(result),/^Error: private Paynow provider poll: provider response closed before completion$/i);
+  assert.deepEqual(readdirSync(d.ledgerDirectory),[]);
+});
+test('TLS request close before receiving HTTP headers rejects promptly without writing payment history',async t=>{
+  const provider=abruptlyClosedProvider('request');
+  const {result,d}=execute(t,provider);
+  await assert.rejects(deadlineGuard(result),/^Error: private Paynow provider poll: provider request closed before completion$/i);
+  assert.deepEqual(readdirSync(d.ledgerDirectory),[]);
+});
