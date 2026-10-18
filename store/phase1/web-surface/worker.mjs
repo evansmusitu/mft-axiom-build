@@ -1,5 +1,6 @@
 import {CATALOG_RAW,CATALOG_SIG_RAW,IOS_SOURCE_RAW,WEB_ADAPTER_RAW,FDROID_INDEX_RAW,SBOM_RAW,DEPENDENCIES_RAW,CHANNELS_RAW,ROLLBACK_RAW,BOOTSTRAP_RAW,CATALOG} from './generated-data.mjs';
 import {STORE_CSS} from './assets.mjs';
+import {STORE_ICON_BASE64} from './pwa-icons.mjs';
 import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle} from './render.mjs';
 
 const SECURITY={
@@ -9,7 +10,7 @@ const SECURITY={
 };
 const LOCALES={default:'en',supported:['en','sn','nd']};
 const HOME_TITLE={en:'Open MUSITU instantly in your browser.',sn:'Vhura MUSITU pakarepo mubrowser yako.',nd:'Vula i-MUSITU khonokho kusiphequluli sakho.'};
-const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store/',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.'})+'\n';
+const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store/',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.',icons:[{src:'/store/assets/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},{src:'/store/assets/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]})+'\n';
 const STORE_JS=String.raw`'use strict';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load',()=>{
@@ -44,6 +45,12 @@ const RELEASE_ASSETS={
   '/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk':{key:'android/MUSITU_Chemistry_Mastery_1.3.0.apk',sha256:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',bytes:5892286,type:'application/vnd.android.package-archive',name:'MUSITU_Chemistry_Mastery_1.3.0.apk'}
 };
 function response(body,status=200,type='text/html; charset=utf-8',extra={}){return new Response(body,{status,headers:{...SECURITY,'Content-Type':type,...extra}})}
+function iconResponse(size){
+  const encoded=STORE_ICON_BASE64[size];
+  if(!encoded)return notFound();
+  const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));
+  return response(bytes,200,'image/png',{'Cache-Control':'public, max-age=31536000, immutable','Content-Length':String(bytes.length)});
+}
 function exact(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'public, max-age=300'})}
 function releaseTruth(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'no-store'})}
 function headify(req,res){return req.method==='HEAD'?new Response(null,{status:res.status,headers:res.headers}):res}
@@ -134,6 +141,8 @@ export default {async fetch(request,env){
     case '/store/locales.json': r=exact(JSON.stringify(LOCALES)+'\n'); break;
     case '/store/manifest.webmanifest': r=response(MANIFEST_RAW,200,'application/manifest+json; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     case '/store/sw.js': r=response(STORE_SW,200,'application/javascript; charset=utf-8',{'Cache-Control':'no-cache'}); break;
+    case '/store/assets/icon-192.png': r=iconResponse(192); break;
+    case '/store/assets/icon-512.png': r=iconResponse(512); break;
     case '/store/assets/store.js': r=response(STORE_JS,200,'application/javascript; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     case '/store/assets/store.css': r=response(STORE_CSS,200,'text/css; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     default: r=notFound();
