@@ -71,7 +71,9 @@ final class V2SignedAndroidCatalog {
       java.math.BigInteger exact=new java.math.BigDecimal(raw.toString()).toBigIntegerExact();
       long max=Math.min(limit,9007199254740991L);
       require(exact.signum()>0&&exact.compareTo(java.math.BigInteger.valueOf(max))<=0,"invalid "+key);
-      return exact.longValueExact();
+      // Bound above to <=2^53-1 first: longValue() is then exact and works
+      // on Android API24+, where BigInteger.longValueExact() is unavailable.
+      return exact.longValue();
     }catch(NumberFormatException|ArithmeticException invalid){
       throw new SecurityException("invalid exact signed catalog integer: "+key,invalid);
     }
