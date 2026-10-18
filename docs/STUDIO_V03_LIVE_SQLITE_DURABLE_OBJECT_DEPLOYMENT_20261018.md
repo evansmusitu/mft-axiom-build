@@ -75,3 +75,35 @@ The dedicated hostname is accessible for approved staff login at **https://studi
 
 ### Operational gates retained
 The staff-only V0.3 app is already deployed at `https://studio-v03.mftintelligence.com/`. The existing `https://studio.mftintelligence.com/` production V0.2 CPU renderer remains separate and operational. **Compute dispatch, spending approval and GPU remain OFF** in V0.3. The next actual end-to-end acceptance step is a second separately approved staff identity receiving reviewer membership, reviewing one of the pending V0.3 jobs, and later a controlled CPU render only after allowance/expense controls have been independently verified. The one observed staff login cannot by itself satisfy the two-person qualification.
+
+## 18 October 2026 — Recovery control, spending verification and final security evidence
+
+### Genuine provider billing readback; no CPU spending clearance
+[Modal billing read-only audit 39146515306](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146515306) **SUCCESS**. Authorized Modal CLI could read its current billing-cycle summary, deployed `musitu-studio-v02` app metadata, and `render_cpu_pull` function. It confirmed billed/metered usage fields exist, but **did not establish a zero-out-of-pocket hard spending cap or remaining free credits**. The Modal Starter offering is pay-as-you-go beyond its monthly free credits. This means **CPU dispatch and GPU may NOT be enabled on V0.3**, notwithstanding that V0.2 previously completed a real CPU render. No Modal compute was started by this audit.
+
+### Complete isolated backup/restore, not falsely claimed as provider PITR
+The first attempt [39146579509](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146579509) discovered a test-harness flaw: stopping only the `npx` wrapper left the `workerd` process alive and the restored dataset was still showing post-snapshot changes. We fixed the CI to launch `workerd` in a dedicated process session, terminate the **entire process group**, and assert the port is closed before snapshot/restore. No live user data were involved.
+
+[Fixed real Workerd SQLite backup-and-restore drill 39146647685](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146647685) **SUCCESS**:
+1. Create a project in disposable DO SQLite storage.
+2. Stop the entire Workerd process group and copy the disk-backed store.
+3. Restart, add a second project, prove two projects exist.
+4. Stop the entire process group, restore the saved SQLite dataset, restart.
+5. Verify **only original project survives** and a different staff identity is still forbidden.
+
+[Requalified two-restart durability 39146675649](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146675649) **SUCCESS** with the corrected verified process shutdown; both actual restarts retained SQLite records and owner isolation. **These are real local disk-image recovery tests, not a live Cloudflare 30-day PITR production restore.** Do not restore the live primary DO to test recovery.
+
+### Owner-only non-destructive live recovery inspection
+A new **GET /api/recovery/readiness** route is implemented in the private SQLite DO and is available only to a *signed Cloudflare Access actor who owns at least one Studio V0.3 project*. It returns schema version, a Boolean indicating whether the Cloudflare `getCurrentBookmark()` API worked, and explicit `backup_bookmark_exposed:false` and `destructive_restore_triggered:false`. It never returns the bookmark or attempts a restore. Other staff receive HTTP 403.
+
+The Android Studio dashboard includes **Check database recovery readiness**; the action is read-only and requires a real authorized owner session. TDD [negative run 39146794706](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146794706) failed before implementation, then [fixed Workerd regression run 39146852963](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146852963) **SUCCESS** with **46/46** regression tests plus a real Workerd owner-allowed/outsider-denied recovery-readiness HTTP check. This local test cannot claim that the production bookmark API returned true.
+
+[Guarded production recovery-readiness release 39147014327](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39147014327) **SUCCESS**. Reverified V0.3 Access audience and exact email-only policies, original V0.2 hostname, no-CPU/no-GPU spend gates; deployed only isolated V0.3 Worker. External anonymous Access redirect check passed. [Fresh final independent seven-route security readback 39114762303, latest attempt](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39114762303) **SUCCESS**: all seven sensitive routes redirect anonymous callers to Cloudflare Access and the provider confirmed original V0.2 Worker/hostname unchanged, V0.3 SQLite DO + R2 bindings intact, budget/CPU/GPU flags remain OFF.
+
+### Actual remaining human/provider qualification
+- **Second distinct approved staff identity** must log in, be assigned reviewer by the project owner, and approve a pending V0.3 job. The owner cannot legitimately self-approve; inventing a second identity or weakening approval is prohibited.
+- **Real approved staff browser** should click **Check database recovery readiness**; backend evaluates real Cloudflare PITR bookmark support. No real *restore* is executed.
+- **V0.3 CPU render** requires independently established and enforced Modal spending cap/free allowance, verified scoped worker control-key secret and legitimate reviewer approval. The fact that V0.2 rendered with Modal does not fulfill the V0.3 production pipeline. Modal GPU entitlement remains separately unverified/blocked.
+- **Actual Cloudflare PITR provider restore rehearsal** must be executed only against an isolated disposable object; local backup/restore and PITR-readiness are not interchangeable with 30-day provider recovery.
+
+Existing staff-only V0.3 live site: https://studio-v03.mftintelligence.com/ . Existing independent working V0.2: https://studio.mftintelligence.com/ . No credentials, login cookies, actual customer scene content or staff addresses are included in this evidence.
