@@ -14,6 +14,10 @@ on:
       - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstalledPackageState.java'
       - 'store/phase1/android-client/app/src/debug/AndroidManifest.xml'
       - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstallBridge.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2InstallerUriLeasePolicy.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2InstallerUriLeaseReceiver.java'
+      - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2InstallerUriLeaseContract.java'
+      - 'store/phase1/android-client/app/src/main/AndroidManifest.xml'
       - 'store/phase1/android-client/run-v2-api30-qualification.sh'
       - 'store/phase1/android-client/run-v2-api30-visible-consent.py'
       - 'store/phase1/android-client/app/build.gradle'
@@ -99,6 +103,29 @@ jobs:
           assert not any('release' in p and hit for p,hit in names),names
           print('MUSITU_API30_TEST_PACKAGE_VISIBILITY_DEBUG_ONLY=PASS')
           PY
+      - name: Enforce bounded V2 installer URI read-grant lifecycle contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=store/phase1/android-client
+          classes="$(mktemp -d)"
+          javac -d "$classes" \
+            "$ROOT/app/src/main/java/com/musitu/store/V2InstallerUriLeasePolicy.java" \
+            "$ROOT/app/src/test/java/com/musitu/store/V2InstallerUriLeaseContract.java"
+          java -cp "$classes" com.musitu.store.V2InstallerUriLeaseContract
+          python3 - <<'PYTEST'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path('store/phase1/android-client/app/src/main/AndroidManifest.xml')
+          m=ET.parse(root).getroot()
+          ns='{http://schemas.android.com/apk/res/android}'
+          receivers=[x for x in m.findall('./application/receiver') if x.get(ns+'name')=='.V2InstallerUriLeaseReceiver']
+          assert len(receivers)==1 and receivers[0].get(ns+'exported')=='false', 'expiry receiver must be private'
+          names=[x.get(ns+'name') for x in m.findall('./uses-permission')]
+          assert 'android.permission.QUERY_ALL_PACKAGES' not in names, 'broad app inventory forbidden'
+          print('MUSITU_STORE_V2_PRIVATE_ALARM_RECEIVER_AND_SCOPED_VISIBILITY=PASS')
+          PYTEST
+          gradle -p "$ROOT" --no-daemon :app:testDebugUnitTest
       - name: Enable emulator hardware virtualization if available
         shell: bash
         run: |
