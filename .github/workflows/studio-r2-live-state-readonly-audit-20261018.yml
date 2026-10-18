@@ -1,0 +1,48 @@
+name: MUSITU Studio — Private R2 Pilot State Read-only Audit
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - '.github/workflows/studio-r2-live-state-readonly-audit-20261018.yml'
+      - 'ops/studio_r2_live_audit.py'
+      - 'ops/test_studio_r2_live_audit.py'
+permissions:
+  contents: read
+concurrency:
+  group: studio-readonly-r2-control-state-audit-20261018
+  cancel-in-progress: true
+jobs:
+  audit-production-r2-no-writes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Privacy/integrity regression tests — no external provider access
+        run: |
+          python -m py_compile ops/studio_r2_live_audit.py
+          python -m unittest discover -s ops -p 'test_studio_r2_live_audit.py' -v
+      - name: Install pinned repository Wrangler for R2 GET only
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Inspect actual dedicated Studio R2 state and at most three assets — GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$CF_API_TOKEN}"
+          python ops/studio_r2_live_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-production-r2-control-state-readonly-20261018
+          path: studio-r2-state-readonly-audit-20261018.json
+          if-no-files-found: warn
+          retention-days: 14
