@@ -89,3 +89,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 9
+          include-hidden-files: true # Needed for .github/workflows under tracked source snapshot
