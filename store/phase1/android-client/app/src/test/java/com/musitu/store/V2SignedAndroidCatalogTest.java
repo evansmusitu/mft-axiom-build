@@ -134,4 +134,17 @@ public final class V2SignedAndroidCatalogTest {
       .getJSONObject(0).put("bytes",9000000000L);
     try{accept(j);fail("oversized package accepted");}catch(SecurityException expected){}
   }
+  @Test public void androidSignedCatalogCannotRoundUnsafeVersionOrRevisionNumbers()throws Exception{
+    // JS root verifier uses Number.isSafeInteger. Java must reject the same
+    // >2^53 numbers rather than silently rounding through doubleValue().
+    JSONObject unsafe=new JSONObject().put("number",9007199254740993L);
+    try{V2SignedAndroidCatalog.positive(unsafe,"number",Long.MAX_VALUE);
+      fail("out-of-range version/revision accepted despite JS signature verifier rejecting it");
+    }catch(SecurityException expected){assertTrue(expected.getMessage().contains("number"));}
+    JSONObject largestSafe=new JSONObject().put("number",9007199254740991L);
+    assertEquals(9007199254740991L,V2SignedAndroidCatalog.positive(largestSafe,"number",Long.MAX_VALUE));
+    JSONObject catalog=baseline().put("revision",9007199254740993L);
+    try{accept(catalog);fail("unsafe signed revision admitted");}
+    catch(SecurityException expected){assertTrue(expected.getMessage().contains("revision"));}
+  }
 }
