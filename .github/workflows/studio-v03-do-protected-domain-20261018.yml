@@ -1,0 +1,106 @@
+name: MUSITU Studio V0.3 — Protected Dedicated Domain Activation
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-protected-domain-20261018.yml']
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-protected-domain-only
+  cancel-in-progress: false
+jobs:
+  protected-domain-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bind only NEW exact V03 hostname after signed Access/policy/Worker preflights
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,pathlib,re
+          account='93f395f5121954671f92fffa453d6b61'
+          host='studio-v03.mftintelligence.com'
+          worker='musitu-studio-v03-do'
+          base='https://api.cloudflare.com/client/v4'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          receipt={'schema':'musitu.studio.v03.protected-dedicated-domain.v1',
+            'new_hostname':host,'access_app_and_policy_verified':False,
+            'worker_signed_jwt_audience_verified':False,'gpu_and_cpu_spend_gates_off':False,
+            'worker_do_sqlite_binding_verified':False,'target_domain_absent_before':False,
+            'provider_put_http_status':None,'worker_domain_attached':False,
+            'staff_only_policy_preserved':False,'global_zone_security_mutated':False,
+            'production_studio_v02_mutated':False,'axiom_mutated':False,
+            'outcome':'NO_CHANGES'}
+          def call(method,path,payload=None):
+            h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+            if payload is not None:h['Content-Type']='application/json'
+            data=json.dumps(payload).encode() if payload is not None else None
+            req=urllib.request.Request(base+path,headers=h,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=22) as r:
+                j=json.load(r);return r.status,j.get('result') if j.get('success') else None
+            except urllib.error.HTTPError as e:return e.code,None
+            except (OSError,ValueError):return 0,None
+          try:
+            a,apps=call('GET','/accounts/'+account+'/access/apps?per_page=100')
+            targets=[x for x in apps or [] if isinstance(x,dict) and x.get('domain')==host
+              and x.get('name')=='MUSITU Studio Enterprise V03' and x.get('type')=='self_hosted']
+            assert a==200 and len(targets)==1,'ACCESS_APP_NOT_UNIQUE'
+            app=targets[0]
+            a,policies=call('GET','/accounts/'+account+'/access/apps/'+app['id']+'/policies')
+            allows=[p for p in policies or [] if p.get('decision')=='allow']
+            assert a==200 and len(allows)==2 and len(policies)==2,'ACCESS_POLICIES_UNVERIFIED'
+            assert all(p.get('include') and all(
+              isinstance(x,dict) and set(x)=={'email'} and
+              isinstance(x['email'].get('email'),str) and '@' in x['email']['email']
+              for x in p['include']) for p in allows),'ACCESS_EMAIL_ONLY_REQUIRED'
+            receipt['access_app_and_policy_verified']=True
+            s,settings=call('GET','/accounts/'+account+'/workers/scripts/'+worker+'/settings')
+            assert s==200 and isinstance(settings,dict),'STUDIO_WORKER_UNREADABLE'
+            bs=settings.get('bindings') or []
+            vars={b.get('name'):b.get('text') for b in bs if b.get('type')=='plain_text'}
+            receipt['worker_signed_jwt_audience_verified']=bool(re.fullmatch(r'[a-fA-F0-9]{64}',str(app.get('aud','')))) and (
+              vars.get('STUDIO_ACCESS_POLICY_AUD')==app['aud'] and
+              bool(re.fullmatch(r'https://[a-z0-9-]+\.cloudflareaccess\.com',str(vars.get('STUDIO_ACCESS_TEAM_DOMAIN','')))))
+            receipt['gpu_and_cpu_spend_gates_off']=(vars.get('ENABLE_RENDER_DISPATCH')=='false'
+              and vars.get('BUDGET_GUARD_APPROVED')=='false' and vars.get('GPU_EXECUTION_APPROVED')=='false')
+            receipt['worker_do_sqlite_binding_verified']=any(b.get('type')=='durable_object_namespace'
+              and b.get('name')=='STUDIO_LEDGER' for b in bs)
+            assert all(receipt[k] for k in ('worker_signed_jwt_audience_verified',
+              'gpu_and_cpu_spend_gates_off','worker_do_sqlite_binding_verified')),'WORKER_JWT_OR_SPEND_GATES_NOT_VERIFIED'
+            d,domains=call('GET','/accounts/'+account+'/workers/domains')
+            assert d==200 and isinstance(domains,list),'DOMAINS_NOT_READABLE'
+            assert not any(x.get('hostname')==host for x in domains),'HOSTNAME_ALREADY_CLAIMED'
+            receipt['target_domain_absent_before']=True
+            z,zones=call('GET','/zones?name=mftintelligence.com&status=active')
+            matches=[x for x in zones or [] if isinstance(x,dict)
+              and x.get('name')=='mftintelligence.com' and (x.get('account') or {}).get('id')==account]
+            assert z==200 and len(matches)==1,'ZONE_NOT_UNIQUE'
+            zone_id=matches[0]['id']
+            code,new=call('PUT','/accounts/'+account+'/workers/domains',
+              {'hostname':host,'service':worker,'zone_id':zone_id,'zone_name':'mftintelligence.com'})
+            receipt['provider_put_http_status']=code
+            assert code in (200,201) and isinstance(new,dict) and new.get('hostname')==host and new.get('service')==worker,'HOST_ATTACH_REJECTED'
+            s,now=call('GET','/accounts/'+account+'/workers/domains')
+            receipt['worker_domain_attached']=s==200 and len([x for x in now or []
+              if x.get('hostname')==host and x.get('service')==worker])==1
+            p,post=call('GET','/accounts/'+account+'/access/apps/'+app['id']+'/policies')
+            receipt['staff_only_policy_preserved']=p==200 and len(post or [])==2 and all(
+              x.get('decision')=='allow' and x.get('include') and
+              all(set(v)=={'email'} for v in x['include']) for x in post or [])
+            receipt['outcome']='EXACT_HOST_PROTECTED_AND_BOUND' if (
+              receipt['worker_domain_attached'] and receipt['staff_only_policy_preserved']) else 'DOMAIN_READBACK_FAILED'
+          except (AssertionError,TypeError,KeyError) as e:
+            receipt['outcome']=str(e)
+          pathlib.Path('studio-v03-protected-domain.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_PROTECTED_DOMAIN='+json.dumps(receipt,sort_keys=True))
+          assert receipt['outcome']=='EXACT_HOST_PROTECTED_AND_BOUND'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-access-protected-domain-only
+          path: studio-v03-protected-domain.json
+          retention-days: 14
