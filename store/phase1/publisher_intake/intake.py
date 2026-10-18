@@ -137,7 +137,18 @@ def inspect_apk(path):
     cert_output=_tool([_sdk_tool('apksigner'),'verify','--print-certs',path])
     certs=re.findall(r'(?m)^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$',
                      cert_output)
-    _require(len(certs)==1,'exactly one independently verified APK signer required')
+    if len(certs)!=1:
+        # Safe parser diagnostics: disclose lengths/shape only, never publisher
+        # certificate digests, DN identity, or APK bytes.
+        shapes=[]
+        for line in cert_output.splitlines():
+            if 'certificate SHA-256 digest:' in line:
+                digest_text=line.split('digest:',1)[-1].strip()
+                shapes.append({'chars':len(digest_text),
+                               'hex':bool(re.fullmatch(r'[0-9a-fA-F]+',digest_text)),
+                               'line_prefix_space':len(line)-len(line.lstrip())})
+        raise IntakeRejected('single APK signer not parsed; stdout_chars='+
+                             str(len(cert_output))+' sha256_shapes='+str(shapes))
     badging=_tool([_sdk_tool('aapt'),'dump','badging',path])
     packages=re.findall(r"(?m)^package: name='([^']+)' versionCode='([0-9]+)'",badging)
     _require(len(packages)==1,'APK package identity unavailable')
