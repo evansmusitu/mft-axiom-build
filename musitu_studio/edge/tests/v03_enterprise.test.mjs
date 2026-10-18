@@ -250,3 +250,32 @@ test('isolated R2 byte mismatch is detected at output download',async()=>{
  const failed=await f.call('person-a','/api/jobs/'+id+'/assets/scene.glb');
  assert.equal(failed.status,409);assert.equal(failed.body.error,'ASSET_INTEGRITY_FAILED');
 });
+
+test('caps free-tier project creation to ten per verified owner without leaking other tenants',async()=>{
+ const f=fixture();
+ for(let n=0;n<10;n++){
+   const made=await f.call('person-a','/api/projects','POST',{title:'Free Studio '+n});
+   assert.equal(made.status,201,JSON.stringify(made.body));
+ }
+ const denied=await f.call('person-a','/api/projects','POST',{title:'overflow'});
+ assert.equal(denied.status,429,JSON.stringify(denied.body));
+ assert.equal(denied.body.error,'PROJECT_QUOTA_EXCEEDED');
+ assert.equal(f.db.db.prepare('SELECT COUNT(*) AS n FROM projects WHERE owner_sub=?').get('person-a').n,10);
+ assert.equal((await f.call('person-b','/api/projects','POST',{title:'Independent team project'})).status,201);
+ assert.equal((await f.call('person-b','/api/projects')).body.projects.length,1);
+});
+test('caps free-tier submissions to fifty per project without consuming quota for a duplicate',async()=>{
+ const f=fixture(),id=await project(f);
+ for(let n=0;n<50;n++){
+   const key='idempotent-'+String(n).padStart(8,'0');
+   const submitResult=await f.call('person-a','/api/jobs','POST',submit(id,key));
+   assert.equal(submitResult.status,201,JSON.stringify(submitResult.body));
+ }
+ const duplicate=await f.call('person-a','/api/jobs','POST',submit(id,'idempotent-00000000'));
+ assert.equal(duplicate.status,200);
+ assert.equal(duplicate.body.duplicate,true);
+ const denied=await f.call('person-a','/api/jobs','POST',submit(id,'idempotent-00000050'));
+ assert.equal(denied.status,429,JSON.stringify(denied.body));
+ assert.equal(denied.body.error,'PROJECT_JOB_QUOTA_EXCEEDED');
+ assert.equal(f.db.db.prepare('SELECT COUNT(*) AS n FROM jobs WHERE project_id=?').get(id).n,50);
+});
