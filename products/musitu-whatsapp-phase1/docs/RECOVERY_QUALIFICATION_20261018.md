@@ -1,5 +1,12 @@
 # Real database recovery qualification — 18 October 2026
 
+**Later same-day extension:** The manual independent encrypted export, technical
+escrow-key recovery and empty-database restore described in
+`ENCRYPTED_POSTGRES_BACKUP_20261018.md` subsequently passed. The remaining limits
+below describe this earlier HEAD-copy drill; use the extension for current
+manual export/key-recovery status. Scheduling, alerts and full SaaS recovery
+remain unqualified.
+
 The current isolated Neon database passed a genuine compute restart and a separate
 HEAD branch recovery-copy drill, including migration 014 and its durable AI ledgers.
 This does not establish independent backups or full application recovery.

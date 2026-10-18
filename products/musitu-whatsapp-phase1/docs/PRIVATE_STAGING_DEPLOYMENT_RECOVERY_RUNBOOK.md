@@ -43,6 +43,18 @@ Model and AXIOM integration remain blocked pending approved identities/credentia
 
 ## Restart and recovery
 
+**18 October encrypted export extension:** A separate manual encrypted export and
+empty-database restore now passed, including retrieval of independently saved
+bytes and key retrieval after removing the local backup key. All 22 tables/277
+rows, schema and role/RLS fingerprints match; eight fixture messages and six
+encrypted test-session payloads opened with recovered application keys. Restore
+branch `br-curly-hall-b4bv8rl7`, database `musitu_restore_20261018`, endpoint
+`ep-royal-meadow-b4oa1xgm` (disabled/idle). See
+`ENCRYPTED_POSTGRES_BACKUP_20261018.md` for the actual encrypted artifact identity,
+escrow variable, exact digest, guarded restore procedure and remaining limits.
+This qualifies the manual technical export/key-retrieval/restore path, not
+automated scheduling, alerts, second-custodian escrow or SaaS recovery acceptance.
+
 **18 October current-schema result:** A genuine restart of the original endpoint
 and separate HEAD recovery copy passed exact counts/SHA-256 checks across all 22
 business/identity tables, including migration 014. Schema fingerprints, roles,
