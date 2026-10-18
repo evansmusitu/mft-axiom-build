@@ -30,6 +30,9 @@ const auditStmt=(env,p,j,action,subject,details={})=>q(env.STUDIO_DB,
   'INSERT INTO audit_events(id,project_id,job_id,action,actor_sub,at,details) VALUES(?,?,?,?,?,?,?)',
   crypto.randomUUID(),p,j,action,subject,now(),JSON.stringify(details));
 const audit=async (...args)=>(await auditStmt(...args).run());
+const auditIfUpdated=(env,p,j,action,subject,details={})=>q(env.STUDIO_DB,
+  'INSERT INTO audit_events(id,project_id,job_id,action,actor_sub,at,details) SELECT ?,?,?,?,?,?,? WHERE changes()=1',
+  crypto.randomUUID(),p,j,action,subject,now(),JSON.stringify(details));
 async function permit(env,id,actor,operation){
   const m=await q(env.STUDIO_DB,
     'SELECT role FROM memberships WHERE project_id=? AND member_sub=?',id,actor.sub).first();
@@ -254,7 +257,7 @@ async function api(req,env,url,actor){
         q(env.STUDIO_DB,
           "UPDATE jobs SET state='DISPATCHING',dispatched_at=?,dispatched_by_sub=? WHERE id=? AND state='APPROVED' AND (SELECT COUNT(*) FROM jobs WHERE state IN ('RUNNING','DISPATCHING'))<2 AND (SELECT COUNT(*) FROM jobs WHERE dispatched_at>=substr(?,1,10) AND dispatched_at<date(substr(?,1,10),'+1 day'))<?",
           t,actor.sub,id,t,t,max),
-        auditStmt(env,job.project_id,id,'DISPATCH_STARTED',actor.sub)
+        auditIfUpdated(env,job.project_id,id,'DISPATCH_STARTED',actor.sub)
       ]);
     }catch{return err('DISPATCH_AUDIT_TRANSACTION_FAILED',503)}
     if(started[0]?.meta?.changes!==1)return err('DISPATCH_CONCURRENCY_OR_DAILY_CAP',429);
@@ -269,7 +272,7 @@ async function api(req,env,url,actor){
         throw Error('INVALID_ACK');
       const acknowledged=await env.STUDIO_DB.batch([
         q(env.STUDIO_DB,"UPDATE jobs SET state='RUNNING',call_id=? WHERE id=? AND state='DISPATCHING'",remote.call_id,id),
-        auditStmt(env,job.project_id,id,'DISPATCH_ACCEPTED',null,{mode:'PULL'})
+        auditIfUpdated(env,job.project_id,id,'DISPATCH_ACCEPTED',null,{mode:'PULL'})
       ]);
       if(acknowledged[0]?.meta?.changes!==1)throw Error('ACK_RACE');
       return json({ok:true,state:'RUNNING',job_id:id},202);
@@ -279,7 +282,7 @@ async function api(req,env,url,actor){
       try{
         const uncertain=await env.STUDIO_DB.batch([
           q(env.STUDIO_DB,"UPDATE jobs SET state='NEEDS_REVIEW',error_code='UNKNOWN_REMOTE_OUTCOME' WHERE id=? AND state='DISPATCHING'",id),
-          auditStmt(env,job.project_id,id,'DISPATCH_AMBIGUOUS_NO_RETRY',null)
+          auditIfUpdated(env,job.project_id,id,'DISPATCH_AMBIGUOUS_NO_RETRY',null)
         ]);
         if(uncertain[0]?.meta?.changes!==1)return err('DISPATCH_RECONCILIATION_REQUIRED',503);
       }catch{
