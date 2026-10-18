@@ -40,3 +40,16 @@ No deceptive physical handset attestation: Access JWT proves an authenticated st
 No automated retrigger of ambiguous Modal dispatches: NEEDS_REVIEW requires manual provider reconciliation to prevent duplicate paid jobs.
 No GPU execution, provider billing changes, production Worker replacement, zone-wide WAF downgrade, Axiom branch mutations or migration of prior v02 single-admin CAS without audited approval.
 D1 v03 schema is separate; staged source can be reviewed indefinitely without affecting live rendering.
+
+## Real Cloudflare Worker runtime + D1 emulator qualification, 2026-10-18
+[GitHub Actions run 39112448585](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39112448585) SUCCESS, using actual Wrangler CLI/workerd and D1 local database, no Cloudflare API credential and no cloud mutation:
+- Both dedicated enterprise SQL migrations applied in local D1 and the actual local D1 binding returned all five tables (projects, memberships, jobs, assets, audit_events).
+- Actual locally started workerd denied anonymous GET on /, /studio.js, /api/projects and /api/jobs with HTTP 403.
+- Actual locally started workerd denied unsigned POST /internal/callback with HTTP 401.
+- Source Worker remains undelivered to any public v03 route; temporary config with a synthetic D1 UUID and dummy callback secret was constructed **only** inside the GitHub runner, never committed or uploaded.
+- Current integration tests [run 39112448589](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39112448589) exercise the 11 enterprise D1 SQLite integration cases and 28 v02 production-pilot backwards compatibility cases, plus v03 mobile UI syntax and intentionally undeployable config guards.
+
+The above qualifies local Worker runtime and local D1 migrations, **not** Cloudflare live multiuser D1, live v03 Access configuration, a new production render job, or GPU.
+
+### Latest release honesty
+Studio v03 remains *fully coded and locally qualified, cloud deployment pending admin permissions, isolated D1 free-plan capacity review and staff Access rollout*. The actual account returned 11 existing D1 databases and no studio-v03 dedicated database. No v03 provisioning or production cutover was attempted.
