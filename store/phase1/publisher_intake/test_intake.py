@@ -105,6 +105,9 @@ class PublisherIntakeContract(unittest.TestCase):
         package="package: name='org.fixture.vendorapp' versionCode='7' versionName='1.0'\n"
         with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one,package]):
             self.assertEqual(inspect_apk(self.apk),verified_metadata(self.apk))
+        # Real SDK inspection can include extra spaces after the digest label.
+        with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one.replace('digest: ','digest:   '),package]):
+            self.assertEqual(inspect_apk(self.apk),verified_metadata(self.apk))
         with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one+one.replace('#1','#2'),package]):
             with self.assertRaises(IntakeRejected):
                 inspect_apk(self.apk)
