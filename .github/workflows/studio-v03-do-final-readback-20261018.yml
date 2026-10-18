@@ -21,7 +21,7 @@ jobs:
             def redirect_request(self,*args,**kwargs):return None
           opener=urllib.request.build_opener(OneHop)
           root='https://studio-v03.mftintelligence.com'
-          routes=('/', '/studio.js','/api/session','/api/status','/api/projects','/api/jobs','/internal/callback')
+          routes=('/', '/studio.js','/api/session','/api/status','/api/projects','/api/jobs','/api/recovery/readiness','/internal/callback')
           result={'schema':'musitu.studio.v03.external-route-authentication.v1',
             'read_only':True,'cookie_or_callback_url_stored':False,'worker_or_cloud_mutated':False,
             'route_redirect_results':{},'every_sensitive_route_requires_access':False}
