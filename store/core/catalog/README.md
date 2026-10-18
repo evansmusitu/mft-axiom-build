@@ -123,3 +123,48 @@ node --test store/core/catalog/signed-registry-v2.test.mjs \
   store/core/catalog/signed-registry-v2-watermark.test.mjs \
   store/core/catalog/signed-artifact-stage-v2.test.mjs
 ```
+
+## Offline one-pass verified staging + durable revision admission
+
+The private operator-only function
+`stageAndCommitSignedArtifactV2({storeDirectory,cacheDirectory,verificationOptions,bootstrapAuthorized,appId,platform,sourceFile})`
+now composes the independent P-256 root-signed catalog verifier, private
+local artifact SHA-256 staging and the durable catalog revision watermark
+**within the same exclusive transaction lock**. The watermark commits only
+after the signed artifact has been privately staged and verified. If the
+APK bytes, signature, delegation, version, trust anchor, expiry, cache
+integrity or filesystem custody fail, the newer revision is **not**
+committed. A synchronous `beforeCommit` hook is required; async hooks are
+explicitly rejected. Stale catalog replay and unreviewed crash locks remain
+blocked. The result is `STAGED_PRIVATE_REVIEW_ONLY`.
+
+The actor invoking this function **must** be a trusted operator process
+with independently pinned root public key and SHA-256 fingerprint,
+approved artifact hosts, a correctly sourced trusted clock, owner-only
+state/cache directories, and an explicitly authorized first-time
+bootstrap. This interface is not a public publisher upload endpoint or
+a storefront API. It does not run an OS installer, implement consumer
+updates, grant publisher legal approval, perform payments, or provide
+a production-signed V2 catalog. Application-level installation,
+signer verification by the receiving OS, lifecycle cancellation,
+multi-node durability and independent root custody remain separate
+release gates. A hard-linked staged file may survive a crash before
+the revision commits, but it is private and cannot be treated as an
+authorized release without redoing the complete transaction.
+
+**Additional qualification:** `signed-artifact-delivery-v2.test.mjs`
+tests atomic admission, byte corruption, rollback, catalog rejection,
+poisoned cache, abandoned locks and invalid async hooks. The separate
+`signed_apk_integrated_stage.mjs` CI-only harness independently
+inspects an ephemeral APK signer/package with Android SDK tools and
+stages its actual signed bytes through this transaction using a
+throwaway root, without ever enabling production installation.
+
+```sh
+node --test store/core/catalog/signed-artifact-delivery-v2.test.mjs
+```
+
+**Phase-status invariant:** This qualification alone is not Phase 1
+completion. Keep Phase 1 RUNNING and Phase 2 PENDING until the
+independent publisher, physical device, real commerce, web and Windows,
+security, support and separate release-approval requirements have been met.
