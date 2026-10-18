@@ -1,7 +1,8 @@
 # CI-only Windows MSIX deployment acceptance. NO production installer
 # automation: this test verifies current-user OS package state but never
 # installs applications, changes trust, opens apps or publishes anything.
-param([switch]$MustBeAbsent)
+param([switch]$MustBeAbsent,
+      [ValidateSet('1.0.0.0','1.0.0.1')][string]$ExpectedVersion='1.0.0.0')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 
@@ -13,7 +14,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or $env:CI -ne 
 }
 
 $name='MUSITU.Private.WindowsFixture'
-$version='1.0.0.0'
+$version=$ExpectedVersion
 $publisher='CN=MUSITU Disposable MSIX Test'
 $packages=@(Get-AppxPackage -Name $name -ErrorAction Stop)
 if ($MustBeAbsent){
