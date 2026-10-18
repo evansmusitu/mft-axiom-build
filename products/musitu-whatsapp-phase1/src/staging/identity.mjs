@@ -30,30 +30,43 @@ export async function authenticate(req){
  const data=await unseal(row.encrypted_payload),claims=await provider().verifySession(data);
  return {subject:claims.sub};
 }
-export async function identityAction(req,action){
+export async function identityAction(req,action,{onStage=()=>{}}={}){
+ onStage('CONFIGURATION');
  const cfg=config();
  if(action==='login'&&req.method==='GET'){
+  onStage('DISCOVERY');
   await provider(cfg).qualifyDiscovery();
   const state=randomBytes(32).toString('base64url'),nonce=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const target=new URL(cfg.endpoints.authorization);
   target.search=new URLSearchParams({client_id:cfg.client,redirect_uri:cfg.origin+'/auth/callback',response_type:'code',scope:'openid profile',state,nonce,code_challenge:Buffer.from(hash(verifier),'hex').toString('base64url'),code_challenge_method:'S256'}).toString();
   if(cfg.provider==='zitadel')target.searchParams.set('max_age',String(ZITADEL_MAX_AUTH_AGE_SECONDS));
+  onStage('SESSION_ENCRYPTION');
   return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
  }
  if(action==='callback'&&req.method==='GET'){
+  onStage('FLOW_VALIDATION');
   const u=new URL(req.url),flow=await unseal(cookies(req,FLOW));
   assertIdentityFlow(flow,'login',u.searchParams.get('state'));
   if(!u.searchParams.get('code'))throw Error('OIDC_STATE_REJECTED');
+  onStage('DISCOVERY');
   await provider(cfg).qualifyDiscovery();
+  onStage('TOKEN_EXCHANGE');
   const tokens=await provider(cfg).exchange(u.searchParams.get('code'),flow.verifier);
+  onStage('TOKEN_TYPE');
   if(tokens.token_type?.toLowerCase()!=='bearer')throw Error('OIDC_TOKEN_TYPE_REJECTED');
+  onStage('ACCESS_VALIDATION');
   const accessClaims=await validate(tokens.access_token);
+  onStage('ID_VALIDATION');
   await provider(cfg).verifyId(tokens.id_token,flow,accessClaims);
+  onStage('TOKEN_EXPIRATION');
   if(!Number.isSafeInteger(tokens.expires_in)||tokens.expires_in<1||tokens.expires_in>86400)throw Error('OIDC_EXPIRATION_REJECTED');
   const proof=cfg.provider==='zitadel'?{idToken:tokens.id_token,nonce:flow.nonce}:{};
+  onStage('SESSION_ENCRYPTION');
   const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token,...proof},Math.min(3600,tokens.expires_in));
+  onStage('SESSION_PERSISTENCE');
   await sessionRow(raw,async(c,h)=>c.query('INSERT INTO musitu_identity.sessions(token_hash,encrypted_payload,expires_at) VALUES($1,$2,now()+($3::int * interval \'1 second\'))',[h,encrypted,Math.min(3600,tokens.expires_in)]));
   const headers=new Headers({location:'/', 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));
+  onStage('COMPLETE');
   return new Response(null,{status:302,headers});
  }
  if(action==='logout'&&req.method==='POST'){
