@@ -1,0 +1,124 @@
+name: MUSITU Studio V0.3 — Isolated SQLite Backup and Restore Drill
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-isolated-restore-20261018.yml']
+permissions: {contents: read}
+jobs:
+  real-workerd-disposable-backup-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install pinned runtime, no provider write credentials
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Create isolated real Durable Object, snapshot, mutate, restore SNAPSHOT, and confirm scope
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          c=json.loads(pathlib.Path('wrangler.v03.do.jsonc').read_text())
+          assert c['workers_dev'] is False and not c.get('routes')
+          assert c['vars']['GPU_EXECUTION_APPROVED']=='false'
+          c['name']='studio-v03-disposable-restore-drill'
+          c['main']='src/v03_do_restore_ci_entry.mjs'
+          pathlib.Path('wrangler.v03.restore-ci.jsonc').write_text(json.dumps(c))
+          pathlib.Path('src/v03_do_restore_ci_entry.mjs').write_text("""
+          import {StudioEnterpriseSqliteLedger} from './v03_do_entry.mjs';
+          export {StudioEnterpriseSqliteLedger};
+          // Ephemeral CI-only identity harness; absent from production V03 Worker.
+          export default {async fetch(request,env){
+            const actor=request.headers.get('x-restore-ci-actor')||'owner-ci';
+            const headers=new Headers(request.headers);
+            headers.delete('x-musitu-internal-verified-actor');
+            headers.set('x-musitu-internal-verified-actor',JSON.stringify({sub:actor,email:actor+'@ci.invalid'}));
+            const stub=env.STUDIO_LEDGER.get(env.STUDIO_LEDGER.idFromName('v03-studio-ledger-primary'));
+            return stub.fetch(new Request(request,{headers}));
+          }};
+          """)
+          PY
+          store="$PWD/.wrangler/v03-disposable-restore-persist"
+          backup="$PWD/.wrangler/v03-disposable-restore-snapshot"
+          root="http://127.0.0.1:8798"
+          mkdir -p "$(dirname "$store")"
+          start() {
+            npx wrangler dev --local --config wrangler.v03.restore-ci.jsonc \
+              --persist-to "$store" --ip 127.0.0.1 --port 8798 \
+              >/tmp/v03-disposable-restore-workerd.log 2>&1 &
+            worker=$!
+            ready=false
+            for n in $(seq 1 40); do
+              status=$(curl --silent --output /dev/null --write-out '%{http_code}' "$root/api/projects" || true)
+              if [ "$status" = 200 ];then ready=true;break;fi
+              sleep 1
+            done
+            if [ "$ready" != true ];then tail -35 /tmp/v03-disposable-restore-workerd.log;exit 1;fi
+          }
+          stop() {
+            kill "$worker" 2>/dev/null || true
+            wait "$worker" 2>/dev/null || true
+          }
+          trap 'stop 2>/dev/null || true' EXIT
+          create_project() {
+            curl --fail --silent --show-error -H 'Content-Type: application/json' \
+              -H "Origin: $root" -d "{\"title\":\"$1\"}" "$root/api/projects"
+          }
+          start
+          create_project "BEFORE SNAPSHOT" >/tmp/v03-restore-original.json
+          stop
+          test -d "$store"
+          cp -a "$store" "$backup"
+          test -d "$backup"
+          start
+          create_project "AFTER SNAPSHOT" >/tmp/v03-restore-later.json
+          python - <<'PY'
+          import urllib.request,json
+          with urllib.request.urlopen('http://127.0.0.1:8798/api/projects') as r:
+            rows=json.load(r)['projects']
+          assert len(rows)==2,rows
+          print('RESTORE_TEST_SIMULATED_MUTATION_VISIBLE=PASS')
+          PY
+          stop
+          rm -rf -- "$store"
+          cp -a -- "$backup" "$store"
+          start
+          python - <<'PY'
+          import json,urllib.request
+          original=json.load(open('/tmp/v03-restore-original.json'))['project_id']
+          with urllib.request.urlopen('http://127.0.0.1:8798/api/projects',timeout=10) as r:
+            rows=json.load(r)['projects']
+          assert len(rows)==1 and rows[0]['id']==original,rows
+          req=urllib.request.Request('http://127.0.0.1:8798/api/projects',
+            headers={'x-restore-ci-actor':'unrelated-reviewer'})
+          with urllib.request.urlopen(req,timeout=10) as r:
+            outsider=json.load(r)['projects']
+          assert outsider==[]
+          print('LOCAL_SQLITE_SNAPSHOT_RESTORED_PRE_MUTATION_AND_PRIVACY=PASS')
+          PY
+      - name: Output precise no-production-mutation evidence
+        run: |
+          python - <<'PY'
+          import pathlib,json
+          result={'schema':'musitu.studio.v03.disposable-workerd-sqlite-backup-restore.v1',
+            'real_workerd_disposable_ledger':True,
+            'snapshot_captured_only_after_process_stop':True,
+            'later_mutation_rolled_back_after_local_restore':True,
+            'restored_owner_access_and_outsider_denial_checked':True,
+            'live_cloudflare_pitr_not_tested':True,
+            'production_database_untouched':True,
+            'cloudflare_api_token_supplied_to_ci':False}
+          pathlib.Path('studio-v03-disposable-sqlite-restore.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_DISPOSABLE_RESTORE='+json.dumps(result,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-local-sqlite-restore-evidence
+          path: studio-v03-disposable-sqlite-restore.json
+          retention-days: 14
+          if-no-files-found: warn
