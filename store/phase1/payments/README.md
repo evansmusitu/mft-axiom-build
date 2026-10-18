@@ -253,3 +253,40 @@ contracts first failed against a deliberately inert audit stub (red run
 all **45/45** synthetic payment-policy, ledger and transport tests in
 run `39177500620`. No production Paynow calls or genuine financial
 transactions occurred.
+
+
+## Provider connection termination and absolute deadline (2026-10-19)
+
+The private HTTPS polling transport now handles two failure modes
+that were previously unresolved even with valid TLS and signed callback
+evidence: the request socket closing before response headers, and a
+provider response stream closing after partial bytes without emitting an
+`error`, `aborted`, or `end` event. Both are rejected promptly,
+with **zero** per-order journal or provider claim mutations. In Node,
+a normal `close` event following a completed response remains harmless.
+
+The existing 8-second socket-idle timeout was also insufficient as an
+**absolute** request deadline: a misbehaving peer could drip one byte
+periodically and keep the connection open indefinitely without tripping
+an inactivity timeout. A separate 8-second wall-clock timer now rejects
+the poll, closes the transport, and prevents any partial payment record
+from being committed, regardless of network activity. The timer is
+cancelled on all completed and failed requests.
+
+Behavior-first red/green evidence:
+
+- GitHub run `39177918886`: early request/response socket close caused
+  the poll to hang (two expected failures). Corrected error/close handling,
+  including private error provenance, then passed all 47/47 tests in
+  run `39178013232`.
+- GitHub run `39178090816`: a simulated trickle response exceeded
+  9.4 seconds without a terminal decision (one expected failure).
+  The absolute 8-second provider deadline then passed the complete
+  48-test CI run `39178154584`.
+
+All HTTPS endpoints, callbacks, merchant keys, and provider messages in
+these tests are **synthetic**, with a CI-only transport double. No live
+merchant or production payment was exercised. Absolute deadlines and
+disconnect handling improve availability and fail-closed behavior;
+they do not independently prove authenticity, settlement, entitlement,
+refund execution, or approval to deploy.
