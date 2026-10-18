@@ -1,0 +1,121 @@
+name: MUSITU Studio V0.3 — Exact Staff-only Access Application
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-access-app-20261018.yml']
+permissions: {contents: read}
+concurrency:
+  group: studio-v03-create-only-access-app
+  cancel-in-progress: false
+jobs:
+  create-private-policy-before-domain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone ONLY two exact-email staff allow policies; reject bypass/unknown
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error,pathlib,re
+          account='93f395f5121954671f92fffa453d6b61'
+          host='studio-v03.mftintelligence.com'
+          api='https://api.cloudflare.com/client/v4/accounts/'+account+'/access/apps'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          receipt={'schema':'musitu.studio.v03.staff-access-provisioning.v1',
+            'hostname':host,'new_app_created':False,'post_status':None,
+            'staff_only_readback_verified':False,
+            'policy_includes_exact_emails':False,
+            'source_policy_allow_count':0,'target_policy_allow_count':0,
+            'target_aud_available':False,'any_bypass_policy':None,
+            'host_attached_to_worker':False,'source_app_mutated':False,
+            'global_cloudflare_security_mutated':False,'outcome':'NOT_CHECKED'}
+          def request(method,path,data=None):
+            headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+            if data is not None:headers['Content-Type']='application/json'
+            payload=json.dumps(data,separators=(',',':')).encode() if data is not None else None
+            req=urllib.request.Request(api+path,data=payload,headers=headers,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                doc=json.load(r);return r.status,doc.get('result') if doc.get('success') else None
+            except urllib.error.HTTPError as e:return e.code,None
+            except (OSError,ValueError):return 0,None
+          def exact_emails(p):
+            inc=p.get('include') if isinstance(p,dict) else None
+            return isinstance(inc,list) and bool(inc) and all(isinstance(x,dict) and
+              set(x)=={'email'} and isinstance(x['email'],dict) and
+              isinstance(x['email'].get('email'),str) and
+              re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',x['email']['email']) for x in inc)
+          try:
+            if not token:raise ValueError('TOKEN_MISSING')
+            s,apps=request('GET','?per_page=100')
+            if s!=200 or not isinstance(apps,list):raise ValueError('APP_INVENTORY_UNREADABLE')
+            existing=[x for x in apps if isinstance(x,dict) and x.get('domain')==host]
+            if existing:raise ValueError('TARGET_APP_ALREADY_EXISTS_NO_OVERWRITE')
+            prior=[x for x in apps if isinstance(x,dict) and x.get('domain')=='studio.mftintelligence.com'
+              and x.get('name')=='MUSITU Studio Android Control' and x.get('type')=='self_hosted']
+            if len(prior)!=1:raise ValueError('SOURCE_APP_NOT_UNIQUE')
+            pstatus,policies=request('GET','/'+prior[0]['id']+'/policies')
+            if pstatus!=200 or not isinstance(policies,list) or not policies:raise ValueError('SOURCE_POLICIES_UNREADABLE')
+            if any(p.get('decision') not in ('allow','deny') for p in policies):
+              raise ValueError('SOURCE_POLICY_HAS_BYPASS')
+            allows=[p for p in policies if p.get('decision')=='allow']
+            if len(allows)<1 or any(not exact_emails(p) for p in allows):
+              raise ValueError('SOURCE_ALLOW_NOT_EXACT_EMAILS')
+            receipt['source_policy_allow_count']=len(allows)
+            inline=[]
+            for n,p in enumerate(allows):
+              policy={'name':'MUSITU Studio V03 approved staff '+str(n+1),
+                'decision':'allow','include':p['include']}
+              for extra in ('require','exclude'):
+                if isinstance(p.get(extra),list) and p[extra]:
+                  policy[extra]=p[extra]
+              inline.append(policy)
+            payload={'name':'MUSITU Studio Enterprise V03',
+              'type':'self_hosted','domain':host,
+              'session_duration':'1h','app_launcher_visible':False,
+              'policies':inline}
+            allowed_idps=prior[0].get('allowed_idps')
+            if isinstance(allowed_idps,list) and allowed_idps:
+              if any(not isinstance(v,str) or not re.fullmatch(r'[0-9a-fA-F-]{36}',v) for v in allowed_idps):
+                raise ValueError('SOURCE_IDP_METADATA_INVALID')
+              payload['allowed_idps']=allowed_idps
+            result_status,created=request('POST','',payload)
+            receipt['post_status']=result_status
+            if result_status not in (200,201) or not isinstance(created,dict):
+              raise ValueError('ACCESS_CREATE_NOT_AUTHORIZED_OR_REJECTED')
+            receipt['new_app_created']=True
+            s,all_apps=request('GET','?per_page=100')
+            targets=[a for a in all_apps or [] if isinstance(a,dict) and a.get('domain')==host
+              and a.get('name')=='MUSITU Studio Enterprise V03' and a.get('type')=='self_hosted']
+            if s!=200 or len(targets)!=1:raise ValueError('TARGET_APP_NOT_READABLE')
+            target=targets[0]
+            s,new_policies=request('GET','/'+target['id']+'/policies')
+            if s!=200 or not isinstance(new_policies,list):raise ValueError('TARGET_POLICY_READBACK_UNAVAILABLE')
+            new_allows=[p for p in new_policies if p.get('decision')=='allow']
+            receipt['target_policy_allow_count']=len(new_allows)
+            receipt['any_bypass_policy']=any(p.get('decision') not in ('allow','deny') for p in new_policies)
+            original_email_sets=sorted([sorted(x['email']['email'].lower() for x in p['include']) for p in allows])
+            target_email_sets=sorted([sorted(x['email']['email'].lower() for x in p['include'])
+              for p in new_allows if exact_emails(p)])
+            receipt['policy_includes_exact_emails']=(original_email_sets==target_email_sets
+              and len(new_allows)==len(allows))
+            receipt['target_aud_available']=isinstance(target.get('aud'),str) and bool(
+              re.fullmatch(r'[A-Fa-f0-9]{64}',target['aud']))
+            receipt['staff_only_readback_verified']=(receipt['policy_includes_exact_emails']
+              and not receipt['any_bypass_policy'] and receipt['target_aud_available'])
+            receipt['outcome']='VERIFIED_STAFF_ACCESS_APP' if receipt['staff_only_readback_verified'] else 'APP_CREATED_BUT_NOT_VERIFIED'
+          except (TypeError,ValueError) as e:
+            receipt['outcome']=str(e)
+          pathlib.Path('studio-v03-access-app-sanitized.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_STAFF_ACCESS='+json.dumps(receipt,sort_keys=True))
+          assert receipt['staff_only_readback_verified'], 'ACCESS_APP_MUST_VERIFY_BEFORE_ANY_PUBLIC_DOMAIN'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-staff-access-only-app
+          path: studio-v03-access-app-sanitized.json
+          retention-days: 14
