@@ -15,6 +15,8 @@ import {reconcilePaynowPaymentForReview,verifyPaynowStatusUpdate} from './paynow
 
 const PREFIX='musitu.store.paynow.review.v1\0';
 const SCHEMA='musitu.store.paynow-review-ledger.v1';
+const PROVIDER_PREFIX='musitu.store.paynow.provider-claim.v1\\0';
+const PROVIDER_SCHEMA='musitu.store.paynow-provider-claim.v1';
 const MAX_EVENTS=100;
 const NOFOLLOW=C.O_NOFOLLOW??0;
 function fail(reason){throw new Error('private Paynow review ledger: '+reason);}
@@ -69,6 +71,65 @@ function readState(path,merchantReference){
     return state;
   }finally{closeSync(fd);}
 }
+/**
+ * Immutable cross-order claim. Created *before* a review journal is
+ * published: a crash can strand this marker, which must fail closed.
+ * Concurrent orders with the same provider reference race on O_EXCL and
+ * only one can create the claim. No external provider access is performed.
+ */
+function providerClaimPath(directory,providerReference){
+  const key=createHash('sha256').update(PROVIDER_PREFIX+providerReference).digest('hex');
+  return join(directory,'provider-'+key+'.json');
+}
+function readProviderClaim(path,providerReference){
+  let entry;
+  try{entry=lstatSync(path);}catch(err){
+    if(err.code==='ENOENT')return null;
+    fail('cannot inspect provider transaction claim');
+  }
+  if(!entry.isFile()||entry.isSymbolicLink())
+    fail('unsafe provider transaction claim');
+  let fd;
+  try{fd=openSync(path,C.O_RDONLY|NOFOLLOW);}catch{fail('unsafe provider transaction claim');}
+  try{
+    fileCheck(fd);
+    const raw=readFileSync(fd,'utf8');
+    let claim;
+    try{claim=JSON.parse(raw);}catch{fail('corrupt provider transaction claim');}
+    if(!claim||Object.getPrototypeOf(claim)!==Object.prototype||
+       JSON.stringify(claim)+'\\n'!==raw||
+       claim.schema!==PROVIDER_SCHEMA||
+       claim.providerReference!==providerReference||
+       typeof claim.merchantReference!=='string'||
+       !/^[A-Za-z0-9_-]{3,80}$/.test(claim.merchantReference))
+      fail('corrupt or untrusted provider transaction claim');
+    return claim;
+  }finally{closeSync(fd);}
+}
+function reserveProviderReference(directory,providerReference,merchantReference,existingOrder){
+  const claimPath=providerClaimPath(directory,providerReference);
+  const prior=readProviderClaim(claimPath,providerReference);
+  if(prior){
+    if(prior.merchantReference!==merchantReference)
+      fail('provider transaction already claimed by another merchant order');
+    if(!existingOrder)
+      fail('provider claim without order history requires independent operator recovery');
+    return;
+  }
+  const claim={schema:PROVIDER_SCHEMA,providerReference,merchantReference};
+  let fd;
+  try{fd=openSync(claimPath,C.O_WRONLY|C.O_CREAT|C.O_EXCL|NOFOLLOW,0o600);}
+  catch{fail('concurrent or unsafe provider transaction claim; manual review required');}
+  try{
+    fileCheck(fd);
+    writeFileSync(fd,JSON.stringify(claim)+'\\n','utf8');
+    fsyncSync(fd);
+  }finally{closeSync(fd);}
+  // The immutable provider claim must be durable BEFORE publishing review
+  // evidence, so no crash can replay a single paid transaction to two orders.
+  fsyncDirectory(directory);
+}
+
 function fsyncDirectory(directory){
   const fd=openSync(directory,C.O_RDONLY|C.O_DIRECTORY|NOFOLLOW);
   try{fsyncSync(fd);}finally{closeSync(fd);}
@@ -113,6 +174,8 @@ export function recordPaynowReviewEvent({ledgerDirectory,callbackBody,polledBody
     const old=readState(path,compared.merchantReference);
     if(old&&old.providerReference!==compared.providerReference)
       fail('conflicting provider transaction identity for existing order');
+    reserveProviderReference(ledgerDirectory,compared.providerReference,
+      compared.merchantReference,old);
     const digest=digestEvent(callbackBody,polledBody);
     if(old?.events.some(e=>e.digest===digest))return response(old,true);
     if(old?.events.length>=MAX_EVENTS)fail('review journal full: independent operator action required');
