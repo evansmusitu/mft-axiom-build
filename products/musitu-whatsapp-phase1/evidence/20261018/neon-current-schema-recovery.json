@@ -1,0 +1,1872 @@
+{
+  "timestamp": "2026-10-18T04:03:02.473Z",
+  "scope": "REAL_NEON_DATABASE_RESTART_AND_HEAD_BRANCH_RECOVERY_COPY_NOT_OFFSITE_BACKUP",
+  "source": {
+    "project": "jolly-scene-02112141",
+    "branch": "br-jolly-fire-b4klddds",
+    "endpoint": "ep-lingering-dream-b4lhzo25",
+    "database": "musitu_whatsapp_phase1"
+  },
+  "plan": {
+    "observed": "free_v3",
+    "branchLimit": 10,
+    "branchesBefore": 3,
+    "branchesAfter": 4,
+    "computeCu": 0.25,
+    "paidUpgrade": false,
+    "newPayment": false
+  },
+  "restart": {
+    "beforeRows": [
+      {
+        "relation": "musitu.action_audit",
+        "records": 57,
+        "checksum": "89f5de085967fbfdb068e15fb88d5fa87f36e10d882fdb1bc7734dcd7e35284f"
+      },
+      {
+        "relation": "musitu.ai_policy",
+        "records": 2,
+        "checksum": "7af38d422a2a15ce6febac7be438e53f6aec65850a2676a479a27522eb6c0392"
+      },
+      {
+        "relation": "musitu.ai_requests",
+        "records": 2,
+        "checksum": "d556ae7455be1d0ad6d310e66c054a6d5b9e494f80d9aed9ad0d4891c9e58a9a"
+      },
+      {
+        "relation": "musitu.bookings",
+        "records": 7,
+        "checksum": "a0a5d3fb749b9bb05f1c967a19b81431f91838032b27f3f0be445ff0666b7068"
+      },
+      {
+        "relation": "musitu.business_configuration",
+        "records": 3,
+        "checksum": "94fb8de05fe41db7607b5ddd26376c3b97eaff3c182320ec69e3a51ff10cff76"
+      },
+      {
+        "relation": "musitu.channel_consent_evidence",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.contacts",
+        "records": 15,
+        "checksum": "c8e8dd8a66b348bfbf414aa880c91319fe8b6307ed191b41935b72ad99c56b19"
+      },
+      {
+        "relation": "musitu.conversations",
+        "records": 18,
+        "checksum": "21d7979de0abd2861a9449410682cd85b3443d2e793391737f459a68d6e2279a"
+      },
+      {
+        "relation": "musitu.customer_suppressions",
+        "records": 8,
+        "checksum": "011dba9af1cc7fd162ad215c42c711f9b444c933970c3b975d115e4cef9e90ef"
+      },
+      {
+        "relation": "musitu.draft_approvals",
+        "records": 7,
+        "checksum": "2441dfc1d566235dc2c84a45c8aab1a8051af05ed91f093069f930e42fb7a5c6"
+      },
+      {
+        "relation": "musitu.faqs",
+        "records": 16,
+        "checksum": "dd5ac8e5a0bb251cd79bdcdc821fdaeee69e0830d6909eab687914ed594e4abb"
+      },
+      {
+        "relation": "musitu.inbound_events",
+        "records": 44,
+        "checksum": "c5cfc0e9eb67bab65ab1592026a42db5aed1ee2d48801ab51038a0c1222ac8e1"
+      },
+      {
+        "relation": "musitu.memberships",
+        "records": 13,
+        "checksum": "9fa29b3374160a0325b8673c2f213af10813439417bbb149cf6038bbed3d4db8"
+      },
+      {
+        "relation": "musitu.message_status_events",
+        "records": 3,
+        "checksum": "f08d05ae0d827e055b87efb1266340ff7b7ccb237680eef9709a0bcd335ebb34"
+      },
+      {
+        "relation": "musitu.messages",
+        "records": 40,
+        "checksum": "55f2e36194684f6bf41e4f32eb403b479171d488a942aa3bde444b92305d0e24"
+      },
+      {
+        "relation": "musitu.outbound_attempts",
+        "records": 1,
+        "checksum": "36ec5f12df7b54368049f88a4f73fe5caab974e54bbd33fc64396b8f8952fba2"
+      },
+      {
+        "relation": "musitu.outbound_preparations",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.reply_drafts",
+        "records": 23,
+        "checksum": "1a30846c9d7ed293c2c3aaf70c68cf0fc9ec3ee419731e43a1a266bf1173cd51"
+      },
+      {
+        "relation": "musitu.resources",
+        "records": 2,
+        "checksum": "be94e943afc51c5745b0e123db46048be03a025eefddc7cd60863abad054100f"
+      },
+      {
+        "relation": "musitu.tenants",
+        "records": 5,
+        "checksum": "425382b9b98626e35731ad266fdb0d198ac60d8bc8335c7b2dcdfea4e60817c7"
+      },
+      {
+        "relation": "musitu.whatsapp_channels",
+        "records": 5,
+        "checksum": "b04ecba54bef44315999963770c0399d4c729df74272360efeae41bbbf4e4698"
+      },
+      {
+        "relation": "musitu_identity.sessions",
+        "records": 6,
+        "checksum": "7cfb58c340cf8fa6b18d7000176293e5c662263eeacdfea57d28458fc3b06044"
+      }
+    ],
+    "beforeContract": {
+      "roles": [
+        {
+          "name": "musitu_commands",
+          "login": false,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_ingress",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_runtime",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        }
+      ],
+      "wal_lsn": "0/1EDC820",
+      "relations": [
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "action_audit",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_policy",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_requests",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "bookings",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "business_configuration",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "channel_consent_evidence",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "contacts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "conversations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "customer_suppressions",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "draft_approvals",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "faqs",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "inbound_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "memberships",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "message_status_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "messages",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_attempts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_preparations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "reply_drafts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "resources",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "tenants",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "whatsapp_channels",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu_identity",
+          "relation": "sessions",
+          "force_rls": true
+        }
+      ],
+      "observed_at": "2026-10-18T04:00:40.295717+00:00",
+      "schema_hash": "da76cf56baca5b35ba126c91488d7a4f694e274fc9b9225d60675899ad27e98a",
+      "postmaster_started_at": "2026-10-18T03:59:54.449356+00:00"
+    },
+    "afterRows": [
+      {
+        "relation": "musitu.action_audit",
+        "records": 57,
+        "checksum": "89f5de085967fbfdb068e15fb88d5fa87f36e10d882fdb1bc7734dcd7e35284f"
+      },
+      {
+        "relation": "musitu.ai_policy",
+        "records": 2,
+        "checksum": "7af38d422a2a15ce6febac7be438e53f6aec65850a2676a479a27522eb6c0392"
+      },
+      {
+        "relation": "musitu.ai_requests",
+        "records": 2,
+        "checksum": "d556ae7455be1d0ad6d310e66c054a6d5b9e494f80d9aed9ad0d4891c9e58a9a"
+      },
+      {
+        "relation": "musitu.bookings",
+        "records": 7,
+        "checksum": "a0a5d3fb749b9bb05f1c967a19b81431f91838032b27f3f0be445ff0666b7068"
+      },
+      {
+        "relation": "musitu.business_configuration",
+        "records": 3,
+        "checksum": "94fb8de05fe41db7607b5ddd26376c3b97eaff3c182320ec69e3a51ff10cff76"
+      },
+      {
+        "relation": "musitu.channel_consent_evidence",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.contacts",
+        "records": 15,
+        "checksum": "c8e8dd8a66b348bfbf414aa880c91319fe8b6307ed191b41935b72ad99c56b19"
+      },
+      {
+        "relation": "musitu.conversations",
+        "records": 18,
+        "checksum": "21d7979de0abd2861a9449410682cd85b3443d2e793391737f459a68d6e2279a"
+      },
+      {
+        "relation": "musitu.customer_suppressions",
+        "records": 8,
+        "checksum": "011dba9af1cc7fd162ad215c42c711f9b444c933970c3b975d115e4cef9e90ef"
+      },
+      {
+        "relation": "musitu.draft_approvals",
+        "records": 7,
+        "checksum": "2441dfc1d566235dc2c84a45c8aab1a8051af05ed91f093069f930e42fb7a5c6"
+      },
+      {
+        "relation": "musitu.faqs",
+        "records": 16,
+        "checksum": "dd5ac8e5a0bb251cd79bdcdc821fdaeee69e0830d6909eab687914ed594e4abb"
+      },
+      {
+        "relation": "musitu.inbound_events",
+        "records": 44,
+        "checksum": "c5cfc0e9eb67bab65ab1592026a42db5aed1ee2d48801ab51038a0c1222ac8e1"
+      },
+      {
+        "relation": "musitu.memberships",
+        "records": 13,
+        "checksum": "9fa29b3374160a0325b8673c2f213af10813439417bbb149cf6038bbed3d4db8"
+      },
+      {
+        "relation": "musitu.message_status_events",
+        "records": 3,
+        "checksum": "f08d05ae0d827e055b87efb1266340ff7b7ccb237680eef9709a0bcd335ebb34"
+      },
+      {
+        "relation": "musitu.messages",
+        "records": 40,
+        "checksum": "55f2e36194684f6bf41e4f32eb403b479171d488a942aa3bde444b92305d0e24"
+      },
+      {
+        "relation": "musitu.outbound_attempts",
+        "records": 1,
+        "checksum": "36ec5f12df7b54368049f88a4f73fe5caab974e54bbd33fc64396b8f8952fba2"
+      },
+      {
+        "relation": "musitu.outbound_preparations",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.reply_drafts",
+        "records": 23,
+        "checksum": "1a30846c9d7ed293c2c3aaf70c68cf0fc9ec3ee419731e43a1a266bf1173cd51"
+      },
+      {
+        "relation": "musitu.resources",
+        "records": 2,
+        "checksum": "be94e943afc51c5745b0e123db46048be03a025eefddc7cd60863abad054100f"
+      },
+      {
+        "relation": "musitu.tenants",
+        "records": 5,
+        "checksum": "425382b9b98626e35731ad266fdb0d198ac60d8bc8335c7b2dcdfea4e60817c7"
+      },
+      {
+        "relation": "musitu.whatsapp_channels",
+        "records": 5,
+        "checksum": "b04ecba54bef44315999963770c0399d4c729df74272360efeae41bbbf4e4698"
+      },
+      {
+        "relation": "musitu_identity.sessions",
+        "records": 6,
+        "checksum": "7cfb58c340cf8fa6b18d7000176293e5c662263eeacdfea57d28458fc3b06044"
+      }
+    ],
+    "afterContract": {
+      "roles": [
+        {
+          "name": "musitu_commands",
+          "login": false,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_ingress",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_runtime",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        }
+      ],
+      "wal_lsn": "0/1EEE900",
+      "relations": [
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "action_audit",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_policy",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_requests",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "bookings",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "business_configuration",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "channel_consent_evidence",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "contacts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "conversations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "customer_suppressions",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "draft_approvals",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "faqs",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "inbound_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "memberships",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "message_status_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "messages",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_attempts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_preparations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "reply_drafts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "resources",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "tenants",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "whatsapp_channels",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu_identity",
+          "relation": "sessions",
+          "force_rls": true
+        }
+      ],
+      "observed_at": "2026-10-18T04:01:02.558512+00:00",
+      "schema_hash": "da76cf56baca5b35ba126c91488d7a4f694e274fc9b9225d60675899ad27e98a",
+      "postmaster_started_at": "2026-10-18T04:00:47.824986+00:00"
+    },
+    "checks": {
+      "rowsEqual": true,
+      "schemaEqual": true,
+      "rolesEqual": true,
+      "rlsEqual": true,
+      "postmasterChanged": true,
+      "before": "2026-10-18T03:59:54.449356+00:00",
+      "after": "2026-10-18T04:00:47.824986+00:00"
+    },
+    "operation": {
+      "host": "ep-lingering-dream-b4lhzo25.c-6.us-east-2.aws.neon.tech",
+      "hosts": {
+        "read_write_host": "ep-lingering-dream-b4lhzo25.c-6.us-east-2.aws.neon.tech",
+        "read_write_pooled_host": "ep-lingering-dream-b4lhzo25-pooler.c-6.us-east-2.aws.neon.tech"
+      },
+      "id": "ep-lingering-dream-b4lhzo25",
+      "slug": "ep-lingering-dream-b4lhzo25",
+      "branch_slug": "br-jolly-fire-b4klddds",
+      "project_slug": "jolly-scene-02112141",
+      "project_id": "jolly-scene-02112141",
+      "branch_id": "br-jolly-fire-b4klddds",
+      "autoscaling_limit_min_cu": 0.25,
+      "autoscaling_limit_max_cu": 0.25,
+      "region_id": "aws-us-east-2",
+      "type": "read_write",
+      "current_state": "active",
+      "pending_state": "active",
+      "group": {
+        "size": {
+          "min": 1,
+          "max": 1
+        },
+        "allow_readable_secondaries": false,
+        "computes": [
+          {
+            "binding_id": "wl7",
+            "current_state": "active",
+            "pending_state": "active",
+            "role": "read_write",
+            "compute_host": "ep-lingering-dream-b4lhzo25-wl7.c-6.us-east-2.aws.neon.tech",
+            "compute_pooled_host": "ep-lingering-dream-b4lhzo25-wl7-pooler.c-6.us-east-2.aws.neon.tech",
+            "created_at": "2026-10-13T09:10:27Z",
+            "updated_at": "2026-10-18T04:00:46Z",
+            "started_at": "2026-10-18T03:59:54Z"
+          }
+        ]
+      },
+      "settings": {
+        "pg_settings": {}
+      },
+      "pooler_enabled": false,
+      "pooler_mode": "transaction",
+      "disabled": false,
+      "passwordless_access": true,
+      "last_active": "2026-10-18T03:59:55Z",
+      "creation_source": "console",
+      "created_at": "2026-10-13T09:10:27Z",
+      "updated_at": "2026-10-18T04:00:46Z",
+      "started_at": "2026-10-18T03:59:54Z",
+      "proxy_host": "c-6.us-east-2.aws.neon.tech",
+      "suspend_timeout_seconds": 0,
+      "provisioner": "k8s-neonvm"
+    }
+  },
+  "recoveryCopy": {
+    "branch": {
+      "id": "br-wild-brook-b4jwx97z",
+      "project_id": "jolly-scene-02112141",
+      "parent_id": "br-jolly-fire-b4klddds",
+      "parent_lsn": "0/1EEE938",
+      "name": "whatsapp-phase1-v18-recovery-checkpoint-20261018",
+      "slug": "br-wild-brook-b4jwx97z",
+      "project_slug": "jolly-scene-02112141",
+      "current_state": "init",
+      "pending_state": "ready",
+      "state_changed_at": "2026-10-18T04:01:06Z",
+      "creation_source": "console",
+      "primary": false,
+      "default": false,
+      "protected": false,
+      "cpu_used_sec": 0,
+      "compute_time_seconds": 0,
+      "active_time_seconds": 0,
+      "written_data_bytes": 0,
+      "data_transfer_bytes": 0,
+      "created_at": "2026-10-18T04:01:06Z",
+      "updated_at": "2026-10-18T04:01:06Z",
+      "created_by": {
+        "name": "",
+        "image": ""
+      },
+      "init_source": "parent-data"
+    },
+    "endpointCreated": {
+      "host": "ep-twilight-darkness-b4nskfx9.c-6.us-east-2.aws.neon.tech",
+      "hosts": {
+        "read_write_host": "ep-twilight-darkness-b4nskfx9.c-6.us-east-2.aws.neon.tech",
+        "read_write_pooled_host": "ep-twilight-darkness-b4nskfx9-pooler.c-6.us-east-2.aws.neon.tech"
+      },
+      "id": "ep-twilight-darkness-b4nskfx9",
+      "slug": "ep-twilight-darkness-b4nskfx9",
+      "branch_slug": "br-wild-brook-b4jwx97z",
+      "project_slug": "jolly-scene-02112141",
+      "project_id": "jolly-scene-02112141",
+      "branch_id": "br-wild-brook-b4jwx97z",
+      "autoscaling_limit_min_cu": 0.25,
+      "autoscaling_limit_max_cu": 0.25,
+      "region_id": "aws-us-east-2",
+      "type": "read_write",
+      "current_state": "init",
+      "pending_state": "active",
+      "group": {
+        "size": {
+          "min": 1,
+          "max": 1
+        },
+        "allow_readable_secondaries": false,
+        "computes": [
+          {
+            "binding_id": "vcb",
+            "current_state": "init",
+            "pending_state": "active",
+            "role": "read_write",
+            "compute_host": "ep-twilight-darkness-b4nskfx9-vcb.c-6.us-east-2.aws.neon.tech",
+            "compute_pooled_host": "ep-twilight-darkness-b4nskfx9-vcb-pooler.c-6.us-east-2.aws.neon.tech",
+            "created_at": "2026-10-18T04:01:12Z",
+            "updated_at": "2026-10-18T04:01:12Z"
+          }
+        ]
+      },
+      "settings": {},
+      "pooler_enabled": false,
+      "pooler_mode": "transaction",
+      "disabled": false,
+      "passwordless_access": true,
+      "creation_source": "console",
+      "created_at": "2026-10-18T04:01:12Z",
+      "updated_at": "2026-10-18T04:01:12Z",
+      "proxy_host": "c-6.us-east-2.aws.neon.tech",
+      "suspend_timeout_seconds": 0,
+      "provisioner": "k8s-neonvm"
+    },
+    "rows": [
+      {
+        "relation": "musitu.action_audit",
+        "records": 57,
+        "checksum": "89f5de085967fbfdb068e15fb88d5fa87f36e10d882fdb1bc7734dcd7e35284f"
+      },
+      {
+        "relation": "musitu.ai_policy",
+        "records": 2,
+        "checksum": "7af38d422a2a15ce6febac7be438e53f6aec65850a2676a479a27522eb6c0392"
+      },
+      {
+        "relation": "musitu.ai_requests",
+        "records": 2,
+        "checksum": "d556ae7455be1d0ad6d310e66c054a6d5b9e494f80d9aed9ad0d4891c9e58a9a"
+      },
+      {
+        "relation": "musitu.bookings",
+        "records": 7,
+        "checksum": "a0a5d3fb749b9bb05f1c967a19b81431f91838032b27f3f0be445ff0666b7068"
+      },
+      {
+        "relation": "musitu.business_configuration",
+        "records": 3,
+        "checksum": "94fb8de05fe41db7607b5ddd26376c3b97eaff3c182320ec69e3a51ff10cff76"
+      },
+      {
+        "relation": "musitu.channel_consent_evidence",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.contacts",
+        "records": 15,
+        "checksum": "c8e8dd8a66b348bfbf414aa880c91319fe8b6307ed191b41935b72ad99c56b19"
+      },
+      {
+        "relation": "musitu.conversations",
+        "records": 18,
+        "checksum": "21d7979de0abd2861a9449410682cd85b3443d2e793391737f459a68d6e2279a"
+      },
+      {
+        "relation": "musitu.customer_suppressions",
+        "records": 8,
+        "checksum": "011dba9af1cc7fd162ad215c42c711f9b444c933970c3b975d115e4cef9e90ef"
+      },
+      {
+        "relation": "musitu.draft_approvals",
+        "records": 7,
+        "checksum": "2441dfc1d566235dc2c84a45c8aab1a8051af05ed91f093069f930e42fb7a5c6"
+      },
+      {
+        "relation": "musitu.faqs",
+        "records": 16,
+        "checksum": "dd5ac8e5a0bb251cd79bdcdc821fdaeee69e0830d6909eab687914ed594e4abb"
+      },
+      {
+        "relation": "musitu.inbound_events",
+        "records": 44,
+        "checksum": "c5cfc0e9eb67bab65ab1592026a42db5aed1ee2d48801ab51038a0c1222ac8e1"
+      },
+      {
+        "relation": "musitu.memberships",
+        "records": 13,
+        "checksum": "9fa29b3374160a0325b8673c2f213af10813439417bbb149cf6038bbed3d4db8"
+      },
+      {
+        "relation": "musitu.message_status_events",
+        "records": 3,
+        "checksum": "f08d05ae0d827e055b87efb1266340ff7b7ccb237680eef9709a0bcd335ebb34"
+      },
+      {
+        "relation": "musitu.messages",
+        "records": 40,
+        "checksum": "55f2e36194684f6bf41e4f32eb403b479171d488a942aa3bde444b92305d0e24"
+      },
+      {
+        "relation": "musitu.outbound_attempts",
+        "records": 1,
+        "checksum": "36ec5f12df7b54368049f88a4f73fe5caab974e54bbd33fc64396b8f8952fba2"
+      },
+      {
+        "relation": "musitu.outbound_preparations",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.reply_drafts",
+        "records": 23,
+        "checksum": "1a30846c9d7ed293c2c3aaf70c68cf0fc9ec3ee419731e43a1a266bf1173cd51"
+      },
+      {
+        "relation": "musitu.resources",
+        "records": 2,
+        "checksum": "be94e943afc51c5745b0e123db46048be03a025eefddc7cd60863abad054100f"
+      },
+      {
+        "relation": "musitu.tenants",
+        "records": 5,
+        "checksum": "425382b9b98626e35731ad266fdb0d198ac60d8bc8335c7b2dcdfea4e60817c7"
+      },
+      {
+        "relation": "musitu.whatsapp_channels",
+        "records": 5,
+        "checksum": "b04ecba54bef44315999963770c0399d4c729df74272360efeae41bbbf4e4698"
+      },
+      {
+        "relation": "musitu_identity.sessions",
+        "records": 6,
+        "checksum": "7cfb58c340cf8fa6b18d7000176293e5c662263eeacdfea57d28458fc3b06044"
+      }
+    ],
+    "contract": {
+      "roles": [
+        {
+          "name": "musitu_commands",
+          "login": false,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_ingress",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        },
+        {
+          "name": "musitu_runtime",
+          "login": true,
+          "inherit": false,
+          "bypassrls": false,
+          "create_db": false,
+          "superuser": false,
+          "create_role": false
+        }
+      ],
+      "wal_lsn": "0/1EF38A8",
+      "relations": [
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "action_audit",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_policy",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "ai_requests",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "bookings",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=arw/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "business_configuration",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "channel_consent_evidence",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "contacts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "conversations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "customer_suppressions",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "draft_approvals",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "faqs",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "inbound_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "memberships",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "message_status_events",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "messages",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_attempts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "outbound_preparations",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=ar/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "reply_drafts",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_commands=a/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "resources",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "tenants",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=r/musitu_whatsapp_phase1_owner,musitu_ingress=r/musitu_whatsapp_phase1_owner,musitu_commands=r/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu",
+          "relation": "whatsapp_channels",
+          "force_rls": true
+        },
+        {
+          "acl": "{musitu_whatsapp_phase1_owner=arwdDxtm/musitu_whatsapp_phase1_owner,musitu_runtime=ar/musitu_whatsapp_phase1_owner}",
+          "rls": true,
+          "owner": "musitu_whatsapp_phase1_owner",
+          "schema": "musitu_identity",
+          "relation": "sessions",
+          "force_rls": true
+        }
+      ],
+      "observed_at": "2026-10-18T04:01:29.43393+00:00",
+      "schema_hash": "da76cf56baca5b35ba126c91488d7a4f694e274fc9b9225d60675899ad27e98a",
+      "postmaster_started_at": "2026-10-18T04:01:12.716236+00:00"
+    },
+    "restrictedRuntimeLogin": [
+      {
+        "current_user": "musitu_runtime",
+        "session_user": "musitu_runtime",
+        "rolsuper": false,
+        "rolbypassrls": false,
+        "rolinherit": false,
+        "rolcreaterole": false,
+        "rolcreatedb": false,
+        "command_role_member": false
+      }
+    ],
+    "missingContext": [
+      {
+        "relation": "musitu.action_audit",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.ai_policy",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.ai_requests",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.bookings",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.business_configuration",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.channel_consent_evidence",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.contacts",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.conversations",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.customer_suppressions",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.draft_approvals",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.faqs",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.inbound_events",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.memberships",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.message_status_events",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.messages",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.outbound_attempts",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.outbound_preparations",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.reply_drafts",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.resources",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.tenants",
+        "visible": 0
+      },
+      {
+        "relation": "musitu.whatsapp_channels",
+        "visible": 0
+      },
+      {
+        "relation": "musitu_identity.sessions",
+        "visible": 0
+      }
+    ],
+    "scopeTransitions": [
+      [
+        {
+          "set_config": "00000000-0000-4000-8000-00000000000a"
+        }
+      ],
+      [
+        {
+          "relation": "action_audit",
+          "visible": 33,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_policy",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_requests",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "bookings",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "business_configuration",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "channel_consent_evidence",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "contacts",
+          "visible": 6,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "conversations",
+          "visible": 8,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "customer_suppressions",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "draft_approvals",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "faqs",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "inbound_events",
+          "visible": 28,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "memberships",
+          "visible": 8,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "message_status_events",
+          "visible": 3,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "messages",
+          "visible": 24,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_attempts",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_preparations",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "reply_drafts",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "resources",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "tenants",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "whatsapp_channels",
+          "visible": 1,
+          "foreign_rows": 0
+        }
+      ],
+      [
+        {
+          "set_config": "00000000-0000-4000-8000-00000000000b"
+        }
+      ],
+      [
+        {
+          "relation": "action_audit",
+          "visible": 12,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_policy",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_requests",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "bookings",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "business_configuration",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "channel_consent_evidence",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "contacts",
+          "visible": 6,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "conversations",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "customer_suppressions",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "draft_approvals",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "faqs",
+          "visible": 7,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "inbound_events",
+          "visible": 6,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "memberships",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "message_status_events",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "messages",
+          "visible": 6,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_attempts",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_preparations",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "reply_drafts",
+          "visible": 6,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "resources",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "tenants",
+          "visible": 1,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "whatsapp_channels",
+          "visible": 1,
+          "foreign_rows": 0
+        }
+      ],
+      [
+        {
+          "set_config": ""
+        }
+      ],
+      [
+        {
+          "relation": "action_audit",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_policy",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "ai_requests",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "bookings",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "business_configuration",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "channel_consent_evidence",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "contacts",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "conversations",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "customer_suppressions",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "draft_approvals",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "faqs",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "inbound_events",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "memberships",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "message_status_events",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "messages",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_attempts",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "outbound_preparations",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "reply_drafts",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "resources",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "tenants",
+          "visible": 0,
+          "foreign_rows": 0
+        },
+        {
+          "relation": "whatsapp_channels",
+          "visible": 0,
+          "foreign_rows": 0
+        }
+      ],
+      [
+        {
+          "set_config": "00000000-0000-4000-8000-00000000aa14"
+        }
+      ],
+      [
+        {
+          "state": "COMPLETED",
+          "records": 1
+        }
+      ],
+      [
+        {
+          "enabled": false,
+          "daily_limit": 5
+        }
+      ]
+    ],
+    "expectedFailures": {
+      "invalidTenant": {
+        "content": [
+          {
+            "type": "text",
+            "text": "NeonDbError: invalid input syntax for type uuid: \"not-a-uuid\""
+          }
+        ],
+        "structuredContent": {
+          "error_code": "INVALID_ARGUMENT"
+        },
+        "isError": true
+      },
+      "foreignActor": {
+        "content": [
+          {
+            "type": "text",
+            "text": "NeonDbError: ACCESS_DENIED"
+          }
+        ],
+        "structuredContent": {
+          "error_code": "INVALID_ARGUMENT"
+        },
+        "isError": true
+      },
+      "roleEscalation": {
+        "content": [
+          {
+            "type": "text",
+            "text": "NeonDbError: permission denied to set role \"musitu_commands\""
+          }
+        ],
+        "structuredContent": {
+          "error_code": "INVALID_ARGUMENT"
+        },
+        "isError": true
+      }
+    },
+    "checks": {
+      "rowsMatch": true,
+      "schemaMatch": true,
+      "rolesMatch": true,
+      "rlsMatch": true,
+      "missingTenantDeniesAll22": true
+    },
+    "afterProbeRows": [
+      {
+        "relation": "musitu.action_audit",
+        "records": 57,
+        "checksum": "89f5de085967fbfdb068e15fb88d5fa87f36e10d882fdb1bc7734dcd7e35284f"
+      },
+      {
+        "relation": "musitu.ai_policy",
+        "records": 2,
+        "checksum": "7af38d422a2a15ce6febac7be438e53f6aec65850a2676a479a27522eb6c0392"
+      },
+      {
+        "relation": "musitu.ai_requests",
+        "records": 2,
+        "checksum": "d556ae7455be1d0ad6d310e66c054a6d5b9e494f80d9aed9ad0d4891c9e58a9a"
+      },
+      {
+        "relation": "musitu.bookings",
+        "records": 7,
+        "checksum": "a0a5d3fb749b9bb05f1c967a19b81431f91838032b27f3f0be445ff0666b7068"
+      },
+      {
+        "relation": "musitu.business_configuration",
+        "records": 3,
+        "checksum": "94fb8de05fe41db7607b5ddd26376c3b97eaff3c182320ec69e3a51ff10cff76"
+      },
+      {
+        "relation": "musitu.channel_consent_evidence",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.contacts",
+        "records": 15,
+        "checksum": "c8e8dd8a66b348bfbf414aa880c91319fe8b6307ed191b41935b72ad99c56b19"
+      },
+      {
+        "relation": "musitu.conversations",
+        "records": 18,
+        "checksum": "21d7979de0abd2861a9449410682cd85b3443d2e793391737f459a68d6e2279a"
+      },
+      {
+        "relation": "musitu.customer_suppressions",
+        "records": 8,
+        "checksum": "011dba9af1cc7fd162ad215c42c711f9b444c933970c3b975d115e4cef9e90ef"
+      },
+      {
+        "relation": "musitu.draft_approvals",
+        "records": 7,
+        "checksum": "2441dfc1d566235dc2c84a45c8aab1a8051af05ed91f093069f930e42fb7a5c6"
+      },
+      {
+        "relation": "musitu.faqs",
+        "records": 16,
+        "checksum": "dd5ac8e5a0bb251cd79bdcdc821fdaeee69e0830d6909eab687914ed594e4abb"
+      },
+      {
+        "relation": "musitu.inbound_events",
+        "records": 44,
+        "checksum": "c5cfc0e9eb67bab65ab1592026a42db5aed1ee2d48801ab51038a0c1222ac8e1"
+      },
+      {
+        "relation": "musitu.memberships",
+        "records": 13,
+        "checksum": "9fa29b3374160a0325b8673c2f213af10813439417bbb149cf6038bbed3d4db8"
+      },
+      {
+        "relation": "musitu.message_status_events",
+        "records": 3,
+        "checksum": "f08d05ae0d827e055b87efb1266340ff7b7ccb237680eef9709a0bcd335ebb34"
+      },
+      {
+        "relation": "musitu.messages",
+        "records": 40,
+        "checksum": "55f2e36194684f6bf41e4f32eb403b479171d488a942aa3bde444b92305d0e24"
+      },
+      {
+        "relation": "musitu.outbound_attempts",
+        "records": 1,
+        "checksum": "36ec5f12df7b54368049f88a4f73fe5caab974e54bbd33fc64396b8f8952fba2"
+      },
+      {
+        "relation": "musitu.outbound_preparations",
+        "records": 0,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "relation": "musitu.reply_drafts",
+        "records": 23,
+        "checksum": "1a30846c9d7ed293c2c3aaf70c68cf0fc9ec3ee419731e43a1a266bf1173cd51"
+      },
+      {
+        "relation": "musitu.resources",
+        "records": 2,
+        "checksum": "be94e943afc51c5745b0e123db46048be03a025eefddc7cd60863abad054100f"
+      },
+      {
+        "relation": "musitu.tenants",
+        "records": 5,
+        "checksum": "425382b9b98626e35731ad266fdb0d198ac60d8bc8335c7b2dcdfea4e60817c7"
+      },
+      {
+        "relation": "musitu.whatsapp_channels",
+        "records": 5,
+        "checksum": "b04ecba54bef44315999963770c0399d4c729df74272360efeae41bbbf4e4698"
+      },
+      {
+        "relation": "musitu_identity.sessions",
+        "records": 6,
+        "checksum": "7cfb58c340cf8fa6b18d7000176293e5c662263eeacdfea57d28458fc3b06044"
+      }
+    ],
+    "newTransactionContext": [
+      {
+        "current_user": "musitu_runtime",
+        "session_user": "musitu_runtime",
+        "tenant_context_cleared": true,
+        "messages_visible": 0,
+        "ai_requests_visible": 0
+      }
+    ],
+    "aiLedgerState": [
+      {
+        "request_states": [
+          {
+            "state": "COMPLETED",
+            "records": 1
+          },
+          {
+            "state": "UNKNOWN",
+            "records": 1
+          }
+        ],
+        "all_ai_policies_disabled": true
+      }
+    ],
+    "endpointFinal": {
+      "host": "ep-twilight-darkness-b4nskfx9.c-6.us-east-2.aws.neon.tech",
+      "hosts": {
+        "read_write_host": "ep-twilight-darkness-b4nskfx9.c-6.us-east-2.aws.neon.tech",
+        "read_write_pooled_host": "ep-twilight-darkness-b4nskfx9-pooler.c-6.us-east-2.aws.neon.tech"
+      },
+      "id": "ep-twilight-darkness-b4nskfx9",
+      "slug": "ep-twilight-darkness-b4nskfx9",
+      "branch_slug": "br-wild-brook-b4jwx97z",
+      "project_slug": "jolly-scene-02112141",
+      "project_id": "jolly-scene-02112141",
+      "branch_id": "br-wild-brook-b4jwx97z",
+      "autoscaling_limit_min_cu": 0.25,
+      "autoscaling_limit_max_cu": 0.25,
+      "region_id": "aws-us-east-2",
+      "type": "read_write",
+      "current_state": "idle",
+      "group": {
+        "size": {
+          "min": 1,
+          "max": 1
+        },
+        "allow_readable_secondaries": false,
+        "computes": [
+          {
+            "binding_id": "vcb",
+            "current_state": "idle",
+            "role": "read_write",
+            "compute_host": "ep-twilight-darkness-b4nskfx9-vcb.c-6.us-east-2.aws.neon.tech",
+            "compute_pooled_host": "ep-twilight-darkness-b4nskfx9-vcb-pooler.c-6.us-east-2.aws.neon.tech",
+            "created_at": "2026-10-18T04:01:12Z",
+            "updated_at": "2026-10-18T04:02:32Z",
+            "suspended_at": "2026-10-18T04:02:32Z"
+          }
+        ]
+      },
+      "settings": {
+        "pg_settings": {}
+      },
+      "pooler_enabled": false,
+      "pooler_mode": "transaction",
+      "disabled": true,
+      "passwordless_access": true,
+      "last_active": "2026-10-18T04:01:13Z",
+      "creation_source": "console",
+      "created_at": "2026-10-18T04:01:12Z",
+      "updated_at": "2026-10-18T04:02:32Z",
+      "suspended_at": "2026-10-18T04:02:32Z",
+      "proxy_host": "c-6.us-east-2.aws.neon.tech",
+      "suspend_timeout_seconds": 0,
+      "provisioner": "k8s-neonvm"
+    }
+  },
+  "snapshot": {
+    "existing": [
+      {
+        "id": "snap-little-smoke-b4sdrjky",
+        "name": "whatsapp-phase1-qualified-20261014",
+        "source_branch_id": "br-jolly-fire-b4klddds",
+        "created_at": "2026-10-14T03:14:23Z",
+        "expires_at": "2026-10-21T03:15:00Z",
+        "manual": true,
+        "full_size": 32710656
+      }
+    ],
+    "schedule": {
+      "schedule": []
+    },
+    "currentAttempt": {
+      "content": [
+        {
+          "type": "text",
+          "text": "snapshots limit exceeded"
+        },
+        {
+          "type": "text",
+          "text": "[HTTP 422] snapshots limit exceeded"
+        }
+      ],
+      "structuredContent": {
+        "error_code": "INVALID_ARGUMENT"
+      },
+      "isError": true
+    }
+  },
+  "mapping": {
+    "sourceEndpointBranch": "br-jolly-fire-b4klddds",
+    "defaultBranch": "br-jolly-fire-b4klddds"
+  },
+  "limitations": [
+    "Same-provider head branch copy, not snapshot restoration or independent encrypted export",
+    "No decryption/key escrow drill",
+    "No full SaaS restart or browser recovery acceptance",
+    "No scheduled backup or alert qualification",
+    "No genuine OIDC or Meta E2E in this drill"
+  ],
+  "phase1Complete": false
+}

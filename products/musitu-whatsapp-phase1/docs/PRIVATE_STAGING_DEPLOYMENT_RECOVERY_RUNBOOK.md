@@ -43,6 +43,19 @@ Model and AXIOM integration remain blocked pending approved identities/credentia
 
 ## Restart and recovery
 
+**18 October current-schema result:** A genuine restart of the original endpoint
+and separate HEAD recovery copy passed exact counts/SHA-256 checks across all 22
+business/identity tables, including migration 014. Schema fingerprints, roles,
+ownership, grants and FORCE RLS matched. Direct restricted logins and tenant
+context/foreign actor/role escalation denial probes passed on the recovery copy.
+Its branch is `br-wild-brook-b4jwx97z`, LSN `0/1EEE938`; endpoint
+`ep-twilight-darkness-b4nskfx9` is disabled and idle. Original endpoint/default
+mapping remained unchanged. See `RECOVERY_QUALIFICATION_20261018.md` and actual
+results under `evidence/20261018`. This supersedes the older checkpoint's schema
+coverage, but does not qualify offsite backup, key escrow, scheduled snapshots,
+alerts or full application recovery. Another snapshot attempt hit the existing
+snapshot limit; the only snapshot and both earlier recovery branches are retained.
+
 A genuine restart of the named original Neon endpoint passed a record-count persistence check. Native tests also rebuilt the application connection pool and successfully replayed a booking receipt. These are different tests; preserve both scopes.
 
 Earlier snapshot `snap-little-smoke-b4sdrjky` expires on 21 October 2026 at 03:15 UTC. Its restored branch is `br-ancient-lab-b444t0se`. This snapshot predates expanded contacts/messages/configuration tables. Additional snapshot creation hit the provider snapshot limit; current-schema backup coverage is therefore incomplete.
