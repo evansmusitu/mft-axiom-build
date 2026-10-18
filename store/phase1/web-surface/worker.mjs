@@ -18,8 +18,8 @@ if ('serviceWorker' in navigator) {
 }
 `;
 const STORE_SW=String.raw`'use strict';
-const CACHE='musitu-store-r1';
-const PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest','/store/catalog.json','/store/catalog.sig'];
+const CACHE='musitu-store-r2';
+// Detached catalog+signature cannot be independently cached: pairing an old\n// signed manifest with new signature bytes is not verified as an atomic unit.\n// Until signed-bundle atomic offline validation ships, both remain network-only.\nconst PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
 const CACHEABLE=new Set(PUBLIC_SHELL);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(PUBLIC_SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
@@ -87,7 +87,7 @@ function homeResponse(request){
   let html=renderHome(request).replace('Open MUSITU instantly in your browser.',HOME_TITLE[lang]||HOME_TITLE.en);
   return htmlResponse(request,html,lang);
 }
-function offlinePage(){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline & recovery · MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><h1>Offline &amp; recovery</h1><p>The public Store shell can use a cached catalog only with its detached signature. Verify <a href="/store/catalog.json">/store/catalog.json</a> together with <a href="/store/catalog.sig">/store/catalog.sig</a>.</p><p>Android recovery resumes interrupted downloads and rejects a release when its expected size, SHA-256, package identity or signing certificate does not match.</p><p>Repair or reinstall does not create Premium entitlement; commerce and entitlement remain separate from software distribution.</p></div></main></body></html>`}
+function offlinePage(){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline & recovery · MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><h1>Offline &amp; recovery</h1><p>The public Store shell remains available offline, but the trusted signed catalog is not available offline: a network connection is required to fetch <a href="/store/catalog.json">/store/catalog.json</a> together with <a href="/store/catalog.sig">/store/catalog.sig</a> for independent signature verification. Never treat separately cached catalog data as trusted.</p><p>Android recovery resumes interrupted downloads and rejects a release when its expected size, SHA-256, package identity or signing certificate does not match.</p><p>Repair or reinstall does not create Premium entitlement; commerce and entitlement remain separate from software distribution.</p></div></main></body></html>`}
 async function sha256Hex(bytes){const digest=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')}
 async function releaseAsset(env,spec){
   if(!env||!env.STORE_RELEASES||typeof env.STORE_RELEASES.get!=='function') return response('Release asset unavailable\n',503,'text/plain; charset=utf-8',{'Cache-Control':'no-store'});
