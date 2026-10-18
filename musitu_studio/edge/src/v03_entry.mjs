@@ -248,11 +248,16 @@ async function api(req,env,url,actor){
     if(job.render_device!=='CPU'||!job.approved_by_sub||job.approved_by_sub===job.created_by_sub)
       return err('APPROVAL_EVIDENCE_MISSING',409);
     const t=now(),max=safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT);
-    const moved=await q(env.STUDIO_DB,
-      "UPDATE jobs SET state='DISPATCHING',dispatched_at=?,dispatched_by_sub=? WHERE id=? AND state='APPROVED' AND (SELECT COUNT(*) FROM jobs WHERE state IN ('RUNNING','DISPATCHING'))<2 AND (SELECT COUNT(*) FROM jobs WHERE dispatched_at>=substr(?,1,10) AND dispatched_at<date(substr(?,1,10),'+1 day'))<?",
-      t,actor.sub,id,t,t,max).run();
-    if(moved.meta?.changes!==1)return err('DISPATCH_CONCURRENCY_OR_DAILY_CAP',429);
-    await audit(env,job.project_id,id,'DISPATCH_STARTED',actor.sub);
+    let started;
+    try{
+      started=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,
+          "UPDATE jobs SET state='DISPATCHING',dispatched_at=?,dispatched_by_sub=? WHERE id=? AND state='APPROVED' AND (SELECT COUNT(*) FROM jobs WHERE state IN ('RUNNING','DISPATCHING'))<2 AND (SELECT COUNT(*) FROM jobs WHERE dispatched_at>=substr(?,1,10) AND dispatched_at<date(substr(?,1,10),'+1 day'))<?",
+          t,actor.sub,id,t,t,max),
+        auditStmt(env,job.project_id,id,'DISPATCH_STARTED',actor.sub)
+      ]);
+    }catch{return err('DISPATCH_AUDIT_TRANSACTION_FAILED',503)}
+    if(started[0]?.meta?.changes!==1)return err('DISPATCH_CONCURRENCY_OR_DAILY_CAP',429);
     try{
       const response=await fetch(remotePath(env,'pull'),{method:'POST',headers:{
         'content-type':'application/json','x-studio-control-key':env.STUDIO_MODAL_CONTROL_KEY},
@@ -262,13 +267,25 @@ async function api(req,env,url,actor){
       const remote=await response.json();
       if(remote.accepted!==true||remote.job_id!==id||!/^fc-[a-zA-Z0-9_-]{8,128}$/.test(remote.call_id||''))
         throw Error('INVALID_ACK');
-      const ack=await q(env.STUDIO_DB,"UPDATE jobs SET state='RUNNING',call_id=? WHERE id=? AND state='DISPATCHING'",remote.call_id,id).run();
-      if(ack.meta?.changes!==1)return err('ACK_RACE',409);
-      await audit(env,job.project_id,id,'DISPATCH_ACCEPTED',null,{mode:'PULL'});
+      const acknowledged=await env.STUDIO_DB.batch([
+        q(env.STUDIO_DB,"UPDATE jobs SET state='RUNNING',call_id=? WHERE id=? AND state='DISPATCHING'",remote.call_id,id),
+        auditStmt(env,job.project_id,id,'DISPATCH_ACCEPTED',null,{mode:'PULL'})
+      ]);
+      if(acknowledged[0]?.meta?.changes!==1)throw Error('ACK_RACE');
       return json({ok:true,state:'RUNNING',job_id:id},202);
     }catch{
-      await q(env.STUDIO_DB,"UPDATE jobs SET state='NEEDS_REVIEW',error_code='UNKNOWN_REMOTE_OUTCOME' WHERE id=? AND state='DISPATCHING'",id).run();
-      await audit(env,job.project_id,id,'DISPATCH_AMBIGUOUS_NO_RETRY',null);
+      // Modal may already have started paid compute. Never retry the remote call.
+      // Keep the uncertain state and its audit event in one SQLite transaction.
+      try{
+        const uncertain=await env.STUDIO_DB.batch([
+          q(env.STUDIO_DB,"UPDATE jobs SET state='NEEDS_REVIEW',error_code='UNKNOWN_REMOTE_OUTCOME' WHERE id=? AND state='DISPATCHING'",id),
+          auditStmt(env,job.project_id,id,'DISPATCH_AMBIGUOUS_NO_RETRY',null)
+        ]);
+        if(uncertain[0]?.meta?.changes!==1)return err('DISPATCH_RECONCILIATION_REQUIRED',503);
+      }catch{
+        // Remain DISPATCHING: a second POST still cannot dispatch this job.
+        return err('DISPATCH_AUDIT_FAILED_NO_AUTOMATIC_RETRY',503);
+      }
       return err('DISPATCH_OUTCOME_UNKNOWN_NO_AUTOMATIC_RETRY',502);
     }
   }
