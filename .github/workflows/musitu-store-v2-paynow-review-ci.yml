@@ -36,11 +36,13 @@ jobs:
           set -euo pipefail
           node --check store/phase1/payments/paynow-review.mjs
           node --check store/phase1/payments/paynow-review.test.mjs
-          ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs
+          node --check store/phase1/payments/paynow-review-ledger.mjs
+          node --check store/phase1/payments/paynow-review-ledger.test.mjs
+          ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs store/phase1/payments/paynow-review-ledger.mjs
           echo MUSITU_STORE_PAYNOW_OFFLINE_ONLY_AND_V1_UNCHANGED=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
           set -euo pipefail
-          node --test store/phase1/payments/paynow-review.test.mjs
+          node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs
           echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
