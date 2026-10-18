@@ -57,3 +57,21 @@ A later isolated-branch improvement now **caps new Studio V0.3 project creation 
 No authorized physical Android sign-in, no real-person project/role membership in V0.3, no real two-actor producer/reviewer V0.3 rendering, no V0.3 Modal paid CPU job, no isolated PITR restore drill, no T4 GPU entitlement, no hard billing cap. The project/job free-tier quotas bound database entry counts, not an entire Cloudflare account's usage or charges. A paid Workers plan may be metered beyond allowances; original "free tools only" requirement still applies.
 
 The dedicated hostname is accessible for approved staff login at **https://studio-v03.mftintelligence.com/**. The production CPU dispatch gate remains deliberately disabled pending free/paid Modal allowance and separate verified reviewer sign-in. Do not enable compute or deploy to the Axiom/default branch without the applicable specific approvals.
+
+## 18 October 2026 — Actual live staff activity and crash-restart durability audit
+
+### First provider-backed V0.3 staff/browser usage evidence (read-only)
+[GitHub Actions run 39136433888](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39136433888) **SUCCESS**. Cloudflare Access GET audit HTTP **200** and exact-zone GraphQL aggregate HTTP **200**, 4-hour UTC interval **10:32:19–14:32:19** on 2026-10-18, specific to `studio-v03.mftintelligence.com`:
+
+- **1 successful approved, identity-bearing staff Access login**, 0 denied logins in the retrieved window; API results were not truncated.
+- Sampled `mobile` client-category **HTTP 2xx API** observations: **5 `GET /api/session`**, **1 `POST /api/projects`**, and **3 `POST /api/jobs`**. **0 sampled HTTP 2xx mobile POST approval/dispatch/sync**.
+- This is new concrete public-provider evidence that the live V0.3 user-facing API was accessed successfully; it is distinct from synthetic Android-like User-Agent probes and from the earlier V0.2 CPU proof. The Access app policies and signed JWT enforcement remain independently verified.
+- Privacy safeguards: **no email, IP, staff subject, job UUID, raw path containing a UUID, User-Agent string or login cookie** was exported to the artifact. Analytics are sampled. A preceding permitted login is **not cryptographically linked** in this receipt to any specific sampled mobile request; **physical Android device not attested**. No V0.3 job has been proved completed by Modal/R2; CPU dispatch remains disabled.
+
+### Real local DO SQLite state preservation over two process restarts
+[GitHub Actions run 39136315148](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39136315148) **SUCCESS**: a separate test-only Wrangler Cloudflare Worker+SQLite Durable Object created a staff-owned project, stopped the actual Worker process, restarted against the **same persisted on-disk DO storage**, verified the project record and outsider exclusion, restarted a second time and verified the record again. Recorded `SECOND_RESTART_PRESERVED_SQLITE_SCHEMA_AND_DATA=PASS`. No test subjects or records were sent to production.
+
+**Important distinction:** This verifies local storage persistence and schema/membership access after eviction-like process restarts, **not** Cloudflare's 30-day production PITR replay. Cloudflare explicitly states SQLite DO PITR is unavailable in local development; a real production recovery drill would require a dedicated throwaway provider object and authorized restore controls. Never restore the live Studio ledger for testing. See Cloudflare official `/durable-objects/api/sqlite-storage-api/` documentation.
+
+### Operational gates retained
+The staff-only V0.3 app is already deployed at `https://studio-v03.mftintelligence.com/`. The existing `https://studio.mftintelligence.com/` production V0.2 CPU renderer remains separate and operational. **Compute dispatch, spending approval and GPU remain OFF** in V0.3. The next actual end-to-end acceptance step is a second separately approved staff identity receiving reviewer membership, reviewing one of the pending V0.3 jobs, and later a controlled CPU render only after allowance/expense controls have been independently verified. The one observed staff login cannot by itself satisfy the two-person qualification.
