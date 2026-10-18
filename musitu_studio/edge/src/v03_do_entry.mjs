@@ -48,7 +48,34 @@ export class StudioEnterpriseSqliteLedger extends DurableObject {
     await this.ready;
     if(new URL(req.url).pathname==='/internal/callback')
       return new Response('Not found',{status:404,headers:{'cache-control':'no-store'}});
-    if(!trustedActor(req))return MISS();
+    const actor=trustedActor(req);
+    if(!actor)return MISS();
+    const pathname=new URL(req.url).pathname;
+    if(pathname==='/api/recovery/readiness'){
+      if(req.method!=='GET')return new Response(JSON.stringify({ok:false,error:'METHOD_NOT_ALLOWED'}),{
+        status:405,headers:{'content-type':'application/json','cache-control':'no-store'}});
+      const owned=this.ctx.storage.sql.exec(
+        "SELECT COUNT(*) AS n FROM memberships WHERE member_sub=? AND role='owner'",actor.sub).one();
+      if(Number(owned?.n??0)<1)return new Response(JSON.stringify({ok:false,error:'FORBIDDEN'}),{
+        status:403,headers:{'content-type':'application/json','cache-control':'no-store'}});
+      const version=Number(this.ctx.storage.sql.exec(
+        'SELECT COALESCE(MAX(version),0) AS n FROM _studio_schema_versions').one()?.n??0);
+      let available=false;
+      try{
+        const get=this.ctx.storage.getCurrentBookmark;
+        if(typeof get==='function'){
+          const bookmark=await get.call(this.ctx.storage);
+          available=typeof bookmark==='string'&&bookmark.length>=10&&bookmark.length<=256;
+        }
+      }catch{
+        // PITR is deliberately unavailable in local workerd; no restore operation invoked.
+      }
+      return new Response(JSON.stringify({ok:true,schema_version:version,
+        pitr_bookmark_available:available,backup_bookmark_exposed:false,
+        destructive_restore_triggered:false,live_restore_qualification_verified:false}),{
+        status:200,headers:{'content-type':'application/json','cache-control':'no-store',
+          'x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
+    }
     return this.worker.fetch(req,{...this.env,STUDIO_DB:this.db});
   }
 }
