@@ -170,3 +170,43 @@ idempotency across instances, legitimate sandbox and live provider calls,
 reconciled real purchase/refund/settlement, legal consumer agreements and
 explicit separate release approval all remain unqualified. This transport
 alone cannot unlock applications or mark a payment settled.
+
+## Cross-order provider transaction claim (Phase-1 review-only hardening)
+
+`paynow-review-ledger.mjs` additionally reserves each *signed Paynow
+provider transaction reference* with a unique,
+SHA-256-domain-separated `provider-<digest>.json` claim in the **same
+operator-private local ledger directory**. The provider reference comes from
+the two validated Paynow status messages, not from the frontend. A
+per-provider immutable owner-only file is created with exclusive
+`O_CREAT|O_EXCL` before committing the first per-order review record;
+the file and containing directory are fsynced. This ensures two different
+merchant order references cannot simultaneously use one signed provider
+transaction in a shared, local, correctly owned directory.
+
+A second order claiming an already-reserved provider reference is denied.
+If a provider claim exists but its corresponding order journal is missing,
+processing stops for manual investigation (it cannot silently initialize
+new history). An unexpected, corrupted, symlinked or unreadable provider
+claim also blocks the transaction. Identical signed-event retries for the
+correct existing order remain idempotent. A failed operation between
+claim reservation and order-journal commit may intentionally strand a claim;
+**never automatically delete it** to chase availability.
+
+**This is not a production globally unique payment database.** There is
+no global provider-transaction registry across machines, tenants or
+backups; a complete filesystem rollback, privileged file tampering and
+lost/duplicated independent ledger copies remain unresolved. Legacy order
+journals created before the provider-claim index **must be independently
+reconciled and migrated** before they participate in any commercial
+entitlement workflow. The index makes no monetary transfers and cannot
+prevent provider-side chargebacks. Real purchase/refund settlement
+and independent financial controls remain required before launch.
+
+Red-green evidence: original contract (three new security cases) failed
+because another merchant order could reuse a provider transaction and a
+deleted journal could restart, GitHub Actions run `39173541171`.
+The new reservation scheme preserves independent provider identity and
+fails closed on missing order history. Final regression in run
+`39173772545` passed **37/37 total payment tests**. All provider
+references, keys and transactions are synthetic CI fixtures.
