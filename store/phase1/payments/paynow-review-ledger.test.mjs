@@ -99,3 +99,10 @@ test('stored evidence never includes integration key, raw callback, phone, or se
   const saved=JSON.parse(text);assert.equal(saved.entitlementGranted,false);
   assert.equal(saved.publisherSettlementAuthorized,false);
 });
+
+test('dangling symlink masquerading as absent prior ledger cannot reset order history',t=>{
+  const d=fixture(t),p=paths(d),missing=join(d.root,'never-created-target');
+  symlinkSync(missing,p.ledger);
+  assert.throws(()=>record(d),/symlink|unsafe|ledger/i);
+  assert.equal(existsSync(missing),false);
+});
