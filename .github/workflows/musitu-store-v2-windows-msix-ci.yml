@@ -135,11 +135,33 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/verify-msix.test.ps1'
+      - name: Install only disposable signed MSIX on CI Windows OS
+        shell: powershell
+        env:
+          MUSITU_WINDOWS_DISPOSABLE_INSTALL: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          & 'store/phase1/windows/install-disposable-msix-ci.ps1'
       - name: Qualify actual OS-installed MSIX identity and package state
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           & 'store/phase1/windows/os-install-acceptance.test.ps1'
+      - name: Remove disposable OS-installed MSIX and verify complete cleanup
+        if: always()
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $fixtures=@(Get-AppxPackage -Name 'MUSITU.Private.WindowsFixture' -ErrorAction Stop)
+          foreach($fixture in $fixtures){
+            if ($fixture.Publisher -cne 'CN=MUSITU Disposable MSIX Test'){
+              throw 'Refusing to remove a non-disposable Windows package'
+            }
+            Remove-AppxPackage -Package $fixture.PackageFullName -ErrorAction Stop
+          }
+          if ($env:MUSITU_TEST_SIGNED_MSIX -and $env:MUSITU_TEST_CERT_THUMBPRINT){
+            & 'store/phase1/windows/os-install-acceptance.test.ps1' -MustBeAbsent
+          }
       - name: Cleanup ephemeral local signing identity
         if: always()
         run: |
