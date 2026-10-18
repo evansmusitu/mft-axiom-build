@@ -135,7 +135,7 @@ test('deleted order history cannot be silently restarted while provider claim re
 });
 test('provider transaction claim is private, immutable under normal replay, and corrupt state blocks reviews',t=>{
   const d=fixture(t);record(d);
-  const providerKey=createHash('sha256').update('musitu.store.paynow.provider-claim.v1\\0PAYNOW-FIXTURE-1').digest('hex');
+  const providerKey=createHash('sha256').update('musitu.store.paynow.provider-claim.v1'+String.fromCharCode(0)+'PAYNOW-FIXTURE-1').digest('hex');
   const claim=join(d.ledgerDirectory,'provider-'+providerKey+'.json');
   assert.equal(existsSync(claim),true,'provider reference must be claimed globally before review');
   assert.equal(statSync(claim).mode&0o777,0o600);
