@@ -122,3 +122,27 @@ test('real Chromium reads installable app manifest and decodes both self-hosted 
     assert.equal(app.errors.length,0,'Chrome must parse the actual install manifest without warnings');
   }finally{await context.close();}
 });
+
+test('browser-originated Store install offer appears only on supported event and requires click approval',async()=>{
+  const context=await browser.newContext();
+  try{
+    const page=await context.newPage();
+    await page.goto(origin+'/store/install?platform=web',{waitUntil:'load'});
+    const button=page.locator('#store-pwa-install');
+    assert.equal(await button.count(),1,'Store install must have its own distinct approval button');
+    assert.equal(await button.isVisible(),false,'cannot advertise unoffered browser installation');
+    await page.evaluate(()=>{
+      window.__storePromptCalls=0;
+      const offer=new Event('beforeinstallprompt',{cancelable:true});
+      offer.prompt=async()=>{window.__storePromptCalls++;};
+      offer.userChoice=Promise.resolve({outcome:'accepted'});
+      window.dispatchEvent(offer);
+    });
+    await button.waitFor({state:'visible'});
+    assert.equal(await page.evaluate(()=>window.__storePromptCalls),0,'no automatic prompt allowed');
+    await button.click();
+    await page.waitForFunction(()=>window.__storePromptCalls===1);
+    await page.waitForFunction(()=>document.querySelector('#store-pwa-install').hidden);
+    assert.match(await page.locator('#store-pwa-install-status').innerText(),/accepted|browser/i);
+  }finally{await context.close();}
+});
