@@ -1,0 +1,98 @@
+name: MUSITU Studio V0.3 — Final Live Scoped Production Readback
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-do-final-readback-20261018.yml']
+permissions: {contents: read}
+jobs:
+  staff-only-and-no-accidental-compute:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real external first-hop authentication for every sensitive Studio V03 route
+        run: |
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error
+          class OneHop(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(OneHop)
+          root='https://studio-v03.mftintelligence.com'
+          routes=('/', '/studio.js','/api/session','/api/status','/api/projects','/api/jobs','/internal/callback')
+          result={'schema':'musitu.studio.v03.external-route-authentication.v1',
+            'read_only':True,'cookie_or_callback_url_stored':False,'worker_or_cloud_mutated':False,
+            'route_redirect_results':{},'every_sensitive_route_requires_access':False}
+          for path in routes:
+            request=urllib.request.Request(root+path,method='GET',
+              headers={'User-Agent':'MUSITU-Studio-Staff-Only-Negative-Check/0.3'})
+            try:
+              try:
+                with opener.open(request,timeout=15) as r:
+                  code=r.status;heads=r.headers
+              except urllib.error.HTTPError as e:
+                code=e.code;heads=e.headers
+              dest=heads.get('Location','')
+              good=code in (301,302,303,307,308) and (
+                '/cdn-cgi/access/login' in dest or '.cloudflareaccess.com/' in dest)
+              result['route_redirect_results'][path]=good
+            except OSError:
+              result['route_redirect_results'][path]=False
+          result['every_sensitive_route_requires_access']=all(result['route_redirect_results'].values())
+          pathlib.Path('studio-v03-route-security-live.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_ALL_ROUTES_AUTH_GATE='+json.dumps(result,sort_keys=True))
+          assert result['every_sensitive_route_requires_access']
+          PY
+      - name: Check independent V02 hostname, V03 strict app, Worker domain, new DO and no compute spend
+        run: |
+          python - <<'PY'
+          import os,json,pathlib,urllib.request,re
+          account='93f395f5121954671f92fffa453d6b61'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          b='https://api.cloudflare.com/client/v4'
+          def read(path):
+            req=urllib.request.Request(b+path,method='GET',headers={
+              'Authorization':'Bearer '+token,'Accept':'application/json'})
+            with urllib.request.urlopen(req,timeout=20) as r:
+              x=json.load(r);assert r.status==200 and x.get('success')
+              return x['result']
+          targets=read('/accounts/'+account+'/workers/domains')
+          def mapped(host,worker):
+            return len([x for x in targets if x.get('hostname')==host and x.get('service')==worker])==1
+          a=read('/accounts/'+account+'/access/apps?per_page=100')
+          target=[x for x in a if x.get('domain')=='studio-v03.mftintelligence.com'
+            and x.get('type')=='self_hosted']
+          assert len(target)==1
+          ps=read('/accounts/'+account+'/access/apps/'+target[0]['id']+'/policies')
+          staff_only=len(ps)==2 and all(p.get('decision')=='allow' and p.get('include') and all(
+            set(k)=={'email'} for k in p['include']) for p in ps)
+          settings=read('/accounts/'+account+'/workers/scripts/musitu-studio-v03-do/settings')
+          binds=settings.get('bindings') or []
+          v={x.get('name'):x.get('text') for x in binds if x.get('type')=='plain_text'}
+          checks={
+            'v03_domain_only_its_dedicated_worker':mapped('studio-v03.mftintelligence.com','musitu-studio-v03-do'),
+            'v02_original_domain_original_worker':mapped('studio.mftintelligence.com','musitu-studio-v02'),
+            'v03_access_staff_only_two_exact_email_rules':staff_only,
+            'v03_verified_access_jwt_audience_configured':v.get('STUDIO_ACCESS_POLICY_AUD')==target[0].get('aud'),
+            'v03_sqlite_durable_object_bound':any(x.get('type')=='durable_object_namespace' and x.get('name')=='STUDIO_LEDGER' for x in binds),
+            'v03_existing_studio_r2_bucket_bound':any(x.get('type')=='r2_bucket' and x.get('name')=='STUDIO_ASSETS' for x in binds),
+            'v03_cpu_compute_disabled_by_default':v.get('ENABLE_RENDER_DISPATCH')=='false',
+            'v03_budget_guard_disabled':v.get('BUDGET_GUARD_APPROVED')=='false',
+            'v03_gpu_disabled':v.get('GPU_EXECUTION_APPROVED')=='false'}
+          result={'schema':'musitu.studio.v03.live-staff-access-free-do-readback.v1',
+            'read_only':True,'cloudflare_or_modal_mutated':False,
+            'access_email_values_disclosed':False,'checks':checks}
+          pathlib.Path('studio-v03-live-system-readback.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_LIVE_PROVIDER_ACCEPTANCE='+json.dumps(result,sort_keys=True))
+          assert all(checks.values())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-live-sqlite-do-staff-access-final-proof
+          path: |
+            studio-v03-route-security-live.json
+            studio-v03-live-system-readback.json
+          retention-days: 30
