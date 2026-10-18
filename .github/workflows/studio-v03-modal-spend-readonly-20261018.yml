@@ -1,0 +1,70 @@
+name: MUSITU Studio V0.3 — Modal Allowance and Spend Guard Read-only
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-modal-spend-readonly-20261018.yml']
+permissions: {contents: read}
+jobs:
+  no-new-compute:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install Modal CLI for read-only account and billing verification
+        run: python -m pip install -q --disable-pip-version-check 'modal>=1.5,<2'
+      - name: Summarize safe spend evidence without copying any account identifiers
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,subprocess,pathlib,datetime,decimal
+          receipt={'schema':'musitu.studio.v03.modal-billing-readonly.v1',
+            'at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'read_only':True,'new_compute_jobs_started':False,
+            'provider_billing_config_changed':False,'gpu_activated':False,
+            'workspace_billing_summary_readable':False,'studio_cpu_app_readable':False,
+            'workspace_budget_hard_zero_verified':False,
+            'monthly_free_credit_remaining_verified':False,
+            'cpu_enablement_permitted':False,'gpu_enablement_permitted':False}
+          def safe(args):
+            try:
+              p=subprocess.run(args,capture_output=True,text=True,timeout=65,check=False)
+              if p.returncode!=0:return None
+              out=json.loads(p.stdout)
+              return out if isinstance(out,(list,dict)) else None
+            except (OSError,ValueError,subprocess.TimeoutExpired):return None
+          if os.getenv('MODAL_TOKEN_ID') and os.getenv('MODAL_TOKEN_SECRET'):
+            summary=safe(['modal','billing','summary','--for','this month','--json'])
+            receipt['workspace_billing_summary_readable']=isinstance(summary,dict)
+            # Only aggregate fields, not workspace owner emails, tokens, raw prices or identities.
+            if isinstance(summary,dict):
+              receipt['billing_summary_has_metered_cost']=('metered_cost' in summary)
+              receipt['billing_summary_has_billed_cost']=('billed_cost' in summary)
+              try:
+                billed=decimal.Decimal(str(summary.get('billed_cost')))
+                receipt['nonnegative_billable_usage_returned']=billed>=0
+              except (decimal.InvalidOperation,TypeError,ValueError):
+                receipt['nonnegative_billable_usage_returned']=False
+            app=safe(['modal','app','info','musitu-studio-v02','--json'])
+            receipt['studio_cpu_app_readable']=isinstance(app,dict)
+            func=safe(['modal','function','info','musitu-studio-v02/render_cpu_pull','--json'])
+            receipt['cpu_pull_function_available']=isinstance(func,dict)
+            # Billing summary is NOT a hard budget. A modal Starter Workspace
+            # may charge over the included free monthly credit.
+            receipt['outcome']='READ_ONLY_COST_DATA_RECORDED'
+          else:receipt['outcome']='MODAL_CREDENTIALS_NOT_AVAILABLE'
+          path=pathlib.Path('studio-v03-modal-free-allowance-proof.json')
+          path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('STUDIO_V03_MODAL_SPEND_PROOF='+json.dumps(receipt,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-modal-spending-readonly
+          path: studio-v03-modal-free-allowance-proof.json
+          if-no-files-found: warn
+          retention-days: 14
