@@ -5,14 +5,15 @@ import {readFileSync} from 'node:fs';
 
 import worker from './worker.mjs';
 
-async function runtime(){
+async function runtime({existingCaches=[]}={}){
   const res=await worker.fetch(new Request('https://payments.mftintelligence.com/store/sw.js'),{},{});
   assert.equal(res.status,200);
   const listeners=new Map(),calls=[];
   const env={
     self:{location:{origin:'https://payments.mftintelligence.com'},addEventListener:(event,fn)=>listeners.set(event,fn),skipWaiting:()=>{},clients:{claim:()=>{}}},
     caches:{open:async()=>({addAll:async(paths)=>{calls.push({kind:'precache',paths});},put:async(req)=>calls.push({kind:'put',path:req.url})}),
-      keys:async()=>[],match:async()=>undefined},
+      keys:async()=>existingCaches,delete:async(name)=>{calls.push({kind:'delete',name});return true;},
+      match:async()=>undefined},
     fetch:async()=>new Response('{}',{status:200}),
     URL,Response,Request,Promise
   };
@@ -44,4 +45,16 @@ test('offline page makes the unavailability of a trusted signed catalog explicit
   const body=await r.text();
   assert.match(body,/catalog.*(not available offline|network.*required)/is);
   assert.match(body,/signature/i);
+});
+
+test('Store service-worker upgrades never erase other apps or commerce caches sharing the same origin',async()=>{
+  const {listeners,calls}=await runtime({existingCaches:[
+    'musitu-store-r1','musitu-store-r2','musitu-store-r3',
+    'musitu-chemistry-offline-v1','premium-entitlement-cache','other-pwa-cache'
+  ]});
+  await new Promise((resolve,reject)=>
+    listeners.get('activate')({waitUntil:p=>Promise.resolve(p).then(resolve,reject)}));
+  const deleted=calls.filter(c=>c.kind==='delete').map(c=>c.name).sort();
+  assert.deepEqual(deleted,['musitu-store-r1','musitu-store-r2'],
+    'Only obsolete caches owned by MUSITU Store may be removed');
 });
