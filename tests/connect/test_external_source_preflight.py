@@ -73,6 +73,25 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         self.assertNotIn('authorization_reference', report)
         self.assertNotIn('raw_rows', report)
 
+    def test_rejects_duplicate_sensor_json_key_even_with_matching_sha(self):
+        # Ambiguous duplicate keys are not canonical 28-channel readings.
+        raw = self.source.read_text(encoding='utf-8')
+        self.assertIn('"MM263":', raw)
+        self.source.write_text(raw.replace('"MM263":', '"MM263":9.9,"MM263":', 1), encoding='utf-8')
+        self.metadata['source_sha256'] = hashlib.sha256(self.source.read_bytes()).hexdigest()
+        self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'external_source_duplicate_json_key'):
+            self.inspect()
+
+    def test_rejects_duplicate_manifest_json_key_even_with_same_value(self):
+        # A repeated field renders the signed source claim ambiguous.
+        raw = self.manifest.read_text(encoding='utf-8')
+        raw = raw.replace('"source_sha256":',
+                          '"source_sha256":"' + self.metadata['source_sha256'] + '", "source_sha256":', 1)
+        self.manifest.write_text(raw, encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'external_source_duplicate_json_key'):
+            self.inspect()
+
     def test_refuses_repackaging_public_dataset_as_new_mine(self):
         self.metadata['source_sha256'] = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
         self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')
