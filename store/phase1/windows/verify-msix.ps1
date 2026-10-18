@@ -66,7 +66,7 @@ function Test-MusituWindowsMsix {
     }
   } finally { $archive.Dispose() }
 
-  if (-not $IsWindows -and -not ([Environment]::OSVersion.Platform -eq 'Win32NT')){
+  if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){
     throw 'Windows MSIX intake: platform signature validation requires Windows OS'
   }
   $tool=Get-Item -LiteralPath $SignToolPath -ErrorAction Stop
