@@ -1,0 +1,107 @@
+name: MUSITU Studio V0.3 — Deploy Isolated Unrouted SQLite Worker
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-do-private-deploy-20261018.yml'
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-first-private-sqlite-deploy
+  cancel-in-progress: false
+jobs:
+  guarded-first-deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify all V0.3 CPU/Access/SQLite source tests
+        working-directory: musitu_studio/edge
+        run: |
+          npm install --ignore-scripts --no-fund --no-audit
+          node --test tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+          node --check src/v03_do_entry.mjs
+          node --check src/v03_do_adapter.mjs
+      - name: Prove brand-new Worker name and fail-closed environment
+        working-directory: musitu_studio/edge
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error
+          c=json.load(open('wrangler.v03.do.jsonc'))
+          assert c['name']=='musitu-studio-v03-do' and c['workers_dev'] is False
+          assert not c.get('routes') and 'd1_databases' not in c
+          assert c['main']=='src/v03_do_entry.mjs'
+          assert c['durable_objects']['bindings'][0]['name']=='STUDIO_LEDGER'
+          assert c['migrations'][0]['new_sqlite_classes']==['StudioEnterpriseSqliteLedger']
+          assert c['vars']['ENABLE_RENDER_DISPATCH']=='false'
+          assert c['vars']['BUDGET_GUARD_APPROVED']=='false'
+          assert c['vars']['GPU_EXECUTION_APPROVED']=='false'
+          assert c['vars']['STUDIO_V03_GLOBAL_ADMINS']==''
+          assert c['vars']['STUDIO_ACCESS_POLICY_AUD']=='0'*64
+          tok=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          assert tok,'CLOUDFLARE_TOKEN_MISSING'
+          u='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/workers/scripts/musitu-studio-v03-do'
+          req=urllib.request.Request(u,headers={'Authorization':'Bearer '+tok},method='GET')
+          try:
+            with urllib.request.urlopen(req,timeout=20) as response:
+              raise RuntimeError('TARGET_WORKER_ALREADY_EXISTS_REFUSE_OVERWRITE')
+          except urllib.error.HTTPError as e:
+            if e.code!=404:raise RuntimeError('CANNOT_PROVE_NEW_SCRIPT_NAME')
+          print('EXACT_NEW_SERVICE_AND_ACCESS_DISPATCH_DEFAULT_DENY=PASS')
+          PY
+      - name: Deploy only unrouted private V0.3 Worker and new SQLite Durable Object namespace
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$CF_API_TOKEN}"
+          npx wrangler deploy --config wrangler.v03.do.jsonc --outdir .studio-v03-private-build
+      - name: Live protected-provider readback without exposing configuration
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.error
+          account='93f395f5121954671f92fffa453d6b61'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          url='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/musitu-studio-v03-do/settings'
+          report={'schema':'musitu.studio.v03.sqlite-do-private-deployment.v1','provider_mutation_scope':'new-unrouted-worker-and-sqlite-do-only',
+                  'previous_studio_v02_hostname_unchanged':True,
+                  'axiom_resources_intentionally_changed':False,
+                  'gpu_gate_enabled':False,'cpu_dispatch_enabled':False,
+                  'staff_access_configured':False,'external_public_hostname_attached':False,
+                  'worker_settings_readable':False,'sqlite_durable_object_binding_verified':False,
+                  'r2_v03_dedicated_prefix_verified':False}
+          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=20) as r:
+              data=json.load(r)
+              if r.status==200 and data.get('success'):
+                x=data.get('result') or {}
+                bindings=x.get('bindings') or []
+                report['worker_settings_readable']=True
+                report['sqlite_durable_object_binding_verified']=any(
+                  b.get('name')=='STUDIO_LEDGER' and b.get('type')=='durable_object_namespace'
+                  for b in bindings)
+                report['r2_v03_dedicated_prefix_verified']=any(
+                  b.get('name')=='STUDIO_ASSETS' and b.get('type')=='r2_bucket'
+                  for b in bindings)
+          except (OSError,ValueError,urllib.error.HTTPError):
+            pass
+          path=pathlib.Path('studio-v03-sqlite-do-private-deploy-receipt.json')
+          path.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_PRIVATE_DEPLOY_RECEIPT='+json.dumps(report,sort_keys=True))
+          assert report['sqlite_durable_object_binding_verified'] and report['r2_v03_dedicated_prefix_verified'], 'PRIVATE_LIVE_READBACK_MISSING'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-private-sqlite-do-deployment-20261018
+          path: studio-v03-sqlite-do-private-deploy-receipt.json
+          retention-days: 14
+          if-no-files-found: warn
