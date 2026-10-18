@@ -279,3 +279,35 @@ test('caps free-tier submissions to fifty per project without consuming quota fo
  assert.equal(denied.body.error,'PROJECT_JOB_QUOTA_EXCEEDED');
  assert.equal(f.db.db.prepare('SELECT COUNT(*) AS n FROM jobs WHERE project_id=?').get(id).n,50);
 });
+
+
+test('reviewer approval rolls back if audit insertion fails atomically',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ await f.call('person-a','/api/projects/'+p+'/members','POST',
+   {member_sub:'person-b',role:'reviewer'});
+ f.db.db.exec("CREATE TRIGGER reject_review_audit BEFORE INSERT ON audit_events "+
+   "WHEN NEW.action='JOB_APPROVED' BEGIN SELECT RAISE(ABORT,'SIMULATED_REVIEW_AUDIT_FAILURE'); END;");
+ const result=await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
+ assert.notEqual(result.status,200,'audit failed: approval cannot appear successful');
+ const record=f.db.db.prepare('SELECT state,approved_by_sub FROM jobs WHERE id=?').get(id);
+ assert.equal(record.state,'PENDING_APPROVAL','failed audit must not create unaudited approval');
+ assert.equal(record.approved_by_sub,null);
+ assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED'")
+   .get(id).n,0);
+});
+
+test('failed-render callback rolls back terminal state if audit insertion fails atomically',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ const row=f.db.db.prepare('SELECT payload_sha256 FROM jobs WHERE id=?').get(id);
+ f.db.db.prepare("UPDATE jobs SET state='RUNNING' WHERE id=?").run(id);
+ f.db.db.exec("CREATE TRIGGER reject_render_failed_audit BEFORE INSERT ON audit_events "+
+   "WHEN NEW.action='RENDER_FAILED' BEGIN SELECT RAISE(ABORT,'SIMULATED_RENDER_AUDIT_FAILURE'); END;");
+ const result=await f.call(null,'/internal/callback','POST',{
+   job_id:id,input_sha256:row.payload_sha256,state:'FAILED'},'C'.repeat(48));
+ assert.notEqual(result.status,200,'callback cannot claim committed terminal transition without audit');
+ const job=f.db.db.prepare('SELECT state,finished_at FROM jobs WHERE id=?').get(id);
+ assert.equal(job.state,'RUNNING','audit failure must not leave an unaudited terminal job');
+ assert.equal(job.finished_at,null);
+ assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='RENDER_FAILED'")
+   .get(id).n,0);
+});
