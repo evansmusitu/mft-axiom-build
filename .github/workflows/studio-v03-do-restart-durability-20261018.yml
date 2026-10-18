@@ -1,0 +1,122 @@
+name: MUSITU Studio V0.3 — Real SQLite DO Restart Durability Qualification
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-do-restart-durability-20261018.yml'
+permissions: {contents: read}
+jobs:
+  local-real-workerd-persistence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install locked dependencies without lifecycle scripts
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Restart real workerd twice against the SAME isolated SQLite durable store
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-studio-v03-restart-ci
+          python - <<'PY'
+          import json,pathlib
+          c=json.loads(pathlib.Path('wrangler.v03.do.jsonc').read_text())
+          assert c['workers_dev'] is False and 'd1_databases' not in c
+          assert c['vars']['GPU_EXECUTION_APPROVED']=='false'
+          c['name']='musitu-studio-v03-restart-qualification'
+          c['main']='src/v03_do_restart_local_ci.mjs'
+          pathlib.Path('wrangler.v03.restart-ci.jsonc').write_text(json.dumps(c))
+          pathlib.Path('src/v03_do_restart_local_ci.mjs').write_text("""
+          import {StudioEnterpriseSqliteLedger} from './v03_do_entry.mjs';
+          export {StudioEnterpriseSqliteLedger};
+          // Test-only entry generated inside temporary Actions runner, NEVER deployed.
+          export default {async fetch(req,env){
+            const who=req.headers.get('x-ci-actor')||'alpha-ci';
+            const headers=new Headers(req.headers);
+            headers.delete('x-musitu-internal-verified-actor');
+            headers.set('x-musitu-internal-verified-actor',JSON.stringify({
+              sub:who,email:who+'@ci.invalid'}));
+            const stub=env.STUDIO_LEDGER.get(env.STUDIO_LEDGER.idFromName('v03-studio-ledger-primary'));
+            return stub.fetch(new Request(req,{headers}));
+          }};
+          """)
+          PY
+          persistent="$PWD/.wrangler/v03-restart-qualification"
+          local_url="http://127.0.0.1:8797"
+          start() {
+            npx wrangler dev --local --config wrangler.v03.restart-ci.jsonc \
+              --persist-to "$persistent" --ip 127.0.0.1 --port 8797 \
+              > /tmp/studio-v03-restart-ci.log 2>&1 &
+            worker=$!
+            ready=false
+            for _ in $(seq 1 45); do
+              http=$(curl --silent --output /dev/null --write-out '%{http_code}' "$local_url/api/projects" || true)
+              if [ "$http" = 200 ]; then ready=true;break;fi
+              sleep 1
+            done
+            if [ "$ready" != true ]; then tail -35 /tmp/studio-v03-restart-ci.log;exit 1;fi
+          }
+          stop() {
+            kill "$worker" 2>/dev/null || true
+            wait "$worker" 2>/dev/null || true
+          }
+          trap 'stop 2>/dev/null || true' EXIT
+          start
+          curl --fail --silent -H 'Content-Type: application/json' -H "Origin: $local_url" \
+            -d '{"title":"Persisted Studio Team"}' "$local_url/api/projects" > /tmp/studio-v03-persisted.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/studio-v03-persisted.json'))
+          assert x.get('ok') and len(x.get('project_id',''))==36
+          print('DURABLE_OBJECT_CREATED_PRIOR_TO_RESTART=PASS')
+          PY
+          stop
+          start
+          python - <<'PY'
+          import json,urllib.request
+          root='http://127.0.0.1:8797'
+          created=json.load(open('/tmp/studio-v03-persisted.json'))['project_id']
+          with urllib.request.urlopen(root+'/api/projects',timeout=12) as response:
+            visible=json.load(response)['projects']
+          assert len(visible)==1 and visible[0]['id']==created
+          req=urllib.request.Request(root+'/api/projects',headers={'x-ci-actor':'beta-ci'})
+          with urllib.request.urlopen(req,timeout=12) as response:
+            isolated=json.load(response)['projects']
+          assert isolated==[]
+          print('RESTART_PRESERVED_SQLITE_DATA_AND_OWNER_ISOLATION=PASS')
+          PY
+          stop
+          start
+          python - <<'PY'
+          import json,urllib.request
+          root='http://127.0.0.1:8797'
+          with urllib.request.urlopen(root+'/api/projects',timeout=12) as response:
+            assert len(json.load(response)['projects'])==1
+          print('SECOND_RESTART_PRESERVED_SQLITE_SCHEMA_AND_DATA=PASS')
+          PY
+      - name: Record what was and was NOT proved
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          receipt={'schema':'musitu.studio.v03.workerd-sqlite-restart-qualification.v1',
+            'real_workerd':True,'same_local_do_storage_on_three_processes':True,
+            'schema_and_owner_project_retained_after_two_restarts':True,
+            'second_actor_excluded_after_restart':True,
+            'production_database_not_accessed':True,
+            'cloudflare_resources_modified':False,
+            'live_pitr_restoration_verified':False,
+            'browser_staff_identity_verified':False}
+          pathlib.Path('studio-v03-sqlite-restart-readiness.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print('STUDIO_V03_LOCAL_DURABLE_RECOVERY='+json.dumps(receipt,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-sqlite-restart-local-proof
+          path: studio-v03-sqlite-restart-readiness.json
+          retention-days: 14
+          if-no-files-found: warn
