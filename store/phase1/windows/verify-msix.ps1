@@ -36,6 +36,11 @@ function Test-MusituWindowsMsix {
     throw 'Windows MSIX intake: signed catalog artifact SHA256 mismatch'
   }
   Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
+  # Windows PowerShell 5.1 defines ZipFile in FileSystem, whereas modern
+  # PowerShell normally resolves it automatically. Require both runtimes.
+  if (-not ('System.IO.Compression.ZipFile' -as [type])) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+  }
   $archive=[IO.Compression.ZipFile]::OpenRead($item.FullName)
   try {
     $entries=@($archive.Entries | Where-Object {$_.FullName -ceq 'AppxManifest.xml'})
