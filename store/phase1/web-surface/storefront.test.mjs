@@ -163,8 +163,8 @@ test('service worker provides an offline public shell but never caches installer
   assert.match(sw.headers.get('content-type')||'',/javascript/);
   const t=await sw.text();
   assert.match(t,/musitu-store-r2/);
-  assert.doesNotMatch(t, /['\"]\\/store\\/catalog\\.json['\"]/, 'catalog must not be independently cached');
-  assert.doesNotMatch(t, /['\"]\\/store\\/catalog\\.sig['\"]/, 'signature must not be independently cached');
+  assert.equal(t.includes("'/store/catalog.json'"),false,'catalog must not be independently cached');
+  assert.equal(t.includes("'/store/catalog.sig'"),false,'signature must not be independently cached');
   assert.match(t,/\/store\/offline/);
   assert.match(t,/request\.method !== 'GET'/);
   assert.doesNotMatch(t,/MUSITU_Store_1\.0\.0\.apk|MUSITU_Chemistry_1\.3\.0\.ipa|\/chemistry\/checkout|\/chemistry\/catalog/);
