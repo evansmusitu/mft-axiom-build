@@ -120,14 +120,15 @@ def _tool(command):
     return proc.stdout
 
 def _sdk_tool(name):
-    found=shutil.which(name)
-    if found: return found
+    # Prefer the provisioned Android SDK over unrelated PATH tools.
     root=os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
     if root:
         for candidate in sorted((Path(root)/'build-tools').glob(f'*/{name}'),
                                 reverse=True):
             if candidate.is_file() and os.access(candidate,os.X_OK):
                 return str(candidate)
+    found=shutil.which(name)
+    if found: return found
     raise IntakeRejected('required Android SDK inspection tool unavailable: '+name)
 
 def inspect_apk(path):
