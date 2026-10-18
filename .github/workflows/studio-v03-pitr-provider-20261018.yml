@@ -1,10 +1,9 @@
 name: MUSITU Studio V03 — Disposable Cloudflare PITR Provider Restore
+# Explicit manual trigger only. Previous attempts proved Workers.dev requests
+# are intercepted by Cloudflare 403 before the disposable Worker is reached.
+# Never rerun without diagnosing account-wide Access restrictions first.
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths:
-      - '.github/workflows/studio-v03-pitr-provider-20261018.yml'
-      - 'ops/studio_v03_pitr_disposable_worker.mjs'
+  workflow_dispatch:
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-disposable-provider-pitr-one-time
