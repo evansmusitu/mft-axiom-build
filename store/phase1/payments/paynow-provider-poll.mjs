@@ -26,9 +26,11 @@ function safeEndpoint(urlText){
 function requestStatus(url,requestImpl){
   return new Promise((resolve,reject)=>{
     let completed=false;
+    let absoluteDeadline=null;
     const finish=(error,bytes)=>{
       if(completed)return;
       completed=true;
+      if(absoluteDeadline!==null)clearTimeout(absoluteDeadline);
       if(error)reject(error instanceof Error?error:Error('provider request unavailable'));
       else resolve(bytes);
     };
@@ -82,6 +84,12 @@ function requestStatus(url,requestImpl){
         finish(Error('provider HTTPS timeout; review held'));
         if(typeof req.destroy==='function')req.destroy();
       });
+      // req.setTimeout() is an idle timeout, not a total wall-clock
+      // deadline; a malicious peer can send one byte periodically forever.
+      absoluteDeadline=setTimeout(()=>{
+        finish(Error('private Paynow provider poll: absolute provider response deadline exceeded'));
+        if(typeof req.destroy==='function')req.destroy();
+      },TIMEOUT_MS);
       // Critically no POST body, no credentials, no automatic redirect.
       req.end();
     }catch{
