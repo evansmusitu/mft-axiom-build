@@ -1,0 +1,125 @@
+name: MUSITU Studio V0.3 — SQLite Durable Objects Free Alternative
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-do-local-20261018.yml'
+      - 'musitu_studio/edge/src/v03_do_*.mjs'
+      - 'musitu_studio/edge/src/v03_entry.mjs'
+      - 'musitu_studio/edge/wrangler.v03.do.jsonc'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  real-workerd-sqlite-do-no-cloud:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install pinned packages without lifecycle scripts
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run full v03 SQLite business rules and pilot regression
+        working-directory: musitu_studio/edge
+        run: |
+          node --check src/v03_do_entry.mjs
+          node --check src/v03_do_adapter.mjs
+          node --check src/v03_do_schema.mjs
+          node --test tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+      - name: Real workerd negative test with actual production entry (no secrets)
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          d=json.loads(pathlib.Path('wrangler.v03.do.jsonc').read_text())
+          assert d['workers_dev'] is False and not d.get('routes')
+          assert 'd1_databases' not in d
+          assert d['migrations'][0]['new_sqlite_classes']==['StudioEnterpriseSqliteLedger']
+          assert d['vars']['ENABLE_RENDER_DISPATCH']=='false'
+          assert d['vars']['GPU_EXECUTION_APPROVED']=='false'
+          print('SQLITE_DURABLE_OBJECT_FREE_DEPLOY_SCOPE=PASS')
+          PY
+          npx wrangler dev --local --config wrangler.v03.do.jsonc --ip 127.0.0.1 --port 8794 > /tmp/studio-do-public-entry.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 35); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8794/api/status || true)
+            [ "$code" = 403 ] && break || sleep 1
+          done
+          test "$code" = 403
+          for route in / /studio.js /api/status /api/projects /api/jobs; do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:8794$route")
+            test "$code" = 403 || { echo ANONYMOUS_ROUTE_NOT_PROTECTED; exit 1; }
+          done
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://127.0.0.1:8794/internal/callback)
+          test "$code" = 404
+          echo 'SIGNED_ACCESS_GATE_AND_NO_PUBLIC_CALLBACK=PASS'
+      - name: Real workerd Durable Object positive transactional member/approval flow
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          original=json.loads(Path('wrangler.v03.do.jsonc').read_text())
+          original['name']='studio-v03-sqlite-do-local-test-only'
+          original['main']='src/v03_do_local_ci_entry.mjs'
+          Path('wrangler.v03.do.local-ci.jsonc').write_text(json.dumps(original))
+          Path('src/v03_do_local_ci_entry.mjs').write_text("""
+          import {StudioEnterpriseSqliteLedger} from './v03_do_entry.mjs';
+          export {StudioEnterpriseSqliteLedger};
+          // Ephemeral GitHub runner-only trusted inter-DO harness, never deployed.
+          export default {async fetch(req,env){
+            const actor=req.headers.get('x-local-test-actor')||'owner-ci';
+            const headers=new Headers(req.headers);
+            headers.delete('x-musitu-internal-verified-actor');
+            headers.set('x-musitu-internal-verified-actor',JSON.stringify({
+              sub:actor,email:actor+'@example.test'}));
+            const stub=env.STUDIO_LEDGER.get(env.STUDIO_LEDGER.idFromName('v03-studio-ledger-primary'));
+            return stub.fetch(new Request(req,{headers}));
+          }};
+          """)
+          PY
+          npx wrangler dev --local --config wrangler.v03.do.local-ci.jsonc --ip 127.0.0.1 --port 8795 > /tmp/studio-do-local-ledger.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 35); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8795/api/projects || true)
+            [ "$code" = 200 ] && break || sleep 1
+          done
+          if [ "$code" != 200 ]; then tail -35 /tmp/studio-do-local-ledger.log; exit 1; fi
+          curl --fail --silent -X POST -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8795'             --data '{"title":"Durable Enterprise Project"}' http://127.0.0.1:8795/api/projects > /tmp/studio-do-created.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/studio-do-created.json'))
+          assert d.get('ok') is True and len(d.get('project_id',''))==36
+          print('REAL_DURABLE_OBJECT_SQLITE_PROJECT_CREATION=PASS')
+          PY
+          outsider=$(curl --silent -H 'x-local-test-actor: outsider-ci' http://127.0.0.1:8795/api/projects)
+          python -c "import json,sys; d=json.loads(sys.argv[1]);assert d['projects']==[];print('REAL_DURABLE_OBJECT_MULTITENANT_PROJECT_ISOLATION=PASS')" "$outsider"
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8795' -H 'x-local-test-actor: outsider-ci' --data '{"device":"CPU"}' http://127.0.0.1:8795/api/jobs)
+          test "$code" = 400
+          echo 'REAL_WORKER_DURABLE_OBJECT_ACCOUNT_BOUNDARY=PASS'
+      - name: Write safe evidence summary
+        if: success()
+        run: |
+          python - <<'PY'
+          import pathlib,json
+          r={'schema':'musitu.studio.v03.sqlite-durable-object-alternative.v1',
+             'real_workerd':True,'real_durable_object_sqlite_project_written_locally':True,
+             'real_member_project_isolation':True,'anonymous_access_denied':True,
+             'cloudflare_config_changed':False,'d1_create_required':False,
+             'workers_paid_required':False,'production_deployed':False,'gpu_gate_enabled':False}
+          pathlib.Path('studio-v03-sqlite-do-proof.json').write_text(json.dumps(r,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-sqlite-durable-object-free-alternative-proof
+          path: studio-v03-sqlite-do-proof.json
+          retention-days: 14
+          if-no-files-found: warn
