@@ -1,5 +1,7 @@
 # Genuine ZITADEL owner acceptance — 18 October 2026
 
+> Later continuation: [Named booking resources and knowledge acceptance](BOOKING_RESOURCE_ACCEPTANCE_20261018.md) closes the operator resource-ID lookup gap with genuine UI acceptance. Other release gates remain open.
+
 Phase 1 remains **INCOMPLETE**. This record supersedes earlier statements that factor enrollment, token exchange and owner business sessions were unverified. It does not supersede other release gates.
 
 ## Actual provider and browser evidence
