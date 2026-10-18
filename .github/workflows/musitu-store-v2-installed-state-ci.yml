@@ -8,6 +8,10 @@ on:
       - '.github/workflows/musitu-store-v2-installed-state-ci.yml'
       - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstalledPackageState.java'
       - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2AndroidInstallBridge.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2InstallerUriLeasePolicy.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2InstallerUriLeaseReceiver.java'
+      - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2InstallerUriLeaseContract.java'
+      - 'store/phase1/android-client/app/src/main/AndroidManifest.xml'
       - 'store/phase1/android-client/app/src/test/java/com/musitu/store/V2AndroidInstalledPackageStateTest.java'
 
 permissions:
