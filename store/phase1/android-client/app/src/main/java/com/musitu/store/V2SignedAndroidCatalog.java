@@ -64,9 +64,17 @@ final class V2SignedAndroidCatalog {
   static long positive(JSONObject o,String key,long limit)throws JSONException {
     Object raw=o.get(key);
     require(raw instanceof Number,"invalid "+key+" numeric type");
-    double n=((Number)raw).doubleValue();
-    require(Double.isFinite(n)&&n>=1&&n<=limit&&Math.floor(n)==n,"invalid "+key);
-    return ((Number)raw).longValue();
+    // Exact decimal parsing is mandatory: doubleValue() rounds integers above
+    // 2^53 and can make Android accept catalogs rejected by the JS verifier.
+    // All signed numeric fields must have the same cross-platform semantics.
+    try{
+      java.math.BigInteger exact=new java.math.BigDecimal(raw.toString()).toBigIntegerExact();
+      long max=Math.min(limit,9007199254740991L);
+      require(exact.signum()>0&&exact.compareTo(java.math.BigInteger.valueOf(max))<=0,"invalid "+key);
+      return exact.longValueExact();
+    }catch(NumberFormatException|ArithmeticException invalid){
+      throw new SecurityException("invalid exact signed catalog integer: "+key,invalid);
+    }
   }
   static String hashOf(JSONObject o,String key)throws JSONException{
     String s=value(o,key,64);hash(s,key);return s;
