@@ -79,6 +79,8 @@ public final class V2AndroidApi30VisibilityTest {
     V2RealApkInstrumentedTest.Signed s=signed();
     assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
       V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,stage(s)));
+    assertTrue("granted APK URI must have an OS-backed expiry alarm",
+      V2InstallerUriLeaseReceiver.isArmed(context(),stage(s)));
     Log.i("MUSITU_API30","STAGE03_APK_INSTALL_DIALOG_REQUESTED");
     // The package installer reads the private FileProvider in another process.
     // Keep the Store instrumentation process alive until the OS dialog has
@@ -95,6 +97,8 @@ public final class V2AndroidApi30VisibilityTest {
     // The previous installer was dismissed: revoke its one-APK grant before
     // creating a fresh user-approved installation attempt.
     V2AndroidInstallBridge.revokeInstallerUriGrant(context(),staged);
+    assertFalse("cancelled install must disarm its expiry alarm",
+      V2InstallerUriLeaseReceiver.isArmed(context(),staged));
     assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
       V2AndroidInstallBridge.requestInstall(context(),s.catalog,APP,staged));
     Log.i("MUSITU_API30","STAGE04_APK_INSTALL_DIALOG_RETRIED");
@@ -120,7 +124,10 @@ public final class V2AndroidApi30VisibilityTest {
     assertEquals("root-signed release and installed package are now verifiably consistent",
       V2AndroidInstalledPackageState.State.VERIFIED_INSTALLED,
       V2AndroidInstallBridge.inspectInstalledRelease(context(),release));
-    V2AndroidInstallBridge.revokeInstallerUriGrant(context(),stage(s));
+    File staged=stage(s);
+    V2AndroidInstallBridge.revokeInstallerUriGrant(context(),staged);
+    assertFalse("completed install must disarm its expiry alarm",
+      V2InstallerUriLeaseReceiver.isArmed(context(),staged));
     Log.i("MUSITU_API30","STAGE05_INSTALLED_PACKAGE_AND_SIGNER_CONFIRMED");
   }
 }
