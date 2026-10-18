@@ -2,31 +2,37 @@
 import {useEffect,useRef,useState} from 'react';
 import {createScopeFence} from '../src/dashboard/scope-fence.mjs';
 import {endBusinessSession} from '../src/dashboard/logout.mjs';
+import {loadBookingView} from '../src/dashboard/booking-view.mjs';
 const sections=['Overview','Onboarding','Configuration','Conversations','Bookings','Knowledge','Approvals','Channels','Team access','Audit','Operational status'];
 export default function Dashboard(){
  const fence=useRef(null);fence.current??=createScopeFence();
  const [conversation,setConversation]=useState(null);
+ const [resources,setResources]=useState([]),[selectedResource,setSelectedResource]=useState('');
  const [section,setSection]=useState('Overview'),[tenant,setTenant]=useState(''),[status,setStatus]=useState(null),[records,setRecords]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  useEffect(()=>()=>fence.current.invalidate(),[]);
- function clearView(){fence.current.invalidate();setRecords(null);setConversation(null);setError('');setBusy(false);}
+ function clearView(){fence.current.invalidate();setRecords(null);setConversation(null);setResources([]);setSelectedResource('');setError('');setBusy(false);}
  async function signOut(event){event.preventDefault();clearView();setBusy(true);try{await endBusinessSession();}catch{setError('Sign out is unavailable.');setBusy(false);}}
  useEffect(()=>{fetch('/api/status',{cache:'no-store'}).then(r=>r.json()).then(setStatus).catch(()=>setError('Status is unavailable'));},[]);
  const kinds={'Configuration':'configuration','Overview':'metrics','Conversations':'conversations','Bookings':'bookings','Knowledge':'knowledge','Approvals':'drafts','Channels':'channels','Team access':'staff','Audit':'audit'};
  async function load(selected=section){
-  const ticket=fence.current.begin();setBusy(true);setError('');setRecords(null);setConversation(null);
-  try{const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${kinds[selected]}`,{cache:'no-store'});
+  const ticket=fence.current.begin();setBusy(true);setError('');setRecords(null);setConversation(null);setResources([]);setSelectedResource('');
+  try{if(selected==='Bookings'){
+    const data=await loadBookingView(tenant);if(!fence.current.current(ticket))return;
+    setRecords(data.bookings);setResources(data.resources);return;
+   }
+   const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${kinds[selected]}`,{cache:'no-store'});
    if(!fence.current.current(ticket))return;
    if(!r.ok)throw Error(r.status===403?'Sign in and select a business you belong to.':'The business service is unavailable.');
    const data=await r.json();if(!fence.current.current(ticket))return;
    if(data.tenantId!==tenant)throw Error('Business response rejected');setRecords(data.data);
-  }catch(e){if(fence.current.current(ticket)){setRecords(null);setConversation(null);setError(e.message);}}
+  }catch(e){if(fence.current.current(ticket)){setRecords(null);setConversation(null);setResources([]);setSelectedResource('');setError(e.message);}}
   finally{if(fence.current.current(ticket))setBusy(false);}
  }
  async function action(path,body){
   const ticket=fence.current.begin();setBusy(true);setError('');
   try{const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${path}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
    if(!fence.current.current(ticket))return;
-   if(!r.ok){if(r.status===403){setRecords(null);setConversation(null);}throw Error(r.status===409?'This action conflicts with an existing record.':'Action denied or unavailable.');}
+   if(!r.ok){if(r.status===403){setRecords(null);setConversation(null);setResources([]);setSelectedResource('');}throw Error(r.status===409?'This action conflicts with an existing record.':'Action denied or unavailable.');}
    const data=await r.json();if(!fence.current.current(ticket))return;
    if(data.tenantId!==tenant)throw Error('Business response rejected');await load();
   }catch(e){if(fence.current.current(ticket))setError(e.message);}
@@ -68,7 +74,7 @@ export default function Dashboard(){
  {section==='Configuration'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();action('ai-policy',{enabled:new FormData(e.currentTarget).get('enabled')==='on'});}}><label><input type="checkbox" name="enabled"/> Allow staff to request AI draft assistance</label><p>Groq processes the selected customer question and approved knowledge questions. Business answers remain in MUSITU. Every draft requires human approval. Disabled until a business owner enables it.</p><button disabled={busy||!status?.identityConfigured}>Save AI permission</button></form>}
  {section==='Knowledge'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('knowledge',{question:f.get('question'),answer:f.get('answer'),approved:f.get('approved')==='on'});}}><label>Customer question<input name="question" required maxLength={1000}/></label><label>Approved answer<input name="answer" required maxLength={4000}/></label><label><input type="checkbox" name="approved" required/> I approve this business fact</label><button disabled={busy||!status?.identityConfigured}>Publish approved source</button></form>}
  {section==='Team access'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('staff',{memberId:f.get('member'),role:f.get('role')});}}><label>Verified employee identity ID<input name="member" required maxLength={192}/></label><label>Role<select name="role"><option>AGENT</option><option>VIEWER</option><option>ADMIN</option></select></label><button disabled={busy||!status?.identityConfigured}>Grant business membership</button></form>}
- {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('resources',{label:f.get('label')});}}><label>New appointment resource<input name="label" required maxLength={200}/></label><button disabled={busy||!status?.identityConfigured}>Create resource</button></form>}
- {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('bookings',{resourceId:f.get('resource'),startAt:new Date(f.get('start')).toISOString(),endAt:new Date(f.get('end')).toISOString(),effectKey:crypto.randomUUID()});}}><label>Resource identifier<input name="resource" required/></label><label>Start<input name="start" type="datetime-local" required/></label><label>End<input name="end" type="datetime-local" required/></label><button disabled={busy||!status?.identityConfigured}>Reserve appointment</button></form>}
+ {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('resources',{label:f.get('label')});}}><label>New appointment resource<input name="label" required maxLength={200}/></label><button disabled={busy||!records||!status?.identityConfigured}>Create resource</button></form>}
+ {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('bookings',{resourceId:f.get('resource'),startAt:new Date(f.get('start')).toISOString(),endAt:new Date(f.get('end')).toISOString(),effectKey:crypto.randomUUID()});}}><label>Appointment resource<select name="resource" value={selectedResource} onChange={e=>setSelectedResource(e.target.value)} disabled={busy||!records||resources.length===0} required><option value="">{resources.length?'Choose a resource':'Open your business and create a resource'}</option>{resources.map(r=><option key={r.resource_id} value={r.resource_id}>{r.label}</option>)}</select></label><label>Start<input name="start" type="datetime-local" required/></label><label>End<input name="end" type="datetime-local" required/></label><button disabled={busy||!selectedResource||!records||!status?.identityConfigured}>Reserve appointment</button></form>}
  </section><footer>© MUSITU · Private qualification · Phase 1 acceptance remains open</footer></main></div>;
 }
