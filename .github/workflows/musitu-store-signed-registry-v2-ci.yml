@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-signed-registry-v2-20261011
+      - feature/musitu-store-v2-package-state-20261012
     paths:
       - '.github/workflows/musitu-store-signed-registry-v2-ci.yml'
       - 'store/core/catalog/**'
@@ -20,7 +21,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check signed registry syntax
-        run: node --check store/core/catalog/signed-registry-v2.mjs
-      - name: Verify signed publisher registry security requirements
-        run: node --test store/core/catalog/signed-registry-v2.test.mjs
+      - name: Check signed registry and atomic watermark syntax
+        run: |
+          node --check store/core/catalog/signed-registry-v2.mjs
+          node --check store/core/catalog/signed-registry-v2-watermark.mjs
+      - name: Verify signed publisher registry and private durable rollback security
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/core/catalog/signed-registry-v2.test.mjs store/core/catalog/signed-registry-v2-watermark.test.mjs
+          echo MUSITU_STORE_V2_OFFLINE_WATERMARK_GATE=PASS
