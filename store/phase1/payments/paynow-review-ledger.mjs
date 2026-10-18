@@ -9,7 +9,7 @@
  */
 import {createHash} from 'node:crypto';
 import {constants as C,closeSync,existsSync,fstatSync,fsyncSync,lstatSync,openSync,
-  readFileSync,realpathSync,renameSync,unlinkSync,writeFileSync} from 'node:fs';
+  readFileSync,readdirSync,realpathSync,renameSync,unlinkSync,writeFileSync} from 'node:fs';
 import {isAbsolute,join,resolve} from 'node:path';
 import {reconcilePaynowPaymentForReview,verifyPaynowStatusUpdate} from './paynow-review.mjs';
 
@@ -203,5 +203,73 @@ export function recordPaynowReviewEvent({ledgerDirectory,callbackBody,polledBody
   }
 }
 
-/** Placeholder for fail-closed read-only operator review (TDD red). */
-export function auditPaynowReviewDirectory(){return Object.freeze({state:'OFFLINE_REVIEW_AUDIT_ONLY',orders:0,providerClaims:0,manualReviewLocked:0,entitlementGranted:false,publisherSettlementAuthorized:false});}
+/**
+ * Read-only, local consistency audit for migration triage. No auto-repair:
+ * unclaimed legacy ledgers, orphaned provider claims, or interrupted writes
+ * must be independently reconciled by an authorized financial operator.
+ * This does not inspect external backups, prove live provider settlement or
+ * turn a review event into a customer entitlement.
+ */
+function readAuditMetadata(path){
+  let fd;
+  try{fd=openSync(path,C.O_RDONLY|NOFOLLOW);}
+  catch{fail('unsafe review audit file');}
+  try{
+    fileCheck(fd);
+    let parsed;
+    try{parsed=JSON.parse(readFileSync(fd,'utf8'));}
+    catch{fail('corrupt review audit file');}
+    if(!parsed||Object.getPrototypeOf(parsed)!==Object.prototype)
+      fail('invalid review audit metadata');
+    return parsed;
+  }finally{closeSync(fd);}
+}
+export function auditPaynowReviewDirectory({ledgerDirectory}={}){
+  safeDir(ledgerDirectory);
+  const entries=readdirSync(ledgerDirectory);
+  if(entries.length>10000)fail('review audit directory exceeds safety limit');
+  const orders=new Map();
+  const providers=new Map();
+  for(const name of entries){
+    if(!/^(?:provider-)?[0-9a-f]{64}\.json$/.test(name))
+      fail('unknown, pending, locked or unsafe file in review audit directory');
+    const path=join(ledgerDirectory,name);
+    const raw=readAuditMetadata(path);
+    if(name.startsWith('provider-')){
+      const ref=raw.providerReference;
+      if(typeof ref!=='string'||!/^[A-Za-z0-9_-]{3,80}$/.test(ref)||
+         path!==providerClaimPath(ledgerDirectory,ref))
+        fail('provider claim has invalid hashed filename or identity');
+      const claim=readProviderClaim(path,ref);
+      if(providers.has(ref))fail('duplicate provider claim in review audit');
+      providers.set(ref,claim);
+    }else{
+      const merchantRef=raw.merchantReference;
+      if(typeof merchantRef!=='string'||!/^[A-Za-z0-9_-]{3,80}$/.test(merchantRef)||
+        path!==join(ledgerDirectory,createHash('sha256').update(PREFIX+merchantRef).digest('hex')+'.json'))
+        fail('review journal has invalid hashed filename or identity');
+      const state=readState(path,merchantRef);
+      if(!state||orders.has(merchantRef))fail('duplicate or missing review journal');
+      orders.set(merchantRef,state);
+    }
+  }
+  if(orders.size!==providers.size)fail('orphaned provider claim or unclaimed order review journal');
+  let manualReviewLocked=0;
+  for(const [merchantRef,state] of orders){
+    const claim=providers.get(state.providerReference);
+    if(!claim||claim.merchantReference!==merchantRef)
+      fail('missing or mismatched provider transaction claim in review audit');
+    if(state.manualReviewLocked)manualReviewLocked++;
+  }
+  for(const [providerRef,claim] of providers){
+    const journal=orders.get(claim.merchantReference);
+    if(!journal||journal.providerReference!==providerRef)
+      fail('orphaned or conflicting provider transaction ownership claim');
+  }
+  return Object.freeze({
+    state:'OFFLINE_REVIEW_AUDIT_ONLY',orders:orders.size,
+    providerClaims:providers.size,manualReviewLocked,
+    entitlementGranted:false,publisherSettlementAuthorized:false,
+    refundFinalized:false
+  });
+}
