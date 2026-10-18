@@ -33,6 +33,25 @@ class BrowserChainTests(unittest.TestCase):
         r=correlate_mobile_chain(UUID,STAMP,wrong,access,True,True)
         self.assertFalse(r['mobile_access_cpu_r2_provider_correlated'])
 
+    def test_three_exact_android_gets_are_required_for_download_proof(self):
+        groups=[group('/api/jobs',201),group('/api/jobs/'+UUID+'/approve'),
+                group('/api/jobs/'+UUID+'/dispatch',202),group('/api/jobs/'+UUID+'/sync')]
+        for name in ('scene.blend','scene.glb'):
+            item=group('/api/jobs/'+UUID+'/assets/'+name,200)
+            item['dimensions']['clientRequestHTTPMethodName']='GET'
+            groups.append(item)
+        login=[{'app_domain':'studio.mftintelligence.com','allowed':True,'action':'login',
+                'created_at':'2026-10-18T06:33:30Z','user_email':'staff@example.org'}]
+        partial=correlate_mobile_chain(UUID,STAMP,groups,login,True,True)
+        self.assertFalse(partial['all_three_assets_downloaded_from_android_ua'])
+        last=group('/api/jobs/'+UUID+'/assets/preview.png',200)
+        last['dimensions']['clientRequestHTTPMethodName']='GET'
+        groups.append(last)
+        complete=correlate_mobile_chain(UUID,STAMP,groups,login,True,True)
+        self.assertTrue(complete['all_three_assets_downloaded_from_android_ua'])
+        self.assertFalse(complete['physical_android_attested'])
+        self.assertNotIn(UUID,str(complete))
+
     def test_late_login_and_invalid_artifacts_do_not_certify(self):
         groups=[group('/api/jobs',201),group('/api/jobs/'+UUID+'/approve'),
                 group('/api/jobs/'+UUID+'/dispatch',202),group('/api/jobs/'+UUID+'/sync')]
