@@ -29,7 +29,7 @@ temporarily places that cert in the ephemeral runner's
 `LocalMachine/TrustedPeople` store, and verifies it through
 both Windows native Signature Tool and the intake function. Its
 PowerShell security contract tests **one real positive signed MSIX and
-eight negatives**, including unsigned package, incorrect SHA, signer,
+nine negatives**, including unsigned package, incorrect SHA, signer,
 manifest name, publisher, version and missing file. It also runs
 a quick independent unsigned-file denial contract on Linux PowerShell.
 
@@ -97,6 +97,39 @@ test was sensitive to absent behavior. Native Windows PowerShell 5.1
 compatibility issues (zip assembly resolution and `$IsWindows` variable)
 were fixed as revealed by the real OS tests, not assumed from cross-
 platform PowerShell Core checks.
+
+## Windows SDK verifier custody and signed rollback regression
+
+The offline MSIX review now fails closed if the supplied
+`SignToolPath` points to a caller-controlled temporary executable,
+**even if that executable is a byte-identical copy of Microsoft's
+genuine `signtool.exe`**. The privileged caller's expected verifier
+must be a non-reparse-point binary in the installed protected Windows
+Kits SDK directory: `Program Files (x86)/Windows Kits/10/bin/<version>/x64/signtool.exe`.
+It still independently checks Authenticode certificate identity and
+package SHA-256; these checks do not substitute for a protected trusted
+catalog or a production release signature authority.
+
+**Red/green regression evidence:** the Windows OS accepted the genuine
+SDK executable copied under the temporary runner directory as a supplied
+review verifier (negative run `39150271123`); after the custody check
+the same negative test was rejected and the complete native signed
+package tests passed (`39150483196`). The acceptance suite now checks
+**one positive signer and nine invalid cases**, including a misleading
+SignTool copy outside the SDK.
+
+After real OS installation and verified update to `1.0.0.1`, an
+additional test attempts to invoke the gated disposable v1 installer
+against the already-installed newer package. The Store harness rejects
+this attempt **before calling** the Windows installer and independent
+`Get-AppxPackage` confirms version `1.0.0.1` remains present.
+This proves the isolated Store harness's *signed rollback gate*;
+it does **not** establish OS-level downgrade behavior for all native
+installers or cryptographic anti-rollback under operating-system
+reinstallation. The current final focused workflow run:
+`https://github.com/evansmusitu/mft-axiom-build/actions/runs/39150607273`
+reported `MUSITU_WINDOWS_SIGNED_ROLLBACK_DENIED=PASS`, real
+v1→v2 AppX installation, and mandatory package/certificate cleanup.
 
 **Not production readiness:** This is an OS-mediated **automated,
 ephemeral Windows CI fixture** installation and update, *not* a real
