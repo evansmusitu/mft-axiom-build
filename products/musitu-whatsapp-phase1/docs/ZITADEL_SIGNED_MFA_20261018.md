@@ -1,5 +1,11 @@
 # Signed ZITADEL MFA enforcement — 18 October 2026
 
+> Later 18 October: the pinned candidate is deployed privately, both client
+> secrets are sensitive Preview variables, and Vercel MFA is active. The real
+> application reaches mandatory ZITADEL factor enrollment; completed signed-token
+> and business-session acceptance remain unverified. See
+> `ZITADEL_PRIVATE_DEPLOYMENT_20261018.md`. Earlier observations below are historical.
+
 Phase 1 remains INCOMPLETE. This source change is not deployed and does not prove
 real ZITADEL login, provider MFA enforcement or customer readiness.
 

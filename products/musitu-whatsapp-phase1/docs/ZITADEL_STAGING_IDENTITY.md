@@ -1,5 +1,10 @@
 # ZITADEL staging identity — 17 October 2026
 
+> Latest cloud continuation: `ZITADEL_PRIVATE_DEPLOYMENT_20261018.md` records the
+> private pinned deployment, sensitive Preview secrets, active Vercel MFA and
+> genuine mandatory ZITADEL factor-enrollment challenge. Earlier missing-secret,
+> sign-in-failure and not-deployed statements below are historical.
+
 > **18 October update:** Administrator sign-in and the two explicitly approved
 > isolated clients were subsequently verified. Signed ID-token MFA/freshness and
 > per-session proof validation now pass 267 local tests; this code is not deployed.

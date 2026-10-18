@@ -1,0 +1,912 @@
+{
+  "result": {
+    "events": [
+      {
+        "created": 1792330657043,
+        "date": 1792330657043,
+        "type": "stdout",
+        "text": "Build cache uploaded: 1.636s",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330655407,
+        "date": 1792330655407,
+        "type": "stdout",
+        "text": "Uploading build cache [149.51 MB]",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330655406,
+        "date": 1792330655406,
+        "type": "stdout",
+        "text": "Created build cache: 8s",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330647855,
+        "date": 1792330647855,
+        "type": "stdout",
+        "text": "Creating build cache...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330647849,
+        "date": 1792330647849,
+        "type": "stdout",
+        "text": "Deployment completed",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644904,
+        "date": 1792330644904,
+        "type": "stdout",
+        "text": "Deploying outputs...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644885,
+        "date": 1792330644885,
+        "type": "stderr",
+        "text": "Build Completed in /vercel/output [20s]",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "ƒ  (Dynamic)  server-rendered on demand",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "○  (Static)   prerendered as static content",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "└ ƒ /auth/[action]",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "├ ƒ /api/tenants/[tenant]/[...operation]",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "├ ƒ /api/status",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "├ ƒ /api/onboard",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644776,
+        "date": 1792330644776,
+        "type": "stdout",
+        "text": "├ ƒ /api/meta/webhook",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644775,
+        "date": 1792330644775,
+        "type": "stdout",
+        "text": "├ ○ /_not-found",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644775,
+        "date": 1792330644775,
+        "type": "stdout",
+        "text": "┌ ƒ /",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644775,
+        "date": 1792330644775,
+        "type": "stdout",
+        "text": "Route (app)",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644773,
+        "date": 1792330644773,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644636,
+        "date": 1792330644636,
+        "type": "stderr",
+        "text": "Warning: Detected \"engines\": { \"node\": \">=22\" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644607,
+        "date": 1792330644607,
+        "type": "stdout",
+        "text": "  Running onBuildComplete from Vercel",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644569,
+        "date": 1792330644569,
+        "type": "stdout",
+        "text": "  Finalizing page optimization ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644560,
+        "date": 1792330644560,
+        "type": "stdout",
+        "text": "✓ Generating static pages using 1 worker (2/2) in 128ms",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330644428,
+        "date": 1792330644428,
+        "type": "stdout",
+        "text": "  Generating static pages using 1 worker (0/2) ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330643739,
+        "date": 1792330643739,
+        "type": "stdout",
+        "text": "  Collecting page data using 1 worker ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330643736,
+        "date": 1792330643736,
+        "type": "stdout",
+        "text": "  Finished TypeScript in 4ms ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330643733,
+        "date": 1792330643733,
+        "type": "stdout",
+        "text": "  Running TypeScript ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330643730,
+        "date": 1792330643730,
+        "type": "stdout",
+        "text": "✓ Compiled successfully in 4.5s",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330639215,
+        "date": 1792330639215,
+        "type": "stdout",
+        "text": "  Creating an optimized production build ...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330639193,
+        "date": 1792330639193,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330639179,
+        "date": 1792330639179,
+        "type": "stdout",
+        "text": "✓ Running next.config.mjs took 61ms",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330639175,
+        "date": 1792330639175,
+        "type": "stdout",
+        "text": "  Applying modifyConfig from Vercel",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330639118,
+        "date": 1792330639118,
+        "type": "stdout",
+        "text": "▲ Next.js 16.4.0 (Turbopack)",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638690,
+        "date": 1792330638690,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638690,
+        "date": 1792330638690,
+        "type": "stdout",
+        "text": "> next build",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638690,
+        "date": 1792330638690,
+        "type": "stdout",
+        "text": "> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638690,
+        "date": 1792330638690,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638668,
+        "date": 1792330638668,
+        "type": "stderr",
+        "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638560,
+        "date": 1792330638560,
+        "type": "stdout",
+        "text": "{\"runId\":\"07ad1aba-1846-43f9-bef9-610c7a3115b7\",\"timestamp\":\"2026-10-18T13:37:18.559Z\",\"scope\":\"REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP\",\"passed\":26,\"failed\":0,\"results\":[{\"name\":\"direct_login_nonowner_nobypass\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"all_rls_policies\",\"status\":\"PASS\",\"detail\":{\"role\":\"musitu_runtime\",\"tablesChecked\":21,\"policiesChecked\":21,\"qualified\":true}},{\"name\":\"runtime_grant_ceiling\",\"status\":\"PASS\",\"detail\":{\"qualified\":true,\"tablesChecked\":15,\"insertTablesChecked\":4,\"mode\":\"EFFECTIVE_PRIVILEGES\"}},{\"name\":\"extension_and_identity_privilege_ceiling\",\"status\":\"PASS\",\"detail\":{\"qualified\":true,\"extensionReadOnlyTables\":6,\"opaqueSessionRls\":true,\"temporaryDatabaseObjectsDenied\":true}},{\"name\":\"cross_tenant_membership_denial\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"all_tables_context_isolation\",\"status\":\"PASS\",\"detail\":{\"tables\":21,\"scopes\":3}},{\"name\":\"invalid_context_fails_closed\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"changed_context_and_rollback\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"cross_tenant_write_denial\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"direct_membership_update_denied\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"synthetic_signed_ingress_into_real_pg\",\"status\":\"PASS\",\"detail\":{\"eventSource\":\"SYNTHETIC_NOT_META\",\"receipts\":[{\"tenantId\":\"00000000-0000-4000-8000-00000000000a\",\"phoneNumberId\":\"PHONE_A\",\"providerMessageId\":\"wamid.07ad1aba-1846-43f9-bef9-610c7a3115b7\",\"conversationId\":\"63670ae0-9e9c-47a2-983a-275aa3c6f23f\",\"status\":\"ACCEPTED\",\"draftStatus\":\"DRAFT\"}]}},{\"name\":\"encrypted_message_and_contact_ledger\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"second_business_message_ledger_isolation\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"private_session_scope_and_logout_revocation\",\"status\":\"PASS\",\"detail\":{\"scope\":\"SESSION_DATABASE_NOT_LIVE_KEYCLOAK\"}},{\"name\":\"business_configuration_and_approved_knowledge\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"staff_enrollment_and_immediate_revocation\",\"status\":\"PASS\",\"detail\":null},{\"name\":\"sign...[truncated]",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638559,
+        "date": 1792330638559,
+        "type": "stdout",
+        "text": "REAL_PG_PASS new_pool_recovery",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638384,
+        "date": 1792330638384,
+        "type": "stdout",
+        "text": "REAL_PG_PASS booking_replay_and_content_conflict",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330638205,
+        "date": 1792330638205,
+        "type": "stdout",
+        "text": "REAL_PG_PASS ten_simultaneous_booking_requests",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330637964,
+        "date": 1792330637964,
+        "type": "stdout",
+        "text": "REAL_PG_PASS previously_revoked_staff_denied",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330637806,
+        "date": 1792330637806,
+        "type": "stdout",
+        "text": "REAL_PG_PASS handover_command_and_audit",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330637624,
+        "date": 1792330637624,
+        "type": "stdout",
+        "text": "REAL_PG_PASS stop_suppression_and_no_auto_resubscribe",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330637006,
+        "date": 1792330637006,
+        "type": "stdout",
+        "text": "REAL_PG_PASS human_review_and_consent_required",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330636716,
+        "date": 1792330636716,
+        "type": "stdout",
+        "text": "REAL_PG_PASS ingress_forged_signature_denied",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330636715,
+        "date": 1792330636715,
+        "type": "stdout",
+        "text": "REAL_PG_PASS ingress_replay_protection",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330636374,
+        "date": 1792330636374,
+        "type": "stdout",
+        "text": "REAL_PG_PASS signed_status_reconciliation_real_pg_synthetic_only",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330635595,
+        "date": 1792330635595,
+        "type": "stdout",
+        "text": "REAL_PG_PASS staff_enrollment_and_immediate_revocation",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330635282,
+        "date": 1792330635282,
+        "type": "stdout",
+        "text": "REAL_PG_PASS business_configuration_and_approved_knowledge",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330634923,
+        "date": 1792330634923,
+        "type": "stdout",
+        "text": "REAL_PG_PASS private_session_scope_and_logout_revocation",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330634752,
+        "date": 1792330634752,
+        "type": "stdout",
+        "text": "REAL_PG_PASS second_business_message_ledger_isolation",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330634320,
+        "date": 1792330634320,
+        "type": "stdout",
+        "text": "REAL_PG_PASS encrypted_message_and_contact_ledger",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330634244,
+        "date": 1792330634244,
+        "type": "stdout",
+        "text": "REAL_PG_PASS synthetic_signed_ingress_into_real_pg",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330633997,
+        "date": 1792330633997,
+        "type": "stdout",
+        "text": "REAL_PG_PASS direct_membership_update_denied",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330633933,
+        "date": 1792330633933,
+        "type": "stdout",
+        "text": "REAL_PG_PASS cross_tenant_write_denial",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330633872,
+        "date": 1792330633872,
+        "type": "stdout",
+        "text": "REAL_PG_PASS changed_context_and_rollback",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330633763,
+        "date": 1792330633763,
+        "type": "stdout",
+        "text": "REAL_PG_PASS invalid_context_fails_closed",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330633705,
+        "date": 1792330633705,
+        "type": "stdout",
+        "text": "REAL_PG_PASS all_tables_context_isolation",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330632516,
+        "date": 1792330632516,
+        "type": "stdout",
+        "text": "REAL_PG_PASS cross_tenant_membership_denial",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330632087,
+        "date": 1792330632087,
+        "type": "stdout",
+        "text": "REAL_PG_PASS extension_and_identity_privilege_ceiling",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330631934,
+        "date": 1792330631934,
+        "type": "stdout",
+        "text": "REAL_PG_PASS runtime_grant_ceiling",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330631885,
+        "date": 1792330631885,
+        "type": "stdout",
+        "text": "REAL_PG_PASS all_rls_policies",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330631792,
+        "date": 1792330631792,
+        "type": "stdout",
+        "text": "REAL_PG_PASS direct_login_nonowner_nobypass",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330630821,
+        "date": 1792330630821,
+        "type": "stdout",
+        "text": "Running \"node scripts/staging-postgres-qualification.mjs && npm run build\"",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330630820,
+        "date": 1792330630820,
+        "type": "stdout",
+        "text": "Detected Next.js version: 16.4.0",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330630783,
+        "date": 1792330630783,
+        "type": "stdout",
+        "text": "added 44 packages in 6s",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330630783,
+        "date": 1792330630783,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330625095,
+        "date": 1792330625095,
+        "type": "stderr",
+        "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330624531,
+        "date": 1792330624531,
+        "type": "stdout",
+        "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`...",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330624524,
+        "date": 1792330624524,
+        "type": "stderr",
+        "text": "Warning: Detected \"engines\": { \"node\": \">=22\" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330624241,
+        "date": 1792330624241,
+        "type": "stderr",
+        "text": "Vercel CLI 64.3.1",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330624230,
+        "date": 1792330624230,
+        "type": "stdout",
+        "text": "Running \"vercel build\"",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330623767,
+        "date": 1792330623767,
+        "type": "stdout",
+        "text": "Cloning completed: 437.000ms",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330623331,
+        "date": 1792330623331,
+        "type": "stdout",
+        "text": "Previous build caches not available.",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330623330,
+        "date": 1792330623330,
+        "type": "stdout",
+        "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: bf0e713890766832321181a05d5d54b2b165ac40, Commit: bf0e713)",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330623228,
+        "date": 1792330623228,
+        "type": "stdout",
+        "text": "Build machine configuration: 2 cores, 8 GB",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792330623227,
+        "date": 1792330623227,
+        "type": "stdout",
+        "text": "Running build in Washington, D.C., USA (East) – iad1",
+        "info": {
+          "type": "build",
+          "name": "bld_dmkzvt4h2",
+          "entrypoint": "."
+        }
+      }
+    ]
+  },
+  "truncated": true,
+  "truncation": {
+    "arrays": 0,
+    "omittedArrayItems": 0,
+    "objects": 0,
+    "omittedObjectKeys": 0,
+    "strings": 1,
+    "omittedStringChars": 864,
+    "depth": 0,
+    "budget": 0
+  }
+}
