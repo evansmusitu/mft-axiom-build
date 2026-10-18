@@ -13,6 +13,7 @@ on:
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2UserConsentInstallerTest.java'
       - 'store/phase1/android-client/app/build.gradle'
+      - 'store/phase1/android-client/test_device_suite_scope.py'
 
 permissions:
   contents: read
@@ -77,6 +78,9 @@ jobs:
           ! cmp -s "$SIGN_DIR/alpha.fingerprint" "$SIGN_DIR/beta.fingerprint"
           rm -f "$SIGN_DIR"/*.p12 "$SIGN_DIR"/*.aligned.apk "$SIGN_DIR"/*.fingerprint
           echo MUSITU_STORE_TWO_INDEPENDENT_TEST_SIGNERS=PASS
+      - name: Prevent wrong Android-API instrumentation collection
+        shell: bash
+        run: python3 store/phase1/android-client/test_device_suite_scope.py
       - name: Enable emulator hardware virtualization if available
         shell: bash
         run: |
@@ -106,7 +110,7 @@ jobs:
             adb shell run-as com.musitu.store mkdir -p files
             adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-alpha.apk files/v2-real-fixture-alpha.apk
             adb shell run-as com.musitu.store cp /data/local/tmp/v2-real-fixture-beta.apk files/v2-real-fixture-beta.apk
-            gradle -p store/phase1/android-client --no-daemon :app:connectedDebugAndroidTest
+            gradle -p store/phase1/android-client --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.musitu.store.V2RealApkInstrumentedTest,com.musitu.store.V2UserConsentInstallerTest
       - name: Verify the real-APK instrumentation class executed and passed
         shell: bash
         run: |
