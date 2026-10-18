@@ -56,7 +56,8 @@ test('provider reports refunded after Paid: lock review and never restore entitl
   const d=fixture(t);record(d);
   const refund=record(d,{polledBody:signed({status:'Refunded'})});
   assert.equal(refund.manualReviewLocked,true);assert.equal(refund.entitlementGranted,false);
-  const r=record(d,{polledBody:signed({status:'Paid'})});
+  // Distinct provider message after refund, not a replay of the original event.
+  const r=record(d,{callbackBody:signed({status:'Refunded'}),polledBody:signed({status:'Paid'})});
   assert.equal(r.manualReviewLocked,true);
   assert.equal(JSON.parse(readFileSync(paths(d).ledger,'utf8')).events.length,3);
 });
