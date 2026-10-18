@@ -33,11 +33,13 @@ function requestStatus(url,requestImpl){
       else resolve(bytes);
     };
     let req;
+    let responseStarted=false;
     try{
       req=requestImpl(url,{method:'POST',
         headers:{Accept:'application/x-www-form-urlencoded, text/plain',
           'Content-Length':'0'},
         rejectUnauthorized:true,servername:'www.paynow.co.zw'},res=>{
+        responseStarted=true;
         if(res.statusCode!==200){
           if(typeof res.resume==='function')res.resume();
           finish(Error('provider HTTP status is not 200; redirects forbidden'));
@@ -53,6 +55,7 @@ function requestStatus(url,requestImpl){
         const chunks=[];
         res.on('error',()=>finish(Error('provider response transport failure')));
         res.on('aborted',()=>finish(Error('provider response aborted')));
+        res.on('close',()=>finish(Error('provider response closed before completion')));
         res.on('data',chunk=>{
           if(completed)return;
           const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
@@ -72,6 +75,9 @@ function requestStatus(url,requestImpl){
       if(!req||typeof req.setTimeout!=='function'||typeof req.end!=='function')
         deny('unsupported private HTTPS client');
       req.on('error',()=>finish(Error('provider HTTPS request failed')));
+      req.on('close',()=>{
+        if(!responseStarted)finish(Error('provider request closed before completion'));
+      });
       req.setTimeout(TIMEOUT_MS,()=>{
         finish(Error('provider HTTPS timeout; review held'));
         if(typeof req.destroy==='function')req.destroy();
