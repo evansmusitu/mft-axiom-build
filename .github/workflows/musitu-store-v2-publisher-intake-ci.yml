@@ -48,6 +48,13 @@ jobs:
           python3 -m unittest discover -s store/phase1/publisher_intake -p 'test_*.py' -v
           python3 -m py_compile store/phase1/publisher_intake/intake.py
           echo MUSITU_STORE_PUBLISHER_INTAKE_POLICY_TESTS=PASS
+      - name: Require two independently pinned manual reviewer attestations before catalog review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/publisher_intake/reviewer-attestation.mjs
+          node --test store/phase1/publisher_intake/reviewer-attestation.test.mjs
+          echo MUSITU_STORE_TWO_PERSON_PUBLISHER_REVIEW_ONLY=PASS
       - name: Obtain isolated disposable Android SDK build tools
         shell: bash
         run: |
