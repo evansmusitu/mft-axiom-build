@@ -110,6 +110,9 @@ class PublisherIntakeContract(unittest.TestCase):
             self.assertEqual(inspect_apk(self.apk),verified_metadata(self.apk))
         with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one.replace('Signer #1 certificate','Signer  #1 certificate'),package]):
             self.assertEqual(inspect_apk(self.apk),verified_metadata(self.apk))
+        # Current SDKs may identify the signer by signing scheme.
+        with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one.replace('Signer #1','V3.0 Signer:'),package]):
+            self.assertEqual(inspect_apk(self.apk),verified_metadata(self.apk))
         with patch('intake._sdk_tool',side_effect=lambda name:name),patch('intake._tool',side_effect=[one+one.replace('#1','#2'),package]):
             with self.assertRaises(IntakeRejected):
                 inspect_apk(self.apk)
