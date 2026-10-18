@@ -117,3 +117,56 @@ the no-follow directory-entry fix. Final reviewed code qualified
 25/25 tests in run `39168260433`. All tests use a *synthetic* merchant
 key, synthetic order and synthetic signed messages with no external
 network or money.
+
+## Server-initiated independent Paynow polling boundary
+
+`paynow-provider-poll.mjs` now exposes
+`pollAndRecordPaynowReviewEvent({ledgerDirectory,callbackBody,integrationKey,order})`
+for a **trusted private merchant operator process only**. It first validates
+the Paynow SHA-512-signed callback against an independently authenticated
+merchant order and merchant integration key, **before any network egress**.
+Then it performs Paynow's documented **empty HTTPS POST** to the exact
+previously trusted Paynow transaction poll URL
+(`www.paynow.co.zw/Interface/CheckPayment/?guid=...`); it never makes a
+customer-specified request to arbitrary hosts. Native Node.js HTTPS
+requires a valid TLS certificate for the fixed Paynow server name.
+
+The outbound request carries **no integration key, contact details or
+payment instrument**. The response is bounded to 12 KiB and 8 seconds;
+redirects, non-200 statuses, unexpected content type, malformed payloads,
+invalid provider signature, different merchant reference, amount,
+transaction ID or poll URL **fail closed without changing the payment
+review journal**. An accepted response is independently signature-checked
+again by the pre-existing private review ledger, which returns only
+`REVIEW_RECORDED_PRIVATE_ONLY` and explicitly denies entitlement,
+refund and settlement authority. This code does not initiate charges,
+publish downloads, process actual refunds, operate a public webhook,
+or connect an authorized Paynow merchant account.
+
+The `requestImpl` argument exists **solely for CI transport test doubles**
+and is rejected unless `CI=true`. The 9 transport tests use synthetic
+signed messages, fake HTTPS responses and a disposable private ledger; they
+do not contact Paynow, verify live production connectivity or demonstrate
+real fund transfers. The caller must securely supply a genuine Paynow
+integration key and order obtained from authenticated merchant storage,
+and run the component behind its own protected backend. Neither that
+backend nor a genuine merchant profile is deployed in this branch.
+
+Official Paynow protocol source:
+https://developers.paynow.co.zw/docs/paynow/polling_status/
+
+Run the transport regression and existing payment policy suite:
+
+```sh
+CI=true node --test \
+  store/phase1/payments/paynow-review.test.mjs \
+  store/phase1/payments/paynow-review-ledger.test.mjs \
+  store/phase1/payments/paynow-provider-poll.test.mjs
+```
+
+Release gates: merchant KYC and account connection, secure credential custody,
+authenticated durable order database, real HTTPS deployment and event
+idempotency across instances, legitimate sandbox and live provider calls,
+reconciled real purchase/refund/settlement, legal consumer agreements and
+explicit separate release approval all remain unqualified. This transport
+alone cannot unlock applications or mark a payment settled.
