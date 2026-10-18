@@ -25,9 +25,11 @@ jobs:
         run: |
           node --check store/core/catalog/signed-registry-v2.mjs
           node --check store/core/catalog/signed-registry-v2-watermark.mjs
+          node --check store/core/catalog/signed-artifact-stage-v2.mjs
       - name: Verify signed publisher registry and private durable rollback security
         shell: bash
         run: |
           set -euo pipefail
-          node --test store/core/catalog/signed-registry-v2.test.mjs store/core/catalog/signed-registry-v2-watermark.test.mjs
+          node --test store/core/catalog/signed-registry-v2.test.mjs store/core/catalog/signed-registry-v2-watermark.test.mjs store/core/catalog/signed-artifact-stage-v2.test.mjs
           echo MUSITU_STORE_V2_OFFLINE_WATERMARK_GATE=PASS
+          echo MUSITU_STORE_V2_OFFLINE_ARTIFACT_STAGE_GATE=PASS
