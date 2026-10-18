@@ -67,6 +67,15 @@ class PublisherIntakeContract(unittest.TestCase):
     def test_wrong_native_version_is_blocked(self):
         self.rejected(submission(APK,versionCode=6))
 
+    def test_version_code_beyond_cross_platform_safe_integer_must_never_enter_manual_review(self):
+        # APK signer and package may match yet catalog consumers disagree about
+        # integers >2^53. Reject at the first intake boundary.
+        too_large=9007199254740993
+        def valid_but_unsafe(_):
+            return {'package_id':'org.fixture.vendorapp','version_code':too_large,
+                    'certificate_sha256':CERT}
+        self.rejected(submission(APK,versionCode=too_large),inspector=valid_but_unsafe)
+
     def test_unsigned_or_uninspectable_artifact_is_blocked(self):
         def bad(_): raise IntakeRejected('APK has no independently verified signature')
         self.rejected(inspector=bad)
