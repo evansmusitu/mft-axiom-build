@@ -36,4 +36,13 @@ Assert-Rejected @{ExpectedVersion='2.0.0.0'} 'incorrect version'
 Assert-Rejected @{PackagePath=$env:MUSITU_TEST_UNSIGNED_MSIX;ExpectedSha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $env:MUSITU_TEST_UNSIGNED_MSIX).Hash.ToLowerInvariant()} 'unsigned MSIX'
 Assert-Rejected @{PackagePath=(Join-Path $env:RUNNER_TEMP 'missing-file.msix')} 'missing artifact'
 Assert-Rejected @{ExpectedSha256='not-a-hash'} 'malformed digest'
-Write-Output 'MUSITU_STORE_V2_WINDOWS_MSIX_POLICY_PASS valid=1 rejected=8 review=required installed=false'
+# A genuine SignTool binary copied outside the trusted Windows SDK directory
+# must never become a caller-supplied verification authority merely by name.
+$imposter=Join-Path $env:RUNNER_TEMP 'signtool.exe'
+Copy-Item -LiteralPath $env:MUSITU_SIGNTOOL -Destination $imposter -Force
+try {
+  Assert-Rejected @{SignToolPath=$imposter} 'caller-controlled SignTool binary outside Windows SDK'
+} finally {
+  Remove-Item -LiteralPath $imposter -Force -ErrorAction SilentlyContinue
+}
+Write-Output 'MUSITU_STORE_V2_WINDOWS_MSIX_POLICY_PASS valid=1 rejected=9 review=required installed=false'
