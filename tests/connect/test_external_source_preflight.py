@@ -197,6 +197,22 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         self.assertIn('output_already_exists',second.stderr)
         self.assertEqual(output.read_bytes(),before)
 
+    def test_cli_refuses_file_created_during_validation(self):
+        from unittest.mock import patch
+        module = import_module('benchmarks.mining_adapter.external_source_preflight')
+        output = self.root / 'interleaved-output.json'
+        report = self.inspect()
+        def concurrent_writer(**_):
+            output.write_text('PREEXISTING_RACE_WINNER', encoding='utf-8')
+            return report
+        argv = ['preflight', '--source', str(self.source),
+                '--manifest', str(self.manifest), '--output', str(output)]
+        with patch.object(module, 'inspect_external_source', side_effect=concurrent_writer):
+            with patch.object(sys, 'argv', argv):
+                with self.assertRaises(FileExistsError):
+                    module.main()
+        self.assertEqual(output.read_text(encoding='utf-8'), 'PREEXISTING_RACE_WINNER')
+
     def test_cli_does_not_emit_evidence_after_failure(self):
         output=self.root / 'should-not-exist.json'
         self.metadata['source_sha256']='a'*64
