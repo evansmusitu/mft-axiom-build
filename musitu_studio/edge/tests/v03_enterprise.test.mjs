@@ -311,3 +311,69 @@ test('failed-render callback rolls back terminal state if audit insertion fails 
  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='RENDER_FAILED'")
    .get(id).n,0);
 });
+
+
+test('dispatch audit failure rolls back to approved before any external CPU request',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
+ assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ f.db.db.exec("CREATE TRIGGER reject_dispatch_start_audit BEFORE INSERT ON audit_events "+
+   "WHEN NEW.action='DISPATCH_STARTED' BEGIN SELECT RAISE(ABORT,'SIMULATED_START_AUDIT_FAILURE'); END;");
+ const original=globalThis.fetch;let externalCalls=0;
+ try{
+   globalThis.fetch=async()=>{externalCalls++;throw Error('MUST_NOT_SEND');};
+   const result=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.notEqual(result.status,200);
+   assert.equal(externalCalls,0,'No paid Modal request before durable dispatch audit');
+   const current=f.db.db.prepare('SELECT state,dispatched_at,dispatched_by_sub FROM jobs WHERE id=?').get(id);
+   assert.equal(current.state,'APPROVED');
+   assert.equal(current.dispatched_at,null);
+   assert.equal(current.dispatched_by_sub,null);
+   assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='DISPATCH_STARTED'").get(id).n,0);
+ }finally{globalThis.fetch=original}
+});
+test('successful Modal ack but rejected audit must be locked as NEEDS_REVIEW without retry',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
+ await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ f.db.db.exec("CREATE TRIGGER reject_dispatch_ack_audit BEFORE INSERT ON audit_events "+
+   "WHEN NEW.action='DISPATCH_ACCEPTED' BEGIN SELECT RAISE(ABORT,'SIMULATED_ACK_AUDIT_FAILURE'); END;");
+ const original=globalThis.fetch;let requests=0;
+ try{
+   globalThis.fetch=async()=>{
+     requests++;
+     return Response.json({accepted:true,job_id:id,call_id:'fc-proven-test-ack-000001'});
+   };
+   const result=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.equal(result.status,502,JSON.stringify(result.body));
+   const current=f.db.db.prepare('SELECT state,call_id FROM jobs WHERE id=?').get(id);
+   assert.equal(current.state,'NEEDS_REVIEW');
+   assert.equal(current.call_id,null,'Rejected audit must roll back accepted call transition');
+   assert.equal(requests,1);
+   assert.equal((await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{})).status,429);
+   assert.equal(requests,1,'Never retry potentially paid Modal execution automatically');
+   const audit=f.db.db.prepare("SELECT action FROM audit_events WHERE job_id=? ORDER BY at").all(id);
+   assert.equal(audit.some(x=>x.action==='DISPATCH_ACCEPTED'),false);
+   assert.equal(audit.some(x=>x.action==='DISPATCH_AMBIGUOUS_NO_RETRY'),true);
+ }finally{globalThis.fetch=original}
+});
+test('unknown remote outcome cannot transition to NEEDS_REVIEW without immutable audit',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
+ await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ f.db.db.exec("CREATE TRIGGER reject_ambiguous_audit BEFORE INSERT ON audit_events "+
+   "WHEN NEW.action='DISPATCH_AMBIGUOUS_NO_RETRY' BEGIN SELECT RAISE(ABORT,'SIMULATED_UNKNOWN_AUDIT_FAILURE'); END;");
+ const original=globalThis.fetch;let requests=0;
+ try{
+   globalThis.fetch=async()=>{requests++;throw Error('NETWORK_OUTCOME_UNKNOWN')};
+   const result=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.notEqual(result.status,200);
+   const current=f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id);
+   assert.equal(current.state,'DISPATCHING','Remain non-retryable rather than unaudited NEEDS_REVIEW state');
+   assert.equal((await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{})).status,429);
+   assert.equal(requests,1);
+ }finally{globalThis.fetch=original}
+});
