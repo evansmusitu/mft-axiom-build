@@ -143,7 +143,11 @@ jobs:
               try:d=json.loads(e.read(20000))
               except ValueError:d={}
               return e.code,d
+          stage='START'
+          code=None
+          seed={}
           try:
+            stage='ANONYMOUS'
             for n in range(15):
               try:
                 code,r=ask('/snapshot',authorized=False,timeout=10)
@@ -152,23 +156,29 @@ jobs:
               except (OSError,ValueError):pass
               time.sleep(1)
             assert result['unauthenticated_requests_rejected'],'DISPOSABLE_WORKER_ANONYMOUS_GATE_FAILED'
+            stage='SEED'
             code,seed=ask('/seed','POST',data={})
             assert code==200 and seed.get('ok') and seed.get('names')==['original'],(code,seed.get('error'))
             bookmark=seed['bookmark']
             assert isinstance(bookmark,str) and len(bookmark)>=15
             result['real_pitr_bookmark_obtained']=True
+            stage='BASELINE_READ'
             code,snapshot=ask('/snapshot')
             assert code==200 and snapshot.get('names')==['original'],'BASELINE_DATA_MISMATCH'
+            stage='MUTATE'
             code,mutation=ask('/mutate','POST',data={})
             assert code==200 and mutation.get('ok'),'MUTATION_FAILED'
+            stage='MUTATED_READ'
             code,changed=ask('/snapshot')
             assert code==200 and changed.get('names')==['later','original'],'POST_MUTATION_NOT_PERSISTED'
             result['real_mutation_confirmed']=True
             # This aborts/restarts the one disposable DO; HTTP 500/disconnect is
             # expected. No production namespace or ID can be addressed.
+            stage='RESTORE_TRIGGER'
             try:ask('/restore','POST',{'bookmark':bookmark},timeout=16)
             except (OSError,ValueError):pass
             bookmark=None
+            stage='RESTORE_POLL'
             restored=False
             for _ in range(35):
               time.sleep(.8)
@@ -181,6 +191,11 @@ jobs:
             result['outcome']='DISPOSABLE_CLOUDFLARE_PITR_RESTORED' if restored else 'RESTORE_NOT_CONFIRMED'
           except (AssertionError,OSError,ValueError,KeyError,TypeError) as e:
             result['outcome']='CLOUD_PITR_TEST_FAILED'
+            result['failed_stage']=stage
+            result['last_http_status']=code if type(code) is int else None
+            ecode=seed.get('error') if isinstance(seed,dict) else None
+            if ecode in ('NOT_EMPTY','BOOKMARK_UNAVAILABLE','INVALID_BOOKMARK','RESTORE_STATE_INVALID'):
+              result['allowlisted_error_code']=ecode
           finally:
             path=pathlib.Path('../../studio-v03-real-provider-pitr-restore-20261018.json')
             path.write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
