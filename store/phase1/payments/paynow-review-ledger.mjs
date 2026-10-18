@@ -65,6 +65,10 @@ function readState(path,merchantReference){
          !['Paid','Refunded','Disputed','Cancelled','Awaiting Delivery','Delivered','Created','Sent'].includes(event.providerStatus)||
          !['PAYMENT_CONFIRMED_REVIEW_REQUIRED','PAYMENT_HOLD_REVIEW_REQUIRED'].includes(event.outcome))
         fail('corrupt private review event');
+      if(event.providerStatus!=='Paid'&&event.outcome==='PAYMENT_CONFIRMED_REVIEW_REQUIRED')
+        fail('historical non-Paid provider event cannot claim confirmed review');
+      if(event.outcome==='PAYMENT_HOLD_REVIEW_REQUIRED'&&state.manualReviewLocked===false)
+        fail('historical hold cannot have its manual review lock cleared');
     }
     if(new Set(state.events.map(e=>e.digest)).size!==state.events.length)
       fail('duplicate stored private review event');
