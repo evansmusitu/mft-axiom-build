@@ -282,7 +282,9 @@ def main() -> None:
         raise FileExistsError('external_source_output_already_exists')
     report = inspect_external_source(source=args.source, manifest_path=args.manifest)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+    # Exclusive creation prevents replacing a file introduced during the scan.
+    with args.output.open('x', encoding='utf-8') as handle:
+        handle.write(json.dumps(report, sort_keys=True, indent=2) + '\n')
     print(json.dumps({key: report[key] for key in (
         'status', 'source_rows', 'eligible_examples', 'positive_label_examples', 'model_evaluation_status')}, sort_keys=True))
 
