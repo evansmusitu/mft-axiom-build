@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: musitu-store-v2-windows-private
+  cancel-in-progress: true
+
 jobs:
   fail-closed-contract:
     runs-on: ubuntu-24.04
@@ -99,26 +103,32 @@ jobs:
           Copy-Item -LiteralPath $unsigned -Destination $signed
           "MUSITU_TEST_UNSIGNED_MSIX=$unsigned" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "MUSITU_TEST_SIGNED_MSIX=$signed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Sign test-only MSIX identity and verify OS trust
+      - name: Generate ephemeral Windows CI-only signer certificate
         run: |
           $ErrorActionPreference='Stop'
-          $scratch=Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix'
-          $signed=$env:MUSITU_TEST_SIGNED_MSIX
-          $unsigned=$env:MUSITU_TEST_UNSIGNED_MSIX
-          $subject='CN=MUSITU Disposable MSIX Test'
-          $cert=New-SelfSignedCertificate -Type CodeSigningCert -KeyUsage DigitalSignature -Subject $subject -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2) -HashAlgorithm SHA256
-          $public=Join-Path $scratch 'disposable-public.cer'
+          $cert=New-SelfSignedCertificate -Type CodeSigningCert -KeyUsage DigitalSignature -Subject 'CN=MUSITU Disposable MSIX Test' -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2) -HashAlgorithm SHA256
+          "MUSITU_TEST_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output 'MUSITU_WINDOWS_EPHEMERAL_CERT_CREATED=PASS'
+      - name: Establish trust for disposable CI signer certificate
+        run: |
+          $ErrorActionPreference='Stop'
+          $public=Join-Path (Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix') 'disposable-public.cer'
+          $cert=Get-Item -LiteralPath "Cert:\CurrentUser\My\$env:MUSITU_TEST_CERT_THUMBPRINT"
           Export-Certificate -Cert $cert -FilePath $public | Out-Null
           Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
           Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          & $env:MUSITU_SIGNTOOL sign /fd SHA256 /sha1 $cert.Thumbprint $signed
+          Write-Output 'MUSITU_WINDOWS_EPHEMERAL_TRUST=PASS'
+      - name: Sign disposable MSIX via Windows SDK
+        run: |
+          $ErrorActionPreference='Stop'
+          & $env:MUSITU_SIGNTOOL sign /fd SHA256 /sha1 $env:MUSITU_TEST_CERT_THUMBPRINT $env:MUSITU_TEST_SIGNED_MSIX
           if ($LASTEXITCODE -ne 0){throw 'test-only MSIX signing failed'}
-          & env:MUSITU_SIGNTOOL verify /pa /all $signed
-          if ($LASTEXITCODE -ne 0){throw 'Windows Authenticode trust validation failed'}
-          "MUSITU_TEST_SIGNED_MSIX=$signed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "MUSITU_TEST_UNSIGNED_MSIX=$unsigned" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "MUSITU_TEST_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "MUSITU_TEST_SIGNTOOL=$env:MUSITU_SIGNTOOL" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output 'MUSITU_WINDOWS_EPHEMERAL_SIGNED=PASS'
+      - name: Verify MSIX via Windows trust provider
+        run: |
+          $ErrorActionPreference='Stop'
+          & $env:MUSITU_SIGNTOOL verify /pa /all $env:MUSITU_TEST_SIGNED_MSIX
+          if ($LASTEXITCODE -ne 0){throw 'Windows signature trust verification failed'}
           Write-Output 'MUSITU_WINDOWS_DISPOSABLE_SIGNED_MSIX=PASS'
       - name: Qualify signed Windows MSIX publisher review, fail-closed negative cases
         run: |
