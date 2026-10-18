@@ -305,9 +305,9 @@ test('failed-render callback rolls back terminal state if audit insertion fails 
  const result=await f.call(null,'/internal/callback','POST',{
    job_id:id,input_sha256:row.payload_sha256,state:'FAILED'},'C'.repeat(48));
  assert.notEqual(result.status,200,'callback cannot claim committed terminal transition without audit');
- const job=f.db.db.prepare('SELECT state,finished_at FROM jobs WHERE id=?').get(id);
- assert.equal(job.state,'RUNNING','audit failure must not leave an unaudited terminal job');
- assert.equal(job.finished_at,null);
+ const stateRow=f.db.db.prepare('SELECT state,finished_at FROM jobs WHERE id=?').get(id);
+ assert.equal(stateRow.state,'RUNNING','audit failure must not leave an unaudited terminal job');
+ assert.equal(stateRow.finished_at,null);
  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='RENDER_FAILED'")
    .get(id).n,0);
 });
