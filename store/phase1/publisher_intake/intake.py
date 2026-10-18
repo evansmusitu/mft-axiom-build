@@ -137,11 +137,13 @@ def inspect_apk(path):
     cert_output=_tool([_sdk_tool('apksigner'),'verify','--print-certs',path])
     certs=[]
     for line in cert_output.splitlines():
-        match=re.fullmatch(
-            r'Signer #([1-9][0-9]*) certificate SHA-256 digest:[ \t]*([0-9a-fA-F]{64})',
-            line.strip())
-        if match:
-            certs.append((int(match.group(1)),match.group(2)))
+        if 'certificate SHA-256 digest:' not in line:
+            continue
+        prefix,value=line.split('certificate SHA-256 digest:',1)
+        signer=re.fullmatch(r'Signer\s+#([1-9][0-9]*)',prefix.strip())
+        fingerprint=value.strip()
+        if signer and HEX.fullmatch(fingerprint.lower()):
+            certs.append((int(signer.group(1)),fingerprint.lower()))
     if len(certs)!=1 or certs[0][0]!=1:
         # Safe parser diagnostics: disclose lengths/shape only, never publisher
         # certificate digests, DN identity, or APK bytes.
@@ -151,7 +153,8 @@ def inspect_apk(path):
                 digest_text=line.split('digest:',1)[-1].strip()
                 shapes.append({'chars':len(digest_text),
                                'hex':bool(re.fullmatch(r'[0-9a-fA-F]+',digest_text)),
-                               'line_prefix_space':len(line)-len(line.lstrip())})
+                               'line_prefix_space':len(line)-len(line.lstrip()),
+                               'signer_prefix':repr(line.split('certificate SHA-256 digest:',1)[0].strip())[:85]})
         raise IntakeRejected('single APK signer not parsed; stdout_chars='+
                              str(len(cert_output))+' sha256_shapes='+str(shapes))
     badging=_tool([_sdk_tool('aapt'),'dump','badging',path])
