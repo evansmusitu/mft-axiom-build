@@ -76,11 +76,19 @@ function Test-MusituWindowsMsix {
   }
   # A binary named signtool.exe in a publisher-writable temp directory is
   # not an independent verifier, even if copied from Microsoft's actual SDK.
-  $sdkRoot=[IO.Path]::GetFullPath(
-    (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin')).TrimEnd('\')+'\'
+  $sdkBase=[Environment]::GetFolderPath('ProgramFilesX86')
+  if ([string]::IsNullOrWhiteSpace($sdkBase)) {
+    throw 'Windows MSIX intake: cannot resolve protected Windows SDK base'
+  }
+  $sdkRoot=[IO.Path]::GetFullPath((Join-Path $sdkBase 'Windows Kits\10\bin'))
+  $sdkRoot=$sdkRoot.TrimEnd([char]92)+[char]92
   $toolPath=[IO.Path]::GetFullPath($tool.FullName)
+  $nativePattern='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\\x64\\signtool\.exe$'
   if (-not $toolPath.StartsWith($sdkRoot,[StringComparison]::OrdinalIgnoreCase) -or
-      $toolPath.Substring($sdkRoot.Length) -notmatch '^\d+\.\d+\.\d+\.\d+\\x64\\signtool\.exe -LiteralPath $item.FullName -ErrorAction Stop
+      $toolPath.Substring([Math]::Min($toolPath.Length,$sdkRoot.Length)) -notmatch $nativePattern) {
+    throw 'Windows MSIX intake: SignTool outside protected Windows SDK path'
+  }
+  $auth=Get-AuthenticodeSignature -LiteralPath $item.FullName -ErrorAction Stop
   if ($null -eq $auth.SignerCertificate -or $auth.Status -ne 'Valid'){
     throw 'Windows MSIX intake: missing or untrusted native Authenticode signature'
   }
