@@ -115,8 +115,9 @@ jobs:
           $public=Join-Path (Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix') 'disposable-public.cer'
           $cert=Get-Item -LiteralPath "Cert:\CurrentUser\My\$env:MUSITU_TEST_CERT_THUMBPRINT"
           Export-Certificate -Cert $cert -FilePath $public | Out-Null
-          Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
-          Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          # TrustedPeople directly accepts a disposable self-signed signer;
+          # never add arbitrary CI keys into Windows' Root CA trust store.
+          Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
           Write-Output 'MUSITU_WINDOWS_EPHEMERAL_TRUST=PASS'
       - name: Sign disposable MSIX via Windows SDK
         run: |
@@ -138,9 +139,8 @@ jobs:
         if: always()
         run: |
           if ($env:MUSITU_TEST_CERT_THUMBPRINT){
-            foreach($store in @('My','Root','TrustedPeople')){
-              Remove-Item -LiteralPath "Cert:\CurrentUser\$store\$env:MUSITU_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
-            }
+            Remove-Item -LiteralPath "Cert:\CurrentUser\My\$env:MUSITU_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "Cert:\LocalMachine\TrustedPeople\$env:MUSITU_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
           }
           $scratch=Join-Path $env:RUNNER_TEMP 'musitu-store-private-windows-msix'
           if (Test-Path -LiteralPath $scratch){Remove-Item -LiteralPath $scratch -Recurse -Force}
