@@ -58,3 +58,62 @@ node --test store/phase1/payments/paynow-review.test.mjs
 published MUSITU Store until a reviewed real provider adapter, independently
 signed/persisted entitlements, honest charge/refund accounting, monitoring and
 explicit owner release authorization are verified. Phase 1 remains RUNNING.
+
+## Operator-private durable payment-review evidence (isolated Phase 1)
+
+`paynow-review-ledger.mjs` now offers
+`recordPaynowReviewEvent({ledgerDirectory,callbackBody,polledBody,integrationKey,order})`
+to record **private review evidence only** after the existing SHA-512
+signed callback **and** separately supplied provider-polled status both
+pass verification against an operator-authenticated merchant order.
+
+The caller must provide an independently authenticated, audited provider
+poll; this offline module **does not establish or perform that transport**.
+A malicious caller who can forge the `polledBody`, order, or key defeats
+the external trust boundary. No live Paynow account or production
+credentials are connected.
+
+A Linux owner-controlled 0700 directory stores per-order, canonical
+0600 evidence, named by SHA-256 of a domain-separated merchant order
+reference. A single exclusive transaction lock, no-follow reads, safe
+filesystem ownership/permissions, atomic pending-to-committed rename,
+file fsync and directory fsync prevent normal concurrent writers
+overwriting review history. Existing ledger symlinks **including dangling
+symlinks**, corrupt/noncanonical state, stale locks and interrupted
+pending writes fail closed for human investigation rather than silently
+resetting payment history. Pending entries cannot be automatically
+recovered or cleared. Repeated **identical signed events** are idempotent;
+provider-transaction identity conflicts are rejected. A later refund,
+dispute, cancellation or any unconfirmed status permanently locks the
+review status against automatic recovery by a subsequent Paid event.
+At 100 events per order, new entries require independent manual
+resolution. No raw callback, provider URL, merchant key, bank data or
+payment instrument is persisted by this module.
+
+The returned `REVIEW_RECORDED_PRIVATE_ONLY` status **never authorizes**
+paid-content downloads, publisher payout, actual refund completion or
+settlement. In every outcome:
+`entitlementGranted=false`,
+`publisherSettlementAuthorized=false`,
+`refundFinalized=false`.
+The ledger is not a general financial database, does **not** guarantee
+exactly-once monetary transfers, and cannot withstand whole-filesystem
+rollback or compromise of the trusted OS user. Multi-node ledger
+coordination, independent signed audit backup, merchant bank settlement,
+live provider polling and actual commerce integration are still release
+blockers. Do not deploy this test-only ledger as a customer webhook.
+
+Test command:
+
+```sh
+node --test store/phase1/payments/paynow-review.test.mjs \
+  store/phase1/payments/paynow-review-ledger.test.mjs
+```
+
+**TDD evidence:** original empty ledger behavior failed 10 focused tests,
+GitHub Actions run `39167961779`; the genuine dangling-symlink
+regression independently failed in run `39168207577` and passed after
+the no-follow directory-entry fix. Final reviewed code qualified
+25/25 tests in run `39168260433`. All tests use a *synthetic* merchant
+key, synthetic order and synthetic signed messages with no external
+network or money.
