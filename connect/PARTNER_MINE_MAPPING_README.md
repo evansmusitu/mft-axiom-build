@@ -47,4 +47,4 @@ The converter verifies the entire source stream, checks monotonic **contiguous 1
 
 `.github/workflows/musitu-connect-partner-mine-contract.yml` uses **generated synthetic telemetry only**, performs adversarial tests for missing/duplicate fields, 15-second cadence, invalid sensor types, unapproved transforms, absent mapping references, and protected output files, and verifies downstream preflight interoperability. It asserts that Connect does not import Axiom benchmark modules.
 
-**PR #9 remains unmerged; sealed `main` unchanged; production Axiom integration blocked.**
+**PR #9 remains unmerged and `main` is unchanged.** Production Connect-to-Axiom computation was separately authorized and recorded as enabled; this research-only mapping utility does not alter it. **Independent-mine validation and production methane prediction remain unqualified and blocked.**
