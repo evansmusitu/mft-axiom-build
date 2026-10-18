@@ -1,0 +1,119 @@
+name: MUSITU Studio V0.3 — Recent Staff Android Usage Evidence
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-v03-live-staff-activity-readonly-20261018.yml'
+permissions: {contents: read}
+jobs:
+  sampled-usage-no-personal-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Count only v03 allowed human Access logins and sampled 2xx API calls, never expose identities or job UUIDs
+        run: |
+          python - <<'PY'
+          import datetime, json, os, pathlib, urllib.parse, urllib.request, urllib.error
+          now=datetime.datetime.now(datetime.timezone.utc)
+          start=now-datetime.timedelta(hours=4)
+          def stamp(t):return t.strftime('%Y-%m-%dT%H:%M:%SZ')
+          base='https://api.cloudflare.com/client/v4'
+          account='93f395f5121954671f92fffa453d6b61'
+          host='studio-v03.mftintelligence.com'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          report={'schema':'musitu.studio.v03.recent-provider-staff-activity-readonly.v1',
+            'checked_at_utc':stamp(now),'window_utc':{'start':stamp(start),'end':stamp(now)},
+            'read_only':True,'cloudflare_mutated':False,
+            'individual_emails_recorded':False,'individual_ips_recorded':False,
+            'individual_user_agents_recorded':False,'job_ids_recorded':False,
+            'staff_browser_session_bound_to_job':False,'physical_android_attested':False,
+            'all_analytics_sampled':True,'access_audit_http_status':None,'analytics_http_status':None,
+            'access_approved_login_count':None,'access_denied_login_count':None,
+            'human_identity_login_seen':False,
+            'sampled_mobile_2xx_session_gets':None,
+            'sampled_mobile_2xx_project_creates':None,
+            'sampled_mobile_2xx_job_submits':None,
+            'sampled_mobile_2xx_job_actions':None,'outcome':'NOT_CHECKED'}
+          def call(method,url,payload=None):
+            hdr={'Authorization':'Bearer '+token,'Accept':'application/json'}
+            if payload is not None:hdr['Content-Type']='application/json'
+            req=urllib.request.Request(url,method=method,headers=hdr,
+              data=json.dumps(payload).encode() if payload is not None else None)
+            try:
+              with urllib.request.urlopen(req,timeout=23) as r:
+                obj=json.load(r);return r.status,obj
+            except urllib.error.HTTPError as e:return e.code,None
+            except (OSError,ValueError):return 0,None
+          if token:
+            params=urllib.parse.urlencode({'since':stamp(start),'until':stamp(now),
+              'limit':100,'direction':'desc'})
+            st,data=call('GET',base+'/accounts/'+account+'/access/logs/access_requests?'+params)
+            report['access_audit_http_status']=st
+            if st==200 and isinstance(data,dict) and data.get('success') and isinstance(data.get('result'),list):
+              records=data['result']
+              matches=[e for e in records if isinstance(e,dict) and e.get('app_domain')==host
+                and e.get('action') in ('login',None) and
+                isinstance(e.get('created_at'),str) and stamp(start)<=e['created_at'][:19]+'Z'<=stamp(now)]
+              report['access_approved_login_count']=sum(e.get('allowed') is True for e in matches)
+              report['access_denied_login_count']=sum(e.get('allowed') is False for e in matches)
+              report['human_identity_login_seen']=any(e.get('allowed') is True and
+                isinstance(e.get('user_email'),str) and '@' in e['user_email'] for e in matches)
+              report['access_results_may_be_truncated']=len(records)>=100
+            zone_status,zones=call('GET',base+'/zones?name=mftintelligence.com&status=active')
+            ids=[z.get('id') for z in (zones or {}).get('result',[]) if
+              z.get('name')=='mftintelligence.com' and (z.get('account') or {}).get('id')==account]
+            if zone_status==200 and len(ids)==1:
+              query='''query V03Recent($zoneTag: string,$filter: HttpRequestsAdaptiveGroupsFilter_InputObject) {
+                viewer{zones(filter:{zoneTag:$zoneTag}){httpRequestsAdaptiveGroups(
+                  filter:$filter,limit:100,orderBy:[count_DESC]){count
+                  dimensions{clientRequestPath clientRequestHTTPMethodName
+                    clientDeviceType edgeResponseStatus}}}}}'''
+              variables={'zoneTag':ids[0],'filter':{
+                'clientRequestHTTPHost':host,'clientRequestPath_like':'/api/%',
+                'requestSource':'eyeball','datetime_geq':stamp(start),'datetime_leq':stamp(now)}}
+              status,graph=call('POST',base+'/graphql',{'query':query,'variables':variables})
+              report['analytics_http_status']=status
+              if status==200 and isinstance(graph,dict) and not graph.get('errors'):
+                zone_list=(((graph.get('data') or {}).get('viewer') or {}).get('zones') or [])
+                groups=zone_list[0].get('httpRequestsAdaptiveGroups') if len(zone_list)==1 else None
+                if isinstance(groups,list):
+                  counts={'session':0,'project':0,'submit':0,'actions':0}
+                  for row in groups:
+                    if not isinstance(row,dict) or not isinstance(row.get('dimensions'),dict):continue
+                    d=row['dimensions']
+                    n=row.get('count')
+                    if type(n) is not int or n<0 or n>100000:continue
+                    if str(d.get('clientDeviceType','')).lower()!='mobile':continue
+                    code=d.get('edgeResponseStatus')
+                    if type(code) is not int or not 200<=code<300:continue
+                    path=d.get('clientRequestPath')
+                    method=d.get('clientRequestHTTPMethodName')
+                    if method=='GET' and path=='/api/session':counts['session']+=n
+                    if method=='POST' and path=='/api/projects':counts['project']+=n
+                    if method=='POST' and path=='/api/jobs':counts['submit']+=n
+                    if method=='POST' and isinstance(path,str) and path.startswith('/api/jobs/') and
+                      path.endswith(('/approve','/dispatch','/sync')):counts['actions']+=n
+                  for k,out in [('session','sampled_mobile_2xx_session_gets'),
+                    ('project','sampled_mobile_2xx_project_creates'),
+                    ('submit','sampled_mobile_2xx_job_submits'),
+                    ('actions','sampled_mobile_2xx_job_actions')]:
+                    report[out]=counts[k]
+                  report['analytics_may_be_top100_truncated']=len(groups)>=100
+            report['outcome']='READ_ONLY_ACCOUNT_AUDIT_COMPLETE'
+          file=pathlib.Path('studio-v03-recent-staff-activity-20261018.json')
+          file.write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print('STUDIO_V03_RECENT_STAFF='+json.dumps(report,sort_keys=True))
+          assert report['access_audit_http_status']==200
+          assert report['analytics_http_status']==200
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-recent-access-and-mobile-api-privacy-safe
+          path: studio-v03-recent-staff-activity-20261018.json
+          retention-days: 14
+          if-no-files-found: warn
