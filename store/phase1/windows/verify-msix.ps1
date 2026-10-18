@@ -114,32 +114,3 @@ function Test-MusituWindowsMsix {
     permittedPublication=$false
   }
 }
-){
-    throw 'Windows MSIX intake: SignTool outside protected Windows SDK path'
-  }
-  $auth=Get-AuthenticodeSignature -LiteralPath $item.FullName -ErrorAction Stop
-  if ($null -eq $auth.SignerCertificate -or $auth.Status -ne 'Valid'){
-    throw 'Windows MSIX intake: missing or untrusted native Authenticode signature'
-  }
-  if ($auth.SignerCertificate.Thumbprint.ToUpperInvariant() -cne
-      $ExpectedCertificateThumbprint.ToUpperInvariant() -or
-      $auth.SignerCertificate.Subject -cne $ExpectedPublisher){
-    throw 'Windows MSIX intake: native signed publisher certificate mismatch'
-  }
-  & $tool.FullName verify /pa /all $item.FullName | Out-Null
-  if ($LASTEXITCODE -ne 0){throw 'Windows MSIX intake: native platform SignTool verification failed'}
-  # Refuse any package mutated while the archive and signature were inspected.
-  $after=(Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-  if ($after -cne $digest){throw 'Windows MSIX intake: artifact changed during validation'}
-
-  [PSCustomObject]@{
-    state='REVIEW_REQUIRED'
-    packageName=$ExpectedPackageName
-    publisher=$ExpectedPublisher
-    version=$ExpectedVersion
-    sha256=$digest
-    signingThumbprint=$auth.SignerCertificate.Thumbprint.ToUpperInvariant()
-    permittedInstallation=$false
-    permittedPublication=$false
-  }
-}
