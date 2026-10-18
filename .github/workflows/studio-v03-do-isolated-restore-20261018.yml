@@ -47,7 +47,7 @@ jobs:
           root="http://127.0.0.1:8798"
           mkdir -p "$(dirname "$store")"
           start() {
-            npx wrangler dev --local --config wrangler.v03.restore-ci.jsonc \
+            setsid npx wrangler dev --local --config wrangler.v03.restore-ci.jsonc \
               --persist-to "$store" --ip 127.0.0.1 --port 8798 \
               >/tmp/v03-disposable-restore-workerd.log 2>&1 &
             worker=$!
@@ -60,8 +60,17 @@ jobs:
             if [ "$ready" != true ];then tail -35 /tmp/v03-disposable-restore-workerd.log;exit 1;fi
           }
           stop() {
-            kill "$worker" 2>/dev/null || true
+            # npx launches workerd grandchildren; terminate the entire isolated session.
+            # Killing only the npx PID leaves old workerd serving the same port.
+            kill -TERM -- "-$worker" 2>/dev/null || true
             wait "$worker" 2>/dev/null || true
+            port_closed=false
+            for check in $(seq 1 20); do
+              code=$(curl --silent --max-time 1 --output /dev/null --write-out '%{http_code}' "$root/api/projects" || true)
+              if [ "$code" = 000 ] || [ -z "$code" ]; then port_closed=true;break;fi
+              sleep 1
+            done
+            test "$port_closed" = true || { echo 'ISOLATED_WORKER_DID_NOT_STOP';exit 1; }
           }
           trap 'stop 2>/dev/null || true' EXIT
           create_project() {
