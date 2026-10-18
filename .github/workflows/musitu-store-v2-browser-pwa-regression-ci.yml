@@ -39,11 +39,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 store/phase1/web-surface/build_store_data.py
+      - name: Install isolated Chromium acceptance tooling without modifying release dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable)"
+          test -x "$CHROME_BIN"
+          "$CHROME_BIN" --version
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          npm install --prefix store/phase1/web-surface --no-save --no-package-lock --ignore-scripts playwright@1.55.0
       - name: Regress all browser/PWA/native handoff and release-status contracts
         shell: bash
         run: |
           set -euo pipefail
           node --test store/phase1/web-surface/*.test.mjs
+          echo MUSITU_STORE_V2_BROWSER_PWA_CHROMIUM_OFFLINE_ACCEPTANCE=PASS
           echo MUSITU_STORE_V2_BROWSER_PWA_ISOLATED_REGRESSION_PASS
       - name: Confirm generated browser metadata was derived from signed repository snapshot
         shell: bash
