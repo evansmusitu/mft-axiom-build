@@ -1,0 +1,33 @@
+name: MUSITU Studio — Guarded Host-only Security Level Remediation
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - '.github/workflows/studio-guarded-securitylevel-only-20261018.yml'
+permissions:
+  contents: read
+concurrency:
+  group: musitu-studio-exact-host-securitylevel-only
+  cancel-in-progress: false
+jobs:
+  one-scoped-cloudflare-rule:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact-host scope and Access-bypass refusals
+        run: |
+          python -m py_compile ops/studio_scoped_securitylevel_skip.py
+          python -m unittest discover -s ops -p 'test_studio_scoped_securitylevel_skip.py' -v
+      - name: Create only after live staff-only Access and WAF capacity checks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_scoped_securitylevel_skip.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-exact-host-securitylevel-remediation
+          path: studio-scoped-securitylevel-change.json
+          if-no-files-found: warn
+          retention-days: 14
