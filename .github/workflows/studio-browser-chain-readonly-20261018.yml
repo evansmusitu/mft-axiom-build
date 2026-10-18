@@ -1,0 +1,47 @@
+name: MUSITU Studio — Provider-correlated Android CPU to R2 Chain
+on:
+  push:
+    branches: [experiments/studio-remote-r2-modal-e2e-20261017]
+    paths:
+      - '.github/workflows/studio-browser-chain-readonly-20261018.yml'
+      - 'ops/studio_browser_chain.py'
+      - 'ops/test_studio_browser_chain.py'
+permissions:
+  contents: read
+concurrency:
+  group: studio-browser-correlated-proof-readonly
+  cancel-in-progress: true
+jobs:
+  read-only-existing-production-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify exact-job linkage and false-certification tests
+        run: |
+          python -m py_compile ops/studio_browser_chain.py
+          python -m unittest discover -s ops -p 'test_studio_browser_chain.py' -v
+      - name: Install existing Wrangler binary for authorized R2 GET only
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-fund --no-audit
+      - name: Correlate genuine provider logs with completed CPU artifact hashes — no writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$CF_API_TOKEN}"
+          python ops/studio_browser_chain.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-android-ua-access-cpu-r2-correlated-evidence
+          path: studio-production-android-chain-evidence-20261018.json
+          if-no-files-found: warn
+          retention-days: 30
