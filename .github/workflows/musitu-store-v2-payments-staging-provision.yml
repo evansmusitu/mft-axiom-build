@@ -6,6 +6,7 @@ on:
       - feature/musitu-store-v2-package-state-20261012
     paths:
       - '.github/workflows/musitu-store-v2-payments-staging-provision.yml'
+      - 'store/phase1/payments/provision_store_payments_staging.py'
   workflow_dispatch:
 
 permissions:
