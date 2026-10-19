@@ -87,3 +87,49 @@ Original signed Store V1, Axiom subscriptions/quotas and production
 Worker scripts, protected main, OpenAI frozen PR #1, unrelated MMF/FMI
 and existing MFT Paynow integrations remain untouched. No customer
 was charged. Phase 1 remains RUNNING; Phase 2 remains PENDING.
+
+## 2026-10-19 source-preflight repair and manual-only provisioning guard
+
+A *second*, independent staging blocker was found **in our own branch**:
+`provision_store_payments_staging.py` still required the obsolete exact
+source statement `import {createStorePaymentRoutes} ...`. The actual,
+reviewed checkout module now legitimately imports
+`createStorePaymentRoutes,boundedBytes`, so the preflight would reject
+every current code revision **before reaching the Cloudflare API**, even
+if an administrator corrected the Cloudflare permission problem.
+
+The staging preflight now validates the **actual current module import**
+using a narrow audited import pattern, while rejecting an unexpected or
+rerouted checkout dependency. A new offline-only Python acceptance file,
+`test_store_staging_source_preflight.py`, exercises the real source/schema
+contract and a maliciously replaced module-import path without Cloudflare
+network access.
+
+**Behavior-first evidence:**
+- RED: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39237758443 — current real checkout source failed the preflight with
+  `Store payment imports and module dependencies unexpectedly changed`.
+  The hijacked-import rejection case passed.
+- GREEN: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39237861935 — both offline staging acceptance tests passed;
+  complete Store Paynow/checkout suite **77/77 tests passed**, 0 failed.
+  Signed Store V1 source hashes were reverified.
+
+**Cloudflare staging creation remains BLOCKED by the prior HTTP 403.**
+The successful source-preflight result does not grant D1 Create/Edit or
+Workers Write permission, provision any database, or deploy any Worker.
+
+Additionally, staging provisioning is now **manual dispatch only**
+(`workflow_dispatch`), with its strict branch/account/zone and checkout-
+disabled guards retained. A normal GitHub push cannot unexpectedly create
+an additional Cloudflare D1, upload a payment Worker, or alter billing
+routing if repository secret permissions are updated. An authorized
+administrator must review the precise Cloudflare D1 create permission,
+then explicitly invoke the isolation-safe staging workflow. Existing
+production Axiom billing, Store V1 and protected branches must remain
+unchanged.
+
+The next verified success criterion is *not* a green unit-test count:
+after explicit permission correction and manual workflow dispatch, the
+operator must independently read back a **new empty Store-only D1** and
+a **disabled, unrouted, secret-free Store Worker**. Genuine Store checkout
+still requires its own subsequent security/merchant approval; no live
+money transactions were executed here.
