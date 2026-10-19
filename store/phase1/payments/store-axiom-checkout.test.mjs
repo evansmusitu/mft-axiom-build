@@ -139,3 +139,36 @@ test('D1 write without verifiable change metadata cannot authorize a new Store c
  assert.equal(response.status,503);
  assert.equal(calls.length,0);
 });
+
+test('slow-trickle Paynow initiation response has an absolute timeout and can never disclose payment URL',async()=>{
+ let drip,deadline,abortSignal;
+ const responseStream=new ReadableStream({
+   start(controller){
+     controller.enqueue(new TextEncoder().encode('status='));
+     drip=setInterval(()=>{try{controller.enqueue(new Uint8Array([65]));}catch{}},45);
+   },
+   cancel(){if(drip)clearInterval(drip);}
+ });
+ const app=createStoreBillingWorker({newReference:()=> 'STORE-ABCDEF0123456789',
+   paynowFetch:async(url,init)=>{
+     abortSignal=init.signal;
+     init.signal.addEventListener('abort',()=>{
+       try{responseStream.cancel();}catch{}
+     },{once:true});
+     return new Response(responseStream,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
+   }});
+ const env=fakeEnv();
+ try{
+   const result=app.fetch(req(),env);
+   const refusal=new Promise((_,reject)=>{
+     deadline=setTimeout(()=>reject(new Error('TEST_STORE_INITIATION_ABSOLUTE_TIMEOUT_MISSING')),9400);
+   });
+   const response=await Promise.race([result,refusal]);
+   assert.equal(response.status,502);
+   assert.equal((await response.json()).entitlement_granted,false);
+   assert.equal(abortSignal.aborted,true);
+ }finally{
+   if(drip)clearInterval(drip);
+   if(deadline)clearTimeout(deadline);
+ }
+});
