@@ -93,7 +93,7 @@ test('successful AI call uses bounded histories and honest model metadata', asyn
   assert.deepEqual(calls.map(x=>x[0]),['visitor','regional','ai']);
   assert.equal(calls[1][1],'regional-requests');
   assert.equal(calls[2][2].max_tokens,420);
-  assert.deepEqual(calls[2][2].messages.map(m=>m.role),['system','assistant','user','assistant','user']);
+  assert.deepEqual(calls[2][2].messages.map(m=>m.role),['system','assistant','user','assistant','user','user']);
   assert.equal(calls[2][2].messages.at(-1).content,PROMPT);
   assert.equal(result.headers.get('cache-control'),'no-store');
   assert.equal(result.headers.get('access-control-allow-origin'),ORIGIN);
