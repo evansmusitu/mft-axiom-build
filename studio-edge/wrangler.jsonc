@@ -1,0 +1,27 @@
+{
+  "name": "musitu-intelligence-edge-20261019",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "ratelimits": [
+    {
+      "name": "VISITOR_RATE",
+      "namespace_id": "202610191",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
+    },
+    {
+      "name": "GLOBAL_RATE",
+      "namespace_id": "202610192",
+      "simple": {
+        "limit": 4,
+        "period": 60
+      }
+    }
+  ]
+}
