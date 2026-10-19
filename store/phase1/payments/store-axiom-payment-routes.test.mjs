@@ -28,8 +28,8 @@ function fakeDb(){
         log.push({...entry,method:'first'});
         if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};
         if(sql.includes('store_checkout_reviews'))return data.review;
-        if(sql.includes('store_checkout_intents'))return
-          entry.values[0]===checkoutReference && (!sql.includes('customer_id=?2')||entry.values[1]==='customer_fixture')?data.intent:null;
+        if(sql.includes('store_checkout_intents'))return (
+          entry.values[0]===checkoutReference && (!sql.includes('customer_id=?2')||entry.values[1]==='customer_fixture')?data.intent:null);
         return null;
       },
       async run(){
