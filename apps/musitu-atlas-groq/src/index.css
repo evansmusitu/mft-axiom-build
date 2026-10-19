@@ -1940,3 +1940,5 @@ main {
 }
 
 .groq-choice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--stroke);padding:10px 20px;background:var(--panel2)}.groq-choice label{color:var(--muted);font-size:11px;font-weight:800}.groq-choice select{background:var(--panel);color:var(--text);border:1px solid var(--stroke);padding:8px;border-radius:7px;font:inherit;font-size:11px}
+
+.groq-config-notice{padding:11px 20px;background:rgba(235,175,83,.12);border-bottom:1px solid var(--stroke);color:var(--text);font-size:11px;line-height:1.7}
