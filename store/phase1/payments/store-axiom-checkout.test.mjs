@@ -141,9 +141,10 @@ test('D1 write without verifiable change metadata cannot authorize a new Store c
 });
 
 test('slow-trickle Paynow initiation response has an absolute timeout and can never disclose payment URL',async()=>{
- let drip,deadline,abortSignal;
+ let drip,deadline,abortSignal,streamController;
  const responseStream=new ReadableStream({
    start(controller){
+     streamController=controller;
      controller.enqueue(new TextEncoder().encode('status='));
      drip=setInterval(()=>{try{controller.enqueue(new Uint8Array([65]));}catch{}},45);
    },
@@ -153,7 +154,7 @@ test('slow-trickle Paynow initiation response has an absolute timeout and can ne
    paynowFetch:async(url,init)=>{
      abortSignal=init.signal;
      init.signal.addEventListener('abort',()=>{
-       try{responseStream.cancel();}catch{}
+       try{streamController.error(new Error('simulated provider body stream aborted'));}catch{}
      },{once:true});
      return new Response(responseStream,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
    }});
