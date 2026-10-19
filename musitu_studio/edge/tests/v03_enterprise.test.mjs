@@ -379,3 +379,51 @@ test('unknown remote outcome cannot transition to NEEDS_REVIEW without immutable
    assert.equal(requests,1);
  }finally{globalThis.fetch=original}
 });
+
+
+test('successful render callback rejected by SQLite state guard must not invent RENDER_COMPLETED audit',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ const hash=f.db.db.prepare('SELECT payload_sha256 FROM jobs WHERE id=?').get(id).payload_sha256;
+ f.db.db.prepare("UPDATE jobs SET state='RUNNING' WHERE id=?").run(id);
+ f.db.db.exec("CREATE TRIGGER simulate_result_update_ignore BEFORE UPDATE OF state ON jobs "+
+   "WHEN NEW.state='COMPLETED' BEGIN SELECT RAISE(IGNORE); END;");
+ const receipt={job_id:id,input_sha256:hash,state:'COMPLETED',gpu_verified:false,files:output()};
+ const response=await f.call(null,'/internal/callback','POST',receipt,'C'.repeat(48));
+ assert.equal(response.status,409,JSON.stringify(response.body));
+ assert.equal(response.body.error,'RESULT_STATE_CONFLICT');
+ assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'RUNNING');
+ assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='RENDER_COMPLETED'").get(id).n,0,
+   'A rejected completed-state transition cannot have a RENDER_COMPLETED audit');
+});
+test('failed render callback whose state update was ignored must not emit a phantom RENDER_FAILED audit',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ const hash=f.db.db.prepare('SELECT payload_sha256 FROM jobs WHERE id=?').get(id).payload_sha256;
+ f.db.db.prepare("UPDATE jobs SET state='RUNNING' WHERE id=?").run(id);
+ f.db.db.exec("CREATE TRIGGER simulate_failed_update_ignore BEFORE UPDATE OF state ON jobs "+
+   "WHEN NEW.state='FAILED' BEGIN SELECT RAISE(IGNORE); END;");
+ const response=await f.call(null,'/internal/callback','POST',{
+    job_id:id,input_sha256:hash,state:'FAILED'
+ },'C'.repeat(48));
+ assert.equal(response.status,409,JSON.stringify(response.body));
+ assert.equal(response.body.error,'RESULT_RACE');
+ assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'RUNNING');
+ assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='RENDER_FAILED'").get(id).n,0,
+   'A rejected failure transition cannot have a RENDER_FAILED audit');
+});
+test('completed-job duplicate receipt must exactly replay three distinct original artifact hashes',async()=>{
+ const f=fixture(),p=await project(f),id=await job(f,p);
+ const hash=f.db.db.prepare('SELECT payload_sha256 FROM jobs WHERE id=?').get(id).payload_sha256;
+ f.db.db.prepare("UPDATE jobs SET state='RUNNING' WHERE id=?").run(id);
+ const receipt={job_id:id,input_sha256:hash,state:'COMPLETED',gpu_verified:false,files:output()};
+ assert.equal((await f.call(null,'/internal/callback','POST',receipt,'C'.repeat(48))).status,200);
+ const correct=await f.call(null,'/internal/callback','POST',receipt,'C'.repeat(48));
+ assert.equal(correct.status,200);
+ assert.equal(correct.body.duplicate,true);
+ for(const files of [[],[receipt.files[0]],[receipt.files[0],receipt.files[0],receipt.files[1]],[
+    receipt.files[0],receipt.files[1],{...receipt.files[2],sha256:'f'.repeat(64)}
+ ]]){
+   const rejected=await f.call(null,'/internal/callback','POST',{...receipt,files},'C'.repeat(48));
+   assert.equal(rejected.status,409,'Incomplete, duplicate or changed receipts cannot pass');
+   assert.equal(rejected.body.error,'CALLBACK_CONFLICT');
+ }
+});
