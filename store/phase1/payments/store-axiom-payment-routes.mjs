@@ -55,11 +55,12 @@ async function signedStatus(bytes,key){
     !statuses.has(map.status)||!safePoll(map.pollurl))fail();
  return {map,digest:(await sha(new TextDecoder().decode(bytes),'SHA-256')).toLowerCase()};
 }
-async function boundedBytes(input,max=12288){
+async function boundedBytes(input,max=12288,deadlineMs=8000){
  const stream=input.body;
  if(!stream||typeof stream.getReader!=='function')throw Error('body_stream_unavailable');
  const reader=stream.getReader(),chunks=[];let count=0;
- try{
+ let timer;
+ const collect=(async()=>{
   for(;;){
    const {done,value}=await reader.read();
    if(done)break;
@@ -70,8 +71,17 @@ async function boundedBytes(input,max=12288){
   const all=new Uint8Array(count);let position=0;
   for(const b of chunks){all.set(b,position);position+=b.length;}
   return all;
- }catch(error){try{await reader.cancel();}catch{}throw error;}
- finally{try{reader.releaseLock();}catch{}}
+ })();
+ const deadline=new Promise((_,reject)=>{
+  timer=setTimeout(()=>{
+   reject(Error('provider_body_timeout'));
+   // Never wait indefinitely for a hostile upload stream to cancel.
+   try{void reader.cancel().catch(()=>{});}catch{}
+  },deadlineMs);
+ });
+ try{return await Promise.race([collect,deadline]);}
+ catch(error){try{void reader.cancel().catch(()=>{});}catch{}throw error;}
+ finally{clearTimeout(timer);try{reader.releaseLock();}catch{}}
 }
 async function verifyCustomer(req,db){
  const auth=req.headers.get('authorization')||'';
@@ -80,7 +90,9 @@ async function verifyCustomer(req,db){
  const row=await db.prepare('SELECT customer_id,status FROM store_customer_tokens WHERE token_hash=?1 LIMIT 1').bind(tokenHash).first();
  return row?.status==='active'&&row.customer_id?row.customer_id:null;
 }
-export function createStorePaymentRoutes({providerFetch=globalThis.fetch}={}){
+export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbackReadTimeoutMs=8000}={}){
+ if(!Number.isSafeInteger(callbackReadTimeoutMs)||callbackReadTimeoutMs<1||callbackReadTimeoutMs>8000)
+  throw Error('invalid_store_callback_deadline');
  return {async handle(request,env){
   const u=new URL(request.url),path=u.pathname;
   if(path==='/store/billing/return'&&request.method==='GET')
@@ -108,8 +120,11 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch}={}){
   const declared=Number(request.headers.get('content-length')||0);
   if(declared>12288)return reply(413,{ok:false,error:'callback_too_large'});
   let callback;
-  try{callback=await signedStatus(await boundedBytes(request),env.STORE_PAYNOW_INTEGRATION_KEY);}
-  catch{return reply(400,{ok:false,error:'invalid_provider_callback'});}
+  try{callback=await signedStatus(await boundedBytes(request,12288,callbackReadTimeoutMs),env.STORE_PAYNOW_INTEGRATION_KEY);}
+  catch(error){
+   if(error?.message==='provider_body_timeout')return reply(408,{ok:false,error:'provider_callback_body_timeout'});
+   return reply(400,{ok:false,error:'invalid_provider_callback'});
+  }
   const p=callback.map;
   let intent;
   try{intent=await db.prepare('SELECT reference,customer_id,sku,amount_cents,currency,status,poll_url,expires_at FROM store_checkout_intents WHERE reference=?1 LIMIT 1').bind(p.reference).first();}
