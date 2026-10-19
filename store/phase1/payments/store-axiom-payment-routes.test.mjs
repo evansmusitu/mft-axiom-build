@@ -135,3 +135,26 @@ test('customer browser return page is only advisory and cannot confirm payment',
   assert.equal(body.payment_status,'unverified');
   assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
 });
+
+
+test('concurrent order transition cannot create a positive review from a stale pending snapshot',async()=>{
+  const {app,env}=fixture();
+  const oldBatch=env.STORE_DB.batch.bind(env.STORE_DB);
+  env.STORE_DB.batch=async(statements)=>{
+    // The database's atomic conditional INSERT and UPDATE must both target
+    // pending orders. A concurrent cancellation makes neither match.
+    assert.ok(statements[0].sql.includes("status='pending'"));
+    return [{success:true,meta:{changes:0}},{success:true,meta:{changes:0}}];
+  };
+  const response=await app.fetch(webhook(),env);
+  assert.equal(response.status,409);
+  assert.equal(env.STORE_DB.data.review,null);
+  assert.equal(env.STORE_DB.data.intent.status,'pending');
+  assert.equal(typeof oldBatch,'function');
+});
+test('unconfirmed or absent transactional batch metadata cannot be treated as persisted review',async()=>{
+  const {app,env}=fixture();
+  env.STORE_DB.batch=async()=>[{success:true},{success:true}];
+  const response=await app.fetch(webhook(),env);
+  assert.notEqual(response.status,202);
+});
