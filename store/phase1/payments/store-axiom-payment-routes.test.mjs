@@ -159,3 +159,24 @@ test('unconfirmed or absent transactional batch metadata cannot be treated as pe
   const response=await app.fetch(webhook(),env);
   assert.notEqual(response.status,202);
 });
+
+
+test('HTML masquerading as a signed Paynow poll response cannot create payment review',async()=>{
+  const {app,env}=fixture();
+  const external=await app.fetch; // route is still the real Store worker.
+  assert.equal(typeof external,'function');
+  const blocker=createStoreBillingWorker({paynowFetch:async()=>new Response(signedStatus(),
+    {status:200,headers:{'content-type':'text/html'}})});
+  const result=await blocker.fetch(webhook(),env);
+  assert.equal(result.status,502);
+  assert.equal(env.STORE_DB.data.review,null);
+  assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+test('expired Store checkout cannot be promoted by a late signed provider callback',async()=>{
+  const {app,env,calls}=fixture();
+  env.STORE_DB.data.intent.expires_at='2000-01-01T00:00:00.000Z';
+  const response=await app.fetch(webhook(),env);
+  assert.equal(response.status,409);
+  assert.equal(calls.length,0);
+  assert.equal(env.STORE_DB.data.review,null);
+});
