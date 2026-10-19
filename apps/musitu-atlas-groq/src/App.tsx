@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 
 type Tab = 'overview' | 'missions' | 'assistant' | 'workflows' | 'insights' | 'settings';
+type ModelOption = {id:string;label:string;provider:string;model:string;available:boolean;tier:string};
 type Focus = 'Founder' | 'Analyst' | 'Creator';
 type Run = {
   id: string;
@@ -226,8 +227,23 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
   const [sending, setSending] = useState(false);
-  const [aiMode, setAiMode] = useState<'fast'|'quality'>(()=>load('atlas_ai_mode','fast'));
+  const [aiMode, setAiMode] = useState<string>(() => {
+    const prior=load<string>('atlas_ai_mode','groq_quality');
+    return prior==='fast'?'groq_fast':prior==='quality'?'groq_quality':prior;
+  });
+  const [modelCatalog,setModelCatalog] = useState<ModelOption[]>([]);
+  const [paidConsent,setPaidConsent] = useState(false);
+  const [catalogError,setCatalogError] = useState(false);
   useEffect(()=>save('atlas_ai_mode',aiMode),[aiMode]);
+  useEffect(()=>{
+    let live=true;
+    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);}})
+      .catch(()=>{if(live)setCatalogError(true);});
+    return()=>{live=false};
+  },[]);
+  const selectedModel=modelCatalog.find(v=>v.id===aiMode);
+  const frontierSelected=selectedModel?.tier==='frontier';
+  const selectionReady=Boolean(selectedModel?.available);
   const [running, setRunning] = useState<string | null>(null);
   const [context, setContext] = useState('');
   const [activeRun, setActiveRun] = useState<Run | null>(null);
@@ -311,6 +327,8 @@ export default function App() {
     ev?.preventDefault();
     const question = clean(draft);
     if (!question || sending) return;
+    if (!selectionReady){setFeedback('Selected model is not available. Choose an available provider.');return;}
+    if (frontierSelected && !paidConsent){setFeedback('Approve potential paid API usage before a frontier request.');return;}
     const newHistory: Message[] = [
       ...messages,
       { role: 'user', text: question },
@@ -324,6 +342,7 @@ export default function App() {
         focus: prefs.focus,
         history: newHistory.slice(-8),
         mode: aiMode,
+        approved: frontierSelected && paidConsent,
       });
       const answer = String(r.data?.answer || '');
       if (!answer) throw new Error('No answer');
@@ -344,6 +363,8 @@ export default function App() {
   }
   async function runWorkflow(id: string) {
     if (running) return;
+    if (!selectionReady){setFeedback('Your selected AI model is not configured. Choose an available model in the assistant.');return;}
+    if (frontierSelected && !paidConsent){setFeedback('Frontier AI requires explicit paid-request approval.');return;}
     const wf = steps.find(v => v.id === id);
     if (!wf) return;
     setRunning(id);
@@ -353,6 +374,8 @@ export default function App() {
         type: id,
         focus: prefs.focus,
         context: clean(context, 400),
+        mode: aiMode,
+        approved: frontierSelected && paidConsent,
       });
       const result = clean(String(r.data?.result || ''), 12000);
       if (!result) throw new Error('Empty result');
@@ -771,7 +794,7 @@ export default function App() {
               </footer>
             </>
           )}
-          {tab === 'missions' && <MissionStudio focus={prefs.focus} onAsk={openAsk} onChange={setMissionCount} />}
+          {tab === 'missions' && <MissionStudio focus={prefs.focus} onAsk={openAsk} onChange={setMissionCount} modelMode={aiMode} modelReady={selectionReady} approved={Boolean(frontierSelected&&paidConsent)} />}
           {tab === 'assistant' && (
             <div className="inner-page">
               <div className="page-title">
@@ -784,7 +807,7 @@ export default function App() {
                   <em>Move faster.</em>
                 </h1>
                 <p>
-                  An AI assistant using Groq models when the backend is configured. Explore, analyze and create.
+                  Explore serious reasoning and mission architecture with selectable providers. Frontier models become available only when securely configured and enabled.
                   Replies are generated live, not pre-written.
                 </p>
               </div>
@@ -802,11 +825,20 @@ export default function App() {
                       className={'live-badge ' + (!connected ? 'muted' : '')}
                     >
                       <span className="status-dot" />
-                      {!connected ? 'RECONNECTING' : aiConfigured ? 'GROQ READY' : 'GROQ SETUP REQUIRED'}
+                      {!connected ? 'RECONNECTING' : selectedModel?.available ? 'MODEL ONLINE' : 'MODEL SETUP REQUIRED'}
                     </span>
                   </div>
-                  {!aiConfigured && <div className="groq-config-notice" role="status">Groq inference requires a backend API key. The AI assistant will become available after the site administrator configures GROQ_API_KEY.</div>}
-                  <div className="groq-choice"><label htmlFor="groq-model">Groq model</label><select id="groq-model" value={aiMode} onChange={e=>setAiMode(e.target.value as 'fast'|'quality')}><option value="fast">GPT-OSS 20B · Fast</option><option value="quality">GPT-OSS 120B · Quality</option></select></div><div className="chat-thread" role="log" aria-live="polite">
+                  <section className="frontier-selector" aria-label="AI model selection">
+                    <div><label htmlFor="atlas-model">INTELLIGENCE ENGINE</label><small>{selectedModel?.provider||'Loading'} / {selectedModel?.model||'Checking providers'}</small></div>
+                    <select id="atlas-model" value={aiMode} onChange={e=>{setAiMode(e.target.value);setPaidConsent(false)}}>
+                      {modelCatalog.length===0&&<option value={aiMode}>Checking available models...</option>}
+                      {modelCatalog.filter(m=>m.tier==='frontier').map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.label} · {m.available?'AVAILABLE':'REQUIRES SETUP'}</option>)}
+                      {modelCatalog.filter(m=>m.tier==='sandbox').map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.label} · {m.available?'SANDBOX':'OFFLINE'}</option>)}
+                    </select>
+                    {frontierSelected && <label className="frontier-consent"><input type="checkbox" checked={paidConsent} onChange={e=>setPaidConsent(e.target.checked)}/> I approve provider usage charges for requests I submit</label>}
+                    <div className="model-note">{catalogError?'Provider catalog unavailable. Try reloading.':frontierSelected?'Frontier models use paid APIs. Requests are never sent automatically; ask an administrator about access.':'Groq is a low-cost development sandbox, not our frontier-quality product. Premium providers require administrator setup.'}</div>
+                  </section>
+                  <div className="chat-thread" role="log" aria-live="polite">
                     {messages.map((m, i) => (
                       <div className={'message ' + m.role} key={i}>
                         {m.role === 'assistant' && (
@@ -843,7 +875,7 @@ export default function App() {
                     />
                     <button
                       type="submit"
-                      disabled={!draft.trim() || sending}
+                      disabled={!draft.trim() || sending || !selectionReady || (Boolean(frontierSelected) && !paidConsent)}
                       aria-label="Send message"
                     >
                       <Send size={19} />
@@ -898,7 +930,7 @@ export default function App() {
                   process, and get a concrete, reusable output.
                 </p>
               </div>
-              <div className="workflow-form">
+              <div className="atlas-workflow-model" role="status">Engine: <b>{selectedModel?.label||'Checking model'}</b> · {selectionReady?'Connected':'Requires provider setup'} · <button type="button" onClick={()=>go('assistant')}>Change model</button></div><div className="workflow-form">
                 <label htmlFor="workflow-context">
                   <span className="section-overline">YOUR CONTEXT</span>
                   <span>
