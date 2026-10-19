@@ -233,6 +233,7 @@ export default function App() {
   });
   const [modelCatalog,setModelCatalog] = useState<ModelOption[]>([]);
   const [paidConsent,setPaidConsent] = useState(false);
+  const [accessCode,setAccessCode] = useState('');
   const [catalogError,setCatalogError] = useState(false);
   useEffect(()=>save('atlas_ai_mode',aiMode),[aiMode]);
   useEffect(()=>{
@@ -343,6 +344,7 @@ export default function App() {
         history: newHistory.slice(-8),
         mode: aiMode,
         approved: frontierSelected && paidConsent,
+        accessCode: frontierSelected ? accessCode : undefined,
       });
       const answer = String(r.data?.answer || '');
       if (!answer) throw new Error('No answer');
@@ -794,7 +796,7 @@ export default function App() {
               </footer>
             </>
           )}
-          {tab === 'missions' && <MissionStudio focus={prefs.focus} onAsk={openAsk} onChange={setMissionCount} modelMode={aiMode} modelReady={selectionReady} approved={Boolean(frontierSelected&&paidConsent)} />}
+          {tab === 'missions' && <MissionStudio focus={prefs.focus} onAsk={openAsk} onChange={setMissionCount} modelMode={aiMode} modelReady={selectionReady} approved={Boolean(frontierSelected&&paidConsent)} accessCode={frontierSelected?accessCode:undefined} />}
           {tab === 'assistant' && (
             <div className="inner-page">
               <div className="page-title">
@@ -835,7 +837,7 @@ export default function App() {
                       {modelCatalog.filter(m=>m.tier==='frontier').map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.label} · {m.available?'AVAILABLE':'REQUIRES SETUP'}</option>)}
                       {modelCatalog.filter(m=>m.tier==='sandbox').map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.label} · {m.available?'SANDBOX':'OFFLINE'}</option>)}
                     </select>
-                    {frontierSelected && <label className="frontier-consent"><input type="checkbox" checked={paidConsent} onChange={e=>setPaidConsent(e.target.checked)}/> I approve provider usage charges for requests I submit</label>}
+                    {frontierSelected && <><label className="frontier-consent"><input type="checkbox" checked={paidConsent} onChange={e=>setPaidConsent(e.target.checked)}/> I approve provider usage charges for requests I submit</label><label className="frontier-access">Private frontier beta access code <input type="password" autoComplete="off" value={accessCode} onChange={e=>setAccessCode(e.target.value.slice(0,200))} placeholder="Not stored in the browser" /></label></>}
                     <div className="model-note">{catalogError?'Provider catalog unavailable. Try reloading.':frontierSelected?'Frontier models use paid APIs. Requests are never sent automatically; ask an administrator about access.':'Groq is a low-cost development sandbox, not our frontier-quality product. Premium providers require administrator setup.'}</div>
                   </section>
                   <div className="chat-thread" role="log" aria-live="polite">
