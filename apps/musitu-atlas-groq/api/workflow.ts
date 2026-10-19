@@ -16,7 +16,7 @@ export default async function handler(req:any,res:any){
   const response=await generate([
    {role:'system',content:'You are an evidence-native strategy and execution analyst. Distinguish facts, inferred hypotheses and unverified assumptions. Be specific and rigorous. Give observable criteria for each deliverable. Never claim actual external actions, citations or research that have not occurred.'},
    {role:'user',content:'Focus: '+focus+'\nContext: '+context+'\nTask: '+task.instruction}
-  ],mode,false,data.approved===true);
+  ],mode,false,data.approved===true,data.accessCode);
   return respond(res,200,{type:kind,title:task.title,result:response.answer,completedAt:new Date().toISOString(),model:response.model,provider:response.provider,steps:['Context prepared','Reasoning output generated','Deliverables proposed']});
  }catch(e){return fail(res,e);}
 }
