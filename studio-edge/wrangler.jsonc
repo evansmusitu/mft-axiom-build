@@ -11,7 +11,7 @@
       "name": "VISITOR_RATE",
       "namespace_id": "202610191",
       "simple": {
-        "limit": 2,
+        "limit": 5,
         "period": 60
       }
     },
@@ -19,7 +19,7 @@
       "name": "GLOBAL_RATE",
       "namespace_id": "202610192",
       "simple": {
-        "limit": 4,
+        "limit": 12,
         "period": 60
       }
     }
