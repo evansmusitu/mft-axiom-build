@@ -84,9 +84,57 @@ Third-party publisher collections/payouts additionally require a lawful
 approved marketplace/seller model; this implementation does not assume that
 MFT's first-party merchant status grants that permission.
 
-**Next engineering gate:** isolated Store result callback + authenticated
-checkout-status route + signed poll reconciliation + operator-reviewed
-entitlement policy. Only after physical-device release, support,
+**New isolated callback/status implementation (2026-10-19):** The Store
+checkout Worker now imports `store-axiom-payment-routes.mjs` and exposes
+`POST /store/billing/webhooks/paynow`,
+`GET /store/billing/checkout/{STORE-reference}`, and the advisory browser
+return endpoint `GET /store/billing/return`. These routes exist in source
+but **are not deployed**. The callback verifies the provider's ordered
+SHA-512 response against a separately injected Store secret **before DB
+access**. It then looks up an existing Store-only pending checkout,
+matches amount and the original trusted Paynow poll URL, makes an independent
+HTTPS POST to that URL, validates the second signed Paynow transaction
+(including the same provider reference), and records ONLY a review request.
+Invalid signature, origin, order, amount, poll response, MIME type, expiry
+or unsupported client request fails closed. An authenticated customer can
+read only their own Store checkout status; the browser's return URL never
+claims payment.
+
+`store-axiom-checkout-schema.sql` now also defines
+`store_checkout_reviews`, keyed by checkout reference with UNIQUE provider
+transaction reference, SHA-256-only callback/poll evidence and
+`review_required` / `refund_review_required` states. The transaction's
+review INSERT uses a database compare-and-set requiring the original
+pending order and calls `STORE_DB.batch()`, inspecting both result metadata
+change counts. This does not issue entitlements, deliver APKs, initiate
+refunds or pay publishers. A second identical callback is idempotently
+acknowledged; conflicting or late status changes require manual follow-up.
+**Production refunds, durable refund event history, recovery, and settlement
+are NOT implemented.** Do not apply the Store schema to Axiom D1 or expose
+these routes under Axiom's billing route.
+
+**TDD and CI evidence:** Expected RED
+`39183410612`: 58 legacy checkout/Paynow tests passed while 8 missing
+Store webhook/status/return behaviors failed. Green
+`39183745477`: 66 passed. CAS tests then exposed missing atomic
+preconditions (RED `39183886991`: 66 passed, 2 failed). Additional
+security tests exposed unapproved HTML Paynow replies and late callbacks
+(RED `39184227988`: 68 passed, 2 failed). Final green milestone:
+`39184303227`: **70 tests passed, 0 failed** with Store SQL parsed by
+SQLite and original signed Store V1 source hashes preserved.
+
+**Next production qualification gate:** separately deploy the Store Worker
+with its own private `STORE_DB` and Store-secret bindings in test/staging
+with `STORE_CHECKOUT_ENABLED=false`, certify callback/return/status
+availability, run real Paynow-hosted **test-mode** orders on the separately
+approved merchant integration and reconcile provider results. Only then
+consider a separately approved first-party paid launch; independent
+publisher payouts and paid download entitlements require further policy
+and financial controls. Do not trigger Axiom production billing workflows.
+
+**Outstanding next engineering gate:** Store test/staging deployment,
+true callback delivery, independently verified real test-mode Paynow
+status reconciliation, and operator-approved entitlement policy. Only after physical-device release, support,
 independent publishers, production signing, commercial terms and
 owner launch authorization may live customer payments be enabled.
 
