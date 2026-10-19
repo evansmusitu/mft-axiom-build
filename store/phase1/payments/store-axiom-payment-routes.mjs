@@ -55,7 +55,7 @@ async function signedStatus(bytes,key){
     !statuses.has(map.status)||!safePoll(map.pollurl))fail();
  return {map,digest:(await sha(new TextDecoder().decode(bytes),'SHA-256')).toLowerCase()};
 }
-async function boundedBytes(input,max=12288,deadlineMs=8000){
+export async function boundedBytes(input,max=12288,deadlineMs=8000){
  const stream=input.body;
  if(!stream||typeof stream.getReader!=='function')throw Error('body_stream_unavailable');
  const reader=stream.getReader(),chunks=[];let count=0;
