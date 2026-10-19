@@ -148,9 +148,22 @@ def main():
     if any(x.get("pattern") in {BILLING_ROUTE,"payments.mftintelligence.com/store/*"} for x in routes if isinstance(x,dict)):
         deny("Store domain route collision detected, refusing to touch Axiom billing")
     if len(dbs)>=10:
-        # Conservatively reserve Free-tier quotas; paid-tier permissions are
-        # not proof of an owner's authorization to incur charges.
-        deny("Cloudflare D1 database quota not sufficiently verified for zero-cost staging")
+        # The Free-tier limit is ten D1 databases. Verify a PAID Workers
+        # subscription from the account's own billing API before allocating
+        # an isolated 12th database; never infer plan from database count.
+        subscriptions=cf("/accounts/"+EXPECTED_ACCOUNT+"/subscriptions")
+        if not isinstance(subscriptions,list):
+            deny("Workers Paid subscription cannot be independently verified")
+        active=[]
+        for sub in subscriptions:
+            if not isinstance(sub,dict):continue
+            rate=sub.get("rate_plan")
+            if not isinstance(rate,dict):continue
+            description=" ".join(map(str,[rate.get("id"),rate.get("public_name"),rate.get("name")]))
+            if "worker" in description.lower() and str(sub.get("state") or "").lower()=="paid":
+                active.append(sub)
+        if not active:
+            deny("workers paid subscription not verified; no database allocation")
 
     db=cf("/accounts/"+EXPECTED_ACCOUNT+"/d1/database",method="POST",payload={"name":DATABASE})
     dbid=str(db.get("uuid") or db.get("id") or "") if isinstance(db,dict) else ""
