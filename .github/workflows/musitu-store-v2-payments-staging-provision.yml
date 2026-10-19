@@ -1,12 +1,8 @@
 name: MUSITU Store V2 isolated non-public disabled payment staging provision
 
+# Deliberate administrator invocation only: a source commit must never
+# create Cloudflare D1/Workers resources merely because code changed.
 on:
-  push:
-    branches:
-      - feature/musitu-store-v2-package-state-20261012
-    paths:
-      - '.github/workflows/musitu-store-v2-payments-staging-provision.yml'
-      - 'store/phase1/payments/provision_store_payments_staging.py'
   workflow_dispatch:
 
 permissions:
