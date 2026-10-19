@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, Clock3, Dow
 import { Mission, Milestone, newId, readMissions, storeMissions, missionProgress, summarizeMissions } from './missionStore';
 import './missions.css';
 
-type Props = { focus:string; onAsk:(question:string)=>void; onChange:(count:number)=>void; modelMode:string; modelReady:boolean; approved:boolean };
+type Props = { focus:string; onAsk:(question:string)=>void; onChange:(count:number)=>void; modelMode:string; modelReady:boolean; approved:boolean; accessCode?:string };
 const starter = [
   { title:'Define the outcome',detail:'Write down what success looks like and who benefits.',success:'A clear one-sentence measurable outcome.' },
   { title:'Validate the core assumption',detail:'Speak to real stakeholders or test the smallest possible version.',success:'At least one piece of direct evidence.' },
@@ -22,7 +22,7 @@ function download(name:string,data:string,type:string){
   const link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
-export default function MissionStudio({focus,onAsk,onChange,modelMode,modelReady,approved}:Props){
+export default function MissionStudio({focus,onAsk,onChange,modelMode,modelReady,approved,accessCode}:Props){
   const [items,setItems]=useState<Mission[]>(readMissions);
   const [goal,setGoal]=useState('');
   const [background,setBackground]=useState('');
@@ -53,7 +53,7 @@ export default function MissionStudio({focus,onAsk,onChange,modelMode,modelReady
     if(modelMode.startsWith('claude_')||modelMode.startsWith('openai_')){if(!approved){setError('Explicit approval is required to run paid frontier models.');return;}}
     setError('');setBusy(true);setBanner('');
     try{
-      const res=await api.post('/api/mission/plan',{goal:value,background:sanitize(background,600),focus,mode:modelMode,approved});
+      const res=await api.post('/api/mission/plan',{goal:value,background:sanitize(background,600),focus,mode:modelMode,approved,accessCode});
       const data=res.data;
       if(!data||!Array.isArray(data.steps)||!data.steps.length)throw new Error('No steps');
       create({title:String(data.title||value),summary:String(data.summary||''),steps:data.steps},'ai');
