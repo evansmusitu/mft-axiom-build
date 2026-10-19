@@ -1,0 +1,93 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {createStoreBillingWorker} from './store-axiom-checkout.mjs';
+
+const key='ci-only-mft-key-not-production';
+const userToken='store-ci-test-long-lived-token-123456789';
+function hash(values){return createHash('sha512').update(values.join('')+key).digest('hex').toUpperCase();}
+function fakeDb(){
+ const log=[], products=new Map([['MUSITU_OWNED_APP',{sku:'MUSITU_OWNED_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'first_party'}],['THIRD_PARTY_APP',{sku:'THIRD_PARTY_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'third_party'}]]);
+ return {log,prepare(sql){
+   return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true}}}}};
+ }};
+}
+function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
+const statusUrl='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444';
+const browser='https://www.paynow.co.zw/Payment/ConfirmPayment/1234';
+function responseBody({status='Ok',browserurl=browser,pollurl=statusUrl,invalidHash=false}={}){
+ const fields=[['status',status],['browserurl',browserurl],['pollurl',pollurl]];
+ const h=invalidHash?'0'.repeat(128):hash(fields.map(x=>x[1]));
+ return new URLSearchParams([...fields,['hash',h]]).toString();
+}
+function worker(response=responseBody()){
+ const calls=[];
+ const app=createStoreBillingWorker({paynowFetch:async(url,init)=>{calls.push({url,init});return new Response(response,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}})},newReference:()=> 'STORE-ABCDEF0123456789'});
+ return {app,calls};
+}
+function req(body={sku:'MUSITU_OWNED_APP'},token=userToken){return new Request('https://payments.mftintelligence.com/store/billing/checkout',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});}
+
+test('Store checkout copies Axiom server-priced authenticated D1 intent and signed Paynow initiation, not Axiom product',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ const res=await app.fetch(req(),env);const out=await res.json();
+ assert.equal(res.status,201);assert.equal(out.payment_status,'pending');
+ assert.equal(out.amount_cents,425);assert.equal(out.reference,'STORE-ABCDEF0123456789');
+ assert.equal(out.browser_url,browser);assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);assert.equal(calls.length,1);
+ assert.equal(calls[0].url,'https://www.paynow.co.zw/interface/initiatetransaction');
+ const params=new URLSearchParams(calls[0].init.body);
+ assert.equal(params.get('id'),'12345');assert.equal(params.get('amount'),'4.25');
+ assert.equal(params.get('reference'),'STORE-ABCDEF0123456789');
+ assert.equal(params.get('resulturl'),'https://payments.mftintelligence.com/store/billing/webhooks/paynow');
+ assert.equal(params.get('returnurl'),'https://payments.mftintelligence.com/store/billing/return?reference=STORE-ABCDEF0123456789');
+ assert.equal(params.get('hash'),hash(['12345','STORE-ABCDEF0123456789','4.25','MUSITU Store MUSITU_OWNED_APP','https://payments.mftintelligence.com/store/billing/return?reference=STORE-ABCDEF0123456789','https://payments.mftintelligence.com/store/billing/webhooks/paynow','Message']));
+ assert.ok(env.STORE_DB.log.some(x=>x.sql.includes('INSERT INTO store_checkout_intents')));
+ assert.ok(env.STORE_DB.log.every(x=>!x.sql.includes('billing_subscriptions')));
+});
+test('checkout disabled by default cannot create intents or call Paynow',async()=>{
+ const {app,calls}=worker();const env=fakeEnv({STORE_CHECKOUT_ENABLED:'false'});
+ const res=await app.fetch(req(),env);
+ assert.equal(res.status,503);assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
+});
+test('store cannot reuse Axiom as catalog nor accept client-owned pricing',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ for(const body of [{sku:'THIRD_PARTY_APP'},{sku:'MUSITU_OWNED_APP',amount_cents:1},{sku:'MUSITU_OWNED_APP',price_id:'axiom-developer-monthly'},{sku:'MUSITU_OWNED_APP',publisher_id:'OTHER'},{sku:'not-existing'}]){
+   const res=await app.fetch(req(body),env);assert.equal(res.status,400);
+ }
+ assert.equal(calls.length,0);assert.ok(env.STORE_DB.log.every(x=>!x.sql.includes('INSERT')));
+});
+test('missing or invalid bearer does not read products, write intents or hit provider',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ for(const token of ['short','']){
+   const response=await app.fetch(req({},token),env);assert.equal(response.status,401);
+ }
+ assert.equal(env.STORE_DB.log.length,0);assert.equal(calls.length,0);
+});
+test('Paynow unsigned initiate reply never issues checkout URL or entitlement',async()=>{
+ const {app,calls}=worker(responseBody({invalidHash:true}));const env=fakeEnv();
+ const response=await app.fetch(req(),env);const out=await response.json();
+ assert.equal(response.status,502);assert.equal(out.entitlement_granted,false);assert.equal(calls.length,1);
+ assert.ok(env.STORE_DB.log.some(x=>x.sql.includes('UPDATE store_checkout_intents')));
+});
+test('Paynow response with attacker-controlled browser URL is rejected',async()=>{
+ const {app,calls}=worker(responseBody({browserurl:'https://attacker.invalid/offer'}));const env=fakeEnv();
+ const response=await app.fetch(req(),env);assert.equal(response.status,502);assert.equal(calls.length,1);
+});
+test('Paynow success does not grant paid content, subscriptions, refunds or marketplace payout',async()=>{
+ const {app}=worker();const env=fakeEnv();const res=await app.fetch(req(),env);const out=await res.json();
+ assert.equal(res.status,201);assert.equal(out.entitlement_granted,false);assert.equal(out.publisher_payout_authorized,false);
+ assert.equal(out.live_money_certified,false);assert.equal(out.payment_status,'pending');
+ assert.equal(env.STORE_DB.log.filter(x=>/INSERT|UPDATE/.test(x.sql)).length,2);
+});
+test('a streamed oversized Paynow reply is rejected before buffering the entire body',async()=>{
+ let pulls=0;
+ const stream=new ReadableStream({pull(controller){pulls++;controller.enqueue(new Uint8Array(2048));if(pulls>=150)controller.close();}});
+ const app=createStoreBillingWorker({paynowFetch:async()=>new Response(stream,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}}),newReference:()=> 'STORE-ABCDEF0123456789'});
+ const env=fakeEnv();const res=await app.fetch(req(),env);
+ assert.equal(res.status,502);assert.ok(pulls<=8,`stream was unbounded: consumed ${pulls} chunks`);
+ assert.ok(env.STORE_DB.log.some(x=>x.sql.includes('UPDATE store_checkout_intents')));
+});
+test('malformed duplicate Paynow response fields must fail-closed',async()=>{
+ const malicious=responseBody()+'&status=Ok';const {app}=worker(malicious);
+ const response=await app.fetch(req(),fakeEnv());assert.equal(response.status,502);
+});
