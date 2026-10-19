@@ -1,0 +1,44 @@
+name: ATLAS Model Lab Production Acceptance
+on:
+  push:
+    branches:
+      - frontier/atlas-provider-orchestrator-20261019
+    paths:
+      - '.github/workflows/atlas-model-lab-production.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Validate deployed Model Lab safely
+        shell: bash
+        env:
+          URL: https://musitu-atlas-groq.vercel.app
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          base=os.environ['URL'].rstrip('/')
+          def test(path,payload=None):
+              raw=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(base+path,data=raw,headers={'Accept':'application/json','Content-Type':'application/json'},method='GET' if raw is None else 'POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=50) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  return e.code,json.loads(e.read())
+          status,data=test('/api/models')
+          assert status==200 and len(data.get('models',[]))==6,(status,data)
+          assert not any(x['available'] for x in data['models'] if x['tier']=='frontier')
+          print('PASS: all 4 premium models visible but disabled until authorized')
+          status,data=test('/api/model-test',{'mode':'claude_opus','prompt':'Give a concise plan to improve an AI website','approved':True})
+          assert status==403 and 'error' in data,(status,data)
+          print('PASS: premium benchmark prevented without private access code')
+          status,data=test('/api/model-test',{'mode':'groq_fast','prompt':'State one measurable criterion for testing a software product'})
+          assert status==200 and data.get('model')=='openai/gpt-oss-20b' and data.get('answer'),(status,data)
+          assert isinstance(data.get('latencyMs'),int) and data['latencyMs']>=0
+          print('PASS: new model lab returns genuine Groq response with latency')
+          print('MODEL LAB PRODUCTION ACCEPTANCE PASSED')
+          PY
