@@ -63,6 +63,13 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("DELETE FROM store_checkout_reviews")
 
+    def test_direct_reviewed_order_insert_cannot_bypass_signed_evidence(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""INSERT INTO store_checkout_intents
+                (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at)
+                VALUES('STORE-ABCDEF0123456790','customer_fixture','MUSITU_OWNED_APP',425,
+                       'USD','review_required','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z')""")
+
     def test_pending_provider_poll_url_cannot_be_replaced(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE store_checkout_intents SET poll_url='https://not-provider.invalid/status'")
