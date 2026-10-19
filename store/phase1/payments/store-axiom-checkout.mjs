@@ -126,9 +126,14 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     const now=new Date().toISOString();
     const expires=new Date(Date.now()+30*60*1000).toISOString();
     // Store D1, never the Axiom subscription database.
-    try{await env.STORE_DB.prepare("INSERT INTO store_checkout_intents(reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at) VALUES(?1,?2,?3,?4,?5,'initiating',?6,?7)")
-      .bind(reference,customer.customer_id,item.sku,item.amount_cents,item.currency,now,expires).run();}
-    catch{return reply(503,{ok:false,error:'store_order_persistence_failed'});}
+    try{
+      const inserted=await env.STORE_DB.prepare("INSERT INTO store_checkout_intents(reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at) VALUES(?1,?2,?3,?4,?5,'initiating',?6,?7)")
+        .bind(reference,customer.customer_id,item.sku,item.amount_cents,item.currency,now,expires).run();
+      // Cloudflare D1 reports the affected-row count. If this cannot be
+      // verified, it is unsafe to initiate a real Paynow transaction.
+      if(inserted?.success!==true||inserted?.meta?.changes!==1)
+        return reply(503,{ok:false,error:'store_order_not_durably_recorded'});
+    }catch{return reply(503,{ok:false,error:'store_order_persistence_failed'});}
     const values={id:env.STORE_PAYNOW_ID,reference,amount,
       additionalinfo:'MUSITU Store '+item.sku,
       returnurl:BASE+'/return?reference='+encodeURIComponent(reference),
@@ -148,8 +153,10 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
       const data=await readBounded(response);
       if(data.length>8192)throw Error('provider_response_too_large');
       const parsed=await signedReply(new TextDecoder().decode(data),env.STORE_PAYNOW_INTEGRATION_KEY);
-      await env.STORE_DB.prepare("UPDATE store_checkout_intents SET status='pending',browser_url=?2,poll_url=?3 WHERE reference=?1 AND status='initiating'")
+      const persisted=await env.STORE_DB.prepare("UPDATE store_checkout_intents SET status='pending',browser_url=?2,poll_url=?3 WHERE reference=?1 AND status='initiating'")
          .bind(reference,parsed.browserurl,parsed.pollurl).run();
+      if(persisted?.success!==true||persisted?.meta?.changes!==1)
+        throw Error('store_pending_transition_not_persisted');
       return reply(201,{ok:true,reference,sku:item.sku,amount_cents:item.amount_cents,currency:item.currency,
        browser_url:parsed.browserurl,expires_at:expires,payment_status:'pending'});
     }catch{
