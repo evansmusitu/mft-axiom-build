@@ -128,6 +128,9 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch}={}){
    return reply(409,{ok:false,error:'payment_review_requires_manual_resolution'});
   }
   if(intent.status!=='pending')return reply(409,{ok:false,error:'order_not_pending'});
+  const deadline=Date.parse(intent.expires_at||'');
+  if(!Number.isFinite(deadline)||deadline<=Date.now())
+    return reply(409,{ok:false,error:'expired_order_requires_manual_resolution'});
   let polled;
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),8000);
@@ -137,6 +140,9 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch}={}){
      redirect:'error',signal:controller.signal
    });
    if(res.status!==200||!res.ok)throw Error('provider_not_ok');
+   const media=(res.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+   if(media!=='application/x-www-form-urlencoded'&&media!=='text/plain')
+     throw Error('provider_content_type_rejected');
    if(Number(res.headers.get('content-length')||0)>12288)throw Error('provider_too_large');
    polled=await signedStatus(await boundedBytes(res),env.STORE_PAYNOW_INTEGRATION_KEY);
   }catch{return reply(502,{ok:false,error:'independent_provider_poll_unverified'});}
