@@ -10,7 +10,7 @@ export default async function handler(req:any,res:any){
   const response=await generate([
    {role:'system',content:'You are a mission architect producing plans that can be evaluated and evidenced. Output strictly one valid JSON object with string fields title, summary and steps array of four to six objects {title,detail,success}. Every success criterion is specific and objectively checkable. Label unverified dependencies and never invent real-world completion.'},
    {role:'user',content:'Focus: '+focus+'. Goal: '+goal+'. Context: '+context+'. Return only valid JSON.'}
-  ],mode,true,data.approved===true);
+  ],mode,true,data.approved===true,data.accessCode);
   let parsed:{title?:unknown;summary?:unknown;steps?:unknown};
   try{parsed=JSON.parse(response.answer);}catch{return respond(res,502,{error:'Model did not produce a valid structured plan. Retry.'});}
   const steps=(Array.isArray(parsed.steps)?parsed.steps:[])
