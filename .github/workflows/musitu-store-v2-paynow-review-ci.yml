@@ -8,6 +8,7 @@ on:
       - 'store/phase1/payments/**'
       - 'store/phase1/RELEASE_GATES_AND_EXTERNAL_REQUIREMENTS_20261018.md'
       - '.github/workflows/musitu-store-v2-paynow-review-ci.yml'
+      - '.github/workflows/musitu-store-v2-payments-staging-provision.yml'
 
 permissions:
   contents: read
