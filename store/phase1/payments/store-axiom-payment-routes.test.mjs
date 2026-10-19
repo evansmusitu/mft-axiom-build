@@ -1,0 +1,137 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {createStoreBillingWorker} from './store-axiom-checkout.mjs';
+
+const merchantKey='ci-only-store-merchant-key-this-is-not-live';
+const checkoutReference='STORE-ABCDEF0123456789';
+const pollurl='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444';
+const providerRef='PAYNOW-STORE-CI-ONE';
+const token='store-fixture-bearer-token-must-be-long-67890';
+function signedStatus(opts={}){
+  const data={reference:checkoutReference,paynowreference:providerRef,amount:'4.25',
+    status:'Paid',pollurl,...opts};
+  const entries=Object.entries(data);
+  const hash=createHash('sha512').update(entries.map(([,v])=>v).join('')+merchantKey).digest('hex').toUpperCase();
+  return new URLSearchParams([...entries,['hash',hash]]).toString();
+}
+function fakeDb(){
+  const log=[];
+  const intent={reference:checkoutReference,customer_id:'customer_fixture',sku:'MUSITU_OWNED_APP',
+    amount_cents:425,currency:'USD',status:'pending',poll_url:pollurl,
+    expires_at:'2099-10-19T00:00:00.000Z'};
+  const data={review:null,intent};
+  return {log,data,prepare(sql){
+    const entry={sql,values:[]};
+    return {bind(...values){entry.values=values;return {
+      async first(){
+        log.push({...entry,method:'first'});
+        if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};
+        if(sql.includes('store_checkout_reviews'))return data.review;
+        if(sql.includes('store_checkout_intents'))return
+          entry.values[0]===checkoutReference && (!sql.includes('customer_id=?2')||entry.values[1]==='customer_fixture')?data.intent:null;
+        return null;
+      },
+      async run(){
+        log.push({...entry,method:'run'});
+        if(sql.includes('INSERT INTO store_checkout_reviews')){
+          data.review={reference:entry.values[0],paynow_reference:entry.values[1],
+            review_status:entry.values[2],callback_digest:entry.values[3],poll_digest:entry.values[4]};
+        }
+        if(sql.includes('UPDATE store_checkout_intents SET status=')){
+          data.intent.status=entry.values[1];
+        }
+        return {success:true,meta:{changes:1}};
+      },
+    }}};
+  },
+  async batch(statements){const all=[];for(const x of statements)all.push(await x.run());return all;}
+  };
+}
+function fixture(pollBody=signedStatus(),opts={}){
+  const calls=[];
+  const app=createStoreBillingWorker({paynowFetch:async(url,init)=>{
+    calls.push({url,init});
+    return new Response(pollBody,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
+  },newReference:()=>checkoutReference});
+  const env={STORE_CALLBACKS_CERTIFIED:'true',STORE_CHECKOUT_ENABLED:'false',STORE_FIRST_PARTY_ONLY:'true',
+    STORE_PAYNOW_INTEGRATION_KEY:merchantKey,STORE_DB:fakeDb(),...opts};
+  return {app,env,calls};
+}
+const webhook=(body=signedStatus())=>new Request('https://payments.mftintelligence.com/store/billing/webhooks/paynow',{
+  method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body});
+const status=(reference=checkoutReference,bearer=token)=>new Request(
+  'https://payments.mftintelligence.com/store/billing/checkout/'+reference,
+  {headers:{authorization:'Bearer '+bearer}});
+test('signed callback plus independently signed Paynow poll persists Store-only review, never entitlement',async()=>{
+  const {app,env,calls}=fixture();
+  const response=await app.fetch(webhook(),env),result=await response.json();
+  assert.equal(response.status,202);
+  assert.equal(result.payment_status,'review_required');
+  assert.equal(result.entitlement_granted,false);
+  assert.equal(result.publisher_payout_authorized,false);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,pollurl);
+  assert.equal(calls[0].init.method,'POST');
+  assert.equal(calls[0].init.redirect,'error');
+  assert.equal(env.STORE_DB.data.intent.status,'review_required');
+  assert.equal(env.STORE_DB.data.review.paynow_reference,providerRef);
+  assert.ok(env.STORE_DB.log.some(x=>x.sql.includes('INSERT INTO store_checkout_reviews')));
+  assert.equal(env.STORE_DB.log.some(x=>/billing_subscriptions|usage_buckets/.test(x.sql)),false);
+});
+test('callbacks are disabled until Store callbacks are certified; no DB or payment provider calls',async()=>{
+  const {app,env,calls}=fixture(signedStatus(),{STORE_CALLBACKS_CERTIFIED:'false'});
+  const response=await app.fetch(webhook(),env);
+  assert.equal(response.status,503);
+  assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
+});
+test('invalid signed Paynow callback is rejected before any Store DB access or provider poll',async()=>{
+  const {app,env,calls}=fixture();
+  const response=await app.fetch(webhook(signedStatus().replace('Paid','Refunded')),env);
+  assert.equal(response.status,400);
+  assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
+});
+test('independent provider poll with wrong transaction identity cannot record paid review',async()=>{
+  const {app,env,calls}=fixture(signedStatus({paynowreference:'PAYNOW-OTHER-CI'}));
+  const response=await app.fetch(webhook(),env),body=await response.json();
+  assert.equal(response.status,409);assert.equal(body.entitlement_granted,false);
+  assert.equal(calls.length,1);assert.equal(env.STORE_DB.data.review,null);
+  assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+test('refund status produces manual refund review, never an automatic refund or download',async()=>{
+  const {app,env}=fixture(signedStatus({status:'Refunded'}));
+  const response=await app.fetch(webhook(signedStatus({status:'Refunded'})),env);
+  const body=await response.json();
+  assert.equal(response.status,202);
+  assert.equal(body.payment_status,'refund_review_required');
+  assert.equal(body.entitlement_granted,false);
+  assert.equal(env.STORE_DB.data.review.review_status,'refund_review_required');
+});
+test('customer status endpoint enforces bearer token and order ownership, without polling Paynow',async()=>{
+  const {app,env,calls}=fixture();
+  const noBearer=await app.fetch(status(checkoutReference,''),env);
+  const wrongOrder=await app.fetch(status('STORE-OTHER01234567890'),env);
+  assert.equal(noBearer.status,401);assert.equal(wrongOrder.status,404);
+  const response=await app.fetch(status(),env),out=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(out.payment_status,'pending');assert.equal(out.entitlement_granted,false);
+  assert.equal(calls.length,0);
+});
+test('a second callback replay cannot insert twice or modify an existing review',async()=>{
+  const {app,env,calls}=fixture();
+  const first=await app.fetch(webhook(),env);
+  const second=await app.fetch(webhook(),env);
+  assert.equal(first.status,202);assert.equal(second.status,202);
+  assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('INSERT INTO store_checkout_reviews')).length,1);
+  assert.equal(env.STORE_DB.data.review.review_status,'review_required');
+  assert.ok(calls.length<=2);
+});
+test('customer browser return page is only advisory and cannot confirm payment',async()=>{
+  const {app,env,calls}=fixture();
+  const res=await app.fetch(new Request('https://payments.mftintelligence.com/store/billing/return?reference='+checkoutReference),env);
+  const body=await res.json();
+  assert.equal(res.status,200);
+  assert.equal(body.entitlement_granted,false);
+  assert.equal(body.payment_status,'unverified');
+  assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
+});
