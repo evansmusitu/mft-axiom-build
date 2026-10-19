@@ -1,6 +1,8 @@
+import { calculate, CalculationError } from './math.mjs';
 const SITE = 'https://evansmusitu.github.io';
 const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
-const MODES = new Set(['explore', 'build', 'learn', 'markets']);
+const REASONING_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
+const MODES = new Set(['explore', 'build', 'learn', 'markets', 'deep']);
 const POLICY = Object.freeze({
   visitorPerMinute: 5,
   regionPerMinute: 12,
@@ -23,7 +25,8 @@ const MODE = {
   explore: 'Explore viable options, tradeoffs, and what to validate next.',
   build: 'Be a pragmatic engineering architect; include scope, tests, and delivery risks.',
   learn: 'Teach simply with a worked example and a self-check question.',
-  markets: 'Teach market research, explicitly marking missing live data and uncertainty.'
+  markets: 'Teach market research, explicitly marking missing live data and uncertainty.',
+  deep: 'Work through complex questions carefully. Provide assumptions, a conclusion and practical checks. Never expose internal hidden reasoning.'
 };
 
 function respond(body, status = 200, origin = '', extraHeaders = {}) {
@@ -41,6 +44,11 @@ function respond(body, status = 200, origin = '', extraHeaders = {}) {
 function error(code, message, status, origin, retryAfter = null) {
   return respond({ code, error: message }, status, origin, retryAfter ? { 'retry-after': String(retryAfter) } : {});
 }
+function textFromModel(result) {
+  const options = [result?.response, result?.choices?.[0]?.message?.content, result?.choices?.[0]?.text];
+  const original = options.find(x => typeof x === 'string' && x.trim()) || '';
+  return original.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/^<think>[\s\S]*$/gi,'').trim();
+}
 function isValidHistoryMessage(item) {
   return item !== null &&
     typeof item === 'object' &&
@@ -56,7 +64,7 @@ export default {
     const path = url.pathname;
     const origin = request.headers.get('origin') || '';
 
-    if (request.method === 'OPTIONS' && path === '/api/chat') {
+    if (request.method === 'OPTIONS' && (path === '/api/chat' || path === '/api/calculate')) {
       if (origin !== SITE) return new Response(null, { status: 403 });
       return new Response(null, {
         status: 204,
@@ -74,6 +82,8 @@ export default {
         service: 'MUSITU Intelligence Edge',
         status: 'ok',
         model: MODEL,
+        availableModels: { standard: MODEL, deeperAnalysis: REASONING_MODEL },
+        tools: [{ id: 'calculator', path: '/api/calculate', numericType: 'IEEE-754 double precision' }],
         liveSearch: false,
         actualInferenceRequiredToVerifyCapacity: true,
         rateLimit: {
@@ -84,7 +94,7 @@ export default {
         provider: 'Cloudflare Workers AI'
       }, 200, origin);
     }
-    if (request.method !== 'POST' || path !== '/api/chat') {
+    if (request.method !== 'POST' || (path !== '/api/chat' && path !== '/api/calculate')) {
       return error('NOT_FOUND', 'Not found', 404, origin);
     }
 
@@ -113,6 +123,24 @@ export default {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       return error('INVALID_INPUT', 'Provide a JSON object.', 400, origin);
     }
+    if (path === '/api/calculate') {
+      if (typeof input.expression !== 'string' || input.expression.length > 140) {
+        return error('INVALID_EXPRESSION','Provide an expression of up to 140 characters.',400,origin);
+      }
+      try {
+        const visitor = await env.TOOL_RATE.limit({ key: request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
+        if (!visitor.success) return error('TOOL_RATE_LIMIT','Calculator request limit reached.',429,origin,60);
+        const region = await env.TOOL_REGIONAL.limit({ key:'regional-calculations' });
+        if (!region.success) return error('TOOL_CAPACITY','Calculator capacity temporarily reached.',429,origin,60);
+      } catch { return error('RATE_CONTROL_UNAVAILABLE','Calculator capacity controls unavailable.',503,origin); }
+      try {
+        return respond({ tool:'calculator',...calculate(input.expression),generatedAt:new Date().toISOString() },200,origin);
+      } catch (failure) {
+        return failure instanceof CalculationError
+          ? error('CALCULATION_INVALID',failure.message,400,origin)
+          : error('CALCULATION_UNAVAILABLE','Calculation unavailable.',503,origin);
+      }
+    }
     const prompt = typeof input.prompt === 'string' ? input.prompt.trim() : '';
     const mode = typeof input.mode === 'string' ? input.mode : 'explore';
     if (prompt.length < 10 || prompt.length > POLICY.maxPromptLength || !MODES.has(mode)) {
@@ -129,6 +157,12 @@ export default {
       if (!visitor.success) {
         return error('VISITOR_RATE_LIMIT', 'Your request limit was reached. Try again in about a minute.', 429, origin, 60);
       }
+      if (mode === 'deep') {
+        const deepUser = await env.DEEP_RATE.limit({ key: request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
+        if (!deepUser.success) return error('DEEP_RATE_LIMIT','Deep analysis allows one request per minute per visitor.',429,origin,60);
+        const deepRegion = await env.DEEP_REGIONAL.limit({ key:'regional-deep-analysis' });
+        if (!deepRegion.success) return error('DEEP_CAPACITY','The deep-analysis region is busy. Please retry later.',429,origin,60);
+      }
       const regional = await env.GLOBAL_RATE.limit({ key: 'regional-requests' });
       if (!regional.success) {
         return error('REGIONAL_CAPACITY', 'This AI region is busy. Try again in about a minute.', 429, origin, 60);
@@ -138,23 +172,24 @@ export default {
     }
 
     try {
-      const result = await env.AI.run(MODEL, {
+      const selectedModel = mode === 'deep' ? REASONING_MODEL : MODEL;
+      const result = await env.AI.run(selectedModel, {
         messages: [
           { role: 'system', content: SYSTEM + ' Mode: ' + MODE[mode] },
           ...history,
           { role: 'user', content: prompt }
         ],
-        max_tokens: POLICY.maxTokens,
-        temperature: 0.4
+        max_tokens: mode === 'deep' ? 850 : POLICY.maxTokens,
+        temperature: mode === 'deep' ? 0.6 : 0.4
       });
-      const reply = typeof result?.response === 'string' ? result.response.trim() : '';
+      const reply = textFromModel(result);
       if (!reply) {
         return error('EMPTY_INFERENCE', 'The model returned no answer. Please try again.', 502, origin);
       }
       return respond({
         reply,
         mode,
-        model: MODEL,
+        model: selectedModel,
         liveSearch: false,
         generatedAt: new Date().toISOString()
       }, 200, origin);
