@@ -1,0 +1,112 @@
+name: MUSITU Studio V0.3 — Terminal Audit and Receipt Integrity Guarded Release
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: ['.github/workflows/studio-v03-render-terminal-integrity-release-20261019.yml']
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-render-terminal-integrity-release
+  cancel-in-progress: false
+jobs:
+  maintain-only-dedicated-v03-worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Test all Studio V03 and legacy pilot behavior before deploy
+        working-directory: musitu_studio/edge
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/v03_identity.test.mjs tests/v03_do_adapter.test.mjs tests/v03_enterprise.test.mjs tests/r2_control.test.mjs tests/session.test.mjs tests/validation.test.mjs
+          node --check src/v03_do_entry.mjs
+          node --check src/v03_entry.mjs
+          node --check public_v03/studio.js
+          node --input-type=module -e "import fs from 'node:fs'; const html=fs.readFileSync('public_v03/index.html','utf8'); if(!html.includes('id=\"check-recovery\"'))process.exit(1)"
+      - name: Rebuild only V03 runtime config from provider-verified Access and existing DO
+        working-directory: musitu_studio/edge
+        run: |
+          python - <<'PY'
+          import os,json,pathlib,re,urllib.request
+          account='93f395f5121954671f92fffa453d6b61'
+          token=os.getenv('CLOUDFLARE_API_TOKEN') or os.getenv('CF_API_TOKEN')
+          root='https://api.cloudflare.com/client/v4'
+          def get(path):
+            req=urllib.request.Request(root+path,headers={'Authorization':'Bearer '+token},method='GET')
+            with urllib.request.urlopen(req,timeout=20) as r:
+              data=json.load(r);assert data.get('success');return data['result']
+          matches=[z for z in get('/zones?name=mftintelligence.com&status=active') if
+            z.get('name')=='mftintelligence.com' and
+            (z.get('account') or {}).get('id')==account]
+          assert len(matches)==1
+          apps=get('/accounts/'+account+'/access/apps?per_page=100')
+          selected=[a for a in apps if a.get('name')=='MUSITU Studio Enterprise V03' and
+            a.get('domain')=='studio-v03.mftintelligence.com' and a.get('type')=='self_hosted']
+          assert len(selected)==1
+          app=selected[0]
+          assert isinstance(app.get('aud'),str) and re.fullmatch(r'[a-f0-9]{64}',app['aud'],re.I)
+          policies=get('/accounts/'+account+'/access/apps/'+app['id']+'/policies')
+          assert len(policies)==2
+          assert all(x.get('decision')=='allow' and x.get('include') and all(
+            set(k)=={'email'} and isinstance(k['email'].get('email'),str)
+            and '@' in k['email']['email'] for k in x['include']) for x in policies)
+          domains=get('/accounts/'+account+'/workers/domains')
+          assert len([x for x in domains if x.get('hostname')=='studio-v03.mftintelligence.com'
+            and x.get('service')=='musitu-studio-v03-do'])==1
+          assert len([x for x in domains if x.get('hostname')=='studio.mftintelligence.com'
+            and x.get('service')=='musitu-studio-v02'])==1
+          original=get('/accounts/'+account+'/workers/scripts/musitu-studio-v02/settings')
+          v={x.get('name'):x.get('text') for x in original.get('bindings') or [] if x.get('type')=='plain_text'}
+          team=v.get('STUDIO_ACCESS_TEAM_DOMAIN')
+          assert isinstance(team,str) and re.fullmatch(r'https://[a-z0-9-]+\.cloudflareaccess\.com',team)
+          c=json.loads(pathlib.Path('wrangler.v03.do.jsonc').read_text())
+          assert c['workers_dev'] is False and not c.get('routes') and 'd1_databases' not in c
+          assert c['name']=='musitu-studio-v03-do'
+          assert c['vars']['ENABLE_RENDER_DISPATCH']=='false' and c['vars']['BUDGET_GUARD_APPROVED']=='false'
+          assert c['vars']['GPU_EXECUTION_APPROVED']=='false'
+          c['vars']['STUDIO_ACCESS_TEAM_DOMAIN']=team
+          c['vars']['STUDIO_ACCESS_POLICY_AUD']=app['aud']
+          pathlib.Path('wrangler.v03.do.safe-release-ci.jsonc').write_text(json.dumps(c))
+          print('GUARDED_REDEPLOY_VERIFIED_V03_ONLY=PASS')
+          PY
+      - name: Deploy ONLY V03 Worker with unchanged strict staff Access identity
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$CF_API_TOKEN}"
+          npx wrangler deploy --config wrangler.v03.do.safe-release-ci.jsonc --outdir .studio-v03-safe-release
+      - name: Post-release independent live Access gate
+        run: |
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error
+          class NoFollow(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          op=urllib.request.build_opener(NoFollow)
+          receipt={'schema':'musitu.studio.v03.guarded-redeploy.v1',
+            'isolated_worker_only':True,'cpu_dispatch_enabled':False,'gpu_execution_enabled':False,
+            'original_v02_intentionally_modified':False,'access_redirect_healthy':False}
+          req=urllib.request.Request('https://studio-v03.mftintelligence.com/api/projects',
+            headers={'User-Agent':'MUSITU-V03-PostRelease-Readback/1'})
+          try:
+            with op.open(req,timeout=20) as resp:code=resp.status;headers=resp.headers
+          except urllib.error.HTTPError as e:code=e.code;headers=e.headers
+          location=headers.get('location','')
+          receipt['access_redirect_healthy']=(code==302 and
+            ('/cdn-cgi/access/login' in location or '.cloudflareaccess.com/' in location))
+          pathlib.Path('studio-v03-render-terminal-integrity-release.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print('STUDIO_V03_MANUAL_SAFE_RELEASE='+json.dumps(receipt,sort_keys=True))
+          assert receipt['access_redirect_healthy']
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-guarded-free-tier-quota-release
+          path: studio-v03-render-terminal-integrity-release.json
+          retention-days: 14
+          if-no-files-found: warn
