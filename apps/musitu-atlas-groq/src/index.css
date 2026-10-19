@@ -1957,3 +1957,5 @@ main {
 .atlas-workflow-model b{color:var(--text)}
 .atlas-workflow-model button{margin-left:auto;border:0;background:transparent;color:var(--accent);font-weight:700;font-size:12px;min-height:36px}
 @media(max-width:600px){.frontier-selector{display:flex;flex-direction:column;gap:10px;padding:14px 16px}.atlas-workflow-model button{margin-left:0}}
+
+.frontier-access{grid-column:1/-1;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;font-weight:700;flex-wrap:wrap}.frontier-access input{background:var(--bg);color:var(--text);border:1px solid var(--stroke);padding:12px;border-radius:8px;min-height:44px;max-width:100%;flex:1;min-width:220px}
