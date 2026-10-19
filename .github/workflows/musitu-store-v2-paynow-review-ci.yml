@@ -45,6 +45,24 @@ jobs:
           node --check store/phase1/payments/store-axiom-checkout.test.mjs
           ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs store/phase1/payments/paynow-review-ledger.mjs
           echo MUSITU_STORE_PAYNOW_OFFLINE_ONLY_AND_V1_UNCHANGED=PASS
+      - name: Qualify Store-only D1 migration without creating products or touching Axiom
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,sqlite3
+          p=pathlib.Path('store/phase1/payments/store-axiom-checkout-schema.sql')
+          db=sqlite3.connect(':memory:')
+          db.execute('PRAGMA foreign_keys=ON')
+          db.executescript(p.read_text())
+          tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          expected={'store_customer_tokens','store_products','store_checkout_intents'}
+          assert expected.issubset(tables), (tables,expected)
+          assert not (tables & {'customers','billing_subscriptions','billing_checkout_intents','usage_buckets'})
+          assert db.execute('SELECT count(*) FROM store_products').fetchone()[0]==0
+          assert db.execute('SELECT count(*) FROM store_checkout_intents').fetchone()[0]==0
+          print('MUSITU_STORE_AXIOM_ISOLATED_D1_SCHEMA_PASS empty_catalog=true no_axiom_subscription_tables=true')
+          PY
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
