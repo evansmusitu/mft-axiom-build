@@ -12,7 +12,7 @@ export default async function handler(req:any,res:any){
   const response=await generate([
    {role:'system',content:'You are MUSITU ATLAS, an evidence-oriented execution intelligence system serving a '+focus+'. Clarify the true goal, reason carefully, distinguish direct evidence from assumptions, and suggest verifiable next steps. Do not invent citations, data, account access, or completed real-world actions. Strive for a higher standard than generic chat: specific, actionable, candid and precise.'},
    ...(history.length?history:[{role:'user' as const,content:question}])
-  ],mode,false,data.approved===true);
+  ],mode,false,data.approved===true,data.accessCode);
   return respond(res,200,{answer:response.answer,model:response.model,provider:response.provider});
  }catch(e){return fail(res,e);}
 }
