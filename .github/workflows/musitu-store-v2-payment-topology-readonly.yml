@@ -88,6 +88,7 @@ jobs:
               dbs=read('/accounts/'+aid+'/d1/database')
               if isinstance(dbs,dict) and isinstance(dbs.get('result'),list):dbs=dbs['result']
               if isinstance(dbs,list):
+                evidence['existing_d1_count']=len(dbs)
                 evidence['store_d1_listing_verified']=True
                 evidence['store_d1_available']=any('store' in str(x.get('name') or '').lower() for x in dbs if isinstance(x,dict))
               evidence['stage']='READONLY_INSPECTION_DONE'
