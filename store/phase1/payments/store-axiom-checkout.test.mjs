@@ -9,7 +9,7 @@ function hash(values){return createHash('sha512').update(values.join('')+key).di
 function fakeDb(){
  const log=[], products=new Map([['MUSITU_OWNED_APP',{sku:'MUSITU_OWNED_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'first_party'}],['THIRD_PARTY_APP',{sku:'THIRD_PARTY_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'third_party'}]]);
  return {log,prepare(sql){
-   return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true}}}}};
+   return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true,meta:{changes:1}}}}}};
  }};
 }
 function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_CALLBACKS_CERTIFIED:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
@@ -96,4 +96,50 @@ test('configured merchant key and checkout flag cannot charge until Store-owned 
  const {app,calls}=worker();const env=fakeEnv({STORE_CALLBACKS_CERTIFIED:'false'});
  const res=await app.fetch(req(),env);assert.equal(res.status,503);
  assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
+});
+
+test('zero-row intent insert must never call Paynow or issue an orphaned checkout',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ const original=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   const statement=original(sql);
+   if(!sql.includes('INSERT INTO store_checkout_intents'))return statement;
+   return {bind(...args){const bound=statement.bind(...args);return {
+     async run(){return {success:true,meta:{changes:0}};}
+   };}};
+ };
+ const response=await app.fetch(req(),env);const body=await response.json();
+ assert.equal(response.status,503);
+ assert.equal(body.entitlement_granted,false);
+ assert.equal(body.publisher_payout_authorized,false);
+ assert.equal(calls.length,0,'Paynow cannot see a Store order missing a durable intent');
+});
+test('signed Paynow checkout cannot return a payment link if D1 pending transition matched zero rows',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ const original=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   const statement=original(sql);
+   if(!sql.includes("UPDATE store_checkout_intents SET status='pending'"))return statement;
+   return {bind(...args){return {async run(){
+     return {success:true,meta:{changes:0}};
+   }};}};
+ };
+ const response=await app.fetch(req(),env);const body=await response.json();
+ assert.equal(calls.length,1);
+ assert.equal(response.status,502);
+ assert.equal(body.browser_url,undefined,'uncommitted provider link must never reach customer');
+ assert.equal(body.payment_status,undefined);
+ assert.equal(body.entitlement_granted,false);
+});
+test('D1 write without verifiable change metadata cannot authorize a new Store checkout',async()=>{
+ const {app,calls}=worker();const env=fakeEnv();
+ const original=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   const statement=original(sql);
+   if(!sql.includes('INSERT INTO store_checkout_intents'))return statement;
+   return {bind(){return {async run(){return {success:true}};}}};
+ };
+ const response=await app.fetch(req(),env);
+ assert.equal(response.status,503);
+ assert.equal(calls.length,0);
 });
