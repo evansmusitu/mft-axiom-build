@@ -104,9 +104,7 @@ test('zero-row intent insert must never call Paynow or issue an orphaned checkou
  env.STORE_DB.prepare=sql=>{
    const statement=original(sql);
    if(!sql.includes('INSERT INTO store_checkout_intents'))return statement;
-   return {bind(...args){const bound=statement.bind(...args);return {
-     async run(){return {success:true,meta:{changes:0}};}
-   };}};
+   return {bind:()=>({run:async()=>({success:true,meta:{changes:0}})})};
  };
  const response=await app.fetch(req(),env);const body=await response.json();
  assert.equal(response.status,503);
@@ -120,9 +118,7 @@ test('signed Paynow checkout cannot return a payment link if D1 pending transiti
  env.STORE_DB.prepare=sql=>{
    const statement=original(sql);
    if(!sql.includes("UPDATE store_checkout_intents SET status='pending'"))return statement;
-   return {bind(...args){return {async run(){
-     return {success:true,meta:{changes:0}};
-   }};}};
+   return {bind:()=>({run:async()=>({success:true,meta:{changes:0}})})};
  };
  const response=await app.fetch(req(),env);const body=await response.json();
  assert.equal(calls.length,1);
@@ -137,7 +133,7 @@ test('D1 write without verifiable change metadata cannot authorize a new Store c
  env.STORE_DB.prepare=sql=>{
    const statement=original(sql);
    if(!sql.includes('INSERT INTO store_checkout_intents'))return statement;
-   return {bind(){return {async run(){return {success:true}};}}};
+   return {bind:()=>({run:async()=>({success:true})})};
  };
  const response=await app.fetch(req(),env);
  assert.equal(response.status,503);
