@@ -184,3 +184,35 @@ This does not establish production D1 provisioning or genuine Paynow
 settlement. Cloudflare denied **new Store D1 create** (HTTP 403) during
 prior isolated staging work. Production checkout, merchant secrets,
 customer entitlements and publisher payouts remain DISABLED.
+
+
+## Checkout initiation stream-deadline regression (2026-10-19)
+
+The initiating Store Worker previously cleared its Paynow request's
+8-second abort timer **as soon as HTTP headers arrived**. A provider
+could then stream a byte every 45ms without terminating the response,
+keeping the checkout in `initiating` with no terminal customer result.
+Unlike a legitimate signed Paynow initiation response, this body could
+continue indefinitely without triggering the existing size limit.
+
+The isolated Store checkout now keeps the abort timer active while
+reading the bounded 8 KiB response **and verifying the signed reply**.
+An overlong trickle is aborted and the customer receives only a
+non-authorizing HTTP 502; no Paynow browser URL is exposed, no automatic
+entitlement is granted, and the intent remains subject to operator
+reconciliation. The timer is cleaned up whether the provider succeeds
+or fails. This is not a successful real-money certification or production
+provider reachability check.
+
+The behavioral regression failed at the original missing timeout:
+GitHub Actions `39187529708` (73 tests passed, one expected behavioral
+failure `TEST_STORE_INITIATION_ABSOLUTE_TIMEOUT_MISSING`). The first
+post-change test-double implementation had an unrelated rejected-promise
+fixture error (`39187616764`); the test double was repaired to use
+the response stream controller's error event as an actual fetch abort.
+Then exact-source CI `39187703345` passed **74/74**, zero failures.
+
+The Store stage is still **NOT deployed**: a separate Cloudflare
+Store-D1 create attempt received HTTP 403 on this account. The staging
+provisioning gate must not be bypassed by modifying Axiom's databases or
+billing routes. Real payment processing stays disabled.
