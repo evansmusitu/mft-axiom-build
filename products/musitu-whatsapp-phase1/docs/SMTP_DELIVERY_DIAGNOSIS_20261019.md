@@ -1,6 +1,6 @@
 # Authentication email delivery — 19 October 2026
 
-Phase 1 remains incomplete. Actual ZITADEL SMTP delivery to the owner-controlled QA mailbox now passed. The email verification code was accepted and the QA flow reached new MFA enrollment. Staff MFA, a signed staff SaaS session, role/revocation tests and all other required gates remain open.
+Phase 1 remains incomplete. Actual ZITADEL SMTP delivery to the owner-controlled QA mailbox now passed. The email verification code was accepted and the QA flow reached new MFA enrollment. QA enrollment is now independently TOTP Ready and the profile says Email verified. An existing-factor sign-in reached the SaaS callback but was rejected at flow validation. A signed staff SaaS session, role/revocation tests and other required gates remain open.
 
 ## Actual ZITADEL SMTP acceptance
 
@@ -12,7 +12,7 @@ The private SaaS Sign in link started the existing QA account's flow. The select
 
 Resend metadata independently reports email `01a1535b-4e86-7289-a390-c8bc51e258a0`, created `2026-10-19T08:50:55.381Z`, delivered. A separate Gmail metadata-only read found the matching email in INBOX, CATEGORY_UPDATES and UNREAD, with the exact provider Message-ID and matching sender/recipient. SPF and DKIM pass; DMARC was not reported in inspected headers. No Gmail body, snippet, verification code or reset link was inspected or recorded. Personal recipient address and private Gmail message ID are omitted from repository evidence.
 
-The user submitted the verification code through secure browser entry. The final rendered state advanced to Set up 2-Factor, offering Authenticator App and Universal Second Factor. This proves the verification code was accepted in that flow; the separate profile Email Verified flag has not yet been independently read. New MFA enrollment was handed over for user-controlled private entry/confirmation/submission. No QR payload, seed, recovery code or OTP was read. No authenticated staff application session, AGENT permissions or revocation acceptance is claimed yet.
+The user submitted the verification code through secure browser entry. The final rendered state advanced to Set up 2-Factor, offering Authenticator App and Universal Second Factor. This proves the verification code was accepted in that flow. A later independent General-profile read shows Email verified. New MFA enrollment was handed over for user-controlled private entry/confirmation/submission. At that initial handoff no QR payload, seed, recovery code or OTP was read. The later metadata exposure below supersedes any blanket no-seed-exposure claim. No authenticated staff application session, AGENT permissions or revocation acceptance is claimed yet.
 
 ## Credential lifecycle and unresolved scope evidence
 
@@ -20,9 +20,21 @@ The correct Resend account was positively identified as the user-selected accoun
 
 The first dedicated key `01c58fc6-8075-4f4d-bad3-42dca5fa01fb` was lost during private copying. Its exact permanent revocation was approved by the user and independently verified; Onboarding remained. The R1 replacement `a65149c9-8cdb-4bcb-8890-de7295a537ed` was then created privately. After phone instructions the current inventory contains R2 `9eaf00bd-5324-4d01-86d6-c783441da905`, created `2026-10-19T08:33:56.093116Z`, R1 and Onboarding. No further key was deleted.
 
-R1's form was prepared with Sending access restricted to the verified domain. R2's phone instructions required the same restriction. The current key-list response provides names/IDs/dates, not permissions/domain or the ZITADEL password-to-key binding. R2 scope and exact binding therefore remain independently unqualified. Do not claim them proved from the user's Done or successful transport alone; do not revoke R1 until its use/retention is resolved and exact revocation is approved.
+R1's form was prepared with Sending access restricted to the verified domain. R2's phone instructions required the same restriction. The current key-list response provides names/IDs/dates, not permissions/domain or the ZITADEL password-to-key binding. A later read-only Edit API Key dialog independently showed R2 Sending access restricted to mftintelligence.com; Cancel closed it without saving. This qualifies R2 permission/domain. The exact ZITADEL password-to-key binding remains independently unqualified. Do not claim them proved from the user's Done or successful transport alone; do not revoke R1 until its use/retention is resolved and exact revocation is approved.
 
-No key/password/token/authorization code/cookie was read, decrypted, exported or recorded. The rejected credential-detail access was not retried through another surface. New credential handling remained private and user-controlled.
+No SMTP key/password/token/authorization code/cookie was read, decrypted, exported or recorded. The separate QA authenticator incident below must not be included in that claim. The rejected credential-detail access was not retried through another surface. New credential handling remained private and user-controlled.
+
+## Existing authenticator retained; actual flow rejection
+
+The QA Password and Security table independently showed TOTP Ready. General / Contact Information independently rendered Email verified. No factor, password, user or membership was reset. The user explicitly instructed “Don’t reset just continue” repeatedly, including at 11:43 and 11:48 Africa/Harare; retain the existing factor and do not repeat the reset request.
+
+A browser inventory unexpectedly returned user-created authenticator setup-link tabs whose metadata included the QA seed. This was an actual model-visible credential exposure. Those two tabs were closed without reading their page contents. No seed/URI/value is reproduced in repository evidence or this report, and no OTP was derived from it. The proposed replacement was not performed because the user declined reset. Enrollment readiness does not resolve this exposure; secure MFA acceptance remains open.
+
+In the following existing-account sign-in the selected identity was positively musitu-phase1-staff-qa, not the administrator. Existing password and current authenticator-code requests returned submitted through secure browser entry. The provider advanced to the SaaS callback, which rendered IDENTITY_UNAVAILABLE_OR_DENIED. The actual server diagnostic at 2026-10-19T10:00:35.721Z was MUSITU_IDENTITY_DENIED / FLOW_VALIDATION / ERR_JWE_INVALID / claim NONE. Token exchange and staff-session admission did not occur. The flow cookie is limited to 600 seconds; the elapsed sign-in exceeded that window, making expired/missing flow state the likely explanation, not a proved provider-token failure. No claim values, tokens, cookie values or callback query were read.
+
+Read-only database aggregates at 2026-10-19T10:01:49.426Z showed 16 session rows, zero active unexpired sessions, latest expiry 2026-10-19T09:43:47.643Z. A prior short-lived session observed during the phone window cannot independently be attributed to QA because session contents were not read/decrypted. QA membership remains ACTIVE AGENT for the owned synthetic business; this is membership evidence only, not actual staff-session/role acceptance.
+
+One fresh sign-in was attempted. Its secure account-entry request returned submitted after more than ten minutes, but the final page remained Welcome back. No additional password/code submission was attempted in that expired window. Keep credential/factor configuration unchanged and continue from a fresh private sign-in, without extending or bypassing flow/authentication freshness.
 
 ## Earlier distinct API-to-Gmail test
 
@@ -32,6 +44,6 @@ Earlier diagnosis of missing custom SMTP, failed email verification and mismatch
 
 ## Remaining acceptance
 
-Open: independently verify the current dedicated-key restriction/binding; complete QA MFA, real signed staff session, allowed/denied staff actions, revocation/old-token/JWKS acceptance; all remaining Meta, governed AI/AXIOM, mobile, operations/recovery and independent approval gates. Existing local tests and synthetic hosted-Postgres results keep their earlier scope. No runtime code change, new deployment, release-gate attestation, public launch, customer import, unsolicited message, charge or protected-system change.
+Open: independently verify the SMTP key binding; retain the user-directed no-reset state with unresolved QA seed exposure; qualify a real signed staff session, allowed/denied staff actions, revocation/old-token/JWKS acceptance; all remaining Meta, governed AI/AXIOM, mobile, operations/recovery and independent approval gates. Existing local tests and synthetic hosted-Postgres results keep their earlier scope. No runtime code change, new deployment, release-gate attestation, public launch, customer import, unsolicited message, charge or protected-system change.
 
 Current structured acceptance evidence: `evidence/20261019/zitadel-smtp-qa-email-acceptance.json`.
