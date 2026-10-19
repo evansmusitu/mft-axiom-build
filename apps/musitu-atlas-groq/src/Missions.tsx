@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, Clock3, Dow
 import { Mission, Milestone, newId, readMissions, storeMissions, missionProgress, summarizeMissions } from './missionStore';
 import './missions.css';
 
-type Props = { focus:string; onAsk:(question:string)=>void; onChange:(count:number)=>void };
+type Props = { focus:string; onAsk:(question:string)=>void; onChange:(count:number)=>void; modelMode:string; modelReady:boolean; approved:boolean };
 const starter = [
   { title:'Define the outcome',detail:'Write down what success looks like and who benefits.',success:'A clear one-sentence measurable outcome.' },
   { title:'Validate the core assumption',detail:'Speak to real stakeholders or test the smallest possible version.',success:'At least one piece of direct evidence.' },
@@ -22,7 +22,7 @@ function download(name:string,data:string,type:string){
   const link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
-export default function MissionStudio({focus,onAsk,onChange}:Props){
+export default function MissionStudio({focus,onAsk,onChange,modelMode,modelReady,approved}:Props){
   const [items,setItems]=useState<Mission[]>(readMissions);
   const [goal,setGoal]=useState('');
   const [background,setBackground]=useState('');
@@ -49,9 +49,11 @@ export default function MissionStudio({focus,onAsk,onChange}:Props){
     e.preventDefault();
     const value=sanitize(goal,250);
     if(value.length<10||busy){setError('Describe a specific goal in at least 10 characters.');return;}
+    if(!modelReady){setError('Select an available model in AI Assistant first.');return;}
+    if(modelMode.startsWith('claude_')||modelMode.startsWith('openai_')){if(!approved){setError('Explicit approval is required to run paid frontier models.');return;}}
     setError('');setBusy(true);setBanner('');
     try{
-      const res=await api.post('/api/mission/plan',{goal:value,background:sanitize(background,600),focus});
+      const res=await api.post('/api/mission/plan',{goal:value,background:sanitize(background,600),focus,mode:modelMode,approved});
       const data=res.data;
       if(!data||!Array.isArray(data.steps)||!data.steps.length)throw new Error('No steps');
       create({title:String(data.title||value),summary:String(data.summary||''),steps:data.steps},'ai');
@@ -90,7 +92,7 @@ export default function MissionStudio({focus,onAsk,onChange}:Props){
     <section className="mission-intro"><div><span className="section-overline">MAKE AN AMBITION EXECUTABLE</span><h1>Give your vision<br/><em>a flight plan.</em></h1><p>Turn a meaningful goal into actionable milestones, track what you really finish, and capture the evidence behind every win.</p><div className="mission-chips"><span><Sparkles size={14}/> AI-assisted planning</span><span><Target size={14}/> Measurable progress</span><span><ShieldCheck size={14}/> Self-reported evidence</span></div></div><div className="mission-dial" aria-label="Your portfolio of missions"><div className="dial-outer"><div className="dial-inner"><span>MISSIONS</span><strong>{summary.total.toString().padStart(2,'0')}</strong><small>{summary.complete} completed</small></div></div><div className="dial-top">YOUR EXECUTION INDEX ↗</div></div></section>
     <div className="mission-workspace-grid">
       <section className="mission-creator" aria-labelledby="missionCreatorTitle"><div className="creator-title"><div className="creator-icon"><WandSparkles size={21}/></div><div><span className="section-overline">01 / DEFINE YOUR NEXT MOVE</span><h2 id="missionCreatorTitle">Start a new mission</h2></div></div>
-        <form onSubmit={generate}><label className="m-field" htmlFor="mission-goal">What outcome are you working toward?<span>Be specific: what, for whom, and why it matters.</span></label><textarea id="mission-goal" maxLength={250} rows={3} value={goal} onChange={e=>setGoal(e.target.value)} placeholder="e.g. Launch a premium website that converts visitors into qualified leads"/><label className="m-field m-field-secondary" htmlFor="mission-context">Context or constraints <i>(optional)</i></label><textarea id="mission-context" rows={2} maxLength={600} value={background} onChange={e=>setBackground(e.target.value)} placeholder="Budget, deadline, customers, tools, or anything else worth knowing..."/><div className="m-controls"><button className="m-ai-btn" type="submit" disabled={goal.trim().length<10||busy}>{busy?<><RotateCcw className="spin" size={17}/> Designing mission...</>:<><Sparkles size={18}/> Generate with AI <ArrowUpRight size={16}/></>}</button><button className="m-secondary-btn" type="button" onClick={quickStart} disabled={goal.trim().length<10||busy}><Plus size={17}/> Quick start</button></div></form><p className="m-fine">AI generates a suggested plan, not completed work. Quick start creates an offline editable template.</p>{error&&<div role="alert" className="m-alert">{error}</div>}</section>
+        <form onSubmit={generate}><label className="m-field" htmlFor="mission-goal">What outcome are you working toward?<span>Be specific: what, for whom, and why it matters.</span></label><textarea id="mission-goal" maxLength={250} rows={3} value={goal} onChange={e=>setGoal(e.target.value)} placeholder="e.g. Launch a premium website that converts visitors into qualified leads"/><label className="m-field m-field-secondary" htmlFor="mission-context">Context or constraints <i>(optional)</i></label><textarea id="mission-context" rows={2} maxLength={600} value={background} onChange={e=>setBackground(e.target.value)} placeholder="Budget, deadline, customers, tools, or anything else worth knowing..."/><div className="m-controls"><button className="m-ai-btn" type="submit" disabled={goal.trim().length<10||busy}>{busy?<><RotateCcw className="spin" size={17}/> Designing mission...</>:<><Sparkles size={18}/> Generate with AI <ArrowUpRight size={16}/></>}</button><button className="m-secondary-btn" type="button" onClick={quickStart} disabled={goal.trim().length<10||busy}><Plus size={17}/> Quick start</button></div></form><p className="m-fine">AI generates a suggested plan, not completed work. Model: {modelMode}. {modelReady?'Ready for on-demand requests.':'Select an available provider in AI Assistant.'} Quick start creates an offline editable template.</p>{error&&<div role="alert" className="m-alert">{error}</div>}</section>
       <div className="mission-summary-panel"><span className="section-overline">02 / YOUR MOMENTUM</span><h3>Progress compounds.</h3><div className="m-summary-stat"><span>ACTIVE MISSIONS</span><strong>{summary.total-summary.complete}</strong></div><div className="m-summary-stat"><span>MILESTONES COMPLETED</span><strong>{summary.stepsDone}</strong></div><div className="m-summary-stat last"><span>FINISHED MISSIONS</span><strong>{summary.complete}</strong></div><div className="m-summary-note"><Lightbulb size={17}/><p>It's not about checking boxes. It's about creating proof that meaningful progress happened.</p></div></div>
     </div>
     <div className="mission-section-heading"><div><span className="section-overline">YOUR MISSION BOARD</span><h2>{items.length?'The work ahead.':'Ready for what comes next.'}</h2></div><span className="mission-count">{items.length} / 30 missions</span></div>
