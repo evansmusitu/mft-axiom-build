@@ -151,3 +151,16 @@ FOR EACH ROW WHEN NEW.status IN (
 BEGIN
  SELECT RAISE(ABORT,'new Store checkout cannot start in a terminal review state');
 END;
+
+
+-- SQLite INSERT OR REPLACE can silently delete the old conflicting row and
+-- insert a fresh pending row, skipping UPDATE status guards. No Store reference
+-- may ever be replaced, including cancelled/reviewed orders.
+CREATE TRIGGER IF NOT EXISTS store_checkout_reference_cannot_replace
+BEFORE INSERT ON store_checkout_intents
+FOR EACH ROW WHEN EXISTS (
+ SELECT 1 FROM store_checkout_intents WHERE reference=NEW.reference
+)
+BEGIN
+ SELECT RAISE(ABORT,'existing Store order reference may not be replaced');
+END;
