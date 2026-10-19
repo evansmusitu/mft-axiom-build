@@ -1,0 +1,27 @@
+{
+  "name": "musitu-intelligence-edge-capacity-canary-20261019",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "ratelimits": [
+    {
+      "name": "VISITOR_RATE",
+      "namespace_id": "202610193",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "GLOBAL_RATE",
+      "namespace_id": "202610194",
+      "simple": {
+        "limit": 12,
+        "period": 60
+      }
+    }
+  ]
+}
