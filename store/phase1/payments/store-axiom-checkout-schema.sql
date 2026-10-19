@@ -86,3 +86,55 @@ WHEN NEW.status IN ('review_required','refund_review_required')
 BEGIN
  SELECT RAISE(ABORT,'store review status requires matching provider evidence');
 END;
+
+
+-- Store-only immutable state machine. No Axiom subscription, quota or
+-- entitlement changes. A later refund requires a separate auditable event
+-- model; previously reviewed orders cannot be reopened for payment.
+CREATE TRIGGER IF NOT EXISTS store_checkout_no_reopen
+BEFORE UPDATE OF status ON store_checkout_intents
+FOR EACH ROW WHEN NEW.status != OLD.status AND NOT (
+ (OLD.status='initiating' AND NEW.status IN ('pending','provider_failed','cancelled'))
+ OR (OLD.status='pending' AND NEW.status IN
+       ('review_required','refund_review_required','cancelled','expired'))
+)
+BEGIN
+ SELECT RAISE(ABORT,'store checkout terminal status cannot be reopened');
+END;
+
+-- An individually signed provider claim must belong to a currently pending
+-- Store order, including for direct D1 writes outside the Worker path.
+CREATE TRIGGER IF NOT EXISTS store_provider_claim_pending_only
+BEFORE INSERT ON store_checkout_reviews
+FOR EACH ROW WHEN NOT EXISTS (
+ SELECT 1 FROM store_checkout_intents AS intent
+ WHERE intent.reference=NEW.reference AND intent.status='pending'
+)
+BEGIN
+ SELECT RAISE(ABORT,'store payment claim requires pending order');
+END;
+
+-- Signed provider evidence is a historical review record, not a mutable
+-- eligibility flag or an entitlement. Reconciliation requires append-only
+-- financial events in a later separately audited design.
+CREATE TRIGGER IF NOT EXISTS store_review_immutable_update
+BEFORE UPDATE ON store_checkout_reviews
+BEGIN
+ SELECT RAISE(ABORT,'store payment review evidence is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS store_review_immutable_delete
+BEFORE DELETE ON store_checkout_reviews
+BEGIN
+ SELECT RAISE(ABORT,'store payment review evidence cannot be deleted');
+END;
+
+-- The original browser/Poll URL, SKU and charged amount form the immutable
+-- identity of a pending payment. The one legitimate initiating->pending
+-- update fills the two URLs before checkout is returned to the customer.
+CREATE TRIGGER IF NOT EXISTS store_pending_order_identity_immutable
+BEFORE UPDATE OF reference,customer_id,sku,amount_cents,currency,
+                 browser_url,poll_url ON store_checkout_intents
+FOR EACH ROW WHEN OLD.status != 'initiating'
+BEGIN
+ SELECT RAISE(ABORT,'store pending payment identity is immutable');
+END;
