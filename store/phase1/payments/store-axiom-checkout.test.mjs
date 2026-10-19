@@ -12,7 +12,7 @@ function fakeDb(){
    return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true}}}}};
  }};
 }
-function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
+function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_CALLBACKS_CERTIFIED:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
 const statusUrl='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444';
 const browser='https://www.paynow.co.zw/Payment/ConfirmPayment/1234';
 function responseBody({status='Ok',browserurl=browser,pollurl=statusUrl,invalidHash=false}={}){
@@ -90,4 +90,10 @@ test('a streamed oversized Paynow reply is rejected before buffering the entire 
 test('malformed duplicate Paynow response fields must fail-closed',async()=>{
  const malicious=responseBody()+'&status=Ok';const {app}=worker(malicious);
  const response=await app.fetch(req(),fakeEnv());assert.equal(response.status,502);
+});
+
+test('configured merchant key and checkout flag cannot charge until Store-owned callback endpoint is separately certified',async()=>{
+ const {app,calls}=worker();const env=fakeEnv({STORE_CALLBACKS_CERTIFIED:'false'});
+ const res=await app.fetch(req(),env);assert.equal(res.status,503);
+ assert.equal(calls.length,0);assert.equal(env.STORE_DB.log.length,0);
 });
