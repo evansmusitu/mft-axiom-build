@@ -87,6 +87,7 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     // Refuse all new Store charges until isolated app, route, keys, D1 and
     // product catalog have been separately approved and configured.
     if(env?.STORE_CHECKOUT_ENABLED!=='true'||env?.STORE_FIRST_PARTY_ONLY!=='true'||
+       env?.STORE_CALLBACKS_CERTIFIED!=='true'||
        !env.STORE_DB||!/^[1-9][0-9]{2,12}$/.test(env.STORE_PAYNOW_ID||'')||
        typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<12)
       return reply(503,{ok:false,error:'store_checkout_not_configured'});
