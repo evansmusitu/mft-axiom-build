@@ -22,6 +22,38 @@
         "limit": 12,
         "period": 60
       }
+    },
+    {
+      "name": "DEEP_RATE",
+      "namespace_id": "202610197",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    },
+    {
+      "name": "DEEP_REGIONAL",
+      "namespace_id": "202610198",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
+    },
+    {
+      "name": "TOOL_RATE",
+      "namespace_id": "202610199",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "TOOL_REGIONAL",
+      "namespace_id": "202610201",
+      "simple": {
+        "limit": 40,
+        "period": 60
+      }
     }
   ]
 }
