@@ -216,3 +216,46 @@ The Store stage is still **NOT deployed**: a separate Cloudflare
 Store-D1 create attempt received HTTP 403 on this account. The staging
 provisioning gate must not be bypassed by modifying Axiom's databases or
 billing routes. Real payment processing stays disabled.
+
+
+## Checkout / webhook streaming and host-impersonation hardening (2026-10-19)
+
+The isolated Store payment worker has three additional tested safety controls:
+
+1. **Inbound signed callback deadline.** A client may omit Content-Length
+   and stream a partial `application/x-www-form-urlencoded` callback
+   indefinitely. The previous `boundedBytes` limited total bytes but
+   had no absolute read timeout; an incomplete upload remained pending
+   without ever reaching signature validation. Webhook body reading now
+   has a maximum **8-second absolute deadline**, returns HTTP 408 on
+   timeout, cancels the remaining stream without waiting indefinitely,
+   and performs **zero Store D1 or Paynow activity** on failure.
+2. **Exact billing-origin enforcement.** The Store checkout and advisory
+   browser return previously accepted requests to their path even when
+   `Request.url` used an unapproved hostname (the checkout could initiate
+   a signed Paynow payment despite coming through such a host).
+   The shared worker now rejects every non-`https://payments.mftintelligence.com`
+   request **before** financial DB or Paynow use. This is a necessary
+   defense against accidentally exposing an alternative Worker hostname,
+   but is not sufficient to establish production route/domain ownership.
+3. **Bounded customer checkout JSON.** Previously `request.text()`
+   buffered the entire untrusted POST body and only afterwards checked
+   whether it exceeded 2048 characters. Checkout now streams at most
+   **2048 bytes** with an **8-second deadline**, validates declared
+   Content-Length, and rejects oversized requests with HTTP 413 before
+   Store product lookup, intent write or provider initiation.
+
+Behavior-first red/green evidence: the unbounded callback test failed
+`39191281666` (74/75 passed; deliberate timeout assertion failed)
+then passed `39191414282` (75/75 passed). The unauthorized-host checkout
+test failed `39191513045` (75/76 passed; unexpected HTTP 201) and
+passed `39191578024` (76/76 passed). The oversized customer JSON
+test failed `39191687390` (76/77 passed; HTTP 400 and all 200 chunks
+were consumed), and passed `39191772240` (**77/77** synthetic Store
+checkout / webhook / Paynow policy tests; zero failed).
+
+All results use offline synthetic Paynow and mocked D1. The real Cloudflare
+Store D1/Worker staging remains **NOT DEPLOYED** due to the prior **HTTP 403
+D1-create permission refusal**. No real Paynow merchant key, customer
+charge, entitlement or publisher payment was activated. Do not route
+Store billing traffic to the existing Axiom subscription endpoints.
