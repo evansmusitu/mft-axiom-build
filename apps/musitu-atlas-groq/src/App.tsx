@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './lib/client';
 import MissionStudio from './Missions';
+import ModelLab from './ModelLab';
 import CommandPalette from './CommandPalette';
 import { readMissions } from './missionStore';
 import {
@@ -9,6 +10,7 @@ import {
   ArrowUpRight,
   BarChart3,
   Bot,
+  FlaskConical,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -38,7 +40,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'missions' | 'assistant' | 'workflows' | 'insights' | 'settings';
+type Tab = 'overview' | 'missions' | 'assistant' | 'workflows' | 'insights' | 'settings' | 'lab';
 type ModelOption = {id:string;label:string;provider:string;model:string;available:boolean;tier:string};
 type Focus = 'Founder' | 'Analyst' | 'Creator';
 type Run = {
@@ -417,6 +419,7 @@ export default function App() {
       { id: 'overview', label: 'Overview', icon: LayoutDashboard },
       { id: 'missions', label: 'Mission Control', icon: Target },
       { id: 'assistant', label: 'AI Assistant', icon: Bot },
+      { id: 'lab', label: 'Model Lab', icon: FlaskConical },
       { id: 'workflows', label: 'Workflows', icon: Workflow },
       { id: 'insights', label: 'Intelligence', icon: BarChart3 },
       { id: 'settings', label: 'Preferences', icon: Settings2 },
@@ -1061,6 +1064,7 @@ export default function App() {
               )}
             </div>
           )}
+          {tab === 'lab' && <ModelLab />}
           {tab === 'insights' && (
             <div className="inner-page">
               <div className="page-title">
