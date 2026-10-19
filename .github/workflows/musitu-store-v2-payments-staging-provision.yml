@@ -1,0 +1,66 @@
+name: MUSITU Store V2 isolated non-public disabled payment staging provision
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-payments-staging-provision.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v2-payment-staging-one-time
+  cancel-in-progress: false
+
+jobs:
+  isolated-disabled-staging-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      MUSITU_STORE_STAGE_GATE: 'disabled-checkout-no-public-route'
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check isolated source, schema and V1 freeze before any Cloudflare API
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = 'refs/heads/feature/musitu-store-v2-package-state-20261012'
+          python3 -m py_compile store/phase1/payments/provision_store_payments_staging.py
+          node --check store/phase1/payments/store-axiom-checkout.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.mjs
+          python3 - <<'PY'
+          import pathlib,sqlite3
+          s=pathlib.Path('store/phase1/payments/store-axiom-checkout-schema.sql').read_text()
+          conn=sqlite3.connect(':memory:');conn.executescript(s)
+          names={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          assert {'store_customer_tokens','store_products','store_checkout_intents','store_checkout_reviews'}.issubset(names)
+          assert not names.intersection({'customers','billing_subscriptions','usage_buckets'})
+          assert conn.execute('SELECT COUNT(*) FROM store_products').fetchone()[0]==0
+          assert conn.execute('SELECT COUNT(*) FROM store_checkout_intents').fetchone()[0]==0
+          PY
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+          echo 'MUSITU_STORE_PAYMENT_STAGING_PREWRITE_SECURITY_GATE=PASS'
+      - name: Create only empty isolated Store D1 and disabled un-routed Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 store/phase1/payments/provision_store_payments_staging.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-v2-disabled-staging-evidence
+          path: store-payments-staging-evidence.json
+          retention-days: 14
+          if-no-files-found: ignore
