@@ -46,7 +46,9 @@ async function complete(env,b){
   if(!j||j.payload_sha256!==b.input_sha256)return err('UNKNOWN_JOB_OR_HASH',409);
   if(j.state==='COMPLETED'&&b.state==='COMPLETED'){
     const meta=await rows(q(env.STUDIO_DB,'SELECT filename,sha256 FROM assets WHERE job_id=?',j.id));
-    return meta.length===3&&Array.isArray(b.files)&&b.files.every(f=>meta.some(a=>a.filename===f.name&&a.sha256===f.sha256))
+    return meta.length===3&&Array.isArray(b.files)&&b.files.length===3&&
+      new Set(b.files.map(f=>f?.name)).size===3&&
+      b.files.every(f=>meta.some(a=>a.filename===f?.name&&a.sha256===f?.sha256))
       ?json({ok:true,state:'COMPLETED',duplicate:true}):err('CALLBACK_CONFLICT',409);
   }
   if(j.state!=='RUNNING'&&j.state!=='DISPATCHING')return err('JOB_NOT_ACTIVE',409);
@@ -54,7 +56,7 @@ async function complete(env,b){
     try{
       const updates=await env.STUDIO_DB.batch([
         q(env.STUDIO_DB,"UPDATE jobs SET state='FAILED',error_code='RENDER_FAILED',finished_at=? WHERE id=? AND state IN ('RUNNING','DISPATCHING')",now(),j.id),
-        auditStmt(env,j.project_id,j.id,'RENDER_FAILED',null)
+        auditIfUpdated(env,j.project_id,j.id,'RENDER_FAILED',null)
       ]);
       if(updates[0]?.meta?.changes!==1)return err('RESULT_RACE',409);
     }catch{return err('RESULT_TRANSACTION_FAILED',503)}
@@ -102,7 +104,7 @@ async function complete(env,b){
       j.id,f.name,safeObjectKey(j.id,f.name),f.sha,f.bytes.length));
     statements.push(q(env.STUDIO_DB,
       "UPDATE jobs SET state='COMPLETED',finished_at=? WHERE id=? AND state IN ('RUNNING','DISPATCHING')",now(),j.id));
-    statements.push(auditStmt(env,j.project_id,j.id,'RENDER_COMPLETED',null,{gpu_verified:false}));
+    statements.push(auditIfUpdated(env,j.project_id,j.id,'RENDER_COMPLETED',null,{gpu_verified:false}));
     const result=await env.STUDIO_DB.batch(statements);
     if(result[3]?.meta?.changes!==1)return err('RESULT_STATE_CONFLICT',409);
   }catch{return err('RESULT_TRANSACTION_FAILED',503)}
