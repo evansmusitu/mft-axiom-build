@@ -70,3 +70,19 @@ CREATE TABLE IF NOT EXISTS store_checkout_reviews (
 -- within this Store D1. Axiom billing D1 has a separate schema/binding.
 -- A later refund/dispute requires a separately audited review-history design;
 -- the existing immutable first review is never silently overwritten here.
+
+
+-- An administrative SQL update must not manufacture a paid status without
+-- the separately signed-callback AND independently polled provider record.
+-- This remains review only: NEVER an entitlement, refund or payout.
+CREATE TRIGGER IF NOT EXISTS store_review_requires_signed_evidence
+BEFORE UPDATE OF status ON store_checkout_intents
+FOR EACH ROW
+WHEN NEW.status IN ('review_required','refund_review_required')
+ AND (OLD.status != 'pending' OR NOT EXISTS (
+   SELECT 1 FROM store_checkout_reviews AS proof
+   WHERE proof.reference=OLD.reference AND proof.review_status=NEW.status
+ ))
+BEGIN
+ SELECT RAISE(ABORT,'store review status requires matching provider evidence');
+END;
