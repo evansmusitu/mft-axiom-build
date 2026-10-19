@@ -1,8 +1,14 @@
 name: MUSITU Store V2 isolated non-public disabled payment staging provision
 
-# Deliberate administrator invocation only: a source commit must never
-# create Cloudflare D1/Workers resources merely because code changed.
+# An isolated non-default branch cannot rely exclusively on
+# workflow_dispatch. Only a deliberate change to the single approval sentinel
+# can trigger staging from a push; ordinary source/workflow pushes cannot.
 on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - 'store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt'
   workflow_dispatch:
 
 permissions:
@@ -14,6 +20,7 @@ concurrency:
 
 jobs:
   isolated-disabled-staging-only:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.actor == 'evansmusitu') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
@@ -28,6 +35,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Confirm independent owner approval for isolated staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = 'refs/heads/feature/musitu-store-v2-package-state-20261012'
+          if [ "${GITHUB_EVENT_NAME}" = push ]; then
+            test "${GITHUB_ACTOR}" = evansmusitu
+            test "$(head -n 1 store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt)" = 'MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY'
+          fi
+          echo 'MUSITU_STORE_STAGING_EXPLICIT_APPROVAL_GATE=PASS'
       - name: Check isolated source, schema and V1 freeze before any Cloudflare API
         shell: bash
         run: |
