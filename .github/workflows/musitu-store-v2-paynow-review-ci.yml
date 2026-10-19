@@ -43,6 +43,7 @@ jobs:
           node --check store/phase1/payments/paynow-provider-poll.test.mjs
           node --check store/phase1/payments/store-axiom-checkout.mjs
           node --check store/phase1/payments/store-axiom-checkout.test.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.test.mjs
           ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs store/phase1/payments/paynow-review-ledger.mjs
           echo MUSITU_STORE_PAYNOW_OFFLINE_ONLY_AND_V1_UNCHANGED=PASS
       - name: Qualify Store-only D1 migration without creating products or touching Axiom
@@ -67,7 +68,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs store/phase1/payments/paynow-provider-poll.test.mjs store/phase1/payments/store-axiom-checkout.test.mjs
+          node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs store/phase1/payments/paynow-provider-poll.test.mjs store/phase1/payments/store-axiom-checkout.test.mjs store/phase1/payments/store-axiom-payment-routes.test.mjs
           echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
           echo MUSITU_STORE_AXIOM_PATTERN_STORE_CHECKOUT_ISOLATION=PASS
           echo MUSITU_STORE_V2_PAYNOW_DURABLE_PRIVATE_LEDGER_TESTS=PASS
