@@ -84,9 +84,13 @@ function onlyAllowedBody(value){
 export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newReference=()=>`STORE-${globalThis.crypto.randomUUID().replaceAll('-','').slice(0,20).toUpperCase()}`}={}){
   const paymentRoutes=createStorePaymentRoutes({providerFetch:paynowFetch});
   return {async fetch(request,env){
+    const url=new URL(request.url);
+    // Even a correctly signed merchant response must not let a workers.dev
+    // or unrelated vanity host impersonate this Store billing authority.
+    if(url.origin!==new URL(BASE).origin)
+      return reply(404,{ok:false,error:'store_billing_origin_rejected'});
     const routed=await paymentRoutes.handle(request,env);
     if(routed!==null)return routed;
-    const url=new URL(request.url);
     if(url.pathname!=='/store/billing/checkout'||request.method!=='POST')
       return reply(404,{ok:false,error:'not_found'});
     // Refuse all new Store charges until isolated app, route, keys, D1 and
