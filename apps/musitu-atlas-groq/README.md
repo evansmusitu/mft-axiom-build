@@ -48,3 +48,41 @@ The `GET /api/models` endpoint reports availability without disclosing keys. Mod
 ## Product differentiation thesis
 ATLAS should not compete as another chatbot. Its business value must be outcome execution, controlled connector actions, progress evidence, verification, reversibility and independent measurable evaluations. This is a technical foundation, not proof of superiority.
 
+
+
+## Private frontier model testing (October 2026)
+
+Current production URL: https://musitu-atlas-groq.vercel.app/
+
+A **Model Lab** page lets an authorized tester run **one model at a time** with the
+identical input prompt, capture genuine output, response time, and provider
+identifier. Four premium options use OpenAI and Anthropic APIs; two optional
+sandbox options use Groq. The lab does not claim scores or provider performance
+without an actual response.
+
+1. Use the OpenAI Platform API-key setup flow for a dedicated project key.
+   Obtain a separate Anthropic key from Claude Console > Settings > API keys.
+2. In Vercel project `musitu-atlas-groq` > Settings > Environment Variables,
+   create these **sensitive, Preview-only** values:
+   - `OPENAI_API_KEY`: a valid OpenAI project key with paid API access.
+   - `ANTHROPIC_API_KEY`: a valid Anthropic key with API access.
+   - `ATLAS_FRONTIER_ACCESS_CODE`: your personally chosen strong secret,
+     at least **16 characters**, which you will type in Model Lab.
+3. `ATLAS_ENABLE_PAID_AI=enabled` has already been set on the Preview
+   environment. Production must remain disabled for public traffic.
+4. Redeploy a **Preview** from the isolated branch after the secrets are added.
+5. Open its Model Lab, confirm that a provider appears configured, enter your
+   tester code and explicitly approve each paid call before testing.
+
+**Important:** API billing and model-tier eligibility are provider-specific.
+ChatGPT or Claude web subscriptions do not themselves provide API credits.
+Do not share keys in chat, GitHub, or browser JS. The `GET /api/models` route
+reports configuration, not billing sufficiency or real model access. Only
+successful responses from the selected API prove availability.
+The preview gate is **not** a production-grade authentication, durable rate
+limit, or spending cap. Apply provider account budgets first.
+
+Production regression and preview authorization tests are automated in
+`.github/workflows/atlas-model-lab-production.yml` and
+`.github/workflows/atlas-model-lab-gate.yml`. These deliberately avoid
+incurring paid frontier usage.
