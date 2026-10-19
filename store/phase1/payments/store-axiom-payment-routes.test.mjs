@@ -24,6 +24,7 @@ function fakeDb(){
   return {log,data,prepare(sql){
     const entry={sql,values:[]};
     return {bind(...values){entry.values=values;return {
+      sql,
       async first(){
         log.push({...entry,method:'first'});
         if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};
