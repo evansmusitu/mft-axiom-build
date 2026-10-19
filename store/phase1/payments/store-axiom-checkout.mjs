@@ -144,15 +144,18 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     try{
       const controller=new AbortController();
       const timeout=setTimeout(()=>controller.abort(),8000);
-      let response;
-      try{response=await paynowFetch(PAYNOW,{method:'POST',body:form.toString(),headers:{'content-type':'application/x-www-form-urlencoded'},redirect:'error',signal:controller.signal});}
-      finally{clearTimeout(timeout);}
-      if(!response.ok||response.status!==200)throw Error('provider_unavailable');
-      const size=Number(response.headers.get('content-length')||0);
-      if(size>8192)throw Error('provider_response_too_large');
-      const data=await readBounded(response);
-      if(data.length>8192)throw Error('provider_response_too_large');
-      const parsed=await signedReply(new TextDecoder().decode(data),env.STORE_PAYNOW_INTEGRATION_KEY);
+      let parsed;
+      try{
+        const response=await paynowFetch(PAYNOW,{method:'POST',body:form.toString(),headers:{'content-type':'application/x-www-form-urlencoded'},redirect:'error',signal:controller.signal});
+        if(!response.ok||response.status!==200)throw Error('provider_unavailable');
+        const size=Number(response.headers.get('content-length')||0);
+        if(size>8192)throw Error('provider_response_too_large');
+        // Keep the absolute deadline alive through response streaming,
+        // not merely until the provider responds with HTTP headers.
+        const data=await readBounded(response);
+        if(data.length>8192)throw Error('provider_response_too_large');
+        parsed=await signedReply(new TextDecoder().decode(data),env.STORE_PAYNOW_INTEGRATION_KEY);
+      }finally{clearTimeout(timeout);}
       const persisted=await env.STORE_DB.prepare("UPDATE store_checkout_intents SET status='pending',browser_url=?2,poll_url=?3 WHERE reference=?1 AND status='initiating'")
          .bind(reference,parsed.browserurl,parsed.pollurl).run();
       if(persisted?.success!==true||persisted?.meta?.changes!==1)
