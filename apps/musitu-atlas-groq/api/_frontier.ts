@@ -43,7 +43,7 @@ async function request(url:string,headers:Record<string,string>,payload:unknown)
  }
  return reply.json();
 }
-export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown):Promise<{answer:string;model:string;provider:string}>{
+export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown,tokenLimit?:number):Promise<{answer:string;model:string;provider:string}>{
  if(mode==='groq_fast'||mode==='groq_quality'){
   const answer=await infer(messages,mode==='groq_fast'?'fast':'quality',jsonFormat);
   return {answer,provider:'Groq',model:MODEL_IDS[mode]};
@@ -66,7 +66,7 @@ export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:bo
   },{
    model:MODEL_IDS[mode],instructions:system,input,store:false,
    reasoning:{effort:mode==='openai_astra'?'high':'medium'},
-   max_output_tokens:mode==='openai_astra'?4000:3000
+   max_output_tokens:Math.max(200,Math.min(4000,tokenLimit??(mode==='openai_astra'?4000:3000)))
   });
   if(result.status==='incomplete')throw businessError(502,'The model stopped early; retry with a smaller request.');
   const answer=typeof result.output_text==='string'?result.output_text:
@@ -80,7 +80,7 @@ export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:bo
  const result=await request('https://api.anthropic.com/v1/messages',{
   'x-api-key':key,'anthropic-version':'2023-06-01','Content-Type':'application/json'
  },{
-  model:MODEL_IDS[mode],system,messages:input,max_tokens:2100
+  model:MODEL_IDS[mode],system,messages:input,max_tokens:Math.max(200,Math.min(2100,tokenLimit??2100))
  });
  const answer=Array.isArray(result.content)?result.content.filter((x:any)=>x.type==='text').map((x:any)=>x.text||'').join('\n'):'';
  if(!answer.trim())throw businessError(502,'Anthropic produced no usable text.');
