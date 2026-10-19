@@ -116,7 +116,11 @@ def check_source_and_schema():
         ("store-axiom-checkout.mjs",(ROOT / "store-axiom-checkout.mjs").read_bytes()),
         ("store-axiom-payment-routes.mjs",(ROOT / "store-axiom-payment-routes.mjs").read_bytes()),
     ]
-    if b"import {createStorePaymentRoutes} from './store-axiom-payment-routes.mjs';" not in modules[0][1]:
+    # The approved Store checkout now imports boundedBytes together with
+    # createStorePaymentRoutes. An obsolete exact-string check rejected this
+    # verified current source before Cloudflare was ever contacted.
+    required_import = rb"^import\s*\{\s*createStorePaymentRoutes\s*,\s*boundedBytes\s*\}\s*from\s*['\"]\./store-axiom-payment-routes\.mjs['\"]\s*;?\s*$"
+    if not re.search(required_import, modules[0][1], flags=re.MULTILINE):
         deny("Store payment imports and module dependencies unexpectedly changed")
     for _,raw in modules:
         if len(raw)>100000:
