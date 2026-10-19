@@ -173,3 +173,23 @@ test('slow-trickle Paynow initiation response has an absolute timeout and can ne
    if(deadline)clearTimeout(deadline);
  }
 });
+
+
+test('checkout and browser return reject unrecognized host before DB access or Paynow initiation',async()=>{
+ const {app,calls}=worker();
+ const env=fakeEnv();
+ const foreign=new Request('https://unapproved.example/store/billing/checkout',{
+  method:'POST',headers:{authorization:'Bearer '+userToken,'content-type':'application/json'},
+  body:JSON.stringify({sku:'MUSITU_OWNED_APP'})
+ });
+ const denied=await app.fetch(foreign,env);
+ assert.equal(denied.status,404,'only the approved Store billing origin may initiate checkout');
+ assert.equal(calls.length,0);
+ assert.equal(env.STORE_DB.log.length,0);
+ const returned=await app.fetch(new Request(
+  'https://unapproved.example/store/billing/return?reference=STORE-ABCDEF0123456789'
+ ),env);
+ assert.equal(returned.status,404,'untrusted alternate origins must not impersonate approved billing return');
+ assert.equal(calls.length,0);
+ assert.equal(env.STORE_DB.log.length,0);
+});
