@@ -121,3 +121,16 @@ DEPLOY: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39176739325 
 INDEPENDENT POST-DEPLOY PROVIDER READBACK: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39147347026 — latest rerun SUCCESS: all eight unauthenticated sensitive endpoints redirected to Cloudflare Access; original V0.2 and dedicated V0.3 Worker mappings, signed Access JWT audience, SQLite DO and R2 bindings all verified; CPU/GPU budget controls remain off.
 
 Human two-person production approval, cost-protected V0.3 CPU rendering, and actual hosted Cloudflare disposable PITR recovery are not yet verified. No second user identity was fabricated and no paid rendering or live customer restore was executed.
+## 19 October 2026 — terminal render receipts and audit integrity
+
+V0.3 security hardening identified that an ignored SQLite terminal-state update could still write a misleading RENDER_COMPLETED or RENDER_FAILED audit event. Also, a completed callback could be accepted as a duplicate even if the supplied receipt listed only one of the three expected artifacts.
+
+Test-driven RED: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39196631541 — all three new tests failed against the existing production entry (51 pass, 3 fail).
+
+GREEN: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39196695142 — 54/54 passing, plus real local Workerd/SQLite DO isolation and quota tests. The changes insert terminal audit events only after the immediately preceding job-state UPDATE affected one row. Completed receipt replay now requires exactly three DISTINCT filenames with their original matching SHA-256 values.
+
+LIVE: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39196779161 — guarded isolated V0.3-only Worker deployment successful after 54/54 tests and verified Cloudflare Access audience. CPU budget and GPU gates remain disabled.
+
+INDEPENDENT LIVE READBACK: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39147347026 (latest rerun on 19 October 2026) — all eight externally checked anonymous V0.3 routes redirect to Cloudflare Access. V0.2 and V0.3 retain their original and distinct Worker mappings; SQLite DO, R2, signed Access audience and spend gates independently verified. No unrelated Axiom services or main branch changed.
+
+The checks use simulated render receipts only. No second authenticated human, actual paid V0.3 CPU render, hosted Cloudflare PITR restore or GPU entitlement was claimed.
