@@ -29,7 +29,7 @@ test('calculator respects operator precedence and expression grammar',()=>{
  assert.equal(calculate('-2^2').result,-4);
  assert.equal(calculate('2^-3').result,0.125);
  assert.equal(calculate('sqrt(81)+abs(-3)').result,12);
- assert.equal(calculate('round(3.7)+floor(2.8)+ceil(2.1)').result,10);
+ assert.equal(calculate('round(3.7)+floor(2.8)+ceil(2.1)').result,9);
  assert.equal(calculate('10%3').result,1);
  assert.equal(calculate('1.5e2+25').result,175);
  const result=calculate('1/3');
