@@ -1,4 +1,4 @@
-import {infer,text,guard,body,respond,fail} from './_groq';
+import {infer,text,guard,body,respond,fail} from './_groq.js';
 const tasks:Record<string,{title:string;instruction:string}>={
  brief:{title:'Intelligence brief',instruction:'Generate a strategic situation brief with three key signals, three opportunities, risks, open questions and near-term actions.'},
  ideas:{title:'Opportunity scanner',instruction:'Generate five useful differentiated opportunities, audience, pain, validation experiment, drawbacks, and strongest recommendation.'},

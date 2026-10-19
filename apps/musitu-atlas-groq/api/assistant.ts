@@ -1,4 +1,4 @@
-import {infer,text,guard,body,respond,fail} from './_groq';
+import {infer,text,guard,body,respond,fail} from './_groq.js';
 export default async function handler(req:any,res:any){
  if(!guard(req,res))return;
  try{
