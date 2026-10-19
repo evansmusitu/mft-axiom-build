@@ -1,0 +1,44 @@
+name: ATLAS Frontier Production Regression
+on:
+  push:
+    branches:
+      - frontier/atlas-provider-orchestrator-20261019
+    paths:
+      - .github/workflows/atlas-frontier-production-regression.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Validate production model registry, paid gate, and live sandbox inference
+        env:
+          ATLAS: https://musitu-atlas-groq.vercel.app
+        run: |
+          python - <<'PY'
+          import urllib.request, urllib.error, json, os
+          base=os.environ['ATLAS']
+          def call(path,payload=None):
+            raw=None if payload is None else json.dumps(payload).encode()
+            req=urllib.request.Request(base+path,data=raw,headers={'Content-Type':'application/json','Accept':'application/json'},method='GET' if raw is None else 'POST')
+            try:
+              with urllib.request.urlopen(req,timeout=50) as response:return response.status,json.load(response)
+            except urllib.error.HTTPError as ex:
+              content=ex.read().decode('utf8',errors='replace')
+              try:return ex.code,json.loads(content)
+              except:return ex.code,{'error':content[:350]}
+          code,data=call('/api/models')
+          assert code==200 and len(data.get('models',[]))==6,(code,data)
+          premium=[x for x in data['models'] if x['tier']=='frontier']
+          assert not any(x['available'] for x in premium),'Paid provider should not be active without an authorized rollout'
+          print('PASS: production catalog and default-off paid policies')
+          code,data=call('/api/assistant',{'question':'One word answer: ready','mode':'openai_astra','approved':True})
+          assert code==403,(code,data)
+          print('PASS: unauthorized paid API invocation is rejected')
+          code,data=call('/api/assistant',{'question':'Say ready in one word','mode':'groq_fast','focus':'Founder'})
+          assert code==200 and data.get('answer') and data.get('model')=='openai/gpt-oss-20b',(code,data)
+          print('PASS: old Groq model still available as optional sandbox')
+          print('ATLAS FRONTIER PRODUCTION REGRESSION PASSED')
+          PY
