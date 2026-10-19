@@ -1,0 +1,55 @@
+name: ATLAS Frontier Provider Gate Acceptance
+on:
+  push:
+    branches:
+      - frontier/atlas-provider-orchestrator-20261019
+    paths:
+      - .github/workflows/atlas-frontier-gate-acceptance.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Test current preview APIs and prevent paid execution
+        shell: bash
+        env:
+          URL: https://musitu-atlas-groq-knw0h949y-evansmusitu.vercel.app
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,sys
+          base=os.environ["URL"]
+          def call(path,data=None):
+              raw=None if data is None else json.dumps(data).encode()
+              headers={'Accept':'application/json'}
+              if data is not None:headers['Content-Type']='application/json'
+              req=urllib.request.Request(base+path,data=raw,headers=headers,method="POST" if data is not None else "GET")
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:b=json.loads(e.read().decode())
+                  except:b={}
+                  return e.code,b
+          status,cat=call('/api/models')
+          assert status==200 and len(cat.get('models',[]))==6, (status,cat)
+          premium=[m for m in cat['models'] if m['tier']=='frontier']
+          assert len(premium)==4 and not any(m['available'] for m in premium)
+          assert {m['model'] for m in premium}=={'gpt-6.1-sol','gpt-6-astra','claude-sonnet-5-5','claude-opus-5-5'}
+          print('PASS: accurate model catalog; paid frontier routes disabled')
+          status,body=call('/api/assistant',{'question':'Hello','mode':'openai_astra','approved':True})
+          assert status==403 and 'error' in body, (status,body)
+          print('PASS: paid OpenAI request is rejected without authorization')
+          status,body=call('/api/assistant',{'question':'Hello','mode':'claude_opus','approved':True})
+          assert status==403 and 'error' in body, (status,body)
+          print('PASS: paid Anthropic request is rejected without authorization')
+          status,body=call('/api/mission/plan',{'goal':'Deploy a business-grade product with evidence','mode':'openai_sol','approved':True})
+          assert status==403 and 'error' in body, (status,body)
+          print('PASS: automated mission planning cannot incur paid costs')
+          status,body=call('/api/assistant',{'question':'Hello','mode':'groq_quality'})
+          assert status==503 and 'error' in body, (status,body)
+          print('PASS: preview without Groq key fails closed; no fake answer')
+          print('ATLAS FRONTIER PREVIEW SECURITY GATE PASSED')
+          PY
