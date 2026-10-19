@@ -117,15 +117,35 @@ network access.
 The successful source-preflight result does not grant D1 Create/Edit or
 Workers Write permission, provision any database, or deploy any Worker.
 
-Additionally, staging provisioning is now **manual dispatch only**
-(`workflow_dispatch`), with its strict branch/account/zone and checkout-
-disabled guards retained. A normal GitHub push cannot unexpectedly create
-an additional Cloudflare D1, upload a payment Worker, or alter billing
-routing if repository secret permissions are updated. An authorized
-administrator must review the precise Cloudflare D1 create permission,
-then explicitly invoke the isolation-safe staging workflow. Existing
-production Axiom billing, Store V1 and protected branches must remain
-unchanged.
+Additionally, staging provisioning is now **explicit-intent only**
+rather than reacting to source or workflow pushes. The workflow retains
+`workflow_dispatch`, but GitHub may not deliver that event for a workflow
+that exists only on a non-default isolated branch. To permit an isolated
+branch rollout without touching protected main, its sole push trigger is an
+edit to `store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt`
+committed **by GitHub actor `evansmusitu`**. The initial value is
+`MUSITU_STORE_STAGING_PROVISION_APPROVAL=NOT_AUTHORIZED`.
+Only changing its first line to the exact
+`MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY`
+value can pass the guarded preflight and attempt to create an *empty*,
+disabled, unrouted Store-only D1 + Worker. Other source, workflow and
+documentation pushes cannot start provisioning. The workflow's account,
+branch, zone, no-route, checkout-OFF and V1 preservation guards remain.
+
+**Do not approve that sentinel until the Cloudflare D1 Create/Edit
+permission is corrected in the existing secure GitHub secret** and
+the user explicitly approves an isolated, no-public-route staging
+resource. The prior HTTP 403 remains unresolved. Even a green sentinel
+run will not authorize live checkout or real merchant transactions.
+Existing production Axiom billing, Store V1 and protected branches
+must remain unchanged.
+
+The sentinel opt-in regression first failed before its controlled
+GitHub Actions trigger was implemented (run `39238302105`). The final
+`77/77` offline payment and source-preflight suite passed at
+https://github.com/evansmusitu/mft-axiom-build/actions/runs/39238436744.
+No Cloudflare D1 creation or Worker deployment was attempted in that
+test run.
 
 The next verified success criterion is *not* a green unit-test count:
 after explicit permission correction and manual workflow dispatch, the
