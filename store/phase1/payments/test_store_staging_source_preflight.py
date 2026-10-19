@@ -1,0 +1,61 @@
+"""Offline-only acceptance for the real Store payment staging preflight.
+
+Never imports credentials or invokes main(); Cloudflare is never contacted.
+"""
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location(
+    "store_payment_staging_guard", ROOT / "provision_store_payments_staging.py"
+)
+staging = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(staging)
+
+
+class StagingSourcePreflight(unittest.TestCase):
+    def test_current_real_checkout_module_passes_staging_preflight_without_network(self):
+        sql, modules, names = staging.check_source_and_schema()
+        self.assertIn("CREATE TABLE", sql)
+        self.assertEqual(
+            [name for name, _ in modules],
+            ["store-axiom-checkout.mjs", "store-axiom-payment-routes.mjs"],
+        )
+        self.assertEqual(
+            names,
+            {
+                "store_customer_tokens", "store_products",
+                "store_checkout_intents", "store_checkout_reviews",
+            },
+        )
+
+    def test_unapproved_checkout_import_fails_closed_before_any_cloudflare_api(self):
+        with tempfile.TemporaryDirectory(prefix="store-staging-guard-") as root:
+            temp = Path(root)
+            for name in (
+                "store-axiom-checkout-schema.sql",
+                "store-axiom-checkout.mjs",
+                "store-axiom-payment-routes.mjs",
+            ):
+                (temp / name).write_bytes((ROOT / name).read_bytes())
+            checkout = temp / "store-axiom-checkout.mjs"
+            checkout.write_text(
+                checkout.read_text().replace(
+                    "from './store-axiom-payment-routes.mjs'",
+                    "from './unreviewed-payment-implementation.mjs'",
+                )
+            )
+            old = staging.ROOT
+            staging.ROOT = temp
+            try:
+                with self.assertRaisesRegex(RuntimeError, "import|dependenc|module"):
+                    staging.check_source_and_schema()
+            finally:
+                staging.ROOT = old
+
+
+if __name__ == "__main__":
+    unittest.main()
