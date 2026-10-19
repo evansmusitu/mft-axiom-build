@@ -1,0 +1,51 @@
+name: MUSITU ATLAS Groq Live Smoke
+on:
+  push:
+    branches:
+      - alternative/musitu-atlas-cloudflare-20261019
+    paths:
+      - .github/workflows/atlas-groq-live-smoke.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-groq-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live Groq service without exposing secrets
+        shell: bash
+        env:
+          ATLAS_URL: https://musitu-atlas-groq.vercel.app
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error,sys
+          base=os.environ['ATLAS_URL'].rstrip('/')
+          def call(path,payload=None):
+            headers={'User-Agent':'ATLAS-Live-Smoke/1.0','Accept':'application/json'}
+            if payload is not None:
+              headers['Content-Type']='application/json'
+              data=json.dumps(payload).encode()
+            else:
+              data=None
+            req=urllib.request.Request(base+path,data=data,headers=headers,method='POST' if payload is not None else 'GET')
+            try:
+              with urllib.request.urlopen(req,timeout=50) as r:
+                return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              detail=e.read().decode('utf-8',errors='replace')[:550]
+              print(f'FAIL {path}: HTTP {e.code} {detail}')
+              raise SystemExit(1)
+          status,pulse=call('/api/pulse')
+          assert status==200 and pulse.get('ok') and pulse.get('aiConfigured'), 'API key unavailable in production'
+          print('PASS: /api/pulse reports configured Groq')
+          status,reply=call('/api/assistant',{'question':'Reply in one word: ready','mode':'fast','focus':'Founder'})
+          assert status==200 and isinstance(reply.get('answer'),str) and reply['answer'].strip(), 'AI returned empty reply'
+          assert reply.get('model')=='openai/gpt-oss-20b', 'Unexpected model identity'
+          print('PASS: live GPT-OSS 20B fast assistant inference')
+          status,plan=call('/api/mission/plan',{'goal':'Build a simple AI customer-support website for a small store','focus':'Founder','background':'Zero budget and a basic prototype'})
+          assert status==200 and len(plan.get('steps',[]))>=3, 'AI returned invalid mission plan'
+          print('PASS: live GPT-OSS 120B structured mission planning')
+          print('ATLAS GROQ LIVE SMOKE PASSED')
+          PY
