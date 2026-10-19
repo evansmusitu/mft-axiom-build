@@ -360,13 +360,25 @@ entitlement, settlement or payout capability.
 migration*, not the synthetic in-memory JavaScript D1 double. A missing
 provider-evidence gate was observed failing in CI run `39204327271`;
 an additional four unsafe mutation pathways failed under focused SQL
-tests in run `39204437191`. After implementing the first five
-database triggers, all six SQLite contracts passed with the existing
-77 synthetic checkout / callback / provider-poll tests
-(run `39204510475`). A direct `INSERT` bypass of the paid-review
+tests in run `39204437191`. After implementing the initial database triggers, all six SQLite
+contracts passed alongside the existing 77 synthetic checkout,
+callback and provider-poll tests (run `39204510475`). A direct `INSERT` bypass of the paid-review
 status-update trigger was then detected in run `39204621210` and
 blocked by a separate `BEFORE INSERT` trigger. No live Cloudflare D1
 resource was changed.
+
+Another state-machine bypass was reproduced: SQLite
+`INSERT OR REPLACE` could replace a cancelled row with a new pending
+checkout **without executing the UPDATE-status trigger**. The focused
+regression failed as expected in run `39204799615`, and an additional
+`BEFORE INSERT` duplicate-reference guard now denies replacement of
+existing Store orders. Real SQLite tests confirm this route is blocked.
+
+**Final qualifying workflow at code commit `8582050c58d35e4dec09641376c2e657609e3c97`:**
+run `39204845645` SUCCESS. **Eight real SQLite/D1-compatible
+authorization tests passed**, plus **77 Node.js synthetic Store billing
+and Paynow tests** (85 total, zero failed). No real cloud database or
+merchant account was modified.
 
 This is not a complete ledger or production accounting system:
 authorized administrators with DDL access can change triggers,
