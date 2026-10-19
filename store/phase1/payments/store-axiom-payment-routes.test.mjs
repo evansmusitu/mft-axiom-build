@@ -180,3 +180,31 @@ test('expired Store checkout cannot be promoted by a late signed provider callba
   assert.equal(calls.length,0);
   assert.equal(env.STORE_DB.data.review,null);
 });
+
+test('slow unbounded client webhook upload is rejected by absolute deadline without database or Paynow calls',async()=>{
+  const {env,calls}=fixture();
+  let upload;
+  const requestBody=new ReadableStream({start(controller){
+    upload=controller;
+    controller.enqueue(new TextEncoder().encode('reference=STORE-ABCDEF0123456789'));
+  }});
+  const request=new Request('https://payments.mftintelligence.com/store/billing/webhooks/paynow',{
+    method:'POST',duplex:'half',headers:{'content-type':'application/x-www-form-urlencoded'},body:requestBody
+  });
+  const {createStorePaymentRoutes}=await import('./store-axiom-payment-routes.mjs');
+  const routes=createStorePaymentRoutes({providerFetch:async()=>{throw Error('provider must never be called')},
+    callbackReadTimeoutMs:40});
+  let watch;
+  try{
+    const action=routes.handle(request,env);
+    const bound=new Promise((_,reject)=>{watch=setTimeout(()=>reject(Error('TEST_WEBHOOK_UPLOAD_NOT_TIME_BOUNDED')),350);});
+    const response=await Promise.race([action,bound]);
+    assert.equal(response.status,408,'incomplete untrusted upload must have a deterministic timeout');
+    assert.equal((await response.json()).entitlement_granted,false);
+    assert.equal(env.STORE_DB.log.length,0,'unverified callback must never access Store DB');
+    assert.equal(calls.length,0);
+  }finally{
+    if(watch)clearTimeout(watch);
+    try{upload.close();}catch{}
+  }
+});
