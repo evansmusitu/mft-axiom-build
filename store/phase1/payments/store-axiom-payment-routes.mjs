@@ -148,10 +148,15 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch}={}){
   const review=(p.status==='Paid'&&v.status==='Paid')?'review_required':'refund_review_required';
   try{
    const at=new Date().toISOString();
-   await db.batch([
-     db.prepare('INSERT INTO store_checkout_reviews(reference,paynow_reference,review_status,callback_digest,poll_digest,reviewed_at) VALUES(?1,?2,?3,?4,?5,?6)').bind(p.reference,p.paynowreference,review,callback.digest,polled.digest,at),
-     db.prepare('UPDATE store_checkout_intents SET status=?2 WHERE reference=?1 AND status=\'pending\'').bind(p.reference,review)
+   const committed=await db.batch([
+     // Compare-and-set in the database: a concurrent cancellation cannot
+     // acquire a new paid review, even with valid Paynow signatures.
+     db.prepare("INSERT INTO store_checkout_reviews(reference,paynow_reference,review_status,callback_digest,poll_digest,reviewed_at) SELECT ?1,?2,?3,?4,?5,?6 WHERE EXISTS (SELECT 1 FROM store_checkout_intents WHERE reference=?1 AND status='pending' AND poll_url=?7 AND amount_cents=?8 AND currency='USD')").bind(p.reference,p.paynowreference,review,callback.digest,polled.digest,at,p.pollurl,intent.amount_cents),
+     db.prepare("UPDATE store_checkout_intents SET status=?2 WHERE reference=?1 AND status='pending'").bind(p.reference,review)
    ]);
+   if(!Array.isArray(committed)||committed.length!==2||
+      committed.some(item=>item?.success!==true||item?.meta?.changes!==1))
+     return reply(409,{ok:false,error:'store_review_not_atomically_committed'});
   }catch{return reply(503,{ok:false,error:'store_review_persistence_failed'});}
   return reply(202,{ok:true,processed:true,payment_status:review});
  }};
