@@ -148,3 +148,39 @@ Official provider implementation contract:
 **Immutable boundaries:** no changes to protected main, signed Store V1,
 Axiom's billing worker, Axiom D1 subscriptions, frozen OpenAI PR #1,
 MMF, FMI or other projects. No real money charged.
+
+
+## Durable checkout write acknowledgement — 2026-10-19
+
+The Store checkout previously issued a successful Paynow browser URL as
+soon as the **D1 write promises resolved**, without verifying that the
+intended Store order INSERT and initiating→pending transition actually
+affected exactly one database row. A D1 result with
+`{success:true,meta:{changes:0}}` or without change metadata therefore
+could falsely authorize a payment link for an orphaned or cancelled Store
+checkout. It did not automatically unlock content, but it could still
+expose a checkout link that had no reliably recorded order to reconcile.
+
+The Store now requires **`success===true` and `meta.changes===1`**
+for (1) the Store-only intent INSERT **before any Paynow network call**,
+and (2) the conditional `status='initiating'→'pending'` UPDATE **before
+returning any Paynow payment URL**. Missing, failed, or zero-row D1
+results fail closed. A failed post-initiation transition remains a
+review/recovery issue rather than a customer-visible payment
+authorization; do not automatically retry and create duplicate
+provider transactions. No Axiom subscription table or production
+billing Worker is modified.
+
+Behavior-first regression: three syntactically valid tests observed
+the missing persistence checks fail in isolated GitHub Actions run
+`39187226652` (70 passed, three specifically failed for absent D1
+row-count enforcement). The corrected worker passed **73/73** synthetic
+Paynow/D1-security tests, zero failed, in run
+`39187297914`. There was one earlier source-test syntax error run
+`39187136017` that was corrected before collecting the behavioral red
+evidence; that run is **not** counted as the failing-behavior proof.
+
+This does not establish production D1 provisioning or genuine Paynow
+settlement. Cloudflare denied **new Store D1 create** (HTTP 403) during
+prior isolated staging work. Production checkout, merchant secrets,
+customer entitlements and publisher payouts remain DISABLED.
