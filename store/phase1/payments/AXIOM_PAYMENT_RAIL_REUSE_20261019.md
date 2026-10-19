@@ -46,8 +46,9 @@ removing cross-product billing coupling:
   `live_money_certified=false`. No automatic digital delivery, Axiom quota,
   refunds, marketplace commission distribution or payout.
 - **Default-off**: missing `STORE_CHECKOUT_ENABLED=true`,
-  `STORE_FIRST_PARTY_ONLY=true`, separate D1 binding, Store merchant ID,
-  or Store secret → HTTP 503 and no provider calls.
+  `STORE_FIRST_PARTY_ONLY=true`, **`STORE_CALLBACKS_CERTIFIED=true`**,
+  separate D1 binding, Store merchant ID, or Store secret → HTTP 503 and
+  no provider calls. A configured MFT key alone never authorizes checkout.
 - The SQL in `store-axiom-checkout-schema.sql` is intentionally an
   **empty Store-only migration**. No real products, payment credentials or
   customer tokens are seeded. Do not apply it to Axiom's existing D1.
