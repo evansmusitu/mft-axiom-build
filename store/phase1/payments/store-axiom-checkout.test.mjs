@@ -193,3 +193,23 @@ test('checkout and browser return reject unrecognized host before DB access or P
  assert.equal(calls.length,0);
  assert.equal(env.STORE_DB.log.length,0);
 });
+
+
+test('untrusted checkout upload enforces byte limit without buffering the entire request body',async()=>{
+ const {app,calls}=worker();
+ const env=fakeEnv();
+ let pulls=0;
+ const stream=new ReadableStream({pull(controller){
+  pulls++;
+  controller.enqueue(new Uint8Array(1024));
+  if(pulls>=200)controller.close();
+ }});
+ const request=new Request('https://payments.mftintelligence.com/store/billing/checkout',{
+  method:'POST',duplex:'half',headers:{authorization:'Bearer '+userToken,'content-type':'application/json'},body:stream
+ });
+ const response=await app.fetch(request,env);
+ assert.equal(response.status,413,'oversized request must be rejected at the stream boundary');
+ assert.ok(pulls<=6,'request body consumed too many client-provided chunks: '+pulls);
+ assert.equal(calls.length,0);
+ assert.equal(env.STORE_DB.log.filter(x=>/store_products|INSERT INTO store_checkout_intents/.test(x.sql)).length,0);
+});
