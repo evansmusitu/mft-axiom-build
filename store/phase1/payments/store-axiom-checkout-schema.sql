@@ -49,3 +49,24 @@ CREATE INDEX IF NOT EXISTS idx_store_checkout_status
 -- IMPORTANT: No billing_subscriptions, Axiom user quota changes, paid
 -- content entitlements or payouts exist in this migration. Store's own
 -- settlement and refund tables require separate audited production design.
+
+-- A verified callback plus an independently polled *matching* Paynow
+-- transaction creates a REVIEW ONLY. No automatic entitlement, settlement,
+-- payout, license or refund is authorized by this table.
+CREATE TABLE IF NOT EXISTS store_checkout_reviews (
+  reference TEXT PRIMARY KEY NOT NULL
+    REFERENCES store_checkout_intents(reference),
+  paynow_reference TEXT NOT NULL UNIQUE
+    CHECK(length(paynow_reference) BETWEEN 3 AND 80),
+  review_status TEXT NOT NULL CHECK(
+    review_status IN ('review_required','refund_review_required')),
+  callback_digest TEXT NOT NULL CHECK(
+    length(callback_digest)=64 AND callback_digest NOT GLOB '*[^a-f0-9]*'),
+  poll_digest TEXT NOT NULL CHECK(
+    length(poll_digest)=64 AND poll_digest NOT GLOB '*[^a-f0-9]*'),
+  reviewed_at TEXT NOT NULL
+);
+-- Provider reference UNIQUE blocks reuse across different Store order IDs
+-- within this Store D1. Axiom billing D1 has a separate schema/binding.
+-- A later refund/dispute requires a separately audited review-history design;
+-- the existing immutable first review is never silently overwritten here.
