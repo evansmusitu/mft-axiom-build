@@ -69,6 +69,11 @@ jobs:
           assert 'paynow_reference' in rows and 'reference' in rows
           print('MUSITU_STORE_AXIOM_ISOLATED_D1_SCHEMA_PASS empty_catalog=true no_axiom_subscription_tables=true')
           PY
+      - name: Qualify Store D1 payment state integrity using real SQLite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_payment_sql_policy.py
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
