@@ -1,4 +1,5 @@
 import {infer,respond,text,guard,body,fail} from './_groq.js';
+import {createHash,timingSafeEqual} from 'node:crypto';
 export {respond,text,guard,body,fail};
 type Message={role:'system'|'user'|'assistant';content:string};
 export type ModelChoice='groq_fast'|'groq_quality'|'openai_sol'|'openai_astra'|'claude_sonnet'|'claude_opus';
@@ -15,7 +16,8 @@ export function choice(input:unknown):ModelChoice|null{
 }
 export function frontierEnabled():boolean {return process.env.ATLAS_ENABLE_PAID_AI==='enabled';}
 export function catalog(){
- const on=frontierEnabled(),hasO=Boolean(process.env.OPENAI_API_KEY),hasA=Boolean(process.env.ANTHROPIC_API_KEY);
+ const on=frontierEnabled() && Boolean(process.env.ATLAS_FRONTIER_ACCESS_CODE) && (process.env.ATLAS_FRONTIER_ACCESS_CODE||'').length>=16;
+ const hasO=Boolean(process.env.OPENAI_API_KEY),hasA=Boolean(process.env.ANTHROPIC_API_KEY);
  return [
   {id:'openai_sol',label:'GPT-6.1 Sol',provider:'OpenAI',model:MODEL_IDS.openai_sol,available:on&&hasO,tier:'frontier'},
   {id:'openai_astra',label:'GPT-6 Astra',provider:'OpenAI',model:MODEL_IDS.openai_astra,available:on&&hasO,tier:'frontier'},
@@ -41,7 +43,7 @@ async function request(url:string,headers:Record<string,string>,payload:unknown)
  }
  return reply.json();
 }
-export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean):Promise<{answer:string;model:string;provider:string}>{
+export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown):Promise<{answer:string;model:string;provider:string}>{
  if(mode==='groq_fast'||mode==='groq_quality'){
   const answer=await infer(messages,mode==='groq_fast'?'fast':'quality',jsonFormat);
   return {answer,provider:'Groq',model:MODEL_IDS[mode]};
@@ -50,6 +52,10 @@ export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:bo
  // and an explicit acknowledgement for each invocation.
  if(!frontierEnabled())throw businessError(403,'Frontier API access has not been enabled. Sandbox mode remains available.');
  if(!approved)throw businessError(403,'Explicit approval is required before requesting a paid frontier model.');
+ const expected=process.env.ATLAS_FRONTIER_ACCESS_CODE||'';
+ if(expected.length<16 || typeof accessCode!=='string')throw businessError(403,'A private frontier access code is required for paid preview requests.');
+ const a=createHash('sha256').update(accessCode).digest(),b=createHash('sha256').update(expected).digest();
+ if(!timingSafeEqual(a,b))throw businessError(403,'The private frontier access code is not valid.');
  const key=mode.startsWith('openai_')?process.env.OPENAI_API_KEY:process.env.ANTHROPIC_API_KEY;
  if(!key)throw businessError(503,'The selected provider is not configured. Contact the administrator.');
  if(mode.startsWith('openai_')){
