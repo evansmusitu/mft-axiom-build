@@ -32,6 +32,26 @@ class StagingSourcePreflight(unittest.TestCase):
             },
         )
 
+    def test_explicit_owner_trigger_is_only_staging_push_path(self):
+        workflow = (
+            ROOT.parent.parent.parent /
+            ".github/workflows/musitu-store-v2-payments-staging-provision.yml"
+        ).read_text()
+        self.assertIn(
+            "- 'store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt'",
+            workflow,
+        )
+        self.assertNotIn(
+            "- 'store/phase1/payments/provision_store_payments_staging.py'",
+            workflow,
+        )
+        self.assertNotIn(
+            "- '.github/workflows/musitu-store-v2-payments-staging-provision.yml'",
+            workflow,
+        )
+        self.assertIn("github.actor == 'evansmusitu'", workflow)
+        self.assertIn("ALLOW_DISABLED_UNROUTED_STORE_ONLY", workflow)
+
     def test_unapproved_checkout_import_fails_closed_before_any_cloudflare_api(self):
         with tempfile.TemporaryDirectory(prefix="store-staging-guard-") as root:
             temp = Path(root)
