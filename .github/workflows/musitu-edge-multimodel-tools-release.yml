@@ -9,7 +9,7 @@ on:
       - studio-edge/wrangler.jsonc
       - studio-edge/wrangler.canary.jsonc
       - studio-edge/tests/**
-      - .github/workflows/musitu-edge-capacity-release.yml
+      - .github/workflows/musitu-edge-multimodel-tools-release.yml
   workflow_dispatch:
 
 permissions:
