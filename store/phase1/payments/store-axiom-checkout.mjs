@@ -1,3 +1,5 @@
+import {createStorePaymentRoutes} from './store-axiom-payment-routes.mjs';
+
 /**
  * MUSITU Store — isolated Axiom-inspired Paynow checkout initiation.
  * Architecture copied from existing Axiom design: authenticated customer,
@@ -80,7 +82,10 @@ function onlyAllowedBody(value){
    /^[A-Z][A-Z0-9_]{3,79}$/.test(value.sku);
 }
 export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newReference=()=>`STORE-${globalThis.crypto.randomUUID().replaceAll('-','').slice(0,20).toUpperCase()}`}={}){
+  const paymentRoutes=createStorePaymentRoutes({providerFetch:paynowFetch});
   return {async fetch(request,env){
+    const routed=await paymentRoutes.handle(request,env);
+    if(routed!==null)return routed;
     const url=new URL(request.url);
     if(url.pathname!=='/store/billing/checkout'||request.method!=='POST')
       return reply(404,{ok:false,error:'not_found'});
