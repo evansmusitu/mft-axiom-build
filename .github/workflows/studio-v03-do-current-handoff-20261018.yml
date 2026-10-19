@@ -66,6 +66,7 @@ jobs:
             '.github/workflows/studio-v03-do-local-20261018.yml',
             '.github/workflows/studio-v03-do-manual-guarded-release.yml',
             '.github/workflows/studio-v03-dispatch-audit-integrity-release-20261019.yml',
+            '.github/workflows/studio-v03-render-terminal-integrity-release-20261019.yml',
             '.github/workflows/studio-v03-do-quota-rollout-20261018.yml',
             '.github/workflows/studio-v03-do-final-readback-20261018.yml',
             '.github/workflows/studio-v03-do-current-handoff-20261018.yml',
