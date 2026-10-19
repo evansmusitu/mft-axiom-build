@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "scope": "ACTUAL_ZITADEL_SMTP_TO_OWNER_QA_GMAIL_AND_EMAIL_CODE_ACCEPTANCE_NOT_STAFF_MFA_SESSION",
+  "phase1_complete": false,
+  "source_head": "38bfb5af7027df02fc3c0878828800a34dfd4b6b",
+  "runtime_source": "4ffd3f2163c5eac9998ec5a453963d96c4fb7306",
+  "authorization": {
+    "smtp_setup_previously_approved": true,
+    "new_credentials_user_controlled": true,
+    "lost_first_key_revocation_explicitly_approved": true,
+    "extra_diagnostic_test_or_manual_resend_performed": false
+  },
+  "smtp": {
+    "provider_id": "395779741543625920",
+    "description": "MUSITU Phase1 isolated authentication",
+    "host_port": "smtp.resend.com:587",
+    "tls": true,
+    "username": "resend",
+    "sender_address": "musitu-auth@mftintelligence.com",
+    "sender_name": "MUSITU Phase1 Staging",
+    "reply_to": "",
+    "initially_active": false,
+    "activated": true,
+    "independent_activation_indicator": "data-e2e=active-provider; la-check-circle",
+    "password_read_or_changed_by_agent": false
+  },
+  "credentials": {
+    "lost_key_revoked": "01c58fc6-8075-4f4d-bad3-42dca5fa01fb",
+    "r1_key_id": "a65149c9-8cdb-4bcb-8890-de7295a537ed",
+    "r2_key_id": "9eaf00bd-5324-4d01-86d6-c783441da905",
+    "r2_created_at": "2026-10-19T08:33:56.093116Z",
+    "r1_and_onboarding_still_listed": true,
+    "r2_permission_and_domain_independently_verified": false,
+    "smtp_key_binding_independently_verified": false,
+    "secrets_read_or_recorded": false
+  },
+  "qa_authentication": {
+    "existing_user_id": "395706056631686016",
+    "selected_username": "musitu-phase1-staff-qa",
+    "password_accepted_in_actual_flow": true,
+    "provider_rendered_new_verification_email_sent": true,
+    "email_code_submitted_via_secure_entry": true,
+    "email_code_accepted_by_ui": true,
+    "next_page": "Set up 2-Factor",
+    "email_verified_profile_flag_independently_read": false,
+    "new_mfa_enrollment_user_handoff": true,
+    "mfa_completed": false,
+    "signed_staff_saas_session_qualified": false,
+    "staff_role_or_revocation_acceptance_qualified": false
+  },
+  "delivery": {
+    "provider_email_id": "01a1535b-4e86-7289-a390-c8bc51e258a0",
+    "created_at": "2026-10-19T08:50:55.381Z",
+    "provider_status": "delivered",
+    "recipient_count": 1,
+    "recipient_scope": "EXISTING_OWNER_CONTROLLED_QA_GMAIL",
+    "gmail_method": "METADATA_ONLY",
+    "gmail_labels": [
+      "UNREAD",
+      "CATEGORY_UPDATES",
+      "INBOX"
+    ],
+    "gmail_internal_date_ms": "1792399855000",
+    "exact_provider_message_id_matches": true,
+    "sender_matches": true,
+    "recipient_matches": true,
+    "spf": "pass",
+    "dkim": "pass",
+    "dmarc": "NOT_REPORTED_IN_INSPECTED_HEADERS",
+    "body_snippet_or_code_read": false
+  },
+  "remaining": [
+    "Verify dedicated current-key permission/domain and binding without exposing secret.",
+    "Complete private QA MFA enrollment and actual signed staff session.",
+    "Qualify staff allowed/denied actions and revocation plus remaining Phase1 gates."
+  ],
+  "protected_systems_changed": false,
+  "runtime_code_or_deployment_changed": false,
+  "public_launch": false
+}
