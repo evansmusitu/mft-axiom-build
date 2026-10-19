@@ -36,6 +36,6 @@ export async function infer(messages:Message[],model:'fast'|'quality'='quality',
 }
 export function fail(res:any,err:unknown){
  const e=err as {code?:number;message?:string};
- const code=typeof e.code==='number'&&[400,429,502,503].includes(e.code)?e.code:503;
+ const code=typeof e.code==='number'&&[400,403,429,502,503].includes(e.code)?e.code:503;
  respond(res,code,{error:e.message||'AI provider temporarily unavailable.'});
 }
