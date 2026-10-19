@@ -138,3 +138,16 @@ FOR EACH ROW WHEN OLD.status != 'initiating'
 BEGIN
  SELECT RAISE(ABORT,'store pending payment identity is immutable');
 END;
+
+
+-- The status-update evidence gate alone cannot detect a direct INSERT of a
+-- purported reviewed/settled order. New Store orders are never born with a
+-- terminal or review status; reject that bypass at database level.
+CREATE TRIGGER IF NOT EXISTS store_checkout_never_born_reviewed
+BEFORE INSERT ON store_checkout_intents
+FOR EACH ROW WHEN NEW.status IN (
+  'review_required','refund_review_required','cancelled','expired','provider_failed'
+)
+BEGIN
+ SELECT RAISE(ABORT,'new Store checkout cannot start in a terminal review state');
+END;
