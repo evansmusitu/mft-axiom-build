@@ -336,3 +336,40 @@ billing route, copy its Cloudflare worker keys, or apply the schema to
 Axiom's production D1. Next evidence must come from a separate
 Store-only staging environment and a genuine approved Paynow test-mode
 integration with real callback delivery and read-only receipts.
+
+
+## Store D1 settlement-review invariants (2026-10-19)
+
+An additional **database-level safety gate** now protects Store payment
+review state, independently of HTTP handler or JavaScript logic.
+
+Only a prior signed Paynow callback **and** independently verified provider
+poll may produce a Store review record, and only a matching existing
+`store_checkout_reviews` row can authorize the conditional
+`pending → review_required / refund_review_required` SQL transition.
+Store D1 triggers also prevent directly inserting an order as reviewed,
+reopening a cancelled/expired/reviewed checkout as pending, silently
+rewriting the pending order's Paynow polling URL or price, attaching a
+provider claim to a cancelled order, or updating/deleting the original
+provider-review evidence. The normal Store Worker still creates an
+`initiating` order, persists Paynow's signed checkout URLs, then performs
+an atomic conditional review batch. The D1 triggers introduce no download
+entitlement, settlement or payout capability.
+
+**Security tests use real SQLite** against the *actual isolated Store
+migration*, not the synthetic in-memory JavaScript D1 double. A missing
+provider-evidence gate was observed failing in CI run `39204327271`;
+an additional four unsafe mutation pathways failed under focused SQL
+tests in run `39204437191`. After implementing the first five
+database triggers, all six SQLite contracts passed with the existing
+77 synthetic checkout / callback / provider-poll tests
+(run `39204510475`). A direct `INSERT` bypass of the paid-review
+status-update trigger was then detected in run `39204621210` and
+blocked by a separate `BEFORE INSERT` trigger. No live Cloudflare D1
+resource was changed.
+
+This is not a complete ledger or production accounting system:
+authorized administrators with DDL access can change triggers,
+financial settlement is not audited, and the Store's isolated staging
+D1 creation is still blocked by Cloudflare HTTP 403. Do not apply
+these triggers to Axiom's existing D1 or activate Store checkout.
