@@ -1942,3 +1942,18 @@ main {
 .groq-choice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--stroke);padding:10px 20px;background:var(--panel2)}.groq-choice label{color:var(--muted);font-size:11px;font-weight:800}.groq-choice select{background:var(--panel);color:var(--text);border:1px solid var(--stroke);padding:8px;border-radius:7px;font:inherit;font-size:11px}
 
 .groq-config-notice{padding:11px 20px;background:rgba(235,175,83,.12);border-bottom:1px solid var(--stroke);color:var(--text);font-size:11px;line-height:1.7}
+
+/* ATLAS Frontier Intelligence Selector */
+.frontier-selector{display:grid;grid-template-columns:minmax(145px,1fr) minmax(220px,1.6fr);gap:12px 16px;padding:17px 22px;border-bottom:1px solid var(--stroke);background:var(--panel2)}
+.frontier-selector>div:first-child{display:flex;flex-direction:column;justify-content:center;gap:5px}
+.frontier-selector>div:first-child>label{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.13em}
+.frontier-selector small,.frontier-selector .model-note{font-size:11px;color:var(--muted);line-height:1.6;overflow-wrap:anywhere}
+.frontier-selector select{padding:11px;min-height:44px;width:100%;min-width:0;border:1px solid var(--stroke);border-radius:8px;background:var(--panel);color:var(--text);font:600 12px 'DM Sans',sans-serif}
+.frontier-selector option:disabled{color:var(--muted)}
+.frontier-selector .model-note{grid-column:1/-1;line-height:1.6}
+.frontier-selector .frontier-consent{grid-column:1/-1;display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.5}
+.frontier-selector .frontier-consent input{accent-color:var(--accent);width:19px;height:19px}
+.atlas-workflow-model{font-size:12px;line-height:1.7;display:flex;flex-wrap:wrap;align-items:center;gap:7px;color:var(--muted);background:var(--panel2);border:1px solid var(--stroke);border-radius:9px;padding:13px 16px;margin:0 0 19px}
+.atlas-workflow-model b{color:var(--text)}
+.atlas-workflow-model button{margin-left:auto;border:0;background:transparent;color:var(--accent);font-weight:700;font-size:12px;min-height:36px}
+@media(max-width:600px){.frontier-selector{display:flex;flex-direction:column;gap:10px;padding:14px 16px}.atlas-workflow-model button{margin-left:0}}
