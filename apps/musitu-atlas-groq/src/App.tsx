@@ -237,6 +237,7 @@ export default function App() {
   const [orbitOn, setOrbitOn] = useState(true);
   const [pulse, setPulse] = useState<Pulse[]>([]);
   const [connected, setConnected] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState(false);
   const [autoPulse, setAutoPulse] = useState(true);
   useEffect(() => save('atlas_prefs_v1', prefs), [prefs]);
   useEffect(() => save('atlas_runs_v1', runs), [runs]);
@@ -253,6 +254,7 @@ export default function App() {
         const r = await api.get('/api/pulse');
         if (alive) {
           setConnected(Boolean(r.data?.ok));
+          setAiConfigured(Boolean(r.data?.aiConfigured));
           setPulse(v =>
             [
               ...v,
@@ -264,7 +266,7 @@ export default function App() {
           );
         }
       } catch {
-        if (alive) setConnected(false);
+        if (alive) {setConnected(false);setAiConfigured(false);}
       }
     }
     measure();
@@ -326,15 +328,14 @@ export default function App() {
       const answer = String(r.data?.answer || '');
       if (!answer) throw new Error('No answer');
       setMessages(m => [...m, { role: 'assistant', text: answer }]);
-    } catch {
-      setFeedback(
-        'The assistant could not connect. Your message is saved—please retry.'
-      );
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : 'Unknown provider error';
+      setFeedback('AI request failed: ' + detail);
       setMessages(m => [
         ...m,
         {
           role: 'assistant',
-          text: 'I could not complete that request right now. Please try again in a moment.',
+          text: 'The AI request did not succeed: ' + detail,
         },
       ]);
     } finally {
@@ -476,7 +477,7 @@ export default function App() {
             <button type="button" className="search-button" onClick={() => setPaletteOpen(true)} aria-label="Search workspace commands"><Command size={17}/><span>Search anything</span><kbd>⌘ K</kbd></button>
             <div className={'connection ' + (connected ? 'online' : 'offline')}>
               <span className="status-dot" />
-              <span>{connected ? 'SYSTEM ONLINE' : 'RECONNECTING'}</span>
+              <span>{connected ? 'API ONLINE' : 'RECONNECTING'}</span>
             </div>
             <button
               className="header-avatar"
@@ -801,9 +802,10 @@ export default function App() {
                       className={'live-badge ' + (!connected ? 'muted' : '')}
                     >
                       <span className="status-dot" />
-                      {connected ? 'READY' : 'RECONNECTING'}
+                      {!connected ? 'RECONNECTING' : aiConfigured ? 'GROQ READY' : 'GROQ SETUP REQUIRED'}
                     </span>
                   </div>
+                  {!aiConfigured && <div className="groq-config-notice" role="status">Groq inference requires a backend API key. The AI assistant will become available after the site administrator configures GROQ_API_KEY.</div>}
                   <div className="groq-choice"><label htmlFor="groq-model">Groq model</label><select id="groq-model" value={aiMode} onChange={e=>setAiMode(e.target.value as 'fast'|'quality')}><option value="fast">Llama 3.1 8B · Fast</option><option value="quality">Llama 3.3 70B · Quality</option></select></div><div className="chat-thread" role="log" aria-live="polite">
                     {messages.map((m, i) => (
                       <div className={'message ' + m.role} key={i}>
