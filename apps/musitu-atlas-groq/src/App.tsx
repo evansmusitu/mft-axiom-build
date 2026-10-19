@@ -806,7 +806,7 @@ export default function App() {
                     </span>
                   </div>
                   {!aiConfigured && <div className="groq-config-notice" role="status">Groq inference requires a backend API key. The AI assistant will become available after the site administrator configures GROQ_API_KEY.</div>}
-                  <div className="groq-choice"><label htmlFor="groq-model">Groq model</label><select id="groq-model" value={aiMode} onChange={e=>setAiMode(e.target.value as 'fast'|'quality')}><option value="fast">Llama 3.1 8B · Fast</option><option value="quality">Llama 3.3 70B · Quality</option></select></div><div className="chat-thread" role="log" aria-live="polite">
+                  <div className="groq-choice"><label htmlFor="groq-model">Groq model</label><select id="groq-model" value={aiMode} onChange={e=>setAiMode(e.target.value as 'fast'|'quality')}><option value="fast">GPT-OSS 20B · Fast</option><option value="quality">GPT-OSS 120B · Quality</option></select></div><div className="chat-thread" role="log" aria-live="polite">
                     {messages.map((m, i) => (
                       <div className={'message ' + m.role} key={i}>
                         {m.role === 'assistant' && (

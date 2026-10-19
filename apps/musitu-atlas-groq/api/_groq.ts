@@ -1,4 +1,4 @@
-export const models={fast:'llama-3.1-8b-instant',quality:'llama-3.3-70b-versatile'} as const;
+export const models={fast:'openai/gpt-oss-20b',quality:'openai/gpt-oss-120b'} as const;
 type Message={role:'system'|'user'|'assistant';content:string};
 export function respond(res:any,status:number,data:unknown){res.setHeader('Cache-Control','no-store');res.status(status).json(data);}
 export function text(value:unknown,max:number){return typeof value==='string'?value.trim().slice(0,max):'';}
@@ -20,7 +20,7 @@ export async function infer(messages:Message[],model:'fast'|'quality'='quality',
   method:'POST',
   headers:{Authorization:'Bearer '+secret,'Content-Type':'application/json'},
   body:JSON.stringify({model:models[model],messages,temperature:json?0.2:0.55,
-   max_completion_tokens:json?1600:1000,...(json?{response_format:{type:'json_object'}}:{})}),
+   max_completion_tokens:json?2200:1300,reasoning_effort:model==='fast'?'low':'medium',include_reasoning:false,...(json?{response_format:{type:'json_object'}}:{})}),
   signal:AbortSignal.timeout(45000)
  });
  if(!response.ok){

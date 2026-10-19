@@ -3,8 +3,8 @@
 Isolated Vercel-ready rehosting of the published MUSITU ATLAS 2.0 website. The protected main branch and original AppDeploy deployment remain untouched.
 
 ## Groq models
-- **Fast:** `llama-3.1-8b-instant`, selectable in the AI assistant.
-- **Quality:** `llama-3.3-70b-versatile`, selectable in the AI assistant and used for workflows and mission planning.
+- **Fast:** `openai/gpt-oss-20b`, selectable in the AI assistant.
+- **Quality:** `openai/gpt-oss-120b`, selectable in the AI assistant and used for workflows and mission planning.
 
 ## Configure
 1. Create a free Groq developer account (subject to provider eligibility and limits), then generate an API key securely.

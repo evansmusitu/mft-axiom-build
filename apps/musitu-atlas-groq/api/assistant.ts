@@ -13,6 +13,6 @@ export default async function handler(req:any,res:any){
    {role:'system',content:'You are MUSITU ATLAS, a practical AI collaborator for a '+focus+'. Give useful concise answers. Distinguish facts from assumptions, do not invent live data, and never pretend you have used tools or performed actions.'},
    ...(history.length?history:[{role:'user',content:question}])
   ],model);
-  return respond(res,200,{answer,model:model==='fast'?'llama-3.1-8b-instant':'llama-3.3-70b-versatile'});
+  return respond(res,200,{answer,model:model==='fast'?'openai/gpt-oss-20b':'openai/gpt-oss-120b'});
  }catch(e){return fail(res,e);}
 }
