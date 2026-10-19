@@ -290,3 +290,49 @@ merchant or production payment was exercised. Absolute deadlines and
 disconnect handling improve availability and fail-closed behavior;
 they do not independently prove authenticity, settlement, entitlement,
 refund execution, or approval to deploy.
+
+
+## Axiom-pattern isolated Store webhooks and checkout status (2026-10-19)
+
+The **Store-only** `store-axiom-checkout.mjs` imports
+`store-axiom-payment-routes.mjs` to provide three additional **not deployed**
+routes: `POST /store/billing/webhooks/paynow` (signed callback), authenticated
+`GET /store/billing/checkout/STORE-...` (read-only order status), and
+`GET /store/billing/return` (advisory browser return, never evidence of
+payment). This preserves the existing Axiom application billing routes
+and subscription database unchanged.
+
+The new callback rejects unauthenticated signatures before reading private
+Store DB. It validates the known merchant amount, original provider polling
+URL and Paynow transaction identity, then independently polls and verifies
+the matching signed Paynow response. Responses have bounded stream sizes and
+an eight-second abort signal. Non-form provider response MIME and expired
+original Store checkout intents cannot be promoted. All success paths write
+only `review_required` or `refund_review_required` to **Store D1**; no
+entitlement, refund, settlement or publisher payout authority exists.
+The `store_checkout_reviews` table enforces provider reference uniqueness
+and stores **only SHA-256 digests** of the signed webhook and polled status,
+never raw customer payment callbacks or integration keys.
+
+The database review uses an atomic Store D1 batch with a conditional
+`status='pending'` compare-and-set and rejects missing/zero write metadata
+rather than claiming payment on a racing cancelled or expired order.
+Repeated identical signed callbacks are acknowledged idempotently without
+duplicating reviews. Conflicting later callbacks are not overwritten and
+require human financial investigation. Refund/chargeback event history and
+live settlement reconciliation remain separate product requirements.
+
+Behavior-first GitHub Actions:
+- `39183410612` RED: 8 missing webhook/status/return behaviors.
+- `39183886991` RED: two missing transactional conditional-write gates.
+- `39184227988` RED: unsafe HTML provider response and expired-order
+  callback acceptance.
+- `39184303227` GREEN: **70 tests, zero failures**, Store SQLite migration
+  qualification and signed V1 source immutability.
+
+**No real payments were attempted**; tests use fabricated signed Paynow
+responses and disposable fake D1. Do not deploy under Axiom's existing
+billing route, copy its Cloudflare worker keys, or apply the schema to
+Axiom's production D1. Next evidence must come from a separate
+Store-only staging environment and a genuine approved Paynow test-mode
+integration with real callback delivery and read-only receipts.
