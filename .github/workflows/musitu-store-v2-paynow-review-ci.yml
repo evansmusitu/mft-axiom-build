@@ -74,6 +74,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v store/phase1/payments/test_store_payment_sql_policy.py
+      - name: Verify Store staging source/module preflight without Cloudflare network calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_staging_source_preflight.py
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
