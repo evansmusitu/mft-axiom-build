@@ -1,4 +1,4 @@
-import {createStorePaymentRoutes} from './store-axiom-payment-routes.mjs';
+import {createStorePaymentRoutes,boundedBytes} from './store-axiom-payment-routes.mjs';
 
 /**
  * MUSITU Store — isolated Axiom-inspired Paynow checkout initiation.
@@ -114,9 +114,20 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
       return reply(415,{ok:false,error:'unsupported_media_type'});
     let body;
     try{
-      const raw=await request.text();if(raw.length>2048)throw Error();
+      const declared=Number(request.headers.get('content-length')||0);
+      if(!Number.isSafeInteger(declared)||declared<0||declared>2048)
+       return reply(413,{ok:false,error:'checkout_request_too_large'});
+      // A client can omit Content-Length or stream forever; never buffer
+      // untrusted checkout JSON with Request.text() before enforcing limits.
+      const raw=new TextDecoder('utf-8',{fatal:true}).decode(await boundedBytes(request,2048));
       body=JSON.parse(raw);
-    }catch{return reply(400,{ok:false,error:'invalid_json'});}
+    }catch(error){
+      if(error?.message==='provider_body_too_large')
+       return reply(413,{ok:false,error:'checkout_request_too_large'});
+      if(error?.message==='provider_body_timeout')
+       return reply(408,{ok:false,error:'checkout_request_timeout'});
+      return reply(400,{ok:false,error:'invalid_json'});
+    }
     if(!onlyAllowedBody(body))return reply(400,{ok:false,error:'server_owned_pricing_required'});
     let item;
     try{item=await env.STORE_DB.prepare('SELECT sku,amount_cents,currency,status,publisher_type FROM store_products WHERE sku=?1 LIMIT 1').bind(body.sku).first();}
