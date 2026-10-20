@@ -259,3 +259,40 @@ Store D1/Worker staging remains **NOT DEPLOYED** due to the prior **HTTP 403
 D1-create permission refusal**. No real Paynow merchant key, customer
 charge, entitlement or publisher payment was activated. Do not route
 Store billing traffic to the existing Axiom subscription endpoints.
+
+
+## 2026-10-20 — D1 signed-review REPLACE bypass eliminated
+
+The Store's D1 migration originally blocked direct updates and deletes of
+`store_checkout_reviews`, and protected the `store_checkout_intents`
+reference against `INSERT OR REPLACE`. But the **signed-review table
+itself** was still vulnerable: at SQLite's normal
+`PRAGMA recursive_triggers=OFF`, `INSERT OR REPLACE` deletes a
+conflicting review row internally without necessarily firing the
+`BEFORE DELETE` immutable-evidence trigger. During an order's pending
+window this could silently replace reviewed callback/poll digests or move
+the same Paynow provider reference to another pending Store order.
+
+Two new tests reproduced those precise failures with real SQLite, keeping
+the original review row under independent readback:
+https://github.com/evansmusitu/mft-axiom-build/actions/runs/39366270764
+(expected RED, **2 security tests failing**).
+
+A Store-only D1 `BEFORE INSERT` trigger now rejects any new review
+whose checkout reference **or** Paynow provider transaction reference
+already exists, including `INSERT OR REPLACE` statements, *before*
+SQLite can implicitly delete the prior row. This complements the
+existing update/delete immutability triggers and unique constraints.
+
+Verified GREEN:
+https://github.com/evansmusitu/mft-axiom-build/actions/runs/39366333945
+— **10/10 SQLite state-policy tests, 3/3 staging source-preflight
+tests, 77/77 signed Paynow/checkout JS tests, 0 failures**.
+The unchanged signed MUSITU Store V1 source hash checks passed.
+
+**Limitations:** D1 schema constraints are not a substitute for
+account-authorized database write controls, external settlement records,
+durable backup custody or a live Paynow integration. These tests ran
+in memory against the Store-specific SQLite-compatible schema, and no
+production database or merchant account was modified. The Cloudflare
+Store staging 403 and explicit release gates remain outstanding.
