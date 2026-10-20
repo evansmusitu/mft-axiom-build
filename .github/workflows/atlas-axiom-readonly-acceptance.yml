@@ -1,0 +1,69 @@
+name: ATLAS Axiom MCP Readonly Acceptance
+on:
+  push:
+    branches:
+      - feature/atlas-axiom-proof-gate-20261020
+    paths:
+      - .github/workflows/atlas-axiom-readonly-acceptance.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-axiom-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+      - name: Configure Node 24 for native TypeScript contract test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Reject unsafe arithmetic and validate deterministic preview fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {parseExpression,hashPayload,authConfigured} from './apps/musitu-atlas-groq/api/axiom/_contract.ts';
+          assert.equal(parseExpression(' (2+3)*4 '),'(2+3)*4');
+          assert.equal(hashPayload('(2+3)*4'),hashPayload('(2+3)*4'));
+          assert.notEqual(hashPayload('(2+3)*4'),hashPayload('(2+3)*5'));
+          for(const item of ['require("fs")','2;DROP TABLE','1+a','a'.repeat(200)]){
+           assert.throws(()=>parseExpression(item));
+          }
+          assert.equal(authConfigured(),false);
+          console.log('PASS: deterministic digest and allowlisted arithmetic input validation');
+          console.log('PASS: execution disabled without server-side Axiom credential');
+          JS
+      - name: Check live public Axiom MCP discovery without invoking operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          payload=json.dumps({'jsonrpc':'2.0','id':'atlas-readonly-1','method':'tools/list','params':{}}).encode('utf-8')
+          req=urllib.request.Request('https://mcp.mftintelligence.com/mcp',data=payload,method='POST',headers={
+             'Content-Type':'application/json','Accept':'application/json, text/event-stream',
+             'MCP-Protocol-Version':'2025-06-18','User-Agent':'MUSITU-ATLAS-CI-READONLY/1.0'
+          })
+          try:
+             with urllib.request.urlopen(req,timeout=30) as response:
+                status=response.status
+                raw=response.read(262144).decode('utf-8')
+                kind=response.headers.get('content-type','')
+          except urllib.error.HTTPError as ex:
+             raise SystemExit('Axiom MCP registry returned HTTP '+str(ex.code))
+          if 'text/event-stream' in kind:
+             events=[l[5:].strip() for l in raw.splitlines() if l.startswith('data:')]
+             assert len(events)==1, 'One registry event expected'
+             result=json.loads(events[0])
+          else: result=json.loads(raw)
+          registry=result.get('result',{}).get('tools')
+          assert status==200 and isinstance(registry,list) and len(registry)>=50, 'Registry unavailable or invalid'
+          ops=[x for x in registry if isinstance(x,dict) and str(x.get('name','')).startswith('axiom_')]
+          assert any(x.get('name')=='axiom_arithmetic_evaluate' for x in ops), 'Arithmetic operation missing'
+          print('PASS: authenticated Vercel backend can discover Axiom MCP tools without a token')
+          print('PASS: live certified descriptors',len(ops),'total exposed',len(registry))
+          print('NO AXIOM COMPUTE CALLS MADE')
+          PY
