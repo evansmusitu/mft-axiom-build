@@ -1959,3 +1959,12 @@ main {
 @media(max-width:600px){.frontier-selector{display:flex;flex-direction:column;gap:10px;padding:14px 16px}.atlas-workflow-model button{margin-left:0}}
 
 .frontier-access{grid-column:1/-1;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;font-weight:700;flex-wrap:wrap}.frontier-access input{background:var(--bg);color:var(--text);border:1px solid var(--stroke);padding:12px;border-radius:8px;min-height:44px;max-width:100%;flex:1;min-width:220px}
+
+.assistant-official-route{display:flex;flex-direction:column;gap:8px;padding:13px 18px;background:var(--panel2);border-top:1px solid var(--stroke);border-bottom:1px solid var(--stroke)}
+.assistant-official-route>div{display:flex;flex-wrap:wrap;gap:9px;justify-content:space-between;align-items:center}
+.assistant-official-route>div>span{font-size:9px;font-weight:800;letter-spacing:.055em;color:var(--accent)}
+.assistant-official-route strong{font-size:12px;color:var(--text)}
+.assistant-official-route p{margin:0;line-height:1.6;color:var(--muted);font-size:11px}
+.assistant-official-route p a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.assistant-official-route>button{align-self:flex-start;background:var(--accent);border:0;border-radius:8px;color:var(--contrast);font:800 11px 'DM Sans',sans-serif;padding:10px 12px}
+.assistant-official-route small{font-size:10px;color:var(--muted)}
