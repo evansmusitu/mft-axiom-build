@@ -27,9 +27,8 @@ jobs:
       ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
       MUSITU_STORE_STAGE_GATE: 'disabled-checkout-no-public-route'
-      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      # Dedicated Store-only credential: existing MUSITU/Axiom secrets stay untouched.
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_V2 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,6 +44,11 @@ jobs:
             test "$(head -n 1 store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt)" = 'MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY'
           fi
           echo 'MUSITU_STORE_STAGING_EXPLICIT_APPROVAL_GATE=PASS'
+      - name: Require dedicated scoped Store V2 token without exposing its value
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CF_API_TOKEN:-}" || { echo 'Dedicated Store V2 Cloudflare secret not configured'; exit 1; }
       - name: Check isolated source, schema and V1 freeze before any Cloudflare API
         shell: bash
         run: |

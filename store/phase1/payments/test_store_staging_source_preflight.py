@@ -57,6 +57,17 @@ class StagingSourcePreflight(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "no authorized Cloudflare API credentials"):
                 staging.get_credentials()
 
+    def test_isolated_store_staging_uses_only_new_v2_scoped_secret(self):
+        workflow = (
+            ROOT.parent.parent.parent /
+            ".github/workflows/musitu-store-v2-payments-staging-provision.yml"
+        ).read_text()
+        self.assertIn("CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_V2 }}", workflow)
+        self.assertNotIn("secrets.CLOUDFLARE_API_TOKEN }}", workflow)
+        self.assertNotIn("secrets.CLOUDFLARE_GLOBAL_API_KEY", workflow)
+        self.assertNotIn("secrets.CLOUDFLARE_EMAIL", workflow)
+        self.assertIn("MUSITU_STORE_STAGE_GATE: 'disabled-checkout-no-public-route'", workflow)
+
     def test_explicit_owner_trigger_is_only_staging_push_path(self):
         workflow = (
             ROOT.parent.parent.parent /
