@@ -1,51 +1,90 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import {createRemoteJWKSet, jwtVerify} from 'jose';
 
-// Narrow ChatGPT-facing research/API gateway. No trading or wildcard tool passthrough.
-const allowed = new Set(['lifeline_status','lifeline_evaluate_trades','lifeline_get_evidence','lifeline_verify_ledger']);
-const methods = new Set(['initialize','ping','tools/list','tools/call']);
-const json = (obj,status) => new Response(JSON.stringify(obj), {status,headers:{'content-type':'application/json','cache-control':'no-store'}});
-function config(env) {
-  const required = ['ACCESS_ISSUER','ACCESS_AUD','MODAL_ORIGIN','MODAL_PROXY_KEY','MODAL_PROXY_SECRET','EDGE_SHARED_SECRET'];
-  if (required.some(k=>!env[k] || typeof env[k]!=='string')) return null;
-  try {
-    const issuer = new URL(env.ACCESS_ISSUER), origin = new URL(env.MODAL_ORIGIN);
-    if (issuer.protocol!=='https:' || !issuer.hostname.endsWith('.cloudflareaccess.com') || issuer.pathname!=='/' ||
-        origin.protocol!=='https:' || !origin.hostname.endsWith('.modal.run') || origin.username || origin.password) return null;
-    return {issuer:issuer.origin,origin:origin.origin};
-  } catch {return null;}
+// LIFELINE Cloudflare Access gateway. Broker/finance trading is forbidden on this surface.
+const TOOL_ALLOWLIST=new Set(['lifeline_status']);
+const METHODS=new Set(['initialize','ping','tools/list','tools/call']);
+const AGENT_ROUTES=new Set(['/agent/pull','/agent/receipt']);
+const OPERATOR_ROUTES=new Set(['/operator/probe','/operator/status']);
+const encoder=new TextEncoder();
+const reply=(o,status=200)=>new Response(JSON.stringify(o),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});
+const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,sorted(x)])):v;
+const hex=a=>Array.from(new Uint8Array(a),x=>x.toString(16).padStart(2,'0')).join('');
+const same=(a,b)=>{if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;};
+function readConfig(env){
+  const needed=['ACCESS_ISSUER','ACCESS_AUD','MODAL_ORIGIN','MODAL_PROXY_KEY','MODAL_PROXY_SECRET','EDGE_SHARED_SECRET',
+    'AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY'];
+  if(needed.some(k=>typeof env[k]!=='string'||!env[k]))return null;
+  if(env.EDGE_SHARED_SECRET.length<32||env.AGENT_HMAC_KEY.length<32)return null;
+  try{
+    const issuer=new URL(env.ACCESS_ISSUER), modal=new URL(env.MODAL_ORIGIN);
+    if(issuer.protocol!=='https:'||!issuer.hostname.endsWith('.cloudflareaccess.com')||issuer.pathname!=='/'||
+       modal.protocol!=='https:'||!modal.hostname.endsWith('.modal.run')||modal.pathname!=='/'||
+       issuer.username||issuer.password||issuer.search||modal.username||modal.password||modal.search||
+       !/^[A-Za-z0-9_-]{1,100}$/.test(env.AGENT_ID)||
+       !/^[A-Za-z0-9_-]{1,100}$/.test(env.AGENT_TENANT))return null;
+    return {issuer:issuer.origin,modal:modal.origin};
+  }catch{return null;}
 }
-export default {async fetch(request,env) {
-  const cfg=config(env);
-  if (!cfg) return json({error:'not_configured'},503);
-  const path = new URL(request.url).pathname;
-  if (path === '/healthz' && request.method === 'GET') return json({state:'auth_required',trading:false},200);
-  if (path !== '/mcp' || request.method !== 'POST') return json({error:'not_found'},404);
-  const jwt = request.headers.get('cf-access-jwt-assertion');
-  if (!jwt) return json({error:'unauthorized'},401);
-  let subject;
-  try {
-    const keys=createRemoteJWKSet(new URL(cfg.issuer+'/cdn-cgi/access/certs'));
-    const {payload}=await jwtVerify(jwt,keys,{issuer:cfg.issuer,audience:env.ACCESS_AUD,algorithms:['RS256']});
-    subject=payload.sub;
-    if (typeof subject!=='string' || !subject || subject.length>200) throw Error('subject');
-  } catch {return json({error:'unauthorized'},401);}
-  let body; let rpc;
-  try {
-    body=await request.text();
-    if (new TextEncoder().encode(body).length>131072) return json({error:'oversized'},413);
-    rpc=JSON.parse(body);
-  } catch {return json({error:'invalid_json'},400);}
-  if (!rpc || typeof rpc!=='object' || Array.isArray(rpc) || rpc.jsonrpc!=='2.0' || !methods.has(rpc.method) ||
-      (rpc.method==='tools/call' && !allowed.has(rpc.params?.name))) return json({error:'not_permitted'},403);
+async function authenticateAccess(request,env,cfg){
+  const token=request.headers.get('cf-access-jwt-assertion');
+  if(!token||token.length>20000)return null;
+  try{
+    const jwks=createRemoteJWKSet(new URL(cfg.issuer+'/cdn-cgi/access/certs'));
+    const {payload}=await jwtVerify(token,jwks,{issuer:cfg.issuer,audience:env.ACCESS_AUD,algorithms:['RS256']});
+    if(typeof payload.sub!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(payload.sub))return null;
+    return payload.sub;
+  }catch{return null;}
+}
+async function authenticateAgent(request,env,body){
+  const agentId=request.headers.get('x-lifeline-agent-id')||'';
+  const tenant=request.headers.get('x-lifeline-tenant')||'';
+  const stamp=request.headers.get('x-lifeline-time')||'';
+  const nonce=request.headers.get('x-lifeline-nonce')||'';
+  const signature=request.headers.get('x-lifeline-signature')||'';
+  if(agentId!==env.AGENT_ID||tenant!==env.AGENT_TENANT||!/^\d{10,14}$/.test(stamp)||
+     Math.abs(Math.floor(Date.now()/1000)-Number(stamp))>120||
+     !/^[A-Za-z0-9_-]{16,100}$/.test(nonce)||!sigPattern.test(signature))return false;
+  const hashed=hex(await crypto.subtle.digest('SHA-256',encoder.encode(JSON.stringify(sorted(body)))));
+  const input=[agentId,tenant,stamp,nonce,hashed].join('\n');
+  const key=await crypto.subtle.importKey('raw',encoder.encode(env.AGENT_HMAC_KEY),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+  const expected=hex(await crypto.subtle.sign('HMAC',key,encoder.encode(input)));
+  return same(signature,expected);
+}
+const sigPattern=/^[a-f0-9]{64}$/;
+export default {async fetch(request,env){
+  const cfg=readConfig(env);
+  if(!cfg)return reply({error:'not_configured'},503);
+  const path=new URL(request.url).pathname;
+  if(path==='/healthz'&&request.method==='GET')return reply({state:'authorization_required',trading:false});
+  if(request.method!=='POST'||(!AGENT_ROUTES.has(path)&&!OPERATOR_ROUTES.has(path)&&path!=='/mcp'))
+    return reply({error:'not_found'},404);
+  const size=request.headers.get('content-length');
+  if(size&&Number(size)>65536)return reply({error:'oversized'},413);
+  let raw,body;
+  try{
+    raw=await request.text();if(encoder.encode(raw).length>65536)return reply({error:'oversized'},413);
+    body=JSON.parse(raw);if(!body||Array.isArray(body)||typeof body!=='object')return reply({error:'invalid_json'},400);
+  }catch{return reply({error:'invalid_json'},400);}
+  let subject=null;
+  if(AGENT_ROUTES.has(path)){
+    if(!await authenticateAgent(request,env,body))return reply({error:'unauthorized'},401);
+  }else{
+    subject=await authenticateAccess(request,env,cfg);
+    if(!subject)return reply({error:'unauthorized'},401);
+  }
+  if(path==='/mcp'&&(body.jsonrpc!=='2.0'||!METHODS.has(body.method)||
+     (body.method==='tools/call'&&!TOOL_ALLOWLIST.has(body.params?.name))))
+    return reply({error:'operation_not_permitted'},403);
+  const headers={'content-type':'application/json','modal-key':env.MODAL_PROXY_KEY,
+                 'modal-secret':env.MODAL_PROXY_SECRET,'x-lifeline-edge-secret':env.EDGE_SHARED_SECRET};
+  if(subject)headers['x-lifeline-subject']=subject;
+  if(AGENT_ROUTES.has(path))for(const k of ['x-lifeline-agent-id','x-lifeline-tenant','x-lifeline-time','x-lifeline-nonce','x-lifeline-signature'])
+    headers[k]=request.headers.get(k);
   let response;
-  try {
-    response=await fetch(cfg.origin+'/mcp', {method:'POST',redirect:'manual',headers:{
-      'content-type':'application/json','modal-key':env.MODAL_PROXY_KEY,'modal-secret':env.MODAL_PROXY_SECRET,
-      'x-lifeline-edge-secret':env.EDGE_SHARED_SECRET,'x-lifeline-subject':subject
-    },body});
-  } catch {return json({error:'private_runtime_unavailable'},502);}
-  if (response.status>=300 && response.status<400) return json({error:'redirect_blocked'},502);
-  const payload=await response.text();
-  if (payload.length>512000) return json({error:'upstream_oversized'},502);
-  return new Response(payload,{status:response.status,headers:{'content-type':'application/json','cache-control':'no-store'}});
+  try{response=await fetch(cfg.modal+path,{method:'POST',redirect:'manual',headers,body:raw});}
+  catch{return reply({error:'private_runtime_unavailable'},502);}
+  if(response.status>=300&&response.status<400)return reply({error:'unexpected_redirect'},502);
+  const output=await response.text();
+  if(encoder.encode(output).length>131072)return reply({error:'oversized_backend_result'},502);
+  return new Response(output,{status:response.status,headers:{'content-type':'application/json','cache-control':'no-store'}});
 }};
