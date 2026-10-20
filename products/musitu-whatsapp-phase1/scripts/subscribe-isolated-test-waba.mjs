@@ -13,9 +13,9 @@ function snapshot(body){
 /** Explicit one-off operator action, authorized Phase1 test integration only.
  * No DELETE, callback override, message send, token rotation or automatic retry.
  * Never use this as the project's default build command. */
-export async function subscribeIsolatedTestWaba({token,apply=false,request=fetch,onWriteStart=()=>{}}={}){
+export async function subscribeIsolatedTestWaba({token,apply=false,inspectTokenAppOnly=false,request=fetch,onWriteStart=()=>{}}={}){
  const report={scope:'EXACT_TEST_WABA_ADD_CURRENT_DEV_APP_PRESERVE_EXISTING_SUBSCRIBERS',appId:APP,wabaId:WABA,phoneId:PHONE,writeAttempted:false,operations:[]};
- if(!apply)return {...report,status:'EXPLICIT_APPLY_REQUIRED'};
+ if(!apply&&!inspectTokenAppOnly)return {...report,status:'EXPLICIT_APPLY_REQUIRED'};
  if(typeof token!=='string'||!/^EAA[A-Za-z0-9_-]{30,}$/.test(token))return {...report,status:'META_TOKEN_REQUIRED'};
  async function call(path,method='GET'){
   let reader;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
@@ -32,7 +32,8 @@ export async function subscribeIsolatedTestWaba({token,apply=false,request=fetch
   finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
  }
  try{
-  const app=await call('app?fields=id');if(app?.id!==APP)fail('TOKEN_APP_ID_MISMATCH');report.tokenAppMatched=true;
+  const app=await call('app?fields=id');if(typeof app?.id!=='string'||!/^\d{1,40}$/.test(app.id))fail('TOKEN_APP_ID_UNQUALIFIED');report.tokenAppId=app.id;if(app.id!==APP)fail('TOKEN_APP_ID_MISMATCH');report.tokenAppMatched=true;
+  if(inspectTokenAppOnly)return {...report,status:'TOKEN_APP_ID_VERIFIED_NO_WRITE'};
   const phones=await call(WABA+'/phone_numbers?fields=id');if(!Array.isArray(phones?.data)||phones.data.length!==1||phones.data[0]?.id!==PHONE||phones?.paging?.next)fail('EXACT_TEST_PHONE_REQUIRED');
   const before=snapshot(await call(WABA+'/subscribed_apps?limit=50'));report.beforeCount=before.size;report.beforeSnapshotDigest=digest([...before].sort());
   if(before.has(APP))return {...report,status:'ALREADY_SUBSCRIBED_NO_WRITE',appSubscribed:true};
@@ -47,11 +48,12 @@ export async function subscribeIsolatedTestWaba({token,apply=false,request=fetch
   report.afterSnapshotDigest=digest([...after].sort());
   report.status=report.appSubscribed&&report.existingSubscriberIdsPreserved&&report.existingSubscriberMetadataPreserved&&report.onlyExpectedAppAdded?'SUBSCRIBED_READBACK_VERIFIED':'SUBSCRIPTION_POSTSTATE_UNQUALIFIED';
   return report;
- }catch(e){return {...report,status:['TOKEN_APP_ID_MISMATCH','EXACT_TEST_PHONE_REQUIRED','SUBSCRIPTION_SNAPSHOT_UNQUALIFIED','META_BODY_REQUIRED','META_BODY_TOO_LARGE','META_JSON_REQUIRED','META_HTTP_DENIED','META_TRANSPORT_FAILED'].includes(e.message)?e.message:'SUBSCRIPTION_OPERATION_FAILED'};}
+ }catch(e){return {...report,status:['TOKEN_APP_ID_UNQUALIFIED','TOKEN_APP_ID_MISMATCH','EXACT_TEST_PHONE_REQUIRED','SUBSCRIPTION_SNAPSHOT_UNQUALIFIED','META_BODY_REQUIRED','META_BODY_TOO_LARGE','META_JSON_REQUIRED','META_HTTP_DENIED','META_TRANSPORT_FAILED'].includes(e.message)?e.message:'SUBSCRIPTION_OPERATION_FAILED'};}
 }
 if(process.argv[1]&&pathToFileURL(process.argv[1]).href===import.meta.url){
- const report=await subscribeIsolatedTestWaba({token:process.env.META_ACCESS_TOKEN,apply:process.argv.length===3&&process.argv[2]===APPLY,onWriteStart:()=>console.log('MUSITU_TEST_WABA_WRITE_STARTED='+JSON.stringify({appId:APP,wabaId:WABA,phoneId:PHONE,method:'POST',noCallbackOverride:true,noSend:true}))});
+ const inspect=process.argv.length===3&&process.argv[2]==='--inspect-token-app';
+ const report=await subscribeIsolatedTestWaba({token:process.env.META_ACCESS_TOKEN,apply:process.argv.length===3&&process.argv[2]===APPLY,inspectTokenAppOnly:inspect,onWriteStart:()=>console.log('MUSITU_TEST_WABA_WRITE_STARTED='+JSON.stringify({appId:APP,wabaId:WABA,phoneId:PHONE,method:'POST',noCallbackOverride:true,noSend:true}))});
  const result={observedAt:new Date().toISOString(),...report,noSendAttempted:true,noCallbackOverride:true};
  writeFileSync('public/meta-waba-subscription.json',JSON.stringify(result,null,2));console.log('MUSITU_TEST_WABA_SUBSCRIPTION='+JSON.stringify(result));
- if(!['SUBSCRIBED_READBACK_VERIFIED','ALREADY_SUBSCRIBED_NO_WRITE'].includes(result.status))process.exitCode=1;
+ if(!['SUBSCRIBED_READBACK_VERIFIED','ALREADY_SUBSCRIBED_NO_WRITE',...(inspect?['TOKEN_APP_ID_VERIFIED_NO_WRITE','TOKEN_APP_ID_MISMATCH']:[])].includes(result.status))process.exitCode=1;
 }
