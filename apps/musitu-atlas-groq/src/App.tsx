@@ -227,6 +227,7 @@ export default function App() {
     ])
   );
   const [draft, setDraft] = useState('');
+  const [taskRecommendation,setTaskRecommendation]=useState<{model:string;label:string;task:string;why:string;source:string;available:boolean}|null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [sending, setSending] = useState(false);
   const [firstModelVisit] = useState(() => {try{return localStorage.getItem('atlas_ai_mode')===null;}catch{return true;}});
@@ -245,6 +246,22 @@ export default function App() {
       .catch(()=>{if(live)setCatalogError(true);});
     return()=>{live=false};
   },[firstModelVisit]);
+  useEffect(()=>{
+    if(draft.trim().length<16){setTaskRecommendation(null);return;}
+    const ctrl=new AbortController();
+    const timer=window.setTimeout(()=>{
+      api.get('/api/official-recommendations?q='+encodeURIComponent(draft.slice(0,450))).then(r=>{
+        if(ctrl.signal.aborted)return;
+        const picked=r.data?.recommendations?.find((x:any)=>x.model===r.data?.recommendedModel);
+        setTaskRecommendation(picked&&typeof picked.model==='string'?{
+         model:picked.model,label:String(picked.label||picked.model),
+         task:String(picked.title||picked.task),why:String(picked.why||''),
+         source:String(picked.source||''),available:Boolean(picked.available)
+        }:null);
+      }).catch(()=>{if(!ctrl.signal.aborted)setTaskRecommendation(null);});
+    },700);
+    return()=>{ctrl.abort();window.clearTimeout(timer);}
+  },[draft]);
   const selectedModel=modelCatalog.find(v=>v.id===aiMode);
   const frontierSelected=selectedModel?.tier==='frontier';
   const selectionReady=Boolean(selectedModel?.available);
@@ -862,6 +879,13 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                  {taskRecommendation && <aside className="assistant-official-route" role="status">
+                    <div><span>OFFICIAL-EVIDENCE ROUTING · {taskRecommendation.task}</span><strong>{taskRecommendation.label}</strong></div>
+                    <p>{taskRecommendation.why} <a href={taskRecommendation.source} target="_blank" rel="noopener noreferrer">Official source ↗</a></p>
+                    {taskRecommendation.available && aiMode!==taskRecommendation.model && <button type="button" onClick={()=>{setAiMode(taskRecommendation.model);setPaidConsent(false);}}>Use recommended model</button>}
+                    {aiMode===taskRecommendation.model && <small>✓ Selected · paid models still require separate consent and private access</small>}
+                    {!taskRecommendation.available && <small>Requires provider configuration</small>}
+                  </aside>}
                   <form className="chat-compose" onSubmit={sendMessage}>
                     <label htmlFor="prompt" className="sr-only">
                       Message the AI assistant
