@@ -289,3 +289,65 @@ test('document mode is browser-origin restricted and cannot be invoked by unauth
  assert.equal(response.status,403);
  assert.equal(calls.length,0);
 });
+
+test('real PDF and Word filenames are accepted as extract-only document metadata',async()=>{
+ const {env,calls}=environment();
+ for(const name of ['lecture.pdf','revision.docx']){
+  const response=await worker.fetch(request('/api/chat','POST',{mode:'document',prompt:'Summarize this document excerpt briefly.',fileName:name,excerpt:'These notes discuss a feedback circuit with upper threshold at six volts and a sensor connected to a relay.'}),env);
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.documentReview.fileName,name);
+  assert.equal(data.documentReview.fullFileAnalyzed,false);
+ }
+ assert.equal(calls.filter(x=>x[0]==='ai').length,2);
+});
+
+test('multi document compare includes only 2 user-supplied excerpts and ignores submitted chat history',async()=>{
+ const {env,calls}=environment();
+ const response=await worker.fetch(request('/api/chat','POST',{
+  mode:'compare',prompt:'Which source reports the highest switching threshold?',
+  history:[{role:'assistant',content:'Old unrelated personal message'}],
+  documents:[
+   {fileName:'one.pdf',excerpt:'First laboratory report lists an upper Schmitt threshold of six volts.'},
+   {fileName:'two.docx',excerpt:'Second laboratory report lists an upper threshold of eight volts.'}
+  ]
+ }),env);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.equal(data.mode,'compare');
+ assert.equal(data.documentReview.comparedDocuments.length,2);
+ assert.equal(data.documentReview.fullFileAnalyzed,false);
+ assert.equal(data.documentReview.storedOnServer,false);
+ const messages=calls.find(x=>x[0]==='ai')[2].messages;
+ assert.equal(messages.length,2,'Previous session must not contaminate comparison');
+ assert.equal(messages[0].content.includes('laboratory report'),false,'Document content never in system instructions');
+ assert.match(messages[1].content,/DOCUMENT D1/);
+ assert.match(messages[1].content,/DOCUMENT D2/);
+ assert.doesNotMatch(messages[1].content,/Old unrelated personal message/);
+});
+test('multi-doc responses cannot keep invented source ids',async()=>{
+ const {env}=environment();
+ env.AI.run=async()=>({response:'Lab one [D1], second [D2], untrusted nonexistent [D9].'});
+ const response=await worker.fetch(request('/api/chat','POST',{
+   mode:'compare',prompt:'Compare feedback measurements across these two documents.',
+   documents:[
+    {fileName:'one.pdf',excerpt:'One laboratory reports a switching threshold of six volts.'},
+    {fileName:'two.docx',excerpt:'Two laboratory reports a switching threshold of seven volts.'}
+   ]
+ }),env);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.match(data.reply,/[unlinked document]/);
+ assert.equal(data.reply.includes('[D9]'),false);
+ assert.deepEqual(data.citationAudit.invalidSourceNumbersRemoved,[9]);
+});
+test('multi-doc invalid collection is rejected without consuming AI budget',async()=>{
+ const {env,calls}=environment();
+ const response=await worker.fetch(request('/api/chat','POST',{
+  mode:'compare',prompt:'Compare these documents in one sentence.',
+  documents:[{fileName:'only.pdf',excerpt:'There is one document here with enough characters to analyze.'}]
+ }),env);
+ assert.equal(response.status,400);
+ assert.equal((await response.json()).code,'INVALID_DOCUMENT_COLLECTION');
+ assert.deepEqual(calls,[]);
+});
