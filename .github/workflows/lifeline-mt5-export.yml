@@ -41,4 +41,5 @@ jobs:
           name: LIFELINE_MT5_AI_STUDIO_v0.3_SOURCE
           path: dist/LIFELINE_MT5_AI_STUDIO_v0.3/
           retention-days: 14
+          include-hidden-files: true
           if-no-files-found: error
