@@ -1,8 +1,10 @@
 import { calculate, CalculationError } from './math.mjs';
+import { wikipediaSearch, generateImage, ExternalToolError } from './vision-search.mjs';
+import { kimiEnabled, invokeKimi, KimiIntegrationError } from './kimi.mjs';
 const SITE = 'https://evansmusitu.github.io';
 const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 const REASONING_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
-const MODES = new Set(['explore', 'build', 'learn', 'markets', 'deep']);
+const MODES = new Set(['explore', 'build', 'learn', 'markets', 'deep', 'kimi']);
 const POLICY = Object.freeze({
   visitorPerMinute: 5,
   regionPerMinute: 12,
@@ -13,7 +15,7 @@ const POLICY = Object.freeze({
 });
 const SYSTEM = [
   'You are MUSITU Intelligence Edge, a practical AI collaborator for technology, education, product design and market literacy.',
-  'You have no real-time prices, connected accounts, web search, or external execution permissions.',
+  'You have no real-time prices, connected accounts, automatic live web search, or external execution permissions. A separate public encyclopedia search endpoint exists.',
   'Never invent research, citations, metrics, tool outcomes, successful actions or real-time observations.',
   'Provide a useful direct answer with concrete next steps and suggestions to verify important claims.',
   'Keep explanations clear and concise; distinguish verified information from assumptions.',
@@ -26,7 +28,8 @@ const MODE = {
   build: 'Be a pragmatic engineering architect; include scope, tests, and delivery risks.',
   learn: 'Teach simply with a worked example and a self-check question.',
   markets: 'Teach market research, explicitly marking missing live data and uncertainty.',
-  deep: 'Work through complex questions carefully. Provide assumptions, a conclusion and practical checks. Never expose internal hidden reasoning.'
+  deep: 'Work through complex questions carefully. Provide assumptions, a conclusion and practical checks. Never expose internal hidden reasoning.',
+  kimi: 'Use Kimi for careful applied analysis. No browsing was performed unless externally supplied sources are explicitly included.'
 };
 
 function respond(body, status = 200, origin = '', extraHeaders = {}) {
@@ -64,7 +67,7 @@ export default {
     const path = url.pathname;
     const origin = request.headers.get('origin') || '';
 
-    if (request.method === 'OPTIONS' && (path === '/api/chat' || path === '/api/calculate')) {
+    if (request.method === 'OPTIONS' && ['/api/chat','/api/calculate','/api/image','/api/search'].includes(path)) {
       if (origin !== SITE) return new Response(null, { status: 403 });
       return new Response(null, {
         status: 204,
@@ -83,7 +86,12 @@ export default {
         status: 'ok',
         model: MODEL,
         availableModels: { standard: MODEL, deeperAnalysis: REASONING_MODEL },
-        tools: [{ id: 'calculator', path: '/api/calculate', numericType: 'IEEE-754 double precision' }],
+        tools: [
+          { id:'calculator',path:'/api/calculate',numericType:'IEEE-754 double precision' },
+          { id:'image-generator',path:'/api/image',model:'@cf/black-forest-labs/flux-1-schnell' },
+          { id:'encyclopedia-search',path:'/api/search',provider:'Wikimedia',generalWebSearch:false }
+        ],
+        kimi: { model:'kimi-k2.6',available:kimiEnabled(env),requiresAuthorizedBilling:true },
         liveSearch: false,
         actualInferenceRequiredToVerifyCapacity: true,
         rateLimit: {
@@ -94,7 +102,7 @@ export default {
         provider: 'Cloudflare Workers AI'
       }, 200, origin);
     }
-    if (request.method !== 'POST' || (path !== '/api/chat' && path !== '/api/calculate')) {
+    if (request.method !== 'POST' || !['/api/chat','/api/calculate','/api/search','/api/image'].includes(path)) {
       return error('NOT_FOUND', 'Not found', 404, origin);
     }
 
@@ -141,10 +149,45 @@ export default {
           : error('CALCULATION_UNAVAILABLE','Calculation unavailable.',503,origin);
       }
     }
+    if (path === '/api/search') {
+      const query = typeof input.query === 'string' ? input.query.trim() : '';
+      if(query.length < 3 || query.length > 120) return error('QUERY_INVALID','Enter a search query of 3–120 characters.',400,origin);
+      try {
+        const visitor=await env.SEARCH_RATE.limit({key:request.headers.get('cf-connecting-ip') || 'unidentified-visitor'});
+        if(!visitor.success) return error('SEARCH_RATE_LIMIT','Please limit searches to five per minute.',429,origin,60);
+        const region=await env.SEARCH_REGIONAL.limit({key:'regional-search'});
+        if(!region.success) return error('SEARCH_CAPACITY','Encyclopedia search is busy in this region.',429,origin,60);
+      } catch {return error('RATE_CONTROL_UNAVAILABLE','Search capacity controls unavailable.',503,origin);}
+      try{return respond(await wikipediaSearch(query),200,origin);}
+      catch(failure){
+        return failure instanceof ExternalToolError
+          ? error(failure.code,failure.message,failure.code==='QUERY_INVALID'?400:503,origin)
+          : error('SEARCH_UNAVAILABLE','Live encyclopedia search unavailable.',503,origin);
+      }
+    }
+    if (path === '/api/image') {
+      const description=typeof input.prompt==='string' ? input.prompt.trim() : '';
+      if(description.length<10 || description.length>500) return error('IMAGE_PROMPT_INVALID','Describe your image in 10–500 characters.',400,origin);
+      try {
+        const visitor=await env.IMAGE_RATE.limit({key:request.headers.get('cf-connecting-ip') || 'unidentified-visitor'});
+        if(!visitor.success) return error('IMAGE_RATE_LIMIT','Image generation is limited to once a minute per visitor.',429,origin,60);
+        const region=await env.IMAGE_REGIONAL.limit({key:'regional-images'});
+        if(!region.success) return error('IMAGE_CAPACITY','The image generator is busy in your region.',429,origin,60);
+      } catch {return error('RATE_CONTROL_UNAVAILABLE','Image capacity controls unavailable.',503,origin);}
+      try{return respond(await generateImage(description,env.AI),200,origin);}
+      catch(failure){
+        return failure instanceof ExternalToolError
+          ? error(failure.code,failure.message,failure.code==='IMAGE_PROMPT_INVALID'?400:503,origin)
+          : error('IMAGE_UNAVAILABLE','Image generation unavailable.',503,origin);
+      }
+    }
     const prompt = typeof input.prompt === 'string' ? input.prompt.trim() : '';
     const mode = typeof input.mode === 'string' ? input.mode : 'explore';
     if (prompt.length < 10 || prompt.length > POLICY.maxPromptLength || !MODES.has(mode)) {
       return error('INVALID_INPUT', 'Use a valid mode and a question from 10 to 900 characters.', 400, origin);
+    }
+    if(mode==='kimi' && !kimiEnabled(env)) {
+      return error('KIMI_NOT_CONNECTED','Kimi is not enabled. The owner must securely connect an authorized Kimi API account and explicitly enable billing.',503,origin);
     }
     const history = Array.isArray(input.history)
       ? input.history.filter(isValidHistoryMessage).slice(-POLICY.maxHistoryItems)
@@ -156,6 +199,12 @@ export default {
       const visitor = await env.VISITOR_RATE.limit({ key: request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
       if (!visitor.success) {
         return error('VISITOR_RATE_LIMIT', 'Your request limit was reached. Try again in about a minute.', 429, origin, 60);
+      }
+      if (mode === 'kimi') {
+        const kimiVisitor = await env.KIMI_RATE.limit({ key:request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
+        if(!kimiVisitor.success) return error('KIMI_RATE_LIMIT','Kimi is limited to once a minute per visitor.',429,origin,60);
+        const kimiRegion = await env.KIMI_REGIONAL.limit({key:'regional-kimi'});
+        if(!kimiRegion.success) return error('KIMI_CAPACITY','Kimi capacity is limited in this region.',429,origin,60);
       }
       if (mode === 'deep') {
         const deepUser = await env.DEEP_RATE.limit({ key: request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
@@ -171,6 +220,15 @@ export default {
       return error('RATE_CONTROL_UNAVAILABLE', 'Capacity controls are unavailable. Please try again.', 503, origin);
     }
 
+    if (mode === 'kimi') {
+      try {
+        return respond(await invokeKimi({ prompt, history, system:SYSTEM+' Mode: '+MODE.kimi },env),200,origin);
+      } catch(failure) {
+        return failure instanceof KimiIntegrationError
+          ? error(failure.code,failure.message,failure.status,origin)
+          : error('KIMI_UNAVAILABLE','The optional Kimi provider is unavailable.',503,origin);
+      }
+    }
     try {
       const selectedModel = mode === 'deep' ? REASONING_MODEL : MODEL;
       const result = await env.AI.run(selectedModel, {
