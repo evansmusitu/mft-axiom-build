@@ -226,6 +226,19 @@ The Studio app is live; status may change after the exported Git SHA. Revalidate
         "external_provider_receipts_must_be_revalidated":True,
         "created_at_utc":datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
+    snapshot=root/"PROVIDER_READONLY_HANDOFF_SNAPSHOT_20261020.json"
+    if snapshot.is_file():
+        data=snapshot.read_bytes()
+        provider=json.loads(data)
+        assert provider.get("schema")=="musitu.studio.2026-10-20.provider-readonly-topology.v1"
+        assert provider.get("cloudflare_account_mutated") is False
+        assert provider.get("credentials_exposed") is False
+        assert provider.get("staff_emails_or_subjects_exposed") is False
+        files["09_FRESH_PROVIDER_READONLY_TOPOLOGY.json"]=data
+        report["fresh_provider_read_only_snapshot_included"]=True
+        report["fresh_provider_checks_all_passed"]=provider.get("release_safety_confirmed_read_only",False)
+    else:
+        report["fresh_provider_read_only_snapshot_included"]=False
     files["08_PACKAGE_REPORT.json"]=(json.dumps(report,indent=2,sort_keys=True)+"\n").encode()
     manifest=[{"path":p,"bytes":len(d),"sha256":sha(d)} for p,d in sorted(files.items())]
     m={
