@@ -166,8 +166,12 @@ export default {
           generatedAt:new Date().toISOString()
         },200,origin);
       } catch(e) {
-        console.warn('musitu_image_model_unavailable',e instanceof Error ? e.name:'unknown');
-        return error('IMAGE_UNAVAILABLE','Image model unavailable or the free allocation has been reached.',503,origin,60);
+        // Only expose a recognized Cloudflare status/error code, never raw provider messages or prompts.
+        const rawCode = [e?.code, e?.status, e?.cause?.code].map(x => String(x ?? '')).find(x => /^\d{3,5}$/.test(x)) ||
+          (typeof e?.message === 'string' ? e.message.match(/\b(?:3036|3040|5035|5018|3041|3023|5007|3007)\b/)?.[0] : null);
+        const providerCode = rawCode || 'UNKNOWN';
+        console.warn('musitu_image_inference_failed_class',e instanceof Error ? e.name:'unknown','providerCode',providerCode);
+        return respond({code:'IMAGE_UNAVAILABLE',error:'Image model unavailable or free quota reached.',providerCode},503,origin,{'retry-after':'60'});
       }
     }
     if (path === '/api/calculate') {
