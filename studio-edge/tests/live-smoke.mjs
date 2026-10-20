@@ -76,3 +76,33 @@ assert.equal(deepData.model,'@cf/qwen/qwen3-30b-a3b-fp8');
 assert.ok(deepData.reply.length>=40,'Deep model must return a meaningful final answer');
 assert.doesNotMatch(deepData.reply,/<think>/i);
 console.log('TWO-MODEL + DETERMINISTIC CALCULATOR LIVE PASS',base,'deepChars',deepData.reply.length);
+
+
+assert.equal(info.curatedLiveSources,true);
+assert.equal(info.tools.find(t=>t.id==='image').path,'/api/image');
+const image = await read('/api/image',{
+ method:'POST',headers:{'content-type':'application/json',origin:SITE},
+ body:JSON.stringify({prompt:'A luminous floating research library over a green African landscape, atmospheric digital painting, dramatic sunlight.'})
+});
+const imageRaw=await image.text();
+let imageData;
+try{imageData=JSON.parse(imageRaw);}catch{throw Error('Image endpoint returned invalid JSON');}
+if(image.status!==200)throw Error('Real image generation failed '+image.status+': '+JSON.stringify(imageData).slice(0,250));
+assert.equal(imageData.model,'@cf/black-forest-labs/flux-1-schnell');
+assert.ok(imageData.image.startsWith('data:image/jpeg;base64,/9j/'));
+assert.ok(imageData.image.length>2500);
+console.log('LIVE IMAGE GENERATION PASS',base,'imageDataURIChars',imageData.image.length);
+const web = await read('/api/chat',{
+ method:'POST',headers:{'content-type':'application/json',origin:SITE},
+ body:JSON.stringify({mode:'research',prompt:'Research the basics of quantum computing using live public sources and explain what the sources establish.'})
+});
+const webRaw=await web.text();
+let evidence;
+try{evidence=JSON.parse(webRaw);}catch{throw Error('Research endpoint returned invalid JSON');}
+if(web.status!==200)throw Error('Real public-source research failed '+web.status+': '+JSON.stringify(evidence).slice(0,250));
+assert.equal(evidence.mode,'research');
+assert.equal(evidence.liveSearch,true);
+assert.ok(Array.isArray(evidence.sources) && evidence.sources.length>0,'At least one real public source required');
+assert.ok(evidence.sources.every(s=>s.url.startsWith('https://en.wikipedia.org/wiki/')||s.url.startsWith('https://news.ycombinator.com/item?id=')));
+assert.ok(evidence.reply.length>40);
+console.log('LIVE SOURCE-LINKED INTERNET RESEARCH PASS',base,'sourceCount',evidence.sources.length,'replyChars',evidence.reply.length);
