@@ -1,5 +1,7 @@
 # LIFELINE MT5 — Windows agent acquisition and deployment contract
 
+Stage contract: no broker credentials, no live orders, and no persistent server on the public CI Windows runner.
+
 ## Phase A: immediate zero-cost native build runner
 Use **GitHub Actions Windows 2022** on this public repository. This is a **temporary Windows runner**, not an always-on backend. Its job is to qualify Windows x64, filesystem, subprocesses, and later signed installer execution + MetaEditor compile /log, using only disposable source. Never use real trading accounts or secrets on a public-repository runner. Github Actions is free for standard public-repository runners, subject to GitHub policy.
 
