@@ -1,5 +1,6 @@
 import { calculate, CalculationError } from './math.mjs';
 import { searchPublicSources } from './research.mjs';
+import { constrainResearchCitations } from './citations.mjs';
 const SITE = 'https://evansmusitu.github.io';
 const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 const REASONING_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
@@ -267,12 +268,18 @@ export default {
       if (!reply) {
         return error('EMPTY_INFERENCE', 'The model returned no answer. Please try again.', 502, origin);
       }
+      const attribution = evidence ? constrainResearchCitations(reply,evidence.sources) : null;
       return respond({
-        reply,
+        reply: attribution ? attribution.reply : reply,
         mode,
         model: selectedModel,
         liveSearch: mode === 'research',
-        ...(evidence ? { sources:evidence.sources,sourceScope:evidence.scope,retrievedAt:evidence.retrievedAt } : {}),
+        ...(evidence ? {
+          sources:evidence.sources,
+          sourceScope:evidence.scope,
+          retrievedAt:evidence.retrievedAt,
+          citationAudit:attribution.citationAudit
+        } : {}),
         generatedAt: new Date().toISOString()
       }, 200, origin);
     } catch (failure) {
