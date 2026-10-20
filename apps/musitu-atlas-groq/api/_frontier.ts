@@ -3,10 +3,10 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {viaGateway,viaZeroRatedGateway,generationCost} from './_gateway.js';
 export {respond,text,guard,body,fail};
 type Message={role:'system'|'user'|'assistant';content:string};
-export type ModelChoice='groq_fast'|'groq_quality'|'openai_sol'|'openai_astra'|'claude_sonnet'|'claude_opus'|'gemini_free'|'nemotron_free'|'beam_free';
+export type ModelChoice='groq_fast'|'groq_quality'|'openai_sol'|'openai_astra'|'claude_sonnet'|'claude_opus'|'gemini_free'|'nemotron_free'|'beam_free'|'openai_luna';
 export const MODEL_IDS:Record<ModelChoice,string>={
  groq_fast:'openai/gpt-oss-20b',groq_quality:'openai/gpt-oss-120b',
- openai_sol:'gpt-6.1-sol',openai_astra:'gpt-6-astra',
+ openai_sol:'gpt-6.1-sol',openai_astra:'gpt-6-astra',openai_luna:'gpt-6-luna',
  claude_sonnet:'claude-sonnet-5-5',claude_opus:'claude-opus-5-5',
  gemini_free:'gemini-3.8-flash',nemotron_free:'nvidia/nemotron-3-ultra-550b-a55b:free',beam_free:'reflection/beam-free'
 };
@@ -26,6 +26,7 @@ export function catalog(){
  return [
   {id:'openai_sol',label:'GPT-6.1 Sol',provider:'OpenAI',model:MODEL_IDS.openai_sol,available:on&&hasO,tier:'frontier'},
   {id:'openai_astra',label:'GPT-6 Astra',provider:'OpenAI',model:MODEL_IDS.openai_astra,available:on&&hasO,tier:'frontier'},
+  {id:'openai_luna',label:'GPT-6 Luna · High-volume efficiency',provider:'OpenAI',model:MODEL_IDS.openai_luna,available:on&&hasO,tier:'frontier'},
   {id:'claude_sonnet',label:'Claude Sonnet 5.5',provider:'Anthropic',model:MODEL_IDS.claude_sonnet,available:on&&hasA,tier:'frontier'},
   {id:'claude_opus',label:'Claude Opus 5.5',provider:'Anthropic',model:MODEL_IDS.claude_opus,available:on&&hasA,tier:'frontier'},
   {id:'beam_free',label:'Beam 1.0 · Guaranteed free-only slug',provider:'Vercel Gateway',model:MODEL_IDS.beam_free,available:usesGateway,tier:'free'},
@@ -88,7 +89,7 @@ export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:bo
  const a=createHash('sha256').update(accessCode).digest(),b=createHash('sha256').update(expected).digest();
  if(!timingSafeEqual(a,b))throw businessError(403,'The private frontier access code is not valid.');
  if(process.env.ATLAS_LAB_USE_GATEWAY==='enabled'){
-  const ids:{[k:string]:string}={openai_sol:'openai/gpt-6.1-sol',openai_astra:'openai/gpt-6-astra',claude_sonnet:'anthropic/claude-sonnet-5.5',claude_opus:'anthropic/claude-opus-5.5'};
+  const ids:{[k:string]:string}={openai_sol:'openai/gpt-6.1-sol',openai_astra:'openai/gpt-6-astra',openai_luna:'openai/gpt-6-luna',claude_sonnet:'anthropic/claude-sonnet-5.5',claude_opus:'anthropic/claude-opus-5.5'};
   const model=ids[mode];
   const v=await viaGateway(model,messages,tokenLimit??650);
   // The actual cost is queried by generation ID; pending ingestion is reported as unknown.
