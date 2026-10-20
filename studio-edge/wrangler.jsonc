@@ -54,6 +54,54 @@
         "limit": 40,
         "period": 60
       }
+    },
+    {
+      "name": "IMAGE_RATE",
+      "namespace_id": "202610211",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    },
+    {
+      "name": "IMAGE_REGIONAL",
+      "namespace_id": "202610212",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
+    },
+    {
+      "name": "SEARCH_RATE",
+      "namespace_id": "202610213",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "SEARCH_REGIONAL",
+      "namespace_id": "202610214",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "KIMI_RATE",
+      "namespace_id": "202610215",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    },
+    {
+      "name": "KIMI_REGIONAL",
+      "namespace_id": "202610216",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
     }
   ]
 }
