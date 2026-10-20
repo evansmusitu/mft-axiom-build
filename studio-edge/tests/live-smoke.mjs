@@ -7,9 +7,17 @@ const SITE = 'https://evansmusitu.github.io';
 async function read(path, options = {}) {
   return fetch(base + path, { ...options, signal: AbortSignal.timeout(80000) });
 }
-const health = await read('/api/health', { headers: { origin: SITE } });
-assert.equal(health.status, 200);
-const info = await health.json();
+let info;
+for(let attempt=0;attempt<20;attempt++){
+  const health = await read('/api/health?deploymentProbe='+attempt, { headers:{origin:SITE,'cache-control':'no-cache'} });
+  if(health.ok){
+    info=await health.json();
+    if(info.tools?.some(t=>t.id==='image') && info.curatedLiveSources === true)break;
+  }
+  await new Promise(resolve=>setTimeout(resolve,3000));
+}
+assert.ok(info?.tools?.some(t=>t.id==='image') && info.curatedLiveSources === true,
+  'Deployment did not propagate the newly added image and public-source tools');
 assert.equal(info.service, 'MUSITU Intelligence Edge');
 assert.equal(info.rateLimit.visitorPerMinute, 5);
 assert.equal(info.rateLimit.regionPerMinute, 12);
