@@ -1,0 +1,47 @@
+name: LIFELINE MT5 Five-Cloud Isolated CI
+on:
+  push:
+    branches:
+      - product/lifeline-mt5-fivecloud-isolated-20261020
+  pull_request:
+    paths:
+      - 'products/lifeline-mt5-ai-studio/**'
+      - '.github/workflows/lifeline-mt5-fivecloud-ci.yml'
+permissions:
+  contents: read
+jobs:
+  contract-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse source without deploying
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=products/lifeline-mt5-ai-studio
+          python -m py_compile "$P/infra/modal/app.py"
+          node --check "$P/infra/cloudflare/index.mjs"
+          python - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('products/lifeline-mt5-ai-studio/infra')
+          schema=(root/'neon/001_init.sql').read_text()
+          worker=(root/'cloudflare/index.mjs').read_text()
+          config=(root/'cloudflare/wrangler.toml').read_text()
+          assert 'FORCE ROW LEVEL SECURITY' in schema
+          assert "current_setting('lifeline.tenant_subject',true)" in schema
+          assert 'jwtVerify(jwt,keys' in worker
+          assert "algorithms:['RS256']" in worker
+          assert 'requires_proxy_auth=True' in (root/'modal/app.py').read_text()
+          assert 'workers_dev = false' in config
+          assert '93f395f5121954671f92fffa453d6b61' in config
+          assert 'order_send' not in worker
+          assert 'MODAL_PROXY_SECRET' in worker
+          json.loads((root/'vercel/vercel.json').read_text())
+          print('contract_source_verified=true;live_deploy=false')
+          PY
+      - name: Verify no automatic deployment
+        run: echo 'No Cloudflare/Vercel/Modal/Neon changes are made by CI.'
