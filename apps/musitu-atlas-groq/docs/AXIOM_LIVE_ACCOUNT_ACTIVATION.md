@@ -22,3 +22,7 @@ The log records row-level event timestamps and SHA-256 content fingerprints. It 
 - The Vercel environment holds `ATLAS_AXIOM_DATABASE_URL` only as a sensitive production variable.
 - Axiom account key **not available** to the website as of 2026-10-20. `ATLAS_AXIOM_EXECUTE_ENABLED` remains unset; no account compute calls dispatched by website.
 - Public production `musitu-atlas-groq`, protected main, and frozen OpenAI submission remain untouched.
+
+## Outstanding Neon privilege restriction
+
+The Neon management API provisioned `atlas_runtime` with inherited `neon_superuser` membership, despite application-level table grants. Database readback confirmed `DELETE` privileges remain available to this role; therefore it is **not** a least-privilege identity. Attempts to revoke the inherited membership or role attributes were denied by the Neon admin boundary. A separate SQL-created `atlas_web_limited` role currently lacks a usable password, so it was **not** substituted into the live Vercel environment. Only the isolated ATLAS ledger database is exposed, never the legacy Axiom customer database. DO NOT enable account-backed execution until a genuinely restricted runtime identity can be provisioned and verified with `has_table_privilege(...,'DELETE') = false` and `rolbypassrls = false`. The provider token and execution activation flags are absent, providing an independent fail-closed safeguard.
