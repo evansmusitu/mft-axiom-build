@@ -1,5 +1,5 @@
 import {parseBody,parseExpression,hashPayload,respond,fail,OPERATION,authConfigured,verifyApproval,deny} from './_contract.js';
-import {ledgerReady,lookup} from './_ledger.js';
+import {ledgerReady,lookup,assessRuntimeRole} from './_ledger.js';
 export default async function handler(req:any,res:any){
  if(req.method!=='POST')return respond(res,405,{error:'Method not allowed.'});
  try{
@@ -17,12 +17,14 @@ export default async function handler(req:any,res:any){
   }
   if(data.action!==undefined)throw deny(400,'Unknown preview action.');
   const expression=parseExpression(data.expression);
+  const privilegeCheck=ledgerReady()?await assessRuntimeRole().catch(()=>null):null;
   return respond(res,200,{
    previewVersion:'axiom-atlas-v1',operation:OPERATION,
    args:{expression},digest:hashPayload(expression),
    status:'READY_FOR_REVIEW_NOT_EXECUTED',
    sideEffects:'One account-metered Axiom compute operation if submitted.',
-   executionConfigured:authConfigured()&&ledgerReady(),
+   executionConfigured:authConfigured()&&ledgerReady()&&privilegeCheck?.restricted===true,
+   runtimeRoleRestricted:privilegeCheck?.restricted===true,
    ledgerConnected:ledgerReady(),
    quotaLimitPerUtcDay:20,
    requiresOperatorConsent:true,requiresPrivateAccessCode:true,
