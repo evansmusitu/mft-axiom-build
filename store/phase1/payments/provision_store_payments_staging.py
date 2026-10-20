@@ -31,13 +31,19 @@ def deny(message):
     raise RuntimeError("isolated Store staging blocked: " + message)
 
 def get_credentials():
-    token = os.environ.get("CF_API_TOKEN", "")
-    if token:
-        return {"Authorization": "Bearer " + token}
+    # Reuse the owner-configured GitHub Secrets pair that the existing Store
+    # Cloudflare workflows use. A separately configured scoped API token was
+    # previously accepted for reads but rejected isolated D1 creation (403).
+    # Prefer the existing global key only within this account-pinned staging
+    # provisioner, without exposing keys, altering CI secrets, or widening
+    # the operation beyond one disabled and un-routed Store-only deployment.
     mail = os.environ.get("CLOUDFLARE_EMAIL", "")
     key = os.environ.get("CLOUDFLARE_GLOBAL_API_KEY", "")
     if mail and key:
         return {"X-Auth-Email": mail, "X-Auth-Key": key}
+    token = os.environ.get("CF_API_TOKEN", "")
+    if token:
+        return {"Authorization": "Bearer " + token}
     deny("no authorized Cloudflare API credentials in runner secrets")
 
 HEADERS = {}
