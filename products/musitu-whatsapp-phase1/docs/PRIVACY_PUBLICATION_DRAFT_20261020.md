@@ -1,11 +1,12 @@
 # MUSITU WhatsApp AI Employee — privacy publication review draft
 
-Status: PRIVATE DRAFT, 20 October 2026. Do not submit this file as a completed
-privacy policy, publish it, or populate Meta URLs until the operator/contact,
-retention, deletion and applicable legal requirements are confirmed. This draft
-describes the current engineering state; it asserts no legal certification.
+Status: HISTORICAL PRIVATE REVIEW DRAFT, 20 October 2026. The user subsequently
+approved Evans Musitu as operator and evansmusitu5@gmail.com as the public privacy
+contact. Current public notice source is `deployments/privacy-notice/public/`.
+This engineering review is not the public notice and asserts no legal certification.
+Retention/deletion qualification and applicable legal review remain incomplete.
 
-## Owner decisions required before publication
+## Original review decisions (operator/contact now approved)
 
 - Confirm whether the legal operator is Evans Musitu personally or a registered
   entity, and supply the exact public operator name.
