@@ -130,3 +130,47 @@ project, not the public MUSITU ATLAS project. One free provider response is
 necessary before claiming the model works for this account. A free suffix is
 provider pricing documentation, not proof of zero charges until telemetry is
 inspected. Do not open routes to anonymous visitors.
+
+## Official-benchmark routing policy — 20 October 2026
+
+We stopped using ad hoc MUSITU head-to-head model shootouts to select the
+initial premium routing defaults. The private Model Lab now displays eight
+source-attributed, task-specific recommendations sourced from official model
+release material (not from model inference) and offers a one-click
+**Use in AI Assistant** action. No inference, credit consumption or model
+fallback occurs from viewing these recommendations.
+
+* **Default complex professional work:** GPT-6.1 Sol (`openai/gpt-6.1-sol`);
+  near-Astra official positioning, $2/$10 per million input/output tokens.
+  https://developers.openai.com/api/docs/models/gpt-6.1-sol
+* **Complex computer/business automation:** GPT-6 Astra
+  (`openai/gpt-6-astra`); OpenAI AutomationBench 41.4%, OSWorld 2.0 72.6%.
+  https://openai.com/index/gpt-6-astra/
+* **Difficult codebase-wide engineering:** Claude Opus 5.5
+  (`anthropic/claude-opus-5.5`); Anthropic FrontierCode v1.1 54.4%.
+  https://www.anthropic.com/claude-opus-5-5
+* **Scoped bug fixes and well-defined documents:** Claude Sonnet 5.5
+  (`anthropic/claude-sonnet-5.5`); Anthropic Terminal-Bench 4.0 70.6%.
+  https://www.anthropic.com/claude-sonnet-5-5
+* **Advanced science/mathematics:** GPT-6 Astra, reserved for high-impact work;
+  FrontierMath Tier 4 v2 98% per OpenAI.
+  https://openai.com/index/gpt-6-astra/
+* **High-volume focused tasks:** GPT-6 Luna
+  (`openai/gpt-6-luna`); $0.10/$0.50 per million input/output tokens.
+  https://developers.openai.com/api/docs/guides/latest-model
+* **Explicit no-credit work:** Vercel `reflection/beam-free`, not claimed as
+  intelligence-equivalent to frontier models.
+
+The figures are reported by their publishers under non-identical benchmarks,
+harnesses, model settings and effort levels; we do not infer a universal global
+model leaderboard from them. Price examples in API metadata are illustrative
+for 1000 uncached input and 500 output tokens, NOT live usage measurements.
+
+`GET /api/official-recommendations` (optionally `?task=codebase` or `?q=...prompt`)
+returns the published evidence, selection and current configured status without
+calling an inference endpoint.
+
+Every paid request continues to require private Vercel access, a matching
+server-side access code, a checked consent control and a positive Gateway credit
+check. Neither $1 project budget nor vendor benchmarks are a guarantee of
+per-request cost, a model's actual runtime availability or business outcomes.
