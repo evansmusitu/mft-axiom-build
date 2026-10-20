@@ -1,0 +1,67 @@
+name: MUSITU Evidence Citation Canary & Release
+
+on:
+  push:
+    branches: [feature/musitu-research-reference-integrity-20261020]
+    paths:
+      - studio-edge/**
+      - .github/workflows/musitu-evidence-citation-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-evidence-source-release
+  cancel-in-progress: false
+
+jobs:
+  prove-then-promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CANARY: https://musitu-intelligence-edge-capacity-canary-20261019.mft-education-nexus-93f395f5.workers.dev
+      PRODUCTION: https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deterministic security and regression suite
+        run: |
+          set -euo pipefail
+          node --check studio-edge/worker.mjs
+          node --check studio-edge/citations.mjs
+          node --test studio-edge/tests/*.test.mjs
+      - name: Require already provisioned Cloudflare token without exposing it
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Deploy canary only
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.canary.jsonc
+      - name: Prove live citations are restricted to actual retrieved sources
+        env:
+          TARGET_WORKER: ${{ env.CANARY }}
+        run: node studio-edge/tests/citations-live.mjs
+      - name: Promote passing Worker to the same isolated production service
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.jsonc
+          echo 'PRODUCTION_TOUCHED=1' >> "$GITHUB_ENV"
+      - name: Prove production evidence citation behavior
+        env:
+          TARGET_WORKER: ${{ env.PRODUCTION }}
+        run: node studio-edge/tests/citations-live.mjs
+      - name: Restore prior verified Worker on failed production acceptance
+        if: ${{ failure() && env.PRODUCTION_TOUCHED == '1' }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-prior
+          for file in worker.mjs research.mjs math.mjs wrangler.jsonc; do
+            git show 68ad4ed7377075d92637e2033a7382613f7bcfee:studio-edge/$file > /tmp/musitu-prior/$file
+          done
+          npx -y wrangler@4.129.0 deploy --config /tmp/musitu-prior/wrangler.jsonc
+          echo 'Restored verified prior production Worker'
