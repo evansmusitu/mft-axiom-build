@@ -1,0 +1,28 @@
+name: ATLAS Gateway One-Dollar Project Budget
+on:
+  push:
+    branches:
+      - feature/atlas-zero-cost-gateway-benchmark-20261020
+    paths:
+      - '.github/workflows/atlas-zero-cost-budget.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  set-atlas-lab-cap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Configure and verify only the isolated AI Lab project budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "::warning::VERCEL_TOKEN GitHub Actions secret unavailable; no budgets changed."
+            exit 1
+          fi
+          npx --yes vercel@64.5.0 ai-gateway budgets set project musitu-atlas-ai-lab --limit 1 --refresh-period none --scope evansmusitu --token "$VERCEL_TOKEN"
+          npx --yes vercel@64.5.0 ai-gateway budgets list --scope evansmusitu --token "$VERCEL_TOKEN"
+          echo "ATLAS LAB BUDGET SET: USD 1 total / no reset; no credits purchased."
