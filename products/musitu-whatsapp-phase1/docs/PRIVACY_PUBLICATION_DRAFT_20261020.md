@@ -99,7 +99,7 @@ from data erasure; describe approved retention/backups/exceptions; and provide a
 request reference/response path. Do not claim automatic deletion, a production
 callback, or a guaranteed deadline before the actual workflow is qualified.
 
-## Current Meta blocker and publication boundary
+## Historical Meta blocker before approved notice publication
 
 The actual isolated app is Unpublished. Its setup page limits unpublished apps
 to dashboard test webhooks, including withholding real admin/developer/tester
@@ -111,3 +111,6 @@ Publishing an approved public policy/instructions page and publishing the Meta a
 are separate actions. Neither action is authorized by this draft or has been
 performed. Keep SaaS SSO, test-only account/recipient boundaries and outbound gates.
 See `evidence/20261020/meta-publication-readonly.json`.
+
+Current publication result supersedes the original decision/status text above:
+see `PRIVACY_NOTICE_PUBLICATION_20261020.md`.

@@ -29,5 +29,5 @@ function checkComplete(dir){
   }else if(item.isSymbolicLink())throw new Error(`SOURCE_SYMLINK_NOT_ALLOWED:${child}`);
  }
 }
-for(const sourceRoot of ['src','test','scripts','db','.github','app','public','deployments/meta-ingress'])checkComplete(sourceRoot);
+for(const sourceRoot of ['src','test','scripts','db','.github','app','public','deployments/meta-ingress','deployments/privacy-notice'])checkComplete(sourceRoot);
 console.log(`LOCAL_SOURCE_MANIFEST_PASS (${listed.size} tracked files; source tree completeness checked)`);
