@@ -7,7 +7,9 @@
  */
 import {verifyAccessJWT,accessConfiguration,AccessVerificationError} from './access-jwt.mjs';
 
-const SITE='https://evansmusitu.github.io';
+const PRIVATE_SITE='https://workspace.mftintelligence.com';
+// A dedicated first-party, Access-protected workspace origin. The public
+// GitHub Pages origin may not reach this private API by browser CORS.
 const ROUTE=/^\/api\/workspace\/v1\/tenants\/([a-z][a-z0-9_-]{2,39})\/slots\/([1-5])$/;
 const MAX_JSON=250250;
 const FIXED={
@@ -20,7 +22,7 @@ const FIXED={
 };
 function answer(payload,status=200,origin=''){
   const headers=new Headers(FIXED);
-  if(origin===SITE)headers.set('access-control-allow-origin',SITE);
+  if(origin===PRIVATE_SITE)headers.set('access-control-allow-origin',PRIVATE_SITE);
   return new Response(JSON.stringify(payload),{status,headers});
 }
 function denied(code,status,origin){return answer({code,error:'Cloud workspace operation denied.'},status,origin);}
@@ -41,7 +43,7 @@ export function validOpaqueEnvelope(data){
     b64len(obj.ciphertext)>=17&&b64len(obj.ciphertext)<=160096;
 }
 function configReady(env){
-  if(env?.WORKSPACE_ENABLED!=='true'||!env?.WORKSPACE_DB?.prepare||
+  if(env?.WORKSPACE_ENABLED!=='true'||env?.WORKSPACE_ORIGIN!==PRIVATE_SITE||!env?.WORKSPACE_DB?.prepare||
       !env?.WORKSPACE_RATE?.limit)return false;
   try{accessConfiguration(env);return true;}catch{return false;}
 }
@@ -56,13 +58,18 @@ async function subjectRate(env,subject){
 /** Exported for offline contract tests; public config remains disabled by default. */
 export async function workspaceFetch(request,env,{verifyJWT=verifyAccessJWT}={}){
   const origin=request.headers.get('origin')||'';
-  const path=new URL(request.url).pathname;
+  const url=new URL(request.url);
+  const path=url.pathname;
   const method=request.method.toUpperCase();
   if(!configReady(env))return denied('WORKSPACE_NOT_CONFIGURED',503,origin);
-  if(origin!==SITE)return denied('ORIGIN_DENIED',403,origin);
+  // Only the Access-protected first-party hostname is supported. Same-origin
+  // GETs often omit Origin; state-changing requests must supply it. Host and
+  // Origin checks supplement cryptographic Access and D1 authorization.
+  if(url.origin!==PRIVATE_SITE||(origin && origin!==PRIVATE_SITE)||
+     (!origin && method!=='GET'))return denied('ORIGIN_DENIED',403,origin);
   if(method==='OPTIONS'&&ROUTE.test(path)){
     return new Response(null,{status:204,headers:{
-      'access-control-allow-origin':SITE,'access-control-allow-methods':'GET, PUT, DELETE, OPTIONS',
+      'access-control-allow-origin':PRIVATE_SITE,'access-control-allow-methods':'GET, PUT, DELETE, OPTIONS',
       'access-control-allow-headers':'content-type,cf-access-jwt-assertion',
       'access-control-max-age':'300','cache-control':'no-store','vary':'Origin'
     }});

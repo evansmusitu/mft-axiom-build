@@ -7,7 +7,8 @@
   "compatibility_date": "2026-10-20",
   "workers_dev": false,
   "vars": {
-    "WORKSPACE_ENABLED": "false"
+    "WORKSPACE_ENABLED": "false",
+    "WORKSPACE_ORIGIN": "https://workspace.mftintelligence.com"
   }
   // Intentionally no routes, no D1 binding, no auth issuer/AUD and no rate
   // control until explicit private infrastructure verification and signoff.

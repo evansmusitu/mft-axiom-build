@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
 import {workspaceFetch,validOpaqueEnvelope} from '../gateway.mjs';
 globalThis.crypto??=webcrypto;
-const ORIGIN='https://evansmusitu.github.io';
-const URL='https://private.example.test/api/workspace/v1/tenants/enterprise-abc/slots/1';
+const ORIGIN='https://workspace.mftintelligence.com';
+const URL=ORIGIN+'/api/workspace/v1/tenants/enterprise-abc/slots/1';
 const json=(v)=>JSON.stringify(v);
 const b64=byteCount=>Buffer.from(Array.from({length:byteCount},(_,i)=>i%256)).toString('base64');
 const ciphertext=json({kind:'musitu-local-encrypted-workspace',version:1,cipher:'AES-256-GCM',
@@ -58,14 +58,15 @@ class D1Mock{
 }
 function mock(subject='identity-1234'){
   const db=new D1Mock();db.provision('enterprise-abc',subject,'owner');
-  const env={WORKSPACE_ENABLED:'true',ACCESS_TEAM_DOMAIN:'https://team.cloudflareaccess.com',
+  const env={WORKSPACE_ENABLED:'true',WORKSPACE_ORIGIN:ORIGIN,ACCESS_TEAM_DOMAIN:'https://team.cloudflareaccess.com',
     ACCESS_AUD:'qualified_app_aud',WORKSPACE_DB:db,WORKSPACE_RATE:{limit:async()=>({success:true})}};
   const handler=(request,extra={})=>workspaceFetch(request,{...env,...extra},{verifyJWT:async()=>({subject})});
   return {db,env,handler};
 }
 test('cloud sync feature remains disabled by default or missing Access, D1 and rate binding',async()=>{
   const {env}=mock();
-  for(const overrides of [{WORKSPACE_ENABLED:'false'},{WORKSPACE_DB:null},
+  for(const overrides of [{WORKSPACE_ENABLED:'false'},{WORKSPACE_ORIGIN:'https://evansmusitu.github.io'},
+    {WORKSPACE_ORIGIN:undefined},{WORKSPACE_DB:null},
     {ACCESS_AUD:''},{WORKSPACE_RATE:undefined},{ACCESS_TEAM_DOMAIN:'https://fake.invalid'}]){
     const r=await workspaceFetch(req(),{...env,...overrides});
     assert.equal(r.status,503);
@@ -205,4 +206,15 @@ test('response disallows caches and extra origin, and only five slot routes exis
   }
   assert.equal((await handler(req('GET',URL.replace('/slots/1','/slots/0')))).status,404);
   assert.equal((await handler(req('GET',URL.replace('/slots/1','/slots/10')))).status,404);
+});
+
+test('first-party workspace origin cannot be confused with public GitHub Pages or workers.dev',async()=>{
+  const {handler}=mock();
+  assert.equal((await handler(req('GET',URL.replace('workspace.mftintelligence.com','evil.workers.dev')))).status,403);
+  assert.equal((await handler(req('GET',URL,null,{origin:'https://evansmusitu.github.io'}))).status,403);
+  const getWithoutOrigin = new Request(URL,{headers:{'cf-access-jwt-assertion':'sample-access-token'}});
+  assert.equal((await handler(getWithoutOrigin)).status,404,'First-party GET can lack an Origin header');
+  const hostileMutation = new Request(URL,{method:'PUT',headers:{'cf-access-jwt-assertion':'sample-access-token',
+    'content-type':'application/json'},body:JSON.stringify({expectedVersion:0,encrypted:ciphertext})});
+  assert.equal((await handler(hostileMutation)).status,403,'State-changing calls always require an Origin');
 });

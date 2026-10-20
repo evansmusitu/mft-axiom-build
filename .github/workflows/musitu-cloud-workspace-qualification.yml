@@ -30,6 +30,8 @@ jobs:
           set -euo pipefail
           node --check studio-edge/cloud-workspace/access-jwt.mjs
           node --check studio-edge/cloud-workspace/gateway.mjs
+          node --check studio-edge/cloud-workspace/client-sync.mjs
+          python3 -m py_compile studio-edge/cloud-workspace/tests/cloudflare_readonly_inventory.py
           node --test studio-edge/cloud-workspace/tests/*.test.mjs
           python3 studio-edge/cloud-workspace/tests/sql_contract.py
           grep -Fq '"workers_dev": false' studio-edge/cloud-workspace/wrangler.isolated.example.jsonc
@@ -38,4 +40,4 @@ jobs:
             echo 'Cloud workspace was unexpectedly wired into existing production Edge Worker' >&2
             exit 1
           fi
-          echo 'MUSITU ISOLATED SECURE WORKSPACE CONTRACT QUALIFICATION PASS — NO CLOUD DEPLOYMENT'
+          echo 'MUSITU ISOLATED SECURE WORKSPACE + OPT-IN CLIENT CONTRACT PASS — NO CLOUD DEPLOYMENT'
