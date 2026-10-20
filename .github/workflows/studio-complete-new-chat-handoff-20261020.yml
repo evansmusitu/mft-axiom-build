@@ -73,6 +73,37 @@ jobs:
           subprocess.run([sys.executable,'/tmp/studio_verify_transfer.py',str(p.resolve())],check=True)
           print('NEW_CHAT_EMBEDDED_VERIFIER=PASS')
           PY
+      - name: Prepare DIRECT archive content for a clean non-nested Drive ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,zipfile,json
+          p=pathlib.Path('MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip')
+          dest=pathlib.Path('DIRECT_DRIVE_ZIP_CONTENT')
+          dest.mkdir(exist_ok=True)
+          with zipfile.ZipFile(p) as z:
+            assert z.testzip() is None
+            names=z.namelist()
+            assert all(not x.startswith('/') and '..' not in pathlib.PurePosixPath(x).parts for x in names)
+            for name in names:
+              target=dest/name
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_bytes(z.read(name))
+          root=dest/'MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020'
+          assert (root/'MANIFEST_SHA256.json').is_file()
+          manifest=json.loads((root/'MANIFEST_SHA256.json').read_text())
+          assert len(manifest['files'])>=160
+          assert (root/'PRODUCT_SOURCE/.github/workflows/studio-complete-new-chat-handoff-20261020.yml').is_file()
+          print('STUDIO_DIRECT_DRIVE_ARCHIVE_CONTENT=PASS',len(names),'files')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020_DIRECT
+          path: DIRECT_DRIVE_ZIP_CONTENT/
+          retention-days: 45
+          include-hidden-files: true
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020
