@@ -49,7 +49,7 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
    try{
     const raw=await file.text();
     const receipt=JSON.parse(raw) as unknown;
-    const {data}=await api.post('/api/axiom/replay',{receipt});
+    const {data}=await api.post('/api/axiom/verify',{action:'replay',receipt});
     if(data?.status!=='PROOF_REPLAY_CONSISTENT'||data.digestMatches!==true||data.resultMatches!==true)
       throw Error('Replay did not confirm proof consistency.');
     setReplayMessage('Verified replay: exact result '+data.recomputedExact+'. Receipt calculation and SHA-256 are consistent. Issuer identity is not authenticated.');
