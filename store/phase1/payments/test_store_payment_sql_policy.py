@@ -6,20 +6,10 @@ SCHEMA = pathlib.Path(__file__).with_name("store-axiom-checkout-schema.sql")
 
 class StorePaymentSqlPolicyTests(unittest.TestCase):
     def test_review_requires_prior_verified_provider_record(self):
-        db = sqlite3.connect(":memory:")
-        db.execute("PRAGMA foreign_keys=ON")
-        db.executescript(SCHEMA.read_text())
-        db.execute("INSERT INTO store_products(sku,amount_cents,currency,publisher_type,status) VALUES('MUSITU_OWNED_APP',425,'USD','first_party','approved')")
-        db.execute("""INSERT INTO store_checkout_intents
-            (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at,browser_url,poll_url)
-            VALUES('STORE-ABCDEF0123456789','customer_fixture','MUSITU_OWNED_APP',425,'USD',
-            'pending','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
-            'https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
-            'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444')""")
         with self.assertRaises(sqlite3.IntegrityError):
-            db.execute("UPDATE store_checkout_intents SET status='review_required'")
-        self.assertEqual(db.execute("SELECT status FROM store_checkout_intents").fetchone()[0],"pending")
-
+            self.db.execute("UPDATE store_checkout_intents SET status='review_required'")
+        self.assertEqual(self.db.execute("SELECT status FROM store_checkout_intents").fetchone()[0],
+                         "pending")
 
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
@@ -29,9 +19,12 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
         self.db.execute("""INSERT INTO store_checkout_intents
           (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at,browser_url,poll_url)
           VALUES('STORE-ABCDEF0123456789','customer_fixture','MUSITU_OWNED_APP',425,'USD',
-          'pending','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
-          'https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
-          'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444')""")
+          'initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
+          NULL,NULL)""")
+        self.db.execute("""UPDATE store_checkout_intents
+          SET status='pending', browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
+          poll_url='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444'
+          WHERE reference='STORE-ABCDEF0123456789'""")
 
     def provider_review(self, status="review_required"):
         self.db.execute("""INSERT INTO store_checkout_reviews
@@ -85,9 +78,12 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
         self.db.execute("""INSERT INTO store_checkout_intents
           (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at,browser_url,poll_url)
           VALUES('STORE-ABCDEF0123456790','customer_fixture','MUSITU_OWNED_APP',425,'USD',
-          'pending','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
-          'https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
-          'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444')""")
+          'initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
+          NULL,NULL)""")
+        self.db.execute("""UPDATE store_checkout_intents
+          SET status='pending', browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
+          poll_url='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444'
+          WHERE reference='STORE-ABCDEF0123456790'""")
         before = self.db.execute(
             "SELECT reference,paynow_reference FROM store_checkout_reviews").fetchall()
         with self.assertRaises(sqlite3.IntegrityError):
@@ -116,6 +112,45 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
                        'https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
                        'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444')""")
         self.assertEqual(self.db.execute("SELECT status FROM store_checkout_intents").fetchone()[0],"cancelled")
+
+    def test_direct_pending_insert_rejected_before_provider_initiation(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""INSERT INTO store_checkout_intents
+              (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at,browser_url,poll_url)
+              VALUES('STORE-ABCDEF0123456799','customer_fixture','MUSITU_OWNED_APP',425,'USD',
+              'pending','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z',
+              'https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
+              'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444')""")
+
+    def test_initiating_order_amount_customer_sku_and_expiry_cannot_change(self):
+        self.db.execute("""INSERT INTO store_checkout_intents
+          (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at)
+          VALUES('STORE-ABCDEF0123456799','customer_fixture','MUSITU_OWNED_APP',425,'USD',
+          'initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z')""")
+        for patch in ("amount_cents=1", "customer_id='other_customer'",
+                      "sku='DIFFERENT_APP'", "expires_at='2099-02-01T00:00:00Z'"):
+            with self.subTest(patch=patch), self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("UPDATE store_checkout_intents SET " + patch +
+                                " WHERE reference='STORE-ABCDEF0123456799'")
+        self.assertEqual(
+            self.db.execute("SELECT amount_cents,customer_id,status FROM store_checkout_intents "
+                            "WHERE reference='STORE-ABCDEF0123456799'").fetchone(),
+            (425, 'customer_fixture', 'initiating'),
+        )
+
+    def test_provider_urls_cannot_be_attached_during_initiating_or_preseeded(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""INSERT INTO store_checkout_intents
+              (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at,poll_url)
+              VALUES('STORE-ABCDEF0123456799','customer_fixture','MUSITU_OWNED_APP',425,'USD',
+              'initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z','fake')""")
+        self.db.execute("""INSERT INTO store_checkout_intents
+          (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at)
+          VALUES('STORE-ABCDEF0123456799','customer_fixture','MUSITU_OWNED_APP',425,'USD',
+          'initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z')""")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE store_checkout_intents SET poll_url='fake' "
+                            "WHERE reference='STORE-ABCDEF0123456799'")
 
     def test_pending_provider_poll_url_cannot_be_replaced(self):
         with self.assertRaises(sqlite3.IntegrityError):

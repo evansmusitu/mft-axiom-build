@@ -128,30 +128,34 @@ BEGIN
  SELECT RAISE(ABORT,'store payment review evidence cannot be deleted');
 END;
 
--- The original browser/Poll URL, SKU and charged amount form the immutable
--- identity of a pending payment. The one legitimate initiating->pending
--- update fills the two URLs before checkout is returned to the customer.
-CREATE TRIGGER IF NOT EXISTS store_pending_order_identity_immutable
+-- Store order identity is fixed at INSERT, including during provider
+-- initiation; only the two verified provider URLs may be populated when
+-- the initiating order becomes pending.
+CREATE TRIGGER IF NOT EXISTS store_order_identity_immutable_from_creation
 BEFORE UPDATE OF reference,customer_id,sku,amount_cents,currency,
-                 browser_url,poll_url ON store_checkout_intents
-FOR EACH ROW WHEN OLD.status != 'initiating'
+                 created_at,expires_at ON store_checkout_intents
+FOR EACH ROW
 BEGIN
- SELECT RAISE(ABORT,'store pending payment identity is immutable');
+ SELECT RAISE(ABORT,'Store checkout identity cannot change after creation');
+END;
+CREATE TRIGGER IF NOT EXISTS store_provider_urls_only_on_pending_transition
+BEFORE UPDATE OF browser_url,poll_url ON store_checkout_intents
+FOR EACH ROW WHEN OLD.status != 'initiating' OR NEW.status != 'pending'
+BEGIN
+ SELECT RAISE(ABORT,'Store provider URLs require initiating-to-pending transition');
 END;
 
-
--- The status-update evidence gate alone cannot detect a direct INSERT of a
--- purported reviewed/settled order. New Store orders are never born with a
--- terminal or review status; reject that bypass at database level.
-CREATE TRIGGER IF NOT EXISTS store_checkout_never_born_reviewed
+-- New orders cannot skip the authenticated initiation lifecycle or arrive
+-- preloaded with arbitrary URLs. The worker creates an initiating row with
+-- no provider URLs and only transitions after independently verified Paynow
+-- initiation. Historical reviewed/cancelled references also stay guarded.
+CREATE TRIGGER IF NOT EXISTS store_checkout_only_born_initiating
 BEFORE INSERT ON store_checkout_intents
-FOR EACH ROW WHEN NEW.status IN (
-  'review_required','refund_review_required','cancelled','expired','provider_failed'
-)
+FOR EACH ROW WHEN NEW.status != 'initiating' OR
+  NEW.browser_url IS NOT NULL OR NEW.poll_url IS NOT NULL
 BEGIN
- SELECT RAISE(ABORT,'new Store checkout cannot start in a terminal review state');
+ SELECT RAISE(ABORT,'Store checkout must start initiating without provider URLs');
 END;
-
 
 -- SQLite INSERT OR REPLACE can silently delete the old conflicting row and
 -- insert a fresh pending row, skipping UPDATE status guards. No Store reference
