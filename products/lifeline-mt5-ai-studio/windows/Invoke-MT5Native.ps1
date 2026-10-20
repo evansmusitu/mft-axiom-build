@@ -134,6 +134,14 @@ ShutdownTerminal=1
     $proof.strategy_tester_status="MATH_CALCULATION_OPTIMIZATION_REPORT_PRESENT_NOT_MARKET_BACKTEST"
     $selected=$reports[0]
     $proof.strategy_tester_report_sha256=(Get-FileHash $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $reportText=Get-Content -Path $selected.FullName -Raw -ErrorAction SilentlyContinue
+    $proof.tester_report_has_named_inputs=($reportText -match 'InpProbeValue')
+    $proof.tester_report_has_result_field=($reportText -match 'Result|OnTester|Criterion')
+    $proof.tester_report_structurally_verified=($proof.tester_report_has_named_inputs -and $proof.tester_report_has_result_field)
+    if (-not $proof.tester_report_structurally_verified) {
+      $proof.strategy_tester_status='MATH_REPORT_EXISTS_PASS_STRUCTURE_UNCONFIRMED'
+    }
+
   }
 } catch {
   $proof.error=$_.Exception.Message
