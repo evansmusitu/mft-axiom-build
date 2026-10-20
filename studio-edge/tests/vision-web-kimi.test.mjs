@@ -5,7 +5,7 @@ import { wikipediaSearch,generateImage,ExternalToolError } from '../vision-searc
 import { kimiEnabled,invokeKimi,KimiIntegrationError } from '../kimi.mjs';
 
 const ORIGIN='https://evansmusitu.github.io';
-const URL='https://musitu-edge.test';
+const BASE='https://musitu-edge.test';
 function environment(overrides={}) {
   const called=[];
   const limit = name => ({limit:async()=>{called.push(name);return {success:true};}});
@@ -22,7 +22,7 @@ function environment(overrides={}) {
   return {env,called};
 }
 function req(path,data,origin=ORIGIN) {
-  return new Request(URL+path,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(data)});
+  return new Request(BASE+path,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(data)});
 }
 test('search strips untrusted HTML and returns source links with limited scope',async()=>{
  const result=await wikipediaSearch('Solar system',async url=>{
@@ -86,7 +86,7 @@ test('prohibited origin cannot call image or search',async()=>{
 });
 test('health advertises real image generation, limited Wikipedia search and Kimi unavailable',async()=>{
  const {env}=environment();
- const response=await worker.fetch(new Request(URL+'/api/health',{headers:{origin:ORIGIN}}),env);
+ const response=await worker.fetch(new Request(BASE+'/api/health',{headers:{origin:ORIGIN}}),env);
  const data=await response.json();
  assert.equal(response.status,200);
  assert.equal(data.kimi.available,false);
