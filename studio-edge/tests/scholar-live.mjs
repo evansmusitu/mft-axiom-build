@@ -15,7 +15,7 @@ async function send(path,data){
 let info;
 for(let tries=0;tries<18;tries++){
  const res=await fetch(edge+'/api/health?scholarProbe='+Date.now()+'-'+tries,{headers:{origin:site},signal:AbortSignal.timeout(15000)});
- if(res.ok){info=await res.json();if(info.tools?.some(x=>x.id==='scholar'&&x.path==='/api/scholar'))break;}
+ if(res.ok){info=await res.json();if(info.scholarlyRelease==='scholar-20261020-v2' && info.tools?.some(x=>x.id==='scholar'&&x.path==='/api/scholar'))break;}
  await new Promise(r=>setTimeout(r,2000));
 }
 assert.ok(info?.tools?.some(x=>x.id==='scholar'),'Deployed worker did not advertise Scholar capability');
