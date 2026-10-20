@@ -15,6 +15,8 @@ function environment(visitorAllowed = true, regionAllowed = true, answer = 'Feed
     DEEP_REGIONAL: { limit: async ({ key }) => { calls.push(['deep-region', key]); return { success: true }; } },
     TOOL_RATE: { limit: async ({ key }) => { calls.push(['tool-visitor', key]); return { success: true }; } },
     TOOL_REGIONAL: { limit: async ({ key }) => { calls.push(['tool-region', key]); return { success: true }; } },
+    SCHOLAR_RATE: { limit: async ({ key }) => { calls.push(['scholar-visitor', key]); return {success:true}; } },
+    SCHOLAR_REGIONAL: { limit: async ({ key }) => { calls.push(['scholar-regional', key]); return {success:true}; } },
     AI: { run: async (model, options) => { calls.push(['ai', model, options]); return { response: answer }; } }
   };
   return { env, calls };
@@ -194,4 +196,54 @@ test('health advertises real tools and both explicit models',async()=>{
   const data=await health.json();
   assert.equal(data.availableModels.deeperAnalysis,'@cf/qwen/qwen3-30b-a3b-fp8');
   assert.equal(data.tools[0].path,'/api/calculate');
+});
+
+test('health includes separate metadata-only Crossref Scholar route',async()=>{
+ const {env,calls}=environment();
+ const response=await worker.fetch(request('/api/health'),env);
+ const data=await response.json();
+ assert.equal(response.status,200);
+ const scholar=data.tools.find(tool=>tool.id==='scholar');
+ assert.equal(scholar.path,'/api/scholar');
+ assert.equal(scholar.noInferenceEndpoint,true);
+ assert.match(scholar.source,/Crossref/);
+ assert.equal(calls.length,0);
+});
+test('scholar supports verified website preflight only',async()=>{
+ const {env}=environment();
+ const good=await worker.fetch(request('/api/scholar','OPTIONS'),env);
+ assert.equal(good.status,204);
+ assert.equal(good.headers.get('access-control-allow-origin'),ORIGIN);
+ const bad=await worker.fetch(request('/api/scholar','OPTIONS',null,'https://untrusted.example'),env);
+ assert.equal(bad.status,403);
+});
+test('scholar malformed or unsupported inputs incur no provider requests',async()=>{
+ const {env,calls}=environment();
+ const failures=[
+   request('/api/scholar','POST',{query:'a'}),
+   request('/api/scholar','POST',{query:'a'.repeat(181)}),
+   request('/api/scholar','POST',{prompt:'Instead of a query, try this.'})
+ ];
+ for(const item of failures){
+   const response=await worker.fetch(item,env);
+   assert.equal(response.status,400);
+   assert.equal((await response.json()).code,'INVALID_SCHOLAR_QUERY');
+ }
+ assert.deepEqual(calls,[]);
+});
+test('scholar cannot be invoked by an unrelated browser origin',async()=>{
+ const {env,calls}=environment();
+ const response=await worker.fetch(request('/api/scholar','POST',{query:'quantum optics'},'https://malicious.example'),env);
+ assert.equal(response.status,403);
+ assert.equal((await response.json()).code,'ORIGIN_DENIED');
+ assert.equal(calls.length,0);
+});
+test('scholar provider quota blocks before fetching or model inference',async()=>{
+ const {env,calls}=environment();
+ env.SCHOLAR_RATE.limit=async({key})=>{calls.push(['scholar-visitor',key]);return {success:false};};
+ const response=await worker.fetch(request('/api/scholar','POST',{query:'quantum optics'}),env);
+ assert.equal(response.status,429);
+ assert.equal((await response.json()).code,'SCHOLAR_RATE_LIMIT');
+ assert.equal(response.headers.get('retry-after'),'60');
+ assert.deepEqual(calls.map(x=>x[0]),['scholar-visitor']);
 });
