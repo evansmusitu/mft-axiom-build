@@ -61,8 +61,4 @@ export default function ModelLab(){
     :<div className="lab-zero"><Sparkles size={30}/><h3>We measure, then we claim.</h3><p>Run the same prompt against configured models. Successful responses appear here for direct inspection.</p></div>}
   </section><p className="lab-privacy"><ShieldCheck size={16}/> Test results are held only in current-page memory. This lab does not run a hidden multi-model batch. Provider service fees may apply when using frontier APIs.</p>
  </div>;
-
-    :<div className="lab-zero"><Sparkles size={30}/><h3>We measure, then we claim.</h3><p>Run the same prompt against configured models. Successful responses appear here for direct inspection.</p></div>}
-  </section><p className="lab-privacy"><ShieldCheck size={16}/> Test results are held only in current-page memory. This lab does not run a hidden multi-model batch. Provider service fees may apply when using frontier APIs.</p>
- </div>;
 }
