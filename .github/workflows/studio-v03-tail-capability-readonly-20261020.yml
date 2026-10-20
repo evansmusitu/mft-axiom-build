@@ -1,0 +1,55 @@
+name: MUSITU Studio V0.3 - Cloudflare Tail Capability Readonly
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: [.github/workflows/studio-v03-tail-capability-readonly-20261020.yml]
+permissions: {contents: read}
+jobs:
+  inspect-tail-permission-without-logging-requests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Inspect current V0.3 Worker tail permission without emitting staff logs
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-${CF_API_TOKEN:-}}"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          npm install --ignore-scripts --no-audit --no-fund > /dev/null
+          set +e
+          timeout 15s npx wrangler tail musitu-studio-v03-do --format json --sampling-rate 1 > /tmp/studio-tail-sanitized-discard.log 2>&1
+          status=$?
+          set -e
+          export TAIL_STATUS="$status"
+          python - <<'PY'
+          import json,os,pathlib,re
+          contents=pathlib.Path('/tmp/studio-tail-sanitized-discard.log').read_text(errors='replace').lower()
+          exit_status=int(os.getenv('TAIL_STATUS','0'))
+          category=('TAIL_SESSION_CONNECTED' if exit_status==124 else
+            'TOKEN_SCOPE_OR_PERMISSION_ERROR' if any(x in contents for x in
+              ['permission','unauthorized','authentication','forbidden','insufficient scope','10000','10001']) else
+            'CONFIG_OR_CLI_ERROR' if any(x in contents for x in
+              ['invalid','unknown option','error','failed']) else
+            'UNKNOWN_EARLY_EXIT')
+          report={'schema':'musitu.studio.v03.cloudflare-tail-readonly.v1',
+            'read_only':True,'real_worker_name_existing':True,
+            'exit_status':exit_status,'diagnostic':category,
+            'staff_request_contents_logged':False,'provider_mutated':False}
+          pathlib.Path('../../studio-tail-capability-readonly.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('STUDIO_V03_TAIL_PERMISSION_DIAGNOSIS='+json.dumps(report,sort_keys=True))
+          PY
+          rm -f /tmp/studio-tail-sanitized-discard.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-v03-tail-readonly-capability
+          path: studio-tail-capability-readonly.json
+          if-no-files-found: warn
+          retention-days: 14
