@@ -117,11 +117,11 @@ jobs:
           node --check assets/musitu-workspace-vault.mjs
           node --check assets/musitu-workspace-slots.mjs
           node tests/site.test.mjs
-          node --test tests/workspace-vault.test.mjs tests/workspace-slots.test.mjs tests/evidence-pack.test.mjs tests/local-evidence.test.mjs | tee ../../frontend-tests.log
+          node --test tests/workspace-vault.test.mjs tests/workspace-slots.test.mjs tests/evidence-pack.test.mjs tests/local-evidence.test.mjs | tee ../../../frontend-tests.log
           cd ../backend
           node --check studio-edge/worker.mjs
-          node --test studio-edge/tests/*.test.mjs | tee ../../backend-tests.log
-          cd ../..
+          node --test studio-edge/tests/*.test.mjs | tee ../../../backend-tests.log
+          cd ../../..
           test -s frontend-tests.log
           test -s backend-tests.log
           {
