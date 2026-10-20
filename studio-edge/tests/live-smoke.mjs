@@ -88,18 +88,6 @@ console.log('TWO-MODEL + DETERMINISTIC CALCULATOR LIVE PASS',base,'deepChars',de
 
 assert.equal(info.curatedLiveSources,true);
 assert.equal(info.tools.find(t=>t.id==='image').path,'/api/image');
-const image = await read('/api/image',{
- method:'POST',headers:{'content-type':'application/json',origin:SITE},
- body:JSON.stringify({prompt:'A luminous floating research library over a green African landscape, atmospheric digital painting, dramatic sunlight.'})
-});
-const imageRaw=await image.text();
-let imageData;
-try{imageData=JSON.parse(imageRaw);}catch{throw Error('Image endpoint returned invalid JSON');}
-if(image.status!==200)throw Error('Real image generation failed '+image.status+': '+JSON.stringify(imageData).slice(0,250));
-assert.ok(['@cf/black-forest-labs/flux-1-schnell','@cf/black-forest-labs/flux-2-klein-4b'].includes(imageData.model));
-assert.match(imageData.image,/^data:image\/(?:jpeg|png);base64,/);
-assert.ok(imageData.image.length>2500);
-console.log('LIVE IMAGE GENERATION PASS',base,'imageDataURIChars',imageData.image.length);
 const web = await read('/api/chat',{
  method:'POST',headers:{'content-type':'application/json',origin:SITE},
  body:JSON.stringify({mode:'research',prompt:'Research the basics of quantum computing using live public sources and explain what the sources establish.'})
@@ -114,3 +102,16 @@ assert.ok(Array.isArray(evidence.sources) && evidence.sources.length>0,'At least
 assert.ok(evidence.sources.every(s=>s.url.startsWith('https://en.wikipedia.org/wiki/')||s.url.startsWith('https://news.ycombinator.com/item?id=')));
 assert.ok(evidence.reply.length>40);
 console.log('LIVE SOURCE-LINKED INTERNET RESEARCH PASS',base,'sourceCount',evidence.sources.length,'replyChars',evidence.reply.length);
+const image = await read('/api/image',{
+ method:'POST',headers:{'content-type':'application/json',origin:SITE},
+ body:JSON.stringify({prompt:'A luminous floating research library over a green African landscape, atmospheric digital painting, dramatic sunlight.'})
+});
+const imageRaw=await image.text();
+let imageData;
+try{imageData=JSON.parse(imageRaw);}catch{throw Error('Image endpoint returned invalid JSON');}
+if(image.status!==200)throw Error('Real image generation failed '+image.status+': '+JSON.stringify(imageData).slice(0,250));
+assert.ok(['@cf/black-forest-labs/flux-1-schnell','@cf/black-forest-labs/flux-2-klein-4b'].includes(imageData.model));
+assert.match(imageData.image,/^data:image\/(?:jpeg|png);base64,/);
+assert.ok(imageData.image.length>2500);
+console.log('LIVE IMAGE GENERATION PASS',base,'imageDataURIChars',imageData.image.length);
+
