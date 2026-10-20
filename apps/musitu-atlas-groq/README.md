@@ -174,3 +174,39 @@ Every paid request continues to require private Vercel access, a matching
 server-side access code, a checked consent control and a positive Gateway credit
 check. Neither $1 project budget nor vendor benchmarks are a guarantee of
 per-request cost, a model's actual runtime availability or business outcomes.
+
+## Phase 3 — MUSITU Axiom MCP execution bridge
+
+ATLAS now exposes a protected **Axiom Execution** workspace at
+`https://musitu-atlas-ai-lab.vercel.app/?tab=axiom`.
+
+**Live discovery**: `GET /api/axiom/capabilities` calls the real existing
+`https://mcp.mftintelligence.com/mcp` JSON-RPC `tools/list` endpoint.
+The response reports the actual number of currently exposed certified tool
+descriptors; it never invents capability counts on gateway failure.
+
+**Deterministic preview**: `POST /api/axiom/preview` validates a bounded
+arithmetic expression, fixes the only permitted operation
+`arithmetic.evaluate`, and returns a canonical SHA-256 digest plus explicit
+`READY_FOR_REVIEW_NOT_EXECUTED` status. It performs **zero Axiom compute calls**.
+
+**Authenticated execution (not yet activated)**: `POST /api/axiom/execute`
+requires `ATLAS_AXIOM_EXECUTE_ENABLED=enabled`, sensitive Vercel
+`AXIOM_MCP_BEARER_TOKEN` with Axiom execute permission, an operator
+`ATLAS_FRONTIER_ACCESS_CODE`, exact matching preview digest, and per-call
+consent. Only `axiom_arithmetic_evaluate` may be called on the fixed official
+MCP host; user cannot choose the operation name or a URL.
+
+The site preserves provider evidence as a downloadable JSON receipt and can
+add a completion/evidence milestone to the existing browser-local Mission
+Control. The receipt's SHA-256 is a local integrity fingerprint, **not** proof
+that an independent verifier checked the answer. No automatic retries for
+uncertain outcomes. There is no durable idempotency, so this phase only permits
+a minimal low-impact arithmetic operation behind owner-only SSO and explicit
+approval. Do not extend to trading, payments, external writes or arbitrary
+MCP tools without proper scopes, durable idempotency, audit, WAF and tenant
+isolation. The connected ChatGPT Axiom plugin credential is **not** exported
+to Vercel; a dedicated server credential must be authorized separately.
+
+This work is on branch `feature/atlas-axiom-proof-gate-20261020`;
+protected main and the public ATLAS site are not changed.

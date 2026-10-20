@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from './lib/client';
 import MissionStudio from './Missions';
 import ModelLab from './ModelLab';
+import AxiomDesk from './AxiomDesk';
 import CommandPalette from './CommandPalette';
 import { readMissions } from './missionStore';
 import {
@@ -40,7 +41,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'missions' | 'assistant' | 'workflows' | 'insights' | 'settings' | 'lab';
+type Tab = 'overview' | 'missions' | 'assistant' | 'workflows' | 'insights' | 'settings' | 'lab' | 'axiom';
 type ModelOption = {id:string;label:string;provider:string;model:string;available:boolean;tier:string};
 type Focus = 'Founder' | 'Analyst' | 'Creator';
 type Run = {
@@ -205,7 +206,7 @@ function TinyChart({ values }: { values: number[] }) {
   );
 }
 export default function App() {
-  const [tab, setTab] = useState<Tab>(() => new URLSearchParams(window.location.search).get('tab') === 'lab' ? 'lab' : 'overview');
+  const [tab, setTab] = useState<Tab>(() => new URLSearchParams(window.location.search).get('tab') === 'lab' ? 'lab' : new URLSearchParams(window.location.search).get('tab') === 'axiom' ? 'axiom' : 'overview');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [missionCount, setMissionCount] = useState(() => readMissions().length);
   useEffect(() => { const onKey = (event:KeyboardEvent) => { if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==='k') {event.preventDefault();setPaletteOpen(open=>!open);} }; document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey); },[]);
@@ -438,6 +439,7 @@ export default function App() {
       { id: 'missions', label: 'Mission Control', icon: Target },
       { id: 'assistant', label: 'AI Assistant', icon: Bot },
       { id: 'lab', label: 'Model Lab', icon: FlaskConical },
+      { id: 'axiom', label: 'Axiom Execution', icon: ShieldCheck },
       { id: 'workflows', label: 'Workflows', icon: Workflow },
       { id: 'insights', label: 'Intelligence', icon: BarChart3 },
       { id: 'settings', label: 'Preferences', icon: Settings2 },
@@ -1090,6 +1092,7 @@ export default function App() {
             </div>
           )}
           {tab === 'lab' && <ModelLab onChoose={(mode)=>{setAiMode(mode);setPaidConsent(false);go('assistant');}} />}
+          {tab === 'axiom' && <AxiomDesk openMissions={()=>{setMissionCount(readMissions().length);go('missions');}} />}
           {tab === 'insights' && (
             <div className="inner-page">
               <div className="page-title">

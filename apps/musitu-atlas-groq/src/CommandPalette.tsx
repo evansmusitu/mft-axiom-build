@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Bot, Command, FlaskConical, FileText, LayoutDashboard, Radar, Search, Settings2, Target, Workflow, X } from 'lucide-react';
 import { readMissions } from './missionStore';
-type Page = 'overview'|'missions'|'assistant'|'workflows'|'insights'|'settings'|'lab';
+type Page = 'overview'|'missions'|'assistant'|'workflows'|'insights'|'settings'|'lab'|'axiom';
 type Props={onClose:()=>void;onNavigate:(page:Page)=>void;runTitles:string[]};
 const pages:{name:string;page:Page;icon:typeof Search}[]=[
   {name:'Overview dashboard',page:'overview',icon:LayoutDashboard},
   {name:'Mission Control',page:'missions',icon:Target},
   {name:'AI Assistant',page:'assistant',icon:Bot},
-  {name:'Model Lab / Compare AI providers',page:'lab',icon:FlaskConical},
+  {name:'Model Lab / Official AI recommendations',page:'lab',icon:FlaskConical},
+  {name:'Axiom verified execution desk',page:'axiom',icon:Target},
   {name:'AI Workflows',page:'workflows',icon:Workflow},
   {name:'Live intelligence',page:'insights',icon:Radar},
   {name:'Preferences',page:'settings',icon:Settings2}

@@ -25,7 +25,10 @@ export default async function handler(req:any,res:any){
   if(!tool||tool.isError===true||tool?.structuredContent?.authenticated===false)
    throw deny(502,'Axiom reported an error or missing authorization; no result was accepted.');
   const sc=tool.structuredContent;
-  const inner=sc?.result?.result||sc?.result||{};
+  const payload=sc?.result;
+  const inner=payload&&typeof payload==='object'
+   ? payload.ok===true?payload:(payload.result&&typeof payload.result==='object'?payload.result:payload)
+   : {};
   if(inner?.ok!==true||typeof inner?.result!=='string')
    throw deny(502,'Axiom response did not satisfy the certified arithmetic result contract.');
   const verified=inner.verified===true?true:inner.verified===false?false:null;
