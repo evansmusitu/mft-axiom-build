@@ -1,0 +1,70 @@
+# MUSITU Enterprise 3D Studio — ZERO-LOSS NEW-CHAT HANDOFF
+Version: 2026-10-20. Scope: Studio ONLY. User works from Android, wants free tools, enterprise cloud execution and real Blender/3D production. This document is an operational continuation contract, not a certification of all requested features.
+
+## 1. FIRST THING IN THE NEW CHAT
+Read \`00_START_HERE.md\`, \`01_COPY_TO_NEW_CHAT.txt\`, \`02_CURRENT_PRODUCT_STATE.md\`, \`03_CONTINUATION_CHECKLIST.md\`, and \`MANIFEST_SHA256.json\` in the accompanying ZIP. Validate every manifest entry and checksum before relying on code. Access the connected GitHub and Drive live; do not infer that an uploaded ZIP by itself exposes live cloud state. Use the exact main Studio branch \`experiments/studio-enterprise-v03-sqlite-do-20261018\` in \`evansmusitu/mft-axiom-build\`. The full product source is mirrored in \`PRODUCT_SOURCE/\` with its original repository-relative paths. If GitHub has advanced, compare commits and verify changes rather than blindly overwriting.
+
+## 2. Live product and scope
+- **V0.3 (current enterprise candidate)**: https://studio-v03.mftintelligence.com/ . Dedicated Cloudflare Worker \`musitu-studio-v03-do\`, SQLite-backed Durable Object \`STUDIO_LEDGER\` class \`StudioEnterpriseSqliteLedger\`; mobile-responsive Android UI \`musitu_studio/edge/public_v03\`, production HTTP API \`musitu_studio/edge/src/v03_entry.mjs\`, outer signed Cloudflare Access gate \`v03_do_entry.mjs\` and \`v03_identity.mjs\`, SQL schemas \`musitu_studio/edge/migrations/v03\` embedded in DO class. Real Cloudflare Access application \`MUSITU Studio Enterprise V03\`, two exact-email allow policies without bypass, matching signed JWT audience; users authenticate as themselves.
+- **Original V0.2 successful rendering pilot (PRESERVE)**: https://studio.mftintelligence.com/ . Worker \`musitu-studio-v02\` with R2 CAS controls; Blender CPU real Modal app \`musitu-studio-v02\`, CPU pull function \`render_cpu_pull\`. Existing verified project/job completed; \`scene.blend\`, \`scene.glb\`, \`preview.png\` stored in Cloudflare R2 bucket \`musitu-studio-v02-assets\`. A user-uploaded \`scene.glb\` was exactly byte-matched to production R2 GLB SHA-256 \`156e442644330c38b910d1d364df86607142ab8d74351fb36394de04821482a6\` size 75,068 bytes. Keep v02 and its custom domain working. V0.2 is not proof a V0.3 job finished.
+- **V0.3 R2**: same dedicated Studio bucket under separate \`studio-v03/jobs/\` prefix; no automatic v02 source-state import. Do not alter unrelated R2 objects.
+- **Cloudflare account** \`93f395f5121954671f92fffa453d6b61\`, zone \`mftintelligence.com\`. Original zone-wide Under Attack/BIC settings and unrelated MUSITU Axiom services must not be downgraded. A V0.3 host-only rule skips ONLY the \`securityLevel\` challenge to allow Cloudflare Access login; do not create broad zone skips.
+- **Axiom MAIN IS OUT OF SCOPE**: \`evansmusitu/mft-axiom-build\` default \`main\` was \`bc48ab8aed137e61b76e25f113bb29e1efd7b11a\` at preceding audited check; verify head again on resume. Never merge Studio without a separate explicit reviewed request.
+- Android is remote staff client ONLY; Blender executes in cloud, not on the phone.
+
+## 3. What is genuinely complete
+1. Real v02 CPU Blender-to-Modal-to-R2 pipeline and production artifact fingerprints.
+2. V0.3 worker, Android UI, SQLite Durable Object, projects/memberships/jobs/audit/assets schema with access roles owner/editor/reviewer/viewer, owner-only read-only recovery status, R2 output integrity checks, immutable audit records, capped 10 projects per owner and 50 jobs per project, 2/day CPU dispatch limit if independently enabled. Anonymous Access challenges verified on eight routes.
+3. Strict cloud-signed human identity, separation of submitter and reviewer, SQL compare-state transitions, idempotent submissions, CPU-only job validation and remote unknown-outcome NONRETRY.
+4. **54/54 Node test suite** and local real Worker/DO integration passed in GitHub Actions run **39196695142**. Terminal audit integrity and completed receipt replay tests failed before patch in run **39196631541** (51 pass/3 fail); patched production Worker deployed by guarded run **39196779161**. Post-release eight-route Access verification passed run **39147347026** (latest rerun as of handoff). All reports must be revalidated on resume if state changed.
+5. Actual local Workerd SQLite restart and disposable disk-image backup/restore drills succeeded; DO hosted PITR restoration NOT qualified.
+
+## 4. BLOCKERS — DO NOT INVENT COMPLETION
+- **Real two-human acceptance**: one real authorized staff Access login and sampled successful mobile API usage seen in run 39136433888, but no certified distinct second human reviewer, real separate login, team grant + pending-job approval. Never fabricate a second identity or disable separation of duties.
+- **Modal free-only compute**: read-only billing check 39146515306 found deployed CPU function but did NOT prove zero-overage budget or free credits remaining. Shared Modal plan may charge beyond free credits. \`ENABLE_RENDER_DISPATCH=false\`, \`BUDGET_GUARD_APPROVED=false\`, \`GPU_EXECUTION_APPROVED=false\` are live release invariants. Do not enable until truly enforceable no-out-of-pocket controls are verified AND independent human approval is real. Rendering a V0.3 CPU job is not yet verified.
+- **Hosted Cloudflare PITR**: disposable live worker tests 39151039237 / 39151203494 / 39151300273 / 39151420606 returned pre-Worker HTTP 403 even with temporary bearer secret; each disposable Worker was removed and deletion verified by provider GET HTTP 404. Account Access type inventory 39151621693 did not establish the root cause. The PITR deployment workflow was deliberately made MANUAL-ONLY to stop automatic cloud churn; no live customer DO restoration, no false PITR claim. The real local disk snapshot/restore did pass, but is NOT hosted PITR.
+- **GPU**: Modal GPU hardware/payment entitlement not verified and spend controls not approved. GPU OFF.
+- **Physical handset attestation**: Access login and mobile-classified UA/API analytics do not prove the physical Android device's identity.
+- This handoff ZIP cannot contain live R2 bucket state, live DO database content, credential secret values, staff PII or provider billing/payment settings; those remain in their authenticated providers and require LIVE checks, not speculative reconstruction.
+
+## 5. Architecture and actual files
+- Browser: \`musitu_studio/edge/public_v03/{index.html,studio.css,studio.js,_headers}\`.
+- V0.3 Worker main \`musitu_studio/edge/src/v03_do_entry.mjs\` and \`v03_entry.mjs\`; identity \`v03_identity.mjs\`; policy \`v03_policy.mjs\`; Durable Object SQL adapter \`v03_do_adapter.mjs\`; schema \`v03_do_schema.mjs\`; migration source \`migrations/v03/*.sql\`; config \`wrangler.v03.do.jsonc\`. **Checked-in config deliberately contains invalid Access placeholders**; direct Wrangler deployment is unsafe because it would overwrite valid runtime bindings. Use vetted guarded CI to reconstruct signed Access audience/issuer from the actual provider.
+- V0.2: \`musitu_studio/edge/src/r2_entry.mjs\`, \`src/access.mjs\`, \`src/session.mjs\`, \`edge/public/\`, \`edge/wrangler.jsonc\`.
+- Blender: \`musitu_studio/modal/studio_modal.py\` and \`verify_outputs.py\`; full standalone Python Studio engine in \`musitu_studio/studio/\`, scene example \`musitu_studio/examples/approved_demo.json\`.
+- Ops: all \`ops/studio_*\` scripts, including read-only evidence and historic deployment code. These scripts include **old potentially mutating workflows**; merely being in the ZIP does not authorize running them.
+- CI: all \`.github/workflows/studio-*\` and \`.github/workflows/studio-v03-*\`; packaging artifacts are source snapshots, not provider backups.
+- Docs: all \`docs/STUDIO_*\` and \`musitu_studio/docs/\`. This file was added for cross-chat continuity.
+
+## 6. Safe first actions in the NEXT CHAT (execute, do not ask user to repeat project history)
+1. Read and verify full ZIP, then list installed connectors; use **connected GitHub** and **connected Google Drive** first rather than web search to locate private project source.
+2. Verify GitHub branch head and file-tree against archive commit/manifest. Read latest action runs and current V0.3 Worker source.
+3. Read-only query Cloudflare current host/domain routes, Access app audience + approved two-email policy shapes without exposing emails, DO namespace and R2 bindings, and verify CPU/BUDGET/GPU all false; recheck 8 anonymous routes redirect to Access. Do not print tokens, identities or callback URLs.
+4. Read-only inspect Modal current billing/free tier/entitlements and CPU/GPU availability; distinguish "CLI read succeeded" from "provider-enforced zero-overspend." If the latter is unavailable, no compute changes.
+5. Pursue independent human two-person sign-ins if available legitimately; do not impersonate. Look for provider evidence of distinct approved staff sessions without exposing PII. If absent, document as blocker.
+6. Investigate hosted disposable PITR using official Cloudflare docs and exact 403 cause; never bypass live Cloudflare policies. No repeated creation/deletion attempts unless root cause and cost/permissions are verified. Never restore the production DO.
+7. Implement and **prove** bounded enterprise product improvements with TDD (red -> green), GitHub Actions CI, isolated Studio branch and guardrailed production deploy only when safe; revalidate against provider.
+8. Update a new dated handoff doc, include sanitized receipts and SHA manifest; replace/supersede the ZIP with a newly verified Drive version only when substantial changes were made.
+
+## 7. Known evidence URLs
+- V0.3 live latest terminal audit deployment: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39196779161
+- Terminal receipts green 54/54: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39196695142
+- Independent 8-route security readback: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39147347026
+- V0.3 real staff analytics (not user attestation): https://github.com/evansmusitu/mft-axiom-build/actions/runs/39136433888
+- Modal read-only billing: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146515306
+- Local isolated restore: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39146647685
+- Cloud hosted PITR 403: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39151420606
+- Completed V0.2 CPU/render fingerprint: docs/STUDIO_PRODUCTION_ANDROID_CPU_R2_CORRELATED_EVIDENCE_20261018.md
+- D1 implementation as source-only fallback: experiments/studio-enterprise-v03-d1-20261018. D1 creation was blocked/over quota, so active prod uses SQLite DO.
+
+## 8. Known existing Drive references (cross-check metadata before relying)
+- Studio compatibility folder (the preferred private handoff destination): \`1AaQFHwUHwrui9GPE6C0TYHm4rBpbujCb\`.
+- Previous Studio verified 54-test evidence on Drive: https://drive.google.com/file/d/1XD5OBF-HyNJ0-VeaB8TrG7JJl7jjoRZd/view
+- Earlier V0.2 matched GLB evidence on Drive: https://drive.google.com/file/d/17C5zGs14mETK0rH6koDybdZ0jcOiomzk/view
+- Current complete ZIP will be in that folder under \`MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip\`. The actual new Drive file URL appears in the final old-chat message; do not guess a Drive ID.
+
+## 9. Do not make these errors
+Do not claim runtime backups, private secrets, an authenticated session, a person, a budget guarantee, GPU access or cloud PITR success from static ZIP contents. Do not merge to main; do not downgrade WAF security; do not turn on GPU or billable CPU; do not bypass Cloudflare Access; do not silently run old mutable workflows. Do not assume a previous release CI automatically redeploys valid signed Access: **provider-check credentials, reconstruct ephemeral config, then deploy only V0.3**. Preserve user's Android-only client preference and free-only requirement. If connectors are unavailable in new chat, report exactly what must be connected and work from the attached source ZIP without false external claims.
+
+## 10. Export validation
+The handoff builder includes all tracked \`musitu_studio/**\`, \`ops/studio_*\`, \`docs/STUDIO_*\` and \`.github/workflows/studio-*\` paths, plus this document, README, current state, operational checklist, inventory and SHA256 manifest. It excludes entire unrelated Axiom implementation, real provider data/credential secrets, \`node_modules\`, temporary database files and Git history. The ZIP includes source code, CLI/Modal/Blender code, schema, tests, old production evidence docs, and deployment workflows. Reproducible GitHub Actions workflow and packaging script are inside the ZIP. SHA256 manifest and self-tests must pass on GitHub and in downloaded ZIP; archive hash is printed by CI and can be checked on arrival. A new chat can recover source and architecture without any history recall, but must reauthenticate connectors and independently check live account state.
