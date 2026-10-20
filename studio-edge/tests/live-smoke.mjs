@@ -76,3 +76,37 @@ assert.equal(deepData.model,'@cf/qwen/qwen3-30b-a3b-fp8');
 assert.ok(deepData.reply.length>=40,'Deep model must return a meaningful final answer');
 assert.doesNotMatch(deepData.reply,/<think>/i);
 console.log('TWO-MODEL + DETERMINISTIC CALCULATOR LIVE PASS',base,'deepChars',deepData.reply.length);
+
+const calc = await read('/api/calculate', {
+  method:'POST',headers:{origin:SITE,'content-type':'application/json'},
+  body:JSON.stringify({expression:'sqrt(144)+abs(-7)'})
+});
+assert.equal(calc.status,200,'Calculator endpoint must answer without AI inference');
+const calculated=await calc.json();
+assert.equal(calculated.tool,'calculator');
+assert.equal(calculated.result,19);
+assert.equal(calculated.verifiedBy,'deterministic parser v1');
+assert.equal(calculated.exact,false);
+console.log('LIVE DETERMINISTIC CALCULATION PASS, result:',calculated.result);
+
+const injected = await read('/api/calculate', {
+  method:'POST',headers:{origin:SITE,'content-type':'application/json'},
+  body:JSON.stringify({expression:'process.exit()'})
+});
+assert.equal(injected.status,400,'Executable input must be refused');
+const rejected=await injected.json();
+assert.equal(rejected.code,'CALCULATION_INVALID');
+
+const deep = await read('/api/chat', {
+  method:'POST',headers:{origin:SITE,'content-type':'application/json'},
+  body:JSON.stringify({mode:'deep',prompt:'Explain the main risks in launching an AI assistant with no authentication, and identify two practical mitigations.'})
+});
+const deepText=await deep.text();
+let reason;
+try {reason=JSON.parse(deepText);} catch {throw Error('Reasoning model returned invalid JSON');}
+if(deep.status!==200)throw Error('Deep reasoning model failed HTTP '+deep.status+': '+JSON.stringify(reason).slice(0,400));
+assert.equal(reason.model,'@cf/qwen/qwen3-30b-a3b-fp8');
+assert.equal(reason.mode,'deep');
+assert.ok(typeof reason.reply==='string' && reason.reply.length>65,'Deep model should return a substantive final answer');
+assert.equal(reason.reply.includes('<think>'),false,'Internal thinking tags must not be exposed');
+console.log('LIVE QWEN DEEP ANALYSIS PASS, reply chars:',reason.reply.length);
