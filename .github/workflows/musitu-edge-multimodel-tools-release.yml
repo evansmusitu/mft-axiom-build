@@ -1,15 +1,6 @@
 name: MUSITU Multi-Model and Verified Tools Release
 
 on:
-  push:
-    branches: [feature/musitu-edge-model-tools-20261019]
-    paths:
-      - studio-edge/worker.mjs
-      - studio-edge/math.mjs
-      - studio-edge/wrangler.jsonc
-      - studio-edge/wrangler.canary.jsonc
-      - studio-edge/tests/**
-      - .github/workflows/musitu-edge-multimodel-tools-release.yml
   workflow_dispatch:
 
 permissions:
