@@ -5,8 +5,10 @@ import {authenticate} from '../../../../../src/staging/identity.mjs';
 import {database,scoped} from '../../../../../src/staging/database.mjs';
 import {createAiDraftService} from '../../../../../src/staging/ai-drafts.mjs';
 import {createDevelopmentReplySender} from '../../../../../src/staging/development-reply.mjs';
+import {publicDevelopmentReplyFailure} from '../../../../../src/staging/development-reply-errors.mjs';
 export const runtime='nodejs';export const dynamic='force-dynamic';
 async function handle(req,{params}){
+ let developmentReply=false;
  try{
   const actor=await authenticate(req),{tenant,operation}=await params,{repo}=database();
   if(req.method==='GET'){
@@ -20,6 +22,7 @@ async function handle(req,{params}){
   const input=await readBoundedJson(req),base={tenantId:tenant,actorId:actor.subject};
   let result;
   if(operation.length===3&&operation[0]==='conversations'&&operation[2]==='development-reply'&&Object.keys(input).sort().join(',')==='approveText,body,confirmOwnNumber,messageId,requestKey'){
+   developmentReply=true;
    const sender=createDevelopmentReplySender({scoped,token:process.env.META_ACCESS_TOKEN,enabled:process.env.META_DEVELOPMENT_SEND_ENABLED==='YES',contentKey:Buffer.from(process.env.CONTENT_ENCRYPTION_KEY||'','base64'),recipientSha256:process.env.META_DEVELOPMENT_RECIPIENT_SHA256});
    result=await sender({...base,conversationId:operation[1],...input,recheckSession:async()=>{if((await authenticate(req)).subject!==actor.subject)throw Error('SESSION_SUBJECT_CHANGED');}});
   }
@@ -39,6 +42,6 @@ async function handle(req,{params}){
   else if(operation.length===3&&operation[0]==='drafts'&&operation[2]==='approve'&&Object.keys(input).join(',')==='approvalKey')result=await repo.approveReplyDraft({...base,draftId:operation[1],approvalKey:input.approvalKey});
   else return Response.json({error:'ACTION_NOT_AVAILABLE'},{status:404});
   return Response.json({tenantId:tenant,data:result});
- }catch(e){const denied=/SESSION|TOKEN|ACCESS_DENIED|JWKS/.test(e.message);const conflict=/SLOT_UNAVAILABLE|CONFLICT/.test(e.message);return Response.json({error:denied?'ACCESS_DENIED':conflict?'CONFLICT':'SERVICE_UNAVAILABLE'},{status:denied?403:conflict?409:503});}
+ }catch(e){const safe=developmentReply?publicDevelopmentReplyFailure(e):null;if(safe)return Response.json(safe.body,{status:safe.status,headers:{'cache-control':'no-store'}});const denied=/SESSION|TOKEN|ACCESS_DENIED|JWKS/.test(e.message);const conflict=/SLOT_UNAVAILABLE|CONFLICT/.test(e.message);return Response.json({error:denied?'ACCESS_DENIED':conflict?'CONFLICT':'SERVICE_UNAVAILABLE'},{status:denied?403:conflict?409:503});}
 }
 export {handle as GET,handle as POST};

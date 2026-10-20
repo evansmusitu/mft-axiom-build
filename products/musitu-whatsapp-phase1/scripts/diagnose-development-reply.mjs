@@ -3,7 +3,7 @@ import {writeFileSync} from 'node:fs';
 import {createDevelopmentReplySender} from '../src/staging/development-reply.mjs';
 
 const BOUNDARY='PREFLIGHT_DB_BOUNDARY_REACHED_NO_MUTATION';
-const KNOWN=new Set(['DEVELOPMENT_REPLY_REJECTED','DEVELOPMENT_SENDING_DISABLED','META_RESPONSE_UNAVAILABLE','META_APP_ID_REJECTED','META_TEST_PHONE_REJECTED',BOUNDARY]);
+const KNOWN=new Set(['DEVELOPMENT_REPLY_REJECTED','DEVELOPMENT_SENDING_DISABLED','META_RESPONSE_UNAVAILABLE','META_CREDENTIAL_REJECTED','META_ACCESS_DENIED','META_APP_ID_REJECTED','META_TEST_PHONE_REJECTED',BOUNDARY]);
 /** Execute the actual sender's configuration and GET guards, then stop before
  * reservation. The injected DB boundary always throws. No session admission,
  * consent record, database call, provider POST, send or retry is possible. */

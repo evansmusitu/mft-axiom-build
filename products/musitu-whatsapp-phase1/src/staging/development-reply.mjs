@@ -28,8 +28,12 @@ export function createDevelopmentReplySender({scoped,token,enabled=false,content
   if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!KEYS.has(k))||input.tenantId!==TENANT||input.actorId!==OWNER||!UUID.test(input.conversationId??'')||typeof input.messageId!=='string'||!/^wamid\.[A-Za-z0-9._~-]{1,180}$/.test(input.messageId)||typeof input.requestKey!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(input.requestKey)||typeof input.body!=='string'||!input.body.trim()||Buffer.byteLength(input.body)>1000||input.body.includes('\u0000')||input.approveText!==true||input.confirmOwnNumber!==true||typeof input.recheckSession!=='function')fail('DEVELOPMENT_REPLY_REJECTED');
   if(enabled!==true||!Buffer.isBuffer(contentKey)||contentKey.length!==32||typeof recipientSha256!=='string'||!/^[a-f0-9]{64}$/.test(recipientSha256)||typeof token!=='string'||!/^EAA[A-Za-z0-9_-]{30,}$/.test(token))fail('DEVELOPMENT_SENDING_DISABLED');
   await input.recheckSession();
-  const app=await call('app?fields=id');if(app.httpStatus!==200||app.body?.id!==APP)fail('META_APP_ID_REJECTED');
-  const phones=await call(WABA+'/phone_numbers?fields=id');if(phones.httpStatus!==200||phones.body?.paging?.next||!Array.isArray(phones.body?.data)||phones.body.data.length!==1||phones.body.data[0]?.id!==PHONE)fail('META_TEST_PHONE_REJECTED');
+  const app=await call('app?fields=id');
+  if(app.httpStatus===401)fail('META_CREDENTIAL_REJECTED');if(app.httpStatus===403)fail('META_ACCESS_DENIED');
+  if(app.httpStatus!==200||app.body?.id!==APP)fail('META_APP_ID_REJECTED');
+  const phones=await call(WABA+'/phone_numbers?fields=id');
+  if(phones.httpStatus===401)fail('META_CREDENTIAL_REJECTED');if(phones.httpStatus===403)fail('META_ACCESS_DENIED');
+  if(phones.httpStatus!==200||phones.body?.paging?.next||!Array.isArray(phones.body?.data)||phones.body.data.length!==1||phones.body.data[0]?.id!==PHONE)fail('META_TEST_PHONE_REJECTED');
   await input.recheckSession();
   const attemptId=randomUUID(),bodyDigest=sha(input.body),encryptedBody=encryptLedger(input.body,contentKey,[TENANT,PHONE,attemptId]);
   // scoped() must COMMIT before resolving. An uncertain commit also prevents

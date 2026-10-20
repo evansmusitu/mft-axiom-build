@@ -12,7 +12,7 @@ function fixture(overrides={}){
  const calls=[],db=[];let checks=0;
  const reserved={admitted:true,attemptId:attempt,phoneNumberId:phone,recipientHash:remote,encryptedRecipient:encryptLedger(recipient,key,[tenant,phone,'contact:'+remote]),encryptedBody:encryptLedger(body,key,[tenant,phone,attempt]),bodyDigest:sha(body)};
  const scoped=async(t,a,roles,work)=>work({query:async(sql,args)=>{db.push({sql,args});if(sql.includes('reserve_development_reply'))return{rows:[{result:{...reserved,attemptId:args[4],encryptedBody:args[5],...overrides.reserved}}]};if(overrides.completionError)throw Error('DB_OUTCOME_UNKNOWN');return{rows:[{result:{status:'ACCEPTED'}}]};}});
- const request=async(url,options)=>{calls.push({url,options});if(url.endsWith('/app?fields=id'))return Response.json({id:overrides.app??'1096094346481018'});if(url.includes('/phone_numbers?fields=id'))return Response.json({data:[{id:phone}]});if(overrides.transportError)throw Error('sensitive raw provider error');if(overrides.response)return overrides.response();return Response.json({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id:'wamid.reply'}]});};
+ const request=async(url,options)=>{calls.push({url,options});if(url.endsWith('/app?fields=id'))return Response.json({id:overrides.app??'1096094346481018'},{status:overrides.appStatus??200});if(url.includes('/phone_numbers?fields=id'))return Response.json({data:[{id:phone}]},{status:overrides.phoneStatus??200});if(overrides.transportError)throw Error('sensitive raw provider error');if(overrides.response)return overrides.response();return Response.json({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id:'wamid.reply'}]});};
  const sender=createDevelopmentReplySender({scoped,token:'EAA'+'A'.repeat(40),enabled:true,contentKey:key,recipientSha256:sha(recipient),request,...overrides.config});
  return{sender,calls,db,get checks(){return checks;},run:(extra={})=>sender({...input,recheckSession:async()=>{checks++;if(overrides.sessionError&&checks===2)throw Error('SESSION_REVOKED');},...extra})};
 }
@@ -23,6 +23,11 @@ test('development reply needs exact scope, owner, explicit text approval and sel
 test('issuer mismatch or revoked session prevents reservation and provider POST',async()=>{
  const wrong=fixture({app:'1775810357073694'});await assert.rejects(wrong.run(),/META_APP_ID_REJECTED/);assert.equal(wrong.calls.length,1);assert.equal(wrong.db.length,0);
  const revoked=fixture({sessionError:true});await assert.rejects(revoked.run(),/SESSION_REVOKED/);assert.equal(revoked.db.length,0);assert.equal(revoked.calls.filter(x=>x.options.method==='POST').length,0);
+});
+test('Meta authentication and permission failures are distinguished before any reservation or send',async()=>{
+ for(const [config,reason]of [[{appStatus:401},'META_CREDENTIAL_REJECTED'],[{phoneStatus:401},'META_CREDENTIAL_REJECTED'],[{appStatus:403},'META_ACCESS_DENIED'],[{phoneStatus:403},'META_ACCESS_DENIED']]){
+  const f=fixture(config);await assert.rejects(f.run(),new RegExp(reason));assert.equal(f.db.length,0);assert.equal(f.calls.some(x=>x.options.method==='POST'),false);
+ }
 });
 test('committed reservation precedes exactly one fixed-endpoint POST and sanitized outcome',async()=>{
  const f=fixture();const r=await f.run();assert.equal(r.status,'ACCEPTED');assert.equal(r.automaticRetry,false);assert.equal(f.checks,2);
