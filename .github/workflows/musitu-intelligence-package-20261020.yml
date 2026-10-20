@@ -1,0 +1,161 @@
+name: MUSITU Intelligence Verified Full-Source Handoff
+
+on:
+  push:
+    branches: [handoff/musitu-intelligence-product-20261020]
+    paths:
+      - .github/workflows/musitu-intelligence-package-20261020.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-verifiable-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated backend at immutable commit
+        uses: actions/checkout@v4
+        with:
+          repository: evansmusitu/mft-axiom-build
+          ref: 6147ceed65dcc4d7594913db16408669423738c3
+          path: backend-source
+          persist-credentials: false
+      - name: Checkout website at immutable production source commit
+        uses: actions/checkout@v4
+        with:
+          repository: evansmusitu/evansmusitu.github.io
+          ref: 7eb670aa6fa4660ef8a0f033d23a472922eea9fe
+          path: frontend-source
+          persist-credentials: false
+      - name: Checkout handoff instructions without changing production repos
+        uses: actions/checkout@v4
+        with:
+          path: handoff-source
+          ref: handoff/musitu-intelligence-product-20261020
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assemble complete exact source and continuation instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB_SHA=7eb670aa6fa4660ef8a0f033d23a472922eea9fe
+          EDGE_SHA=6147ceed65dcc4d7594913db16408669423738c3
+          test "$(git -C frontend-source rev-parse HEAD)" = "$WEB_SHA"
+          test "$(git -C backend-source rev-parse HEAD)" = "$EDGE_SHA"
+          ROOT=release/MUSITU_INTELLIGENCE_PRODUCT_20261020
+          mkdir -p "$ROOT/frontend" "$ROOT/backend/studio-edge" "$ROOT/backend/.github/workflows" "$ROOT/handoff"
+          rsync -a --exclude='.git/' --exclude='node_modules/' \
+            --exclude='dist/' --exclude='coverage/' --exclude='playwright-report/' \
+            --exclude='test-results/' --exclude='.env' --exclude='.env.*' \
+            --exclude='*.pem' --exclude='*.key' \
+            frontend-source/ "$ROOT/frontend/"
+          rsync -a --exclude='.git/' --exclude='node_modules/' \
+            --exclude='dist/' --exclude='.env' --exclude='.env.*' \
+            --exclude='*.pem' --exclude='*.key' \
+            backend-source/studio-edge/ "$ROOT/backend/studio-edge/"
+          for workflow in \
+            musitu-intelligence-edge-isolated.yml \
+            musitu-intelligence-edge-live.yml \
+            musitu-edge-capacity-release.yml \
+            musitu-edge-model-tools-release.yml \
+            musitu-edge-multimodel-tools-release.yml \
+            musitu-zero-cost-images-web-release.yml \
+            musitu-evidence-citation-release.yml \
+            musitu-scholarly-evidence-release.yml \
+            musitu-document-analysis-release.yml \
+            musitu-multidoc-release.yml; do
+            test -s "backend-source/.github/workflows/$workflow"
+            cp "backend-source/.github/workflows/$workflow" "$ROOT/backend/.github/workflows/$workflow"
+          done
+          cp handoff-source/handoff-intelligence/README_START_HERE.md "$ROOT/README_START_HERE.md"
+          cp handoff-source/handoff-intelligence/EXACT_NEW_CHAT_COMMAND.txt "$ROOT/handoff/EXACT_NEW_CHAT_COMMAND.txt"
+          cp handoff-source/handoff-intelligence/CURRENT_STATE_AND_NEXT_STEPS.md "$ROOT/handoff/CURRENT_STATE_AND_NEXT_STEPS.md"
+          test -s "$ROOT/frontend/assets/vendor/pdf.mjs"
+          test -s "$ROOT/frontend/assets/vendor/pdf.worker.mjs"
+          test -s "$ROOT/frontend/assets/vendor/mammoth.browser.min.js"
+          test -s "$ROOT/frontend/assets/musitu-workspace-slots.mjs"
+          test -s "$ROOT/backend/studio-edge/worker.mjs"
+          if find "$ROOT" -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name 'id_rsa' -o -name 'credentials.json' -o -name 'service-account.json' \) | grep -q .; then
+            echo 'Sensitive file path detected. Aborting archive.' >&2
+            exit 1
+          fi
+          echo "PRODUCT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          echo "WEB_SHA=$WEB_SHA" >> "$GITHUB_ENV"
+          echo "EDGE_SHA=$EDGE_SHA" >> "$GITHUB_ENV"
+      - name: Generate source manifest and test documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,datetime,os,pathlib
+          root=pathlib.Path(os.environ['PRODUCT_ROOT'])
+          data={
+            'product':'MUSITU Intelligence',
+            'snapshot_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'website':{'repository':'evansmusitu/evansmusitu.github.io','ref':'main','commit':os.environ['WEB_SHA'],'live_url':'https://evansmusitu.github.io/'},
+            'backend':{'repository':'evansmusitu/mft-axiom-build','ref':'feature/musitu-multidoc-evidence-20261020','commit':os.environ['EDGE_SHA'],
+              'production_worker':'https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev',
+              'canary_worker':'https://musitu-intelligence-edge-capacity-canary-20261019.mft-education-nexus-93f395f5.workers.dev'},
+            'verified_website_public_run':'39446877594',
+            'drive_folder_id':'1YxjwUwWzZJzMC2CoSy-Mms8kXnAco0ZT',
+            'scope':'complete website repository source; isolated Edge Worker source, configs, tests and deployment workflows',
+            'excluded':['secrets/credentials','private customer records','encrypted visitor vault contents','node_modules','Git internals','unrelated Axiom monorepo code'],
+            'integrity_manifest':'SHA256SUMS.txt'
+          }
+          (root/'handoff/SOURCE_MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
+          PY
+      - name: Run full source-level frontend and backend verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRODUCT_ROOT/frontend"
+          node --check assets/musitu-edge-chat.js
+          node --check assets/musitu-workspace-vault.mjs
+          node --check assets/musitu-workspace-slots.mjs
+          node tests/site.test.mjs
+          node --test tests/workspace-vault.test.mjs tests/workspace-slots.test.mjs tests/evidence-pack.test.mjs tests/local-evidence.test.mjs | tee ../../frontend-tests.log
+          cd ../backend
+          node --check studio-edge/worker.mjs
+          node --test studio-edge/tests/*.test.mjs | tee ../../backend-tests.log
+          cd ../..
+          test -s frontend-tests.log
+          test -s backend-tests.log
+          {
+            echo "MUSITU Intelligence full-source ZIP verification"
+            echo "Source website commit: $WEB_SHA"
+            echo "Source backend commit: $EDGE_SHA"
+            echo "Validated at UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "Frontend source integrity, structure, syntax and browser-vault/evidence unit tests:"
+            grep -E '^# (tests|pass|fail) ' frontend-tests.log | tail -n 3 || true
+            echo
+            echo "Backend source syntax and all studio-edge deterministic unit tests:"
+            grep -E '^# (tests|pass|fail) ' backend-tests.log | tail -n 3 || true
+            echo
+            echo "This export uses no model inference, no personal data access and no production API changes."
+            echo "For actual live production verification see CURRENT_STATE_AND_NEXT_STEPS.md and the cited GitHub Actions runs."
+          } > "$PRODUCT_ROOT/handoff/VALIDATION_REPORT.txt"
+      - name: Generate and validate checksums for every packaged file
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRODUCT_ROOT"
+          find . -type f ! -name SHA256SUMS.txt -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt >/dev/null
+          test "$(find . -type f | wc -l)" -gt 55
+          test "$(du -sb . | cut -f1)" -gt 3000000
+          echo "Verified packaged files: $(find . -type f | wc -l)"
+          echo "Verified packaged source bytes: $(du -sb . | cut -f1)"
+      - name: Package entire product as downloadable ZIP without secrets
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_INTELLIGENCE_COMPLETE_PRODUCT_20261020_7eb670a_6147cee
+          path: release/MUSITU_INTELLIGENCE_PRODUCT_20261020/
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 30
