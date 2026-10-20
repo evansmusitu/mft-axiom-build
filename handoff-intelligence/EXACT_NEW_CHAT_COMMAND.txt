@@ -1,0 +1,17 @@
+MISSION: RESUME MUSITU INTELLIGENCE FROM THE COMPLETE VERIFIED DRIVE HANDOFF — NO REPLANNING FROM MEMORY
+
+Use my connected Google Drive and GitHub integrations. First open my private handoff folder:
+https://drive.google.com/drive/folders/1YxjwUwWzZJzMC2CoSy-Mms8kXnAco0ZT
+
+Find and read the newest ZIP named MUSITU_INTELLIGENCE_COMPLETE_PRODUCT_20261020_7eb670a_6147cee.zip. Unzip or inspect it. Read README_START_HERE.md, handoff/CURRENT_STATE_AND_NEXT_STEPS.md, handoff/SOURCE_MANIFEST.json, handoff/VALIDATION_REPORT.txt, and SHA256SUMS.txt BEFORE engineering anything. Treat the contained source code and frozen GitHub commit SHAs as the authoritative product handoff.
+
+Website: https://evansmusitu.github.io/
+Website repository: evansmusitu/evansmusitu.github.io, pinned main SHA 7eb670aa6fa4660ef8a0f033d23a472922eea9fe.
+Backend repository: evansmusitu/mft-axiom-build, isolated branch feature/musitu-multidoc-evidence-20261020, pinned SHA 6147ceed65dcc4d7594913db16408669423738c3.
+Cloudflare Worker: https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev
+
+Verify GitHub current heads, CI, live site and Worker before changes in case the product evolved after the snapshot. Continue actual product engineering autonomously using existing approved, free/authorized GitHub, Cloudflare, Neon and Vercel resources as applicable, with isolated feature branches, thorough tests, live canary-first verification, precise result reporting and an updated handoff when requested. Do NOT claim cloud user accounts, globally coordinated quotas or durable authenticated sync already exist.
+
+Preserve the frozen OpenAI Axiom main/PR #1, all unrelated MUSITU Mail Fabric and WhatsApp projects, existing Cloudflare Access/MFA, customer data and credentials. Never reset passwords, bypass authentication, purchase paid services, expose API secrets, change billing, or merge unrelated protected branches. Only ask for essential human-only identity or billing authorization. Do not ask me to repeat architecture, previously verified code, or earlier approvals.
+
+Product already ships browser AI, standard/deep models, deterministic calculation, bounded image generation, attributed public/DOI research, browser-local PDF/DOCX/text extraction, 2–3 document comparisons, evidence citations, and five manual passphrase-encrypted local workspace slots. These are NOT an authenticated cloud workspace. Follow the exact handoff notes, choose the next most valuable REAL enterprise capability, implement and test it rather than only proposing it, and give me concrete commits/workflow IDs and results. If a connector cannot access the ZIP, explicitly report that and recover the pinned code from GitHub rather than inventing its contents.
