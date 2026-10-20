@@ -5,6 +5,18 @@ import unittest
 SCHEMA = pathlib.Path(__file__).with_name("store-axiom-checkout-schema.sql")
 
 class StorePaymentSqlPolicyTests(unittest.TestCase):
+    def test_customer_token_expiration_is_mandatory_for_new_store_sessions(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""INSERT INTO store_customer_tokens
+                (token_hash,customer_id,status) VALUES(?,?,?)""",
+                ("a" * 64, "customer_fixture", "active"))
+        self.db.execute("""INSERT INTO store_customer_tokens
+                (token_hash,customer_id,status,expires_at) VALUES(?,?,?,?)""",
+                ("b" * 64, "customer_fixture", "active", "2099-01-01T00:00:00.000Z"))
+        self.assertEqual(self.db.execute(
+            "SELECT expires_at FROM store_customer_tokens WHERE token_hash=?",
+            ("b"*64,)).fetchone()[0], "2099-01-01T00:00:00.000Z")
+
     def test_review_requires_prior_verified_provider_record(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE store_checkout_intents SET status='review_required'")

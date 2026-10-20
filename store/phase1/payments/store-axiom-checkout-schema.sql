@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS store_customer_tokens (
     CHECK(length(token_hash)=64 AND token_hash NOT GLOB '*[^a-f0-9]*'),
   customer_id TEXT NOT NULL CHECK(length(customer_id) BETWEEN 4 AND 128),
   status TEXT NOT NULL DEFAULT 'inactive' CHECK(status IN ('active','inactive','revoked')),
+  expires_at TEXT NOT NULL CHECK(
+    expires_at GLOB '????-??-??T??:??:??Z' OR
+    expires_at GLOB '????-??-??T??:??:??.???Z'),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

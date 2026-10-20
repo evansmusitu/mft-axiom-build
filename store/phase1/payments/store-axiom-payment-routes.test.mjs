@@ -20,14 +20,14 @@ function fakeDb(){
   const intent={reference:checkoutReference,customer_id:'customer_fixture',sku:'MUSITU_OWNED_APP',
     amount_cents:425,currency:'USD',status:'pending',poll_url:pollurl,
     expires_at:'2099-10-19T00:00:00.000Z'};
-  const data={review:null,intent};
+  const data={review:null,intent,authToken:{customer_id:'customer_fixture',status:'active',expires_at:'2099-01-01T00:00:00.000Z'}};
   return {log,data,prepare(sql){
     const entry={sql,values:[]};
     return {bind(...values){entry.values=values;return {
       sql,
       async first(){
         log.push({...entry,method:'first'});
-        if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};
+        if(sql.includes('store_customer_tokens'))return data.authToken;
         if(sql.includes('store_checkout_reviews'))return data.review;
         if(sql.includes('store_checkout_intents'))return (
           entry.values[0]===checkoutReference && (!sql.includes('customer_id=?2')||entry.values[1]==='customer_fixture')?data.intent:null);
@@ -207,4 +207,19 @@ test('slow unbounded client webhook upload is rejected by absolute deadline with
     if(watch)clearTimeout(watch);
     try{upload.close();}catch{}
   }
+});
+
+test('authenticated status rejects expired, missing, malformed and revoked customer tokens',async()=>{
+  for(const value of ['2000-01-01T00:00:00.000Z','not-a-date',null,'']){
+    const {app,env,calls}=fixture();
+    env.STORE_DB.data.authToken.expires_at=value;
+    const response=await app.fetch(status(),env);
+    assert.equal(response.status,401,'expired bearer cannot read customer order: '+value);
+    assert.equal(calls.length,0);
+    assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('store_checkout_intents')).length,0);
+  }
+  const {app,env,calls}=fixture();
+  env.STORE_DB.data.authToken.status='revoked';
+  assert.equal((await app.fetch(status(),env)).status,401);
+  assert.equal(calls.length,0);
 });

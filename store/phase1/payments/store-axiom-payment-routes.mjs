@@ -87,8 +87,12 @@ async function verifyCustomer(req,db){
  const auth=req.headers.get('authorization')||'';
  if(!auth.startsWith('Bearer ')||auth.length<32||auth.length>600)return null;
  const tokenHash=(await sha(auth.slice(7),'SHA-256')).toLowerCase();
- const row=await db.prepare('SELECT customer_id,status FROM store_customer_tokens WHERE token_hash=?1 LIMIT 1').bind(tokenHash).first();
- return row?.status==='active'&&row.customer_id?row.customer_id:null;
+ const row=await db.prepare('SELECT customer_id,status,expires_at FROM store_customer_tokens WHERE token_hash=?1 LIMIT 1').bind(tokenHash).first();
+ const expiry=row?.expires_at;
+ if(row?.status!=='active'||!row.customer_id||typeof expiry!=='string'||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(expiry))return null;
+ const until=Date.parse(expiry);
+ return Number.isFinite(until)&&until>Date.now()?row.customer_id:null;
 }
 export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbackReadTimeoutMs=8000}={}){
  if(!Number.isSafeInteger(callbackReadTimeoutMs)||callbackReadTimeoutMs<1||callbackReadTimeoutMs>8000)

@@ -16,6 +16,18 @@ const PAYNOW='https://www.paynow.co.zw/interface/initiatetransaction';
 const FIELDS=['id','reference','amount','additionalinfo','returnurl','resulturl','status'];
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 const noPower={entitlement_granted:false,publisher_payout_authorized:false,live_money_certified:false};
+// A bearer remaining marked active is not evidence of an unexpired session.
+// Fail closed for old or incomplete token rows until Store-only credentials
+// are rotated with a verified UTC expiration.
+function activeCustomer(row){
+  const expiry=row?.expires_at;
+  if(row?.status!=='active'||!row.customer_id||typeof expiry!=='string'||
+     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(expiry))
+    return false;
+  const until=Date.parse(expiry);
+  return Number.isFinite(until)&&until>Date.now();
+}
+
 const reply=(status,body)=>new Response(JSON.stringify({...body,...noPower}),{status,headers:HEADERS});
 const enc=new TextEncoder();
 async function hexSha(input,algorithm='SHA-512'){
@@ -98,7 +110,7 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     if(env?.STORE_CHECKOUT_ENABLED!=='true'||env?.STORE_FIRST_PARTY_ONLY!=='true'||
        env?.STORE_CALLBACKS_CERTIFIED!=='true'||
        !env.STORE_DB||!/^[1-9][0-9]{2,12}$/.test(env.STORE_PAYNOW_ID||'')||
-       typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<12)
+       typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<16)
       return reply(503,{ok:false,error:'store_checkout_not_configured'});
     const header=request.headers.get('authorization')||'';
     if(!header.startsWith('Bearer ')||header.length<32||header.length>600)
@@ -106,9 +118,9 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     let customer;
     try{
       const tokenHash=(await hexSha(header.slice(7),'SHA-256')).toLowerCase();
-      customer=await env.STORE_DB.prepare('SELECT customer_id,status FROM store_customer_tokens WHERE token_hash=?1 LIMIT 1').bind(tokenHash).first();
+      customer=await env.STORE_DB.prepare('SELECT customer_id,status,expires_at FROM store_customer_tokens WHERE token_hash=?1 LIMIT 1').bind(tokenHash).first();
     }catch{return reply(503,{ok:false,error:'store_db_unavailable'});}
-    if(!customer||customer.status!=='active'||!customer.customer_id)
+    if(!activeCustomer(customer))
       return reply(401,{ok:false,error:'not_authorized'});
     if(!(request.headers.get('content-type')||'').startsWith('application/json'))
       return reply(415,{ok:false,error:'unsupported_media_type'});

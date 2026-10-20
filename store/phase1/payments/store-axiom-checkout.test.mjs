@@ -7,9 +7,9 @@ const key='ci-only-mft-key-not-production';
 const userToken='store-ci-test-long-lived-token-123456789';
 function hash(values){return createHash('sha512').update(values.join('')+key).digest('hex').toUpperCase();}
 function fakeDb(){
- const log=[], products=new Map([['MUSITU_OWNED_APP',{sku:'MUSITU_OWNED_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'first_party'}],['THIRD_PARTY_APP',{sku:'THIRD_PARTY_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'third_party'}]]);
- return {log,prepare(sql){
-   return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return {customer_id:'customer_fixture',status:'active'};if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true,meta:{changes:1}}}}}};
+ const log=[], authToken={customer_id:'customer_fixture',status:'active',expires_at:'2099-01-01T00:00:00.000Z'}, products=new Map([['MUSITU_OWNED_APP',{sku:'MUSITU_OWNED_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'first_party'}],['THIRD_PARTY_APP',{sku:'THIRD_PARTY_APP',amount_cents:425,currency:'USD',status:'approved',publisher_type:'third_party'}]]);
+ return {log,authToken,prepare(sql){
+   return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return authToken;if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true,meta:{changes:1}}}}}};
  }};
 }
 function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_CALLBACKS_CERTIFIED:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
@@ -212,4 +212,23 @@ test('untrusted checkout upload enforces byte limit without buffering the entire
  assert.ok(pulls<=6,'request body consumed too many client-provided chunks: '+pulls);
  assert.equal(calls.length,0);
  assert.equal(env.STORE_DB.log.filter(x=>/store_products|INSERT INTO store_checkout_intents/.test(x.sql)).length,0);
+});
+
+// A token's active flag must not turn an expired, malformed or missing
+// session expiration into permanent purchase-initiation authority.
+test('expired and malformed customer bearer tokens cannot initiate a charge',async()=>{
+  for(const expires_at of ['2000-01-01T00:00:00.000Z','malformed',null,'']){
+    const {app,calls}=worker(); const env=fakeEnv();
+    env.STORE_DB.authToken.expires_at=expires_at;
+    const response=await app.fetch(req(),env);
+    assert.equal(response.status,401,'invalid expiry must deny checkout: '+expires_at);
+    assert.equal(calls.length,0);
+    assert.equal(env.STORE_DB.log.filter(x=>/store_products|INSERT INTO store_checkout_intents/.test(x.sql)).length,0);
+  }
+});
+test('revoked bearer token is denied even before expiry',async()=>{
+  const {app,calls}=worker();const env=fakeEnv();
+  env.STORE_DB.authToken.status='revoked';
+  assert.equal((await app.fetch(req(),env)).status,401);
+  assert.equal(calls.length,0);
 });
