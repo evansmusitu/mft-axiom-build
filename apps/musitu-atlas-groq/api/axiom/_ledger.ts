@@ -11,6 +11,51 @@ function db(){
  return neon(uri,{fetchOptions:{cache:'no-store'}});
 }
 export function ledgerReady(){return Boolean(process.env.ATLAS_AXIOM_DATABASE_URL);}
+
+export type RoleAssessment={
+ restricted:boolean;
+ safeRead:boolean;
+ safeInsert:boolean;
+ safeUpdate:boolean;
+ excessivePrivilege:boolean;
+ policy:'least-privileged-owner-single-tenant-v1';
+};
+/** Inspect the actual connected PostgreSQL session; never trust environment flags
+ * to declare a role least-privileged. Read-only and no secret disclosure.
+ */
+export async function assessRuntimeRole():Promise<RoleAssessment>{
+ const sql=db();
+ const rows=await sql`SELECT
+  has_table_privilege(current_user,'atlas_axiom_attempts','SELECT') AS can_read,
+  has_table_privilege(current_user,'atlas_axiom_attempts','INSERT') AS can_insert,
+  has_column_privilege(current_user,'atlas_axiom_attempts','status','UPDATE') AS can_update,
+  has_table_privilege(current_user,'atlas_axiom_attempts','DELETE') AS can_delete_attempt,
+  has_table_privilege(current_user,'atlas_axiom_audit','DELETE') AS can_delete_audit,
+  has_table_privilege(current_user,'atlas_axiom_quotas','DELETE') AS can_delete_quota,
+  has_schema_privilege(current_user,'public','CREATE') AS can_create,
+  pg_has_role(current_user,'neon_superuser','member') AS privileged_member,
+  r.rolsuper AS superuser,
+  r.rolcreaterole AS can_create_roles,
+  r.rolcreatedb AS can_create_dbs,
+  r.rolbypassrls AS can_bypass_rls
+ FROM pg_roles r WHERE r.rolname=current_user`;
+ const v=rows[0];
+ if(!v)throw deny(503,'Unable to qualify Neon runtime role.');
+ const excessive=Boolean(v.can_delete_attempt||v.can_delete_audit||v.can_delete_quota
+  ||v.can_create||v.privileged_member||v.superuser||v.can_create_roles
+  ||v.can_create_dbs||v.can_bypass_rls);
+ return {restricted:!excessive&&Boolean(v.can_read&&v.can_insert&&v.can_update),
+  safeRead:Boolean(v.can_read),safeInsert:Boolean(v.can_insert),safeUpdate:Boolean(v.can_update),
+  excessivePrivilege:excessive,policy:'least-privileged-owner-single-tenant-v1'};
+}
+export async function enforceRuntimeRole(){
+ let check:RoleAssessment;
+ try{check=await assessRuntimeRole();}
+ catch{throw deny(503,'Database privilege qualification unavailable. No Axiom operation dispatched.');}
+ if(!check.restricted)throw deny(503,'Runtime database role is overprivileged or missing required restricted grants. No operation dispatched.');
+ return check;
+}
+
 function tenant(){
  const v=process.env.ATLAS_AXIOM_TENANT_ID||'atlas-private-owner';
  if(!/^[a-z0-9-]{3,64}$/.test(v))throw deny(503,'Invalid server-owned tenant configuration.');
@@ -25,6 +70,7 @@ export async function event(requestId:string,kind:AttemptStatus,body:Record<stri
  VALUES(${requestId}::uuid,${kind},${auditDigest(requestId,kind,body)},${payload}::jsonb)`;
 }
 export async function claim(id:string,key:string,requestHash:string,expression:string){
+ await enforceRuntimeRole();
  const sql=db(),owner=tenant();
  const rows=await sql`
  INSERT INTO atlas_axiom_attempts(request_id,tenant_id,idempotency_key,request_sha256,operation,expression,status)
@@ -49,6 +95,7 @@ export async function claim(id:string,key:string,requestHash:string,expression:s
  return {requestId:id,quotaCount:Number(used[0].used)};
 }
 export async function start(id:string){
+ await enforceRuntimeRole();
  const sql=db(),owner=tenant();
  const result=await sql`
  UPDATE atlas_axiom_attempts SET status='DISPATCHING',updated_at=now()
