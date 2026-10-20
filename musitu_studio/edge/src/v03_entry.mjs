@@ -23,7 +23,10 @@ async function readJson(req,limit=65536){
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));
 }
 function configured(env){return Boolean(env.STUDIO_DB&&env.STUDIO_ASSETS)}
-function cpuReady(env){return env.ENABLE_RENDER_DISPATCH==='true'&&
+// V0.3 production is SOURCE-LOCKED until independently verified $0 provider
+// enforcement and human release approvals exist. Environment flags alone are
+// insufficient. Only offline mock-render unit tests inject testOnlyCpuGate.
+function cpuReady(env,testOnlyCpuGate){return testOnlyCpuGate===true&&env.ENABLE_RENDER_DISPATCH==='true'&&
   env.BUDGET_GUARD_APPROVED==='true'&&isModalDestination(env.STUDIO_MODAL_URL)&&
   typeof env.STUDIO_MODAL_CONTROL_KEY==='string'&&env.STUDIO_MODAL_CONTROL_KEY.length>=32}
 const auditStmt=(env,p,j,action,subject,details={})=>q(env.STUDIO_DB,
@@ -110,13 +113,13 @@ async function complete(env,b){
   }catch{return err('RESULT_TRANSACTION_FAILED',503)}
   return json({ok:true,state:'COMPLETED'});
 }
-async function api(req,env,url,actor){
+async function api(req,env,url,actor,testOnlyCpuGate){
   const path=url.pathname;
   if(req.method==='GET'&&path==='/api/session')
     return json({ok:true,role:globalAdmin(env,actor.sub)?'global_admin':'staff',subject:actor.sub});
   if(req.method==='GET'&&path==='/api/status')
     return json({ok:true,version:'0.3-sqlite-do-enterprise',backend:'SQLITE_DURABLE_OBJECT',
-      dispatch_enabled:cpuReady(env),gpu_execution_approved:false,
+      dispatch_enabled:cpuReady(env,testOnlyCpuGate),gpu_execution_approved:false,
       daily_cpu_dispatch_limit:safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT)});
   if(req.method==='GET'&&path==='/api/projects'){
     const statement=globalAdmin(env,actor.sub)
@@ -249,7 +252,7 @@ async function api(req,env,url,actor){
     return json({ok:true,state:'APPROVED'});
   }
   if(req.method==='POST'&&action==='dispatch'){
-    if(!cpuReady(env))return err('CPU_DISPATCH_GATES_CLOSED',503);
+    if(!cpuReady(env,testOnlyCpuGate))return err('CPU_DISPATCH_GATES_CLOSED',503);
     if(job.render_device!=='CPU'||!job.approved_by_sub||job.approved_by_sub===job.created_by_sub)
       return err('APPROVAL_EVIDENCE_MISSING',409);
     const t=now(),max=safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT);
@@ -298,7 +301,7 @@ async function api(req,env,url,actor){
     if(['COMPLETED','FAILED'].includes(job.state))return json({ok:true,state:job.state});
     if(job.state!=='RUNNING'||!/^fc-[a-zA-Z0-9_-]{8,128}$/.test(job.call_id||''))
       return err('JOB_NOT_POLLABLE',409);
-    if(!cpuReady(env))return err('MODAL_POLL_GATED',503);
+    if(!cpuReady(env,testOnlyCpuGate))return err('MODAL_POLL_GATED',503);
     let remote;
     try{
       const response=await fetch(remotePath(env,'pull/'+job.call_id),{
@@ -316,7 +319,7 @@ async function api(req,env,url,actor){
   }
   return err('METHOD_NOT_ALLOWED',405);
 }
-export function createV03Worker({identify=verifiedV03Identity}={}){
+export function createV03Worker({identify=verifiedV03Identity,testOnlyCpuGate=false}={}){
   return {async fetch(req,env){
     const url=new URL(req.url);
     if(!configured(env))return err('V03_D1_NOT_BOUND',503);
@@ -338,7 +341,7 @@ export function createV03Worker({identify=verifiedV03Identity}={}){
       if(!['same-origin','none',null].includes(req.headers.get('sec-fetch-site')))
         return err('CROSS_SITE_REJECTED',403);
     }
-    try{return await api(req,env,url,actor)}
+    try{return await api(req,env,url,actor,testOnlyCpuGate)}
     catch(e){
       if(e?.message==='TOO_LARGE')return err('BODY_TOO_LARGE',413);
       if(e?.message==='CONTENT_TYPE')return err('JSON_CONTENT_TYPE_REQUIRED',415);

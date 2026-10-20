@@ -51,7 +51,7 @@ class R2 {
 const scene={schema:'musitu.blender.job.v1',job_id:'StudioEnterprise01',objects:[{
   name:'Cube',type:'cube',location:[0,0,0],dimensions:[1,1,1],material:'copper'
 }]};
-function fixture(){
+function fixture({testOnlyCpuGate=false}={}){
   const db=new D1(),r2=new R2();
   const env={STUDIO_DB:db,STUDIO_ASSETS:r2,
     STUDIO_MODAL_CALLBACK_KEY:'C'.repeat(48),
@@ -60,7 +60,7 @@ function fixture(){
     STUDIO_MODAL_URL:'https://studio-example.modal.run/jobs',
     STUDIO_MODAL_CONTROL_KEY:'D'.repeat(48),
     ASSETS:{fetch:async()=>new Response('dashboard',{status:200})}};
-  const worker=createV03Worker({identify:async req=>{
+  const worker=createV03Worker({testOnlyCpuGate,identify:async req=>{
     const sub=req.headers.get('x-simulated-staff');
     return sub?{sub,email:sub+'@example.test'}:null;
   }});
@@ -112,6 +112,36 @@ test('V0.3 status identifies actual SQLite Durable Object backend, without imply
   assert.equal(result.body.backend,'SQLITE_DURABLE_OBJECT');
   assert.equal(result.body.dispatch_enabled,false);
   assert.equal(result.body.gpu_execution_approved,false);
+});
+test('production CPU stays locked when legacy dispatch and budget flags are both true',async()=>{
+  const f=fixture(),p=await project(f),id=await job(f,p);
+  assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+    {member_sub:'person-b',role:'reviewer'})).status,200);
+  assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
+  f.env.ENABLE_RENDER_DISPATCH='true';
+  f.env.BUDGET_GUARD_APPROVED='true';
+  let remoteCalls=0;
+  const originalFetch=globalThis.fetch;
+  try{
+    globalThis.fetch=async()=>{remoteCalls++;throw Error('UNAUTHORIZED_PAID_EGRESS')};
+    const status=await f.call('person-b','/api/status');
+    assert.equal(status.body.dispatch_enabled,false,'Legacy operator flags are insufficient without verified provider spending controls');
+    const result=await f.call('person-b','/api/jobs/'+id+'/dispatch','POST',{});
+    assert.equal(result.status,503);
+    assert.equal(result.body.error,'CPU_DISPATCH_GATES_CLOSED');
+    assert.equal(remoteCalls,0);
+    assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'APPROVED');
+    f.db.db.prepare("UPDATE jobs SET state='RUNNING',call_id='fc-test-closed-poll-00001' WHERE id=?").run(id);
+    const polled=await f.call('person-b','/api/jobs/'+id+'/sync','POST',{});
+    assert.equal(polled.status,503,'Even poll must not access paid compute with unverified budget');
+    assert.equal(polled.body.error,'MODAL_POLL_GATED');
+    assert.equal(remoteCalls,0);
+  }finally{globalThis.fetch=originalFetch}
+});
+test('production Durable Object caller does not pass the simulated CPU release override',()=>{
+  const entry=readFileSync(new URL('../src/v03_do_entry.mjs',import.meta.url),'utf8');
+  assert.match(entry,/createV03Worker\(\{identify:async request=>trustedActor\(request\)\}\)/);
+  assert.doesNotMatch(entry,/testOnlyCpuGate/);
 });
 test('owner creation atomic, outsider cannot see project or jobs',async()=>{
   const f=fixture(),p=await project(f);
@@ -198,7 +228,7 @@ test('policy enforces global staff separation, CPU-only and destination allowlis
 });
 
 test('signed reviewer dispatches exactly once, actual Modal-shaped CPU pull completes',async()=>{
- const f=fixture(),p=await project(f),id=await job(f,p);
+ const f=fixture({testOnlyCpuGate:true}),p=await project(f),id=await job(f,p);
  assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
    {member_sub:'person-b',role:'reviewer'})).status,200);
  assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
@@ -235,7 +265,7 @@ test('signed reviewer dispatches exactly once, actual Modal-shaped CPU pull comp
  }finally{globalThis.fetch=remoteFetch}
 });
 test('uncertain Modal dispatch never retries automatically or charges GPU',async()=>{
- const f=fixture(),p=await project(f),id=await job(f,p);
+ const f=fixture({testOnlyCpuGate:true}),p=await project(f),id=await job(f,p);
  await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
  await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
  f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
@@ -326,7 +356,7 @@ test('failed-render callback rolls back terminal state if audit insertion fails 
 
 
 test('dispatch audit failure rolls back to approved before any external CPU request',async()=>{
- const f=fixture(),p=await project(f),id=await job(f,p);
+ const f=fixture({testOnlyCpuGate:true}),p=await project(f),id=await job(f,p);
  await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
  assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
  f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
@@ -346,7 +376,7 @@ test('dispatch audit failure rolls back to approved before any external CPU requ
  }finally{globalThis.fetch=original}
 });
 test('successful Modal ack but rejected audit must be locked as NEEDS_REVIEW without retry',async()=>{
- const f=fixture(),p=await project(f),id=await job(f,p);
+ const f=fixture({testOnlyCpuGate:true}),p=await project(f),id=await job(f,p);
  await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
  await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
  f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
@@ -372,7 +402,7 @@ test('successful Modal ack but rejected audit must be locked as NEEDS_REVIEW wit
  }finally{globalThis.fetch=original}
 });
 test('unknown remote outcome cannot transition to NEEDS_REVIEW without immutable audit',async()=>{
- const f=fixture(),p=await project(f),id=await job(f,p);
+ const f=fixture({testOnlyCpuGate:true}),p=await project(f),id=await job(f,p);
  await f.call('person-a','/api/projects/'+p+'/members','POST',{member_sub:'person-b',role:'reviewer'});
  await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
  f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
