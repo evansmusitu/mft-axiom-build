@@ -12,7 +12,7 @@ concurrency:
 jobs:
   hosted-provider-qualification:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 23
     env:
       CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -109,9 +109,13 @@ jobs:
           : > "$raw"
           # No public endpoint, Access bypass, service tokens, WAF policy change,
           # durable customer-data access or payable Modal/GPU render.
-          timeout 190s npx wrangler tail "$STUDIO_PITR_TEMP_NAME" --format json --sampling-rate 1 > "$raw" 2>&1 &
+          timeout 1100s npx wrangler tail "$STUDIO_PITR_TEMP_NAME" --format json --sampling-rate 1 > "$raw" 2>&1 &
           tailpid=$!
-          sleep 168
+          sleep 10
+          if ! kill -0 "$tailpid" 2>/dev/null;then echo 'PROVIDER_TAIL_UNAVAILABLE';exit 1;fi
+          # Cloudflare documents cron propagation can take up to 15 minutes.
+          # Retain the isolated Worker for 17 minutes; it is always deleted.
+          sleep 1010
           kill "$tailpid" 2>/dev/null || true
           wait "$tailpid" 2>/dev/null || true
           python - <<'PY'
