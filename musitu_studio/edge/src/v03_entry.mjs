@@ -27,10 +27,16 @@ async function readJson(req,limit=65536){
 function configured(env){return Boolean(env.STUDIO_DB&&env.STUDIO_ASSETS)}
 // Explicitly enabled, exactly one allowlisted global administrator and verified Access
 // identity. Never infer this mode simply because a project has one member.
-function singleAdminEnabled(env,actor){
-  if(env.STUDIO_V03_SINGLE_ADMIN_APPROVAL!=='true'||!globalAdmin(env,actor.sub))return false;
+async function singleAdminEnabled(env,actor){
+  if(env.STUDIO_V03_SINGLE_ADMIN_APPROVAL!=='true'||!validSubject(actor?.sub))return false;
+  // Preserve the existing explicit single-global-admin policy for unchanged
+  // deployments. The more restricted owner-fingerprint path does not grant
+  // global administration or membership to unrelated projects.
   const raw=env.STUDIO_V03_GLOBAL_ADMINS;
-  return typeof raw==='string'&&raw.trim()===actor.sub;
+  if(globalAdmin(env,actor.sub)&&typeof raw==='string'&&raw.trim()===actor.sub)return true;
+  const allowedHash=env.STUDIO_V03_SINGLE_ADMIN_SUBJECT_SHA256;
+  return typeof allowedHash==='string'&&/^[a-f0-9]{64}$/.test(allowedHash)&&
+    await sha256(actor.sub)===allowedHash;
 }
 async function soleOwnerOfProject(env,projectId,actor){
   const project=await q(env.STUDIO_DB,'SELECT owner_sub FROM projects WHERE id=?',projectId).first();
@@ -139,7 +145,7 @@ async function api(req,env,url,actor,testOnlyCpuGate){
   if(req.method==='GET'&&path==='/api/status')
     return json({ok:true,version:'0.3-sqlite-do-enterprise',backend:'SQLITE_DURABLE_OBJECT',
       dispatch_enabled:cpuReady(env,testOnlyCpuGate),gpu_execution_approved:false,
-      single_admin_approval_enabled:singleAdminEnabled(env,actor),
+      single_admin_approval_enabled:await singleAdminEnabled(env,actor),
       daily_cpu_dispatch_limit:safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT)});
   if(req.method==='GET'&&path==='/api/projects'){
     const statement=globalAdmin(env,actor.sub)
@@ -258,7 +264,7 @@ async function api(req,env,url,actor,testOnlyCpuGate){
     if(job.state!=='PENDING_APPROVAL')return err('NOT_PENDING_APPROVAL',409);
     const self=actor.sub===job.created_by_sub;
     if(self){
-      if(!singleAdminEnabled(env,actor))return err('SEPARATION_OF_DUTIES',403);
+      if(!await singleAdminEnabled(env,actor))return err('SEPARATION_OF_DUTIES',403);
       if(!await soleOwnerOfProject(env,job.project_id,actor))
         return err('SOLE_ADMIN_APPROVAL_NOT_ELIGIBLE',403);
       // A second human reviewer is not present; require an explicit, logged
@@ -304,7 +310,7 @@ async function api(req,env,url,actor,testOnlyCpuGate){
     if(job.render_device!=='CPU'||!job.approved_by_sub)return err('APPROVAL_EVIDENCE_MISSING',409);
     const singleApproval=job.approved_by_sub===job.created_by_sub;
     if(singleApproval){
-      if(job.created_by_sub!==actor.sub||!singleAdminEnabled(env,actor)||
+      if(job.created_by_sub!==actor.sub||!await singleAdminEnabled(env,actor)||
          !await soleOwnerOfProject(env,job.project_id,actor))
         return err('APPROVAL_EVIDENCE_MISSING',409);
       const evidence=await q(env.STUDIO_DB,

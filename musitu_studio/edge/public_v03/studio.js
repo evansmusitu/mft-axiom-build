@@ -81,7 +81,7 @@ async function refresh(){
          j.state==='PENDING_APPROVAL'?'pending':''));
    actions.append(badge);
    const selfApproval=j.created_by_me&&p?.is_my_project===1&&
-     state.me?.role==='global_admin'&&status.single_admin_approval_enabled===true;
+     p?.role==='owner'&&status.single_admin_approval_enabled===true;
    if(j.state==='PENDING_APPROVAL'&&allowedProject(p,'approve')&&(!j.created_by_me||selfApproval)){
      actions.append(button(selfApproval?'Approve as sole administrator':'Approve as reviewer',async()=>{
        if(selfApproval){

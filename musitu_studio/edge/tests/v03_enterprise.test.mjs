@@ -143,6 +143,30 @@ test('production Durable Object caller does not pass the simulated CPU release o
   assert.match(entry,/createV03Worker\(\{identify:async request=>trustedActor\(request\)\}\)/);
   assert.doesNotMatch(entry,/testOnlyCpuGate/);
 });
+test('only the signed owner matching a cryptographic subject fingerprint can self-approve without broad global admin rights',async()=>{
+  const f=fixture(),p=await project(f),id=await job(f,p);
+  f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';
+  f.env.STUDIO_V03_GLOBAL_ADMINS='';
+  f.env.STUDIO_V03_SINGLE_ADMIN_SUBJECT_SHA256=sha('person-a');
+  assert.equal((await f.call('person-a','/api/session')).body.role,'staff');
+  assert.equal((await f.call('person-a','/api/status')).body.single_admin_approval_enabled,true);
+  assert.equal((await f.call('person-b','/api/status')).body.single_admin_approval_enabled,false);
+  assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',{})).status,400);
+  const accepted=await f.call('person-a','/api/jobs/'+id+'/approve','POST',{acknowledgement:'I_AM_THE_SOLE_APPROVER'});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  assert.equal(accepted.body.approval_model,'single_administrator');
+  assert.equal((await f.call('person-a','/api/status')).body.dispatch_enabled,false);
+  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED_SINGLE_ADMIN'").get(id).n,1);
+});
+test('owner subject fingerprint refuses malformed, mismatched and disabled configurations',async()=>{
+  for(const hash of ['','0'.repeat(64),sha('person-b'), 'not-a-hash']){
+    const f=fixture(),p=await project(f),id=await job(f,p);
+    f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';f.env.STUDIO_V03_SINGLE_ADMIN_SUBJECT_SHA256=hash;
+    assert.equal((await f.call('person-a','/api/status')).body.single_admin_approval_enabled,false);
+    assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',
+      {acknowledgement:'I_AM_THE_SOLE_APPROVER'})).status,403);
+  }
+});
 test('sole authorized global admin can approve own pending job only with explicit single-admin mode',async()=>{
   const f=fixture();
   f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';
@@ -293,6 +317,8 @@ test('Android UI explicitly distinguishes sole-administrator approval from indep
  assert.match(app,/I_AM_THE_SOLE_APPROVER/);
  assert.match(app,/window\.confirm\(/);
  assert.match(app,/Approve as reviewer/);
+ assert.match(app,/p\?\.role==='owner'/);
+ assert.doesNotMatch(app,/state\.me\?\.role==='global_admin'&&status\.single_admin_approval_enabled/);
 });
 test('owner creation atomic, outsider cannot see project or jobs',async()=>{
   const f=fixture(),p=await project(f);
