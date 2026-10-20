@@ -1,56 +1,73 @@
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {evaluate} from './_rational.js';
-import {parseBody,parseExpression,hashPayload,respond,deny,fail,authConfigured,verifyApproval,OPERATION,TOOL_NAME,mcpCall,requestId} from './_contract.js';
-const attempts=new Map<string,{count:number;until:number}>();
+import {claim,start,mark,ledgerReady} from './_ledger.js';
+import {parseBody,parseExpression,hashPayload,respond,deny,fail,authConfigured,verifyApproval,OPERATION,TOOL_NAME,mcpCall} from './_contract.js';
+function uuid(x:unknown):string {
+ if(typeof x!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(x))
+   throw deny(400,'Each operation needs a fresh UUID idempotency key from its preview.');
+ return x.toLowerCase();
+}
 export default async function handler(req:any,res:any){
  if(req.method!=='POST')return respond(res,405,{error:'Method not allowed.'});
- let id=requestId();
+ let requestId='',dispatched=false,created=false;
  try{
-  if(!authConfigured())throw deny(503,'Axiom execution is not activated: server account authorization and execution switch are required.');
-  const ip=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'private').split(',')[0].slice(0,100);
-  const now=Date.now(),prior=attempts.get(ip);
-  if(prior&&prior.until>now&&prior.count>=3)throw deny(429,'Three attempts per minute maximum. Wait and review before retrying.');
-  attempts.set(ip,{count:prior&&prior.until>now?prior.count+1:1,until:prior&&prior.until>now?prior.until:now+60000});
-  if(attempts.size>300)for(const [key,value] of attempts)if(value.until<=now)attempts.delete(key);
-  const data=parseBody(req);
-  const expression=parseExpression(data.expression);
-  verifyApproval(data.accessCode,data.digest,data.approved);
-  if(data.digest!==hashPayload(expression))throw deny(409,'Expression changed after preview. Review again before execution.');
-  const token=process.env.AXIOM_MCP_BEARER_TOKEN||'';
-  // Only one allowlisted certified compute operation; never allow browser-supplied tool names, paths or hosts.
-  // At-most-one dispatch attempt; no automatic retries on uncertain outcomes.
-  const result=await mcpCall({jsonrpc:'2.0',id,method:'tools/call',params:{
-    name:TOOL_NAME,arguments:{args:{expression}}
-  }},token);
-  const tool=result?.result;
-  if(!tool||tool.isError===true||tool?.structuredContent?.authenticated===false)
-   throw deny(502,'Axiom reported an error or missing authorization; no result was accepted.');
-  const sc=tool.structuredContent;
-  const payload=sc?.result;
-  const inner=payload&&typeof payload==='object'
-   ? payload.ok===true?payload:(payload.result&&typeof payload.result==='object'?payload.result:payload)
-   : {};
-  if(inner?.ok!==true||typeof inner?.result!=='string')
-   throw deny(502,'Axiom response did not satisfy the certified arithmetic result contract.');
-  const verified=inner.verified===true?true:inner.verified===false?false:null;
-  const independentProof=evaluate(expression,inner.result);
-  if(independentProof.comparison?.match!==true)
-   throw deny(502,'Axiom output does not match the independent exact-rational verification kernel. Operation was sent once; do not retry blindly.');
-  const normalized={
-   operation:OPERATION,expression,result:inner.result,verified,
-   kernelVersion:typeof inner.kernel_version==='string'?inner.kernel_version:null,
-   computeUnits:typeof inner?.axiom?.compute_units==='number'?inner.axiom.compute_units:null
+  if(!authConfigured()||!ledgerReady())
+   throw deny(503,'Axiom account execution is locked. Both approved account token and independent ledger are required.');
+  const input=parseBody(req);
+  const expression=parseExpression(input.expression);
+  verifyApproval(input.accessCode,input.digest,input.approved);
+  if(input.digest!==hashPayload(expression))
+   throw deny(409,'Expression changed after preview. Request was not sent.');
+  const key=uuid(input.idempotencyKey);
+  // Durable unique-key claim; duplicate requests fail closed across all Vercel replicas.
+  requestId=randomUUID();
+  await claim(requestId,key,hashPayload(expression),expression);
+  created=true;
+  await start(requestId);
+  dispatched=true;
+  // One external dispatch. NO automatic retries under any circumstances.
+  const data=await mcpCall({jsonrpc:'2.0',id:requestId,method:'tools/call',
+    params:{name:TOOL_NAME,arguments:{args:{expression}}}
+  },process.env.AXIOM_MCP_BEARER_TOKEN);
+  const response=data?.result;
+  if(!response||response.isError===true||response?.structuredContent?.authenticated===false)
+   throw deny(502,'Axiom did not return a successful entitled operation.');
+  const packed=response.structuredContent?.result;
+  const result=packed?.ok===true?packed:packed?.result&&typeof packed.result==='object'?packed.result:{};
+  if(result.ok!==true||typeof result.result!=='string')
+   throw deny(502,'Axiom returned a response incompatible with its certified arithmetic contract.');
+  const check=evaluate(expression,result.result);
+  if(check.comparison?.match!==true)
+   throw deny(502,'Axiom output disagreed with the independently computed rational result.');
+  const payload={
+   operation:OPERATION,expression,result:result.result,
+   providerVerified:result.verified===true?true:result.verified===false?false:null,
+   kernelVersion:typeof result.kernel_version==='string'?result.kernel_version:null,
+   computeUnits:typeof result.axiom?.compute_units==='number'?result.axiom.compute_units:null
   };
   const receipt={
-   requestId:id,origin:'MUSITU Axiom MCP (authenticated account call)',
-   status:'PROVIDER_EXECUTED',completedAt:new Date().toISOString(),
+   status:'PROVIDER_EXECUTED',requestId,completedAt:new Date().toISOString(),
+   origin:'Authenticated MUSITU Axiom MCP',
+   output:{operation:OPERATION,expression,result:result.result,
+    verified:payload.providerVerified,kernelVersion:payload.kernelVersion,computeUnits:payload.computeUnits},
    requestSha256:hashPayload(expression),
-   resultSha256:createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),
-   output:normalized,
-   independentVerification:{matched:true,kernel:independentProof.kernel,exact:independentProof.exact,decimal:independentProof.decimal,providerAgreement:independentProof.comparison},
-   evidenceType:'Axiom provider-returned result cross-checked against independent exact rational arithmetic. SHA-256 fingerprints protect file integrity but are NOT externally anchored signatures.',
-   retryPolicy:'Do not automatically retry a timed-out or uncertain request. Check Axiom usage first.'
+   resultSha256:createHash('sha256').update(JSON.stringify(payload)).digest('hex'),
+   independentVerification:{matched:true,kernel:check.kernel,exact:check.exact,decimal:check.decimal,
+     providerAgreement:check.comparison},
+   evidenceType:'Real provider-returned result + independent exact-rational cross-check + durable local audit metadata. This is not third-party signed attestation.',
+   retryPolicy:'Operation has an immutable idempotency key. Never resubmit on an uncertain outcome.'
   };
+  await mark(requestId,'SUCCEEDED','VERIFIED',receipt);
   return respond(res,200,receipt);
- }catch(error){return fail(res,error);}
+ }catch(error){
+   if(created&&dispatched&&requestId){
+     try{await mark(requestId,'REVIEW_REQUIRED','REMOTE_RESULT_UNKNOWN_OR_INVALID',null);}
+     catch{/* An already-terminal ledger status must never trigger another provider call. */}
+     return respond(res,503,{error:'Axiom operation was dispatched but its outcome is uncertain or unverified. Do not retry; inspect durable status and account usage.',requestId,status:'REVIEW_REQUIRED'});
+   }
+   if(created&&requestId){
+     try{await mark(requestId,'DENIED','DISPATCH_NOT_CONFIRMED',null);}catch{}
+   }
+   return fail(res,error);
+ }
 }
