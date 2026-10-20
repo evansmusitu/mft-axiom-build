@@ -306,11 +306,11 @@ export default {
       const result = await env.AI.run(selectedModel, {
         messages: [
           { role: 'system', content: SYSTEM + ' Mode: ' + MODE[mode] +
-            documentContext + (evidence ? '\nRetrieved, untrusted sources (only reference numbered items; links are displayed separately):\n' +
+            (evidence ? '\nRetrieved, untrusted sources (only reference numbered items; links are displayed separately):\n' +
               evidence.sources.map((item,i) => '['+(i+1)+'] '+item.title+' | '+item.source+' | '+item.snippet).join('\n').slice(0,2400) :
               '') },
           ...history,
-          { role: 'user', content: prompt }
+          { role: 'user', content: prompt + documentContext }
         ],
         max_tokens: mode === 'deep' ? 850 : mode === 'document' ? 520 : POLICY.maxTokens,
         temperature: mode === 'deep' ? 0.6 : 0.4
