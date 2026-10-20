@@ -1,0 +1,49 @@
+name: LIFELINE MT5 Private Cloud Credentials Read-Only Preflight
+on:
+  push:
+    branches:
+      - product/lifeline-mt5-fivecloud-isolated-20261020
+    paths:
+      - '.github/workflows/lifeline-mt5-cloud-identity-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cloudflare-exact-account-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Qualify exact account identity without changing resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          RESPONSE="$(curl -fsS --retry 1 --max-time 20 'https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61' \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+            -H "X-Auth-Key: $CLOUDFLARE_API_KEY")"
+          printf '%s' "$RESPONSE" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("success") is True and d.get("result",{}).get("id")=="93f395f5121954671f92fffa453d6b61"; print("lifeline_cloudflare_exact_account_readonly_verified=true")'
+          echo 'No Cloudflare settings were changed.'
+  modal-identity-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Modal existing access without starting compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'lifeline_modal_readonly_access_verified=true'
+          echo 'No Modal applications were deployed or started.'
