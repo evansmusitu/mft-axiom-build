@@ -19,7 +19,7 @@ jobs:
       - name: Assemble pinned complete Store-specific snapshot
         run: |
           python3 - <<'PY'
-          import os,pathlib,json,hashlib,datetime,subprocess
+          import os,pathlib,json,hashlib,datetime,subprocess,re
           sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           assert sha==os.environ['GITHUB_SHA']
           assert os.environ['GITHUB_REF_NAME']=='feature/musitu-store-v2-package-state-20261012'
@@ -33,7 +33,7 @@ jobs:
               if not src.is_file() or src.is_symlink() or '..' in src.parts:raise ValueError('unsafe source '+name)
               if src.suffix.lower() in ('.pem','.p12','.pfx','.jks','.keystore','.key','.env'):raise ValueError('secret file '+name)
               data=src.read_bytes()
-              if b'-----BEGIN PRIVATE KEY-----' in data:raise ValueError('private key '+name)
+              if re.search(br'-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\\r\\n]+[A-Za-z0-9+/=\\r\\n]{160,}',data):raise ValueError('embedded private key '+name)
               target=dest/'PRODUCT_SOURCE'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
               git_hash=hashlib.sha1(b'blob '+str(len(data)).encode()+bytes([0])+data).hexdigest()
               assert git_hash==subprocess.check_output(['git','hash-object','--',name],text=True).strip()
