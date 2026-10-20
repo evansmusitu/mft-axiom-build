@@ -27,8 +27,10 @@ jobs:
       ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
       MUSITU_STORE_STAGE_GATE: 'disabled-checkout-no-public-route'
-      # Dedicated Store-only credential: existing MUSITU/Axiom secrets stay untouched.
-      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKENV2 }}
+      # Owner-requested one-off credential qualification: use the existing Claude
+      # rulesets GitHub secret for this isolated disabled Store staging run.
+      # Do not change the Claude project, other secrets or any production route.
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
