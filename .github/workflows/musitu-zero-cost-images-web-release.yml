@@ -1,6 +1,15 @@
 name: MUSITU Zero-Cost Images & Internet Release
 
 on:
+  push:
+    branches: [feature/musitu-zero-cost-web-images-20261020]
+    paths:
+      - studio-edge/worker.mjs
+      - studio-edge/research.mjs
+      - studio-edge/wrangler.jsonc
+      - studio-edge/wrangler.canary.jsonc
+      - studio-edge/tests/**
+      - .github/workflows/musitu-zero-cost-images-web-release.yml
   workflow_dispatch:
 
 permissions:
