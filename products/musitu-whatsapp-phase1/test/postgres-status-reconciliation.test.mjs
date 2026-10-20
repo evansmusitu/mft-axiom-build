@@ -38,7 +38,7 @@ function fakePool({state='ACCEPTED',recipientHash=hashRecipient(A,'PHONE_A',RECI
   },
   release(reason){released.push(reason);}
  };
- return {pool:{connect:async()=>client},calls,released,attempt};
+ return {pool:{connect:async()=>client},calls,released,attempt,bindProviderId(){known=true;}};
 }
 function ingestor(pool){return new PostgresSignedWebhookIngestor({pool,appSecret:SECRET,privacyKey:KEY,bindings:BINDINGS});}
 
@@ -77,6 +77,25 @@ test('exact duplicate callbacks are idempotent, but conflicting replays fail clo
  const conflict=statusBody({statuses:[single({extra:'altered error'})]});
  const third=fakePool({existing:true,existingFingerprint:saved});
  await assert.rejects(ingestor(third.pool).ingest({rawBody:conflict,signature:sign(conflict)}),/STATUS_REPLAY_CONFLICT/);
+});
+
+test('receipt arriving before provider-id binding can be redelivered afterward without duplicate effects',async()=>{
+ const db=fakePool({known:false}),raw=statusBody(),receiver=ingestor(db.pool);
+ await assert.rejects(receiver.ingest({rawBody:raw,signature:sign(raw)}),/UNKNOWN_OR_UNBOUND_OUTBOUND/);
+ assert.equal(db.calls.filter(x=>x.sql==='ROLLBACK').length,1);
+ assert.equal(db.calls.filter(x=>x.sql==='COMMIT').length,0);
+ assert.equal(db.calls.some(x=>x.sql.includes('INSERT INTO musitu.message_status_events')),false);
+ assert.equal(db.attempt.status,'ACCEPTED');
+ // Simulate the sender committing the verified provider ID, then Meta
+ // redelivering the identical signed receipt. This is not a real receipt.
+ db.bindProviderId();
+ const accepted=await receiver.ingest({rawBody:raw,signature:sign(raw)});
+ assert.equal(accepted[0].result,'RECORDED');
+ assert.equal(db.attempt.status,'DELIVERED');
+ const replay=await receiver.ingest({rawBody:raw,signature:sign(raw)});
+ assert.equal(replay[0].result,'DUPLICATE');
+ assert.equal(db.calls.filter(x=>x.sql.includes('UPDATE musitu.outbound_attempts')).length,1);
+ assert.equal(db.calls.filter(x=>x.sql==='COMMIT').length,2);
 });
 
 test('late sent after delivered cannot downgrade; read preserves delivered and records event',async()=>{

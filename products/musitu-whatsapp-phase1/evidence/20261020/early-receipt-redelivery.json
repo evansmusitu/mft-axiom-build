@@ -1,0 +1,36 @@
+{
+  "scope": "LOCAL_SIMULATED_EARLY_RECEIPT_REDELIVERY_NO_PROVIDER_SEND",
+  "baseHead": "42089e31c3d4676c0af2c130886ec8b3a2f53ad6",
+  "focusedTests": {
+    "passed": 17,
+    "failed": 0
+  },
+  "fullSuite": {
+    "passed": 307,
+    "failed": 0,
+    "skipped": 0
+  },
+  "syntax": {
+    "files": 133,
+    "result": "PASS"
+  },
+  "earlyReceipt": {
+    "beforeProviderBinding": "REJECTED_AND_ROLLED_BACK",
+    "afterVerifiedBindingRedelivery": "RECORDED_DELIVERED",
+    "replay": "DUPLICATE_NO_SECOND_UPDATE",
+    "realMetaReceipt": false,
+    "providerRedeliveryGuaranteeClaimed": false
+  },
+  "databaseReadback": {
+    "observedAt": "2026-10-20T13:52:36.912Z",
+    "inboundEvents": 2,
+    "outboundAttempts": 0,
+    "consentRecords": 0,
+    "statusEvents": 0
+  },
+  "runtimeCodeChanged": false,
+  "schemaChanged": false,
+  "deploymentPerformed": false,
+  "ownerReviewPending": true,
+  "phase1Complete": false
+}
