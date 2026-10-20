@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import time
@@ -185,7 +186,7 @@ def execute_once(job: dict[str,Any], key: bytes, root: Path, editor: str | None,
     """At-most-once local dispatch; unknown claims are never automatically retried."""
     payload = verify_job(job,key,now=now)
     database.parent.mkdir(parents=True,exist_ok=True)
-    with sqlite3.connect(database,timeout=15) as db:
+    with closing(sqlite3.connect(database,timeout=15)) as db:
         db.execute("CREATE TABLE IF NOT EXISTS jobs (job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL, receipt TEXT)")
         try:
             db.execute("INSERT INTO jobs (job_id,nonce,state,receipt) VALUES (?,?,'CLAIMED',NULL)",
@@ -198,7 +199,7 @@ def execute_once(job: dict[str,Any], key: bytes, root: Path, editor: str | None,
             raise AgentError("job already claimed or nonce reused; manual reconciliation required")
     # Deliberate commit BEFORE execution; restart cannot repeat an uncertain native operation.
     receipt=execute(job,key,root,editor,terminal,now=now)
-    with sqlite3.connect(database,timeout=15) as db:
+    with closing(sqlite3.connect(database,timeout=15)) as db:
         db.execute("UPDATE jobs SET state='COMPLETED', receipt=? WHERE job_id=? AND state='CLAIMED'",
                    (json.dumps(receipt,separators=(",",":")),payload["job_id"]))
         db.commit()
