@@ -82,6 +82,15 @@ try {
   $proof.compiled=$true
   $proof.compiled_ex5_sha256=(Get-FileHash $ex5 -Algorithm SHA256).Hash.ToLowerInvariant()
   Write-Host "Compiled real MQL5 source to EX5; zero compiler errors."
+  # Installer can leave terminal running; another terminal64.exe instance would not apply /config.
+  # Only stop the signed disposable install inside RUNNER_TEMP; never touch a user's MT5.
+  foreach ($q in @(Get-CimInstance Win32_Process -Filter "name = 'terminal64.exe'" -ErrorAction SilentlyContinue)) {
+    if ($q.ExecutablePath -eq $terminal) {
+      Write-Host "Stopping installer-started disposable terminal before Strategy Tester config."
+      Stop-Process -Id $q.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+  }
+  Start-Sleep -Seconds 2
   # Try one local-only, no-cloud backtest. Missing historic market data must NOT be reported as success.
   $ini=Join-Path $installPath "lifeline-tester.ini"
   @"
@@ -108,6 +117,23 @@ ShutdownTerminal=1
   $reports=@(Get-ChildItem -Path $installPath -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
     $_.Name -match "^lifeline-native-smoke\.(htm|html|xml)$" -and $_.Length -gt 500
   })
+  $historyLogs=@(Get-ChildItem -Path $installPath -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^[0-9]{8}\\.log
+    $proof.strategy_tester_report_verified=$true
+    $proof.strategy_tester_status="REPORT_PRESENT_NOT_PERFORMANCE_CERTIFIED"
+    $selected=$reports[0]
+    $proof.strategy_tester_report_sha256=(Get-FileHash $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    # Do not publish potentially sensitive reports as public-repo artifacts; only hash evidence.
+  }
+} catch {
+  $proof.error=$_.Exception.Message
+  Write-Host "Native qualification limitation: $($proof.error)"
+} finally { Save-Proof }
+# Compile is the mandatory gate. Tester is reported separately because it may require broker history.
+if (-not $proof.compiled) { exit 1 }
+exit 0
+ -and $_.DirectoryName -match '(?i)logs' })
+  $proof.terminal_log_count=$historyLogs.Count
+  Write-Host "Tester candidate report count: $($reports.Count); terminal log count: $($historyLogs.Count)"
   if ($reports.Count -gt 0) {
     $proof.strategy_tester_report_verified=$true
     $proof.strategy_tester_status="REPORT_PRESENT_NOT_PERFORMANCE_CERTIFIED"
