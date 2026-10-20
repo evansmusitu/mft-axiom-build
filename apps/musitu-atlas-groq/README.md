@@ -230,7 +230,7 @@ The private Axiom workspace now supports a genuinely executable zero-credit path
   creates an evidence-attached **browser-local** Mission Control entry without
   contacting the live Axiom provider. Browser localStorage is NOT durable
   server-backed storage, not shared across devices, and not an audited ledger.
-- `POST /api/axiom/replay` independently recomputes the exact result and
+- `POST /api/axiom/verify` with `{action:'replay',receipt}` independently recomputes the exact result and
   receipt fingerprint and rejects altered values. The UI can import a
   previously exported JSON proof and display the replay verdict.
 - An entitled, authorized Axiom account call through
