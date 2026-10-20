@@ -8,7 +8,7 @@ const successes = [
   ['2^3^2',512],
   ['-2^2',-4],
   ['sqrt(144)+abs(-7)',19],
-  ['floor(3.8)+ceil(2.1)',7],
+  ['floor(3.8)+ceil(2.1)',6],
   ['round(2.6)',3],
   ['3e2/1.5e1',20],
   ['12%5',2],
@@ -29,11 +29,7 @@ for(const expression of [
   'a'.repeat(141),'1+1;alert(1)','2+'
 ]) {
   test('reject unsafe or unsupported expression: '+expression.slice(0,35),() => {
-    if(expression==='0^100') {
-      assert.equal(calculate(expression).result,0);
-    } else {
-      assert.throws(()=>calculate(expression),CalculationError);
-    }
+    assert.throws(()=>calculate(expression),CalculationError);
   });
 }
 test('finite binary floating-point result with explicit approximate classification',() => {
