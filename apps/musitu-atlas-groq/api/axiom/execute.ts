@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {evaluate} from './_rational.js';
 import {parseBody,parseExpression,hashPayload,respond,deny,fail,authConfigured,verifyApproval,OPERATION,TOOL_NAME,mcpCall,requestId} from './_contract.js';
 const attempts=new Map<string,{count:number;until:number}>();
 export default async function handler(req:any,res:any){
@@ -32,6 +33,9 @@ export default async function handler(req:any,res:any){
   if(inner?.ok!==true||typeof inner?.result!=='string')
    throw deny(502,'Axiom response did not satisfy the certified arithmetic result contract.');
   const verified=inner.verified===true?true:inner.verified===false?false:null;
+  const independentProof=evaluate(expression,inner.result);
+  if(independentProof.comparison?.match!==true)
+   throw deny(502,'Axiom output does not match the independent exact-rational verification kernel. Operation was sent once; do not retry blindly.');
   const normalized={
    operation:OPERATION,expression,result:inner.result,verified,
    kernelVersion:typeof inner.kernel_version==='string'?inner.kernel_version:null,
@@ -43,7 +47,8 @@ export default async function handler(req:any,res:any){
    requestSha256:hashPayload(expression),
    resultSha256:createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),
    output:normalized,
-   evidenceType:'Provider-returned result with locally calculated integrity fingerprint; NOT an independent correctness proof',
+   independentVerification:{matched:true,kernel:independentProof.kernel,exact:independentProof.exact,decimal:independentProof.decimal,providerAgreement:independentProof.comparison},
+   evidenceType:'Axiom provider-returned result cross-checked against independent exact rational arithmetic. SHA-256 fingerprints protect file integrity but are NOT externally anchored signatures.',
    retryPolicy:'Do not automatically retry a timed-out or uncertain request. Check Axiom usage first.'
   };
   return respond(res,200,receipt);
