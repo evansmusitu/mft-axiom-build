@@ -1,4 +1,4 @@
-MUSITU_STORE_STAGING_PROVISION_APPROVAL=NOT_AUTHORIZED
+MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
 
 This file is intentionally NOT an authorization. Editing this particular
 file on the isolated branch will only be considered a staging request if an
