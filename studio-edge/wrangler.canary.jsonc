@@ -54,6 +54,22 @@
         "limit": 40,
         "period": 60
       }
+    },
+    {
+      "name": "IMAGE_RATE",
+      "namespace_id": "202610203",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    },
+    {
+      "name": "IMAGE_REGIONAL",
+      "namespace_id": "202610205",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
     }
   ]
 }
