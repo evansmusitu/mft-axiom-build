@@ -1,0 +1,30 @@
+name: LIFELINE MT5 Native MCP Fail-Closed Tests
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/windows/native_mcp.py'
+      - 'products/lifeline-mt5-ai-studio/windows/test_native_mcp.py'
+      - 'products/lifeline-mt5-ai-studio/windows/NATIVE_MCP.md'
+      - '.github/workflows/lifeline-mt5-native-mcp-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol-security:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify denied trading/shell/compile and local MCP protocol
+        working-directory: products/lifeline-mt5-ai-studio/windows
+        run: python -m unittest -v test_native_mcp.py
