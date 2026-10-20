@@ -7,7 +7,6 @@ on:
       - .github/workflows/atlas-proof-endpoint-contract.yml
       - apps/musitu-atlas-groq/api/axiom/_rational.ts
       - apps/musitu-atlas-groq/api/axiom/verify.ts
-      - apps/musitu-atlas-groq/api/axiom/replay.ts
       - apps/musitu-atlas-groq/src/IndependentProof.tsx
   workflow_dispatch:
 permissions:
@@ -27,13 +26,13 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/atlas-proof
           cp apps/musitu-atlas-groq/api/axiom/{_rational.ts,_contract.ts} /tmp/atlas-proof/
-          for file in verify replay; do
+          for file in verify; do
             sed -e 's@./_contract.js@./_contract.ts@g' -e 's@./_rational.js@./_rational.ts@g' apps/musitu-atlas-groq/api/axiom/$file.ts > /tmp/atlas-proof/$file.ts
           done
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
           const {default:verify}=await import('file:///tmp/atlas-proof/verify.ts');
-          const {default:replay}=await import('file:///tmp/atlas-proof/replay.ts');
+          const replay=verify;
           function invoke(handler,body,method='POST'){
            const res={statusCode:200,headers:{},data:null,
              setHeader(k,v){this.headers[k]=v;return this;},
@@ -51,24 +50,24 @@ jobs:
           assert.equal(proof.data.chargedComputeUnits,0);
           assert.match(proof.data.evidenceSha256,/^[0-9a-f]{64}$/);
           console.log('PASS: actual read/write-free proof endpoint and stable evidence digest');
-          const good=invoke(replay,{receipt:proof.data});
+          const good=invoke(replay,{action:'replay',receipt:proof.data});
           assert.equal(good.statusCode,200);
           assert.equal(good.data.status,'PROOF_REPLAY_CONSISTENT');
           assert.equal(good.data.recomputedExact,'3/10');
           console.log('PASS: exported receipt survives independent replay');
           const corrupt=structuredClone(proof.data);corrupt.proof.exact='99999';
-          const bad=invoke(replay,{receipt:corrupt});
+          const bad=invoke(replay,{action:'replay',receipt:corrupt});
           assert.equal(bad.statusCode,409);
           console.log('PASS: changed exact answer rejected');
           const mutated=structuredClone(proof.data);mutated.evidenceSha256='0'.repeat(64);
-          assert.equal(invoke(replay,{receipt:mutated}).statusCode,409);
+          assert.equal(invoke(replay,{action:'replay',receipt:mutated}).statusCode,409);
           console.log('PASS: changed integrity digest rejected');
           assert.equal(invoke(verify,{expression:'process.exit()'}).statusCode,400);
           assert.equal(invoke(verify,{expression:'(1/0)'}).statusCode,400);
           console.log('PASS: invalid code and division-by-zero rejected');
           const provided=invoke(verify,{expression:'(2+3)*4',providerResult:'21'});
           assert.equal(provided.data.proof.comparison.match,false);
-          assert.equal(invoke(replay,{receipt:provided.data}).statusCode,200);
+          assert.equal(invoke(replay,{action:'replay',receipt:provided.data}).statusCode,200);
           console.log('PASS: disagreeing provider is accurately marked as mismatch without invented verification');
           console.log('PROOF + REPLAY CONTRACT PASSED: zero remote Axiom or AI calls');
           JS
