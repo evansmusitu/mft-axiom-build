@@ -236,7 +236,7 @@ export default {
     }
     const prompt = typeof input.prompt === 'string' ? input.prompt.trim() : '';
     const mode = typeof input.mode === 'string' ? input.mode : 'explore';
-    if (prompt.length < 10 || prompt.length > POLICY.maxPromptLength || !MODES.has(mode)) {
+    if (prompt.length < (mode === 'scholar' ? 5 : 10) || prompt.length > POLICY.maxPromptLength || !MODES.has(mode)) {
       return error('INVALID_INPUT', 'Use a valid mode and a question from 10 to 900 characters.', 400, origin);
     }
     if (mode === 'scholar' && (prompt.length<5 || prompt.length>180)) return error('INVALID_SCHOLAR_QUERY','Use a scholarly query between 5 and 180 characters.',400,origin);
