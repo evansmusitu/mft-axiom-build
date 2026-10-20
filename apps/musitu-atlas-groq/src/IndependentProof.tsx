@@ -15,6 +15,8 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
  const [saved,setSaved]=useState(false);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
+ const [replayMessage,setReplayMessage]=useState('');
+ const [replayError,setReplayError]=useState('');
  async function calculate(e:React.FormEvent){
   e.preventDefault();setError('');setNotice('');setResult(null);setSaved(false);
   if(busy)return;
@@ -37,6 +39,21 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
   const a=document.createElement('a');a.href=url;
   a.download='atlas-exact-proof-'+result.evidenceSha256.slice(0,18)+'.json';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
+ async function replayFile(event:React.ChangeEvent<HTMLInputElement>){
+   setReplayMessage('');setReplayError('');
+   const file=event.currentTarget.files?.[0];
+   if(!file)return;
+   if(file.size>13000){setReplayError('Proof file exceeds the 13 KB replay limit.');return;}
+   try{
+    const raw=await file.text();
+    const receipt=JSON.parse(raw) as unknown;
+    const {data}=await api.post('/api/axiom/replay',{receipt});
+    if(data?.status!=='PROOF_REPLAY_CONSISTENT'||data.digestMatches!==true||data.resultMatches!==true)
+      throw Error('Replay did not confirm proof consistency.');
+    setReplayMessage('Verified replay: exact result '+data.recomputedExact+'. Receipt calculation and SHA-256 are consistent. Issuer identity is not authenticated.');
+   }catch(err){setReplayError(err instanceof Error?err.message:'Proof replay rejected.');}
+   event.currentTarget.value='';
  }
  function save(){
   if(!result||saved)return;
@@ -66,6 +83,7 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
    <dl><div><dt>Verifier</dt><dd>{result.proof.kernel}</dd></div><div><dt>External provider requests</dt><dd>0</dd></div><div><dt>Axiom compute units</dt><dd>{result.chargedComputeUnits}</dd></div><div><dt>Evidence digest</dt><dd className="proof-digest">{result.evidenceSha256}</dd></div></dl>
    <p>A locally calculated SHA-256 fingerprint is not a digital signature or independently anchored audit. Result evidence is exported with its source and algorithm version.</p>
    <div className="proof-actions"><button type="button" onClick={download}><Download size={16}/> Download JSON proof</button><button type="button" disabled={saved} onClick={save}><ClipboardCheck size={16}/>{saved?'Saved to Mission Control':'Create evidence mission'}</button>{saved&&<button type="button" onClick={openMissions}><Workflow size={16}/> Open mission</button>}</div>
+   <div className="proof-replay"><label htmlFor="proof-import">Replay a downloaded proof JSON file — verify numerical result and fingerprint</label><input id="proof-import" type="file" accept=".json,application/json" onChange={replayFile}/>{replayMessage&&<p role="status" className="proof-replay-success">{replayMessage}</p>}{replayError&&<p role="alert" className="proof-replay-error">{replayError}</p>}</div>
   </article>}
  </section>;
 }
