@@ -241,7 +241,7 @@ export default function App() {
   useEffect(()=>save('atlas_ai_mode',aiMode),[aiMode]);
   useEffect(()=>{
     let live=true;
-    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);if(firstModelVisit){const preferred=['gemini_free','nemotron_free','groq_quality','groq_fast'].map(id=>r.data.models.find((v:ModelOption)=>v.id===id&&v.available)).find(Boolean);if(preferred)setAiMode(preferred.id);}}})
+    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);if(firstModelVisit){const preferred=['beam_free','gemini_free','nemotron_free','groq_quality','groq_fast'].map(id=>r.data.models.find((v:ModelOption)=>v.id===id&&v.available)).find(Boolean);if(preferred)setAiMode(preferred.id);}}})
       .catch(()=>{if(live)setCatalogError(true);});
     return()=>{live=false};
   },[firstModelVisit]);

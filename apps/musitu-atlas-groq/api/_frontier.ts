@@ -1,14 +1,14 @@
 import {infer,respond,text,guard,body,fail} from './_groq.js';
 import {createHash,timingSafeEqual} from 'node:crypto';
-import {viaGateway,generationCost} from './_gateway.js';
+import {viaGateway,viaZeroRatedGateway,generationCost} from './_gateway.js';
 export {respond,text,guard,body,fail};
 type Message={role:'system'|'user'|'assistant';content:string};
-export type ModelChoice='groq_fast'|'groq_quality'|'openai_sol'|'openai_astra'|'claude_sonnet'|'claude_opus'|'gemini_free'|'nemotron_free';
+export type ModelChoice='groq_fast'|'groq_quality'|'openai_sol'|'openai_astra'|'claude_sonnet'|'claude_opus'|'gemini_free'|'nemotron_free'|'beam_free';
 export const MODEL_IDS:Record<ModelChoice,string>={
  groq_fast:'openai/gpt-oss-20b',groq_quality:'openai/gpt-oss-120b',
  openai_sol:'gpt-6.1-sol',openai_astra:'gpt-6-astra',
  claude_sonnet:'claude-sonnet-5-5',claude_opus:'claude-opus-5-5',
- gemini_free:'gemini-3.8-flash',nemotron_free:'nvidia/nemotron-3-ultra-550b-a55b:free'
+ gemini_free:'gemini-3.8-flash',nemotron_free:'nvidia/nemotron-3-ultra-550b-a55b:free',beam_free:'reflection/beam-free'
 };
 export function choice(input:unknown):ModelChoice|null{
  const x=typeof input==='string'?input:'';
@@ -28,6 +28,7 @@ export function catalog(){
   {id:'openai_astra',label:'GPT-6 Astra',provider:'OpenAI',model:MODEL_IDS.openai_astra,available:on&&hasO,tier:'frontier'},
   {id:'claude_sonnet',label:'Claude Sonnet 5.5',provider:'Anthropic',model:MODEL_IDS.claude_sonnet,available:on&&hasA,tier:'frontier'},
   {id:'claude_opus',label:'Claude Opus 5.5',provider:'Anthropic',model:MODEL_IDS.claude_opus,available:on&&hasA,tier:'frontier'},
+  {id:'beam_free',label:'Beam 1.0 · Guaranteed free-only slug',provider:'Vercel Gateway',model:MODEL_IDS.beam_free,available:usesGateway,tier:'free'},
   {id:'gemini_free',label:'Gemini 3.8 Flash · Free API',provider:'Google',model:MODEL_IDS.gemini_free,available:freeEnabled&&Boolean(process.env.GEMINI_API_KEY),tier:'free'},
   {id:'nemotron_free',label:'Nemotron 3 Ultra · Free API',provider:'OpenRouter',model:MODEL_IDS.nemotron_free,available:freeEnabled&&Boolean(process.env.OPENROUTER_API_KEY),tier:'free'},
   {id:'groq_quality',label:'GPT-OSS 120B · Sandbox',provider:'Groq',model:MODEL_IDS.groq_quality,available:Boolean(process.env.GROQ_API_KEY),tier:'sandbox'},
@@ -51,6 +52,10 @@ async function request(url:string,headers:Record<string,string>,payload:unknown)
  return reply.json();
 }
 export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown,tokenLimit?:number):Promise<{answer:string;model:string;provider:string;generationId?:string;costUsd?:number;promptTokens?:number|null;completionTokens?:number|null}>{
+ if(mode==='beam_free'){
+  const v=await viaZeroRatedGateway(MODEL_IDS.beam_free,messages,tokenLimit??500);
+  return {answer:v.answer,model:v.model,provider:v.provider,promptTokens:v.promptTokens,completionTokens:v.completionTokens,...(v.generationId?{generationId:v.generationId}:{})};
+ }
  if(mode==='gemini_free'||mode==='nemotron_free'){
   if(process.env.ATLAS_FREE_LAB_ACCESS!=='enabled')throw businessError(403,'Free-API private lab has not been authorized.');
   const isGemini=mode==='gemini_free';

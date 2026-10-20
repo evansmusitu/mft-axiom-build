@@ -64,3 +64,31 @@ export async function generationCost(generationId:string):Promise<number|null>{
  }
  return null; // Asynchronous ingestion: unknown is not zero.
 }
+
+
+// Zero-rated models must be explicit free-only slugs. Never accept arbitrary model
+// IDs or fall back to a paid model when provider availability changes.
+const ZERO_RATED_MODELS=new Set(['reflection/beam-free']);
+export async function viaZeroRatedGateway(
+ model:string,messages:Msg[],maxTokens:number
+):Promise<{answer:string;model:string;provider:string;promptTokens:number|null;completionTokens:number|null;generationId:string|null}>{
+ if(!ZERO_RATED_MODELS.has(model))throw deny(403,'Model is not in the strictly zero-rated allowlist.');
+ if(process.env.ATLAS_LAB_USE_GATEWAY!=='enabled')throw deny(403,'Private lab Gateway connection unavailable.');
+ const bearer=await token();
+ const timeout=AbortSignal.timeout(45000);
+ const trimmed=messages.slice(-3).map(m=>({role:m.role,content:m.content.slice(0,1000)}));
+ const response=await fetch('https://ai-gateway.vercel.sh/v1/chat/completions',{
+  method:'POST',
+  headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json'},
+  body:JSON.stringify({model,messages:trimmed,stream:false,max_completion_tokens:Math.max(100,Math.min(650,maxTokens))}),
+  signal:timeout
+ });
+ if(!response.ok)throw deny(response.status===429?429:502,'Free-only Gateway model refused the request (HTTP '+response.status+'). No paid fallback attempted.');
+ const payload=await response.json();
+ const message=payload?.choices?.[0]?.message?.content;
+ if(typeof message!=='string'||!message.trim())throw deny(502,'Free-only Gateway returned no usable text.');
+ return {answer:message.trim(),model,provider:'Vercel Gateway / Reflection Free',
+  promptTokens:typeof payload?.usage?.prompt_tokens==='number'?payload.usage.prompt_tokens:null,
+  completionTokens:typeof payload?.usage?.completion_tokens==='number'?payload.usage.completion_tokens:null,
+  generationId:typeof payload.id==='string'?payload.id:null};
+}

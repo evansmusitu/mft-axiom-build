@@ -115,3 +115,18 @@ Only after independently verifying the budget and available free credits should 
 - Project budget is a **soft cap**, not a hard billing guarantee. Provider account billing settings and per-run/actor quotas should be reviewed before expanding tests.
 
 No payment, auto top-up or premium inference was made during this integration.
+
+### Beam free-only Gateway channel (2026-10-20)
+
+The research found Vercel's explicitly zero-rated `reflection/beam-free` slug. This
+specific suffix is designed to **stop serving** when the free offer ends, unlike
+`reflection/beam`, which can switch to paid pricing. The lab now includes the
+`beam_free` model via project OIDC and an exact string allowlist. It cannot
+silently upgrade to another model. At most 650 output tokens, 1000 chars per
+input message, 3 recent messages and a 45-second timeout; the free route
+never reads or requires `ATLAS_GATEWAY_BUDGET_VERIFIED` or provider keys.
+Use this route only in the already SSO-protected `musitu-atlas-ai-lab`
+project, not the public MUSITU ATLAS project. One free provider response is
+necessary before claiming the model works for this account. A free suffix is
+provider pricing documentation, not proof of zero charges until telemetry is
+inspected. Do not open routes to anonymous visitors.

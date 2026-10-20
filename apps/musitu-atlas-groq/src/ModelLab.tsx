@@ -7,7 +7,7 @@ type Result={model:string;provider:string;answer:string;latencyMs:number;answerW
 const defaultPrompt='Design three concrete, testable steps for getting the first paying customer for a new AI software service with a $0 marketing budget. Identify the biggest risk and one measurable success criterion.';
 export default function ModelLab(){
  const [catalog,setCatalog]=useState<Model[]>([]);
- const [selected,setSelected]=useState('gemini_free');
+ const [selected,setSelected]=useState('beam_free');
  const [prompt,setPrompt]=useState(defaultPrompt);
  const [approved,setApproved]=useState(false);
  const [accessCode,setAccessCode]=useState('');
