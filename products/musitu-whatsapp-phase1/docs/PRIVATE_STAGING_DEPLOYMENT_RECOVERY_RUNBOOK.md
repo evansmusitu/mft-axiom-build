@@ -1,5 +1,9 @@
 # Private staging deployment and recovery runbook
 
+Operational probe: [20 October private health endpoint](OPERATIONAL_HEALTH_20261020.md).
+Use `/api/health` for HTTP health checks, not the descriptive `/api/status` route.
+HTTP health is separate from acceptance, scheduling and tested alert delivery.
+
 Latest verified operations update: [20 October retention and evidence](OPERATIONS_CONTINUATION_20261020.md).
 The existing manual snapshot no longer has automatic expiry. Scheduled backups,
 tested alerts, second-custodian escrow and full SaaS recovery remain unqualified.
