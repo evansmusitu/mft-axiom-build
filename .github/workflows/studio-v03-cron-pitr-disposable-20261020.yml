@@ -1,0 +1,155 @@
+name: MUSITU Studio V0.3 - Hosted Disposable Cron PITR Qualification
+on:
+  push:
+    branches:
+      - experiments/studio-enterprise-v03-sqlite-do-20261018
+    paths:
+      - .github/workflows/studio-v03-cron-pitr-disposable-20261020.yml
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-disposable-cron-pitr-only
+  cancel-in-progress: false
+jobs:
+  hosted-provider-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Deploy a new disposable nonpublic cron-only SQLite DO and prove hosted PITR, always delete
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-${CF_API_TOKEN:-}}"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          export STUDIO_PITR_TEMP_NAME='musitu-studio-v03-pitr-cron-e2e-20261020'
+          config='wrangler.v03.cron-pitr-ci.jsonc'
+          evidence='../../studio-v03-disposable-cron-pitr-evidence.json'
+          raw='/tmp/studio-v03-pitr-tail.jsonl'
+          deployed=false
+          tailpid=''
+          cleanup() {
+            code=$?
+            trap - EXIT
+            set +e
+            if [ -n "$tailpid" ];then kill "$tailpid" 2>/dev/null;fi
+            if [ "$deployed" = true ];then
+              printf 'y\n' | npx wrangler delete --config "$config" > /tmp/pitr-delete.out 2>&1
+              remove_rc=$?
+            else remove_rc=0;fi
+            export STUDIO_PITR_REMOVAL_RC="$remove_rc"
+            python - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.error
+          path=pathlib.Path('../../studio-v03-disposable-cron-pitr-evidence.json')
+          try:info=json.loads(path.read_text())
+          except Exception:info={'hosted_pitr_restored':False,'schema':'musitu.studio.v03.disposable-cron-pitr-provider.v1'}
+          key=os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN')
+          name=os.environ['STUDIO_PITR_TEMP_NAME']
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+
+            os.environ['CLOUDFLARE_ACCOUNT_ID']+'/workers/scripts/'+name,
+            headers={'Authorization':'Bearer '+key},method='GET')
+          try:
+            with urllib.request.urlopen(req,timeout=20) as r:status=r.status
+          except urllib.error.HTTPError as e:status=e.code
+          except OSError:status=0
+          info['temporary_worker_deleted_and_provider_verified']=status==404
+          info['delete_cli_successful']=os.environ['STUDIO_PITR_REMOVAL_RC']=='0'
+          info['exact_temp_worker_status_after_cleanup']=status
+          info['original_v02_modified']=False
+          info['original_v03_modified']=False
+          info['customer_data_touched']=False
+          info['gpu_or_modal_jobs_started']=False
+          path.write_text(json.dumps(info,sort_keys=True,indent=2)+'\n')
+          print('STUDIO_V03_DISPOSABLE_CRON_PITR_PROVIDER='+json.dumps(info,sort_keys=True))
+          if not info['temporary_worker_deleted_and_provider_verified'] or not info['delete_cli_successful']:
+            raise SystemExit('TEMPORARY_WORKER_CLEANUP_NOT_PROVEN')
+          PY
+            if [ "$remove_rc" != 0 ]; then code=1;fi
+            exit "$code"
+          }
+          trap cleanup EXIT
+          node --check ../../ops/studio_v03_pitr_cron_isolated.mjs
+          python - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.error
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID'];key=os.environ['CLOUDFLARE_API_TOKEN']
+          root='https://api.cloudflare.com/client/v4/accounts/'+account
+          def request(path):
+            req=urllib.request.Request(root+path,headers={'Authorization':'Bearer '+key},method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                body=json.load(r);return r.status,body.get('result') if body.get('success') else None
+            except urllib.error.HTTPError as err:return err.code,None
+          name=os.environ['STUDIO_PITR_TEMP_NAME']
+          code,_=request('/workers/scripts/'+name)
+          assert code==404,'NEVER_OVERWRITE_EXISTING_WORKER'
+          code,domains=request('/workers/domains')
+          assert code==200 and isinstance(domains,list)
+          assert len([x for x in domains if x.get('hostname')=='studio-v03.mftintelligence.com'
+            and x.get('service')=='musitu-studio-v03-do'])==1
+          assert len([x for x in domains if x.get('hostname')=='studio.mftintelligence.com'
+            and x.get('service')=='musitu-studio-v02'])==1
+          config={'name':name,'main':'../../ops/studio_v03_pitr_cron_isolated.mjs',
+            'compatibility_date':'2026-10-20','workers_dev':False,
+            'triggers':{'crons':['* * * * *']},
+            'durable_objects':{'bindings':[{'name':'STUDIO_CRON_PITR','class_name':'StudioV03CronPitrProof'}]},
+            'migrations':[{'tag':'studio-v03-hosted-disposable-pitr-cron-20261020',
+              'new_sqlite_classes':['StudioV03CronPitrProof']}]}
+          pathlib.Path('wrangler.v03.cron-pitr-ci.jsonc').write_text(json.dumps(config))
+          print('PITR_SCOPE_NEW_DISPOSABLE_CRON_WORKER_ONLY=PASS')
+          PY
+          npm install --ignore-scripts --no-audit --no-fund >/dev/null
+          npx wrangler deploy --config "$config" --outdir .studio-v03-cron-pitr-ci >/tmp/pitr-cron-deploy.out 2>&1
+          deployed=true
+          : > "$raw"
+          # No public endpoint, Access bypass, service tokens, WAF policy change,
+          # durable customer-data access or payable Modal/GPU render.
+          timeout 190s npx wrangler tail "$STUDIO_PITR_TEMP_NAME" --format json --sampling-rate 1 > "$raw" 2>&1 &
+          tailpid=$!
+          sleep 168
+          kill "$tailpid" 2>/dev/null || true
+          wait "$tailpid" 2>/dev/null || true
+          python - <<'PY'
+          import json,pathlib
+          raw=pathlib.Path('/tmp/studio-v03-pitr-tail.jsonl').read_text(errors='replace')
+          marker='STUDIO_CLOUD_PITR_CRON_PROOF='
+          records=[]
+          for line in raw.splitlines():
+            try:event=json.loads(line)
+            except ValueError:continue
+            def leaves(v):
+              if isinstance(v,str):yield v
+              elif isinstance(v,list):
+                for x in v:yield from leaves(x)
+              elif isinstance(v,dict):
+                for x in v.values():yield from leaves(x)
+            for value in leaves(event):
+              if value.startswith(marker):
+                try:records.append(json.loads(value[len(marker):]))
+                except ValueError:pass
+          qualified=any(x.get('restored') is True and x.get('real_bookmark') is True
+            and x.get('mutated_before_restore') is True and
+            x.get('cron_only_no_public_ingress') is True and
+            x.get('customer_data_read') is False for x in records)
+          receipt={'schema':'musitu.studio.v03.disposable-cron-pitr-provider.v1',
+            'hosted_pitr_restored':qualified,'provider_console_receipts_seen':len(records),
+            'cron_only_no_public_ingress':True,'temporary_new_sqlite_do_only':True,
+            'customer_data_touched':False,'gpu_or_modal_jobs_started':False,
+            'original_v02_modified':False,'original_v03_modified':False}
+          path=pathlib.Path('../../studio-v03-disposable-cron-pitr-evidence.json')
+          path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('HOSTED_CLOUDFLARE_DISPOSABLE_PITR_QUALIFIED='+str(qualified))
+          assert qualified,'HOSTED_PITR_NOT_PROVEN_OR_PROVIDER_TAIL_UNAVAILABLE'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-v03-disposable-cron-pitr-provider-evidence
+          path: studio-v03-disposable-cron-pitr-evidence.json
+          retention-days: 30
+          if-no-files-found: warn
