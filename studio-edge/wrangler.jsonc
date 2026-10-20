@@ -70,6 +70,22 @@
         "limit": 2,
         "period": 60
       }
+    },
+    {
+      "name": "SCHOLAR_RATE",
+      "namespace_id": "202610210",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    },
+    {
+      "name": "SCHOLAR_REGIONAL",
+      "namespace_id": "202610211",
+      "simple": {
+        "limit": 8,
+        "period": 60
+      }
     }
   ]
 }
