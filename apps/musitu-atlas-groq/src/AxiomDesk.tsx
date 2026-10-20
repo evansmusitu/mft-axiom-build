@@ -29,6 +29,8 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
  const [preview,setPreview]=useState<Preview|null>(null);
  const [receipt,setReceipt]=useState<Receipt|null>(null);
  const [consent,setConsent]=useState(false);
+ const [requestKey,setRequestKey]=useState('');
+ const [lastStatus,setLastStatus]=useState('');
  const [code,setCode]=useState('');
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState('');
@@ -45,7 +47,7 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
  }
  useEffect(()=>{void inspect();},[]);
  async function review(e:React.FormEvent){
-  e.preventDefault();setError('');setNotice('');setReceipt(null);setSaved(false);setPreview(null);setConsent(false);
+  e.preventDefault();setError('');setNotice('');setReceipt(null);setSaved(false);setPreview(null);setConsent(false);setLastStatus('');setRequestKey(crypto.randomUUID());
   if(busy)return;
   setBusy(true);
   try{
@@ -54,6 +56,18 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
    if(!v?.digest||v.digest.length!==64)throw Error('Invalid preview digest');
    setPreview(v);setNotice('Preview recorded. Axiom has not executed this request.');
   }catch(e){setError(e instanceof Error?e.message:'Preview failed.');}
+  finally{setBusy(false);}
+ }
+ async function checkStatus(){
+  if(!requestKey||!code){setError('Your private code and latest request key are needed to inspect status.');return;}
+  setBusy(true);setError('');
+  try{
+   const result=await api.post('/api/axiom/preview',{action:'status',idempotencyKey:requestKey,accessCode:code});
+   const entry=result.data;
+   setLastStatus(String(entry.status)+' · '+String(entry.requestId));
+   if(entry.status==='SUCCEEDED'&&entry.result?.status==='PROVIDER_EXECUTED')setReceipt(entry.result as Receipt);
+   if(entry.status==='DISPATCHING'||entry.status==='REVIEW_REQUIRED')setNotice('Outcome uncertain; no automatic retry is permitted.');
+  }catch(error){setError(error instanceof Error?error.message:'Status check unavailable.');}
   finally{setBusy(false);}
  }
  async function run(){
@@ -65,7 +79,7 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
   try{
    const r=await api.post('/api/axiom/execute',{
     expression:preview.args.expression,digest:preview.digest,
-    approved:true,accessCode:code
+    approved:true,accessCode:code,idempotencyKey:requestKey
    });
    const v=r.data as Receipt;
    if(v.status!=='PROVIDER_EXECUTED'||!v?.output?.result||!v?.resultSha256)throw Error('Malformed execution receipt');
@@ -117,7 +131,7 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
       <div className="axiom-state"><ShieldCheck size={16}/>{preview.executionConfigured?'Account connection configured; execution still requires individual approval.':'Actual execution blocked: entitled server-side Axiom credential has not been configured.'}</div>
       {preview.executionConfigured&&<div className="axiom-approval"><label className="axiom-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/> I approve ONE Axiom compute request. It may consume account compute units; no automatic retries.</label>
        <label htmlFor="axiom-code">Private operator access code</label><input id="axiom-code" type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value.slice(0,200))} placeholder="Stored only in temporary page memory"/>
-       <button type="button" className="axiom-main-button" disabled={busy||!consent||!code} onClick={run}><KeyRound size={16}/> Execute approved operation</button>
+       <button type="button" className="axiom-main-button" disabled={busy||!consent||!code||!requestKey} onClick={run}><KeyRound size={16}/> Execute one operation</button><button type="button" className="axiom-ledger-button" disabled={busy||!code||!requestKey} onClick={checkStatus}>Check status (never resubmit)</button>{lastStatus&&<p role="status">{lastStatus}</p>}
       </div>}
     </div>}
     {error&&<p className="axiom-error" role="alert"><AlertTriangle size={17}/>{error}</p>}
