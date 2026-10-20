@@ -1,0 +1,41 @@
+name: MUSITU Cloud Workspace Isolated Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'studio-edge/cloud-workspace/**'
+      - '.github/workflows/musitu-cloud-workspace-qualification.yml'
+  push:
+    branches:
+      - feature/musitu-cloud-workspace-isolated-20261020
+    paths:
+      - 'studio-edge/cloud-workspace/**'
+      - '.github/workflows/musitu-cloud-workspace-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed and never deploy
+        run: |
+          set -euo pipefail
+          node --check studio-edge/cloud-workspace/access-jwt.mjs
+          node --check studio-edge/cloud-workspace/gateway.mjs
+          node --test studio-edge/cloud-workspace/tests/*.test.mjs
+          python3 studio-edge/cloud-workspace/tests/sql_contract.py
+          grep -Fq '"workers_dev": false' studio-edge/cloud-workspace/wrangler.isolated.example.jsonc
+          grep -Fq '"WORKSPACE_ENABLED": "false"' studio-edge/cloud-workspace/wrangler.isolated.example.jsonc
+          if grep -q "cloud-workspace" studio-edge/worker.mjs; then
+            echo 'Cloud workspace was unexpectedly wired into existing production Edge Worker' >&2
+            exit 1
+          fi
+          echo 'MUSITU ISOLATED SECURE WORKSPACE CONTRACT QUALIFICATION PASS — NO CLOUD DEPLOYMENT'

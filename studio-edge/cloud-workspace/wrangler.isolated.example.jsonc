@@ -1,0 +1,14 @@
+{
+  // Sample only. DO NOT deploy from this file or reuse production Worker name.
+  // Before activating, confirm authorized team domain, app AUD, the configured
+  // Cloudflare Access app protects the actual custom hostname, and D1 IDs.
+  "name": "musitu-cloud-workspace-private-candidate",
+  "main": "gateway.mjs",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": false,
+  "vars": {
+    "WORKSPACE_ENABLED": "false"
+  }
+  // Intentionally no routes, no D1 binding, no auth issuer/AUD and no rate
+  // control until explicit private infrastructure verification and signoff.
+}
