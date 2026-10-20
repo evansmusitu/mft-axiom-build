@@ -30,7 +30,7 @@ test('queries a fixed Crossref v1 provider with restrained resource use',async()
  assert.equal(parsed.searchParams.get('rows'),'6');
  assert.equal(parsed.searchParams.get('query.bibliographic'),'water purification');
  assert.match(parsed.searchParams.get('select'),/DOI/);
- assert.equal(calls[0].init.redirect,'error');
+ assert.equal(calls[0].init.redirect,'manual');
  assert.equal(result.providers[0],'Crossref');
  assert.equal(result.sources.length,1);
  assert.equal(result.sources[0].source,'Crossref');
