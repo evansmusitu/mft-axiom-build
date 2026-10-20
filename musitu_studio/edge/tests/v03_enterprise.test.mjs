@@ -200,6 +200,35 @@ test('sole-admin exception is revoked when any other project member exists; dist
   assert.equal(audit.filter(x=>x.action==='JOB_APPROVED_SINGLE_ADMIN').length,0);
   assert.equal((await f.call('person-b','/api/jobs/'+id)).body.job.approval_model,'independent_reviewer');
 });
+test('independent reviewer role revoked after precheck cannot atomically approve a pending job',async()=>{
+  const f=fixture(),p=await project(f),id=await job(f,p);
+  assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+    {member_sub:'person-b',role:'reviewer'})).status,200);
+  const originalBatch=f.env.STUDIO_DB.batch.bind(f.env.STUDIO_DB);
+  let intercepted=false;
+  f.env.STUDIO_DB.batch=async stmts=>{
+    if(!intercepted){
+      intercepted=true;
+      // Emulate revocation in another request just after the outer permission
+      // check and before the approval transaction's UPDATE executes.
+      f.db.db.prepare('DELETE FROM memberships WHERE project_id=? AND member_sub=?').run(p,'person-b');
+    }
+    return originalBatch(stmts);
+  };
+  const result=await f.call('person-b','/api/jobs/'+id+'/approve','POST',{});
+  assert.equal(intercepted,true);
+  assert.equal(result.status,403,'Revoked reviewers cannot approve using a stale precheck');
+  assert.equal(f.db.db.prepare('SELECT state,approved_by_sub FROM jobs WHERE id=?').get(id).state,'PENDING_APPROVAL');
+  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED'").get(id).n,0);
+});
+test('global administrator independent approval retains explicit privileged authority',async()=>{
+  const f=fixture();f.env.STUDIO_V03_GLOBAL_ADMINS='person-admin';
+  const p=await project(f,'person-a'),id=await job(f,p,'person-a');
+  const result=await f.call('person-admin','/api/jobs/'+id+'/approve','POST',{});
+  assert.equal(result.status,200,JSON.stringify(result.body));
+  assert.equal(result.body.approval_model,'independent_reviewer');
+  assert.equal(f.db.db.prepare('SELECT approved_by_sub FROM jobs WHERE id=?').get(id).approved_by_sub,'person-admin');
+});
 test('global administrator may not self-approve a job in somebody else’s project',async()=>{
   const f=fixture();f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
   const p=await project(f,'person-c'),id=await job(f,p,'person-a');

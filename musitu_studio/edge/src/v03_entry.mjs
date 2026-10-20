@@ -272,11 +272,14 @@ async function api(req,env,url,actor,testOnlyCpuGate){
     }
     // Atomic conditions protect against concurrent membership changes, role
     // revocation, or a conflicting approval in another request.
+    const privilegedReviewer=!self&&globalAdmin(env,actor.sub);
     const sql=self
       ? "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL' AND created_by_sub=? AND EXISTS (SELECT 1 FROM projects WHERE id=jobs.project_id AND owner_sub=?) AND (SELECT COUNT(*) FROM memberships WHERE project_id=jobs.project_id)=1 AND EXISTS (SELECT 1 FROM memberships WHERE project_id=jobs.project_id AND member_sub=? AND role='owner')"
-      : "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL' AND created_by_sub<>?";
+      : "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL' AND created_by_sub<>?"+
+        (privilegedReviewer?'':
+          " AND EXISTS (SELECT 1 FROM memberships WHERE project_id=jobs.project_id AND member_sub=? AND role IN ('reviewer','owner'))");
     const params=self?[actor.sub,now(),id,actor.sub,actor.sub,actor.sub]
-      :[actor.sub,now(),id,actor.sub];
+      :[actor.sub,now(),id,actor.sub,...(privilegedReviewer?[]:[actor.sub])];
     try{
       const updates=await env.STUDIO_DB.batch([
         q(env.STUDIO_DB,sql,...params),
@@ -285,7 +288,10 @@ async function api(req,env,url,actor,testOnlyCpuGate){
             operator_attested:true}:
             {approval_model:'independent_reviewer',independent_reviewer:true})
       ]);
-      if(updates[0]?.meta?.changes!==1)return err('NOT_PENDING_APPROVAL',409);
+      if(updates[0]?.meta?.changes!==1){
+        if(!self&&!await permit(env,job.project_id,actor,'approve'))return err('FORBIDDEN',403);
+        return err('NOT_PENDING_APPROVAL',409);
+      }
     }catch{
       const current=await q(env.STUDIO_DB,'SELECT state FROM jobs WHERE id=?',id).first();
       if(current?.state!=='PENDING_APPROVAL')return err('NOT_PENDING_APPROVAL',409);
