@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -63,7 +64,7 @@ def verify_job(job: dict[str, Any], key: bytes, now: int | None = None) -> dict[
         raise AgentError("expired job")
     if not isinstance(nonce, str) or not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", nonce):
         raise AgentError("invalid nonce")
-    if op not in OPS:
+    if not isinstance(op, str) or op not in OPS:
         raise AgentError("operation forbidden")
     if "args" not in payload or not isinstance(payload["args"], dict):
         raise AgentError("args missing")
@@ -177,4 +178,28 @@ def execute(job:dict[str,Any], key:bytes, root:Path, editor:str|None, terminal:s
     receipt={"schema":"lifeline.agent.receipt.v1","job_id":payload["job_id"],"tenant":payload["tenant"],
              "operation":operation,"outcome":outcome,"result":result,"created_at":int(time.time()),"trading_enabled":False}
     receipt["signature"]=sign(receipt,key)
+    return receipt
+
+def execute_once(job: dict[str,Any], key: bytes, root: Path, editor: str | None,
+                 terminal: str | None, database: Path, now: int | None = None) -> dict[str,Any]:
+    """At-most-once local dispatch; unknown claims are never automatically retried."""
+    payload = verify_job(job,key,now=now)
+    database.parent.mkdir(parents=True,exist_ok=True)
+    with sqlite3.connect(database,timeout=15) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS jobs (job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL, receipt TEXT)")
+        try:
+            db.execute("INSERT INTO jobs (job_id,nonce,state,receipt) VALUES (?,?,'CLAIMED',NULL)",
+                       (payload["job_id"],payload["nonce"]))
+            db.commit()
+        except sqlite3.IntegrityError:
+            existing=db.execute("SELECT nonce,state,receipt FROM jobs WHERE job_id=?",(payload["job_id"],)).fetchone()
+            if existing is not None and existing[0]==payload["nonce"] and existing[1]=="COMPLETED":
+                return json.loads(existing[2])
+            raise AgentError("job already claimed or nonce reused; manual reconciliation required")
+    # Deliberate commit BEFORE execution; restart cannot repeat an uncertain native operation.
+    receipt=execute(job,key,root,editor,terminal,now=now)
+    with sqlite3.connect(database,timeout=15) as db:
+        db.execute("UPDATE jobs SET state='COMPLETED', receipt=? WHERE job_id=? AND state='CLAIMED'",
+                   (json.dumps(receipt,separators=(",",":")),payload["job_id"]))
+        db.commit()
     return receipt
