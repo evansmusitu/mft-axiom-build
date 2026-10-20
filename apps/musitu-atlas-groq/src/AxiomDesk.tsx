@@ -3,6 +3,7 @@ import {api} from './lib/client';
 import {Activity,ArrowRight,CheckCircle2,ClipboardCheck,Cloud,Download,FileCheck2,KeyRound,LockKeyhole,RefreshCw,ShieldCheck,Terminal,Workflow,AlertTriangle} from 'lucide-react';
 import {newId,readMissions,storeMissions,type Mission} from './missionStore';
 import './axiom-desk.css';
+import IndependentProof from './IndependentProof';
 
 type Capabilities={
  source:string;endpoint:string;publicTools:number;certifiedOperationTools:number;
@@ -17,6 +18,7 @@ type Receipt={
  requestId:string;origin:string;status:string;completedAt:string;requestSha256:string;
  resultSha256:string;output:{operation:string;expression:string;result:string;verified:boolean|null;kernelVersion:string|null;computeUnits:number|null};
  evidenceType:string;retryPolicy:string;
+ independentVerification?:{matched:boolean;kernel:string;exact:string;decimal:string;providerAgreement:{match:boolean;exactAgreement:boolean}};
 };
 const example='(2+3)*4';
 export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
@@ -85,7 +87,7 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
   if(existing.length>=30){setError('Mission Control has reached its 30-mission local limit. Export/archive an old mission first.');return;}
   const m:Mission={id:newId(),goal:'Review Axiom evidence for '+receipt.output.expression,title:'Axiom · '+receipt.output.expression,
    createdAt:new Date().toISOString(),origin:'manual',
-   summary:'Result from MUSITU Axiom. Provider computed: '+receipt.output.result+'. Provider correctness flag: '+String(receipt.output.verified)+'. Local receipt SHA-256 is an integrity fingerprint, not an independent correctness proof.',
+   summary:'Axiom provider returned '+receipt.output.result+'. Cross-checked by independent ATLAS kernel: '+String(receipt.independentVerification?.matched===true)+'. File SHA-256 is an integrity fingerprint, not an externally signed audit.',
    steps:[
     {id:newId(),title:'Run allowlisted Axiom computation',detail:'Authenticated provider execution for '+receipt.output.expression,success:'Axiom provided a successful operation result and request receipt.',status:'done',evidence:'Axiom request: '+receipt.requestId+'\nOutput: '+receipt.output.result+'\nLocal result digest: '+receipt.resultSha256},
     {id:newId(),title:'Verify result independently',detail:'Verify the result against an independent method and assess claimed precision.',success:'Independent checker confirms the result and tolerances.',status:'todo',evidence:''},
@@ -125,12 +127,13 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
     <div className="axiom-stage"><span>01</span><div><strong>Discover</strong><p>Read the actual registered tools from the MUSITU Axiom MCP service.</p></div></div>
     <div className="axiom-stage"><span>02</span><div><strong>Review</strong><p>Pin an allowlisted operation and the exact input with a SHA-256 fingerprint.</p></div></div>
     <div className="axiom-stage"><span>03</span><div><strong>Authorize</strong><p>Require a configured Axiom account, private operator code and explicit one-request consent.</p></div></div>
-    <div className="axiom-stage"><span>04</span><div><strong>Execute and preserve</strong><p>Check the provider response contract and capture a downloadable evidence receipt. A local hash is not an independent correctness proof.</p></div></div>
+    <div className="axiom-stage"><span>04</span><div><strong>Verify and preserve</strong><p>Compare certified Axiom arithmetic with a separate exact rational parser. Download the evidence; local hashes are not signed audits.</p></div></div>
     <p className="axiom-boundary"><LockKeyhole size={16}/> Website AI models cannot invoke Axiom execution automatically. SSO, account access, allowlisting and separate approval gates remain in force.</p>
    </div>
   </section>
+  <IndependentProof openMissions={openMissions}/>
   {receipt&&<section className="axiom-receipt"><div className="axiom-head"><div><span className="section-overline"><FileCheck2 size={14}/> AUTHENTICATED AXIOM RESULT</span><h2>{receipt.output.result}</h2></div><span className="axiom-status">PROVIDER RETURNED</span></div>
-   <div className="axiom-receipt-grid"><div><span>Operation</span><strong>{receipt.output.operation}</strong></div><div><span>Provider verification field</span><strong>{String(receipt.output.verified)}</strong></div><div><span>Compute units reported</span><strong>{receipt.output.computeUnits??'Not reported'}</strong></div><div><span>Timestamp</span><strong>{new Date(receipt.completedAt).toLocaleString()}</strong></div></div>
+   <div className="axiom-receipt-grid"><div><span>Operation</span><strong>{receipt.output.operation}</strong></div><div><span>Provider verification field</span><strong>{String(receipt.output.verified)}</strong></div><div><span>Independent ATLAS verification</span><strong>{receipt.independentVerification?.matched===true?'MATCHED':'NOT REPORTED'}</strong></div><div><span>Compute units reported</span><strong>{receipt.output.computeUnits??'Not reported'}</strong></div><div><span>Timestamp</span><strong>{new Date(receipt.completedAt).toLocaleString()}</strong></div></div>
    <p>Receipt fingerprint: <code>{receipt.resultSha256}</code></p>
    <div className="axiom-actions"><button type="button" onClick={download}><Download size={16}/> Download evidence JSON</button><button type="button" onClick={saveMission} disabled={saved}><ClipboardCheck size={16}/>{saved?'Added to Mission Control':'Add result to Mission Control'}</button>{saved&&<button type="button" onClick={openMissions}><Workflow size={16}/> Open mission</button>}</div>
   </section>}
