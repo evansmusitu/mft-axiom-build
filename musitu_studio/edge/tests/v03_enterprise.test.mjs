@@ -105,6 +105,14 @@ test('signature gate, no fallback staff header and independent callback bearer',
   assert.equal((await f.call(null,'/api/projects','POST',{title:'X'})).status,403);
   assert.equal((await f.call(null,'/internal/callback','POST',{state:'COMPLETED'})).status,401);
 });
+test('V0.3 status identifies actual SQLite Durable Object backend, without implying dispatch readiness',async()=>{
+  const f=fixture();
+  const result=await f.call('person-a','/api/status');
+  assert.equal(result.status,200);
+  assert.equal(result.body.backend,'SQLITE_DURABLE_OBJECT');
+  assert.equal(result.body.dispatch_enabled,false);
+  assert.equal(result.body.gpu_execution_approved,false);
+});
 test('owner creation atomic, outsider cannot see project or jobs',async()=>{
   const f=fixture(),p=await project(f);
   assert.equal((await f.call('person-z','/api/projects')).body.projects.length,0);
@@ -134,6 +142,8 @@ test('idempotency, creator cannot self-approve; reviewer separate person can',as
     {member_sub:'person-b',role:'reviewer'})).status,200);
   assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
   assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,409);
+  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED'").get(id).n,1,
+    'A rejected repeat approval must not forge an additional immutable approval audit record');
   assert.equal((await f.call('person-a','/api/jobs/'+id+'/dispatch','POST',{})).status,503);
   assert.equal((await f.call('person-z','/api/jobs/'+id+'/audit')).status,403);
   const audit=(await f.call('person-b','/api/jobs/'+id+'/audit')).body.events;

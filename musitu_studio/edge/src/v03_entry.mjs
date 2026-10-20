@@ -115,7 +115,7 @@ async function api(req,env,url,actor){
   if(req.method==='GET'&&path==='/api/session')
     return json({ok:true,role:globalAdmin(env,actor.sub)?'global_admin':'staff',subject:actor.sub});
   if(req.method==='GET'&&path==='/api/status')
-    return json({ok:true,version:'0.3-d1-enterprise',backend:'D1_MULTIUSER',
+    return json({ok:true,version:'0.3-sqlite-do-enterprise',backend:'SQLITE_DURABLE_OBJECT',
       dispatch_enabled:cpuReady(env),gpu_execution_approved:false,
       daily_cpu_dispatch_limit:safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT)});
   if(req.method==='GET'&&path==='/api/projects'){
@@ -238,7 +238,7 @@ async function api(req,env,url,actor){
         q(env.STUDIO_DB,
           "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL'",
           actor.sub,now(),id),
-        auditStmt(env,job.project_id,id,'JOB_APPROVED',actor.sub)
+        auditIfUpdated(env,job.project_id,id,'JOB_APPROVED',actor.sub)
       ]);
       if(updates[0]?.meta?.changes!==1)return err('NOT_PENDING_APPROVAL',409);
     }catch{
