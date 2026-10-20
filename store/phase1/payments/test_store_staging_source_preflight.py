@@ -62,7 +62,7 @@ class StagingSourcePreflight(unittest.TestCase):
             ROOT.parent.parent.parent /
             ".github/workflows/musitu-store-v2-payments-staging-provision.yml"
         ).read_text()
-        self.assertIn("CF_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}", workflow)
+        self.assertIn("CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKENV2 }}", workflow)
         self.assertNotIn("secrets.CLOUDFLARE_API_TOKENV2", workflow)
         self.assertNotIn("secrets.CLOUDFLARE_API_TOKEN }}", workflow)
         self.assertNotIn("secrets.CLOUDFLARE_GLOBAL_API_KEY", workflow)
