@@ -1065,7 +1065,7 @@ export default function App() {
               )}
             </div>
           )}
-          {tab === 'lab' && <ModelLab />}
+          {tab === 'lab' && <ModelLab onChoose={(mode)=>{setAiMode(mode);setPaidConsent(false);go('assistant');}} />}
           {tab === 'insights' && (
             <div className="inner-page">
               <div className="page-title">
