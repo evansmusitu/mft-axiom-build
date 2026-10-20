@@ -1,0 +1,92 @@
+name: LIFELINE Cloudflare Isolated Inaccessible Worker Deployment
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: ['.github/workflows/lifeline-mt5-cloudflare-private-stage.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy-unrouted-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact account and ONLY fresh LIFELINE script mutation guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error
+          aid='93f395f5121954671f92fffa453d6b61'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or ''
+          if len(token)<15:raise SystemExit('missing_existing_cloudflare_token')
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          base='https://api.cloudflare.com/client/v4'
+          def get(path):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(base+path,headers=h,method='GET'),timeout=25) as r:
+                      return r.status,json.loads(r.read(250000))
+              except urllib.error.HTTPError as e:return e.code,None
+          code,a=get('/accounts/'+aid)
+          if code!=200 or not a.get('success') or a.get('result',{}).get('id')!=aid:
+              raise SystemExit('exact_account_qualification_failed')
+          code,z=get('/zones?name=mftintelligence.com&per_page=2')
+          if code!=200 or not z.get('success') or len(z.get('result',[]))!=1 or z['result'][0].get('account',{}).get('id')!=aid:
+              raise SystemExit('account_zone_owner_mismatch')
+          code,_=get('/accounts/'+aid+'/workers/scripts/lifeline-mt5-edge-isolated')
+          if code!=404:raise SystemExit('script_already_exists_or_access_denied; refusing_replace: '+str(code))
+          from pathlib import Path
+          config=Path('products/lifeline-mt5-ai-studio/infra/cloudflare/wrangler.toml').read_text()
+          if not all(x in config for x in ('name = "lifeline-mt5-edge-isolated"',
+                        'account_id = "'+aid+'"','workers_dev = false','preview_urls = false')):
+              raise SystemExit('unexpected_lifeline_worker_scope')
+          for forbidden in ('[[routes]]','route =','routes =','[[d1_databases]]','[[r2_buckets]]','[[kv_namespaces]]'):
+              if forbidden in config:raise SystemExit('unsafe_worker_binding_'+forbidden)
+          print('exact_account_verified=true')
+          print('isolated_script_absent=true')
+          print('no_public_routes_or_preview_verified=true')
+          PY
+      - name: Verify Cloudflare JS authorization tests before any mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm install --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --test test.mjs
+      - name: Deploy ONLY isolated unrouted Cloudflare Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npx --yes wrangler@4.129.0 deploy --config wrangler.toml > /tmp/lifeline-private-deploy.log 2>&1 || {
+            echo "isolated_deploy_failed=true"
+            sed -E 's/[A-Za-z0-9_-]{35,}/[redacted]/g' /tmp/lifeline-private-deploy.log | tail -20
+            exit 1
+          }
+          echo 'private_unrouted_worker_deployed=true'
+      - name: Read-back exact script and confirm no public route was deliberately provisioned
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request
+          aid='93f395f5121954671f92fffa453d6b61'
+          name='lifeline-mt5-edge-isolated'
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+aid+'/workers/scripts/'+name,
+            headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']},method='GET')
+          with urllib.request.urlopen(req,timeout=25) as r:
+            if r.status!=200:raise SystemExit('no_post_deploy_script_readback')
+          print(json.dumps({'account_id':aid,'worker':name,'exists':True,'workers_dev':False,
+            'preview_urls':False,'custom_routes_created':False,'trading_enabled':False,'secrets_installed':False,
+            'public_app_enabled':False,'billing_action_performed':False},sort_keys=True))
+          PY
