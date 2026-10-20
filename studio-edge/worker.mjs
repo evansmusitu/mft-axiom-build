@@ -216,8 +216,7 @@ export default {
         if(failure instanceof ScholarSearchError && failure.message.startsWith('Scholarly queries'))return error('INVALID_SCHOLAR_QUERY',failure.message,400,origin);
         const providerStage = failure instanceof ScholarSearchError ? failure.message : ('Fetch '+(failure instanceof Error ? failure.name+': '+String(failure.message).replace(/https?:\/\/[^\s]+/g,'[upstream]').slice(0,110) : 'unknown'));
         console.warn('scholar-provider-error',providerStage.slice(0,110));
-        return respond({code:'SCHOLAR_UNAVAILABLE',error:'Scholarly metadata provider unavailable. Retry later.',
-          diagnostic:providerStage.slice(0,110)},503,origin,{'retry-after':'60'});
+        return error('SCHOLAR_UNAVAILABLE','Scholarly metadata provider unavailable. Retry later.',503,origin,60);
       }
     }
     if (path === '/api/calculate') {
