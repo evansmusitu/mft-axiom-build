@@ -92,6 +92,9 @@ try {
   }
   Start-Sleep -Seconds 2
   # Try one local-only, no-cloud backtest. Missing historic market data must NOT be reported as success.
+  $testerProfiles=Join-Path $installPath "MQL5\\Profiles\\Tester"
+  New-Item -ItemType Directory -Path $testerProfiles -Force | Out-Null
+  "InpProbeValue=7||1||1||10||Y" | Set-Content (Join-Path $testerProfiles "LifelineSmoke.set") -Encoding ascii
   $ini=Join-Path $installPath "lifeline-tester.ini"
   @"
 [Tester]
@@ -100,15 +103,20 @@ Symbol=EURUSD
 Period=H1
 FromDate=2025.02.03
 ToDate=2025.02.07
-Model=1
-Optimization=0
+Model=3
+Optimization=1
+OptimizationCriterion=6
+ExpertParameters=LifelineSmoke.set
+UseLocal=1
+UseRemote=0
 UseCloud=0
 Visual=0
 Report=lifeline-native-smoke
 ReplaceReport=1
 ShutdownTerminal=1
 "@ | Set-Content -Path $ini -Encoding ascii
-  $proof.strategy_tester_status="ATTEMPTED"
+  $proof.strategy_tester_status="MATH_TESTER_ATTEMPTED"
+  $proof.strategy_tester_mode="MATH_CALCULATIONS_NO_HISTORY_NO_ACCOUNT"
   $t=Start-Process -FilePath $terminal -ArgumentList @("/portable","/config:`"$ini`"") -PassThru
   if (-not $t.WaitForExit(100000)) {
     try { $t.Kill() } catch {}
@@ -123,7 +131,7 @@ ShutdownTerminal=1
   Write-Host "Tester candidate reports: $($reports.Count); terminal logs: $($historyLogs.Count)"
   if ($reports.Count -gt 0) {
     $proof.strategy_tester_report_verified=$true
-    $proof.strategy_tester_status="REPORT_PRESENT_NOT_PERFORMANCE_CERTIFIED"
+    $proof.strategy_tester_status="MATH_CALCULATION_OPTIMIZATION_REPORT_PRESENT_NOT_MARKET_BACKTEST"
     $selected=$reports[0]
     $proof.strategy_tester_report_sha256=(Get-FileHash $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
   }
