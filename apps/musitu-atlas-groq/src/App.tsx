@@ -205,7 +205,7 @@ function TinyChart({ values }: { values: number[] }) {
   );
 }
 export default function App() {
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() => new URLSearchParams(window.location.search).get('tab') === 'lab' ? 'lab' : 'overview');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [missionCount, setMissionCount] = useState(() => readMissions().length);
   useEffect(() => { const onKey = (event:KeyboardEvent) => { if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==='k') {event.preventDefault();setPaletteOpen(open=>!open);} }; document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey); },[]);
