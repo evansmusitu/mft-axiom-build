@@ -4,6 +4,7 @@ const SITE = 'https://evansmusitu.github.io';
 const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 const REASONING_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
+const IMAGE_FALLBACK = '@cf/black-forest-labs/flux-2-klein-4b';
 const MODES = new Set(['explore', 'build', 'learn', 'markets', 'deep', 'research']);
 const POLICY = Object.freeze({
   visitorPerMinute: 5,
@@ -90,7 +91,7 @@ export default {
         availableModels: { standard: MODEL, deeperAnalysis: REASONING_MODEL },
         tools: [
           { id: 'calculator', path: '/api/calculate', numericType: 'IEEE-754 double precision' },
-          { id: 'image', path: '/api/image', model: IMAGE_MODEL, quota: '1 per visitor, 2 per Cloudflare location per minute' },
+          { id: 'image', path: '/api/image', models: [IMAGE_MODEL,IMAGE_FALLBACK], quota: '1 per visitor, 2 per Cloudflare location per minute' },
           { id: 'research', mode: 'research', scope: 'Wikipedia and Hacker News only' }
         ],
         curatedLiveSources: true,
@@ -148,32 +149,47 @@ export default {
         return error('RATE_CONTROL_UNAVAILABLE','Image-generation capacity controls are unavailable.',503,origin);
       }
       try {
-        const result = await env.AI.run(IMAGE_MODEL,{
-          prompt:imagePrompt,
-          steps:4,
-          seed:Math.floor(Math.random()*2147483646)+1
-        });
+        let result, usedModel=IMAGE_MODEL;
+        try {
+          result=await env.AI.run(IMAGE_MODEL,{
+            prompt:imagePrompt,
+            steps:4,
+            seed:Math.floor(Math.random()*2147483646)+1
+          });
+        } catch(primaryFailure) {
+          // Klein is hosted on Workers AI too. It accepts multipart input, even for prompt-only requests.
+          const form = new FormData();
+          form.append('prompt',imagePrompt);
+          form.append('width','512');
+          form.append('height','512');
+          const encoded=new Response(form);
+          result=await env.AI.run(IMAGE_FALLBACK,{
+            multipart:{body:encoded.body,contentType:encoded.headers.get('content-type')}
+          });
+          usedModel=IMAGE_FALLBACK;
+        }
         const base64=typeof result?.image==='string' ? result.image : '';
-        if (!base64.startsWith('/9j/') || base64.length > 3000000 || base64.length < 2000 || !/^[A-Za-z0-9+/=]+$/.test(base64)) {
+        const mime=base64.startsWith('/9j/')?'image/jpeg':base64.startsWith('iVBOR')?'image/png':'';
+        if(!mime || base64.length>3000000 || base64.length<2000 || !/^[A-Za-z0-9+/=]+$/.test(base64)) {
           return error('IMAGE_RESULT_INVALID','The image model returned an invalid image.',502,origin);
         }
         return respond({
           tool:'image',
-          model:IMAGE_MODEL,
+          model:usedModel,
           prompt:imagePrompt,
-          image:'data:image/jpeg;base64,'+base64,
+          image:'data:'+mime+';base64,'+base64,
           note:'Generated image; not a photograph or verified depiction of real events',
           generatedAt:new Date().toISOString()
         },200,origin);
       } catch(e) {
-        // Only expose a recognized Cloudflare status/error code, never raw provider messages or prompts.
-        const rawCode = [e?.code, e?.status, e?.cause?.code].map(x => String(x ?? '')).find(x => /^\d{3,5}$/.test(x)) ||
-          (typeof e?.message === 'string' ? e.message.match(/\b(?:3036|3040|5035|5018|3041|3023|5007|3007)\b/)?.[0] : null);
-        const providerCode = rawCode || 'UNKNOWN';
-        console.warn('musitu_image_inference_failed_class',e instanceof Error ? e.name:'unknown','providerCode',providerCode);
-        return respond({code:'IMAGE_UNAVAILABLE',error:'Image model unavailable or free quota reached.',providerCode},503,origin,{'retry-after':'60'});
+        const rawCode=[e?.code,e?.status,e?.cause?.code].map(x=>String(x??'')).find(x=>/^\d{3,5}$/.test(x)) ||
+          (typeof e?.message==='string' ? e.message.match(/\b(?:3036|3040|5035|5018|3041|3023|5007|3007)\b/)?.[0]:null);
+        const providerCode=rawCode||'UNKNOWN';
+        console.warn('musitu_image_inference_failed_class',e instanceof Error?e.name:'unknown','providerCode',providerCode);
+        return respond({code:'IMAGE_UNAVAILABLE',error:'Image models unavailable or the free allocation has been reached.',providerCode},503,origin,{'retry-after':'60'});
       }
     }
+
     if (path === '/api/calculate') {
       if (typeof input.expression !== 'string' || input.expression.length > 140) {
         return error('INVALID_EXPRESSION','Provide an expression of up to 140 characters.',400,origin);
