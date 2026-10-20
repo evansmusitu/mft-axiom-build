@@ -26,6 +26,8 @@ jobs:
       PRODUCTION: https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -52,6 +54,8 @@ jobs:
           set -euo pipefail
           npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.jsonc
           echo 'PROD_DEPLOYED=1' >> "$GITHUB_ENV"
+      - name: Allow Cloudflare edge deployment propagation
+        run: sleep 30
       - name: Verify calculation routing on production
         env:
           TARGET_WORKER: ${{ env.PRODUCTION }}
