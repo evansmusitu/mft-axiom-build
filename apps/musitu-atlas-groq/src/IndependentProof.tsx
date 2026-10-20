@@ -42,7 +42,8 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
  }
  async function replayFile(event:React.ChangeEvent<HTMLInputElement>){
    setReplayMessage('');setReplayError('');
-   const file=event.currentTarget.files?.[0];
+   const input=event.currentTarget;
+   const file=input.files?.[0];
    if(!file)return;
    if(file.size>13000){setReplayError('Proof file exceeds the 13 KB replay limit.');return;}
    try{
@@ -53,7 +54,7 @@ export default function IndependentProof({openMissions}:{openMissions:()=>void})
       throw Error('Replay did not confirm proof consistency.');
     setReplayMessage('Verified replay: exact result '+data.recomputedExact+'. Receipt calculation and SHA-256 are consistent. Issuer identity is not authenticated.');
    }catch(err){setReplayError(err instanceof Error?err.message:'Proof replay rejected.');}
-   event.currentTarget.value='';
+   input.value='';
  }
  function save(){
   if(!result||saved)return;
