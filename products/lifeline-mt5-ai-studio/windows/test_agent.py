@@ -53,6 +53,23 @@ class SecurityTests(unittest.TestCase):
             f=Path(tmp)/"ea.mq5";f.write_text("void OnTick(){}")
             with self.assertRaisesRegex(agent.AgentError,"allowlisted"):
                 agent.compile_mql5(Path(tmp),{"relative_source":"ea.mq5","source_sha256":agent.sha_file(f),"extra":"x"},"x")
+    def test_durable_at_most_once_and_matching_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);d=root/"leases.db";request=job()
+            first=agent.execute_once(request,KEY,root,None,None,d)
+            second=agent.execute_once(request,KEY,root,None,None,d)
+            self.assertEqual(first,second)
+    def test_nonce_reuse_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);d=root/"leases.db";first=job()
+            agent.execute_once(first,KEY,root,None,None,d)
+            different=job();different["nonce"]=first["nonce"]
+            different["signature"]=agent.sign({k:v for k,v in different.items() if k!="signature"},KEY)
+            with self.assertRaisesRegex(agent.AgentError,"claimed or nonce reused"):
+                agent.execute_once(different,KEY,root,None,None,d)
+    def test_unhashable_operation_rejected(self):
+        x=job();x["operation"]={"code":"shell"};x["signature"]=agent.sign({k:v for k,v in x.items() if k!="signature"},KEY)
+        with self.assertRaisesRegex(agent.AgentError,"operation forbidden"):agent.verify_job(x,KEY)
     def test_short_pairing_key(self):
         with self.assertRaisesRegex(agent.AgentError,"pairing key"):agent.verify_job(job(),b"short")
 
