@@ -210,3 +210,52 @@ to Vercel; a dedicated server credential must be authorized separately.
 
 This work is on branch `feature/atlas-axiom-proof-gate-20261020`;
 protected main and the public ATLAS site are not changed.
+
+
+## Independent evidence execution / replay — ATLAS 3.4 (2026-10-20)
+
+The private Axiom workspace now supports a genuinely executable zero-credit path:
+
+- `POST /api/axiom/verify` executes bounded rational arithmetic via the
+  standalone `atlas-rational-1.0.0` parser. Exact BigInt fractions avoid
+  floating point `0.1+0.2` errors. It has **no** `eval`, interpreter,
+  OpenAI/Anthropic/Groq call, or MUSITU Axiom account dependency. Supported
+  operators: `+`, `-`, `*`, `/`, `%` on integer arguments, `^` for integer
+  exponents between -18 and 18, and parentheses. The 160-character, 110-token,
+  14-depth and 90-digit bounds prevent accidental pathological execution.
+- The response returns exact fraction, decimal display with an explicit
+  truncation flag, SHA-256 request/evidence fingerprints, kernel version,
+  provider-invocation flags (both false), and zero Axiom compute units.
+- Browser UI `IndependentProof` computes a real answer, downloads JSON, and
+  creates an evidence-attached **browser-local** Mission Control entry without
+  contacting the live Axiom provider. Browser localStorage is NOT durable
+  server-backed storage, not shared across devices, and not an audited ledger.
+- `POST /api/axiom/replay` independently recomputes the exact result and
+  receipt fingerprint and rejects altered values. The UI can import a
+  previously exported JSON proof and display the replay verdict.
+- An entitled, authorized Axiom account call through
+  `POST /api/axiom/execute` now compares the provider's numeric result
+  against the exact rational kernel with **relative tolerance 1e-18 ×
+  max(1, absolute expected value)**, and fails closed on mismatch. A provider
+  result cannot be presented as a verified success if the check fails.
+
+**No claim of third-party attestation:** SHA-256 integrity fingerprints are
+not digital signatures, an immutable audit, verified timestamps, or proof of
+issuer identity. They can be recomputed by anyone. Real signed audit needs
+authorized identity, durable transaction idempotency and an external anchor.
+
+**Paid/credentialed Axiom invocation remains DISABLED:** This isolated lab
+has no `AXIOM_MCP_BEARER_TOKEN` and does not enable
+`ATLAS_AXIOM_EXECUTE_ENABLED`. The ChatGPT plugin's private account
+credentials must not be copied from ChatGPT into this website.
+Do not enable remote execution until server identity, entitlement,
+tenant isolation, permanent idempotency and operator authority are
+qualified. The operator code previously pasted into a chat should
+also be rotated before any broadened paid or account-execution rollout.
+
+**Validation:** GitHub Actions
+`atlas-independent-rational-proof.yml` tests 17 exact known outcomes,
+bounded failure handling and provider comparison;
+`atlas-proof-endpoint-contract.yml` runs HTTP-handler contracts
+for proof issuance, replay, changed values/digest rejection and false
+provider-claim rejection, without any remote provider calls.
