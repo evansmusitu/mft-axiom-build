@@ -1,0 +1,63 @@
+name: MUSITU Intelligence Edge Multi-Model Canary and Release
+
+on:
+  push:
+    branches: [feature/musitu-edge-model-tools-20261019]
+    paths:
+      - studio-edge/**
+      - .github/workflows/musitu-edge-model-tools-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary-prove-promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CANARY: https://musitu-intelligence-edge-capacity-canary-20261019.mft-education-nexus-93f395f5.workers.dev
+      PRODUCTION: https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify full model and deterministic tool test suite
+        run: |
+          set -euo pipefail
+          node --check studio-edge/worker.mjs
+          node --check studio-edge/math.mjs
+          node --test studio-edge/tests/worker.test.mjs studio-edge/tests/math.test.mjs
+      - name: Require existing authorized Cloudflare token
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          echo 'Using existing secure Cloudflare token'
+      - name: Deploy canary only
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.canary.jsonc
+      - name: Verify canary with live standard AI, deeper AI and calculator
+        env:
+          TARGET_WORKER: ${{ env.CANARY }}
+        run: node studio-edge/tests/live-smoke.mjs
+      - name: Promote tested model and tools to existing isolated production Worker
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.jsonc
+          echo 'PROD_DEPLOYED=1' >> "$GITHUB_ENV"
+      - name: Verify production with live standard AI, deeper AI and calculator
+        env:
+          TARGET_WORKER: ${{ env.PRODUCTION }}
+        run: node studio-edge/tests/live-smoke.mjs
+      - name: Restore pinned previous production runtime after failed acceptance
+        if: ${{ failure() && env.PROD_DEPLOYED == '1' }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-previous-worker
+          git show 0eac98da9a15c83811c489fccf24360058451dda:studio-edge/worker.mjs > /tmp/musitu-previous-worker/worker.mjs
+          git show 0eac98da9a15c83811c489fccf24360058451dda:studio-edge/wrangler.jsonc > /tmp/musitu-previous-worker/wrangler.jsonc
+          npx -y wrangler@4.129.0 deploy --config /tmp/musitu-previous-worker/wrangler.jsonc
+          echo 'Previous proven production Worker restored'
