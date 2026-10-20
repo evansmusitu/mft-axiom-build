@@ -65,7 +65,7 @@ export async function searchScholarlyWorks(query,fetcher=fetch) {
     '&rows=6&select=DOI,title,author,published,published-print,published-online,issued,created,container-title,publisher,type,is-referenced-by-count';
   const response=await fetcher(endpoint,{
     method:'GET',
-    redirect:'error',
+    redirect:'manual',
     headers:{accept:'application/json'},
     signal:AbortSignal.timeout(9000)
   });
