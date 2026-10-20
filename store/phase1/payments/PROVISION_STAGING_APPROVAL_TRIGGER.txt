@@ -1,7 +1,7 @@
 MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
 
 This is an owner-authorized request for isolated, disabled, un-routed Store
-staging only, following confirmation that CLOUDFLARE_API_TOKEN_V2 was saved.
+staging only, following confirmation that CLOUDFLARE_API_TOKENV2 was saved.
 It authorizes no production checkout, payments, routes or commercial release.
 The required first-line authorization remains:
 MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
