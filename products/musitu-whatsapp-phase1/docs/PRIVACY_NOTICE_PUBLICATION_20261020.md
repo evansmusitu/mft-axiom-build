@@ -1,5 +1,9 @@
 # Isolated public notices and Meta settings — 20 October 2026
 
+Subsequent status: the user confirmed the isolated Meta publication and it
+succeeded. See `META_PUBLICATION_ACCEPTANCE_20261020.md`. The original preparation
+checkpoint below is retained with its observation-time scope.
+
 Completed the user-approved operator/contact decision: Evans Musitu;
 evansmusitu5@gmail.com. Published only static informational privacy and deletion
 instructions. The private SaaS is not launched; Phase 1 remains incomplete.
