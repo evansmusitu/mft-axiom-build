@@ -136,3 +136,4 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
   </section>}
   <p className="axiom-footer"><ShieldCheck size={16}/> Current remote bridge only permits one certified arithmetic operation. Axiom account-metered operations will not be sent while credentials are missing. No broker orders, payments, emails or external writes are authorized by this page.</p>
  </main>;
+}
