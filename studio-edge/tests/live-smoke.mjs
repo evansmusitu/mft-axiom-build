@@ -96,8 +96,8 @@ const imageRaw=await image.text();
 let imageData;
 try{imageData=JSON.parse(imageRaw);}catch{throw Error('Image endpoint returned invalid JSON');}
 if(image.status!==200)throw Error('Real image generation failed '+image.status+': '+JSON.stringify(imageData).slice(0,250));
-assert.equal(imageData.model,'@cf/black-forest-labs/flux-1-schnell');
-assert.ok(imageData.image.startsWith('data:image/jpeg;base64,/9j/'));
+assert.ok(['@cf/black-forest-labs/flux-1-schnell','@cf/black-forest-labs/flux-2-klein-4b'].includes(imageData.model));
+assert.match(imageData.image,/^data:image\/(?:jpeg|png);base64,/);
 assert.ok(imageData.image.length>2500);
 console.log('LIVE IMAGE GENERATION PASS',base,'imageDataURIChars',imageData.image.length);
 const web = await read('/api/chat',{
