@@ -58,6 +58,53 @@ function isValidHistoryMessage(item) {
     item.content.length <= POLICY.maxHistoryItemLength;
 }
 
+function detectArithmetic(question) {
+  const original = question.trim();
+  const prefix = /^(?:calculate|compute|evaluate|what\s+is)\s*:?[ \t]*/i;
+  const matched = prefix.test(original);
+  const candidate = (matched ? original.replace(prefix, '') : original).replace(/\?+$/, '').trim();
+  if (candidate.length < 1 || candidate.length > 140 || !/[0-9]/.test(candidate)) return null;
+  if (!matched && !/[+\-*/^%()]/.test(candidate)) return null;
+  const residues = candidate
+    .replace(/\b(?:sqrt|abs|floor|ceil|round)\b/gi, '')
+    .replace(/(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/g, '')
+    .replace(/[ \t()+\-*/^%]/g, '');
+  if (residues.length) return null;
+  return candidate;
+}
+
+async function arithmeticResponse(expression, request, env, origin, mode = null) {
+  try {
+    const key = request.headers.get('cf-connecting-ip') || 'unidentified-visitor';
+    const visitor = await env.TOOL_RATE.limit({ key });
+    if (!visitor.success) return error('TOOL_RATE_LIMIT','Calculator request limit reached.',429,origin,60);
+    const region = await env.TOOL_REGIONAL.limit({ key:'regional-calculations' });
+    if (!region.success) return error('TOOL_CAPACITY','Calculator capacity temporarily reached.',429,origin,60);
+  } catch {
+    return error('RATE_CONTROL_UNAVAILABLE','Calculator capacity controls unavailable.',503,origin);
+  }
+  try {
+    const result = calculate(expression);
+    const toolResult = { tool:'calculator',...result,generatedAt:new Date().toISOString() };
+    if (mode === null) return respond(toolResult,200,origin);
+    return respond({
+      reply: '**Deterministically verified arithmetic**\n'+
+        'Expression: '+result.expression+'\n'+
+        'Result: '+String(result.result)+'\n'+
+        'Evidence: '+result.verifiedBy+' (IEEE-754 floating-point; not an exact-decimal guarantee).',
+      toolUsed:'deterministic_calculator',
+      model:null,
+      mode,
+      liveSearch:false,
+      ...toolResult
+    },200,origin);
+  } catch (failure) {
+    return failure instanceof CalculationError
+      ? error('CALCULATION_INVALID',failure.message,400,origin)
+      : error('CALCULATION_UNAVAILABLE','Calculation unavailable.',503,origin);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -127,22 +174,14 @@ export default {
       if (typeof input.expression !== 'string' || input.expression.length > 140) {
         return error('INVALID_EXPRESSION','Provide an expression of up to 140 characters.',400,origin);
       }
-      try {
-        const visitor = await env.TOOL_RATE.limit({ key: request.headers.get('cf-connecting-ip') || 'unidentified-visitor' });
-        if (!visitor.success) return error('TOOL_RATE_LIMIT','Calculator request limit reached.',429,origin,60);
-        const region = await env.TOOL_REGIONAL.limit({ key:'regional-calculations' });
-        if (!region.success) return error('TOOL_CAPACITY','Calculator capacity temporarily reached.',429,origin,60);
-      } catch { return error('RATE_CONTROL_UNAVAILABLE','Calculator capacity controls unavailable.',503,origin); }
-      try {
-        return respond({ tool:'calculator',...calculate(input.expression),generatedAt:new Date().toISOString() },200,origin);
-      } catch (failure) {
-        return failure instanceof CalculationError
-          ? error('CALCULATION_INVALID',failure.message,400,origin)
-          : error('CALCULATION_UNAVAILABLE','Calculation unavailable.',503,origin);
-      }
+      return arithmeticResponse(input.expression,request,env,origin);
     }
     const prompt = typeof input.prompt === 'string' ? input.prompt.trim() : '';
     const mode = typeof input.mode === 'string' ? input.mode : 'explore';
+    const mathExpression = detectArithmetic(prompt);
+    if (mathExpression !== null && MODES.has(mode)) {
+      return arithmeticResponse(mathExpression,request,env,origin,mode);
+    }
     if (prompt.length < 10 || prompt.length > POLICY.maxPromptLength || !MODES.has(mode)) {
       return error('INVALID_INPUT', 'Use a valid mode and a question from 10 to 900 characters.', 400, origin);
     }
