@@ -33,7 +33,8 @@ jobs:
           config=(root/'cloudflare/wrangler.toml').read_text()
           assert 'FORCE ROW LEVEL SECURITY' in schema
           assert "current_setting('lifeline.tenant_subject',true)" in schema
-          assert 'jwtVerify(jwt,keys' in worker
+          assert 'jwtVerify(token,jwks' in worker
+          assert 'createRemoteJWKSet' in worker
           assert "algorithms:['RS256']" in worker
           assert 'requires_proxy_auth=True' in (root/'modal/app.py').read_text()
           assert 'workers_dev = false' in config
@@ -41,7 +42,7 @@ jobs:
           assert 'order_send' not in worker
           assert 'MODAL_PROXY_SECRET' in worker
           json.loads((root/'vercel/vercel.json').read_text())
-          print('contract_source_verified=true;live_deploy=false')
+          print('contract_source_verified=true;this_job_cloud_deploy=false')
           PY
       - name: Verify no automatic deployment
-        run: echo 'No Cloudflare/Vercel/Modal/Neon changes are made by CI.'
+        run: echo 'This contract-check job performs no Cloudflare/Vercel/Modal/Neon changes.'
