@@ -117,34 +117,19 @@ ShutdownTerminal=1
   $reports=@(Get-ChildItem -Path $installPath -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
     $_.Name -match "^lifeline-native-smoke\.(htm|html|xml)$" -and $_.Length -gt 500
   })
-  $historyLogs=@(Get-ChildItem -Path $installPath -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^[0-9]{8}\\.log
-    $proof.strategy_tester_report_verified=$true
-    $proof.strategy_tester_status="REPORT_PRESENT_NOT_PERFORMANCE_CERTIFIED"
-    $selected=$reports[0]
-    $proof.strategy_tester_report_sha256=(Get-FileHash $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    # Do not publish potentially sensitive reports as public-repo artifacts; only hash evidence.
-  }
-} catch {
-  $proof.error=$_.Exception.Message
-  Write-Host "Native qualification limitation: $($proof.error)"
-} finally { Save-Proof }
-# Compile is the mandatory gate. Tester is reported separately because it may require broker history.
-if (-not $proof.compiled) { exit 1 }
-exit 0
- -and $_.DirectoryName -match '(?i)logs' })
+  $historyLogs=@(Get-ChildItem -Path $installPath -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^\\d{8}\\.log$' -and $_.DirectoryName -match 'logs' })
   $proof.terminal_log_count=$historyLogs.Count
-  Write-Host "Tester candidate report count: $($reports.Count); terminal log count: $($historyLogs.Count)"
+  Write-Host "Tester candidate reports: $($reports.Count); terminal logs: $($historyLogs.Count)"
   if ($reports.Count -gt 0) {
     $proof.strategy_tester_report_verified=$true
     $proof.strategy_tester_status="REPORT_PRESENT_NOT_PERFORMANCE_CERTIFIED"
     $selected=$reports[0]
     $proof.strategy_tester_report_sha256=(Get-FileHash $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    # Do not publish potentially sensitive reports as public-repo artifacts; only hash evidence.
   }
 } catch {
   $proof.error=$_.Exception.Message
   Write-Host "Native qualification limitation: $($proof.error)"
 } finally { Save-Proof }
-# Compile is the mandatory gate. Tester is reported separately because it may require broker history.
 if (-not $proof.compiled) { exit 1 }
 exit 0
