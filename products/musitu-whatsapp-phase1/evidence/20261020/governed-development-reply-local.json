@@ -1,0 +1,53 @@
+{
+  "scope": "GOVERNED_DEVELOPMENT_REPLY_CANDIDATE_NOT_SENT",
+  "migration": "015_development_reply_sender.sql",
+  "nativeRollbackQualification": {
+    "checks": 16,
+    "role": "musitu_runtime",
+    "expectedTerminalException": "DEVELOPMENT_REPLY_NATIVE_PASS_16_EXPECTED_TRANSACTION_ROLLBACK",
+    "fixturesCommitted": false,
+    "realMeta": false,
+    "realIdp": false
+  },
+  "afterRollbackReadback": {
+    "observedAt": "2026-10-20T09:42:04.793Z",
+    "migrationPresent": 0,
+    "testMemberships": 0,
+    "inboundCount": 1,
+    "outboundAttempts": 0,
+    "consentRecords": 0
+  },
+  "schemaReadback": {
+    "observedAt": "2026-10-20T09:43:17.232Z",
+    "developmentColumns": 10,
+    "runtimeOutboundInsert": false,
+    "runtimeOutboundUpdate": false,
+    "ingressCanReserve": false,
+    "inboundCount": 1,
+    "outboundAttempts": 0,
+    "consentRecords": 0
+  },
+  "ownerBindingReadback": {
+    "observedAt": "2026-10-20T09:44:31.254Z",
+    "actorId": "395558180472062118",
+    "role": "OWNER",
+    "status": "ACTIVE",
+    "priorQaMembership": "REVOKED",
+    "newLoginClaimed": false,
+    "approvalClaimed": false
+  },
+  "localChecks": {
+    "focusedCases": 8,
+    "fullTests": 306,
+    "failures": 0,
+    "syntaxFiles": 133,
+    "nextBuild": "PASS"
+  },
+  "noSendAttempted": true,
+  "noCredentialValueRead": true,
+  "publicMessaging": false,
+  "humanReviewPending": true,
+  "realProviderReceiptPending": true,
+  "nativeConcurrencyUnverified": true,
+  "phase1Complete": false
+}
