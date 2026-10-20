@@ -76,3 +76,40 @@ assert.equal(deepData.model,'@cf/qwen/qwen3-30b-a3b-fp8');
 assert.ok(deepData.reply.length>=40,'Deep model must return a meaningful final answer');
 assert.doesNotMatch(deepData.reply,/<think>/i);
 console.log('TWO-MODEL + DETERMINISTIC CALCULATOR LIVE PASS',base,'deepChars',deepData.reply.length);
+
+
+// Ensure Kimi never silently creates paid requests without explicit credentials.
+const healthDetail = await (await read('/api/health',{headers:{origin:SITE}})).json();
+assert.equal(healthDetail.kimi.available,false,'Provider remains explicitly unconnected on the free route');
+assert.equal(healthDetail.tools.find(x=>x.id==='encyclopedia-search').generalWebSearch,false);
+
+const kimi = await read('/api/chat',{
+  method:'POST',headers:{'content-type':'application/json',origin:SITE},
+  body:JSON.stringify({mode:'kimi',prompt:'Give a detailed explanation of robust software testing with examples.'})
+});
+assert.equal(kimi.status,503,'No unapproved Kimi billing permitted');
+assert.equal((await kimi.json()).code,'KIMI_NOT_CONNECTED');
+
+const wiki = await read('/api/search',{
+  method:'POST',headers:{'content-type':'application/json',origin:SITE},
+  body:JSON.stringify({query:'Solar System'})
+});
+const wikiData = await wiki.json();
+if(wiki.status!==200) throw Error('Live Wikimedia search failed HTTP '+wiki.status+': '+JSON.stringify(wikiData));
+assert.equal(wikiData.tool,'encyclopedia-search');
+assert.equal(wikiData.generalWebSearch,false);
+assert.ok(wikiData.results.length>=1,'Real live encyclopedia sources required');
+assert.ok(wikiData.results[0].url.startsWith('https://en.wikipedia.org/wiki/'));
+console.log('LIVE WIKIMEDIA SOURCES VERIFIED',wikiData.results.length,'first:',wikiData.results[0].title);
+
+const imageResponse = await read('/api/image',{
+  method:'POST',headers:{'content-type':'application/json',origin:SITE},
+  body:JSON.stringify({prompt:'A luminous violet observatory on a distant snowy mountain, cinematic high-detail digital concept art.'})
+});
+const imageData = await imageResponse.json();
+if(imageResponse.status!==200) throw Error('Image generation failed HTTP '+imageResponse.status+': '+JSON.stringify(imageData).slice(0,300));
+assert.equal(imageData.tool,'image-generator');
+assert.equal(imageData.model,'@cf/black-forest-labs/flux-1-schnell');
+assert.match(imageData.dataURI,/^data:image\/jpeg;base64,/);
+assert.ok(imageData.dataURI.length>3000,'Image output must contain real encoded pixels');
+console.log('LIVE FLUX IMAGE VERIFIED',imageData.dataURI.length,'data URI chars');
