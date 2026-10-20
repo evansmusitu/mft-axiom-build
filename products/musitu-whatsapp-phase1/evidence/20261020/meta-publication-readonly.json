@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-20T06:10:33.196Z",
+  "scope": "ACTUAL_META_BROWSER_READ_ONLY_CONFIGURATION",
+  "appId": "1096094346481018",
+  "appName": "MUSITU AI Employee Dev",
+  "state": "Unpublished",
+  "webhook": {
+    "callbackUrl": "https://musitu-whatsapp-meta-receiver-20261015-ad7qjgbm7-evansmusitu.vercel.app/api/meta/webhook",
+    "messagesSubscribed": true,
+    "subscriptionVersion": "v26.0",
+    "verifyToken": "MASKED_NOT_READ"
+  },
+  "providerNoticeSummary": "Unpublished apps receive dashboard test webhooks only; real production data including admins/developers/testers requires app publication.",
+  "publishing": {
+    "buttonDisabled": true,
+    "privacyPolicyUrl": "EMPTY",
+    "userDataDeletionUrl": "EMPTY",
+    "settingsChanged": false,
+    "published": false
+  },
+  "genuineInboundQualified": false,
+  "sendAttempted": false,
+  "subscriptionChanged": false,
+  "originalNexusAppTouched": false
+}
