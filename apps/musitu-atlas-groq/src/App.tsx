@@ -231,7 +231,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [firstModelVisit] = useState(() => {try{return localStorage.getItem('atlas_ai_mode')===null;}catch{return true;}});
   const [aiMode, setAiMode] = useState<string>(() => {
-    const prior=load<string>('atlas_ai_mode','groq_quality');
+    const prior=load<string>('atlas_ai_mode','openai_sol');
     return prior==='fast'?'groq_fast':prior==='quality'?'groq_quality':prior;
   });
   const [modelCatalog,setModelCatalog] = useState<ModelOption[]>([]);
@@ -241,7 +241,7 @@ export default function App() {
   useEffect(()=>save('atlas_ai_mode',aiMode),[aiMode]);
   useEffect(()=>{
     let live=true;
-    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);if(firstModelVisit){const preferred=['beam_free','gemini_free','nemotron_free','groq_quality','groq_fast'].map(id=>r.data.models.find((v:ModelOption)=>v.id===id&&v.available)).find(Boolean);if(preferred)setAiMode(preferred.id);}}})
+    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);if(firstModelVisit){const preferred=['openai_sol','claude_sonnet','openai_luna','claude_opus','openai_astra','beam_free','gemini_free','nemotron_free','groq_quality','groq_fast'].map(id=>r.data.models.find((v:ModelOption)=>v.id===id&&v.available)).find(Boolean);if(preferred)setAiMode(preferred.id);}}})
       .catch(()=>{if(live)setCatalogError(true);});
     return()=>{live=false};
   },[firstModelVisit]);
