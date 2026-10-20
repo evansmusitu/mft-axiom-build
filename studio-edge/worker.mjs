@@ -91,6 +91,7 @@ export default {
       return respond({
         service: 'MUSITU Intelligence Edge',
         status: 'ok',
+        scholarlyRelease:'scholar-20261020-v2',
         model: MODEL,
         availableModels: { standard: MODEL, deeperAnalysis: REASONING_MODEL },
         tools: [
