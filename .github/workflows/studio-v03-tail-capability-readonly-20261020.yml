@@ -32,15 +32,31 @@ jobs:
           import json,os,pathlib,re
           contents=pathlib.Path('/tmp/studio-tail-sanitized-discard.log').read_text(errors='replace').lower()
           exit_status=int(os.getenv('TAIL_STATUS','0'))
+          # Categorize only fixed, non-identifying error codes. Discard raw
+          # output immediately; it can contain live request metadata.
+          categories={
+            'TOKEN_SCOPE_OR_PERMISSION_ERROR':['permission','unauthorized','authentication',
+              'forbidden','insufficient scope','10000','10001','not authorized','10027'],
+            'WEBSOCKET_OR_NETWORK_ERROR':['websocket','econnrefused','enotfound',
+              'econnreset','certificate','web socket','fetch failed','network error'],
+            'WRANGLER_ARGUMENT_ERROR':['unknown option','invalid option','invalid arguments',
+              'unrecognized option','not enough arguments','too many arguments'],
+            'WORKER_NAME_OR_ACCOUNT_ERROR':['worker does not exist','worker not found',
+              'no such worker','account id','account_name','does not have a route'],
+            'PLAN_OR_TAIL_UNAVAILABLE':['tail unavailable','tail session',
+              'not available on your plan','workers logs disabled'],
+            'CLI_OR_DEPENDENCY_ERROR':['not a function','typeerror','module not found',
+              'syntaxerror','unexpected token','cannot find module'],
+          }
+          matches=[key for key,pats in categories.items() if any(p in contents for p in pats)]
           category=('TAIL_SESSION_CONNECTED' if exit_status==124 else
-            'TOKEN_SCOPE_OR_PERMISSION_ERROR' if any(x in contents for x in
-              ['permission','unauthorized','authentication','forbidden','insufficient scope','10000','10001']) else
-            'CONFIG_OR_CLI_ERROR' if any(x in contents for x in
-              ['invalid','unknown option','error','failed']) else
+            matches[0] if matches else
+            'UNCLASSIFIED_CLI_ERROR' if any(x in contents for x in ['error','failed']) else
             'UNKNOWN_EARLY_EXIT')
           report={'schema':'musitu.studio.v03.cloudflare-tail-readonly.v1',
             'read_only':True,'real_worker_name_existing':True,
             'exit_status':exit_status,'diagnostic':category,
+            'diagnostic_categories':matches,
             'staff_request_contents_logged':False,'provider_mutated':False}
           pathlib.Path('../../studio-tail-capability-readonly.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
           print('STUDIO_V03_TAIL_PERMISSION_DIAGNOSIS='+json.dumps(report,sort_keys=True))
