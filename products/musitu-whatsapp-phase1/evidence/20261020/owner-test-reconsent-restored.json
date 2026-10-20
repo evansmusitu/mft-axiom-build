@@ -1,0 +1,21 @@
+{
+  "scope": "EXPLICIT_OWNER_APPROVED_SINGLE_TEST_RECONSENT_RESTORATION_NO_SEND",
+  "approvalReference": "owner-chat-approval-20261020T161842-Africa-Harare-single-test-reply",
+  "transactionCommitted": true,
+  "observedAt": "2026-10-20T14:19:48.625Z",
+  "remainingTargetSuppression": 0,
+  "archivedOriginalSuppression": 1,
+  "outboundAttempts": 0,
+  "sourceKind": "STAFF_ATTESTATION",
+  "exactOriginalSuppressionTimestamp": "2026-10-20 10:12:18.793519+00",
+  "exactLatestInboundTimestamp": "2026-10-20 10:05:07.712764+00",
+  "timestampGuardsCorrectedBeforeExecution": true,
+  "providerSendAttempted": false,
+  "saasApprovalFabricated": false,
+  "runtimeCodeChanged": false,
+  "schemaOrGrantChanged": false,
+  "credentialsChanged": false,
+  "cloudOwnerSessionUnavailable": true,
+  "authenticatedSubmissionPending": true,
+  "phase1Complete": false
+}

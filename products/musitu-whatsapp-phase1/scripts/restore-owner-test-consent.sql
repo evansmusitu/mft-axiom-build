@@ -33,7 +33,7 @@ BEGIN
  -- Do not erase a changed opt-out, newly arrived STOP or a provider-origin opt-out.
  IF (SELECT count(*) FROM musitu.inbound_events WHERE tenant_id=scope)<>2
  OR (SELECT max(received_at) FROM musitu.inbound_events WHERE tenant_id=scope)
- IS DISTINCT FROM '2026-10-20T10:05:07.712Z'::timestamptz
+ IS DISTINCT FROM '2026-10-20T10:05:07.712764Z'::timestamptz
  OR EXISTS(SELECT 1 FROM musitu.outbound_attempts WHERE tenant_id=scope) THEN
   RAISE EXCEPTION 'TEST_STATE_CHANGED_REDIAGNOSE';
  END IF;
@@ -41,7 +41,7 @@ BEGIN
  WHERE tenant_id=scope AND conversation_id=convo FOR UPDATE;
  IF NOT FOUND OR previous.source_kind<>'STAFF_ATTESTATION'
  OR previous.staff_actor_id IS NULL
- OR previous.recorded_at IS DISTINCT FROM '2026-10-20T10:12:18.793Z'::timestamptz THEN
+ OR previous.recorded_at IS DISTINCT FROM '2026-10-20T10:12:18.793519Z'::timestamptz THEN
   RAISE EXCEPTION 'SUPPRESSION_CHANGED_REDIAGNOSE';
  END IF;
  -- Keep the exact previous record and external consent reference for audit/recovery.
