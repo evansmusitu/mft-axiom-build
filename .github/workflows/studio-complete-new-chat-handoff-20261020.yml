@@ -1,0 +1,84 @@
+name: MUSITU Studio — Complete Verified New-Chat Transfer 2026-10-20
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - '.github/workflows/studio-complete-new-chat-handoff-20261020.yml'
+      - 'ops/studio_build_new_chat_handoff_20261020.py'
+      - 'ops/studio_snapshot_provider_readonly_20261020.py'
+      - 'docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md'
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-complete-new-chat-transfer-20261020
+  cancel-in-progress: false
+jobs:
+  complete-source-and-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate expected isolation and source syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "experiments/studio-enterprise-v03-sqlite-do-20261018"
+          test -f musitu_studio/edge/src/v03_do_entry.mjs
+          test -f musitu_studio/edge/src/r2_entry.mjs
+          test -f musitu_studio/modal/studio_modal.py
+          test -f musitu_studio/edge/public_v03/index.html
+          test -f docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md
+          python -m py_compile ops/studio_build_new_chat_handoff_20261020.py ops/studio_snapshot_provider_readonly_20261020.py
+          node --check musitu_studio/edge/src/v03_entry.mjs
+          node --check musitu_studio/edge/src/v03_do_entry.mjs
+          node --check musitu_studio/edge/public_v03/studio.js
+      - name: Install test dependencies, save exact resolved lockfile in handoff
+        working-directory: musitu_studio/edge
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Execute complete Studio edge test suite including V0.2/V0.3
+        working-directory: musitu_studio/edge
+        run: npm test
+      - name: Read-only provider check without exposing staff emails, cookies or API token
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python ops/studio_snapshot_provider_readonly_20261020.py
+      - name: Package ALL tracked Studio sources, workflows, operations and proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python ops/studio_build_new_chat_handoff_20261020.py
+          test -s MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip
+          test -s STUDIO_NEW_CHAT_HANDOFF_BUILD_RECEIPT_20261020.json
+      - name: Independently execute verifier EMBEDDED in the ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile,pathlib,subprocess,sys
+          p=pathlib.Path('MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip')
+          with zipfile.ZipFile(p) as z:
+            ver=[x for x in z.namelist() if x.endswith('/07_VERIFY_HANDOFF.py')]
+            assert len(ver)==1
+            code=z.read(ver[0])
+          pathlib.Path('/tmp/studio_verify_transfer.py').write_bytes(code)
+          subprocess.run([sys.executable,'/tmp/studio_verify_transfer.py',str(p.resolve())],check=True)
+          print('NEW_CHAT_EMBEDDED_VERIFIER=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020
+          path: |
+            MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip
+            STUDIO_NEW_CHAT_HANDOFF_BUILD_RECEIPT_20261020.json
+            PROVIDER_READONLY_HANDOFF_SNAPSHOT_20261020.json
+          retention-days: 45
+          if-no-files-found: warn
