@@ -17,6 +17,35 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
             "SELECT expires_at FROM store_customer_tokens WHERE token_hash=?",
             ("b"*64,)).fetchone()[0], "2099-01-01T00:00:00.000Z")
 
+    def test_revoked_customer_token_cannot_be_reactivated_or_replaced(self):
+        token = "c" * 64
+        self.db.execute("""INSERT INTO store_customer_tokens
+          (token_hash,customer_id,status,expires_at)
+          VALUES(?,?,?,?)""", (token, "customer_fixture", "active", "2099-01-01T00:00:00.000Z"))
+        self.db.execute("UPDATE store_customer_tokens SET status='revoked' WHERE token_hash=?", (token,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE store_customer_tokens SET status='active' WHERE token_hash=?", (token,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""INSERT OR REPLACE INTO store_customer_tokens
+              (token_hash,customer_id,status,expires_at)
+              VALUES(?,?,?,?)""", (token, "customer_fixture", "active", "2099-01-01T00:00:00.000Z"))
+        self.assertEqual(self.db.execute(
+            "SELECT status FROM store_customer_tokens WHERE token_hash=?", (token,)).fetchone()[0], "revoked")
+
+    def test_customer_token_identity_and_expiry_are_immutable(self):
+        token = "d" * 64
+        self.db.execute("""INSERT INTO store_customer_tokens
+          (token_hash,customer_id,status,expires_at)
+          VALUES(?,?,?,?)""", (token, "customer_fixture", "inactive", "2099-01-01T00:00:00.000Z"))
+        self.db.execute("UPDATE store_customer_tokens SET status='active' WHERE token_hash=?", (token,))
+        for update in ("token_hash='" + "e"*64 + "'", "customer_id='another_customer'",
+                       "expires_at='2099-02-01T00:00:00.000Z'"):
+            with self.subTest(update=update), self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("UPDATE store_customer_tokens SET " + update + " WHERE token_hash=?", (token,))
+        self.assertEqual(self.db.execute(
+            "SELECT customer_id,status,expires_at FROM store_customer_tokens WHERE token_hash=?",
+            (token,)).fetchone(), ("customer_fixture", "active", "2099-01-01T00:00:00.000Z"))
+
     def test_review_requires_prior_verified_provider_record(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE store_checkout_intents SET status='review_required'")

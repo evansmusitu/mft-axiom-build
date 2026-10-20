@@ -16,6 +16,32 @@ CREATE TABLE IF NOT EXISTS store_customer_tokens (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Customer bearer grants must be explicitly rotated, never rebound to a new
+-- principal or silently extended. A revoked token cannot be resurrected.
+CREATE TRIGGER IF NOT EXISTS store_customer_token_fixed_identity_and_expiry
+BEFORE UPDATE OF token_hash,customer_id,expires_at ON store_customer_tokens
+FOR EACH ROW WHEN NEW.token_hash != OLD.token_hash
+   OR NEW.customer_id != OLD.customer_id OR NEW.expires_at != OLD.expires_at
+BEGIN
+ SELECT RAISE(ABORT,'Store customer token identity and expiration are immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS store_customer_token_revocation_terminal
+BEFORE UPDATE OF status ON store_customer_tokens
+FOR EACH ROW WHEN OLD.status='revoked' AND NEW.status!='revoked'
+BEGIN
+ SELECT RAISE(ABORT,'Revoked Store customer token cannot be reactivated');
+END;
+-- REPLACE deletes the conflicting row without firing a normal UPDATE. Block
+-- duplicate INSERT before SQLite's implicit REPLACE deletion occurs.
+CREATE TRIGGER IF NOT EXISTS store_customer_token_cannot_replace
+BEFORE INSERT ON store_customer_tokens
+FOR EACH ROW WHEN EXISTS (
+ SELECT 1 FROM store_customer_tokens WHERE token_hash=NEW.token_hash
+)
+BEGIN
+ SELECT RAISE(ABORT,'Existing Store customer bearer cannot be replaced');
+END;
+
 CREATE TABLE IF NOT EXISTS store_products (
   sku TEXT PRIMARY KEY NOT NULL
     CHECK(length(sku) BETWEEN 4 AND 80),
