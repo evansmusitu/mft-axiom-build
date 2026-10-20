@@ -1,8 +1,9 @@
 MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
 
-This file is intentionally NOT an authorization. Editing this particular
-file on the isolated branch will only be considered a staging request if an
-authorized owner replaces the first line with:
+This is an owner-authorized request for isolated, disabled, un-routed Store
+staging only, following confirmation that CLOUDFLARE_API_TOKEN_V2 was saved.
+It authorizes no production checkout, payments, routes or commercial release.
+The required first-line authorization remains:
 MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
 
 The staging workflow also checks the repository actor and Cloudflare account,
