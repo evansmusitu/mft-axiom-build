@@ -11,6 +11,10 @@ function environment(visitorAllowed = true, regionAllowed = true, answer = 'Feed
   const env = {
     VISITOR_RATE: { limit: async ({ key }) => { calls.push(['visitor', key]); return { success: visitorAllowed }; } },
     GLOBAL_RATE: { limit: async ({ key }) => { calls.push(['regional', key]); return { success: regionAllowed }; } },
+    DEEP_RATE: { limit: async ({ key }) => { calls.push(['deep-visitor', key]); return { success: true }; } },
+    DEEP_REGIONAL: { limit: async ({ key }) => { calls.push(['deep-region', key]); return { success: true }; } },
+    TOOL_RATE: { limit: async ({ key }) => { calls.push(['tool-visitor', key]); return { success: true }; } },
+    TOOL_REGIONAL: { limit: async ({ key }) => { calls.push(['tool-region', key]); return { success: true }; } },
     AI: { run: async (model, options) => { calls.push(['ai', model, options]); return { response: answer }; } }
   };
   return { env, calls };
@@ -124,4 +128,70 @@ test('provider failures do not expose errors or fabricate an answer', async () =
   const body = await response.json();
   assert.equal(body.code,'AI_UNAVAILABLE');
   assert.equal(JSON.stringify(body).includes('SECRET'),false);
+});
+
+test('calculator endpoint computes safe arithmetic without calling a model', async () => {
+  const {env,calls}=environment();
+  const response=await worker.fetch(request('/api/calculate','POST',{expression:'40+2'}),env);
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.result,42);
+  assert.equal(data.tool,'calculator');
+  assert.equal(data.verifiedBy,'deterministic parser v1');
+  assert.equal(data.exact,false);
+  assert.deepEqual(calls.map(x=>x[0]),['tool-visitor','tool-region']);
+});
+
+test('calculator refuses malformed expressions and script injection safely', async () => {
+  const {env,calls}=environment();
+  const result=await worker.fetch(request('/api/calculate','POST',{expression:'require(process.env)'}),env);
+  assert.equal(result.status,400);
+  assert.equal((await result.json()).code,'CALCULATION_INVALID');
+  assert.ok(!calls.some(x=>x[0]==='ai'));
+});
+
+test('calculator does not charge the model or shared inference quota', async () => {
+  const {env,calls}=environment();
+  env.TOOL_RATE.limit=async()=>{calls.push(['tool-visitor']);return {success:false};};
+  const response=await worker.fetch(request('/api/calculate','POST',{expression:'10+3*2'}),env);
+  assert.equal(response.status,429);
+  assert.equal(response.headers.get('retry-after'),'60');
+  assert.deepEqual(calls.map(x=>x[0]),['tool-visitor']);
+});
+
+test('deep-analysis mode selects the reasoning model and respects bounded token output', async () => {
+  const {env,calls}=environment();
+  const response=await worker.fetch(request('/api/chat','POST',{prompt:PROMPT,mode:'deep'}),env);
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.mode,'deep');
+  assert.equal(data.model,'@cf/qwen/qwen3-30b-a3b-fp8');
+  assert.deepEqual(calls.map(x=>x[0]),['visitor','deep-visitor','deep-region','regional','ai']);
+  assert.equal(calls.at(-1)[2].max_tokens,850);
+});
+
+test('deep-analysis mode is denied by its separate per-user quota', async () => {
+  const {env,calls}=environment();
+  env.DEEP_RATE.limit=async()=>{calls.push(['deep-visitor']);return {success:false};};
+  const response=await worker.fetch(request('/api/chat','POST',{prompt:PROMPT,mode:'deep'}),env);
+  assert.equal(response.status,429);
+  assert.equal((await response.json()).code,'DEEP_RATE_LIMIT');
+  assert.deepEqual(calls.map(x=>x[0]),['visitor','deep-visitor']);
+});
+
+test('reasoning tags are excluded from visible responses', async () => {
+  const {env}=environment(true,true,'<think>Hidden speculative reasoning.</think>Verified user-facing answer.');
+  const response=await worker.fetch(request('/api/chat','POST',{prompt:PROMPT,mode:'deep'}),env);
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.reply,'Verified user-facing answer.');
+  assert.equal(data.reply.includes('Hidden'),false);
+});
+
+test('health advertises real tools and both explicit models',async()=>{
+  const {env}=environment();
+  const health=await worker.fetch(request('/api/health'),env);
+  const data=await health.json();
+  assert.equal(data.availableModels.deeperAnalysis,'@cf/qwen/qwen3-30b-a3b-fp8');
+  assert.equal(data.tools[0].path,'/api/calculate');
 });
