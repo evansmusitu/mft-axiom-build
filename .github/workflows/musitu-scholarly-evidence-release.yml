@@ -1,0 +1,68 @@
+name: MUSITU Scholarly Evidence Canary Release
+
+on:
+  push:
+    branches: [feature/musitu-scholarly-evidence-20261020]
+    paths:
+      - studio-edge/**
+      - .github/workflows/musitu-scholarly-evidence-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-scholarly-evidence-release
+  cancel-in-progress: false
+
+jobs:
+  test-and-promote-scholar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CANARY: https://musitu-intelligence-edge-capacity-canary-20261019.mft-education-nexus-93f395f5.workers.dev
+      PRODUCTION: https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate all existing and scholarly regression tests
+        run: |
+          set -euo pipefail
+          node --check studio-edge/worker.mjs
+          node --check studio-edge/scholar.mjs
+          node --test studio-edge/tests/*.test.mjs
+      - name: Confirm the pre-existing secret is connected
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          echo 'Cloudflare API token exists; not printing it'
+      - name: Deploy isolated canary using existing Cloudflare Worker configuration
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.canary.jsonc
+      - name: Verify live scholarly provider with real DOI records and AI
+        env:
+          TARGET_WORKER: ${{ env.CANARY }}
+        run: node studio-edge/tests/scholar-live.mjs
+      - name: Promote passing Scholar release to existing production Worker
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config studio-edge/wrangler.jsonc
+          echo 'PRODUCTION_TOUCHED=1' >> "$GITHUB_ENV"
+      - name: Verify live production DOI retrieval and grounded inference
+        env:
+          TARGET_WORKER: ${{ env.PRODUCTION }}
+        run: node studio-edge/tests/scholar-live.mjs
+      - name: Restore prior verified release if production tests fail
+        if: ${{ failure() && env.PRODUCTION_TOUCHED == '1' }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-prior
+          for file in worker.mjs research.mjs citations.mjs math.mjs wrangler.jsonc; do
+            git show 6fc10ac7022e3fbc341d5d1f2438facfe1efb2b9:studio-edge/$file > /tmp/musitu-prior/$file
+          done
+          npx -y wrangler@4.129.0 deploy --config /tmp/musitu-prior/wrangler.jsonc
+          echo 'Previous verified runtime restored'
