@@ -164,3 +164,19 @@ FOR EACH ROW WHEN EXISTS (
 BEGIN
  SELECT RAISE(ABORT,'existing Store order reference may not be replaced');
 END;
+
+-- SECURITY: SQLite INSERT OR REPLACE can remove a conflicting review
+-- before inserting its replacement. SQLite's default recursive_triggers=OFF
+-- means an implicit DELETE need not invoke our immutable DELETE trigger.
+-- Block *all* duplicate review references and provider refs in BEFORE INSERT,
+-- before REPLACE conflict deletion, including where another still-pending
+-- Store order attempts to steal a single signed provider transaction.
+CREATE TRIGGER IF NOT EXISTS store_review_reference_or_provider_cannot_replace
+BEFORE INSERT ON store_checkout_reviews
+FOR EACH ROW WHEN EXISTS (
+  SELECT 1 FROM store_checkout_reviews
+  WHERE reference=NEW.reference OR paynow_reference=NEW.paynow_reference
+)
+BEGIN
+ SELECT RAISE(ABORT,'existing signed Store review or provider claim cannot be replaced');
+END;
