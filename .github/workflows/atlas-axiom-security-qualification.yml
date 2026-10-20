@@ -1,0 +1,84 @@
+name: ATLAS Axiom Security Qualification
+on:
+  push:
+    branches: [feature/atlas-axiom-secure-qualification-20261020]
+    paths:
+      - .github/workflows/atlas-axiom-security-qualification.yml
+      - apps/musitu-atlas-groq/api/axiom/**
+      - apps/musitu-atlas-groq/src/AxiomDesk.tsx
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  negative-security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check fail-closed role and account-authenticated Axiom execution gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/atlas-security-test
+          mkdir -p "$ROOT/node_modules/@neondatabase/serverless"
+          cp apps/musitu-atlas-groq/api/axiom/{_rational.ts,_contract.ts} "$ROOT/"
+          for part in _ledger execute; do
+            sed -e 's@./_contract.js@./_contract.ts@g' -e 's@./_ledger.js@./_ledger.ts@g' -e 's@./_rational.js@./_rational.ts@g' "apps/musitu-atlas-groq/api/axiom/${part}.ts" > "$ROOT/${part}.ts"
+          done
+          printf '%s\n' '{"type":"module","name":"@neondatabase/serverless","exports":"./index.js"}' > "$ROOT/node_modules/@neondatabase/serverless/package.json"
+          cat > "$ROOT/node_modules/@neondatabase/serverless/index.js" <<'STUB'
+          export function neon(){
+            return async function(strings,...values){
+              const query=strings.join('?').trim();
+              if(query.startsWith('SELECT')&&query.includes('FROM pg_roles r')){
+                return [{can_read:true,can_insert:true,can_update:true,
+                  can_delete_attempt:true,can_delete_audit:true,can_delete_quota:true,
+                  can_create:false,privileged_member:true,superuser:false,
+                  can_create_roles:false,can_create_dbs:false,can_bypass_rls:true}];
+              }
+              globalThis.__atlasUnauthorizedWrites=(globalThis.__atlasUnauthorizedWrites||0)+1;
+              throw Error('No DB writes are expected when the role is privileged');
+            };
+          }
+          STUB
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const root='file:///tmp/atlas-security-test/';
+          const {assessRuntimeRole,enforceRuntimeRole,claim}=await import(root+'_ledger.ts');
+          const {hashPayload}=await import(root+'_contract.ts');
+          const {default:execute}=await import(root+'execute.ts');
+          process.env.ATLAS_AXIOM_DATABASE_URL='postgresql://fake-db.example/test';
+          const inspection=await assessRuntimeRole();
+          assert.equal(inspection.restricted,false);
+          assert.equal(inspection.excessivePrivilege,true);
+          await assert.rejects(()=>enforceRuntimeRole(),/overprivileged/);
+          await assert.rejects(()=>claim(
+            '80eac725-7d3d-4dff-91b8-24361a862e52',
+            '11111111-1111-4111-8111-111111111111',hashPayload('1+2'),'1+2'
+          ),/overprivileged/);
+          assert.equal(globalThis.__atlasUnauthorizedWrites||0,0);
+          console.log('PASS: inherited elevated Neon privileges block durable claims without any database writes');
+          function out(){return{statusCode:200,data:null,
+            setHeader(){return this},status(code){this.statusCode=code;return this},
+            json(data){this.data=data;return this}};}
+          const req={method:'POST',body:{
+            expression:'1+2',digest:hashPayload('1+2'),
+            idempotencyKey:'11111111-1111-4111-8111-111111111111',
+            accessCode:'private-test-access-code-strong',approved:true
+          }};
+          process.env.ATLAS_AXIOM_EXECUTE_ENABLED='enabled';
+          process.env.ATLAS_FRONTIER_ACCESS_CODE='private-test-access-code-strong';
+          delete process.env.AXIOM_MCP_BEARER_TOKEN;
+          const noKey=out();await execute(req,noKey);
+          assert.equal(noKey.statusCode,503);
+          process.env.AXIOM_MCP_BEARER_TOKEN='invalid-test-token-never-sent';
+          const unsafe=out();await execute(req,unsafe);
+          assert.equal(unsafe.statusCode,503);
+          assert.equal(globalThis.__atlasUnauthorizedWrites||0,0);
+          console.log('PASS: no provider dispatch without account credential');
+          console.log('PASS: elevated Neon role cannot dispatch even with test token, consent and operator code');
+          console.log('PASS: no paid Axiom calls, external requests or spending in qualification');
+          JS
