@@ -86,3 +86,32 @@ Production regression and preview authorization tests are automated in
 `.github/workflows/atlas-model-lab-production.yml` and
 `.github/workflows/atlas-model-lab-gate.yml`. These deliberately avoid
 incurring paid frontier usage.
+
+
+## 20 October 2026 — $0 Gateway evaluation handoff
+
+An isolated Vercel project was provisioned for this work:
+- Project: `musitu-atlas-ai-lab` (project ID `prj_OnSD5cwqsgrGDoDoRD1owAnov6yG`).
+- Source branch: `feature/atlas-zero-cost-gateway-benchmark-20261020`.
+- Protection: Vercel SSO enabled for **all deployments except custom domains**.
+- The protected app makes its own `VERCEL_OIDC_TOKEN` available server-side, refreshed using `@vercel/oidc`.
+- `GET /api/gateway-readiness` calls AI Gateway's **read-only** `GET /v1/credits`; it does not purchase credits or call any model.
+- Verified from provider credit API on October 20, 2026: **balance $0.00, lifetime usage $0.00**.
+  This does not establish that the user is ineligible for the advertised monthly $5. Vercel's published documentation indicates the free allowance starts after the first AI Gateway inference request. No paid request has been executed in this project.
+- `ATLAS_LAB_USE_GATEWAY=enabled` is set on the isolated project. Premium generation is blocked unless `ATLAS_GATEWAY_BUDGET_VERIFIED=yes`, `ATLAS_ENABLE_PAID_AI=enabled`, `ATLAS_FRONTIER_ACCESS_CODE` (secret, >=16 chars), and per-call consent are *all* provided. No such unlocks have been made.
+- **Budget status is NOT verified.** CI tried `vercel ai-gateway budgets set project musitu-atlas-ai-lab --limit 1 --refresh-period none` but its `VERCEL_TOKEN` secret does not exist. No budget was set by this failed CI job.
+
+### Required operator action before initial gateway inference
+
+Go to Vercel > AI Gateway > Budgets > Projects > `musitu-atlas-ai-lab` and create a **$1** project budget with **None** (non-resetting) renewal. Review Vercel AI Gateway credits in the same dashboard. Leave auto top-up disabled and do not buy credits.
+Only after independently verifying the budget and available free credits should an authorized operator set the remaining separate environment flags/secrets in the lab project. Make sure there is no Vercel production alias exposing any premium test endpoint without SSO.
+
+### Models and objective measurement
+- OpenAI `openai/gpt-6.1-sol`, `openai/gpt-6-astra` and Anthropic `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5` go through OIDC-authenticated AI Gateway, not individual provider keys, when lab gateway mode is enabled.
+- Google Gemini `gemini-3.8-flash` can use Google's ongoing quota-limited free API *only if* `GEMINI_API_KEY` is configured and `ATLAS_FREE_LAB_ACCESS=enabled`. Free-tier data-processing rules require care; never send confidential customer information.
+- OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` can use a separate free API key if configured. Expect changing daily limits and availability.
+- Existing Groq 20B and 120B models were tested against four identical tasks in GitHub Actions; benchmark outputs are saved as run artifacts. Results should not be generalized to frontier models without executing the same tasks.
+- Per-request Vercel generation ID is captured, and verified `GET /v1/generation` costs are reported if available; asynchronously pending costs are null, **never estimated as zero**.
+- Project budget is a **soft cap**, not a hard billing guarantee. Provider account billing settings and per-run/actor quotas should be reviewed before expanding tests.
+
+No payment, auto top-up or premium inference was made during this integration.
