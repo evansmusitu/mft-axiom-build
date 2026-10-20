@@ -195,3 +195,54 @@ test('health advertises real tools and both explicit models',async()=>{
   assert.equal(data.availableModels.deeperAnalysis,'@cf/qwen/qwen3-30b-a3b-fp8');
   assert.equal(data.tools[0].path,'/api/calculate');
 });
+
+test('natural arithmetic phrasing routes directly to deterministic tool without AI charges', async () => {
+  for(const prompt of ['what is 7*(8+2)?','calculate 7*(8+2)','7*(8+2)']) {
+    const {env,calls}=environment();
+    const response=await worker.fetch(request('/api/chat','POST',{mode:'explore',prompt}),env);
+    assert.equal(response.status,200,prompt);
+    const data=await response.json();
+    assert.equal(data.result,70);
+    assert.equal(data.toolUsed,'deterministic_calculator');
+    assert.equal(data.model,null);
+    assert.equal(data.liveSearch,false);
+    assert.match(data.reply,/deterministically verified arithmetic/i);
+    assert.deepEqual(calls.map(x=>x[0]),['tool-visitor','tool-region']);
+  }
+});
+
+test('natural request for unsupported non-arithmetic question still uses model', async () => {
+  const {env,calls}=environment();
+  const response=await worker.fetch(request('/api/chat','POST',{
+    mode:'explore',prompt:'What is a useful feedback controller?'
+  }),env);
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).model,'@cf/meta/llama-3.1-8b-instruct-fp8');
+  assert.deepEqual(calls.map(x=>x[0]),['visitor','regional','ai']);
+});
+
+test('natural math divide-by-zero fails closed without model hallucination', async () => {
+  const {env,calls}=environment();
+  const response=await worker.fetch(request('/api/chat','POST',{mode:'learn',prompt:'calculate 1/0'}),env);
+  assert.equal(response.status,400);
+  assert.equal((await response.json()).code,'CALCULATION_INVALID');
+  assert.deepEqual(calls.map(x=>x[0]),['tool-visitor','tool-region']);
+});
+
+test('numeric tool routing is guarded by its own visitor quota', async () => {
+  const {env,calls}=environment();
+  env.TOOL_RATE.limit=async()=>{calls.push(['tool-visitor']);return {success:false};};
+  const response=await worker.fetch(request('/api/chat','POST',{mode:'learn',prompt:'what is 44*22?'}),env);
+  assert.equal(response.status,429);
+  assert.deepEqual(calls.map(x=>x[0]),['tool-visitor']);
+});
+
+test('mathematical and non-mathematical prompts cannot bypass length guards', async () => {
+  const {env,calls}=environment();
+  const bad=await worker.fetch(request('/api/chat','POST',{mode:'explore',prompt:'Hi'}),env);
+  assert.equal(bad.status,400);
+  const math=await worker.fetch(request('/api/chat','POST',{mode:'explore',prompt:'sqrt(81)'}),env);
+  assert.equal(math.status,200);
+  assert.equal((await math.json()).result,9);
+  assert.equal(calls.filter(x=>x[0]==='ai').length,0);
+});
