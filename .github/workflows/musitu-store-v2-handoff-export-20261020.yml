@@ -31,7 +31,7 @@ jobs:
           for name in sorted(p for p in paths if p and select(p)):
               src=pathlib.Path(name)
               if not src.is_file() or src.is_symlink() or '..' in src.parts:raise ValueError('unsafe source '+name)
-              if src.suffix.lower() in ('.pem','.p12','.pfx','.jks','.keystore','.key','.env'):raise ValueError('secret file '+name)
+              if src.suffix.lower() in ('.p12','.pfx','.jks','.keystore','.key','.env') or (src.suffix.lower()=='.pem' and 'public' not in src.name.lower()):raise ValueError('secret file '+name)
               data=src.read_bytes()
               if re.search(br'-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\\r\\n]+[A-Za-z0-9+/=\\r\\n]{160,}',data):raise ValueError('embedded private key '+name)
               target=dest/'PRODUCT_SOURCE'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
