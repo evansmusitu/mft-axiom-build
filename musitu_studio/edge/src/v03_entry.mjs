@@ -9,7 +9,9 @@ const q=(db,sql,...values)=>db.prepare(sql).bind(...values);
 const rows=async statement=>(await statement.all()).results||[];
 const trace=(j,actor)=>({id:j.id,project_id:j.project_id,device:j.render_device,state:j.state,
   created_at:j.created_at,approved_at:j.approved_at,dispatched_at:j.dispatched_at,
-  finished_at:j.finished_at,sha256:j.payload_sha256,error:j.error_code||null,created_by_me:actor?.sub===j.created_by_sub});
+  finished_at:j.finished_at,sha256:j.payload_sha256,error:j.error_code||null,
+  approval_model:!j.approved_by_sub?'not_approved':j.created_by_sub===j.approved_by_sub
+    ?'single_administrator':'independent_reviewer',created_by_me:actor?.sub===j.created_by_sub});
 async function readJson(req,limit=65536){
   if(req.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')throw Error('CONTENT_TYPE');
   const declared=req.headers.get('content-length');
@@ -23,6 +25,23 @@ async function readJson(req,limit=65536){
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));
 }
 function configured(env){return Boolean(env.STUDIO_DB&&env.STUDIO_ASSETS)}
+// Explicitly enabled, exactly one allowlisted global administrator and verified Access
+// identity. Never infer this mode simply because a project has one member.
+function singleAdminEnabled(env,actor){
+  if(env.STUDIO_V03_SINGLE_ADMIN_APPROVAL!=='true'||!globalAdmin(env,actor.sub))return false;
+  const raw=env.STUDIO_V03_GLOBAL_ADMINS;
+  return typeof raw==='string'&&raw.trim()===actor.sub;
+}
+async function soleOwnerOfProject(env,projectId,actor){
+  const project=await q(env.STUDIO_DB,'SELECT owner_sub FROM projects WHERE id=?',projectId).first();
+  if(project?.owner_sub!==actor.sub)return false;
+  const members=await q(env.STUDIO_DB,'SELECT COUNT(*) AS n FROM memberships WHERE project_id=?',projectId).first();
+  if(Number(members?.n)!==1)return false;
+  const owner=await q(env.STUDIO_DB,
+    "SELECT role FROM memberships WHERE project_id=? AND member_sub=?",projectId,actor.sub).first();
+  return owner?.role==='owner';
+}
+
 // V0.3 production is SOURCE-LOCKED until independently verified $0 provider
 // enforcement and human release approvals exist. Environment flags alone are
 // insufficient. Only offline mock-render unit tests inject testOnlyCpuGate.
@@ -120,11 +139,12 @@ async function api(req,env,url,actor,testOnlyCpuGate){
   if(req.method==='GET'&&path==='/api/status')
     return json({ok:true,version:'0.3-sqlite-do-enterprise',backend:'SQLITE_DURABLE_OBJECT',
       dispatch_enabled:cpuReady(env,testOnlyCpuGate),gpu_execution_approved:false,
+      single_admin_approval_enabled:singleAdminEnabled(env,actor),
       daily_cpu_dispatch_limit:safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT)});
   if(req.method==='GET'&&path==='/api/projects'){
     const statement=globalAdmin(env,actor.sub)
-      ?q(env.STUDIO_DB,'SELECT id,title,created_at FROM projects ORDER BY created_at DESC LIMIT 100')
-      :q(env.STUDIO_DB,'SELECT p.id,p.title,p.created_at,m.role FROM projects p JOIN memberships m ON p.id=m.project_id WHERE m.member_sub=? ORDER BY p.created_at DESC LIMIT 100',actor.sub);
+      ?q(env.STUDIO_DB,'SELECT p.id,p.title,p.created_at,CASE WHEN p.owner_sub=? THEN 1 ELSE 0 END AS is_my_project,(SELECT m.role FROM memberships m WHERE m.project_id=p.id AND m.member_sub=?) AS role FROM projects p ORDER BY p.created_at DESC LIMIT 100',actor.sub,actor.sub)
+      :q(env.STUDIO_DB,'SELECT p.id,p.title,p.created_at,m.role,CASE WHEN p.owner_sub=? THEN 1 ELSE 0 END AS is_my_project FROM projects p JOIN memberships m ON p.id=m.project_id WHERE m.member_sub=? ORDER BY p.created_at DESC LIMIT 100',actor.sub,actor.sub);
     return json({ok:true,projects:await rows(statement)});
   }
   if(req.method==='POST'&&path==='/api/projects'){
@@ -235,13 +255,35 @@ async function api(req,env,url,actor,testOnlyCpuGate){
       'x-content-type-options':'nosniff','x-artifact-sha256':meta.sha256}});
   }
   if(req.method==='POST'&&action==='approve'){
-    if(actor.sub===job.created_by_sub)return err('SEPARATION_OF_DUTIES',403);
+    if(job.state!=='PENDING_APPROVAL')return err('NOT_PENDING_APPROVAL',409);
+    const self=actor.sub===job.created_by_sub;
+    if(self){
+      if(!singleAdminEnabled(env,actor))return err('SEPARATION_OF_DUTIES',403);
+      if(!await soleOwnerOfProject(env,job.project_id,actor))
+        return err('SOLE_ADMIN_APPROVAL_NOT_ELIGIBLE',403);
+      // A second human reviewer is not present; require an explicit, logged
+      // self-approval acknowledgement rather than silently weakening SOD.
+      let acknowledged=false;
+      try{
+        const input=await readJson(req,1024);
+        acknowledged=input?.acknowledgement==='I_AM_THE_SOLE_APPROVER';
+      }catch{}
+      if(!acknowledged)return err('SOLE_ADMIN_CONFIRMATION_REQUIRED',400);
+    }
+    // Atomic conditions protect against concurrent membership changes, role
+    // revocation, or a conflicting approval in another request.
+    const sql=self
+      ? "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL' AND created_by_sub=? AND EXISTS (SELECT 1 FROM projects WHERE id=jobs.project_id AND owner_sub=?) AND (SELECT COUNT(*) FROM memberships WHERE project_id=jobs.project_id)=1 AND EXISTS (SELECT 1 FROM memberships WHERE project_id=jobs.project_id AND member_sub=? AND role='owner')"
+      : "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL' AND created_by_sub<>?";
+    const params=self?[actor.sub,now(),id,actor.sub,actor.sub,actor.sub]
+      :[actor.sub,now(),id,actor.sub];
     try{
       const updates=await env.STUDIO_DB.batch([
-        q(env.STUDIO_DB,
-          "UPDATE jobs SET state='APPROVED',approved_by_sub=?,approved_at=? WHERE id=? AND state='PENDING_APPROVAL'",
-          actor.sub,now(),id),
-        auditIfUpdated(env,job.project_id,id,'JOB_APPROVED',actor.sub)
+        q(env.STUDIO_DB,sql,...params),
+        auditIfUpdated(env,job.project_id,id,self?'JOB_APPROVED_SINGLE_ADMIN':'JOB_APPROVED',
+          actor.sub,self?{approval_model:'single_administrator',independent_reviewer:false,
+            operator_attested:true}:
+            {approval_model:'independent_reviewer',independent_reviewer:true})
       ]);
       if(updates[0]?.meta?.changes!==1)return err('NOT_PENDING_APPROVAL',409);
     }catch{
@@ -249,19 +291,32 @@ async function api(req,env,url,actor,testOnlyCpuGate){
       if(current?.state!=='PENDING_APPROVAL')return err('NOT_PENDING_APPROVAL',409);
       return err('APPROVAL_TRANSACTION_FAILED',503);
     }
-    return json({ok:true,state:'APPROVED'});
+    return json({ok:true,state:'APPROVED',approval_model:self?'single_administrator':'independent_reviewer'});
   }
   if(req.method==='POST'&&action==='dispatch'){
     if(!cpuReady(env,testOnlyCpuGate))return err('CPU_DISPATCH_GATES_CLOSED',503);
-    if(job.render_device!=='CPU'||!job.approved_by_sub||job.approved_by_sub===job.created_by_sub)
-      return err('APPROVAL_EVIDENCE_MISSING',409);
+    if(job.render_device!=='CPU'||!job.approved_by_sub)return err('APPROVAL_EVIDENCE_MISSING',409);
+    const singleApproval=job.approved_by_sub===job.created_by_sub;
+    if(singleApproval){
+      if(job.created_by_sub!==actor.sub||!singleAdminEnabled(env,actor)||
+         !await soleOwnerOfProject(env,job.project_id,actor))
+        return err('APPROVAL_EVIDENCE_MISSING',409);
+      const evidence=await q(env.STUDIO_DB,
+        "SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED_SINGLE_ADMIN' AND actor_sub=?",
+        id,actor.sub).first();
+      if(Number(evidence?.n)!==1)return err('APPROVAL_EVIDENCE_MISSING',409);
+    }
     const t=now(),max=safeDailyLimit(env.STUDIO_V03_DAILY_CPU_LIMIT);
+    const soloGuard=singleApproval
+      ? " AND EXISTS (SELECT 1 FROM projects WHERE id=jobs.project_id AND owner_sub=?) AND (SELECT COUNT(*) FROM memberships WHERE project_id=jobs.project_id)=1 AND EXISTS (SELECT 1 FROM memberships WHERE project_id=jobs.project_id AND member_sub=? AND role='owner')"
+      : '';
+    const soloParams=singleApproval?[actor.sub,actor.sub]:[];
     let started;
     try{
       started=await env.STUDIO_DB.batch([
         q(env.STUDIO_DB,
-          "UPDATE jobs SET state='DISPATCHING',dispatched_at=?,dispatched_by_sub=? WHERE id=? AND state='APPROVED' AND (SELECT COUNT(*) FROM jobs WHERE state IN ('RUNNING','DISPATCHING'))<2 AND (SELECT COUNT(*) FROM jobs WHERE dispatched_at>=substr(?,1,10) AND dispatched_at<date(substr(?,1,10),'+1 day'))<?",
-          t,actor.sub,id,t,t,max),
+          "UPDATE jobs SET state='DISPATCHING',dispatched_at=?,dispatched_by_sub=? WHERE id=? AND state='APPROVED' AND (SELECT COUNT(*) FROM jobs WHERE state IN ('RUNNING','DISPATCHING'))<2 AND (SELECT COUNT(*) FROM jobs WHERE dispatched_at>=substr(?,1,10) AND dispatched_at<date(substr(?,1,10),'+1 day'))<?"+soloGuard,
+          t,actor.sub,id,t,t,max,...soloParams),
         auditIfUpdated(env,job.project_id,id,'DISPATCH_STARTED',actor.sub)
       ]);
     }catch{return err('DISPATCH_AUDIT_TRANSACTION_FAILED',503)}

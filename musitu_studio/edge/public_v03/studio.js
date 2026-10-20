@@ -80,9 +80,19 @@ async function refresh(){
    const badge=element('span',j.state,'state '+(j.state==='FAILED'?'failed':
          j.state==='PENDING_APPROVAL'?'pending':''));
    actions.append(badge);
-   if(j.state==='PENDING_APPROVAL'&&allowedProject(p,'approve')&&!j.created_by_me){
-     actions.append(button('Approve as reviewer',async()=>{
-       await api('/api/jobs/'+j.id+'/approve','POST',{});await refresh()}));
+   const selfApproval=j.created_by_me&&p?.is_my_project===1&&
+     state.me?.role==='global_admin'&&status.single_admin_approval_enabled===true;
+   if(j.state==='PENDING_APPROVAL'&&allowedProject(p,'approve')&&(!j.created_by_me||selfApproval)){
+     actions.append(button(selfApproval?'Approve as sole administrator':'Approve as reviewer',async()=>{
+       if(selfApproval){
+         if(!window.confirm('This is YOUR job. You are approving as the sole authorized administrator, NOT as an independent second reviewer. This approval will be permanently audited. Continue?'))return;
+         await api('/api/jobs/'+j.id+'/approve','POST',
+           {acknowledgement:'I_AM_THE_SOLE_APPROVER'});
+       }else{
+         await api('/api/jobs/'+j.id+'/approve','POST',{});
+       }
+       await refresh();
+     }));
    }
    if(j.state==='APPROVED'&&allowedProject(p,'approve')&&status.dispatch_enabled){
      actions.append(button('Dispatch CPU',async()=>{
@@ -107,7 +117,9 @@ async function refresh(){
    card.append(body,actions);container.append(card);
  }
  if(!state.jobs.length)container.textContent='No authorized jobs yet. Submit a scene for approval.';
- notify('Connected to '+status.backend+'. CPU rendering requires a second staff reviewer, signed Access identity and explicit dispatch budget gate.');
+ notify('Connected to '+status.backend+'. Signed Access identity and project authorization are required. '+
+   (status.single_admin_approval_enabled?'Sole-administrator approvals are explicitly recorded without an independent reviewer. ':'Independent reviewer approval is required. ')+
+   'CPU/GPU execution remains subject to separate provider spending and release gates.');
 }
 el('connect').onclick=()=>guarded(refresh);
 el('refresh').onclick=()=>guarded(refresh);
@@ -124,7 +136,7 @@ el('job-form').onsubmit=e=>{e.preventDefault();guarded(async()=>{
  let payload;try{payload=JSON.parse(el('scene').value)}catch{throw Error('Invalid JSON scene.')}
  const r=await api('/api/jobs','POST',{project_id,scene:payload,device:'CPU',
    submission_key:crypto.randomUUID().replaceAll('-','')});
- await refresh();notify('Created '+r.job_id.slice(0,12)+'; a different reviewer must approve before dispatch.')})};
+ await refresh();notify('Created '+r.job_id.slice(0,12)+'; job is pending deliberate approval. Paid CPU dispatch stays separately gated.')})};
 el('add-member').onclick=()=>guarded(async()=>{
  const id=el('team-project').value;
  if(!id||!allowedProject(teamProject(id),'team'))throw Error('Only project owners can grant team roles.');

@@ -143,6 +143,128 @@ test('production Durable Object caller does not pass the simulated CPU release o
   assert.match(entry,/createV03Worker\(\{identify:async request=>trustedActor\(request\)\}\)/);
   assert.doesNotMatch(entry,/testOnlyCpuGate/);
 });
+test('sole authorized global admin can approve own pending job only with explicit single-admin mode',async()=>{
+  const f=fixture();
+  f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';
+  f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+  const p=await project(f),id=await job(f,p);
+  const status=await f.call('person-a','/api/status');
+  assert.equal(status.body.single_admin_approval_enabled,true);
+  const premature=await f.call('person-a','/api/jobs/'+id+'/approve','POST',{});
+  assert.equal(premature.status,400,'Self-approval must require an explicit human confirmation');
+  assert.equal(premature.body.error,'SOLE_ADMIN_CONFIRMATION_REQUIRED');
+  assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'PENDING_APPROVAL');
+  const approved=await f.call('person-a','/api/jobs/'+id+'/approve','POST',
+    {acknowledgement:'I_AM_THE_SOLE_APPROVER'});
+  assert.equal(approved.status,200,JSON.stringify(approved.body));
+  assert.equal(approved.body.state,'APPROVED');
+  assert.equal(approved.body.approval_model,'single_administrator');
+  const row=f.db.db.prepare('SELECT created_by_sub,approved_by_sub,state FROM jobs WHERE id=?').get(id);
+  assert.equal(row.created_by_sub,'person-a');
+  assert.equal(row.approved_by_sub,'person-a');
+  const events=(await f.call('person-a','/api/jobs/'+id+'/audit')).body.events;
+  assert.equal(events.filter(e=>e.action==='JOB_APPROVED_SINGLE_ADMIN').length,1);
+  assert.equal(events.filter(e=>e.action==='JOB_APPROVED').length,0);
+  assert.equal((await f.call('person-a','/api/jobs/'+id)).body.job.approval_model,'single_administrator');
+  assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',{})).status,409);
+  assert.equal(f.db.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE job_id=? AND action='JOB_APPROVED_SINGLE_ADMIN'").get(id).n,1);
+  assert.equal((await f.call('person-a','/api/status')).body.dispatch_enabled,false,
+    'Sole administrator authority must never release unverified Modal spending');
+});
+test('self-approval stays denied by default, for non-admin owners, and with ambiguous admin allowlists',async()=>{
+  for(const [setting,admins] of [
+    [undefined,'person-a'],['false','person-a'],['true',undefined],
+    ['true','person-b'],['true','person-a,person-b'],['true','person-a,person-a'],['true','person-a,']]){
+    const f=fixture();
+    if(setting!==undefined)f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL=setting;
+    if(admins!==undefined)f.env.STUDIO_V03_GLOBAL_ADMINS=admins;
+    const p=await project(f),id=await job(f,p);
+    assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',
+      {acknowledgement:'I_AM_THE_SOLE_APPROVER'})).status,403,
+      `self approval must fail for mode=${setting}, admins=${admins}`);
+    assert.equal(f.db.db.prepare('SELECT approved_by_sub FROM jobs WHERE id=?').get(id).approved_by_sub,null);
+  }
+});
+test('sole-admin exception is revoked when any other project member exists; distinct reviewer remains valid',async()=>{
+  const f=fixture();f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+  const p=await project(f),id=await job(f,p);
+  assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+    {member_sub:'person-b',role:'viewer'})).status,200);
+  const denied=await f.call('person-a','/api/jobs/'+id+'/approve','POST',{});
+  assert.equal(denied.status,403);
+  assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+    {member_sub:'person-b',role:'reviewer'})).status,200);
+  assert.equal((await f.call('person-b','/api/jobs/'+id+'/approve','POST',{})).status,200);
+  const audit=(await f.call('person-b','/api/jobs/'+id+'/audit')).body.events;
+  assert.equal(audit.filter(x=>x.action==='JOB_APPROVED').length,1);
+  assert.equal(audit.filter(x=>x.action==='JOB_APPROVED_SINGLE_ADMIN').length,0);
+  assert.equal((await f.call('person-b','/api/jobs/'+id)).body.job.approval_model,'independent_reviewer');
+});
+test('global administrator may not self-approve a job in somebody else’s project',async()=>{
+  const f=fixture();f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+  const p=await project(f,'person-c'),id=await job(f,p,'person-a');
+  assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',{})).status,403);
+  assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'PENDING_APPROVAL');
+});
+test('sole-admin approved job may dispatch only under qualified mock CPU gate',async()=>{
+ const f=fixture({testOnlyCpuGate:true});f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';
+ f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+ const p=await project(f),id=await job(f,p);
+ assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',
+   {acknowledgement:'I_AM_THE_SOLE_APPROVER'})).status,200);
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ const savedFetch=globalThis.fetch;let calls=0;
+ try{
+   globalThis.fetch=async(url,opts)=>{
+     if(String(url).endsWith('/jobs/pull')&&opts?.method==='POST'){
+       calls++;
+       return Response.json({accepted:true,job_id:id,call_id:'fc-solo-accepted-00001'});
+     }
+     throw Error('UNEXPECTED_EGRESS');
+   };
+   const result=await f.call('person-a','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.equal(result.status,202,JSON.stringify(result.body));
+   assert.equal(calls,1);
+ }finally{globalThis.fetch=savedFetch}
+});
+test('sole-admin approval cannot start compute if membership changes after approval',async()=>{
+ const f=fixture({testOnlyCpuGate:true});f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';
+ f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+ const p=await project(f),id=await job(f,p);
+ assert.equal((await f.call('person-a','/api/jobs/'+id+'/approve','POST',
+   {acknowledgement:'I_AM_THE_SOLE_APPROVER'})).status,200);
+ f.env.ENABLE_RENDER_DISPATCH='true';f.env.BUDGET_GUARD_APPROVED='true';
+ assert.equal((await f.call('person-a','/api/projects/'+p+'/members','POST',
+   {member_sub:'person-b',role:'viewer'})).status,200);
+ const savedFetch=globalThis.fetch;let calls=0;
+ try{
+   globalThis.fetch=async()=>{calls++;throw Error('MUST_NOT_CALL_MODAL')};
+   const result=await f.call('person-a','/api/jobs/'+id+'/dispatch','POST',{});
+   assert.equal(result.status,409);
+   assert.equal(result.body.error,'APPROVAL_EVIDENCE_MISSING');
+   assert.equal(calls,0);
+   assert.equal(f.db.db.prepare('SELECT state FROM jobs WHERE id=?').get(id).state,'APPROVED');
+ }finally{globalThis.fetch=savedFetch}
+});
+test('signed project listing exposes own-project marker without leaking other owners to ordinary staff',async()=>{
+ const f=fixture();f.env.STUDIO_V03_SINGLE_ADMIN_APPROVAL='true';f.env.STUDIO_V03_GLOBAL_ADMINS='person-a';
+ const own=await project(f,'person-a'),other=await project(f,'person-c');
+ const result=await f.call('person-a','/api/projects');
+ assert.equal(result.status,200);
+ assert.equal(result.body.projects.find(p=>p.id===own).is_my_project,1);
+ assert.equal(result.body.projects.find(p=>p.id===other).is_my_project,0);
+ const outsider=await f.call('person-z','/api/projects');
+ assert.equal(outsider.body.projects.length,0);
+});
+test('Android UI explicitly distinguishes sole-administrator approval from independent reviewer approval',()=>{
+ const app=readFileSync(new URL('../public_v03/studio.js',import.meta.url),'utf8');
+ assert.match(app,/single_admin_approval_enabled/);
+ assert.match(app,/is_my_project/);
+ assert.match(app,/Approve as sole administrator/);
+ assert.match(app,/I_AM_THE_SOLE_APPROVER/);
+ assert.match(app,/window\.confirm\(/);
+ assert.match(app,/Approve as reviewer/);
+});
 test('owner creation atomic, outsider cannot see project or jobs',async()=>{
   const f=fixture(),p=await project(f);
   assert.equal((await f.call('person-z','/api/projects')).body.projects.length,0);

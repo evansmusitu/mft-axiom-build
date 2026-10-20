@@ -64,6 +64,7 @@ jobs:
           assert c['name']=='musitu-studio-v03-do'
           assert c['vars']['ENABLE_RENDER_DISPATCH']=='false' and c['vars']['BUDGET_GUARD_APPROVED']=='false'
           assert c['vars']['GPU_EXECUTION_APPROVED']=='false'
+          assert c['vars'].get('STUDIO_V03_SINGLE_ADMIN_APPROVAL')=='false', 'Sole-admin activation requires separate authenticated review'
           c['vars']['STUDIO_ACCESS_TEAM_DOMAIN']=team
           c['vars']['STUDIO_ACCESS_POLICY_AUD']=app['aud']
           pathlib.Path('wrangler.v03.do.safe-release-ci.jsonc').write_text(json.dumps(c))

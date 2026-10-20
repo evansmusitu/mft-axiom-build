@@ -10,10 +10,10 @@
 <nav aria-label="Studio sections"><a href="#overview">◧ <span>Overview</span></a>
 <a href="#projects">▦ <span>Projects</span></a><a href="#team">♙ <span>Team</span></a>
 <a href="#editor">◇ <span>Scene editor</span></a><a href="#jobs">◎ <span>Render queue</span></a></nav>
-<div class="sidefoot">D1 / R2 / MODAL CPU<br><strong>ACCESS PROTECTED</strong></div></aside>
+<div class="sidefoot">SQLITE DO / R2 / MODAL CPU<br><strong>ACCESS PROTECTED</strong></div></aside>
 <main class="content">
 <header><div><div class="eyebrow">ENTERPRISE / STAFF WORKSPACE</div>
-<h1>Studio production</h1><p class="sub">Private projects · two-person render approvals · verified assets</p></div>
+<h1>Studio production</h1><p class="sub">Private projects · accountable, auditable approval modes · verified assets</p></div>
 <span class="badge" id="connection">DISCONNECTED</span></header>
 <section class="auth"><div class="auth-label">
 <strong>Signed Cloudflare Access staff identity</strong>
@@ -26,7 +26,7 @@ Publishing and GPU rendering remain disabled until provider qualification.</span
 Sign in with your authorized staff identity to connect.</div>
 <div class="stats" id="overview">
 <article class="stat"><div>MY PROJECTS</div><strong id="projects-count">—</strong><small>Isolated member access</small></article>
-<article class="stat"><div>VISIBLE JOBS</div><strong id="jobs-count">—</strong><small>Two-person CPU approval</small></article>
+<article class="stat"><div>VISIBLE JOBS</div><strong id="jobs-count">—</strong><small>Strict project-scoped approval</small></article>
 <article class="stat"><div>CPU DISPATCH</div><strong id="render-gate" class="gate">LOCKED</strong><small>Budget and provider gates required</small></article>
 </div>
 <section class="panel" id="projects"><div class="panelhead"><div>
@@ -63,18 +63,18 @@ Only verified staff identities can use a granted membership. Owners cannot silen
 <label>Compute<select id="device"><option value="CPU">CPU — approved only</option></select></label>
 </div><label class="label">Scene JSON<textarea id="scene" spellcheck="false"
 rows="15" aria-label="Blender scene JSON"></textarea></label>
-<button type="submit">Submit for second-person approval →</button></form>
+<button type="submit">Submit for controlled approval →</button></form>
 </section>
 <section class="panel" id="jobs"><div class="panelhead"><div>
 <div class="eyebrow">04 / EXECUTION</div><h2>Authorized job queue</h2></div>
 <span class="chip">AUDITED + INTEGRITY VERIFIED</span></div>
-<p class="muted">The creator cannot approve their own job. Reviewers and owners approve and dispatch; outputs are checked against SHA-256.</p>
+<p class="muted">The default policy requires a distinct reviewer. Explicitly enabled single-administrator approval is limited to a sole project founder with a signed allowlisted administrator identity; it is audited as self-approval, not independent review. Cloud compute is separately locked until spending safeguards are verified.</p>
 <div class="cards" id="job-list">Connect to view authorized jobs.</div>
 </section>
 <section class="panel" id="assets"><div class="eyebrow">05 / FILES</div><h2>Verified render preview</h2>
 <p class="muted">The preview comes directly from the signed-in job's verified R2 output. GLB can be downloaded and opened in a supported 3D viewer.</p>
 <div id="preview-label" class="scope">Select a completed job's preview.</div>
 <img id="preview-image" class="preview-image" alt="Render output preview" hidden></section>
-<footer>MUSITU Studio v0.3 source-only enterprise candidate · D1 multiuser database and Cloudflare Access<br>
-<small>Production v0.2 remains unchanged until a dedicated D1 deployment and real multiuser acceptance are authorized.</small></footer>
+<footer>MUSITU Studio v0.3 · SQLite Durable Objects, strict Cloudflare Access and immutable audit<br>
+<small>Independent-review and sole-administrator modes are labeled separately. CPU/GPU require separate verified release conditions; V0.2 remains isolated.</small></footer>
 </main></div><script src="/studio.js" defer></script></body></html>

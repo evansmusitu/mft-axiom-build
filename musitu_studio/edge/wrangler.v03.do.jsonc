@@ -9,6 +9,7 @@
  "migrations":[{"tag":"studio-v03-sqlite-ledger-v1","new_sqlite_classes":["StudioEnterpriseSqliteLedger"]}],
  "r2_buckets":[{"binding":"STUDIO_ASSETS","bucket_name":"musitu-studio-v02-assets"}],
  "vars":{
+   "STUDIO_V03_SINGLE_ADMIN_APPROVAL":"false",
    "ENABLE_RENDER_DISPATCH":"false",
    "BUDGET_GUARD_APPROVED":"false",
    "GPU_EXECUTION_APPROVED":"false",
