@@ -3,11 +3,11 @@ import {api} from './lib/client';
 import {AlertTriangle,ArrowUpRight,CheckCircle2,Clock3,FlaskConical,KeyRound,LockKeyhole,Play,ShieldCheck,Signal,SlidersHorizontal,Sparkles} from 'lucide-react';
 import './model-lab.css';
 type Model={id:string;label:string;model:string;provider:string;available:boolean;tier:string};
-type Result={model:string;provider:string;answer:string;latencyMs:number;answerWords:number;measuredAt:string;note:string};
+type Result={model:string;provider:string;answer:string;latencyMs:number;answerWords:number;measuredAt:string;note:string;providerCostUsd?:number|null;generationId?:string|null;promptTokens?:number|null;completionTokens?:number|null};
 const defaultPrompt='Design three concrete, testable steps for getting the first paying customer for a new AI software service with a $0 marketing budget. Identify the biggest risk and one measurable success criterion.';
 export default function ModelLab(){
  const [catalog,setCatalog]=useState<Model[]>([]);
- const [selected,setSelected]=useState('openai_sol');
+ const [selected,setSelected]=useState('gemini_free');
  const [prompt,setPrompt]=useState(defaultPrompt);
  const [approved,setApproved]=useState(false);
  const [accessCode,setAccessCode]=useState('');
@@ -48,7 +48,11 @@ export default function ModelLab(){
    {error&&<p className="lab-error" role="alert"><AlertTriangle size={16}/>{error}</p>}{status&&<p className="lab-success" role="status"><CheckCircle2 size={16}/>{status}</p>}
   </form><div className="lab-panel lab-brief"><span className="section-overline">03 / EVALUATION STANDARD</span><h2>What we actually measure.</h2><div className="lab-check"><span>01</span><div><strong>Correctness</strong><p>Are facts and conclusions accurate? Review the output against the evidence you have.</p></div></div><div className="lab-check"><span>02</span><div><strong>Decision usefulness</strong><p>Does the answer materially improve a decision or produce a viable plan?</p></div></div><div className="lab-check"><span>03</span><div><strong>Execution readiness</strong><p>Are steps specific, testable, and honest about dependencies and limitations?</p></div></div><div className="lab-check"><span>04</span><div><strong>Latency & reliability</strong><p>Observe genuine response times and failures. Speed is not a proxy for intelligence.</p></div></div></div></div>
   <section className="lab-results"><div className="lab-panel-head"><div><span className="section-overline">LIVE TEST RESULTS</span><h2>Side-by-side evidence</h2></div><span className="lab-count">{Object.keys(results).length} model(s) tested</span></div>{Object.keys(results).length?
-    <div className="lab-result-grid">{Object.entries(results).map(([id,r])=><article key={id} className="lab-result"><div className="lab-result-head"><span>{catalog.find(m=>m.id===id)?.label||r.model}</span><span>{r.provider}</span></div><div className="lab-metrics"><span><Clock3 size={14}/> {r.latencyMs.toLocaleString()} ms</span><span>{r.answerWords} words</span></div><div className="lab-result-text">{r.answer}</div><small>Measured {new Date(r.measuredAt).toLocaleString()} · Live provider reply. Independently evaluate quality before trusting outcomes.</small></article>)}</div>
+    <div className="lab-result-grid">{Object.entries(results).map(([id,r])=><article key={id} className="lab-result"><div className="lab-result-head"><span>{catalog.find(m=>m.id===id)?.label||r.model}</span><span>{r.provider}</span></div><div className="lab-metrics"><span><Clock3 size={14}/> {r.latencyMs.toLocaleString()} ms</span><span>{r.answerWords} words</span><span>{typeof r.providerCostUsd==='number'?'</div><div className="lab-result-text">{r.answer}</div><small>Measured {new Date(r.measuredAt).toLocaleString()} · Live provider reply. Independently evaluate quality before trusting outcomes.</small></article>)}</div>
+    :<div className="lab-zero"><Sparkles size={30}/><h3>We measure, then we claim.</h3><p>Run the same prompt against configured models. Successful responses appear here for direct inspection.</p></div>}
+  </section><p className="lab-privacy"><ShieldCheck size={16}/> Test results are held only in current-page memory. This lab does not run a hidden multi-model batch. Provider service fees may apply when using frontier APIs.</p>
+ </div>;
+}+r.providerCostUsd.toFixed(6)+' gateway cost':'Cost not reported'}</span></div><div className="lab-result-text">{r.answer}</div><small>Measured {new Date(r.measuredAt).toLocaleString()} · Live provider reply. Independently evaluate quality before trusting outcomes.</small></article>)}</div>
     :<div className="lab-zero"><Sparkles size={30}/><h3>We measure, then we claim.</h3><p>Run the same prompt against configured models. Successful responses appear here for direct inspection.</p></div>}
   </section><p className="lab-privacy"><ShieldCheck size={16}/> Test results are held only in current-page memory. This lab does not run a hidden multi-model batch. Provider service fees may apply when using frontier APIs.</p>
  </div>;

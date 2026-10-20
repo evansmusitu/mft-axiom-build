@@ -16,6 +16,9 @@ export default async function handler(req:any,res:any){
   return respond(res,200,{
    model:result.model,provider:result.provider,answer:result.answer.slice(0,12000),
    latencyMs,answerWords:result.answer.trim().split(/\s+/).length,
+   providerCostUsd:typeof result.costUsd==='number'?result.costUsd:null,
+   generationId:result.generationId||null,
+   promptTokens:result.promptTokens??null,completionTokens:result.completionTokens??null,
    measuredAt:new Date().toISOString(),
    note:'Latency and length are objective metrics. Model intelligence and reliability need separate blinded evaluation.'
   });

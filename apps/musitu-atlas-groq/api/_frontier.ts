@@ -50,7 +50,7 @@ async function request(url:string,headers:Record<string,string>,payload:unknown)
  }
  return reply.json();
 }
-export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown,tokenLimit?:number):Promise<{answer:string;model:string;provider:string}>{
+export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:boolean,approved:boolean,accessCode:unknown,tokenLimit?:number):Promise<{answer:string;model:string;provider:string;generationId?:string;costUsd?:number;promptTokens?:number|null;completionTokens?:number|null}>{
  if(mode==='gemini_free'||mode==='nemotron_free'){
   if(process.env.ATLAS_FREE_LAB_ACCESS!=='enabled')throw businessError(403,'Free-API private lab has not been authorized.');
   const isGemini=mode==='gemini_free';
@@ -88,7 +88,7 @@ export async function generate(messages:Message[],mode:ModelChoice,jsonFormat:bo
   const v=await viaGateway(model,messages,tokenLimit??650);
   // The actual cost is queried by generation ID; pending ingestion is reported as unknown.
   const cost=v.generationId?await generationCost(v.generationId):null;
-  return {answer:v.answer,model:v.model,provider:v.provider,...(v.generationId?{generationId:v.generationId}:{}),...(cost!==null?{costUsd:cost}:{})};
+  return {answer:v.answer,model:v.model,provider:v.provider, promptTokens:v.promptTokens,completionTokens:v.completionTokens,...(v.generationId?{generationId:v.generationId}:{}),...(cost!==null?{costUsd:cost}:{})};
  }
  const key=mode.startsWith('openai_')?process.env.OPENAI_API_KEY:process.env.ANTHROPIC_API_KEY;
  if(!key)throw businessError(503,'The selected provider is not configured. Contact the administrator.');

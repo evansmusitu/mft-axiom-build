@@ -229,6 +229,7 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
   const [sending, setSending] = useState(false);
+  const [firstModelVisit] = useState(() => {try{return localStorage.getItem('atlas_ai_mode')===null;}catch{return true;}});
   const [aiMode, setAiMode] = useState<string>(() => {
     const prior=load<string>('atlas_ai_mode','groq_quality');
     return prior==='fast'?'groq_fast':prior==='quality'?'groq_quality':prior;
@@ -240,10 +241,10 @@ export default function App() {
   useEffect(()=>save('atlas_ai_mode',aiMode),[aiMode]);
   useEffect(()=>{
     let live=true;
-    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);}})
+    api.get('/api/models').then(r=>{if(live&&Array.isArray(r.data?.models)){setModelCatalog(r.data.models);setCatalogError(false);if(firstModelVisit){const preferred=['gemini_free','nemotron_free','groq_quality','groq_fast'].map(id=>r.data.models.find((v:ModelOption)=>v.id===id&&v.available)).find(Boolean);if(preferred)setAiMode(preferred.id);}}})
       .catch(()=>{if(live)setCatalogError(true);});
     return()=>{live=false};
-  },[]);
+  },[firstModelVisit]);
   const selectedModel=modelCatalog.find(v=>v.id===aiMode);
   const frontierSelected=selectedModel?.tier==='frontier';
   const selectionReady=Boolean(selectedModel?.available);
