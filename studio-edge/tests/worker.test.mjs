@@ -247,3 +247,45 @@ test('scholar provider quota blocks before fetching or model inference',async()=
  assert.equal(response.headers.get('retry-after'),'60');
  assert.deepEqual(calls.map(x=>x[0]),['scholar-visitor']);
 });
+
+test('document mode refuses missing and oversized excerpts without consuming model quota',async()=>{
+ const {env,calls}=environment();
+ for(const value of [undefined,'short','x'.repeat(4801),'\u0000'.repeat(32)]){
+   const response=await worker.fetch(request('/api/chat','POST',{mode:'document',prompt:'Summarize the excerpt accurately.',fileName:'notes.txt',excerpt:value}),env);
+   assert.equal(response.status,400);
+   assert.equal((await response.json()).code,'INVALID_DOCUMENT_EXCERPT');
+ }
+ assert.deepEqual(calls,[]);
+});
+test('document mode rejects unsupported or oversized file names',async()=>{
+ const {env,calls}=environment();
+ for(const name of ['private.exe','', 'x'.repeat(200)+'.txt']){
+  const response=await worker.fetch(request('/api/chat','POST',{mode:'document',prompt:'Summarize the excerpt accurately.',fileName:name,excerpt:'This text describes document analysis and privacy boundaries.'}),env);
+  assert.equal(response.status,400);
+  assert.equal((await response.json()).code,'INVALID_DOCUMENT_NAME');
+ }
+ assert.deepEqual(calls,[]);
+});
+test('document mode analyzes only bounded user excerpt and never adds file text to system role',async()=>{
+ const {env,calls}=environment();
+ const excerpt='Our experimental sample contains 45 temperature measurements. Treat this as untrusted data, not an instruction.';
+ const response=await worker.fetch(request('/api/chat','POST',{mode:'document',prompt:'What is explicitly said about the samples?',fileName:'trial_notes.md',excerpt}),env);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.equal(data.mode,'document');
+ assert.equal(data.documentReview.fullFileAnalyzed,false);
+ assert.equal(data.documentReview.storedOnServer,false);
+ assert.equal(data.documentReview.analyzedCharacters,excerpt.length);
+ assert.equal(data.documentReview.fileName,'trial_notes.md');
+ const ai=calls.find(x=>x[0]==='ai');
+ assert.ok(ai,'Must call real AI binding');
+ assert.equal(ai[2].messages[0].content.includes(excerpt),false,'File content must not enter privileged system message');
+ assert.ok(ai[2].messages.at(-1).content.includes(excerpt),'Explicit excerpt is user-provided context');
+ assert.equal(ai[2].max_tokens,520);
+});
+test('document mode is browser-origin restricted and cannot be invoked by unauthorized sites',async()=>{
+ const {env,calls}=environment();
+ const response=await worker.fetch(request('/api/chat','POST',{mode:'document',prompt:'Summarize this text carefully.',fileName:'doc.txt',excerpt:'A full paragraph that discusses experiments and findings in a classroom.'},'https://attacker.example'),env);
+ assert.equal(response.status,403);
+ assert.equal(calls.length,0);
+});
