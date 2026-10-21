@@ -93,7 +93,7 @@ class TestDisabledWorkerGate(unittest.TestCase):
         self.assertFalse(any("/workers/scripts" in u for _,u in f.calls))
     def test_unexpected_duplicate_access_name_fails_closed(self):
         f=Cloudflare();f.hold["name"]="Unrecognized Access application"
-        with self.assertRaisesRegex(gate.HoldBlocked,"ACCESS_HOLD_NOT_UNIQUE"):
+        with self.assertRaisesRegex(gate.HoldBlocked,"APP_READBACK_NOT_DENY_ONLY"):
             gate.qualify("preflight","fake",opener=f)
     def test_scope_guards_for_workers_no_writes(self):
         f=Cloudflare()
