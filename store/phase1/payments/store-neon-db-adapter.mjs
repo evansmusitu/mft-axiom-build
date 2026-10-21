@@ -68,8 +68,8 @@ export function createStoreNeonD1Adapter(sql){
    // Neon HTTP non-interactive SERIALIZABLE transaction: BOTH review INSERT
    // and status UPDATE succeed, or neither commits. No partial paid review.
    const results=await sql.transaction(
-    items.map(item=>sql.query(item.statement,item.params,{fullResults:true})),
-    {isolationLevel:'Serializable',readOnly:false});
+    items.map(item=>sql.query(item.statement,item.params)),
+    {isolationMode:'Serializable',readOnly:false,fullResults:true});
    if(!Array.isArray(results)||results.length!==2)
     throw Error('store_neon_batch_unverified');
    return results.map(result=>{
