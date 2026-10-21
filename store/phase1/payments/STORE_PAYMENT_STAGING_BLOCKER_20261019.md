@@ -153,3 +153,41 @@ operator must independently read back a **new empty Store-only D1** and
 a **disabled, unrouted, secret-free Store Worker**. Genuine Store checkout
 still requires its own subsequent security/merchant approval; no live
 money transactions were executed here.
+
+## 2026-10-21 root-cause confirmation: Cloudflare D1 quota 7406, not token setup
+
+After the owner created a new scoped Store-only Cloudflare token and privately saved
+it as GitHub Actions secret `CLOUDFLARE_API_TOKENV2`, the exact isolated branch
+trigger was retried. Explicit owner approval, credential presence, Store V1 freeze,
+real SQLite schema preflight, account ID, GET account/Workers/D1/routes,
+and Workers Paid subscription read passed. **The one POST to create the
+Store-only D1 was rejected HTTP 403**, while no new D1/Worker was created.
+Workflow: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39551637781.
+
+The staging script was patched to print only *numeric* Cloudflare error codes
+and suppress the original response body, headers, and secret values. Regression
+tests and offline Store payment review CI passed. A second and final controlled
+diagnostic retry returned **HTTP 403; error_codes=7406** exactly on
+`POST /accounts/93f395f5121954671f92fffa453d6b61/d1/database`.
+Workflow: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39551940747.
+
+Cloudflare's documented `7406` is `System limit reached: databases per
+account (10)`. Cloudflare D1 standard published plan limits are 10
+databases on Workers Free versus 50,000 on Workers Paid; the account has
+previously listed **11 existing D1 databases** and the Store script's
+read-only subscription check recognized Workers Paid. **This is a
+Cloudflare-enforced account quota/entitlement mismatch requiring owner
+dashboard inspection or Cloudflare Support resolution**, *not evidence that
+another token permission is missing*.
+
+**Next owner action:** verify the actual Workers Paid plan on account
+`93f395f5121954671f92fffa453d6b61` in the Cloudflare dashboard;
+open a Cloudflare support request quoting the exact 7406 error, account ID,
+the 11 existing database count and the supported Paid D1 50,000 limit.
+Do not delete or repurpose unrelated existing D1 databases, change the
+billing plan, incur new charges, or launch real Store payments as a workaround.
+After Cloudflare lifts the enforced limit, use the same secret to retry the
+existing isolated-disabled/unrouted provisioning approval. Confirm D1,
+disabled Worker, absent routes, and no merchant secret by independent readback.
+
+Current truth: **STAGING NOT PROVISIONED; PHASE 1 RUNNING; PHASE 2 PENDING**.

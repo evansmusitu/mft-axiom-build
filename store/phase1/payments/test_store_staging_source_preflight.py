@@ -62,6 +62,20 @@ class StagingSourcePreflight(unittest.TestCase):
         self.assertNotIn("DO NOT LOG", str(caught.exception))
         self.assertNotIn("merchant-token-ZZZ", str(caught.exception))
 
+    def test_d1_limit_7406_is_reported_as_quota_not_token_permission(self):
+        import io
+        import urllib.error
+        body = b'{"success":false,"errors":[{"code":7406,"message":"System limit reached: databases per account (10); secret private"}]}'
+        response = urllib.error.HTTPError(
+            "https://api.cloudflare.com/client/v4/accounts/" + staging.EXPECTED_ACCOUNT + "/d1/database",
+            403, "Forbidden", {}, io.BytesIO(body))
+        with patch.object(staging.urllib.request, "urlopen", side_effect=response):
+            with self.assertRaisesRegex(RuntimeError, r"D1 database account limit reached.*error_codes=7406") as caught:
+                staging.cf("/accounts/" + staging.EXPECTED_ACCOUNT + "/d1/database",
+                           method="POST", payload={"name":"isolated-store"})
+        self.assertIn("do not delete existing databases", str(caught.exception))
+        self.assertNotIn("secret private", str(caught.exception))
+
     def test_cloudflare_error_messages_are_redacted_even_with_malformed_errors(self):
         import io
         import urllib.error

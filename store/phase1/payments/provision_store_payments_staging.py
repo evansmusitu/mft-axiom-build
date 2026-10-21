@@ -81,6 +81,16 @@ def cf(path, method="GET", payload=None, mime="application/json"):
             if type(value) is int and 1000 <= value <= 999999:
                 ids.append(value)
         ids = ids[:3]
+        if (method == "POST"
+            and path == "/accounts/" + EXPECTED_ACCOUNT + "/d1/database"
+            and 7406 in ids):
+            # Documented D1 account-database system limit. Stop instead of
+            # retrying, switching accounts, deleting unrelated D1, or treating
+            # this as missing API token permission. This is quota authority.
+            deny("Cloudflare D1 database account limit reached "
+                 "(HTTP 403; error_codes=7406); verify Workers Paid "
+                 "entitlement and request Cloudflare quota correction; "
+                 "do not delete existing databases")
         deny("Cloudflare API rejected " + method + " request (HTTP " + str(code)
              + "; error_codes=" + (",".join(map(str,ids)) if ids else "none") + ")")
     return obj.get("result")
