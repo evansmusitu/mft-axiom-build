@@ -1,10 +1,10 @@
-# LIFELINE MT5 AI Studio — Owner-Access Login Gated Development v1.1
+# LIFELINE MT5 AI Studio — Owner-Access JWT Proof Stage v1.2
 
 An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
 **This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
 
-**Latest evidence:** [OWNER_ACCESS_APP_LOGIN_GATE_v11_20261021.md](validation/OWNER_ACCESS_APP_LOGIN_GATE_v11_20261021.md) — live owner Access authentication logs and sessions audited, zero positive app login, 0/10 private Worker bindings. Single-owner MFA policy and custom domain are in place; private backend remains disconnected. Previous v1.0/v0.9 validations retained.
+**Latest evidence:** [OWNER_JWT_PROBE_v12_20261021.md](validation/OWNER_JWT_PROBE_v12_20261021.md) — verified real 24-hour owner-login audit (no positive app login), an isolated identity-only Access JWT verification endpoint, 3/10 private Worker bindings, and live negative access checks. Earlier v1.1 and lower evidence is preserved.
 
 ## Proven now
 
@@ -15,7 +15,7 @@ An **isolated research/development system** using the existing GitHub → Vercel
 - **Windows native compile:** temporary GitHub Windows runner installed and validated vendor-signed MetaQuotes executables; compiled real MQL5 into EX5 with zero compiler errors and mathematical Strategy Tester report. This is *not* a historical-price market backtest or 24/7 Windows host.
 - **Windows agent:** signed offline jobs, bounded native adapter, replay denial, durable at-most-once SQLite claims; protocol tested on Windows and Linux, but no permanently paired host. Built-in MetaQuotes MCP local-only adapter denies shell/order/unsafe tools; tests are mocked, not live MCP.
 - **Vercel:** separate private nontrading status UI project `lifeline-mt5-ai-studio-stage` with SSO all deployments. Guest HTTPS request received redirect to authentication; deployment READY. No JavaScript order actions or embedded secrets.
-- **Cloudflare:** exact account `93f395f5121954671f92fffa453d6b61` verified. Isolated Worker has dedicated Custom Domain `lifeline-mt5-stage.mftintelligence.com`. App now has **single-owner allow plus explicitly required independent MFA each login**; no other accounts are permitted. Runtime secrets and backend are disconnected. Actual owner Access login/session has **not** yet been observed; GitHub anonymous clients received a Cloudflare security challenge, not a proven Access decision.
+- **Cloudflare:** exact account `93f395f5121954671f92fffa453d6b61` verified. Isolated Worker has dedicated Custom Domain `lifeline-mt5-stage.mftintelligence.com`. Its new **[owner-only JWT verification endpoint](https://lifeline-mt5-stage.mftintelligence.com/owner/verify)** verifies a pinned Cloudflare Access owner token without accessing customer data. Single-owner independent MFA policy remains active, and only 3/10 identity bindings are provisioned. Seven private Modal/agent secrets are still missing, so **backend routes remain HTTP 503**. No positive owner Access app session was detected in the fresh 24-hour audit; anonymous automated clients received a Cloudflare WAF challenge.
 - **Modal private research:** `lifeline-mt5-private-probe-isolated` deployed scale-to-zero with proxy auth. Anonymous HTTP 401; authenticated HTTP 200; temporary token revoked. `POST /research/summary` produces precise `Decimal` P&L stats on supplied synthetic records and denies invalid inputs. No broker or Windows connectivity.
 - **Private signed bridge:** separate proxy-auth Modal service `lifeline-mt5-analytics-isolated` now has the genuine restricted Neon DB queue, and a live synthetic agent completed signed `operator/probe → agent/pull → agent/receipt → operator/status` with HMAC-replay denial. Native agent was a temporary CI process (not MT5/Windows); Cloudflare Access route remains disabled. Run 39549416299.
 - **Database hardening:** actual Neon runtime role and all three RLS tables checked on each transaction with TLS `verify-full`; stale claimed tasks can now be re-signed with their original durable nonce. Windows+Linux acceptance run 39548589034.
@@ -24,7 +24,7 @@ An **isolated research/development system** using the existing GitHub → Vercel
 ## Not completed
 
 1. No owner-approved continuous Windows host. GitHub-hosted Windows is ephemeral.
-2. Cloudflare single-owner policy and independent MFA are live, and the isolated staging hostname is attached, but **fresh Access logs and session queries show zero positive owner app login; 0/10 required Worker backend bindings are installed**. Backend must remain disconnected until the owner opens the hostname, completes the specific Access MFA challenge and negative/positive auth tests pass.
+2. Cloudflare single-owner policy, independent MFA, live hostname and a JWT-only verification endpoint are active. **Fresh Access logs still show zero positive owner app login. Only 3/10 identity bindings are installed; the 7 backend bindings are missing.** Owner must [open the verification endpoint](https://lifeline-mt5-stage.mftintelligence.com/owner/verify), complete specific app MFA, and obtain a cryptographically verified real owner token before any private backend cutover.
 3. **Private Modal↔Neon signed PROBE end-to-end passes**, but the full protected Cloudflare Access→Modal→Neon→persistent Windows native path is not connected. The current private app accepts only the paired synthetic staging tenant.
 4. Real historical quote backtests need broker-demo market data and an explicitly approved native agent. Mathematical optimization does not prove a profitable strategy.
 5. Customer publication, compliance, real trading, and revenue are not enabled.
