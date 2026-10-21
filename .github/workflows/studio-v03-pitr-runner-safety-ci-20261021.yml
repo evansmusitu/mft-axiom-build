@@ -9,6 +9,8 @@ on:
       - ops/studio_v03_pitr_cron_kv_runner_v2_20261021.py
       - ops/tests/test_studio_v03_pitr_disposable_cleanup_20261021.py
       - ops/tests/test_studio_v03_pitr_runner_guards_20261021.py
+      - ops/tests/test_studio_v03_pitr_handoff_completeness_20261021.py
+      - ops/studio_build_new_chat_handoff_20261020.py
 permissions: {contents: read}
 jobs:
   no-provider-writes-safety-regression:

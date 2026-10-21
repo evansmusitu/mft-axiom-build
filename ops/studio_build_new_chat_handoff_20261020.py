@@ -29,6 +29,7 @@ def command(*args: str) -> str:
 def select(path: str) -> bool:
     return (path.startswith("musitu_studio/")
             or path.startswith("ops/studio_")
+            or path.startswith("ops/tests/test_studio_v03_pitr_")
             or path.startswith("docs/STUDIO_")
             or path.startswith(".github/workflows/studio-"))
 
@@ -63,7 +64,7 @@ Access connected GitHub repository evansmusitu/mft-axiom-build and isolated bran
 
 Real current V0.3 is https://studio-v03.mftintelligence.com/ with Cloudflare Access, a SQLite Durable Object, Android staff UI, R2, and CPU dispatch/GPU DISABLED. Verify LIVE provider state, staff signed-JWT audience, domain and bindings read-only before any changes. Historical CI 54/54 pass, guardrailed V0.3-only deploy and independent 8-route Access verification are documented inside the ZIP. Do not mistake cached ZIP state for live verification.
 
-Carry the enterprise work forward without asking me to retell our prior chat: continue safe tests/security/reliability work, plan and implement only authorized scoped changes, run real verification and publish fresh evidence. Outstanding genuine acceptance: an actual second independent human reviewer (do not impersonate), provider-enforced no-out-of-pocket Modal rendering before enabling any compute, hosted disposable Cloudflare PITR blocked by pre-Worker HTTP 403 (never restore live ledger), GPU entitlement and billing. Preserve free-tools-only, Android-remote-client and separation-of-duties constraints. DO NOT promise asynchronous work. DO NOT declare blocked items complete. Document every new change, protect secrets and update GitHub + private Drive handoff with SHA-verified outputs. Begin with verification of the handoff, repository and live environment, then execute the next safe work in this turn.
+Carry the enterprise work forward without asking me to retell our prior chat: continue safe tests/security/reliability work, plan and implement only authorized scoped changes, run real verification and publish fresh evidence. Approved owner-only project operation uses a genuinely verified Cloudflare Access sole-administrator approval model with explicit confirmation and accurate immutable audit; a second human is not mandatory for that approved mode. Remaining acceptance gates are provider-enforced no-out-of-pocket Modal rendering before enabling any compute, and independently proven hosted disposable Cloudflare PITR (never restore live ledger). GPU entitlement and billing are separate gates. Preserve free-tools-only, Android-remote-client, signed identity, accurate approval-mode attribution, project isolation and immutable audit controls. DO NOT promise asynchronous work. DO NOT declare blocked items complete. Document every new change, protect secrets and update GitHub + private Drive handoff with SHA-verified outputs. Begin with verification of the handoff, repository and live environment, then execute the next safe work in this turn.
 """
 
 def verification_script() -> str:
