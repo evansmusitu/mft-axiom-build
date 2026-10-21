@@ -1,0 +1,92 @@
+{
+  "kind": "APPROVED_META_EMPLOYEE_SYSTEM_USER_CREATED",
+  "observedDateUtc": "2026-10-21",
+  "reviewedHead": "2a470c06f296c0724e9f245337f3c8afe0be982f",
+  "authorization": "Owner explicitly Approved acceptance of Meta non-discrimination policy and creation of the named Employee service user with access limited to the MUSITU development app and test WhatsApp account.",
+  "business": {
+    "id": "2069296827284277",
+    "name": "MFT Education NEXUS"
+  },
+  "policy": {
+    "accepted": true,
+    "visibleConfirmation": "Thanks for accepting our Non-discrimination Policy",
+    "sharedPortfolioPolicy": true
+  },
+  "systemUser": {
+    "id": "61595540345281",
+    "name": "MUSITU WhatsApp Phase1 Dev",
+    "role": "Employee",
+    "createdOnce": true,
+    "verifiedAfterReload": true
+  },
+  "assignments": {
+    "reportedCount": 2,
+    "successNotice": "2 assets were assigned",
+    "verifiedAfterReload": true,
+    "app": {
+      "id": "1096094346481018",
+      "name": "MUSITU AI Employee Dev",
+      "permission": "Partial access (Test app)"
+    },
+    "whatsappPresence": {
+      "id": "2506491359835461",
+      "name": "Test WhatsApp Business Account",
+      "permission": "Partial access (Phone numbers (view only) and Messages)",
+      "verifiedSender": "+1 555-663-7079"
+    },
+    "expectedGraphAssets": {
+      "wabaId": "1955690452095441",
+      "phoneNumberId": "1292923853915392",
+      "unchanged": true,
+      "noSuccessfulNewTokenPreflight": true
+    },
+    "limits": [
+      "Meta UI uses a phone-level WhatsApp presence identifier distinct from the existing Graph WABA/phone identifiers; no runtime ID was changed.",
+      "No full-access switch, phone-number management or other app/WhatsApp asset was assigned. No ads or payment asset was selected.",
+      "App Test permission is the narrow observed choice; token-generation eligibility and resulting API scopes remain unqualified until secure owner generation and no-send preflight."
+    ]
+  },
+  "credential": {
+    "generated": false,
+    "retrieved": false,
+    "enteredIntoVercel": false,
+    "currentRuntimeCredentialStillRejected": true,
+    "automaticApprovalReview": {
+      "action": "Open Generate token",
+      "rejected": true,
+      "reason": "The control may create or reveal a privileged credential; prior specific approval covered the system user and asset grants, not credential generation.",
+      "retried": false
+    },
+    "next": "Owner privately generates an appropriately scoped credential through the browser handoff, chooses MUSITU AI Employee Dev, and privately saves it to the existing Preview META_ACCESS_TOKEN. If required permissions are unavailable, stop rather than broadening asset grants. Credential creation/entry remains a user handoff."
+  },
+  "verifiedUrls": {
+    "meta": "https://business.facebook.com/latest/settings/system_users?business_id=2069296827284277&selected_user_id=61595540345281",
+    "vercel": "https://vercel.com/evansmusitu/musitu-whatsapp-phase1-private-20261014/settings/environment-variables"
+  },
+  "vercelReadOnlyCheck": {
+    "existingVariable": "META_ACCESS_TOKEN",
+    "type": "Secret",
+    "environment": "Preview",
+    "filteredByName": true,
+    "valueNotRevealed": true
+  },
+  "databaseRead": {
+    "observed_at": "2026-10-21T04:34:51.092Z",
+    "outbound_attempts": "0",
+    "consent_records": "0",
+    "status_events": "0"
+  },
+  "screenshot": {
+    "filename": "musitu-meta-service-user-created-20261021.jpg",
+    "sha256": "3d32791b8e494919317814ec79fb17fb650b230de3d53e740458237597a8e35d"
+  },
+  "unchanged": {
+    "runtimeCode": true,
+    "databaseSchema": true,
+    "providerMessaging": true,
+    "passwordsAndMfa": true,
+    "nexusAppPermissions": true,
+    "paidPlan": true
+  },
+  "phase1": "INCOMPLETE"
+}
