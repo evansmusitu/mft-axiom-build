@@ -39,11 +39,13 @@ jobs:
           print('modal_out_of_pocket_so_far=0')
           print('bounded_private_probe_only=true')
           PY
+      - name: Verify deterministic research math offline
+        run: python -m unittest discover -s products/lifeline-mt5-ai-studio/infra/modal -p 'test_research_math.py' -v
       - name: Refuse collision with other Modal apps
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile products/lifeline-mt5-ai-studio/infra/modal/private_probe.py
+          python -m py_compile products/lifeline-mt5-ai-studio/infra/modal/private_probe.py products/lifeline-mt5-ai-studio/infra/modal/research_math.py
           modal app list --json >/tmp/lifeline-modal-apps.json
           python - <<'PY'
           import json
@@ -88,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, pathlib, urllib.request, modal
+          import json, pathlib, urllib.request, urllib.error, modal
           u=pathlib.Path('/tmp/lifeline-private-url.txt').read_text().strip()
           workspace=modal.Workspace.from_context()
           token=workspace.proxy_tokens.create(name='lifeline-ephemeral-probe-delete-after-test')
@@ -100,13 +102,35 @@ jobs:
                       raise SystemExit('authenticated_modal_did_not_return_200_json')
                   body=resp.read(20000)
               x=json.loads(body)
-              expected={'schema':'lifeline.private_modal_probe.v1','runtime':'modal-private-stage',
-                 'access':'proxy_auth_required','neon_connected':False,
-                 'windows_agent_connected':False,'cloudflare_gateway_connected':False,
-                 'live_trading':False,'public_mcp_enabled':False}
+              expected={'schema':'lifeline.private_modal_probe.v2','runtime':'modal-private-stage',
+                 'access':'proxy_auth_required','research_pnl_enabled':True,
+                 'neon_connected':False,'windows_agent_connected':False,
+                 'cloudflare_gateway_connected':False,'live_trading':False,
+                 'public_mcp_enabled':False}
               if x!=expected:raise SystemExit('private_modal_health_not_fail_closed')
               print('modal_private_authenticated_health=PASS')
               print('modal_no_orders_no_windows_no_neon=true')
+              request=urllib.request.Request(u+'/research/summary',
+                data=json.dumps({'pnl':['120.00','-40.00','30.00','-10.00']}).encode(),
+                headers={**headers,'Content-Type':'application/json'},method='POST')
+              with urllib.request.urlopen(request,timeout=35) as resp:
+                  data=json.load(resp)
+              if (data.get('net_pnl')!='100.00' or
+                  data.get('profit_factor')!='3.0000' or
+                  data.get('max_drawdown')!='40.00' or
+                  data.get('trading_enabled') is not False):
+                  raise SystemExit('private Modal research calculations incorrect')
+              print('modal_private_research_sample=PASS')
+              bad=urllib.request.Request(u+'/research/summary',
+                 data=b'{"pnl":["NaN"]}',headers={**headers,'Content-Type':'application/json'},
+                 method='POST')
+              try:
+                  urllib.request.urlopen(bad,timeout=35)
+              except urllib.error.HTTPError as err:
+                  if err.code!=422:raise SystemExit('invalid input not denied')
+              else:
+                  raise SystemExit('invalid input unexpectedly accepted')
+              print('modal_invalid_research_denied=PASS')
           finally:
               workspace.proxy_tokens.delete(token.token_id)
               print('ephemeral_proxy_token_revoked=true')
