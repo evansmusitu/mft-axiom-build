@@ -1,11 +1,9 @@
 name: LIFELINE Private Modal-Neon Signed Probe E2E
+# One-time bootstrap creates a non-rotatable pairing Secret; don't re-run
+# automatically on code pushes. Subsequent regression uses
+# lifeline-mt5-neon-receipt-live.yml, which reuses existing Modal Secrets.
 on:
-  push:
-    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
-    paths:
-      - 'products/lifeline-mt5-ai-studio/infra/modal/app.py'
-      - 'products/lifeline-mt5-ai-studio/infra/modal/accept_bridge.py'
-      - '.github/workflows/lifeline-mt5-modal-bridge-live.yml'
+  workflow_dispatch:
 permissions: {contents: read}
 jobs:
   private-signed-neon-probe:
