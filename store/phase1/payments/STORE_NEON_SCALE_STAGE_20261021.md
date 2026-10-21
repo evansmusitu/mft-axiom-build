@@ -79,3 +79,22 @@ A secure runtime role needs Neon provider/admin privilege correction or
 separately approved role cleanup; no claims of least-privilege production
 qualification are made. Neon deletion tools require separate owner approval.
 
+
+### Restricted SQL-only role accepted for future runtime
+
+Following Neon provider documentation, a second, **SQL-created NOLOGIN**
+role `musitu_store_v2_limited` was created specifically for this isolated
+Store database. Unlike roles created by the Neon API, this SQL-only role
+has **no `neon_superuser` membership**, no CREATEDB/CREATEROLE/BYPASSRLS,
+and is not allowed to log in. Explicit grants allow:
+- SELECT on the four isolated Store tables;
+- INSERT only on Store checkout intents and signed reviews;
+- UPDATE only on checkout status/browser_url/poll_url;
+- no product inserts, order deletes, or order amount changes.
+
+Read-only `pg_roles`/`has_table_privilege`/`has_column_privilege`
+verified each restriction above. The role is not an executable login and
+cannot be used by any external backend by itself. Future credentials must
+belong to a **separately authorized SQL-created LOGIN role** granted only
+`musitu_store_v2_limited`, never to the extra API-created elevated role.
+Existing non-Store databases remain untouched.
