@@ -27,8 +27,7 @@ def utcstamp(value):
 def main():
     token=os.environ.get("CLOUDFLARE_API_TOKEN","")
     if len(token)<20:raise SystemExit("scoped Cloudflare token not configured")
-    ac,account=get("",token)
-    # Account verification uses a different endpoint.
+    # Account verification uses the canonical account endpoint.
     req=urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT,
          headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
     with urllib.request.urlopen(req,timeout=25) as f:row=json.load(f)
@@ -65,7 +64,7 @@ def main():
     log_status,events=get("/access/logs/access_requests?per_page=100",token)
     event_list=events if log_status==200 and isinstance(events,list) else []
     # No IP, timestamps, identities, tokens, or raw log payloads printed/stored.
-    since=datetime.now(timezone.utc)-timedelta(hours=4)
+    since=datetime.now(timezone.utc)-timedelta(hours=24)
     ours=[x for x in event_list if isinstance(x,dict) and
           (x.get("app_uid")==APP or x.get("app_domain") in
            (HOST,"https://"+HOST,"https://"+HOST+"/")) and
@@ -77,6 +76,7 @@ def main():
       "account_pinned":True,"access_app_pinned":True,"one_owner_independent_mfa_policy":True,
       "auth_log_query_http":log_status,"auth_log_readable":log_status==200,
       "latest_100_log_events_inspected":len(event_list),
+      "owner_access_audit_window_hours":24,
       "owner_app_recent_authenticated_allow_count":len(success),
       "owner_app_recent_denied_count":len(denied),
       "active_sessions_query_http":session_status,
