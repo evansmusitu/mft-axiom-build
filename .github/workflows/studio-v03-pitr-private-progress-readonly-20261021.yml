@@ -1,0 +1,24 @@
+name: MUSITU Studio V0.3 — Hosted PITR Private Progress Readonly
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: [.github/workflows/studio-v03-pitr-private-progress-readonly-20261021.yml]
+permissions: {contents: read}
+jobs:
+  read-isolated-provider-receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Safely inspect disposable hosted KV evidence only
+        run: python ops/studio_v03_pitr_private_progress_readonly_20261021.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-v03-private-hosted-pitr-progress-20261021
+          path: studio-v03-private-kv-pitr-progress-readonly.json
+          retention-days: 14
