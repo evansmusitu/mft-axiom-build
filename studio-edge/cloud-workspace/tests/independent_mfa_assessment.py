@@ -71,6 +71,8 @@ def inspect(token,opener=urllib.request.urlopen):
         "schema":"musitu.cloud_workspace.independent_mfa_assessment.v1",
         "account_id":ACCOUNT,"zone":DOMAIN,"hostname":HOST,
         "access_app_deny_all_maintained":True,
+        "access_app_api_field_names":sorted(list(app.keys())),
+        "access_mfa_api_field_names":sorted(list(app_cfg.keys())),
         "organization_independent_mfa_allowed_methods":allowed,
         "organization_independent_mfa_available":bool(allowed),
         "organization_global_mfa_required":org.get("mfa_required_for_all_apps") is True,
