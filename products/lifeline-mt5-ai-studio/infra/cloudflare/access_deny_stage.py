@@ -76,9 +76,14 @@ def main():
     if app.get("name")!=APP or app.get("domain")!=HOST:
         raise RuntimeError("Access readback differs")
     # Cloudflare includes policies in app detail; ensure none grants access.
-    policies=app.get("policies",[])
-    if any(x.get("decision") in ("allow","bypass","service_auth") for x in policies):
-        raise RuntimeError("Access app unexpectedly has permissive policy; investigate immediately")
+    policies=api("GET","/accounts/"+ACCOUNT+"/access/apps/"+app["id"]+"/policies?per_page=100",token)
+    if not isinstance(policies,list) or not policies:
+        raise RuntimeError("Access app policies absent; deny-all assertion unverified")
+    if any(not isinstance(x,dict) or x.get("decision")!="deny" for x in policies):
+        raise RuntimeError("Access app contains unexpected policy decision")
+    if not any(any(isinstance(r,dict) and "everyone" in r for r in policy.get("include",[])) for policy in policies):
+        raise RuntimeError("Access app missing explicit everyone deny")
+
     record={"schema":"lifeline.access.stage.deny.v1","account_id":ACCOUNT,"app_id":app["id"],
             "app_aud":app["aud"],"hostname":HOST,"policy":"DENY_ALL_PENDING_OWNER_MFA",
             "action":action,"custom_domain_or_route_added":False,"dns_changed":False,
