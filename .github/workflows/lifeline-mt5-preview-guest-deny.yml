@@ -17,7 +17,7 @@ jobs:
           python - <<'PY'
           import json
           import urllib.request,urllib.error
-          url='https://lifeline-mt5-ai-studio-stage-69nmvn0c1-evansmusitu.vercel.app/'
+          url='https://lifeline-mt5-ai-studio-stage-ib2qzv419-evansmusitu.vercel.app/'
           class NoRedirect(urllib.request.HTTPRedirectHandler):
               def redirect_request(self,req,fp,code,msg,headers,newurl):return None
           client=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
@@ -31,7 +31,7 @@ jobs:
           if code not in (302,401,403):
               raise SystemExit('PRIVATE_VERCEL_GUEST_DENIAL_FAILED: unexpected HTTP '+str(code))
           print(json.dumps({'schema':'lifeline.vercel_guest_negative.v1',
-              'deployment_id':'dpl_3cQimHkLi3ts9ayLRCtPCZKeSggS',
+              'deployment_id':'dpl_A8QasAqio1t7BuoyoZqDonXsFYnF',
               'guest_http_status':code,'authenticated_content_exposed':False,
               'no_cookies_used':True,'redirects_followed':False,
               'trade_execution_enabled':False},sort_keys=True))
