@@ -146,8 +146,9 @@ class BridgeTests(unittest.TestCase):
         client=poller.HTTPSClient('https://lifeline-mt5-stage.mftintelligence.com')
         self.assertEqual(client.base_url,'https://lifeline-mt5-stage.mftintelligence.com')
         proxies=[h for h in client._client.handlers if isinstance(h,urllib.request.ProxyHandler)]
-        self.assertEqual(len(proxies),1)
-        self.assertEqual(proxies[0].proxies,{})
+        # urllib intentionally drops an empty ProxyHandler from the opener.
+        # Thus zero effective proxy handlers is the strongest expected result.
+        self.assertEqual(len(proxies),0)
         body={'request':'next','tenant':'tenant-A'}
         class Fake:
             def open(self,req,timeout):
@@ -161,7 +162,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_disallow_nonstandard_https_port(self):
         with self.assertRaisesRegex(agent.AgentError,'nonstandard'):
-            poller.HTTPSClient('https://example.com:1234')
+            poller.HTTPSClient('https://lifeline-mt5-stage.mftintelligence.com:1234')
     def test_no_native_without_opt_in(self):
         from unittest.mock import patch
         unsigned={'job_id':'f1460f82-956f-44b7-802f-b3ac8c71f19e','issued_at':int(__import__('time').time()),
