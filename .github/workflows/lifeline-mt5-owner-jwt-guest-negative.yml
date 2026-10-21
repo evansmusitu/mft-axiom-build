@@ -1,0 +1,42 @@
+name: LIFELINE Owner Verification Live Guest Negative
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-owner-jwt-guest-negative.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  live-guest-must-not-pass:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET verification endpoint anonymously without cookies or redirects
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request,urllib.error,json
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          client=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+          url='https://lifeline-mt5-stage.mftintelligence.com/owner/verify'
+          req=urllib.request.Request(url,headers={'User-Agent':'LIFELINE-GuestJWT-Negative/1',
+              'Accept':'application/json'})
+          try:
+              with client.open(req,timeout=25) as response:
+                  code=response.status
+                  mitigated=bool(response.headers.get('cf-mitigated'))
+                  data=response.read(2048)
+          except urllib.error.HTTPError as e:
+              code=e.code;mitigated=bool(e.headers.get('cf-mitigated'));data=e.read(2048)
+          if code not in (302,401,403):
+              raise SystemExit('anonymous owner verification did not fail closed')
+          if b'owner_access_token_signature_verified' in data or b'owner_identity_pinned' in data:
+              raise SystemExit('private owner verification data exposed to guest')
+          print(json.dumps({'schema':'lifeline.live_owner_guest_negative.v1',
+            'guest_http_status':code,'cloudflare_waf_challenge_present':mitigated,
+            'identity_verified':False,'owner_token_supplied':False,
+            'cookie_supplied':False,'redirect_followed':False,
+            'backend_enabled':False,'trading_enabled':False},sort_keys=True))
+          PY
