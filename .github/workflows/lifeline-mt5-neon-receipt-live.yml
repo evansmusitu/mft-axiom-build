@@ -1,0 +1,63 @@
+name: LIFELINE Private Neon Receipt Binding Live Proof
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/modal/app.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/staging_api.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/bridge.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/pg_queue.py'
+      - '.github/workflows/lifeline-mt5-neon-receipt-live.yml'
+permissions: {contents: read}
+jobs:
+  restricted-neon-receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Require zero billed and maximum $5 of current Modal meter
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          modal billing summary --for 'this month' --json >/tmp/lifeline-modal-budget.json
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          v=json.load(open("/tmp/lifeline-modal-budget.json"))
+          if Decimal(str(v["billed_cost"]))!=0 or Decimal(str(v["metered_cost"]))>Decimal("5"):
+              raise SystemExit("No-spend Modal guard denied")
+          print("modal_bill_zero=true")
+          PY
+      - name: Deploy only previously authorized isolated private Modal bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy products/lifeline-mt5-ai-studio/infra/modal/app.py --name lifeline-mt5-analytics-isolated --strategy recreate > /tmp/lifeline-private-deploy.txt 2>&1 || {
+            echo 'private_stage_deploy_failed';exit 1;
+          }
+          echo 'private_modal_bridge_updated=true'
+      - name: Invoke internal secret-scoped Neon HMAC/receipt regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import modal,json
+          result=modal.Function.from_name('lifeline-mt5-analytics-isolated',
+             'verify_private_neon_receipt_binding').remote()
+          needed=['signed_job','cross_operation_receipt_rejected',
+             'replayed_agent_request_rejected','exact_matching_receipt_committed',
+             'out_of_tenant_operator_rejected']
+          if result.get('schema')!='lifeline.private_sql_hardening.v1' or any(result.get(k) is not True for k in needed):
+              raise SystemExit('private receipt regression missing proof')
+          if result.get('live_trading') is not False or result.get('host_persistent') is not False:
+              raise SystemExit('untrusted runtime status')
+          print(json.dumps(result,sort_keys=True))
+          PY
