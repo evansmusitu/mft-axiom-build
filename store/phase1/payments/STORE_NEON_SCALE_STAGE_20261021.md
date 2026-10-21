@@ -64,3 +64,18 @@ Public route and real merchant/payment authorization remain separate gates.
 
 Reviewer program: **Phase 1 RUNNING**, Phase 2 PENDING.
 Keep Store PR #27 OPEN/DRAFT/UNMERGED, frozen PR #1 and protected main.
+
+## Privileged Neon role safety discovery
+
+A dedicated prospective runtime role `musitu_store_v2_runtime` was created
+**inside this new Store branch only**. Independent PostgreSQL role readback
+showed that the Neon role-creation API assigned membership in
+`neon_superuser` with CREATEDB, CREATEROLE and BYPASSRLS. Attempts from the
+staging owner to revoke `neon_superuser` or set NOLOGIN were **permission
+denied**. Therefore this role is **NOT** least privileged and must **NOT**
+be used by a billing Worker. No application uses it and its connection
+password was not exported, committed or attached to any environment.
+A secure runtime role needs Neon provider/admin privilege correction or
+separately approved role cleanup; no claims of least-privilege production
+qualification are made. Neon deletion tools require separate owner approval.
+
