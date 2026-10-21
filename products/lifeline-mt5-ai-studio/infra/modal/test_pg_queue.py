@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 import sqlite3
+from contextlib import closing
 import sys
 import tempfile
 import time
@@ -37,11 +38,12 @@ class SQLiteRecovery(unittest.TestCase):
         first=self.store.pull('tenant-A','agent-A',KEY)
         agent.verify_job(first,KEY)
         receipt=agent.execute_once(first,KEY,self.root,None,None,self.root/'durable.sqlite')
-        with sqlite3.connect(self.store.db) as c:
+        with closing(sqlite3.connect(self.store.db)) as c:
             stale=json.loads(c.execute('SELECT job_json FROM jobs').fetchone()[0])
             stale['issued_at']=1
             stale['signature']=agent.sign({k:v for k,v in stale.items() if k!='signature'},KEY)
             c.execute("UPDATE jobs SET job_json=? WHERE job_id=?",(json.dumps(stale),first['job_id']))
+            c.commit()
         renewed=self.store.pull('tenant-A','agent-A',KEY)
         agent.verify_job(renewed,KEY)
         self.assertEqual(renewed['nonce'],first['nonce'])
@@ -54,9 +56,10 @@ class SQLiteRecovery(unittest.TestCase):
 
     def test_corrupted_claimed_signature_fails_closed(self):
         first=self.store.pull('tenant-A','agent-A',KEY)
-        with sqlite3.connect(self.store.db) as c:
+        with closing(sqlite3.connect(self.store.db)) as c:
             corrupted=dict(first,signature='0'*64)
             c.execute('UPDATE jobs SET job_json=?',(json.dumps(corrupted),))
+            c.commit()
         with self.assertRaisesRegex(QueueError,'signature invalid'):
             self.store.pull('tenant-A','agent-A',KEY)
 
