@@ -64,7 +64,7 @@ def main():
             "session_duration":"1h","app_launcher_visible":False,
             "policies":[{
                 "name":"LIFELINE owner enrollment pending - deny all",
-                "decision":"block",
+                "decision":"deny",
                 "include":[{"everyone":{}}]
             }],
         }
