@@ -4,6 +4,7 @@
  * Do not commit operator pins, signed rights bytes or identity records.
  */
 import {createHash,createPublicKey,verify as checkSignature} from 'node:crypto';
+import {isIP} from 'node:net';
 import {verifyPublisherDualReview} from './reviewer-attestation.mjs';
 
 const EXPECTED=[
@@ -37,7 +38,7 @@ function time(s){
 function https(s){
   try{
     const u=new URL(s);
-    if(u.protocol!=='https:'||!u.hostname.includes('.')||u.username||u.password||
+    if(u.protocol!=='https:'||!u.hostname.includes('.')||isIP(u.hostname)!==0||u.username||u.password||
        u.port||u.hash||u.search||/[\s\\]/.test(s)||
        !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(u.hostname)||
        /(?:^|\.)(?:local|localhost|internal)$/.test(u.hostname))
