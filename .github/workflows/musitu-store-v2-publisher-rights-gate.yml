@@ -3,7 +3,7 @@ on:
   push:
     branches: [feature/store-v2-publisher-evidence-pilot-20261021]
     paths:
-      - 'store/phase1/publisher_intake/reviewer-rights.*'
+      - 'store/phase1/publisher_intake/**'
       - '.github/workflows/musitu-store-v2-publisher-rights-gate.yml'
   workflow_dispatch:
 permissions: {contents: read}
