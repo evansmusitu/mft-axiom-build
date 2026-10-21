@@ -114,6 +114,26 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
   <section className="axiom-intro"><span className="section-overline">MUSITU ATLAS / AXIOM EXECUTION FABRIC</span><h1>From intent.<br/><em>To evidence.</em></h1>
    <p>Real MUSITU Axiom capability discovery, reviewed operation requests and provider-returned evidence. Private execution remains fail-closed until its own account credential is configured.</p>
   </section>
+  <section className="axiom-connection-setup" aria-label="Full account connection readiness">
+   <span className="section-overline">ACCOUNT-BACKED AXIOM / FINAL CONNECTION GATES</span>
+   <h2>Connect securely, without disclosing credentials.</h2>
+   <p>The independent proof engine already works. Account-metered Axiom operations remain locked until two isolated credentials are qualified. There is no reason to buy AI credits or weaken the existing ChatGPT connector.</p>
+   <div className="axiom-connection-grid">
+     <article>
+       <span className="axiom-step-num">01 / NEON RUNTIME</span>
+       <strong>{remote?.runtimeRoleRestricted?'Restricted database role verified':'Restricted database login not yet verified'}</strong>
+       <p>In your isolated Neon project <code>muddy-wildflower-85740352</code>, set a strong password on <code>atlas_web_limited</code> inside the Neon SQL Editor. Do not send that password in chat. The connected integration can then switch ATLAS to this restricted role.</p>
+       <a href="https://console.neon.tech/" target="_blank" rel="noopener noreferrer">Open Neon SQL Editor →</a>
+     </article>
+     <article>
+       <span className="axiom-step-num">02 / AXIOM ENTITLEMENT</span>
+       <strong>{remote?.executionConfigured?'Private connection switches qualified':'Dedicated Axiom service credential required'}</strong>
+       <p>Issue an owner-authorized, revocable Axiom token with execution entitlement. Store it as sensitive <code>AXIOM_MCP_BEARER_TOKEN</code> in this isolated Vercel project. Never reuse or reveal the connected ChatGPT plugin token.</p>
+       <a href="https://vercel.com/evansmusitu/musitu-atlas-ai-lab/settings/environment-variables" target="_blank" rel="noopener noreferrer">Open private Vercel variables →</a>
+     </article>
+   </div>
+   <p className="axiom-connection-boundary">A connection is not fully active merely because the registry responds. The account-token gate, runtime role, owner code, explicit per-request approval, one-shot idempotency and daily quota must all pass.</p>
+  </section>
   <section className="axiom-live">
    <div className="axiom-head"><div><span className="section-overline"><Activity size={14}/> LIVE CAPABILITY FABRIC</span><h2>MUSITU Axiom MCP</h2></div><button type="button" onClick={inspect} disabled={loading}><RefreshCw size={15}/> Refresh registry</button></div>
    {remote?<><div className="axiom-stats"><div><strong>{remote.certifiedOperationTools}</strong><span>Certified operation tools reported live</span></div><div><strong>{remote.publicTools}</strong><span>MCP tools returned</span></div><div><strong>{remote.arithmeticAvailable?'DISCOVERED':'NOT FOUND'}</strong><span>arithmetic.evaluate</span></div></div>
