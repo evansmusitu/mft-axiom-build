@@ -1,0 +1,24 @@
+name: MUSITU Store V2 publisher rights and real pilot fail-closed qualification
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - 'store/phase1/publisher_intake/reviewer-rights.*'
+      - '.github/workflows/musitu-store-v2-publisher-rights-gate.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  rights-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify new rights gate syntax and adversarial consent tests
+        run: |
+          node --check store/phase1/publisher_intake/reviewer-rights.mjs
+          node --test store/phase1/publisher_intake/reviewer-rights.test.mjs
+      - name: Verify unchanged prior APK and reviewer signing boundary
+        run: |
+          node --test store/phase1/publisher_intake/reviewer-attestation.test.mjs
