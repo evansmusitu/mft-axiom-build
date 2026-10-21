@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           URL='https://lifeline-mt5-ai-studio-stage-h9m50mcjx-evansmusitu.vercel.app/'
-          STATUS=$(curl --silent --show-error --location-trusted=false --max-redirs 0 --max-time 25 --output /tmp/lifeline-resp.body --dump-header /tmp/lifeline-resp.headers --write-out '%{http_code}' "$URL" || test "$?" -eq 47)
+          STATUS=$(curl --silent --show-error --max-redirs 0 --max-time 25 --output /tmp/lifeline-resp.body --dump-header /tmp/lifeline-resp.headers --write-out '%{http_code}' "$URL" || test "$?" -eq 47)
           case "$STATUS" in
             401|403) echo "vercel_guest_denied=true; status=$STATUS" ;;
             302|303|307|308)
