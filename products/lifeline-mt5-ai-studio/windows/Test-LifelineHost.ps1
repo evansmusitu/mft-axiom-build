@@ -63,7 +63,8 @@ try {
  $report.terminal_token_configured=($env:LIFELINE_TERMINAL_MCP_TOKEN.Length -ge 24)
  $report.metaeditor_token_configured=($env:LIFELINE_METAEDITOR_MCP_TOKEN.Length -ge 24)
  $uri=$null
- if([Uri]::TryCreate($env:LIFELINE_EDGE_URL,[UriKind]::Absolute,[ref]$uri)){
+ $gatewayText=[string]$env:LIFELINE_EDGE_URL
+ if(-not [string]::IsNullOrWhiteSpace($gatewayText) -and [Uri]::TryCreate($gatewayText,[UriKind]::Absolute,[ref]$uri)){
    $report.edge_https_configured=($uri.Scheme -eq 'https' -and $uri.UserInfo -eq '' -and
       $uri.Query -eq '' -and $uri.Fragment -eq '' -and $uri.AbsolutePath -eq '/' -and
       $uri.Host -notin @('localhost','127.0.0.1'))
