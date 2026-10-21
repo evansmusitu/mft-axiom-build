@@ -9,3 +9,7 @@ MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
 The staging workflow also checks the repository actor and Cloudflare account,
 the Store-only database name, the disabled checkout flags, and all previous
 nonproduction isolation constraints. No production payments are authorized.
+
+
+Owner-confirmed token rotation 2026-10-21: retry only the existing approved,
+disabled, un-routed Store staging workflow. Production checkout remains OFF.
