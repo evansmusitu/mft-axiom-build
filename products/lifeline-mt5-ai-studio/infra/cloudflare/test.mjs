@@ -179,3 +179,66 @@ test('expired owner JWT and wrong audience both fail before Modal',async()=>{
     assert.equal(calls,0);
   }finally{globalThis.fetch=original;}
 });
+
+test('owner-only signed Access token can qualify without any private backend bindings',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);
+  jwk.kid='owner-kid';jwk.alg='RS256';jwk.use='sig';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'owner-kid'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const partial={ACCESS_ISSUER:E.ACCESS_ISSUER,ACCESS_AUD:E.ACCESS_AUD,
+                 ACCESS_OPERATOR_SUB:E.ACCESS_OPERATOR_SUB};
+  const original=globalThis.fetch;let jwkFetches=0;let backendFetches=0;
+  try {
+    globalThis.fetch=async url=>{
+      if(String(url).includes('/cdn-cgi/access/certs')){
+        jwkFetches++;
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      }
+      backendFetches++;
+      throw Error('never call Modal from owner verification');
+    };
+    const allowed=await worker.fetch(new Request('https://lifeline.example/owner/verify',
+      {headers:{'cf-access-jwt-assertion':token}}),partial);
+    assert.equal(allowed.status,200);
+    const result=await allowed.json();
+    assert.equal(result.owner_access_token_signature_verified,true);
+    assert.equal(result.private_backend_connected,false);
+    assert.equal(result.trading_enabled,false);
+    assert.equal(jwkFetches,1);assert.equal(backendFetches,0);
+    const unavailable=await worker.fetch(message('/operator/status',{},{
+      'cf-access-jwt-assertion':token}),partial);
+    assert.equal(unavailable.status,503);
+  }finally{globalThis.fetch=original;}
+});
+
+test('owner identity verification denies missing token and mismatched users',async()=>{
+  const partial={ACCESS_ISSUER:E.ACCESS_ISSUER,ACCESS_AUD:E.ACCESS_AUD,
+                 ACCESS_OPERATOR_SUB:E.ACCESS_OPERATOR_SUB};
+  const missing=await worker.fetch(new Request('https://lifeline.example/owner/verify'),partial);
+  assert.equal(missing.status,401);
+  const unconfigured=await worker.fetch(new Request('https://lifeline.example/owner/verify'),
+     {ACCESS_AUD:E.ACCESS_AUD,ACCESS_OPERATOR_SUB:E.ACCESS_OPERATOR_SUB});
+  assert.equal(unconfigured.status,503);
+  const method=await worker.fetch(message('/owner/verify',{},{}),partial);
+  assert.equal(method.status,405);
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='owner-wrong';jwk.alg='RS256';jwk.use='sig';
+  const token=await new SignJWT({sub:'not-approved-owner'})
+      .setProtectedHeader({alg:'RS256',kid:'owner-wrong'})
+      .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+      .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const original=globalThis.fetch;let backend=0;
+  try{
+    globalThis.fetch=async url=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      backend++;throw Error('untrusted backend');
+    };
+    const rejected=await worker.fetch(new Request('https://lifeline.example/owner/verify',{
+      headers:{'cf-access-jwt-assertion':token}}),partial);
+    assert.equal(rejected.status,401);assert.equal(backend,0);
+  }finally{globalThis.fetch=original;}
+});

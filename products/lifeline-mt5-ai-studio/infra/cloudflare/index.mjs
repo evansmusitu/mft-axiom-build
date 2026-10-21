@@ -26,6 +26,22 @@ function readConfig(env){
     return {issuer:issuer.origin,modal:modal.origin};
   }catch{return null;}
 }
+// Limited diagnostic path: owner must have an actual *application* Access JWT.
+// Unlike backend routes, this path needs only 3 identity bindings. It never
+// forwards to Modal, reads Neon, signs agent jobs, or exposes identity values.
+function readOwnerConfig(env){
+  if(!env||typeof env.ACCESS_ISSUER!=='string'||typeof env.ACCESS_AUD!=='string'||
+     typeof env.ACCESS_OPERATOR_SUB!=='string')return null;
+  try{
+    const issuer=new URL(env.ACCESS_ISSUER);
+    if(issuer.protocol!=='https:'||!issuer.hostname.endsWith('.cloudflareaccess.com')||
+       !issuer.hostname.endsWith('.cloudflareaccess.com')||issuer.pathname!=='/'||
+       issuer.search||issuer.hash||issuer.username||issuer.password||
+       !/^[A-Za-z0-9_-]{8,128}$/.test(env.ACCESS_AUD)||
+       !/^[A-Za-z0-9_-]{1,100}$/.test(env.ACCESS_OPERATOR_SUB))return null;
+    return {issuer:issuer.origin};
+  }catch{return null;}
+}
 async function authenticateAccess(request,env,cfg){
   const token=request.headers.get('cf-access-jwt-assertion');
   if(!token||token.length>20000)return null;
@@ -56,9 +72,22 @@ async function authenticateAgent(request,env,body){
 }
 const sigPattern=/^[a-f0-9]{64}$/;
 export default {async fetch(request,env){
+  const path=new URL(request.url).pathname;
+  if(path==='/owner/verify'){
+    if(request.method!=='GET')return reply({error:'method_not_allowed'},405);
+    const ownerCfg=readOwnerConfig(env);
+    if(!ownerCfg)return reply({error:'owner_identity_not_configured'},503);
+    const subject=await authenticateAccess(request,env,ownerCfg);
+    if(!subject)return reply({error:'access_jwt_required'},401);
+    return reply({schema:'lifeline.owner_access_jwt_verified.v1',
+      owner_access_token_signature_verified:true,
+      owner_identity_pinned:true,
+      trading_enabled:false,
+      private_backend_connected:false,
+      windows_host_connected:false},200);
+  }
   const cfg=readConfig(env);
   if(!cfg)return reply({error:'not_configured'},503);
-  const path=new URL(request.url).pathname;
   if(path==='/healthz'&&request.method==='GET')return reply({state:'authorization_required',trading:false});
   if(request.method!=='POST'||(!AGENT_ROUTES.has(path)&&!OPERATOR_ROUTES.has(path)&&path!=='/mcp'))
     return reply({error:'not_found'},404);
