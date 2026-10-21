@@ -25,7 +25,11 @@ def api(method, path, token, body=None):
         with urllib.request.urlopen(req,timeout=35) as resp:
             ans=json.load(resp)
     except urllib.error.HTTPError as exc:
-        raise RuntimeError("Cloudflare API denied status "+str(exc.code)+" on "+method+" (no details printed)") from None
+        details={}
+        try: details=json.loads(exc.read(2048))
+        except Exception: pass
+        codes=[{"code":e.get("code"),"message":str(e.get("message",""))[:160]} for e in details.get("errors",[]) if isinstance(e,dict)]
+        raise RuntimeError("Cloudflare API rejected "+method+" status "+str(exc.code)+" codes "+json.dumps(codes)) from None
     if not isinstance(ans,dict) or not ans.get("success"):
         raise RuntimeError("Cloudflare did not acknowledge "+method+" (details withheld)")
     return ans.get("result")
