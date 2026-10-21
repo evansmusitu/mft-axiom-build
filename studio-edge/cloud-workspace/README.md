@@ -1,4 +1,4 @@
-# MUSITU Secure Cloud Workspace — v0.2 first-party private-origin gateway + opt-in encrypted sync client candidate
+# MUSITU Secure Cloud Workspace — v0.3 SQLite Durable Objects fallback, isolated
 
 **STATUS: Source, opt-in client adapter, and offline qualification tests only. Not deployed, enabled, attached to the public website, or connected to live Access, MFA or D1.** This is not an activated user account system.
 
@@ -20,10 +20,20 @@
 - Because localStorage is **origin-scoped**, existing encrypted sessions at `evansmusitu.github.io` will not automatically appear at the private hostname. Later user migration must use an explicitly downloaded/imported encrypted backup after the private app is qualified. No shared cookies or third-party browser-cookie assumptions.
 - A separate read-only Cloudflare inventory workflow inspects only canonical account `93f395f5121954671f92fffa453d6b61` for the intended zone, dedicated D1 database and private Access-app hostname. It makes **GET requests only**, records a sanitized result artifact and never treats mere app presence as verification of MFA, policies, tenant membership or deployment. If access is missing or scoped elsewhere, qualification remains blocked.
 
+## Cloudflare resource qualification and safer zero-upgrade alternative
+
+- **Live read-only inventory succeeded** (GitHub run `39493688383`): the intended `mftintelligence.com` zone is active in canonical account `93f395f5121954671f92fffa453d6b61`, but the private Access application and dedicated D1 database do **not** yet exist.
+- **A guarded, account-scoped D1 creation attempt stopped safely** (run `39541303784`): `NO_FREE_TIER_COMPATIBLE_DATABASE_SLOT`. **No new D1 database, Access policy, user data or production Worker was created.** Do not delete/repurpose other D1 resources, pay for upgrades, or retry on an over-limit account.
+- **New free-tier-compatible alternative: SQLite-backed Durable Objects.** Files `durable-worker.mjs`, `durable-sql-adapter.mjs`, and `wrangler.durable.isolated.example.jsonc` provide a separate candidate Worker with one private Durable Object per tenant and existing D1-shaped membership/slot CAS SQL. Same Access JWT signature and pinned origin checks are used at the outer Worker. The internal tenant object requires a 32+ byte secret passed only by the Worker and never exposed to the browser. Every stored value remains the existing opaque AES-GCM envelope; no existing storage is migrated.
+- The Durable Object candidate is **source-only, disabled-by-default, without a route, Access credentials, secret, rate-limit binding or tenant provisioning**. It is not a released cloud service. A Cloudflare Worker's free-tier quotas still apply; Durable Objects are not unlimited and must not be equated with free unlimited scale.
+- The SQLite adapter contract is exercised by Node tests; a native SQLite contract test executes the existing gateway's exact insert/update/delete SQL against the Durable schema, including tenant separation, role revocation and optimistic version conflicts. This does not replace a live provider security assessment.
+
+**Security gates for eventual private canary:** install a new, verified Access app on `workspace.mftintelligence.com` with genuinely enforced MFA and owner-only include policy; verify positive and negative signed JWT/login flows; configure the Durable Object class and an internal-only `WORKSPACE_INTERNAL_KEY` secret, a bounded `WORKSPACE_RATE` limit and an isolated custom hostname; implement **controlled, auditable provisioning of tenant memberships** inside each isolated Durable Object before any user-facing activation. Never treat a public login page or application presence as proof of Access policy qualification. Do not activate this on an unprotected `workers.dev` URL.
+
 ## What is not implemented
 
 - **No** Cloudflare Access app or production MFA proof, app audience, team issuer, private hostname, deployed Cloudflare Worker, live D1 instance, membership provisioning, encrypted cloud data, browser synchronization UI, credential changes or paid service enabled here.
-- No private hosted HTML sync UI yet, key recovery or rotation, backup retention policy, audit logging, global hard billing cap, organization admin console, or external security audit. The private-origin client is source-only and not exposed in public JS.
+- No private hosted HTML sync UI yet, live Durable Object deployment, membership admin/provisioning, key recovery or rotation, backup retention policy, audit logging, global hard billing cap, organization admin console, or external security audit. The private-origin client is source-only and not exposed in public JS.
 - Not independently penetration tested. Existing browser-side vault security properties and limitations remain unchanged.
 
 ## Required qualification gates before **any** deployment
@@ -44,6 +54,10 @@ node --check studio-edge/cloud-workspace/gateway.mjs
 node --check studio-edge/cloud-workspace/client-sync.mjs
 node --test studio-edge/cloud-workspace/tests/*.test.mjs
 python3 studio-edge/cloud-workspace/tests/sql_contract.py
+node --check studio-edge/cloud-workspace/durable-worker.mjs
+node --check studio-edge/cloud-workspace/durable-sql-adapter.mjs
+python3 studio-edge/cloud-workspace/tests/durable_sql_contract.py
+python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_d1_bootstrap.py
 ```
 
 **Do not set WORKSPACE_ENABLED=true without live controls.** The example Wrangler file is intentionally unbound and route-free. Changing it to a public Worker deployment before Access qualification defeats the intended security model.
