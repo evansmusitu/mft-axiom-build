@@ -57,13 +57,29 @@ class SQLiteQueue:
                           (tenant,ident,'CLAIMED','PENDING','CLAIMED')).fetchone()
             if row is not None:
                 payload=json.loads(row[1])
+                import agent
+                if payload.get('tenant')!=tenant or not isinstance(payload.get('nonce'),str):
+                    raise QueueError('job binding invalid')
                 if row[2]=='PENDING':
-                    import agent
                     payload['issued_at']=int(time.time())
                     payload['nonce']=secrets.token_urlsafe(18)
                     payload['signature']=agent.sign({k:v for k,v in payload.items() if k!='signature'},key)
                     c.execute('UPDATE jobs SET state=?,claimed_at=?,job_json=? WHERE job_id=? AND state=?',
                               ('CLAIMED',int(time.time()),dumps(payload),row[0],'PENDING'))
+                elif row[2]=='CLAIMED':
+                    # A task already claimed by the Windows agent must retain its
+                    # original nonce. Changing it would block durable receipt replay.
+                    unsigned={k:v for k,v in payload.items() if k!='signature'}
+                    if not secrets.compare_digest(str(payload.get('signature','')),agent.sign(unsigned,key)):
+                        raise QueueError('stored claimed job signature invalid')
+                    issued=payload.get('issued_at')
+                    if type(issued) is not int:
+                        raise QueueError('claimed job issued_at invalid')
+                    if int(time.time())-issued>90:
+                        payload['issued_at']=int(time.time())
+                        payload['signature']=agent.sign({k:v for k,v in payload.items() if k!='signature'},key)
+                        c.execute('UPDATE jobs SET job_json=? WHERE job_id=? AND tenant=? AND agent_id=? AND state=?',
+                                  (dumps(payload),row[0],tenant,ident,'CLAIMED'))
             else: payload=None
             c.execute('COMMIT')
             return payload

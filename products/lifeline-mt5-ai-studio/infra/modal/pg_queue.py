@@ -12,16 +12,39 @@ from bridge import QueueError
 class PostgresQueue:
     def __init__(self,dsn:str):
         url=urlsplit(dsn)
-        if url.scheme not in ('postgresql','postgres') or not url.hostname or not url.hostname.endswith('.neon.tech'):
-            raise ValueError('dedicated Neon PostgreSQL connection required')
+        if (url.scheme not in ('postgresql','postgres') or not url.hostname or
+            not url.hostname.endswith('.neon.tech') or
+            url.username != 'lifeline_stage_app' or url.path != '/lifeline_mt5_stage' or
+            url.fragment or not url.password):
+            raise ValueError('dedicated restricted Neon app identity required')
         self.dsn=dsn
     def connect(self,tenant:str):
-        try:import psycopg
-        except ImportError as e:raise RuntimeError('psycopg is required only for production Neon') from e
-        conn=psycopg.connect(self.dsn,sslmode='verify-full',connect_timeout=10)
-        # GUC is LOCAL to each transaction. Role must be non-owner and NON-BYPASSRLS.
-        conn.execute("SELECT set_config('lifeline.tenant_subject', %s, true)",(tenant,))
-        return conn
+        import re
+        if not isinstance(tenant,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',tenant):
+            raise QueueError('invalid tenant identity')
+        try:
+            import psycopg, certifi
+        except ImportError as e:
+            raise RuntimeError('psycopg and certifi are required for private Neon') from e
+        # Always verify the *hostname* and CA trust even if DSN contains sslmode=require.
+        conn=psycopg.connect(self.dsn,sslmode='verify-full',
+                             sslrootcert=certifi.where(),connect_timeout=10)
+        try:
+            # Do not rely solely on the URL role name: check the actual database role.
+            identity=conn.execute("SELECT current_user,rolbypassrls,rolcreaterole,rolsuper "
+                                  "FROM pg_roles WHERE rolname=current_user").fetchone()
+            if identity is None or identity[0]!='lifeline_stage_app' or any(identity[1:]):
+                raise QueueError('privileged or mismatched Neon runtime identity')
+            for table in ('lifeline.agent_jobs','lifeline.agent_nonces','lifeline.research_receipts'):
+                row=conn.execute("SELECT row_security_active(%s::regclass)",(table,)).fetchone()
+                if row is None or row[0] is not True:
+                    raise QueueError('tenant row-level security inactive')
+            # GUC is LOCAL to this transaction, never a shared session GUC.
+            conn.execute("SELECT set_config('lifeline.tenant_subject', %s, true)",(tenant,))
+            return conn
+        except Exception:
+            conn.close()
+            raise
     def enqueue(self,tenant:str,ident:str,job:dict)->None:
         if job.get('tenant')!=tenant or not isinstance(job.get('job_id'),str):raise ValueError('invalid tenant job')
         from psycopg.types.json import Jsonb
@@ -46,13 +69,30 @@ class PostgresQueue:
                 LIMIT 1 FOR UPDATE SKIP LOCKED''',(tenant,ident)).fetchone()
             if row is None:return None
             _,payload,state=row
+            if payload.get('tenant')!=tenant or not isinstance(payload.get('nonce'),str):
+                raise QueueError('stored job tenant/nonce mismatch')
             if state=='PENDING':
                 payload['issued_at']=int(time.time())
                 payload['nonce']=secrets.token_urlsafe(18)
                 payload['signature']=agent.sign({k:v for k,v in payload.items() if k!='signature'},key)
                 updated=c.execute("UPDATE lifeline.agent_jobs SET state='CLAIMED',claimed_at=now(),job=%s WHERE job_id=%s AND tenant_subject=%s AND state='PENDING' RETURNING job_id",
                                   (Jsonb(payload),row[0],tenant)).fetchone()
-                if not updated:raise RuntimeError('job contention fail-closed')
+                if not updated:raise QueueError('job contention fail-closed')
+            elif state=='CLAIMED':
+                unsigned={k:v for k,v in payload.items() if k!='signature'}
+                if not secrets.compare_digest(str(payload.get('signature','')),agent.sign(unsigned,key)):
+                    raise QueueError('stored claimed job signature invalid')
+                issued=payload.get('issued_at')
+                if type(issued) is not int:
+                    raise QueueError('stored claimed job timestamp invalid')
+                if int(time.time())-issued>90:
+                    # Refresh signature age for crash/reconnect but NEVER rotate the nonce:
+                    # the Windows durable claim/receipt is keyed by original nonce.
+                    payload['issued_at']=int(time.time())
+                    payload['signature']=agent.sign({k:v for k,v in payload.items() if k!='signature'},key)
+                    updated=c.execute("UPDATE lifeline.agent_jobs SET job=%s WHERE job_id=%s AND tenant_subject=%s AND agent_id=%s AND state='CLAIMED' RETURNING job_id",
+                                      (Jsonb(payload),row[0],tenant,ident)).fetchone()
+                    if not updated:raise QueueError('claimed task no longer available')
             return payload
     def receipt(self,tenant:str,ident:str,receipt:dict)->bool:
         from psycopg.types.json import Jsonb
