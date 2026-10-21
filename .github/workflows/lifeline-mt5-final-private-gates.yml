@@ -1,0 +1,47 @@
+name: LIFELINE Final Private Infrastructure Gates
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-final-private-gates.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  access-denial-and-credentials:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_DATABASE_URL: ${{ secrets.LIFELINE_NEON_DATABASE_URL }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      LIFELINE_ACCESS_OWNER_EMAIL: ${{ secrets.LIFELINE_ACCESS_OWNER_EMAIL }}
+    steps:
+      - name: Verify actual Vercel staging URL denies unauthenticated browsers
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://lifeline-mt5-ai-studio-stage-h9m50mcjx-evansmusitu.vercel.app/'
+          STATUS=$(curl --silent --show-error --location-trusted=false --max-redirs 0 --max-time 25 --output /tmp/lifeline-resp.body --dump-header /tmp/lifeline-resp.headers --write-out '%{http_code}' "$URL" || test "$?" -eq 47)
+          case "$STATUS" in
+            401|403) echo "vercel_guest_denied=true; status=$STATUS" ;;
+            302|303|307|308)
+              grep -Eqi '^location: (https://[^[:space:]]*vercel[^[:space:]]*|/[^[:space:]]*)' /tmp/lifeline-resp.headers ||
+                { echo "redirect_host_unexpected"; exit 1; }
+              echo "vercel_guest_redirects_to_auth=true; status=$STATUS" ;;
+            200) echo "FAIL: Vercel staging unexpectedly public HTTP 200"; exit 1 ;;
+            *) echo "Vercel unexpected guest result: $STATUS"; exit 1 ;;
+          esac
+      - name: Report only credential readiness flags, NEVER values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "modal_existing_token_present=$([[ -n "$MODAL_TOKEN_ID" && -n "$MODAL_TOKEN_SECRET" ]] && echo yes || echo no)"
+          echo "existing_neon_api_key_present=$([[ -n "$NEON_API_KEY" ]] && echo yes || echo no)"
+          echo "lifeline_specific_neon_database_url_present=$([[ -n "$NEON_DATABASE_URL" ]] && echo yes || echo no)"
+          echo "cloudflare_existing_token_present=$([[ -n "$CLOUDFLARE_API_TOKEN" ]] && echo yes || echo no)"
+          echo "lifeline_owner_email_secret_present=$([[ -n "$LIFELINE_ACCESS_OWNER_EMAIL" ]] && echo yes || echo no)"
+          echo "no_secret_values_printed=true"
+          echo "cloud_mutations=false"
