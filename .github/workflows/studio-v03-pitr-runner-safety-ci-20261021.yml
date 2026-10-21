@@ -1,0 +1,26 @@
+name: MUSITU Studio V0.3 — Fail-Closed PITR Cleanup Safety CI
+on:
+  push:
+    branches:
+      - experiments/studio-enterprise-v03-sqlite-do-20261018
+    paths:
+      - .github/workflows/studio-v03-pitr-runner-safety-ci-20261021.yml
+      - ops/studio_v03_disposable_safety_20261021.py
+      - ops/studio_v03_pitr_cron_kv_runner_v2_20261021.py
+      - ops/tests/test_studio_v03_pitr_disposable_cleanup_20261021.py
+      - ops/tests/test_studio_v03_pitr_runner_guards_20261021.py
+permissions: {contents: read}
+jobs:
+  no-provider-writes-safety-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prove exact-scope cleanup and fail-closed partial deployment behavior
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/studio_v03_disposable_safety_20261021.py ops/studio_v03_pitr_cron_kv_runner_v2_20261021.py
+          python -m unittest discover -s ops/tests -p 'test_studio_v03_pitr_*.py' -v
+          echo 'STUDIO_V03_PITR_CLEANUP_SAFETY=PASS;NO_PROVIDER_MUTATIONS=true'

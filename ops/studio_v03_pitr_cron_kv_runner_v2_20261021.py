@@ -13,6 +13,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from studio_v03_disposable_safety_20261021 import (
+    CleanupGuardError, cleanup_exact_disposables, categorize_deploy_failure)
 
 ACCOUNT=os.environ['CLOUDFLARE_ACCOUNT_ID']
 TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN')
@@ -23,7 +25,8 @@ KV_NAME='musitu-studio-v03-pitr-v2-proof-20261021'
 CONFIG=pathlib.Path('wrangler.v03.disposable-pitr-kv-v2-ci.jsonc')
 PROOF=pathlib.Path('../../studio-v03-private-kv-pitr-v2-proof-20261021.json')
 namespace=None
-attempted_worker=False
+preflight_verified=False
+stage='PREFLIGHT_SCRIPT'
 proof={'schema':'musitu.studio.v03.hosted-pitr-private-kv.v2',
  'isolated_worker_only':True,'isolated_kv_namespace_only':True,
  'no_public_route':True,'customer_records_accessed':False,
@@ -31,7 +34,8 @@ proof={'schema':'musitu.studio.v03.hosted-pitr-private-kv.v2',
  'production_v02_modified':False,'production_v03_modified':False,
  'hosted_pitr_restored':False,'provider_kv_receipt_obtained':False,
  'temporary_worker_absent_at_end':False,'temporary_kv_absent_at_end':False,
- 'outcome':'NOT_STARTED'}
+ 'outcome':'NOT_STARTED','failure_stage':'NOT_CHECKED',
+ 'deploy_failure_category':'NOT_CHECKED','namespace_retained_for_safety':False}
 
 def call(method,path,data=None,raw=False):
     assert path.startswith('/') and not path.startswith('//')
@@ -55,14 +59,19 @@ def must_result(method,path,data=None):
 
 try:
     assert call('GET','/workers/scripts/'+WORKER)[0]==404,'DISPOSABLE_WORKER_EXISTS'
+    stage='PREFLIGHT_EXISTING_KV'
     existing=must_result('GET','/storage/kv/namespaces?per_page=100')
     assert isinstance(existing,list) and len(existing)<100 and all(k.get('title')!=KV_NAME for k in existing),'DISPOSABLE_KV_NAME_OR_PAGINATION_RISK'
+    stage='PREFLIGHT_DOMAINS'
     domains=must_result('GET','/workers/domains')
     assert sum(d.get('service')=='musitu-studio-v03-do' and d.get('hostname')=='studio-v03.mftintelligence.com' for d in domains)==1
     assert sum(d.get('service')=='musitu-studio-v02' and d.get('hostname')=='studio.mftintelligence.com' for d in domains)==1
+    preflight_verified=True
+    stage='CREATE_EXACT_DISPOSABLE_KV'
     newkv=must_result('POST','/storage/kv/namespaces',{'title':KV_NAME})
     namespace=newkv.get('id')
     assert isinstance(namespace,str) and re.fullmatch('[a-f0-9]{32}',namespace)
+    stage='BUILD_DISPOSABLE_WORKER_CONFIG'
     config={'name':WORKER,'main':'../../ops/studio_v03_pitr_cron_kv_isolated_20261021.mjs',
       'compatibility_date':'2026-10-20','workers_dev':False,
       'triggers':{'crons':['* * * * *']},
@@ -71,10 +80,18 @@ try:
       'migrations':[{'tag':'studio-v03-private-kv-pitr-disposable-v2-20261021',
                      'new_sqlite_classes':['StudioV03CronPitrProof']}]}
     CONFIG.write_text(json.dumps(config)+'\n')
-    attempted_worker=True
-    subprocess.run(['npx','wrangler','deploy','--config',str(CONFIG),'--outdir','.studio-v03-kv-pitr-ci'],
-      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=True,timeout=95)
+    stage='DEPLOY_EXACT_DISPOSABLE_WORKER'
+    deploy=subprocess.run(['npx','wrangler','deploy','--config',str(CONFIG),
+      '--outdir','.studio-v03-kv-pitr-ci'],stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,check=False,timeout=95)
+    if deploy.returncode!=0:
+        proof['deploy_failure_category']=categorize_deploy_failure(
+            (deploy.stdout or b'').decode(errors='replace')+'\n'+
+            (deploy.stderr or b'').decode(errors='replace'))
+        raise subprocess.CalledProcessError(deploy.returncode,deploy.args)
+
     proof['outcome']='AWAITING_PRIVATE_CRON_PROOF'
+    stage='AWAIT_PRIVATE_HOSTED_RECEIPT'
     # Cron Trigger changes may need up to 15 minutes to propagate.
     deadline=time.monotonic()+1050
     while time.monotonic()<deadline:
@@ -117,21 +134,26 @@ try:
         time.sleep(12)
     assert proof['hosted_pitr_restored'],'HOSTED_PITR_NOT_PROVEN'
 except (AssertionError,ValueError,TypeError,subprocess.SubprocessError) as err:
+    proof['failure_stage']=stage
     proof['outcome']='FAIL_CLOSED_'+type(err).__name__
 finally:
-    # Never delete a name that was present before preflight. Cleanup starts only
-    # after the exact temporary name was verified available.
-    if attempted_worker:
+    # Only previously absent names, bound to newly created exact KV, qualify.
+    # If deploy failed halfway, REST cleanup can remove the verified partially
+    # deployed Worker. Never delete KV while Worker still exists.
+    if preflight_verified and namespace:
         try:
-            subprocess.run(['npx','wrangler','delete','--config',str(CONFIG)],
-              input='y\n',text=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=60,check=False)
-        except subprocess.TimeoutExpired:
-            pass  # Still independently check script absence and delete the KV.
-    proof['temporary_worker_absent_at_end']=call('GET','/workers/scripts/'+WORKER)[0]==404
-    if namespace:
-        call('DELETE','/storage/kv/namespaces/'+namespace)
-        proof['temporary_kv_absent_at_end']=call('GET','/storage/kv/namespaces/'+namespace)[0]==404
-    else:
+            cleanup=cleanup_exact_disposables(call,WORKER,namespace)
+            proof['temporary_worker_absent_at_end']=cleanup['worker_absent']
+            proof['temporary_kv_absent_at_end']=cleanup['namespace_absent']
+            proof['namespace_retained_for_safety']=cleanup['namespace_retained_for_safety']
+            proof['exact_script_delete_proven']=cleanup['exact_script_delete_proven']
+            proof['exact_kv_delete_proven']=cleanup['exact_kv_delete_proven']
+        except CleanupGuardError as error:
+            # The enum comes only from our fixed local guard, not from a
+            # provider response. Leave resources intact when scope is unknown.
+            proof['cleanup_guard_category']=str(error)
+    elif preflight_verified:
+        proof['temporary_worker_absent_at_end']=call('GET','/workers/scripts/'+WORKER)[0]==404
         proof['temporary_kv_absent_at_end']=True
     # Require full cleanup even after proof succeeds.
     if not (proof['temporary_worker_absent_at_end'] and proof['temporary_kv_absent_at_end']):
