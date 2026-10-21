@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Qualify PostgreSQL source without Neon compute or Cloudflare deployment
-        run: node --test musitu_studio/neon/tests/schema_contract.test.mjs
+        run: node --test musitu_studio/neon/tests/*.test.mjs
       - name: Check no live database URLs or credentials are committed in migration code
         run: |
           python - <<'PY'

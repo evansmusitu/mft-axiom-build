@@ -71,3 +71,29 @@ Zero-overage Neon Scale + Modal bill guarantee: NOT PROVEN.
 Live V0.3 production DB cutover: **NOT PERFORMED**.
 Cloudflare Access, signed owner fingerprint, existing SQLite customer DO, V0.2,
 R2, Axiom main branch and paid render locks must remain unchanged.
+
+## Staging-only PostgreSQL transaction adapter and CI
+
+The additive proof at `musitu_studio/neon/neon_pg_adapter.mjs` is a
+**testable but NOT DEPLOYED** backend boundary. It uses injected PostgreSQL
+clients so its initial regression suite does not need any credentials or
+billable Neon compute. It maps bound `?` placeholders to PostgreSQL
+`$1,$2,...`, sets the isolated `studio_v03` search path, and performs
+each multi-statement Studio batch in one `SERIALIZABLE` transaction.
+The SQLite-only conditional audit `WHERE changes()=1` is transformed into
+an insert iff the immediately preceding PostgreSQL UPDATE affected one row;
+any audit error forces rollback, never a successful orphan approval.
+The implementation refuses DDL, stacked queries, missing row counts,
+unrecognized conditional audit operations, and unsupported SQLite date
+calculations. Tests cover both successful and failed atomic transitions.
+
+**Not a production-ready proof by itself:** no Cloudflare Worker runtime was
+switched to this adapter; no real Neon-backed signed-Access job approval
+or R2 download has been independently exercised; no secure private
+Cloudflare-to-Neon connection has been provisioned. Actual Studio data
+export/import with counts and hashes remains pending. In particular,
+runtime CPU dispatch stays disabled; its SQLite `date(substr())` query
+is intentionally rejected by the adapter until individually migrated
+and financially authorized. A role password, database URL or service token
+must never be added to GitHub source, Actions logs, browser responses,
+or publicly available pages.
