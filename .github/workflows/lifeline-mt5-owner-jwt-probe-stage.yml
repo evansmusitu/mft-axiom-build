@@ -1,0 +1,59 @@
+name: LIFELINE Owner JWT Probe — No Backend
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-owner-jwt-probe-stage.yml'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/stage_owner_identity_only.py'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  owner-jwt-probe-stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify fixed Worker, account and source permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('products/lifeline-mt5-ai-studio/infra/cloudflare/wrangler.toml').read_text()
+          expected=('name = "lifeline-mt5-edge-isolated"',
+            'account_id = "93f395f5121954671f92fffa453d6b61"',
+            'workers_dev = false','preview_urls = false')
+          if not all(x in p for x in expected) or any(x in p for x in ('[[routes]]','routes =','route =')):
+              raise SystemExit('isolated Worker config not pinned')
+          print('isolated_worker_and_no_preview_scoped=true')
+          PY
+      - name: Prove owner probe JWT denial and no private backend forwarding
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --test test.mjs
+      - name: Deploy only preexisting isolated Worker, backend still unconfigured
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npx --yes wrangler@4.129.0 deploy --config wrangler.toml >/tmp/lifeline-owner-probe-deploy.log 2>&1 || {
+            echo 'identity_probe_worker_deploy_failed'
+            exit 1
+          }
+          echo 'isolated_identity_probe_worker_deployed=true'
+      - name: Install just identity binding names and prove backend secrets remain missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/stage_owner_identity_only.py
