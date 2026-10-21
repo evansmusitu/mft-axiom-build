@@ -5,6 +5,8 @@ on:
     paths:
       - 'products/lifeline-mt5-ai-studio/windows/native_mcp.py'
       - 'products/lifeline-mt5-ai-studio/windows/test_native_mcp.py'
+      - 'products/lifeline-mt5-ai-studio/windows/test_mcp_host_observer.py'
+      - 'products/lifeline-mt5-ai-studio/windows/Verify_LifelineNativeMCP.py'
       - 'products/lifeline-mt5-ai-studio/windows/NATIVE_MCP.md'
       - '.github/workflows/lifeline-mt5-native-mcp-ci.yml'
   workflow_dispatch:
@@ -27,4 +29,4 @@ jobs:
           python-version: '3.12'
       - name: Verify denied trading/shell/compile and local MCP protocol
         working-directory: products/lifeline-mt5-ai-studio/windows
-        run: python -m unittest -v test_native_mcp.py
+        run: python -m unittest -v test_native_mcp.py test_mcp_host_observer.py
