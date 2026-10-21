@@ -75,7 +75,7 @@ def prove_access_hold(token, opener):
     ensure_account(token, opener)
     apps = existing_apps(token, opener)
     matching = [app for app in apps if isinstance(app, dict) and
-                (HOST in [n.lower() for n in (app.get("domain", ""),)] or
+                (str(app.get("domain") or "").lower() == HOST or
                  app.get("name") == APP_NAME)]
     if len(matching) != 1 or matching[0].get("domain") != HOST:
         raise HoldBlocked("ACCESS_HOLD_NOT_UNIQUE")
