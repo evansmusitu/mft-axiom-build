@@ -1,0 +1,61 @@
+name: MUSITU Cloud Workspace Access DENY-ALL Hold
+
+on:
+  push:
+    branches: [feature/musitu-cloud-workspace-isolated-20261020]
+    paths:
+      - 'studio-edge/cloud-workspace/tests/access_hold_bootstrap.py'
+      - 'studio-edge/cloud-workspace/tests/test_access_hold_bootstrap.py'
+      - '.github/workflows/musitu-cloud-workspace-access-hold.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-access-hold-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  deny-all-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      EXPECTED_DOMAIN: mftintelligence.com
+      MUSITU_ACCESS_HOLD_INTENT: CREATE_DENY_ALL_ONLY
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove allow/bypass, app collisions and wrong-account fail closed offline
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_access_hold_bootstrap.py -v
+      - name: Protect production Workers and zero-cost resource scope
+        run: |
+          set -euo pipefail
+          test -f studio-edge/cloud-workspace/tests/access_hold_bootstrap.py
+          test -f studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+          grep -Fq '"WORKSPACE_ENABLED": "false"' studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+          if grep -q 'cloud-workspace' studio-edge/worker.mjs; then
+            echo 'Refuse: public production Worker references private workspace' >&2
+            exit 1
+          fi
+      - name: Create or verify isolated Cloudflare Access DENY-ALL app only
+        run: python3 studio-edge/cloud-workspace/tests/access_hold_bootstrap.py
+      - name: Seal sanitized hold assessment
+        if: always()
+        run: |
+          if test -f musitu-access-hold-assessment.json; then
+            sha256sum musitu-access-hold-assessment.json > musitu-access-hold-assessment.sha256
+          fi
+      - name: Upload Access hold receipt for private security review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-access-deny-all-hold-${{ github.run_id }}
+          path: |
+            musitu-access-hold-assessment.json
+            musitu-access-hold-assessment.sha256
+          if-no-files-found: ignore
+          retention-days: 14
