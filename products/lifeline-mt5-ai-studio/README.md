@@ -1,13 +1,14 @@
-# LIFELINE MT5 AI Studio — Private Development v0.7
+# LIFELINE MT5 AI Studio — Private Development v0.8
 
 An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
 **This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
 
-**Latest evidence:** [PRIVATE_BRIDGE_v07_20261021.md](validation/PRIVATE_BRIDGE_v07_20261021.md) — live private Modal↔Neon signed probe/receipt, newest protected preview, precise still-blocked gates. Previous v0.6 evidence remains in `validation/`. Earlier evidence in `validation/` remains preserved.
+**Latest evidence:** [HARDENED_PRIVATE_STAGE_v08_20261021.md](validation/HARDENED_PRIVATE_STAGE_v08_20261021.md) — verified Access-subject-to-tenant pinning policy, bounded queue, real restricted Neon receipt binding, and exact remaining gates. Previous v0.7 and v0.6 evidence remains preserved.
 
 ## Proven now
 
+- **Operator and queue safety:** Cloudflare JWT owner subject is explicitly pinned before mapping to an isolated Neon tenant (mock signed-JWT tests); no owner is enrolled yet. Staging allows up to 8 active and 250 total jobs per tenant/agent and rejects receipts claiming a different original operation. Live Modal↔Neon hardening acceptance run 39557904660 PASS.
 - **Windows native compile:** temporary GitHub Windows runner installed and validated vendor-signed MetaQuotes executables; compiled real MQL5 into EX5 with zero compiler errors and mathematical Strategy Tester report. This is *not* a historical-price market backtest or 24/7 Windows host.
 - **Windows agent:** signed offline jobs, bounded native adapter, replay denial, durable at-most-once SQLite claims; protocol tested on Windows and Linux, but no permanently paired host. Built-in MetaQuotes MCP local-only adapter denies shell/order/unsafe tools; tests are mocked, not live MCP.
 - **Vercel:** separate private nontrading status UI project `lifeline-mt5-ai-studio-stage` with SSO all deployments. Guest HTTPS request received redirect to authentication; deployment READY. No JavaScript order actions or embedded secrets.
