@@ -1,0 +1,40 @@
+name: MUSITU Studio V0.3 — Private KV Hosted PITR Disposable
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: [.github/workflows/studio-v03-private-kv-pitr-disposable-20261021.yml]
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-private-kv-pitr-one-at-a-time
+  cancel-in-progress: false
+jobs:
+  disposable-worker-kv-receipt-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Guard script before any provider changes
+        working-directory: musitu_studio/edge
+        run: |
+          node --check ../../ops/studio_v03_pitr_cron_kv_isolated_20261021.mjs
+          python -m py_compile ../../ops/studio_v03_pitr_cron_kv_runner_20261021.py
+      - name: Install locked Wrangler and qualify only disposable test resources
+        working-directory: musitu_studio/edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund >/dev/null
+          python ../../ops/studio_v03_pitr_cron_kv_runner_20261021.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-private-kv-hosted-pitr-evidence
+          path: studio-v03-private-kv-pitr-proof-20261021.json
+          retention-days: 14
+          if-no-files-found: warn
