@@ -147,7 +147,7 @@ try{
   const f=await fixtures(),http=transport({uncertain:true});const result=await http.sender(f[0]);assert.equal(result.status,'UNKNOWN');
   await pool.end();guarded=newPool();
   const replay=await http.sender(f[0]);assert.equal(replay.idempotent,true);assert.equal(replay.status,'UNKNOWN');
-  await assert.rejects(http.sender(f[1]),/^Error: DEVELOPMENT_UNCERTAIN_ATTEMPT$/);assert.equal(http.posts,1);
+  await assert.rejects(http.sender(f[1]),{message:'DEVELOPMENT_UNCERTAIN_ATTEMPT',code:'P0001'});assert.equal(http.posts,1);
   return{syntheticPosts:1,replayPosts:0,newPool:true};
  });
  await check('concurrent_daily_budget_never_exceeds_five',async()=>{
@@ -158,7 +158,7 @@ try{
   assert.equal(results.find(r=>r.status==='fulfilled').value.status,'ACCEPTED');
   for(const result of results.filter(r=>r.status==='rejected'))assert.match(result.reason.message,/^DEVELOPMENT_(DAILY_LIMIT|UNCERTAIN_ATTEMPT)$/);
   assert.equal(http.posts,5);assert.equal((await seed.query("SELECT count(*)::int AS n FROM musitu.outbound_attempts WHERE status='ACCEPTED'")).rows[0].n,5);
-  await assert.rejects(http.sender(f[15]),/^Error: DEVELOPMENT_DAILY_LIMIT$/);assert.equal(http.posts,5);
+  await assert.rejects(http.sender(f[15]),{message:'DEVELOPMENT_DAILY_LIMIT',code:'P0001'});assert.equal(http.posts,5);
   return{preexistingSyntheticAttempts:4,contenders:10,additionalSyntheticPosts:1,totalAttemptRows:5};
  });
  console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
