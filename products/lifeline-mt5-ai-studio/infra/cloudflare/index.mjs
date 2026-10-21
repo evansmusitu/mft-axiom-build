@@ -12,7 +12,7 @@ const hex=a=>Array.from(new Uint8Array(a),x=>x.toString(16).padStart(2,'0')).joi
 const same=(a,b)=>{if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;};
 function readConfig(env){
   const needed=['ACCESS_ISSUER','ACCESS_AUD','MODAL_ORIGIN','MODAL_PROXY_KEY','MODAL_PROXY_SECRET','EDGE_SHARED_SECRET',
-    'AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY'];
+    'AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY','ACCESS_OPERATOR_SUB'];
   if(needed.some(k=>typeof env[k]!=='string'||!env[k]))return null;
   if(env.EDGE_SHARED_SECRET.length<32||env.AGENT_HMAC_KEY.length<32)return null;
   try{
@@ -21,7 +21,8 @@ function readConfig(env){
        modal.protocol!=='https:'||!modal.hostname.endsWith('.modal.run')||modal.pathname!=='/'||
        issuer.username||issuer.password||issuer.search||modal.username||modal.password||modal.search||
        !/^[A-Za-z0-9_-]{1,100}$/.test(env.AGENT_ID)||
-       !/^[A-Za-z0-9_-]{1,100}$/.test(env.AGENT_TENANT))return null;
+       !/^[A-Za-z0-9_-]{1,100}$/.test(env.AGENT_TENANT)||
+       !/^[A-Za-z0-9_-]{1,100}$/.test(env.ACCESS_OPERATOR_SUB))return null;
     return {issuer:issuer.origin,modal:modal.origin};
   }catch{return null;}
 }
@@ -32,6 +33,9 @@ async function authenticateAccess(request,env,cfg){
     const jwks=createRemoteJWKSet(new URL(cfg.issuer+'/cdn-cgi/access/certs'));
     const {payload}=await jwtVerify(token,jwks,{issuer:cfg.issuer,audience:env.ACCESS_AUD,algorithms:['RS256']});
     if(typeof payload.sub!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(payload.sub))return null;
+    // A correctly signed JWT alone is not a tenant membership decision.
+    // Bind to the owner/sub explicitly enrolled after interactive MFA.
+    if(!same(payload.sub,env.ACCESS_OPERATOR_SUB))return null;
     return payload.sub;
   }catch{return null;}
 }
@@ -77,7 +81,10 @@ export default {async fetch(request,env){
     return reply({error:'operation_not_permitted'},403);
   const headers={'content-type':'application/json','modal-key':env.MODAL_PROXY_KEY,
                  'modal-secret':env.MODAL_PROXY_SECRET,'x-lifeline-edge-secret':env.EDGE_SHARED_SECRET};
-  if(subject)headers['x-lifeline-subject']=subject;
+  // Cloudflare JWT sub and Neon tenant are distinct identities.
+  // Only a pinned, verified owner may map to this single, fixed tenant.
+  // Never accept client-supplied x-lifeline-subject or x-lifeline-tenant.
+  if(subject)headers['x-lifeline-subject']=env.AGENT_TENANT;
   if(AGENT_ROUTES.has(path))for(const k of ['x-lifeline-agent-id','x-lifeline-tenant','x-lifeline-time','x-lifeline-nonce','x-lifeline-signature'])
     headers[k]=request.headers.get(k);
   let response;

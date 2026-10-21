@@ -7,6 +7,7 @@ import {SignJWT,generateKeyPair,exportJWK} from 'jose';
 const E={ACCESS_ISSUER:'https://lifeline-test.cloudflareaccess.com/',ACCESS_AUD:'stage-audience',
   MODAL_ORIGIN:'https://lifeline-stage.modal.run/',MODAL_PROXY_KEY:'test-proxy-key',MODAL_PROXY_SECRET:'test-proxy-secret',
   EDGE_SHARED_SECRET:'test-edge-secret-more-than-32-characters!',
+  ACCESS_OPERATOR_SUB:'cf-user-approved-123',
   AGENT_ID:'agent-A',AGENT_TENANT:'tenant-A',AGENT_HMAC_KEY:'test-agent-key-much-longer-than-32-characters'};
 const json=(body)=>JSON.stringify(body);
 const message=(path,body,headers={})=>new Request('https://lifeline.example'+path,{method:'POST',headers:{'content-type':'application/json',...headers},body:json(body)});
@@ -68,7 +69,7 @@ test('tampering with authenticated body is rejected',async()=>{
 test('Access JWT permits status but not trade commands',async()=>{
   const {publicKey,privateKey}=await generateKeyPair('RS256');
   const jwk=await exportJWK(publicKey);jwk.kid='kid-test';jwk.use='sig';jwk.alg='RS256';
-  const token=await new SignJWT({sub:'tenant-A'}).setProtectedHeader({alg:'RS256',kid:'kid-test'})
+  const token=await new SignJWT({sub:'cf-user-approved-123'}).setProtectedHeader({alg:'RS256',kid:'kid-test'})
     .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD).setIssuedAt()
     .setExpirationTime('5m').sign(privateKey);
   const original=globalThis.fetch;
@@ -79,7 +80,8 @@ test('Access JWT permits status but not trade commands',async()=>{
         return new Response(JSON.stringify({keys:[jwk]}),{headers:{'content-type':'application/json'}});
       modalCalls++;
       assert.equal(url,'https://lifeline-stage.modal.run/operator/status');
-      assert.equal(opts.headers['x-lifeline-subject'],'tenant-A');
+      assert.equal(opts.headers['x-lifeline-subject'],E.AGENT_TENANT);
+      assert.notEqual(opts.headers['x-lifeline-subject'],E.ACCESS_OPERATOR_SUB);
       return new Response(JSON.stringify({schema:'lifeline.bridge.v1',jobs:{},trade_execution:false}),{status:200,headers:{'content-type':'application/json'}});
     };
     const allowed=await worker.fetch(message('/operator/status',{}, {'cf-access-jwt-assertion':token}),E);
@@ -98,4 +100,82 @@ test('malformed upstream redirects fail closed',async()=>{
     const r=await worker.fetch(message('/agent/pull',b,signedHeaders(b)),E);
     assert.equal(r.status,502);
   }finally{globalThis.fetch=old;}
+});
+
+
+test('verified Access JWT of a different user cannot operate the tenant',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-other';jwk.use='sig';jwk.alg='RS256';
+  const original=globalThis.fetch;
+  let upstreamCalls=0;
+  try{
+    globalThis.fetch=async(url,opts)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(JSON.stringify({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      upstreamCalls++;return new Response('unexpected');
+    };
+    const token=await new SignJWT({sub:'cf-different-user'})
+      .setProtectedHeader({alg:'RS256',kid:'kid-other'})
+      .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+      .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+    const result=await worker.fetch(message('/operator/status',{}, {'cf-access-jwt-assertion':token}),E);
+    assert.equal(result.status,401);
+    assert.equal(upstreamCalls,0);
+  }finally{globalThis.fetch=original;}
+});
+
+test('missing owner pin fails closed before cryptographic validation',async()=>{
+  const {ACCESS_OPERATOR_SUB,...missing}=E;
+  assert.equal((await worker.fetch(message('/operator/status',{}),missing)).status,503);
+  assert.equal((await worker.fetch(message('/agent/pull',{request:'next',tenant:'tenant-A'}),missing)).status,503);
+});
+
+test('Access JWT cannot smuggle caller-selected tenant into trusted backend headers',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-tenant';jwk.use='sig';jwk.alg='RS256';
+  const jwt=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'kid-tenant'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const original=globalThis.fetch;let calls=0;
+  try{
+    globalThis.fetch=async(url,opts)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(JSON.stringify({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      calls++;
+      assert.equal(opts.headers['x-lifeline-subject'],E.AGENT_TENANT);
+      assert.notEqual(opts.headers['x-lifeline-subject'],E.ACCESS_OPERATOR_SUB);
+      return new Response(json({schema:'lifeline.bridge.v1',jobs:{},trade_execution:false}),{status:200,headers:{'content-type':'application/json'}});
+    };
+    const h={'cf-access-jwt-assertion':jwt,'x-lifeline-subject':'evil-tenant',
+              'x-lifeline-tenant':'evil-tenant'};
+    const resp=await worker.fetch(message('/operator/status',{},h),E);
+    assert.equal(resp.status,200);assert.equal(calls,1);
+  }finally{globalThis.fetch=original;}
+});
+
+test('expired owner JWT and wrong audience both fail before Modal',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-negative';jwk.use='sig';jwk.alg='RS256';
+  const original=globalThis.fetch;
+  let calls=0;
+  try{
+    globalThis.fetch=async(url)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(JSON.stringify({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      calls++;throw Error('unexpected authenticated upstream');
+    };
+    for(const claims of [
+      {aud:'incorrect-audience',expires:'5m'},
+      {aud:E.ACCESS_AUD,expires:-120}
+    ]){
+      const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+        .setProtectedHeader({alg:'RS256',kid:'kid-negative'})
+        .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(claims.aud)
+        .setIssuedAt().setExpirationTime(claims.expires).sign(privateKey);
+      const result=await worker.fetch(message('/operator/status',{}, {'cf-access-jwt-assertion':token}),E);
+      assert.equal(result.status,401);
+    }
+    assert.equal(calls,0);
+  }finally{globalThis.fetch=original;}
 });
