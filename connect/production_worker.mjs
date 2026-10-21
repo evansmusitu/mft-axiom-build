@@ -215,7 +215,14 @@ function optimizeInterventions(rows, budget) {
   }
 
   const stack = [{ index: 0, spend: 0, reduction: 0, selected: [] }];
+  // Exact optimization is exponential in the worst case; refuse expensive
+  // inputs rather than returning an unverified partial solution.
+  const maxSearchStates = 10_000;
+  let exploredStates = 0;
   while (stack.length) {
+    if (++exploredStates > maxSearchStates) {
+      throw new Error('PLAN_SEARCH_LIMIT_EXCEEDED');
+    }
     const state = stack.pop();
     const selected = [...state.selected].sort((left, right) => left - right);
     if (isBetter(state.reduction, state.spend, selected)) {
@@ -309,6 +316,11 @@ async function handlePlan(request) {
 async function handleRisk(request, env) {
   const body = await readJson(request);
   const rows = normalizeMiningRows(body?.rows);
+  // Current Axiom risk operation evaluates only the first record. Reject
+  // other records explicitly so no submitted hazards silently disappear.
+  if (rows.length !== 1) {
+    throw new Error('RISK_SINGLE_ROW_REQUIRED');
+  }
   const runId = String(body?.run_id || '').trim();
   if (!runId || runId.length > 80 || /[\r\n]/.test(runId)) {
     throw new Error('run_id_required');
