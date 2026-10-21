@@ -2,7 +2,9 @@ name: MUSITU Studio V0.3 — Neon Postgres Schema Safety Contract
 on:
   push:
     branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: [.github/workflows/studio-v03-neon-schema-contract-20261021.yml]
+    paths:
+      - '.github/workflows/studio-v03-neon-schema-contract-20261021.yml'
+      - 'musitu_studio/neon/**'
 permissions: {contents: read}
 jobs:
   source-only-neon-schema-guard:

@@ -39,13 +39,28 @@ const auditGate=/\s+WHERE\s+changes\(\)\s*=\s*1\s*$/i;
 const dbOpts={maxStatements:16,maxParams:64};
 export function createStudioNeonPgAdapter({makeClient}={}){
   if(typeof makeClient!=='function')throw Error('NEON_CLIENT_FACTORY_REQUIRED');
-  async function executeOn(client,statement,precedingChanges){
+  async function executeOn(client,statement,preceding){
     if(!statement||typeof statement.sql!=='string'||!Array.isArray(statement.values))
       throw Error('NEON_INVALID_STATEMENT');
     const conditional=auditGate.test(statement.sql);
     if(conditional&&!/^\s*INSERT INTO audit_events\s*\(/i.test(statement.sql))
       throw Error('NEON_CONDITIONAL_AUDIT_MISUSED');
-    if(conditional&&precedingChanges!==1)return {meta:{changes:0}};
+    if(conditional){
+      // Accept conditional job audit only when the exact preceding state
+      // transition succeeded for the same job. A membership update or an
+      // unrelated job update must never authorize somebody else's audit.
+      if(!preceding || !/^\s*UPDATE\s+jobs\s+SET\s+/i.test(preceding.sql))
+        throw Error('NEON_AUDIT_REQUIRES_PRECEDING_JOB_UPDATE');
+      const jobId=statement.values[2];
+      // Compare the job bound specifically to WHERE id=$N, not merely to
+      // *some* preceding parameter (an actor ID could otherwise collide).
+      const update=compileStudioPgSql(preceding.sql).text;
+      const where=update.match(/\bWHERE\s+id\s*=\s*\$(\d+)\b/i);
+      if(typeof jobId!=='string'||!where||
+         preceding.values[Number(where[1])-1]!==jobId)
+        throw Error('NEON_AUDIT_JOB_MISMATCH');
+      if(preceding.changes!==1)return {meta:{changes:0}};
+    }
     const raw=conditional?statement.sql.replace(auditGate,''):statement.sql;
     const converted=compileStudioPgSql(raw);
     if(converted.parameters!==statement.values.length||statement.values.length>dbOpts.maxParams)
@@ -59,13 +74,13 @@ export function createStudioNeonPgAdapter({makeClient}={}){
     const client=makeClient();
     if(!client||typeof client.connect!=='function'||typeof client.query!=='function'||
        typeof client.end!=='function')throw Error('NEON_CLIENT_INVALID');
-    let connected=false;
     try{
-      await client.connect();connected=true;
+      await client.connect();
       await client.query('SET search_path TO studio_v03, pg_catalog');
       return await callback(client);
     }finally{
-      if(connected)await client.end();
+      // A failed connection can still allocate sockets; always dispose.
+      await client.end();
     }
   }
   function statement(sql,values,mode){
@@ -89,14 +104,14 @@ export function createStudioNeonPgAdapter({makeClient}={}){
        statements.length>dbOpts.maxStatements)throw Error('NEON_BATCH_LIMIT');
     return session(async client=>{
       await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
-      const results=[];let lastChanges=null;
+      const results=[];let lastStatement=null;
       try{
         for(const q of statements){
           if(!q||typeof q.execute!=='function')throw Error('NEON_BATCH_UNBOUND');
           const s=q.execute();
-          const result=await executeOn(client,s,lastChanges);
+          const result=await executeOn(client,s,lastStatement);
           results.push(result);
-          if(s.mode==='run')lastChanges=result?.meta?.changes??null;
+          if(s.mode==='run')lastStatement={sql:s.sql,values:s.values,changes:result?.meta?.changes??null};
         }
         await client.query('COMMIT');
         return results;

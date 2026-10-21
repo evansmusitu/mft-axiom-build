@@ -97,3 +97,47 @@ is intentionally rejected by the adapter until individually migrated
 and financially authorized. A role password, database URL or service token
 must never be added to GitHub source, Actions logs, browser responses,
 or publicly available pages.
+
+## Source-only migration reconciliation — 2026-10-21 continuation
+
+Added `musitu_studio/neon/ledger_reconcile.mjs`. The module does **no**
+network or cloud work. Given an owner-authorized complete and frozen
+Cloudflare SQLite snapshot and a separate Neon destination readback, it
+canonicalizes *all five business tables*, verifies each required column,
+unique record keys, role/foreign-key integrity, approval/audit lineage,
+completed asset counts, and compares **every row** using SHA-256 HMAC under
+a caller-held random 256-bit key. The external receipt contains only keyed
+table digests and counts, never project names, actor subjects, payloads,
+Staff IDs, raw R2 keys or secret material. A partial export, unmatched
+freeze identifier, missing/modified row, missing audit, unauthorized asset,
+invalid hash, extra field, duplicate ID, or mismatch fails closed.
+
+The staging-only PostgreSQL adapter now verifies that the conditional audit
+job ID is the exact **`WHERE id=?` bound job** of the preceding `UPDATE jobs`
+statement; accepting a random preceding parameter (e.g. actor identity) is
+not sufficient. It also closes database clients even if initial `connect()`
+fails. Tests cover successful approvals, denied/rolled-back mismatches,
+failure to connect, forged membership-row authorization, incomplete exports,
+malformed rows and audit tampering.
+
+**No Cloudflare customer data has been exported**. A matching HMAC proves
+content identity of two supplied complete ledgers **only when the frozen
+source is independently authenticated and the destination is separately
+read back**; it is not self-sufficient proof that the source is live or that
+production routing has changed. Production remains on Cloudflare SQLite
+Durable Object, and paid compute remains disabled. This source-only work
+should not modify Neon usage, storage, snapshots or public connectivity.
+
+### Private connectivity and costs remain a hard release gate
+
+The currently isolated Neon Scale test project has
+`block_public_connections=true`. Neon Private Networking uses **AWS
+PrivateLink within an AWS VPC in the same region**; a global Cloudflare
+Worker is not by itself such an AWS VPC client. Cloudflare Hyperdrive
+connectivity must therefore be separately proven and should **not** be
+assumed to provide AWS PrivateLink. Do not silently remove the public
+network block to declare production ready, log a connection string, or
+replace the existing Access identity guard. Per-project consumption quotas
+and Neon Scale's pay-as-you-go plan do not constitute an account-wide $0
+billing guarantee. Do not attempt cutover until explicitly testable,
+least-privilege secure connectivity and spend safeguards are established.

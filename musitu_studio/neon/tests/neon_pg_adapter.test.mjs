@@ -90,3 +90,41 @@ test('batch limits and parameter count are fail closed',async()=>{
  await assert.rejects(()=>db.batch(Array.from({length:17},()=>db.prepare('SELECT 1').bind())),/NEON_BATCH_LIMIT/);
  await assert.rejects(()=>db.prepare('SELECT id FROM jobs WHERE id=?').bind().first(),/NEON_PARAMETER_MISMATCH/);
 });
+
+test('conditional audit refuses success from a membership update even if one row changed',async()=>{
+ const {db,connections}=fixture({updatedRows:1});
+ await assert.rejects(()=>db.batch([
+   db.prepare('UPDATE memberships SET role=? WHERE member_sub=?').bind('owner','person-a'),
+   db.prepare(auditSql).bind('audit-id','project-id','test-job','JOB_APPROVED',
+     'person-a','2026-10-21T00:00:00Z','{}')
+ ]),/NEON_AUDIT_REQUIRES_PRECEDING_JOB_UPDATE/);
+ assert.equal(connections[0].filter(x=>x.sql==='ROLLBACK').length,1);
+});
+test('conditional audit refuses mismatched job reference, rolls back update',async()=>{
+ const {db,connections}=fixture({updatedRows:1});
+ await assert.rejects(()=>db.batch([
+   db.prepare(updateSql).bind('person-a','2026-10-21T00:00:00Z','test-job'),
+   db.prepare(auditSql).bind('audit-id','project-id','DIFFERENT-JOB','JOB_APPROVED',
+     'person-a','2026-10-21T00:00:00Z','{}')
+ ]),/NEON_AUDIT_JOB_MISMATCH/);
+ assert.equal(connections[0].filter(x=>x.sql==='COMMIT').length,0);
+ assert.equal(connections[0].filter(x=>x.sql==='ROLLBACK').length,1);
+});
+test('connection cleanup runs even if PostgreSQL connect rejects',async()=>{
+ let ended=0;
+ const db=createStudioNeonPgAdapter({makeClient:()=>({
+   connect:async()=>{throw Error('NO_CONNECT')},query:async()=>{},end:async()=>{ended++}
+ })});
+ await assert.rejects(()=>db.prepare('SELECT id FROM jobs WHERE id=?').bind('job').first(),/NO_CONNECT/);
+ assert.equal(ended,1);
+});
+
+test('audit identity cannot be laundered via an unrelated UPDATE assignment value',async()=>{
+ const {db,connections}=fixture({updatedRows:1});
+ await assert.rejects(()=>db.batch([
+  db.prepare("UPDATE jobs SET approved_by_sub=? WHERE id=?").bind('DIFFERENT-JOB','test-job'),
+  db.prepare(auditSql).bind('audit-id','project-id','DIFFERENT-JOB','JOB_APPROVED',
+    'person-a','2026-10-21T00:00:00Z','{}')
+ ]),/NEON_AUDIT_JOB_MISMATCH/);
+ assert.equal(connections[0].filter(x=>x.sql==='ROLLBACK').length,1);
+});

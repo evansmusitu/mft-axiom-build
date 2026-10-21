@@ -269,3 +269,30 @@ successful actual Neon customer DB recovery BEFORE switching the live
 routing. Never change Axiom main, Studio V0.2, Access allowlist, R2 or
 CPU/GPU locks to chase the migration. Modal billing hard $0 stays unverified;
 renders remain source locked OFF.
+
+## 23. Neon live-ledger transfer reconciliation and adapter authorization hardening — 2026-10-21
+
+Following explicit owner authorization of a **tested future** Neon Scale
+Studio production database, added `musitu_studio/neon/ledger_reconcile.mjs`
+and corresponding offline regression tests. Complete frozen source/target
+ledger snapshots are compared record-by-record using an ephemeral 32-byte
+HMAC-SHA256 integrity key, covering projects, memberships, jobs, assets and
+immutable audit entries. Primary keys, foreign keys, owner membership,
+job approvals and audit attribution, asset integrity and uniqueness, and
+cutover-freeze identity are validated. Partial or tampered snapshots fail
+closed; receipts expose only keyed digests and counts, never actual staff
+subjects, jobs, scene payloads, or R2 asset names. No customer data has yet
+been extracted from the live Cloudflare Durable Object.
+
+The staging-only PostgreSQL adapter now binds conditional audit to the exact
+job ID in a preceding successful `UPDATE jobs WHERE id=?` inside a serializable
+transaction; unrelated membership updates, wrong-job IDs and connections
+that fail to open cannot create a false approval or leak live sockets.
+Neon staging network is still blocked to public connections. Neon Scale
+Private Networking documents AWS PrivateLink in a same-region AWS VPC;
+this does not, without further proof, connect a globally deployed
+Cloudflare Worker. **No production Neon connection, no live export, no
+cutover, no customer data migration, no Modal CPU/GPU enablement.** The
+old SQLite DO, Access gate, sole-admin fingerprint and R2 remain the live
+source of truth. A passing source-only test must not be called a live data
+transfer or a provider-enforced zero-charge cap.
