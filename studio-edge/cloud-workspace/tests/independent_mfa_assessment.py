@@ -100,6 +100,7 @@ def main():
         data=inspect(token)
         OUT.write_text(json.dumps(data,sort_keys=True,indent=2)+"\n",encoding="utf-8")
         print("MUSITU independent MFA org methods:",data["organization_independent_mfa_allowed_methods"])
+        print("Access app field names (no values):",data["access_app_api_field_names"])
         print("App MFA explicit:",data["application_explicit_mfa_enforced"],
               "Every login:",data["application_mfa_each_login"],
               "Owner interactive MFA:",False,"Writes:",False)
