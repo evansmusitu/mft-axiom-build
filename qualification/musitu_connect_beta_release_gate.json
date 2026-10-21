@@ -4,6 +4,7 @@
   "product": "MUSITU Connect",
   "release_scope": "invite_only_enterprise_mining_planning_and_axiom_arithmetic",
   "assessment_kind": "FEATURE_BRANCH_PREPARATORY_NON_ENABLING",
+  "offline_customer_identity_verifier": "SYNTHETIC_TESTED_DISABLED_NOT_WIRED",
   "existing_production_runtime_enabled": true,
   "existing_production_connect_axiom_compute_preserved": true,
   "new_beta_customer_admission_authorized": false,
