@@ -1,12 +1,15 @@
-# LIFELINE MT5 AI Studio — Private Development v0.8
+# LIFELINE MT5 AI Studio — Private Development v0.9
 
 An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
 **This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
 
-**Latest evidence:** [HARDENED_PRIVATE_STAGE_v08_20261021.md](validation/HARDENED_PRIVATE_STAGE_v08_20261021.md) — verified Access-subject-to-tenant pinning policy, bounded queue, real restricted Neon receipt binding, and exact remaining gates. Previous v0.7 and v0.6 evidence remains preserved.
+**Latest evidence:** [ON_DEMAND_WINDOWS_v09_20261021.md](validation/ON_DEMAND_WINDOWS_v09_20261021.md) — real SHA256-pinned Windows EX5 compiler artifact, hardened outbound HTTPS/MCP, fresh Vercel guest-denial proof, and explicit remaining MFA/host gates. Earlier validations are preserved.
 
 ## Proven now
+
+- **No-PC on-demand Windows EX5 compile:** isolated GitHub Actions can be dispatched from Android for a SHA256-pinned, reviewed MQL5 file. Native signed MetaEditor compiled EX5 with zero errors and published log/hash/proof artifact (run 39562462108). This is not a permanent MT5 host or a full live AI pipeline.
+- **Gateway isolation:** outbound Windows HTTPS polling is now restricted to the exact staging hostname with proxy/redirect rejection; local official-MCP access is reduced to five no-argument observational tools. Host verification is prepared but actual local MCP remains unpaired.
 
 - **Operator and queue safety:** Cloudflare JWT owner subject is explicitly pinned before mapping to an isolated Neon tenant (mock signed-JWT tests); no owner is enrolled yet. Staging allows up to 8 active and 250 total jobs per tenant/agent and rejects receipts claiming a different original operation. Live Modal↔Neon hardening acceptance run 39557904660 PASS.
 - **Windows native compile:** temporary GitHub Windows runner installed and validated vendor-signed MetaQuotes executables; compiled real MQL5 into EX5 with zero compiler errors and mathematical Strategy Tester report. This is *not* a historical-price market backtest or 24/7 Windows host.
