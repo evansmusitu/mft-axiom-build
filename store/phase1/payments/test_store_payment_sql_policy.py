@@ -123,7 +123,7 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
           NULL,NULL)""")
         self.db.execute("""UPDATE store_checkout_intents
           SET status='pending', browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/1234',
-          poll_url='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444'
+          poll_url='https://www.paynow.co.zw/Interface/CheckPayment/?guid=11111111-1111-2222-3333-444444444444'
           WHERE reference='STORE-ABCDEF0123456790'""")
         before = self.db.execute(
             "SELECT reference,paynow_reference FROM store_checkout_reviews").fetchall()
@@ -192,6 +192,28 @@ class StorePaymentSqlPolicyTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE store_checkout_intents SET poll_url='fake' "
                             "WHERE reference='STORE-ABCDEF0123456799'")
+
+
+    def test_duplicate_provider_poll_url_must_not_bind_different_store_orders(self):
+        self.db.execute("""INSERT INTO store_checkout_intents
+            (reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at)
+            VALUES('STORE-ABCDEF0123456790','customer_fixture','MUSITU_OWNED_APP',425,
+            'USD','initiating','2026-10-19T00:00:00Z','2099-01-01T00:00:00Z')""")
+        first_url = self.db.execute("SELECT poll_url FROM store_checkout_intents WHERE reference='STORE-ABCDEF0123456789'").fetchone()[0]
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""UPDATE store_checkout_intents
+                SET status='pending',browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/9999',
+                    poll_url=? WHERE reference='STORE-ABCDEF0123456790'""", (first_url,))
+        self.assertEqual(self.db.execute("SELECT status FROM store_checkout_intents WHERE reference='STORE-ABCDEF0123456790'").fetchone()[0],"initiating")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""UPDATE store_checkout_intents
+                SET status='pending',browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/9999',
+                    poll_url=? WHERE reference='STORE-ABCDEF0123456790'""", (first_url.upper().replace('HTTPS://WWW.PAYNOW.CO.ZW','https://www.paynow.co.zw'),))
+        self.db.execute("""UPDATE store_checkout_intents
+            SET status='pending',browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/9999',
+                poll_url='https://www.paynow.co.zw/Interface/CheckPayment/?guid=11111111-1111-2222-3333-444444444444'
+            WHERE reference='STORE-ABCDEF0123456790'""")
+        self.assertEqual(self.db.execute("SELECT count(*) FROM store_checkout_intents WHERE status='pending'").fetchone()[0],2)
 
     def test_pending_provider_poll_url_cannot_be_replaced(self):
         with self.assertRaises(sqlite3.IntegrityError):

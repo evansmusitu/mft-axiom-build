@@ -75,6 +75,13 @@ CREATE INDEX IF NOT EXISTS idx_store_checkout_customer
   ON store_checkout_intents(customer_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_store_checkout_status
   ON store_checkout_intents(status,expires_at);
+-- A signed initiation reply does not bind its checkout reference. One
+-- provider transaction poll URL must therefore belong to only ONE Store
+-- order, including after cancellation, failure or manual review. Reject
+-- replays and case variants before publishing a payment link.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_store_checkout_provider_poll_once
+  ON store_checkout_intents(poll_url COLLATE NOCASE)
+  WHERE poll_url IS NOT NULL;
 -- IMPORTANT: No billing_subscriptions, Axiom user quota changes, paid
 -- content entitlements or payouts exist in this migration. Store's own
 -- settlement and refund tables require separate audited production design.

@@ -40,8 +40,8 @@ function safePaynowUrl(value,type){
     if(url.protocol!=='https:'||!['www.paynow.co.zw','paynow.co.zw'].includes(url.hostname)||
       url.username||url.password||url.port||url.hash||url.href!==value)return false;
     if(type==='browser')return url.pathname.startsWith('/Payment/')&&url.search==='';
-    return /^\/Interface\/CheckPayment\/$/i.test(url.pathname)&&
-      url.searchParams.size===1&&/^[0-9a-f-]{36}$/i.test(url.searchParams.get('guid')||'');
+    return url.hostname==='www.paynow.co.zw'&&url.pathname==='/Interface/CheckPayment/'&&
+      url.searchParams.size===1&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(url.searchParams.get('guid')||'');
   }catch{return false;}
 }
 async function readBounded(response,limit=8192){

@@ -232,3 +232,15 @@ test('revoked bearer token is denied even before expiry',async()=>{
   assert.equal((await app.fetch(req(),env)).status,401);
   assert.equal(calls.length,0);
 });
+
+test('signed provider initiation URL must be valid for subsequent Paynow callback verification',async()=>{
+ for(const pollurl of [
+   'https://www.paynow.co.zw/Interface/CheckPayment/?guid=000000001111-2222-3333-444444444444',
+   'https://paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444'
+ ]){
+  const {app,calls}=worker(responseBody({pollurl}));
+  const response=await app.fetch(req(),fakeEnv());
+  assert.equal(response.status,502,'cannot expose unsupported signed provider poll URL '+pollurl);
+  assert.equal(calls.length,1);
+ }
+});
