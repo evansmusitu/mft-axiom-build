@@ -1,4 +1,4 @@
-name: MUSITU Studio — Enterprise Verified New-Chat Handoff 2026-10-21
+name: MUSITU Studio — Complete Verified New-Chat Transfer 2026-10-20
 on:
   push:
     branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]

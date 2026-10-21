@@ -349,3 +349,38 @@ Neon tests satisfy real-customer migration or Modal billing controls.
 Neon Private Networking uses AWS PrivateLink to a same-region AWS VPC.
 Cloudflare Worker alone is not an AWS PrivateLink client; DO NOT turn off
 Neon's block-public-connections setting to claim private connectivity.
+
+## 25. Cross-chat transition is a fresh source-package, not a production migration — 2026-10-21
+
+The user explicitly requested a clean complete, verified Studio-specific ZIP on private connected
+Google Drive and an exact copy/paste new-chat instruction with no loss of source or operational
+context. The new independent date-stamped transfer brief is
+`docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md`. The archive builder now packages a
+fresh 2026-10-21 root, generates a state/Neon-specific `01_COPY_TO_NEW_CHAT.txt`, includes
+all tracked `musitu_studio/**` source (including original Studio V0.2, V0.3, UI, tests,
+Blender/Modal, Postgres staging migrations 0001/0002), relevant Studio GitHub workflows,
+ops scripts, historical evidence, direct-source inventory and SHA256 verification.
+The ZIP does NOT include customer SQLite DO rows, live R2 objects, signed Access tokens,
+provider API keys, billing receipts beyond sanitized read-only metadata, or the unrelated
+Axiom main product.
+
+Pre-transfer canonical Studio source commit was
+`8e8a39d5d2067d0793ae051ecce698f2a647a15a`. At that commit,
+independent Actions suite **39667545038** passed 95/95 genuine Studio Edge tests and
+54/54 Neon source-only tests, with a read-only Cloudflare provider snapshot
+(8 protected routes, CPU/GPU OFF and zero account writes).
+Neon source-only test run **39667545018** also passed 54/54.
+These are historical evidence, NOT yet qualification of the newer handoff-builder
+commit. The rebuilt archive's own manifest SHA, CI output and source count must
+be checked before claiming success. GitHub source remains canonical; ZIP source
+is a SHA-fixed snapshot and must not overwrite newer GitHub changes.
+
+Neon Scale is owner-authorized only for a **gated future** production migration. The
+real production Studio ledger remains the Cloudflare SQLite Durable Object; owner identity
+uses verified signed Cloudflare Access and truthful single-admin audit. Outstanding gates:
+authenticated read-only original DO export, complete source/target immutable-audit and R2
+reconciliation, protected worker-to-Neon connectivity, real signed staff E2E,
+reversible cutover and account spending enforcement. The synthetic Neon hosted restore
+does NOT mean real customer data migrated or backed up. Modal paid CPU/GPU remains locked
+OFF; enforceable $0 overage is unverified. Preserve all these conditions across chats,
+do not request staff IDs/screenshots already supplied, do not claim asynchronous work.
