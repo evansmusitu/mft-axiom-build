@@ -61,7 +61,7 @@ def main():
     org=api('GET','/accounts/'+ACCOUNT+'/access/organizations',token)
     raw=org.get('auth_domain','')
     auth=raw.removeprefix('https://').rstrip('/')
-    if not re.fullmatch(r'[a-z0-9-]+\\.cloudflareaccess\\.com',auth):
+    if not re.fullmatch(r'[a-z0-9-]+\.cloudflareaccess\.com',auth):
         raise RuntimeError('invalid pinned Access JWT issuer')
     issuer='https://'+auth+'/'
     users=api('GET','/accounts/'+ACCOUNT+'/access/users?per_page=100',token)
