@@ -1,0 +1,86 @@
+name: MUSITU Store V2 isolated non-public disabled payment staging provision
+
+# An isolated non-default branch cannot rely exclusively on
+# workflow_dispatch. Only a deliberate change to the single approval sentinel
+# can trigger staging from a push; ordinary source/workflow pushes cannot.
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - 'store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v2-payment-staging-one-time
+  cancel-in-progress: false
+
+jobs:
+  isolated-disabled-staging-only:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.actor == 'evansmusitu') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      MUSITU_STORE_STAGE_GATE: 'disabled-checkout-no-public-route'
+      # Restore the dedicated Store-only secret after the owner-requested
+      # Claude rulesets token failed D1 creation with Cloudflare HTTP 403.
+      # No existing Axiom or Claude credentials are modified.
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKENV2 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm independent owner approval for isolated staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = 'refs/heads/feature/musitu-store-v2-package-state-20261012'
+          if [ "${GITHUB_EVENT_NAME}" = push ]; then
+            test "${GITHUB_ACTOR}" = evansmusitu
+            test "$(head -n 1 store/phase1/payments/PROVISION_STAGING_APPROVAL_TRIGGER.txt)" = 'MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY'
+          fi
+          echo 'MUSITU_STORE_STAGING_EXPLICIT_APPROVAL_GATE=PASS'
+      - name: Require dedicated scoped Store V2 token without exposing its value
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CF_API_TOKEN:-}" || { echo 'Dedicated Store V2 Cloudflare secret not configured'; exit 1; }
+      - name: Check isolated source, schema and V1 freeze before any Cloudflare API
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = 'refs/heads/feature/musitu-store-v2-package-state-20261012'
+          python3 -m py_compile store/phase1/payments/provision_store_payments_staging.py
+          node --check store/phase1/payments/store-axiom-checkout.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.mjs
+          python3 - <<'PY'
+          import pathlib,sqlite3
+          s=pathlib.Path('store/phase1/payments/store-axiom-checkout-schema.sql').read_text()
+          conn=sqlite3.connect(':memory:');conn.executescript(s)
+          names={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          assert {'store_customer_tokens','store_products','store_checkout_intents','store_checkout_reviews'}.issubset(names)
+          assert not names.intersection({'customers','billing_subscriptions','usage_buckets'})
+          assert conn.execute('SELECT COUNT(*) FROM store_products').fetchone()[0]==0
+          assert conn.execute('SELECT COUNT(*) FROM store_checkout_intents').fetchone()[0]==0
+          PY
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+          echo 'MUSITU_STORE_PAYMENT_STAGING_PREWRITE_SECURITY_GATE=PASS'
+      - name: Create only empty isolated Store D1 and disabled un-routed Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 store/phase1/payments/provision_store_payments_staging.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-v2-disabled-staging-evidence
+          path: store-payments-staging-evidence.json
+          retention-days: 14
+          if-no-files-found: ignore

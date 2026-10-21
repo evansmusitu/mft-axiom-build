@@ -1,0 +1,18 @@
+MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
+
+This is an owner-authorized request for isolated, disabled, un-routed Store
+staging only, now explicitly qualifying the existing Claude Rulesets token.
+It authorizes no production checkout, payments, routes or commercial release.
+The required first-line authorization remains:
+MUSITU_STORE_STAGING_PROVISION_APPROVAL=ALLOW_DISABLED_UNROUTED_STORE_ONLY
+
+The staging workflow also checks the repository actor and Cloudflare account,
+the Store-only database name, the disabled checkout flags, and all previous
+nonproduction isolation constraints. No production payments are authorized.
+
+
+Owner-confirmed token rotation 2026-10-21: retry only the existing approved,
+disabled, un-routed Store staging workflow. Production checkout remains OFF.
+
+Second and final permission qualification on 2026-10-21: numeric Cloudflare
+error-code diagnostic only; preserve disabled unrouted staging scope.

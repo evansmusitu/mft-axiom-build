@@ -67,15 +67,42 @@ final class V2AndroidInstallBridge {
     String cert=hex(MessageDigest.getInstance("SHA-256").digest(info.signatures[0].toByteArray()));
     return new V2AndroidNativeInstallPolicy.ArchiveInfo(info.packageName,cert,info.versionCode);
   }
-  private static long installedVersion(Context context,String packageId){
+  /**
+   * The PackageManager lookup is scoped to a root-signed package identity.
+   * NameNotFoundException on Android 11+ means UNKNOWN, not NOT_INSTALLED.
+   * No QUERY_ALL_PACKAGES permission, device inventory or hidden-package
+   * enumeration is requested.
+   */
+  private static V2AndroidInstalledPackageState.Observation observeInstalled(
+      Context context,String packageId)throws Exception{
+    PackageManager pm=context.getPackageManager();
     try{
-      PackageInfo installed=context.getPackageManager().getPackageInfo(packageId,0);
-      return Build.VERSION.SDK_INT>=28?installed.getLongVersionCode():installed.versionCode;
-    }catch(PackageManager.NameNotFoundException ignored){
-      // Android package visibility may conceal installed apps; Android installer
-      // remains the final anti-downgrade and signing compatibility authority.
-      return -1;
+      if(Build.VERSION.SDK_INT>=28){
+        PackageInfo info=pm.getPackageInfo(packageId,PackageManager.GET_SIGNING_CERTIFICATES);
+        if(info.signingInfo==null)throw new SecurityException("installed package signer unavailable");
+        android.content.pm.Signature[] certs=info.signingInfo.getApkContentsSigners();
+        if(certs==null||certs.length!=1)throw new SecurityException("unsupported installed signer identity");
+        String sha=hex(MessageDigest.getInstance("SHA-256").digest(certs[0].toByteArray()));
+        return new V2AndroidInstalledPackageState.Observation(
+          info.packageName,sha,info.getLongVersionCode());
+      }
+      PackageInfo info=pm.getPackageInfo(packageId,PackageManager.GET_SIGNATURES);
+      if(info.signatures==null||info.signatures.length!=1)
+        throw new SecurityException("installed package signer unavailable");
+      String sha=hex(MessageDigest.getInstance("SHA-256").digest(info.signatures[0].toByteArray()));
+      return new V2AndroidInstalledPackageState.Observation(info.packageName,sha,info.versionCode);
+    }catch(PackageManager.NameNotFoundException hiddenOrAbsent){
+      // Android may filter the package from this caller. Never claim absence.
+      return null;
     }
+  }
+
+  /** Only VERIFIED_INSTALLED proves an app is present; UNKNOWN is ambiguous. */
+  static V2AndroidInstalledPackageState.State inspectInstalledRelease(
+      Context context,V2SignedAndroidCatalog.Release release)throws Exception{
+    if(context==null||release==null)throw new SecurityException("trusted release and context required");
+    return V2AndroidInstalledPackageState.assess(
+      release,observeInstalled(context,release.packageId));
   }
 
   /**
@@ -88,8 +115,11 @@ final class V2AndroidInstallBridge {
       throw new SecurityException("verified installation inputs required");
     V2SignedAndroidCatalog.Release release=catalog.selectAndroid(appId);
     V2AndroidNativeInstallPolicy.ArchiveInfo inspected=inspect(context,stagedApk);
+    V2AndroidInstalledPackageState.Observation existing=observeInstalled(context,release.packageId);
+    V2AndroidInstalledPackageState.requireSafeInstall(release,existing);
     V2AndroidNativeInstallPolicy.verifyCandidate(
-      context.getFilesDir(),stagedApk,release,inspected,installedVersion(context,release.packageId));
+      context.getFilesDir(),stagedApk,release,inspected,
+      existing==null?-1:existing.versionCode);
     if(Build.VERSION.SDK_INT>=26&&!context.getPackageManager().canRequestPackageInstalls()){
       Intent settings=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
         Uri.parse("package:"+context.getPackageName()));
@@ -119,11 +149,15 @@ final class V2AndroidInstallBridge {
       throw new SecurityException("APK installer is not a system application");
     String installerPackage=handler.activityInfo.packageName;
     systemInstaller.setPackage(installerPackage);
-    context.grantUriPermission(installerPackage,packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    // Arm a private one-APK expiry before granting access; persistent explicit
+    // URI grants may otherwise survive this process until revocation/reboot.
+    V2InstallerUriLeaseReceiver.arm(context,stagedApk);
     try{
+      context.grantUriPermission(installerPackage,packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
       context.startActivity(systemInstaller);
     }catch(RuntimeException failed){
-      context.revokeUriPermission(packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      try{context.revokeUriPermission(packageUri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+      finally{V2InstallerUriLeaseReceiver.disarm(context,stagedApk);}
       throw failed;
     }
     return Result.SYSTEM_INSTALLER_LAUNCHED;
@@ -136,12 +170,11 @@ final class V2AndroidInstallBridge {
    */
   static void revokeInstallerUriGrant(Context context,File stagedApk)throws Exception{
     if(context==null||stagedApk==null)throw new SecurityException("grant cleanup requires APK");
-    File base=new File(context.getFilesDir(),"downloads/v2").getCanonicalFile();
-    File apk=stagedApk.getCanonicalFile();
-    if(!apk.getPath().startsWith(base.getPath()+File.separator))
-      throw new SecurityException("cannot revoke outside verified Store downloads");
+    File apk=V2InstallerUriLeasePolicy.checkedLeasePath(context.getFilesDir(),stagedApk);
     Uri uri=FileProvider.getUriForFile(context,"com.musitu.store.files",apk);
+    // Always revoke before removing the expiry backstop.
     context.revokeUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    V2InstallerUriLeaseReceiver.disarm(context,apk);
   }
   private V2AndroidInstallBridge(){}
 }

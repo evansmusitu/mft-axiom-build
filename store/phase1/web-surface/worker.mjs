@@ -1,5 +1,6 @@
 import {CATALOG_RAW,CATALOG_SIG_RAW,IOS_SOURCE_RAW,WEB_ADAPTER_RAW,FDROID_INDEX_RAW,SBOM_RAW,DEPENDENCIES_RAW,CHANNELS_RAW,ROLLBACK_RAW,BOOTSTRAP_RAW,CATALOG} from './generated-data.mjs';
 import {STORE_CSS} from './assets.mjs';
+import {STORE_ICON_BASE64} from './pwa-icons.mjs';
 import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle} from './render.mjs';
 
 const SECURITY={
@@ -9,20 +10,64 @@ const SECURITY={
 };
 const LOCALES={default:'en',supported:['en','sn','nd']};
 const HOME_TITLE={en:'Open MUSITU instantly in your browser.',sn:'Vhura MUSITU pakarepo mubrowser yako.',nd:'Vula i-MUSITU khonokho kusiphequluli sakho.'};
-const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.'})+'\n';
+const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store/',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.',icons:[{src:'/store/assets/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},{src:'/store/assets/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]})+'\n';
 const STORE_JS=String.raw`'use strict';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('/store/sw.js',{scope:'/store/'}).catch(()=>{});
   });
 }
+// A PWA install prompt is offered by the browser, never by a silent download.
+// The script only displays the approval button after that browser signal;
+// calling prompt() requires a deliberate click on the Store install button.
+let offeredInstall=null;
+window.addEventListener('beforeinstallprompt',event=>{
+  const button=document.getElementById('store-pwa-install');
+  if(!button)return;
+  event.preventDefault();
+  offeredInstall=event;
+  button.hidden=false;
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  const button=document.getElementById('store-pwa-install');
+  const status=document.getElementById('store-pwa-install-status');
+  if(!button||!status)return;
+  if(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches){
+    button.hidden=true;
+    status.textContent='MUSITU Store is already running as an installed web app.';
+    return;
+  }
+  button.addEventListener('click',async()=>{
+    if(!offeredInstall)return;
+    const offer=offeredInstall;offeredInstall=null;button.hidden=true;
+    try{
+      await offer.prompt();
+      const choice=await offer.userChoice;
+      status.textContent=choice&&choice.outcome==='accepted'
+        ?'Store install accepted by the browser; completion remains browser-controlled.'
+        :'Store installation was not approved; you may use your browser menu.';
+    }catch{
+      status.textContent='Browser installation was not completed. Use your browser menu if available.';
+    }
+  });
+});
+window.addEventListener('appinstalled',()=>{
+  const button=document.getElementById('store-pwa-install');
+  const status=document.getElementById('store-pwa-install-status');
+  offeredInstall=null;
+  if(button)button.hidden=true;
+  if(status)status.textContent='MUSITU Store installation completed in this browser.';
+});
 `;
 const STORE_SW=String.raw`'use strict';
-const CACHE='musitu-store-r1';
-const PUBLIC_SHELL=['/store','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest','/store/catalog.json','/store/catalog.sig'];
+const CACHE='musitu-store-r3';
+// Detached catalog+signature cannot be independently cached: pairing an old
+// signed manifest with new signature bytes is not verified as an atomic unit.
+// Until signed-bundle atomic offline validation ships, both remain network-only.
+const PUBLIC_SHELL=['/store/','/store/offline','/store/assets/store.css','/store/assets/store.js','/store/manifest.webmanifest'];
 const CACHEABLE=new Set(PUBLIC_SHELL);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(PUBLIC_SHELL)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('musitu-store-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   const request=event.request;
   if (request.method !== 'GET') return;
@@ -41,6 +86,12 @@ const RELEASE_ASSETS={
   '/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk':{key:'android/MUSITU_Chemistry_Mastery_1.3.0.apk',sha256:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',bytes:5892286,type:'application/vnd.android.package-archive',name:'MUSITU_Chemistry_Mastery_1.3.0.apk'}
 };
 function response(body,status=200,type='text/html; charset=utf-8',extra={}){return new Response(body,{status,headers:{...SECURITY,'Content-Type':type,...extra}})}
+function iconResponse(size){
+  const encoded=STORE_ICON_BASE64[size];
+  if(!encoded)return notFound();
+  const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));
+  return response(bytes,200,'image/png',{'Cache-Control':'public, max-age=31536000, immutable','Content-Length':String(bytes.length)});
+}
 function exact(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'public, max-age=300'})}
 function releaseTruth(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'no-store'})}
 function headify(req,res){return req.method==='HEAD'?new Response(null,{status:res.status,headers:res.headers}):res}
@@ -87,7 +138,7 @@ function homeResponse(request){
   let html=renderHome(request).replace('Open MUSITU instantly in your browser.',HOME_TITLE[lang]||HOME_TITLE.en);
   return htmlResponse(request,html,lang);
 }
-function offlinePage(){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline & recovery · MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><h1>Offline &amp; recovery</h1><p>The public Store shell can use a cached catalog only with its detached signature. Verify <a href="/store/catalog.json">/store/catalog.json</a> together with <a href="/store/catalog.sig">/store/catalog.sig</a>.</p><p>Android recovery resumes interrupted downloads and rejects a release when its expected size, SHA-256, package identity or signing certificate does not match.</p><p>Repair or reinstall does not create Premium entitlement; commerce and entitlement remain separate from software distribution.</p></div></main></body></html>`}
+function offlinePage(){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline & recovery · MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><h1>Offline &amp; recovery</h1><p>The public Store shell remains available offline, but the trusted signed catalog is not available offline: a network connection is required to fetch <a href="/store/catalog.json">/store/catalog.json</a> together with <a href="/store/catalog.sig">/store/catalog.sig</a> for independent signature verification. Never treat separately cached catalog data as trusted.</p><p>Android recovery resumes interrupted downloads and rejects a release when its expected size, SHA-256, package identity or signing certificate does not match.</p><p>Repair or reinstall does not create Premium entitlement; commerce and entitlement remain separate from software distribution.</p></div></main></body></html>`}
 async function sha256Hex(bytes){const digest=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')}
 async function releaseAsset(env,spec){
   if(!env||!env.STORE_RELEASES||typeof env.STORE_RELEASES.get!=='function') return response('Release asset unavailable\n',503,'text/plain; charset=utf-8',{'Cache-Control':'no-store'});
@@ -131,6 +182,8 @@ export default {async fetch(request,env){
     case '/store/locales.json': r=exact(JSON.stringify(LOCALES)+'\n'); break;
     case '/store/manifest.webmanifest': r=response(MANIFEST_RAW,200,'application/manifest+json; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     case '/store/sw.js': r=response(STORE_SW,200,'application/javascript; charset=utf-8',{'Cache-Control':'no-cache'}); break;
+    case '/store/assets/icon-192.png': r=iconResponse(192); break;
+    case '/store/assets/icon-512.png': r=iconResponse(512); break;
     case '/store/assets/store.js': r=response(STORE_JS,200,'application/javascript; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     case '/store/assets/store.css': r=response(STORE_CSS,200,'text/css; charset=utf-8',{'Cache-Control':'public, max-age=3600'}); break;
     default: r=notFound();

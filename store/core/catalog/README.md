@@ -46,3 +46,125 @@ node --test store/core/catalog/signed-registry-v2.test.mjs
 ```
 
 The Node suite uses a newly generated ephemeral P-256 test key; it does **not** use MUSITU's production private key. The historical public PEM is read only to verify trust-anchor fingerprint continuity.
+
+
+## Isolated private catalog rollback-watermark candidate (2026-10-18)
+
+`signed-registry-v2-watermark.mjs` is a **Linux-only, private, offline**
+persistence gate for future signed catalog consumers. It does not authorize
+production publication, onboard actual publishers, or connect a live client.
+The operator must provision a trusted absolute owner-controlled filesystem
+directory (mode 0700) and securely supply the pinned P-256 root public key,
+its fingerprint, trusted artifact-host allowlist and trusted time.
+
+`verifyAndCommitSignedRegistryV2({storeDirectory,verificationOptions,bootstrapAuthorized})`
+takes the usual `verifySignedRegistryV2` inputs **except** the two watermark
+arguments, which this module derives exclusively from its owner-private disk
+state. First-use enrollment requires explicit `bootstrapAuthorized: true`.
+Existing states cannot be silently re-enrolled, and root-fingerprint changes,
+same-revision equivocation, lower-revision replay and altered signatures fail
+closed. State is written via exclusive lock, private temporary file, file fsync,
+same-directory rename and directory fsync. Incomplete pending writes and stale
+locks halt automatic processing for independent operator review; the
+implementation deliberately does **not** auto-delete or bypass evidence of
+interrupted persistence. It never signs or publishes catalog contents.
+
+**Limitations / unmet production gates:** durable state resides only on local
+filesystem custody, not a remotely anchored transparency log or
+hardware-backed monotonic counter. Restoring an old whole-filesystem image or
+deleting the entire trusted state directory can defeat persistence; OS
+permission isolation, a backed-up or externally witnessed watermark, crash
+recovery and multiple-node coordination require independent qualification.
+It is not Windows-compatible. The original signed V1 client, production worker,
+signed root key, and release paths remain unchanged.
+
+Offline isolated tests:
+
+```sh
+node --test store/core/catalog/signed-registry-v2.test.mjs \
+  store/core/catalog/signed-registry-v2-watermark.test.mjs
+```
+
+## Offline signed-artifact staging candidate (2026-10-18)
+
+`signed-artifact-stage-v2.mjs` introduces an **isolated, Node/Linux-only**
+byte-verification step for a single platform-specific release selected from
+a **root-signed V2 catalog**. The candidate verifies the catalog signature,
+root fingerprint, package delegation, release identity, trusted time and
+revision watermark supplied by an **independently trusted caller**, then
+copies the selected local artifact through a bounded SHA-256-verifying process
+into a 0700 operator-owned private cache. File entries are private (0600),
+must be regular owner-owned single-link files, are never followed through
+their final-component symlinks, and are atomically published using a
+no-overwrite hard link after fsync. Reused cache content is rehashed before
+a path is returned. Tampered sources, size mismatches, cache poisoning,
+ambiguous releases, invalid signatures and expired catalogs are rejected.
+
+This module **does not** download from the network, publish a catalog,
+declare a publisher approved, install an APK, invoke a Windows package
+installer, trigger a browser PWA prompt or issue entitlement/payments. The
+returned status is only `STAGED_PRIVATE_REVIEW_ONLY`.
+
+Important: the caller's `verificationOptions` (pinned root, approved hosts,
+trusted time and last-accepted revision/digest) are a **security dependency**,
+not subscriber-controlled metadata. The standalone byte-staging helper
+does not yet call `verifyAndCommitSignedRegistryV2` and does not itself
+persist rollback protection. Do not expose it to publisher, app-user or
+network inputs until an authenticated, transactional durable watermark
+integration and secure OS-specific consumer handoff have been qualified.
+Filesystem ownership cannot prevent whole-filesystem snapshot rollback or
+a compromised trusted user. All tests use synthetic ephemeral signing
+identities and synthetic local artifact bytes, not commercial apps.
+
+Offline test command:
+
+```sh
+node --test store/core/catalog/signed-registry-v2.test.mjs \
+  store/core/catalog/signed-registry-v2-watermark.test.mjs \
+  store/core/catalog/signed-artifact-stage-v2.test.mjs
+```
+
+## Offline one-pass verified staging + durable revision admission
+
+The private operator-only function
+`stageAndCommitSignedArtifactV2({storeDirectory,cacheDirectory,verificationOptions,bootstrapAuthorized,appId,platform,sourceFile})`
+now composes the independent P-256 root-signed catalog verifier, private
+local artifact SHA-256 staging and the durable catalog revision watermark
+**within the same exclusive transaction lock**. The watermark commits only
+after the signed artifact has been privately staged and verified. If the
+APK bytes, signature, delegation, version, trust anchor, expiry, cache
+integrity or filesystem custody fail, the newer revision is **not**
+committed. A synchronous `beforeCommit` hook is required; async hooks are
+explicitly rejected. Stale catalog replay and unreviewed crash locks remain
+blocked. The result is `STAGED_PRIVATE_REVIEW_ONLY`.
+
+The actor invoking this function **must** be a trusted operator process
+with independently pinned root public key and SHA-256 fingerprint,
+approved artifact hosts, a correctly sourced trusted clock, owner-only
+state/cache directories, and an explicitly authorized first-time
+bootstrap. This interface is not a public publisher upload endpoint or
+a storefront API. It does not run an OS installer, implement consumer
+updates, grant publisher legal approval, perform payments, or provide
+a production-signed V2 catalog. Application-level installation,
+signer verification by the receiving OS, lifecycle cancellation,
+multi-node durability and independent root custody remain separate
+release gates. A hard-linked staged file may survive a crash before
+the revision commits, but it is private and cannot be treated as an
+authorized release without redoing the complete transaction.
+
+**Additional qualification:** `signed-artifact-delivery-v2.test.mjs`
+tests atomic admission, byte corruption, rollback, catalog rejection,
+poisoned cache, abandoned locks and invalid async hooks. The separate
+`signed_apk_integrated_stage.mjs` CI-only harness independently
+inspects an ephemeral APK signer/package with Android SDK tools and
+stages its actual signed bytes through this transaction using a
+throwaway root, without ever enabling production installation.
+
+```sh
+node --test store/core/catalog/signed-artifact-delivery-v2.test.mjs
+```
+
+**Phase-status invariant:** This qualification alone is not Phase 1
+completion. Keep Phase 1 RUNNING and Phase 2 PENDING until the
+independent publisher, physical device, real commerce, web and Windows,
+security, support and separate release-approval requirements have been met.

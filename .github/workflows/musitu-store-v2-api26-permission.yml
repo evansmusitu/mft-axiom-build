@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-android-api26-permission-20261011
+      - feature/musitu-store-v2-package-state-20261012
     paths:
       - '.github/workflows/musitu-store-v2-api26-permission.yml'
       - 'store/phase1/android-client/settings.gradle'
@@ -11,7 +12,9 @@ on:
       - 'store/phase1/android-client/fixturebeta/**'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2RealApkInstrumentedTest.java'
       - 'store/phase1/android-client/app/src/androidTest/java/com/musitu/store/V2AndroidApi26PermissionTest.java'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/V2SignedAndroidCatalog.java'
       - 'store/phase1/android-client/app/build.gradle'
+      - 'store/phase1/android-client/test_device_suite_scope.py'
 
 permissions:
   contents: read
@@ -76,6 +79,9 @@ jobs:
           ! cmp -s "$SIGN_DIR/alpha.fingerprint" "$SIGN_DIR/beta.fingerprint"
           rm -f "$SIGN_DIR"/*.p12 "$SIGN_DIR"/*.aligned.apk "$SIGN_DIR"/*.fingerprint
           echo MUSITU_STORE_TWO_INDEPENDENT_TEST_SIGNERS=PASS
+      - name: Prevent wrong Android-API instrumentation collection
+        shell: bash
+        run: python3 store/phase1/android-client/test_device_suite_scope.py
       - name: Enable emulator hardware virtualization if available
         shell: bash
         run: |

@@ -169,8 +169,19 @@ public final class V2RealApkInstrumentedTest {
     if(Build.VERSION.SDK_INT!=24)return; // First acceptance matrix is API24.
     Context ctx=ApplicationProvider.getApplicationContext();Signed s=new Signed(ctx,false);
     File alpha=stage(ctx,s.archives[0],s.catalog.selectAndroid("fixture-alpha"));
-    assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
-      V2AndroidInstallBridge.requestInstall(ctx,s.catalog,"fixture-alpha",alpha));
+    androidx.test.uiautomator.UiDevice ui=androidx.test.uiautomator.UiDevice.getInstance(
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation());
+    try{
+      assertEquals(V2AndroidInstallBridge.Result.SYSTEM_INSTALLER_LAUNCHED,
+        V2AndroidInstallBridge.requestInstall(ctx,s.catalog,"fixture-alpha",alpha));
+      // This smoke test must not leave a pending OS approval dialog/grant
+      // for the separate user-consent acceptance test on the same emulator.
+      ui.wait(androidx.test.uiautomator.Until.hasObject(
+        androidx.test.uiautomator.By.text(java.util.regex.Pattern.compile("(?i)^install$"))),15000L);
+    }finally{
+      ui.pressBack(); // Dismiss ONLY; never click Install in this smoke test.
+      V2AndroidInstallBridge.revokeInstallerUriGrant(ctx,alpha);
+    }
     // Starting Android's installer is NOT installation approval or completion.
   }
 }

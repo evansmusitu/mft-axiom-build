@@ -1,0 +1,65 @@
+name: MUSITU Store isolated browser-first PWA surface regression
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-browser-pwa-regression-ci.yml'
+      - 'store/phase1/web-surface/**'
+      - 'store/phase1/catalog.json'
+      - 'store/phase1/catalog.sig'
+      - 'store/phase1/release/**'
+      - 'store/phase1/bootstrap/**'
+      - 'store/phase1/apps/chemistry/**'
+      - 'store/phase1/web/**'
+      - 'store/phase1/ios/source.json'
+      - 'store/core/catalog/**'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-pwa-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve original signed Android Store sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = "395b488a7841cd5f32065cac9826983e0454d955"
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = "d5ee6821877a151abfe95c50e8677b2f1b19ae5f"
+      - name: Generate V1 browser test metadata without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 store/phase1/web-surface/build_store_data.py
+      - name: Install isolated Chromium acceptance tooling without modifying release dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable)"
+          test -x "$CHROME_BIN"
+          "$CHROME_BIN" --version
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          npm install --prefix store/phase1/web-surface --no-save --no-package-lock --ignore-scripts playwright@1.55.0
+      - name: Regress all browser/PWA/native handoff and release-status contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/web-surface/*.test.mjs
+          echo MUSITU_STORE_V2_BROWSER_PWA_CHROMIUM_OFFLINE_ACCEPTANCE=PASS
+          echo MUSITU_STORE_V2_BROWSER_PWA_ISOLATED_REGRESSION_PASS
+      - name: Confirm generated browser metadata was derived from signed repository snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s store/phase1/web-surface/generated-data.mjs
+          grep -q 'export const CATALOG_RAW=' store/phase1/web-surface/generated-data.mjs
+          grep -q 'export const CATALOG_SIG_RAW=' store/phase1/web-surface/generated-data.mjs
+          echo MUSITU_STORE_BROWSER_ONLY_NO_PRODUCTION_DEPLOY=PASS

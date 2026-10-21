@@ -1,0 +1,1 @@
+{"version":2,"functions":{"api/stage.js":{"maxDuration":10}},"headers":[{"source":"/(.*)","headers":[{"key":"Referrer-Policy","value":"no-referrer"},{"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive"},{"key":"Cache-Control","value":"private, no-store"}]}]}

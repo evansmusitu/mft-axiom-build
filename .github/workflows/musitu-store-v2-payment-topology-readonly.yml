@@ -1,0 +1,105 @@
+name: MUSITU Store V2 isolated Cloudflare payment topology read-only qualification
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-payment-topology-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-existing-axiom-account-without-mutation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm preserved signed MUSITU Store V1 and fail-closed payment code
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+          node --check store/phase1/payments/store-axiom-checkout.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.mjs
+          echo 'MUSITU_STORE_PAYMENTS_READONLY_CODE_GATE=PASS'
+      - name: Read only Cloudflare topology for distinct Store payment deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,pathlib
+          root='https://api.cloudflare.com/client/v4'
+          aid=os.environ['ACCOUNT_ID'];zid=os.environ['ZONE_ID']
+          token=os.environ.get('CF_API_TOKEN','')
+          email=os.environ.get('CLOUDFLARE_EMAIL','')
+          key=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')
+          evidence={
+            'schema':'musitu.store.payment_topology.readonly.v1',
+            'read_only':True,'mutation_attempted':False,'deployed':False,
+            'axiom_billing_changed':False,'store_checkout_enabled':False,
+            'account_access_verified':False,
+            'workers_list_verified':False,'zone_routes_verified':False,'store_d1_listing_verified':False,
+            'isolated_store_worker_name_reserved':False,
+            'store_route_available':False,
+            'stage':'CREDENTIALS_NOT_AVAILABLE',
+          }
+          if token:headers={'Authorization':'Bearer '+token}
+          elif email and key:headers={'X-Auth-Email':email,'X-Auth-Key':key}
+          else:headers=None
+          def read(path):
+            if not headers:return None
+            req=urllib.request.Request(root+path,method='GET',
+                headers={**headers,'Accept':'application/json','User-Agent':'MUSITU-Store-Payment-Readonly/1.0'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as response:
+                if response.status!=200:return None
+                raw=response.read(300000)
+            except (urllib.error.HTTPError,urllib.error.URLError,TimeoutError):
+              return None
+            try:obj=json.loads(raw)
+            except (TypeError,ValueError):return None
+            return obj.get('result') if isinstance(obj,dict) and obj.get('success') is True else None
+          if headers:
+            account=read('/accounts/'+aid)
+            if isinstance(account,dict) and account.get('id')==aid:
+              evidence['account_access_verified']=True
+              evidence['stage']='ACCOUNT_AUTHORIZED_READONLY'
+              workers=read('/accounts/'+aid+'/workers/scripts')
+              if isinstance(workers,list):
+                evidence['workers_list_verified']=True
+                names={str(x.get('id') or x.get('name') or '') for x in workers if isinstance(x,dict)}
+                evidence['isolated_store_worker_name_reserved']='musitu-store-v2-payments-staging-20261019' in names
+              routes=read('/zones/'+zid+'/workers/routes')
+              if isinstance(routes,list):
+                evidence['zone_routes_verified']=True
+                expected='payments.mftintelligence.com/store/billing/*'
+                collisions=[r for r in routes if isinstance(r,dict) and (
+                    r.get('pattern')==expected or r.get('pattern')=='payments.mftintelligence.com/store/*')]
+                evidence['store_route_available']=not collisions
+              dbs=read('/accounts/'+aid+'/d1/database')
+              if isinstance(dbs,dict) and isinstance(dbs.get('result'),list):dbs=dbs['result']
+              if isinstance(dbs,list):
+                evidence['existing_d1_count']=len(dbs)
+                evidence['store_d1_listing_verified']=True
+                evidence['store_d1_available']=any('store' in str(x.get('name') or '').lower() for x in dbs if isinstance(x,dict))
+              evidence['stage']='READONLY_INSPECTION_DONE'
+            else:
+              evidence['stage']='ACCOUNT_ACCESS_UNVERIFIED'
+          pathlib.Path('store-payment-topology-readonly.json').write_text(json.dumps(evidence,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-payment-topology-readonly
+          path: store-payment-topology-readonly.json
+          retention-days: 7
+          if-no-files-found: error

@@ -1,0 +1,65 @@
+name: MUSITU Store V2 Cloudflare D1 capacity and Workers plan read-only
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-cloudflare-plan-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-no-charges-or-changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read existing Workers-paid entitlement without creating resources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          aid='93f395f5121954671f92fffa453d6b61'
+          t=os.getenv('CF_API_TOKEN','');m=os.getenv('CLOUDFLARE_EMAIL','');k=os.getenv('CLOUDFLARE_GLOBAL_API_KEY','')
+          h={'Authorization':'Bearer '+t} if t else ({'X-Auth-Email':m,'X-Auth-Key':k} if m and k else {})
+          def get(path):
+            if not h:return None
+            try:
+              q=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers={**h,'Accept':'application/json'})
+              with urllib.request.urlopen(q,timeout=20) as r:o=json.loads(r.read(500000))
+              return o.get('result') if o.get('success') is True else None
+            except (urllib.error.URLError,urllib.error.HTTPError,ValueError,TimeoutError):
+              return None
+          dbs=get('/accounts/'+aid+'/d1/database')
+          plans=get('/accounts/'+aid+'/subscriptions')
+          if not isinstance(dbs,list): dbs=[]
+          workers=[]
+          if isinstance(plans,list):
+            for sub in plans:
+              if not isinstance(sub,dict):continue
+              rate=sub.get('rate_plan')
+              terms=' '.join(map(str,[rate.get('id'),rate.get('public_name'),rate.get('name')])) if isinstance(rate,dict) else ''
+              state=str(sub.get('state') or '')
+              if 'worker' in terms.lower() and state.lower() in ('paid','provisioned'):
+                workers.append({'kind':'workers_subscription','active':True})
+          result={'schema':'musitu.store.d1.plan_readonly.v1','read_only':True,
+                  'existing_d1_count':len(dbs),'subscription_read_access':isinstance(plans,list),
+                  'workers_paid_confirmed':bool(workers),
+                  'resource_created':False,'charge_attempted':False,
+                  'staging_allowed_if_no_extra_charge':len(dbs)<10 or bool(workers)}
+          print(json.dumps(result,sort_keys=True))
+          with open('store-d1-plan-readonly.json','w') as f:json.dump(result,f,sort_keys=True,indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-d1-account-plan-readonly
+          path: store-d1-plan-readonly.json
+          retention-days: 3
+          if-no-files-found: error

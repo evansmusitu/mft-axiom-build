@@ -16,6 +16,8 @@
       </intent-filter>
     </activity>
     <receiver android:name=".UpdateCheckReceiver" android:exported="false" />
+    <!-- V2: internal, permission-revoking expiry only. No production wiring. -->
+    <receiver android:name=".V2InstallerUriLeaseReceiver" android:exported="false" />
     <provider android:name="androidx.core.content.FileProvider" android:authorities="com.musitu.store.files" android:exported="false" android:grantUriPermissions="true">
       <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
     </provider>

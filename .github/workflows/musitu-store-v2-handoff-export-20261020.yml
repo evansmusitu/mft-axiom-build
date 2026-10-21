@@ -1,0 +1,66 @@
+name: MUSITU Store V2 complete source handoff archive
+on:
+  push:
+    branches: [feature/musitu-store-v2-package-state-20261012]
+    paths: [.github/workflows/musitu-store-v2-handoff-export-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          lfs: true
+      - name: Assemble pinned complete Store-specific snapshot
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,json,hashlib,datetime,subprocess,re
+          sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          assert sha==os.environ['GITHUB_SHA']
+          assert os.environ['GITHUB_REF_NAME']=='feature/musitu-store-v2-package-state-20261012'
+          dest=pathlib.Path('handoff');dest.mkdir()
+          included=[]
+          paths=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          def select(p):
+              return p.startswith(('store/','.github/workflows/musitu-store','.github/scripts/musitu-store','evidence/musitu-store/','release-delta/musitu-store-','docs/MUSITU_STORE','ops/axiom_billing_','ops/musitu_store_','ops/store_'))
+          for name in sorted(p for p in paths if p and select(p)):
+              src=pathlib.Path(name)
+              if not src.is_file() or src.is_symlink() or '..' in src.parts:raise ValueError('unsafe source '+name)
+              if src.suffix.lower() in ('.p12','.pfx','.jks','.keystore','.key','.env') or (src.suffix.lower()=='.pem' and 'public' not in src.name.lower()):raise ValueError('secret file '+name)
+              data=src.read_bytes()
+              if re.search(br'-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\\r\\n]+[A-Za-z0-9+/=\\r\\n]{160,}',data):raise ValueError('embedded private key '+name)
+              target=dest/'PRODUCT_SOURCE'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+              git_hash=hashlib.sha1(b'blob '+str(len(data)).encode()+bytes([0])+data).hexdigest()
+              assert git_hash==subprocess.check_output(['git','hash-object','--',name],text=True).strip()
+              included.append({'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'git_blob_sha1':git_hash})
+          assert len(included)>=235, 'Incomplete Store package'
+          required=['store/phase1/payments/store-axiom-checkout.mjs','store/phase1/payments/store-axiom-payment-routes.mjs','store/phase1/payments/STORE_PAYMENT_STAGING_BLOCKER_20261019.md','store/phase1/windows/verify-msix.ps1','store/phase1/web-surface/worker.mjs']
+          assert all(p in {x['path'] for x in included} for p in required),'Missing critical Store component'
+          state={'product':'MUSITU Store V2','repo':'evansmusitu/mft-axiom-build','branch':os.environ['GITHUB_REF_NAME'],'snapshot_sha':sha,'snapshot_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'tracked_store_files':len(included),'pr27':'OPEN DRAFT UNMERGED; VERIFY LIVE','pr1':'OPEN DRAFT UNMERGED FROZEN; VERIFY LIVE','axiom_project':'musitu-store-global-superiority-20261011','axiom_plan':'plan_4ff9d564fe764ebe843d78df913c7d86','phase1':'RUNNING','phase2':'PENDING','signed_v1_sha256':'fdaac4a7b8446b7ae5c7170dc79ad9932409c7feb64d93c2fe8ca642ae734721','old_handoff_drive_id':'1tTMPP98olXkA3cf-vRhLzSMnl_tI4H1i','old_handoff_sha256':'9815cccead160c50401b01b6abc8ef680c2468c92e9c03e9d5a6d9b7700cb919','live_store_payments_verified':False,'production_release_approved':False}
+          (dest/'STATE.json').write_text(json.dumps(state,indent=2,sort_keys=True)+'\n')
+          (dest/'PRODUCT_FILE_MANIFEST.json').write_text(json.dumps(included,indent=2,sort_keys=True)+'\n')
+          (dest/'START_HERE.md').write_text('# MUSITU Store authoritative clean handoff\n\nExact Git SHA: '+sha+'\nRepository: evansmusitu/mft-axiom-build\nBranch: '+os.environ['GITHUB_REF_NAME']+'\nTracked Store-specific product files: '+str(len(included))+'\n\nRead STATE.json, BLOCKERS.md, NEW_CHAT_COMMAND.txt, CI_EVIDENCE.md, and PRODUCT_SOURCE. Run python3 verify_handoff.py after independently checking the ZIP SHA-256. Compare actual GitHub branch head to this snapshot, reconcile any later work, and continue Phase 1 isolated development only. PR 27 is draft/unmerged; PR 1 and protected main remain frozen. Do not claim production readiness from CI. This archive is complete Store-scoped tracked source plus reference billing code, not the entire unrelated Axiom/FMI/MMF monorepo and not signing credentials.\n')
+          (dest/'BLOCKERS.md').write_text('# Remaining real-world gates\n- Read PRODUCT_SOURCE/store/phase1/payments/STORE_PAYMENT_STAGING_BLOCKER_20261019.md for exact latest payment staging errors.\n- Existing MFT Paynow account does not prove independent Store merchant integration and funded Store purchases/settlements.\n- Live Store checkout, real merchant payment, refund, entitlement and publisher payout remain unqualified.\n- Three independent verified publishers, two licensed independent apps, physical device acceptance, production signing, policies, monitoring, legal and final release approvals remain outstanding.\n- Never change signed Store V1, protected main, frozen OpenAI PR 1 or other products.\n- Phase 1 RUNNING, Phase 2 PENDING.\n')
+          (dest/'CI_EVIDENCE.md').write_text('# Historic successful scoped runs; check fresh current SHA\n- Signed Paynow callback: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39187789909\n- Axiom Store checkout: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39180917193\n- Windows real disposable MSIX acceptance: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39148607804\n- Chromium PWA: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39144845173\n')
+          (dest/'NEW_CHAT_COMMAND.txt').write_text('Continue MUSITU Store V2 from the private Google Drive whole-product ZIP and exact SHA-256 provided with this command. Fetch the actual ZIP, verify its SHA-256, reject unsafe ZIP entries, extract and run python3 verify_handoff.py. Read START_HERE.md, STATE.json, BLOCKERS.md, CI_EVIDENCE.md, PRODUCT_FILE_MANIFEST.json and PRODUCT_SOURCE. The pinned GitHub source snapshot SHA is '+sha+'. Repository evansmusitu/mft-axiom-build, isolated branch feature/musitu-store-v2-package-state-20261012. Check the current branch head and reconcile later commits; never overwrite or force push. Keep draft PR #27 OPEN/UNMERGED, frozen PR #1 and main untouched; preserve signed Store V1, Axiom/MMF/FMI systems and secrets. Reconnect Axiom Operator Reviewer V2 project musitu-store-global-superiority-20261011 plan plan_4ff9d564fe764ebe843d78df913c7d86. Phase 1 RUNNING and Phase 2 PENDING. Continue independent real source/code/CI engineering, with payment staging and correct Axiom payment-rail reuse as priority; do not claim Store live payments, publisher licensing, physical devices or production launch without independent proof. Do not buy anything, charge customers, deploy, merge or distribute without separate authorized gates. Return commits, verified tests and next blockers.\n')
+          (dest/'verify_handoff.py').write_text("import pathlib,json,hashlib\nr=pathlib.Path(__file__).resolve().parent\nm=json.loads((r/'PRODUCT_FILE_MANIFEST.json').read_text())\nstate=json.loads((r/'STATE.json').read_text());assert len(m)==state['tracked_store_files']\nfor x in m:\n p=r/'PRODUCT_SOURCE'/x['path'];assert p.is_file() and not p.is_symlink(),x['path']\n b=p.read_bytes();assert len(b)==x['bytes'] and hashlib.sha256(b).hexdigest()==x['sha256'],x['path']\n assert hashlib.sha1(b'blob '+str(len(b)).encode()+bytes([0])+b).hexdigest()==x['git_blob_sha1'],x['path']\nentries={}\nfor line in (r/'CHECKSUMS.sha256').read_text().splitlines():\n h,sep,name=line.partition('  ');assert sep and not name.startswith('/') and '..' not in pathlib.PurePosixPath(name).parts and name not in entries\n entries[name]=h\nactual=set()\nfor p in r.rglob('*'):\n assert not p.is_symlink(),p\n if not p.is_file() or p.name=='CHECKSUMS.sha256':continue\n rel=p.relative_to(r).as_posix();actual.add(rel);assert hashlib.sha256(p.read_bytes()).hexdigest()==entries.get(rel),rel\nassert actual==set(entries)\nprint('MUSITU_STORE_HANDOFF_VERIFIED files='+str(len(m))+' git_sha='+state['snapshot_sha'])\n")
+          (dest/'CHECKSUMS.sha256').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(dest).as_posix()+'\n' for p in sorted(dest.rglob('*')) if p.is_file() and p.name!='CHECKSUMS.sha256'))
+          print('MUSITU_STORE_SNAPSHOT_SOURCE_COUNT='+str(len(included)))
+          print('MUSITU_STORE_SNAPSHOT_GIT_SHA='+sha)
+          PY
+      - name: Validate all source and handoff checksums
+        run: |
+          python3 handoff/verify_handoff.py
+          echo MUSITU_STORE_HANDOFF_VERIFY_PASS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STORE_WHOLE_PRODUCT_20261020
+          path: handoff/
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true

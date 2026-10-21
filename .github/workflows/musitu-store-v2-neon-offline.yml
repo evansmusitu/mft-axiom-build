@@ -1,0 +1,67 @@
+name: MUSITU Store V2 Neon PostgreSQL offline staging qualification
+# Offline synthetic qualification in an ephemeral GitHub Actions PG container.
+# Does NOT connect to the paid Neon Scale org, Cloudflare, or Paynow.
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-neon-offline.yml'
+      - 'store/phase1/payments/store-neon-*'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-isolated-free-design-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      pg:
+        image: postgres:17
+        env:
+          POSTGRES_USER: storeci
+          POSTGRES_PASSWORD: fixture-ci-only-password
+          POSTGRES_DB: storeci
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Review Store-only Neon D1-compat adapter without network or secrets
+        run: |
+          set -euo pipefail
+          node --check store/phase1/payments/store-neon-db-adapter.mjs
+          node --test store/phase1/payments/store-neon-db-adapter.test.mjs
+      - name: Run real PostgreSQL 17 staging schema and regression without Neon costs
+        shell: bash
+        run: |
+          set -euo pipefail
+          PG_CONTAINER="$(docker ps --format '{{.ID}} {{.Image}}' | awk '$2 ~ /^postgres:17/ {print $1; exit}')"
+          test -n "$PG_CONTAINER" || { echo 'Ephemeral PG CI service unavailable'; exit 1; }
+          docker exec -i "$PG_CONTAINER" psql -a -X -v ON_ERROR_STOP=1 -U storeci -d storeci \
+            < store/phase1/payments/store-neon-postgres-schema.sql
+          docker exec -i "$PG_CONTAINER" psql -a -X -v ON_ERROR_STOP=1 -U storeci -d storeci \
+            < store/phase1/payments/store-neon-postgres-regression.sql
+          echo 'MUSITU_STORE_NEON_OFFLINE_POSTGRES_SCHEMA_VERIFIED=PASS'
+      - name: Assert no production SQL, customer seed or merchant credential in staging artifacts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path('store/phase1/payments')
+          schema=(base/'store-neon-postgres-schema.sql').read_text()
+          assert 'CREATE TABLE store_checkout_reviews' in schema
+          assert 'CREATE TABLE store_customer_tokens' in schema
+          assert 'CREATE TABLE store_checkout_intents' in schema
+          assert 'CREATE TABLE store_products' in schema
+          assert 'CREATE UNIQUE INDEX idx_store_checkout_provider_poll_once' in schema
+          for forbidden in ('CREATE TABLE billing_subscriptions','CREATE TABLE customers',
+                            'CREATE TABLE usage_buckets','GRANT ALL ON'):
+              assert forbidden not in schema
+          assert 'INSERT INTO store_' not in schema
+          PY

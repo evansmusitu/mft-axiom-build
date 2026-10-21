@@ -1,0 +1,31 @@
+name: MUSITU Store V2 isolated protected Neon stage acceptance
+on:
+  push:
+    branches: [feature/musitu-store-v2-package-state-20261012]
+    paths:
+      - 'store/phase1/neon-stage/**'
+      - '.github/workflows/musitu-store-v2-neon-stage-acceptance.yml'
+permissions: {contents: read}
+jobs:
+  nonpublic-stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: No real purchases, no provider keys and request-denial tests
+        working-directory: store/phase1/neon-stage
+        run: |
+          set -euo pipefail
+          node --check api/stage.js
+          node --test api/stage.test.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('api/stage.js').read_text()
+          assert 'import(' in s and '@neondatabase/serverless' in s
+          assert 'STORE_CHECKOUT_ENABLED' in s and "'false'" in s
+          assert 'STORE_CALLBACKS_CERTIFIED' in s
+          assert 'providerFetch' not in s
+          assert 'Paynow' not in Path('package.json').read_text()
+          PY

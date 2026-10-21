@@ -1,0 +1,80 @@
+name: MUSITU Store V2 Claude rulesets token permission read-only audit
+
+# Diagnostic only: no D1 writes, no Workers changes, no Claude domain/ruleset changes.
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-claude-rulesets-token-readonly.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  claude-rulesets-token-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      RULESETS_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Probe Claude rulesets token versus isolated Store account without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feature/musitu-store-v2-package-state-20261012
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          token=os.environ.get('RULESETS_TOKEN','')
+          zone='5b56528f03948ff5917a5e0cd9f7109e'
+          account='93f395f5121954671f92fffa453d6b61'
+          result={
+              'schema':'musitu.store.claude_rulesets_token.readonly.v1',
+              'token_source':'GitHub Actions secret CLOUDFLARE_RULESETS_API_TOKEN',
+              'token_configured':bool(token),
+              'methods_used':['GET'],
+              'store_resource_created':False,
+              'worker_deployed':False,
+              'claude_rulesets_changed':False,
+              'production_modified':False,
+              'secrets_disclosed':False,
+              'endpoints':{},
+          }
+          paths={
+              'token_self_verify':'/user/tokens/verify',
+              'claude_zone_rulesets_list':'/zones/'+zone+'/rulesets',
+              'store_cloudflare_account_read':'/accounts/'+account,
+              'store_d1_list':'/accounts/'+account+'/d1/database',
+              'store_workers_list':'/accounts/'+account+'/workers/scripts',
+          }
+          for name,path in paths.items():
+              if not token:
+                  result['endpoints'][name]={'checked':False}
+                  continue
+              request=urllib.request.Request(
+                  'https://api.cloudflare.com/client/v4'+path,
+                  method='GET',
+                  headers={'Authorization':'Bearer '+token,'Accept':'application/json',
+                           'User-Agent':'MUSITU-Store-Claude-Token-Readonly/1.0'})
+              try:
+                  with urllib.request.urlopen(request,timeout=15) as response:
+                      status=response.status
+                      data=json.loads(response.read(100000))
+                  permitted=200<=status<300 and isinstance(data,dict) and data.get('success') is True
+              except urllib.error.HTTPError as exc:
+                  status=exc.code
+                  permitted=False
+              except (ValueError,urllib.error.URLError,TimeoutError):
+                  status=None
+                  permitted=False
+              result['endpoints'][name]={'checked':True,'http_status':status,'authorized':permitted}
+          print('MUSITU_STORE_CLAUDE_RULESETS_TOKEN_READONLY='+json.dumps(result,sort_keys=True))
+          with open('store-claude-rulesets-token-readonly.json','w') as f:
+              json.dump(result,f,sort_keys=True,indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-claude-rulesets-token-readonly-evidence
+          path: store-claude-rulesets-token-readonly.json
+          if-no-files-found: error
+          retention-days: 7

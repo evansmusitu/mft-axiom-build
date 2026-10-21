@@ -1,0 +1,90 @@
+name: MUSITU Store V2 private signed Paynow callback review gate
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - 'store/phase1/payments/**'
+      - 'store/phase1/RELEASE_GATES_AND_EXTERNAL_REQUIREMENTS_20261018.md'
+      - '.github/workflows/musitu-store-v2-paynow-review-ci.yml'
+      - '.github/workflows/musitu-store-v2-payments-staging-provision.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v2-paynow-private
+  cancel-in-progress: true
+
+jobs:
+  offline-payment-review-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Protect original signed MUSITU Store V1
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = 395b488a7841cd5f32065cac9826983e0454d955
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = d5ee6821877a151abfe95c50e8677b2f1b19ae5f
+      - name: Verify no provider credentials, no payout and no network side effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/payments/paynow-review.mjs
+          node --check store/phase1/payments/paynow-review.test.mjs
+          node --check store/phase1/payments/paynow-review-ledger.mjs
+          node --check store/phase1/payments/paynow-review-ledger.test.mjs
+          node --check store/phase1/payments/paynow-provider-poll.mjs
+          node --check store/phase1/payments/paynow-provider-poll.test.mjs
+          node --check store/phase1/payments/store-axiom-checkout.mjs
+          node --check store/phase1/payments/store-axiom-checkout.test.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.mjs
+          node --check store/phase1/payments/store-axiom-payment-routes.test.mjs
+          ! grep -Eq 'fetch\(|http\.request\(|https\.request\(|process\.env\.|createServer\(' store/phase1/payments/paynow-review.mjs store/phase1/payments/paynow-review-ledger.mjs
+          echo MUSITU_STORE_PAYNOW_OFFLINE_ONLY_AND_V1_UNCHANGED=PASS
+      - name: Qualify Store-only D1 migration without creating products or touching Axiom
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,sqlite3
+          p=pathlib.Path('store/phase1/payments/store-axiom-checkout-schema.sql')
+          db=sqlite3.connect(':memory:')
+          db.execute('PRAGMA foreign_keys=ON')
+          db.executescript(p.read_text())
+          tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          expected={'store_customer_tokens','store_products','store_checkout_intents','store_checkout_reviews'}
+          assert expected.issubset(tables), (tables,expected)
+          assert not (tables & {'customers','billing_subscriptions','billing_checkout_intents','usage_buckets'})
+          assert db.execute('SELECT count(*) FROM store_products').fetchone()[0]==0
+          assert db.execute('SELECT count(*) FROM store_checkout_intents').fetchone()[0]==0
+          assert db.execute('SELECT count(*) FROM store_checkout_reviews').fetchone()[0]==0
+          # New migration enforces one provider payment reference per Store order.
+          rows={r[1]:r[2] for r in db.execute('PRAGMA table_info(store_checkout_reviews)')}
+          assert 'paynow_reference' in rows and 'reference' in rows
+          print('MUSITU_STORE_AXIOM_ISOLATED_D1_SCHEMA_PASS empty_catalog=true no_axiom_subscription_tables=true')
+          PY
+      - name: Qualify Store D1 payment state integrity using real SQLite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_payment_sql_policy.py
+      - name: Verify Store staging source/module preflight without Cloudflare network calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_staging_source_preflight.py
+      - name: Qualify synthetic signed Paynow callbacks and negative security cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs store/phase1/payments/paynow-provider-poll.test.mjs store/phase1/payments/store-axiom-checkout.test.mjs store/phase1/payments/store-axiom-payment-routes.test.mjs
+          echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
+          echo MUSITU_STORE_AXIOM_PATTERN_STORE_CHECKOUT_ISOLATION=PASS
+          echo MUSITU_STORE_V2_PAYNOW_DURABLE_PRIVATE_LEDGER_TESTS=PASS

@@ -154,7 +154,7 @@ test('installable Store web shell uses only self-hosted script and manifest reso
   const m=await manifest.json();
   assert.equal(m.id,'/store/');
   assert.equal(m.scope,'/store/');
-  assert.match(m.start_url,/^\/store/);
+  assert.equal(m.start_url,'/store/','PWA launch must be within service worker scope');
 });
 
 test('service worker provides an offline public shell but never caches installers, launch redirects or commerce',async()=>{
@@ -162,9 +162,9 @@ test('service worker provides an offline public shell but never caches installer
   assert.equal(sw.status,200);
   assert.match(sw.headers.get('content-type')||'',/javascript/);
   const t=await sw.text();
-  assert.match(t,/musitu-store-r1/);
-  assert.match(t,/\/store\/catalog\.json/);
-  assert.match(t,/\/store\/catalog\.sig/);
+  assert.match(t,/musitu-store-r3/);
+  assert.equal(t.includes("'/store/catalog.json'"),false,'catalog must not be independently cached');
+  assert.equal(t.includes("'/store/catalog.sig'"),false,'signature must not be independently cached');
   assert.match(t,/\/store\/offline/);
   assert.match(t,/request\.method !== 'GET'/);
   assert.doesNotMatch(t,/MUSITU_Store_1\.0\.0\.apk|MUSITU_Chemistry_1\.3\.0\.ipa|\/chemistry\/checkout|\/chemistry\/catalog/);

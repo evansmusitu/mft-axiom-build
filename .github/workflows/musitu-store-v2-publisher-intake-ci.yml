@@ -1,0 +1,87 @@
+name: MUSITU Store isolated publisher intake safety qualification
+
+on:
+  push:
+    branches:
+      - feature/musitu-store-v2-package-state-20261012
+    paths:
+      - '.github/workflows/musitu-store-v2-publisher-intake-ci.yml'
+      - 'store/phase1/publisher_intake/**'
+      - 'store/core/catalog/**'
+      - 'store/phase1/android-client/fixturealpha/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v2-publisher-intake-private
+  cancel-in-progress: true
+
+jobs:
+  offline-review-and-real-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Require original Store V1 source to remain immutable
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+          echo MUSITU_STORE_V1_UNCHANGED=PASS
+      - name: Run private intake negative-security test contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s store/phase1/publisher_intake -p 'test_*.py' -v
+          python3 -m py_compile store/phase1/publisher_intake/intake.py
+          echo MUSITU_STORE_PUBLISHER_INTAKE_POLICY_TESTS=PASS
+      - name: Require two independently pinned manual reviewer attestations before catalog review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/publisher_intake/reviewer-attestation.mjs
+          node --test store/phase1/publisher_intake/reviewer-attestation.test.mjs
+          echo MUSITU_STORE_TWO_PERSON_PUBLISHER_REVIEW_ONLY=PASS
+      - name: Obtain isolated disposable Android SDK build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Compile and independently sign disposable publisher fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p store/phase1/android-client --no-daemon :fixturealpha:assembleRelease
+          SIGN_DIR="$RUNNER_TEMP/store-v2-intake-fixture"
+          mkdir -p "$SIGN_DIR"
+          trap 'rm -f "$SIGN_DIR"/key.p12 "$SIGN_DIR"/unsigned-aligned.apk' EXIT
+          PASSWORD="$(openssl rand -hex 18)"
+          keytool -genkeypair -alias fixture -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Disposable MUSITU V2 Intake Fixture" -keystore "$SIGN_DIR/key.p12" -storetype PKCS12 -storepass "$PASSWORD" -keypass "$PASSWORD" -noprompt >/dev/null 2>&1
+          UNSIGNED="$(find store/phase1/android-client/fixturealpha/build/outputs/apk/release -maxdepth 1 -type f -name '*unsigned.apk' | head -1)"
+          test -s "$UNSIGNED"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          "$BUILD_TOOLS/zipalign" -f 4 "$UNSIGNED" "$SIGN_DIR/unsigned-aligned.apk"
+          "$BUILD_TOOLS/apksigner" sign --ks "$SIGN_DIR/key.p12" --ks-type PKCS12 --ks-key-alias fixture --ks-pass "pass:$PASSWORD" --key-pass "pass:$PASSWORD" --min-sdk-version 24 --out "$SIGN_DIR/disposable-signed.apk" "$SIGN_DIR/unsigned-aligned.apk"
+          "$BUILD_TOOLS/apksigner" verify --min-sdk-version 24 "$SIGN_DIR/disposable-signed.apk"
+          # Disposable fixture only: expose metadata labels but redact all hashes.
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$SIGN_DIR/disposable-signed.apk" | sed -E 's/(digest: ).*/\1[REDACTED]/'
+          python3 store/phase1/publisher_intake/signed_apk_integration.py "$SIGN_DIR/disposable-signed.apk"
+          node store/phase1/publisher_intake/signed_apk_integrated_stage.mjs "$SIGN_DIR/disposable-signed.apk"
+          rm -f "$SIGN_DIR/disposable-signed.apk"
+          echo MUSITU_STORE_DISPOSABLE_PUBLISHER_FIXTURE_CLEANED=PASS

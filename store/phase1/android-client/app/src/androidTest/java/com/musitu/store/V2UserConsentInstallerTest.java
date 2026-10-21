@@ -76,5 +76,12 @@ public final class V2UserConsentInstallerTest {
     for(byte b:cert)actual.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
     assertEquals("installed package signing certificate differs from verified catalog",
       selected.signingCertificateSha256,actual.toString());
+    assertTrue("normal install must retain a bounded cleanup lease until caller revokes",
+      V2InstallerUriLeaseReceiver.isArmed(context,staged));
+    // Qualified caller-side completion cleanup; the production V2 Activity still
+    // needs real lifecycle wiring before release, not just this test path.
+    V2AndroidInstallBridge.revokeInstallerUriGrant(context,staged);
+    assertFalse("successful user-approved install must disarm scoped URI lease",
+      V2InstallerUriLeaseReceiver.isArmed(context,staged));
   }
 }

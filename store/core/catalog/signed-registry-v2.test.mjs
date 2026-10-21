@@ -157,3 +157,18 @@ test('rejects signed manifests valid for more than thirty days',()=>{
   const data=fresh();data.expiresAt='2026-11-20T00:00:00.000Z';
   assert.throws(()=>verify(data),/validity|window/i);
 });
+test('Android V2 native catalog rejects URL paths the Android APK staging policy cannot accept',()=>{
+  const data=fresh(),apk=data.apps[0].releases[0];
+  for(const url of [
+    'https://payments.mftintelligence.com/chemistry/%41pp.apk',
+    'https://payments.mftintelligence.com/chemistry/app.bin',
+    'https://payments.mftintelligence.com/chemistry/.apk%20'
+  ]){
+    apk.artifactURL=url;
+    assert.throws(()=>verify(data),/android|APK|path|artifact|URL/i,`native-only path accepted: ${url}`);
+  }
+});
+test('signed Android V2 releases reject artifacts exceeding the Android 512 MiB staging ceiling',()=>{
+  const data=fresh();data.apps[0].releases[0].bytes=512*1024*1024+1;
+  assert.throws(()=>verify(data),/APK|size|bytes|large/i);
+});
