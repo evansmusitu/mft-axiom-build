@@ -69,6 +69,15 @@ def main():
     organization=org["data"] if org["ok"] and isinstance(org["data"],dict) else {}
     possible_mfa_settings={key:organization.get(key) is not None for key in
          ("mfa_config","mfa_settings","mfa")}
+    org_mfa=organization.get("mfa_config") if isinstance(organization.get("mfa_config"),dict) else {}
+    allowed=org_mfa.get("allowed_authenticators",[])
+    available_methods=[v for v in ("totp","biometrics","security_key")
+        if isinstance(allowed,list) and v in allowed]
+    owner_uuid=seen.get("user_uuid")
+    uuid_wellformed=isinstance(owner_uuid,str) and len(owner_uuid)==36
+    # Global Access MFA must be explicitly ON; configured MFA alone does not
+    # imply it applies to this app. Never expose MFA enrollment information.
+    global_mfa=organization.get("mfa_required_for_all_apps") is True
     # Cloudflare account-level MFA or successful dashboard login are not adequate
     # evidence of this Access app's owner user + app MFA policy.
     result={"schema":"lifeline.cloudflare_owner_mfa_readonly.v1",
@@ -88,6 +97,13 @@ def main():
             any("mfa" in str(x).lower() for x in auth_types),
        "organization_mfa_setting_keys_present":possible_mfa_settings,
        "app_mfa_config_present":bool(data.get("mfa_config")),
+       "org_mfa_global_required":global_mfa,
+       "org_mfa_enabled_methods_count":len(available_methods),
+       "org_mfa_session_duration_configured":bool(org_mfa.get("session_duration")),
+       "access_identity_user_uuid_available":uuid_wellformed,
+       "access_identity_auth_success":auth_status in ("success","SUCCESS","authenticated"),
+       "access_owner_eligibility_preflight":owner_contact_matched and uuid_wellformed and
+           global_mfa and bool(available_methods) and bool(org_mfa.get("session_duration")),
        "app_owner_mfa_evidenced":independent_mfa_qualified,
        "owner_access_jwt_subject_evidenced":False,
        "live_cloudflare_route_enabled":False,
