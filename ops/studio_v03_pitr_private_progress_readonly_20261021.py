@@ -15,7 +15,9 @@ def call(path,raw=False):
     except urllib.error.HTTPError as e:return e.code,None
     except (OSError,ValueError):return 0,None
 c,_=call('/workers/scripts/musitu-studio-v03-pitr-kv-e2e-20261021')
+report['worker_http_status']=c
 report['worker_present']=c==200
+report['worker_settings_http_status']=call('/workers/scripts/musitu-studio-v03-pitr-kv-e2e-20261021/settings')[0]
 c,existing=call('/storage/kv/namespaces?per_page=100')
 if c==200 and isinstance(existing,dict) and existing.get('success') and isinstance(existing.get('result'),list):
     found=[x for x in existing['result'] if x.get('title')=='musitu-studio-v03-pitr-proof-20261021']
