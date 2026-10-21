@@ -8,7 +8,7 @@ import modal
 
 app=modal.App("lifeline-mt5-neon-rls-probe-isolated")
 image=(modal.Image.debian_slim(python_version="3.12")
-       .pip_install("cryptography>=44,<47","psycopg[binary]>=3.2,<4")
+       .pip_install("cryptography>=44,<47","psycopg[binary]>=3.2,<4","certifi>=2025.1")
        .add_local_file("products/lifeline-mt5-ai-studio/infra/modal/neon_envelope.json",
                        "/opt/lifeline/neon_envelope.json",copy=True))
 
@@ -23,7 +23,7 @@ def verify_restricted_role():
     import base64, json, os
     from pathlib import Path
     from urllib.parse import urlsplit
-    import psycopg
+    import psycopg, certifi
     from cryptography.hazmat.primitives import serialization, hashes
     from cryptography.hazmat.primitives.asymmetric import padding
 
@@ -55,7 +55,7 @@ def verify_restricted_role():
                 "credential_exposed":False}
         # Supplied sslmode='verify-full' OVERRIDES the URL's weaker 'require'.
         phase='postgres_connect'
-        with psycopg.connect(dsn,sslmode="verify-full",connect_timeout=12,
+        with psycopg.connect(dsn,sslmode="verify-full",sslrootcert=certifi.where(),connect_timeout=12,
                              autocommit=True,prepare_threshold=None) as conn:
             phase='role_query'
             row=conn.execute("SELECT current_user, rolbypassrls, rolcreaterole, rolsuper "
