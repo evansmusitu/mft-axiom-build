@@ -11,6 +11,7 @@ import {resolve} from 'node:path';
 import {createDevelopmentReplySender} from '../src/staging/development-reply.mjs';
 import {encryptLedger} from '../src/security/ledger-encryption.mjs';
 import {createRuntimeRoleBoundPool} from '../src/postgres/runtime-role-guard.mjs';
+import {qualifyCurrentSchemaRecovery} from './native-current-schema-recovery.mjs';
 
 const raw=process.env.PG_ADMIN_URL||'';
 let url;
@@ -161,7 +162,8 @@ try{
   await assert.rejects(http.sender(f[15]),{message:'DEVELOPMENT_DAILY_LIMIT',code:'P0001'});assert.equal(http.posts,5);
   return{preexistingSyntheticAttempts:4,contenders:10,additionalSyntheticPosts:1,totalAttemptRows:5};
  });
- console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
+ const recovery=process.env.PG_SCHEMA_RECOVERY_QUALIFICATION==='YES'?await qualifyCurrentSchemaRecovery({admin,seed,Client,connection,migrationPassword:passwords.get('musitu_migrator'),runtimePassword,dbRoot,files,contentKey:key}):null;
+ console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,recovery,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
 }finally{
  await pool?.end();await migration?.end();await seed?.end();
  if(dbCreated)await admin.query(`DROP DATABASE ${database}`);
