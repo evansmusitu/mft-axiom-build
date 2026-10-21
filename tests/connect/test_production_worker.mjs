@@ -200,3 +200,50 @@ test('production worker sends provenance-bound risk execution to Axiom and sanit
     globalThis.fetch = previousFetch;
   }
 });
+
+test('risk rejects multiple records before Axiom execution rather than silently ignoring records', async () => {
+  const mod = await worker();
+  const previousFetch = globalThis.fetch;
+  let outboundCalls = 0;
+  globalThis.fetch = async () => {
+    outboundCalls += 1;
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    const response = await mod.default.fetch(
+      new Request('https://canary.example/api/mining/risk', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ run_id: 'multi-record-rejected', rows: scenario.slice(0, 2) }),
+      }),
+      env,
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { ok: false, error: 'RISK_SINGLE_ROW_REQUIRED' });
+    assert.equal(outboundCalls, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('planner refuses expensive search instead of returning an unverified partial optimum', async () => {
+  const mod = await worker();
+  const rows = Array.from({ length: 18 }, (_, index) => ({
+    hazard: `Uniform hazard ${index}`,
+    exposure: 1,
+    severity: 1,
+    likelihood: 1,
+    cost: 1,
+    benefit: 1,
+  }));
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows, budget: 9 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { ok: false, error: 'PLAN_SEARCH_LIMIT_EXCEEDED' });
+});
