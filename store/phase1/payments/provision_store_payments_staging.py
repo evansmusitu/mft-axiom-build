@@ -71,8 +71,18 @@ def cf(path, method="GET", payload=None, mime="application/json"):
     except (ValueError,TypeError):
         obj = None
     if not (200 <= code < 300) or not isinstance(obj,dict) or obj.get("success") is not True:
-        # Intentionally never log upstream response; it can contain account data.
-        deny("Cloudflare API rejected " + method + " request (HTTP " + str(code) + ")")
+        # Only Cloudflare's numeric error IDs are safe to log. Never print
+        # response messages, request/response bodies, cookies, headers or token.
+        # D1 creation HTTP 403 needs an actionable numeric failure category.
+        errors = obj.get("errors") if isinstance(obj,dict) else None
+        ids = []
+        for item in errors if isinstance(errors,list) else []:
+            value = item.get("code") if isinstance(item,dict) else None
+            if type(value) is int and 1000 <= value <= 999999:
+                ids.append(value)
+        ids = ids[:3]
+        deny("Cloudflare API rejected " + method + " request (HTTP " + str(code)
+             + "; error_codes=" + (",".join(map(str,ids)) if ids else "none") + ")")
     return obj.get("result")
 
 def make_multipart(modules,meta):

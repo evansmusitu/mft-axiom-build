@@ -48,6 +48,32 @@ class StagingSourcePreflight(unittest.TestCase):
         self.assertEqual(auth["X-Auth-Email"], "fixture@example.invalid")
         self.assertEqual(auth["X-Auth-Key"], "global-key-fixture")
 
+    def test_cloudflare_http_errors_expose_only_numeric_codes(self):
+        # No token or Cloudflare response text is ever echoed in the log.
+        import io
+        import urllib.error
+        body = b'{"success":false,"errors":[{"code":10000,"message":"DO NOT LOG merchant-token-ZZZ"}]}'
+        response = urllib.error.HTTPError(
+            "https://api.cloudflare.com/client/v4/accounts/test/d1/database",
+            403, "Forbidden", {}, io.BytesIO(body))
+        with patch.object(staging.urllib.request, "urlopen", side_effect=response):
+            with self.assertRaisesRegex(RuntimeError, r"HTTP 403; error_codes=10000") as caught:
+                staging.cf("/accounts/test/d1/database", method="POST", payload={"name":"test"})
+        self.assertNotIn("DO NOT LOG", str(caught.exception))
+        self.assertNotIn("merchant-token-ZZZ", str(caught.exception))
+
+    def test_cloudflare_error_messages_are_redacted_even_with_malformed_errors(self):
+        import io
+        import urllib.error
+        body = b'{"success":false,"errors":[{"code":"1111","message":"PRIVATE"}, {"code":8,"message":"PRIVATE"}]}'
+        response = urllib.error.HTTPError(
+            "https://api.cloudflare.com/client/v4/accounts/test/d1/database",
+            403, "Forbidden", {}, io.BytesIO(body))
+        with patch.object(staging.urllib.request, "urlopen", side_effect=response):
+            with self.assertRaisesRegex(RuntimeError, r"HTTP 403; error_codes=none") as caught:
+                staging.cf("/accounts/test/d1/database", method="POST", payload={"name":"test"})
+        self.assertNotIn("PRIVATE", str(caught.exception))
+
     def test_scoped_token_used_when_global_pair_absent(self):
         with patch.dict(os.environ, {"CF_API_TOKEN": "scoped-token"}, clear=True):
             self.assertEqual(staging.get_credentials(), {"Authorization": "Bearer scoped-token"})
