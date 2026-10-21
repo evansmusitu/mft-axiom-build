@@ -1,0 +1,44 @@
+{
+  "observedAt": "2026-10-21T21:48:06.741Z",
+  "scope": "READ_ONLY_LIVE_ACCEPTANCE_CHECKPOINT",
+  "liveLedger": {
+    "outboundAttempts": 0,
+    "consentRecords": 0,
+    "statusEvents": 0
+  },
+  "sessionAndRetention": {
+    "observedAt": "2026-10-21T21:47:11.647Z",
+    "activeUnexpiredSessions": 0,
+    "qaActiveMemberships": 1,
+    "expiredRetainedMessages": 0,
+    "expiredRetainedDevelopmentReplies": 0
+  },
+  "backup": {
+    "snapshotSchedule": [],
+    "preservedSnapshotId": "snap-little-smoke-b4sdrjky",
+    "snapshotCreatedAt": "2026-10-14T03:14:23Z"
+  },
+  "pr": {
+    "number": 29,
+    "reviewSubmissions": [],
+    "draft": true,
+    "merged": false
+  },
+  "stableApplication": {
+    "deploymentId": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+    "sourceCommit": "3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a",
+    "state": "READY"
+  },
+  "localVerification": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "passed": 318,
+    "failed": 0,
+    "skipped": 0,
+    "syntaxFiles": 142,
+    "finalManifestEntries": 416,
+    "finalManifestResult": "PASS"
+  },
+  "phase1Complete": false,
+  "publicReleaseAuthorized": false
+}
