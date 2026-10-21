@@ -1,6 +1,6 @@
-# MUSITU Secure Cloud Workspace — v0.3 SQLite Durable Objects fallback, isolated
+# MUSITU Secure Cloud Workspace — v0.4 real DENY-ALL Access hold + disabled/unrouted Cloudflare Worker
 
-**STATUS: Source, opt-in client adapter, and offline qualification tests only. Not deployed, enabled, attached to the public website, or connected to live Access, MFA or D1.** This is not an activated user account system.
+**STATUS: Cloudflare Access DENY-ALL app actually created and verified, and isolated SQLite Durable Object Worker uploaded with WORKSPACE_ENABLED=false, workers.dev=false, preview URLs disabled, and NO custom route or deployed targets.** Neither identity access nor workspace storage is activated. No user login, MFA assertion, tenant membership, encrypted cloud data or multi-device sync has been accepted. This is not a live user account system.
 
 ## What has been implemented
 
@@ -30,19 +30,27 @@
 
 **Security gates for eventual private canary:** install a new, verified Access app on `workspace.mftintelligence.com` with genuinely enforced MFA and owner-only include policy; verify positive and negative signed JWT/login flows; configure the Durable Object class and an internal-only `WORKSPACE_INTERNAL_KEY` secret, a bounded `WORKSPACE_RATE` limit and an isolated custom hostname; implement **controlled, auditable provisioning of tenant memberships** inside each isolated Durable Object before any user-facing activation. Never treat a public login page or application presence as proof of Access policy qualification. Do not activate this on an unprotected `workers.dev` URL.
 
+## v0.4 actual Cloudflare staging evidence (2026-10-21)
+
+- Real **Access app** `MUSITU Cloud Workspace — HOLD / DENY ALL` created only for `workspace.mftintelligence.com` under the verified account. **Zero Allow, Bypass or Service Auth policies**, no launcher visibility, disabled WARP authentication, short 15-minute session setting. Readback verified zero policies. [Actions 39558568738](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39558568738). This is a secure **hold**, not MFA-qualified user access.
+- Separate `musitu-cloud-workspace-durable-private-candidate` uploaded with a new SQLite-backed Durable Object class. Deployment reported **No targets deployed**; independent Cloudflare API readback verified workers.dev and preview URLs are both disabled; custom DNS/route was not created. No Workspace account or data inserted. [Actions 39559326961](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39559326961).
+- Read-only identity inventory returned **one configured Access identity provider, type `cloudflare`**; this does **not** verify true MFA enforcement or any successful interactive login. [Actions 39559613048](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39559613048). **MFA remains BLOCKED / unverified.**
+- `WORKSPACE_ENABLED=false`, public GitHub Pages and the production MUSITU Edge Worker are **unchanged**; no tenants or encrypted workspaces are remotely provisioned. No paid upgrades, D1 deletions or customer-data writes occurred.
+- Preflight refuses an occupied Worker name and an Access app with any allow/bypass policies; a later attempt to reuse the one-time deployment workflow will **fail rather than overwrite the isolated Worker**. Any future version rollout must be separately reviewed.
+
 ## What is not implemented
 
-- **No** Cloudflare Access app or production MFA proof, app audience, team issuer, private hostname, deployed Cloudflare Worker, live D1 instance, membership provisioning, encrypted cloud data, browser synchronization UI, credential changes or paid service enabled here.
-- No private hosted HTML sync UI yet, live Durable Object deployment, membership admin/provisioning, key recovery or rotation, backup retention policy, audit logging, global hard billing cap, organization admin console, or external security audit. The private-origin client is source-only and not exposed in public JS.
+- The Access app and disabled Worker exist, but **no MFA-qualified allow policy**, interactive owner login, bound custom hostname/route, private sign-in page, internal signing secret, active rate-limit binding, enabled workspace, tenant membership provisioning, cloud data, browser synchronization UI, or paid service was activated.
+- No private hosted HTML sync UI yet, live **routed or activated** Durable Object service, membership admin/provisioning, key recovery or rotation, backup retention policy, audit logging, global hard billing cap, organization admin console, or external security audit. The private-origin client is source-only and not exposed in public JS.
 - Not independently penetration tested. Existing browser-side vault security properties and limitations remain unchanged.
 
-## Required qualification gates before **any** deployment
+## Required qualification gates before any **routed or activated** deployment
 
 1. Prove control of the **correct** Cloudflare account and domain; do not touch other products, Axiom main/PR #1, MMF, WhatsApp, payments or production MUSITU Edge.
-2. Configure an isolated Access application **on an isolated custom hostname** and require corporate authentication plus MFA; verify the actual Access app JWT has exact TEAM_DOMAIN issuer and POLICY_AUD audience, including negative checks with expired/wrong-audience/unsigned tokens. Never treat a forged `Cf-Access-Jwt-Assertion` header as trustworthy without a valid JWT.
-3. Create a **dedicated isolated D1 database** and deploy the supplied `schema.sql` to it. Provision tenant memberships out-of-band, and never enable self-serve tenant creation via this Worker. The D1 `subject` must match the verified Access user identity, not an arbitrary email address.
-4. Bind `WORKSPACE_DB` and a Cloudflare API rate-limit binding named `WORKSPACE_RATE`; verify D1 access and rate-limit semantics in the intended Cloudflare account and region. Do not confuse per-location rate limiting with a global billing cap.
-5. Use a private deployment configuration with `workers_dev=false`, `WORKSPACE_ORIGIN=https://workspace.mftintelligence.com`, a single Access-protected private hostname, and `WORKSPACE_ENABLED=false` until Access+MFA+RBAC negative tests pass. The private UI must be served from the same origin; do not embed cross-site cookies or Access service tokens in the public GitHub Pages client. Never expose an unprotected public route or add this code to existing `studio-edge/worker.mjs`.
+2. Upgrade the new **DENY-ALL hold** Access app to a narrowly scoped **owner-only, MFA-enforcing** policy only after proving identity-provider capability; do not create any everyone/OTP-only Allow policy. Require corporate authentication plus MFA; verify the actual Access app JWT has exact TEAM_DOMAIN issuer and POLICY_AUD audience, including negative checks with expired/wrong-audience/unsigned tokens. Never treat a forged `Cf-Access-Jwt-Assertion` header as trustworthy without a valid JWT.
+3. Use the **SQLite Durable Object** fallback rather than attempting to create D1 in a full account; do not reuse an unrelated D1 database. Provision tenant memberships through a qualified, authenticated and audited operator-only process. Provision tenant memberships out-of-band, and never enable self-serve tenant creation via this Worker. The D1 `subject` must match the verified Access user identity, not an arbitrary email address.
+4. Bind a Cloudflare rate-limit binding named `WORKSPACE_RATE` and provide a strong, server-only `WORKSPACE_INTERNAL_KEY` secret; independently verify SQLite Durable Object tenant isolation, authorization and rate-limit semantics in the intended Cloudflare account and region. Do not confuse per-location rate limiting with a global billing cap.
+5. Preserve `workers_dev=false`, `preview_urls=false`, `WORKSPACE_ORIGIN=https://workspace.mftintelligence.com`; attach a private route **only** after the new Access app's owner-only MFA policy, correct audience, origin and anonymous-negative tests are verified. Keep `WORKSPACE_ENABLED=false` until live RBAC negative tests pass. The private UI must be served from the same origin; do not embed cross-site cookies or Access service tokens in the public GitHub Pages client. Never expose an unprotected public route or add this code to existing `studio-edge/worker.mjs`.
 6. Only then stage `WORKSPACE_ENABLED=true`, test unauthorized, viewer, cross-tenant, revoked, invalid-token and CAS-race denial through the **actual** private hostname. Confirm plaintext is never received and browser clients use authenticated encryption before upload.
 7. Implement an opt-in encrypted browser sync client, test the real provider sign-in flow, and independently qualify tenant isolation, secure backup/deletion and quotas before considering production release.
 
@@ -58,6 +66,8 @@ node --check studio-edge/cloud-workspace/durable-worker.mjs
 node --check studio-edge/cloud-workspace/durable-sql-adapter.mjs
 python3 studio-edge/cloud-workspace/tests/durable_sql_contract.py
 python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_d1_bootstrap.py
+python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_access_hold_bootstrap.py
+python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_disabled_deploy_gate.py
 ```
 
 **Do not set WORKSPACE_ENABLED=true without live controls.** The example Wrangler file is intentionally unbound and route-free. Changing it to a public Worker deployment before Access qualification defeats the intended security model.
