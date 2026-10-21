@@ -25,6 +25,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Bundle isolated Durable Object without publishing or Cloudflare credentials
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --dry-run --config studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc --outdir /tmp/musitu-cloud-workspace-build
+          test -d /tmp/musitu-cloud-workspace-build
+          echo 'WRANGLER PRIVATE SQLITE DURABLE OBJECT BUNDLE PASS — DRY RUN ONLY'
       - name: Fail closed and never deploy
         run: |
           set -euo pipefail
