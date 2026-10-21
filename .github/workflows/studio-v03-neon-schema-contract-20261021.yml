@@ -1,0 +1,26 @@
+name: MUSITU Studio V0.3 — Neon Postgres Schema Safety Contract
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths: [.github/workflows/studio-v03-neon-schema-contract-20261021.yml]
+permissions: {contents: read}
+jobs:
+  source-only-neon-schema-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Qualify PostgreSQL source without Neon compute or Cloudflare deployment
+        run: node --test musitu_studio/neon/tests/schema_contract.test.mjs
+      - name: Check no live database URLs or credentials are committed in migration code
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('musitu_studio/neon')
+          payload='\n'.join(f.read_text() for f in root.rglob('*') if f.is_file())
+          assert 'postgresql://' not in payload and 'sk_live_' not in payload
+          assert 'DROP SCHEMA' not in payload and 'TRUNCATE TABLE' not in payload
+          print('NEON_SCHEMA_SOURCE_ONLY_NO_CREDENTIALS_OR_DESTRUCTIVE_MIGRATION=PASS')
+          PY
