@@ -135,6 +135,38 @@ jobs:
               workspace.proxy_tokens.delete(token.token_id)
               print('ephemeral_proxy_token_revoked=true')
           PY
+      - name: Authenticate private on-demand Neon/RLS readiness; fail on unexpected results
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import modal,urllib.request,urllib.error,json,pathlib
+          u=pathlib.Path('/tmp/lifeline-private-url.txt').read_text().strip()
+          guest=urllib.request.Request(u+'/research/neon-readiness')
+          try:urllib.request.urlopen(guest,timeout=25)
+          except urllib.error.HTTPError as exc:
+              if exc.code not in (401,403):raise SystemExit('private Neon readiness guest not denied')
+          else:raise SystemExit('private Neon readiness unexpectedly accessible to anonymous user')
+          workspace=modal.Workspace.from_context()
+          token=workspace.proxy_tokens.create(name='lifeline-neon-readiness-ephemeral-revoke')
+          try:
+              headers={'Modal-Key':token.token_id,'Modal-Secret':token.token_secret}
+              req=urllib.request.Request(u+'/research/neon-readiness',headers=headers)
+              with urllib.request.urlopen(req,timeout=35) as resp:
+                  if resp.status!=200:raise SystemExit('authenticated private readiness not 200')
+                  data=json.load(resp)
+              must=('authenticated_private_runtime','live_restricted_neon_login',
+                    'tls_verify_full','three_tables_rls_active',
+                    'synthetic_tenant_a_isolated','synthetic_tenant_b_isolated')
+              if data.get('schema')!='lifeline.modal_neon_readiness.v1' or any(data.get(k) is not True for k in must):
+                  raise SystemExit('private Neon readiness qualification failed')
+              if data.get('live_trading') is not False or data.get('windows_host_connected') is not False or data.get('cloudflare_access_gateway_connected') is not False:
+                  raise SystemExit('private Neon readiness unsafe state')
+              print('PRIVATE_MODAL_PLUS_NEON_RESTRICTED_READINESS=PASS')
+          finally:
+              workspace.proxy_tokens.delete(token.token_id)
+              print('private_readiness_ephemeral_proxy_token_revoked=true')
+          PY
       - name: Capture no-secret deployment evidence
         if: always()
         shell: bash
