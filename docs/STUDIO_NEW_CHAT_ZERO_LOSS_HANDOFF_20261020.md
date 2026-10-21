@@ -212,3 +212,60 @@ The builder now explicitly selects only `ops/tests/test_studio_v03_pitr_*` in ad
 - New source-transfer ZIP verified **187/187 internal manifest entries** and 189 total ZIP paths, up from 184/186; **three Python regression test files now included**. Source-only ZIP SHA256 `1f2677c9cde55a861e749853343c0e245fd65b895972268b6b5df694a0c59775` (the nested inner archive, not the GitHub Actions artifact wrapping ZIP).
 
 **Live qualification remains accurate:** the real signed staff owner's restricted single-admin runtime is activated by earlier guarded provider-attested release; Modal zero-out-of-pocket billing guarantee is **unverified**, so CPU and GPU remain OFF and the source CPU latch is intact; actual hosted Cloudflare SQLite Durable Object PITR is **not proven** despite earlier real provider bookmark/mutation and safe deletion of disposable Workers/KV. The latest work is source and test-handoff hardening only. Future Cloudflare disposable deploy is blocked pending safe error categorization with the new fail-closed runner; never infer live recovery from mock-provider regression tests. Do not request repeated user screenshots or identity actions.
+
+## 22. Owner-approved Neon Scale PostgreSQL enterprise staging — 2026-10-21
+
+The owner **explicitly authorized Neon Scale as the future Studio V0.3 production
+database, CONDITIONED on complete verified migration and security testing**.
+This does not waive the requirement not to lose data or incur uncontrolled
+charges. The existing private Cloudflare SQLite DO remains the LIVE source of
+truth; there is **NO production DB cutover**.
+
+A Neon provider-native entitlement readback confirmed the account organization
+is on the `scale` plan. A **new and entirely isolated, sample-only** Neon
+PostgreSQL 17 project `proud-frog-19561447` was created in `aws-us-east-2`,
+fixed 0.25 CU with 60-second suspend. Project-level enforced quotas:
+active=600 s, compute=150 CU-s, monthly written data 2 MiB,
+egress 5 MiB, logical size 32 MiB. The network was briefly opened solely
+for supervised sample-only database tests and immediately reclosed.
+Independent final Neon provider readback confirmed
+`block_public_connections=true`. Neon project quotas are not a guarantee
+of a $0 total Scale bill or protection for Modal.
+
+The additive, first-class PostgreSQL production-candidate schema lives in
+`musitu_studio/neon/0001_enterprise_postgres_schema.sql`: isolated
+`studio_v03` schema, all six ledger tables and all five security trigger
+types (six installed triggers). Neon executed **21/21** DDL statements
+transactionally against a nondefault synthetic proof branch. Real provider
+tests confirmed immutable audit UPDATE/DELETE, rejection of preapproved
+artifacts, and rejection of COMPLETED jobs with fewer than three assets,
+all without altering the original signed-source ledger. A genuine
+Neon hosted snapshot `snap-soft-mountain-b5d6gx6h` of the schema + test
+rows was restored into a **new** isolated branch `br-noisy-math-b5xu9qrb`
+and provider SQL confirmed: 1 project, 1 pending job, 1 audit, 1 schema
+migration record, 6 triggers. This proves **actual hosted PostgreSQL
+recovery for synthetic Studio-shaped staging data**, NOT restoration of
+the live Cloudflare DO.
+
+The nondeployed code `musitu_studio/neon/neon_pg_adapter.mjs` implements
+a PostgreSQL prepared-query facade with scoped schema and SERIALIZABLE
+batch transactions; SQLite's conditional successful-UPDATE audit is
+converted to a same-transaction audit only when the preceding PG update
+affects exactly one row. On error, PostgreSQL transaction rollback is
+explicit, and unsupported SQLite date functions / destructive DDL /
+missing row counts fail closed. CI run **39566288797**, job 119109240242,
+passed **15/15** source-only Neon safety and transaction regression tests.
+No credentials or customer records enter GitHub. This **does not yet prove**
+production Cloudflare Worker -> Neon connectivity or real browser approvals.
+
+Formal owner-authorized, not-yet-met gates are documented in
+`docs/STUDIO_NEON_SCALE_GATED_MIGRATION_20261021.md`. Require securely
+authenticated read-only live DO export, source-to-target row counts/hashes,
+immutable audit and R2 pointers, a private or equivalently locked-down
+Cloudflare-to-Neon network path with least-privilege credentials, full
+real signed Access and single-administrator browser end-to-end, deterministic
+freeze/delta and rollback verification, provider spending qualification, and
+successful actual Neon customer DB recovery BEFORE switching the live
+routing. Never change Axiom main, Studio V0.2, Access allowlist, R2 or
+CPU/GPU locks to chase the migration. Modal billing hard $0 stays unverified;
+renders remain source locked OFF.
