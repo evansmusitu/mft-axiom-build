@@ -1,4 +1,4 @@
-# MUSITU Secure Cloud Workspace — v0.4 real DENY-ALL Access hold + disabled/unrouted Cloudflare Worker
+# MUSITU Secure Cloud Workspace — v0.5 app-enforced independent MFA (still DENY-ALL)
 
 **STATUS: Cloudflare Access DENY-ALL app actually created and verified, and isolated SQLite Durable Object Worker uploaded with WORKSPACE_ENABLED=false, workers.dev=false, preview URLs disabled, and NO custom route or deployed targets.** Neither identity access nor workspace storage is activated. No user login, MFA assertion, tenant membership, encrypted cloud data or multi-device sync has been accepted. This is not a live user account system.
 
@@ -38,9 +38,17 @@
 - `WORKSPACE_ENABLED=false`, public GitHub Pages and the production MUSITU Edge Worker are **unchanged**; no tenants or encrypted workspaces are remotely provisioned. No paid upgrades, D1 deletions or customer-data writes occurred.
 - Preflight refuses an occupied Worker name and an Access app with any allow/bypass policies; a later attempt to reuse the one-time deployment workflow will **fail rather than overwrite the isolated Worker**. Any future version rollout must be separately reviewed.
 
+## v0.5 independently checked MFA configuration (2026-10-21)
+
+- **Read-only organization audit:** The canonical Zero Trust organization already permits independent MFA using both `security_key` and `totp`, with no organization-wide settings changed by MUSITU. App originally inherited defaults and did not explicitly enforce MFA. [Read-only assessment run 39562149731](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39562149731).
+- **Scoped application-only hardening completed:** Revalidated exact Cloudflare account, verified `workspace.mftintelligence.com` Access app has **zero policies**, then used one guarded PUT on that app **only** to set `mfa_config={"allowed_authenticators":["security_key","totp"],"mfa_disabled":false,"session_duration":"0m"}`. A fresh Cloudflare API readback verified same ID/audience, preserved unrelated settings, no Allow/Bypass/Service Auth policies, and every-login MFA configuration. The Worker, organization and IdPs were not mutated. [Action 39562692198](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39562692198).
+- **Readback independent check:** Additional read-only API inspection verified app MFA explicitly enforced and every-login, while **interactive MFA and owner authentication remain unverified**. [Run 39562941525](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39562941525).
+- **User-required external step:** The provider-supplied organization enrollment page is `https://musitu-axiom.cloudflareaccess.com/AddMfaDevice`. The owner must securely sign in on their device and enroll/test an authenticator app (TOTP) or WebAuthn security key. This browser-based human verification **cannot be inferred from the API configuration alone**. Do not paste recovery keys, passwords, TOTP codes or security secrets into GitHub, the repository or ChatGPT.
+- **Important distinction:** This is a verified **MFA-enforcing configuration**, **not** proof that a person has completed MFA. The Access app still has no Allow policy; the Worker is disabled and not routed; it remains impossible to use a MUSITU cloud workspace. The origin should stay closed until a separately qualified, narrowly scoped owner identity policy and authenticated end-to-end browser acceptance test pass.
+
 ## What is not implemented
 
-- The Access app and disabled Worker exist, but **no MFA-qualified allow policy**, interactive owner login, bound custom hostname/route, private sign-in page, internal signing secret, active rate-limit binding, enabled workspace, tenant membership provisioning, cloud data, browser synchronization UI, or paid service was activated.
+- The Access app now has verified **independent MFA configuration**, but **no MFA-qualified owner session or narrowly scoped Allow policy**, interactive owner login, bound custom hostname/route, private sign-in page, internal signing secret, active rate-limit binding, enabled workspace, tenant membership provisioning, cloud data, browser synchronization UI, or paid service was activated.
 - No private hosted HTML sync UI yet, live **routed or activated** Durable Object service, membership admin/provisioning, key recovery or rotation, backup retention policy, audit logging, global hard billing cap, organization admin console, or external security audit. The private-origin client is source-only and not exposed in public JS.
 - Not independently penetration tested. Existing browser-side vault security properties and limitations remain unchanged.
 
