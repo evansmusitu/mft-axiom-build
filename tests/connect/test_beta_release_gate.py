@@ -17,6 +17,8 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         record = self.record
         self.assertEqual(record['schema'], 'musitu.connect.beta_release_gate.v1')
         self.assertEqual(record['assessment_kind'], 'FEATURE_BRANCH_PREPARATORY_NON_ENABLING')
+        self.assertEqual(record['offline_customer_identity_verifier'], 'SYNTHETIC_TESTED_DISABLED_NOT_WIRED')
+        self.assertNotIn('customer_identity.mjs', self.worker)
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
