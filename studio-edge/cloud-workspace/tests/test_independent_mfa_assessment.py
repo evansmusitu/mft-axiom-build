@@ -63,7 +63,7 @@ class TestIndependentMfa(unittest.TestCase):
         output=json.dumps(result)
         self.assertNotIn("DO_NOT_EXPORT",output)
         self.assertNotIn("valid_expected_audience",output)
-        self.assertNotIn("tenant.cloudflareaccess.com",output)
+        self.assertEqual(result["owner_mfa_enrollment_url"],"https://tenant.cloudflareaccess.com/AddMfaDevice")
     def test_no_org_authenticators_never_meets_mfa_readiness(self):
         api=Api([],{"mfa_disabled":False,"session_duration":"0m"})
         result=mfa.inspect("fake",opener=api)
