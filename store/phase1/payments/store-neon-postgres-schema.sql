@@ -10,7 +10,7 @@ CREATE TABLE store_customer_tokens (
  customer_id TEXT NOT NULL CHECK (length(customer_id) BETWEEN 4 AND 128),
  status TEXT NOT NULL DEFAULT 'inactive' CHECK (status IN ('inactive','active','revoked')),
  expires_at TEXT NOT NULL CHECK (
-   expires_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{3})?Z
+   expires_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{3})?Z$'),
  created_at TEXT NOT NULL DEFAULT to_char(clock_timestamp() AT TIME ZONE 'UTC',
                                             'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
