@@ -31,6 +31,11 @@
 - Independent GitHub Actions run: https://github.com/evansmusitu/mft-axiom-build/actions/runs/39557904660 **SUCCESS**. No agent tokens, private keys, DSN, HMAC or Modal proxy tokens printed.
 - The original bootstrap workflow attempted to re-create a Secret and failed on a later unrelated code push (run 39557904361), before deploying or mutating the previously established Secret. Its trigger has since been changed to manual-only. The regression workflow is the authoritative success proof.
 
+## Fresh Vercel guest access denial (the *exact latest preview*)
+
+GitHub Actions run https://github.com/evansmusitu/mft-axiom-build/actions/runs/39558218550 **SUCCESS**.
+An HTTPS request to the latest protected preview deployment `dpl_3cQimHkLi3ts9ayLRCtPCZKeSggS`, without cookies or following redirects, returned **HTTP 302** to authentication (not HTTP 200 content). Deployment remains a protected status preview with no native trading controls. No production hostname was promoted and no Cloudflare route was created.
+
 ## Status of independent cloud services
 
 - GitHub native Windows runner: real vendor-signed MetaEditor compiled MQL5 into EX5. A mathematical calculation Strategy Tester report exists; **not a market-history backtest**.
