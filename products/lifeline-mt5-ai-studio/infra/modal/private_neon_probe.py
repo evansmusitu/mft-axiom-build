@@ -27,15 +27,19 @@ def verify_restricted_role():
     from cryptography.hazmat.primitives import serialization, hashes
     from cryptography.hazmat.primitives.asymmetric import padding
 
+    phase='envelope'
     try:
         sealed=json.loads(Path('/opt/lifeline/neon_envelope.json').read_text())
         if sealed.get("schema")!="lifeline.secret_envelope.rsa_oaep_sha256.v1":
             raise ValueError("unexpected envelope")
+        phase='private_key'
         key=serialization.load_pem_private_key(
             base64.b64decode(os.environ["RSA_PRIVATE_PEM_B64"]),password=None)
+        phase='decrypt'
         plain=key.decrypt(base64.b64decode(sealed["ciphertext_b64"]),
               padding.OAEP(mgf=padding.MGF1(hashes.SHA256()),
                   algorithm=hashes.SHA256(),label=None))
+        phase='dsn_parse'
         dsn=plain.decode("utf-8")
         url=urlsplit(dsn)
         if (url.scheme!="postgresql" or
@@ -50,13 +54,16 @@ def verify_restricted_role():
                 "database_write_attempted":False,"live_trading":False,
                 "credential_exposed":False}
         # Supplied sslmode='verify-full' OVERRIDES the URL's weaker 'require'.
+        phase='postgres_connect'
         with psycopg.connect(dsn,sslmode="verify-full",connect_timeout=12,
                              autocommit=True,prepare_threshold=None) as conn:
+            phase='role_query'
             row=conn.execute("SELECT current_user, rolbypassrls, rolcreaterole, rolsuper "
                              "FROM pg_roles WHERE rolname=current_user").fetchone()
             if row is None or row[0]!="lifeline_stage_app" or any(row[1:]):
                 raise ValueError("database role is privileged")
             report["restricted_role"]=True
+            phase='rls_query'
             required=["lifeline.research_receipts","lifeline.agent_jobs","lifeline.agent_nonces"]
             if not all(conn.execute("SELECT row_security_active(%s::regclass)",(table,)).fetchone()[0]
                        for table in required):
@@ -72,13 +79,19 @@ def verify_restricted_role():
                     if outside!=0:
                         raise ValueError("cross tenant visibility")
                     return own
-            a,b=in_tenant("test_tenant_A"),in_tenant("test_tenant_B")
+            phase='tenant_a'
+            a=in_tenant("test_tenant_A")
+            phase='tenant_b'
+            b=in_tenant("test_tenant_B")
             # Real test fixtures already exist from the previous Neon security pass.
             if a<1 or b<1:
                 raise ValueError("tenant fixtures missing")
             report.update(connected=True,tenant_isolation=True,
                           tenant_a_synthetic_rows=a,tenant_b_synthetic_rows=b)
         return report
-    except Exception:
-        # Suppress underlying driver errors (which sometimes include connection URLs).
-        raise RuntimeError("private Neon restricted-login qualification failed; inspect stage configuration") from None
+    except Exception as exc:
+        # Suppress driver messages (can contain connection URLs), expose only safe category/phase.
+        sqlstate=getattr(exc,'sqlstate',None)
+        safe_code=sqlstate if isinstance(sqlstate,str) and len(sqlstate)==5 else 'NONE'
+        raise RuntimeError("private Neon qualification failed phase="+phase+
+                           " error_type="+type(exc).__name__+" sqlstate="+safe_code) from None
