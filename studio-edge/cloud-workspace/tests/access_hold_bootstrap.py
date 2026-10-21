@@ -87,7 +87,8 @@ def hostname(app):
             uri = destination.get("uri", "")
             if isinstance(uri, str) and uri:
                 names.append(uri)
-    return [str(name).lower().split("/", 1)[0].removeprefix("https://")
+    return [urllib.parse.urlsplit(str(name) if "://" in str(name) else
+                                      "https://" + str(name)).hostname or ""
             for name in names if name]
 
 
