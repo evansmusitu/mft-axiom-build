@@ -1,0 +1,44 @@
+name: LIFELINE Modal Budget Preflight - Read Only
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: ['.github/workflows/lifeline-mt5-modal-budget-readonly.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  modal-billing-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Get billing summary without deploying any app
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          modal billing summary --for 'this month' --json > /tmp/lifeline-modal-billing.json
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          obj=json.load(open('/tmp/lifeline-modal-billing.json'))
+          if not isinstance(obj,dict):raise SystemExit('unexpected_modal_billing_structure')
+          metered=obj.get('metered_cost')
+          billed=obj.get('billed_cost')
+          if metered is None or billed is None:raise SystemExit('modal_billing_totals_missing')
+          metered,billed=Decimal(str(metered)),Decimal(str(billed))
+          print(json.dumps({'metered_usd_so_far':str(metered),
+             'billed_usd_so_far':str(billed),
+             'modal_credentials_valid':True,'deployment_attempted':False}))
+          if billed>0:raise SystemExit('workspace_already_billed_no_automatic_new_compute')
+          if metered>Decimal('25'):raise SystemExit('workspace_near_starter_free_allowance_stop')
+          print('budget_preflight=PASS_LOW_USAGE_NOT_PROOF_OF_NO_FUTURE_CHARGES')
+          PY
