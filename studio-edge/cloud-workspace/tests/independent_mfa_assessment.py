@@ -69,6 +69,7 @@ def inspect(token,opener=urllib.request.urlopen):
     independent_ready=bool(allowed) and app_explicit and app_cfg.get("session_duration")=="0m"
     return {
         "schema":"musitu.cloud_workspace.independent_mfa_assessment.v1",
+        "owner_mfa_enrollment_url":"https://"+org["auth_domain"]+"/AddMfaDevice",
         "account_id":ACCOUNT,"zone":DOMAIN,"hostname":HOST,
         "access_app_deny_all_maintained":True,
         "access_app_api_field_names":sorted(list(app.keys())),
@@ -101,6 +102,7 @@ def main():
         OUT.write_text(json.dumps(data,sort_keys=True,indent=2)+"\n",encoding="utf-8")
         print("MUSITU independent MFA org methods:",data["organization_independent_mfa_allowed_methods"])
         print("Access app field names (no values):",data["access_app_api_field_names"])
+        print("Existing Cloudflare Access MFA enrollment URL:",data["owner_mfa_enrollment_url"])
         print("App MFA explicit:",data["application_explicit_mfa_enforced"],
               "Every login:",data["application_mfa_each_login"],
               "Owner interactive MFA:",False,"Writes:",False)
