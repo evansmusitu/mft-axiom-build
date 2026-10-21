@@ -93,5 +93,26 @@ def verify_restricted_role():
         # Suppress driver messages (can contain connection URLs), expose only safe category/phase.
         sqlstate=getattr(exc,'sqlstate',None)
         safe_code=sqlstate if isinstance(sqlstate,str) and len(sqlstate)==5 else 'NONE'
+        message=str(exc).lower()
+        categories=[
+          ('password authentication failed','AUTH_BAD_PASSWORD'),
+          ('role does not exist','AUTH_ROLE_MISSING'),
+          ('database does not exist','DB_MISSING'),
+          ('permission denied','DB_PERMISSION'),
+          ('certificate verify failed','TLS_VERIFY'),
+          ('certificate', 'TLS_CERTIFICATE'),
+          ('ssl','TLS_GENERAL'),
+          ('temporary failure in name resolution','DNS_TEMPORARY'),
+          ('could not translate host name','DNS_LOOKUP'),
+          ('connection timed out','TCP_TIMEOUT'),
+          ('connection refused','TCP_REFUSED'),
+          ('network is unreachable','NETWORK_UNREACHABLE'),
+          ('server closed the connection','SERVER_DISCONNECTED'),
+          ('channel binding','CHANNEL_BINDING'),
+          ('could not connect','TCP_CONNECT'),
+          ('conninfo','DSN_ERROR'),
+        ]
+        category=next((label for term,label in categories if term in message),'UNCLASSIFIED')
         raise RuntimeError("private Neon qualification failed phase="+phase+
-                           " error_type="+type(exc).__name__+" sqlstate="+safe_code) from None
+                           " error_type="+type(exc).__name__+" sqlstate="+safe_code+
+                           " category="+category) from None
