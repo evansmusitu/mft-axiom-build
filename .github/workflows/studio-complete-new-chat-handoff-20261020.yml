@@ -1,4 +1,4 @@
-name: MUSITU Studio — Complete Verified New-Chat Transfer 2026-10-20
+name: MUSITU Studio — Enterprise Verified New-Chat Handoff 2026-10-21
 on:
   push:
     branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
@@ -8,6 +8,7 @@ on:
       - 'ops/studio_snapshot_provider_readonly_20261020.py'
       - 'docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md'
       - 'musitu_studio/neon/**'
+      - 'docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md'
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-complete-new-chat-transfer-20261020
@@ -36,6 +37,7 @@ jobs:
           test -f musitu_studio/modal/studio_modal.py
           test -f musitu_studio/edge/public_v03/index.html
           test -f docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md
+          test -f docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md
           python -m py_compile ops/studio_build_new_chat_handoff_20261020.py ops/studio_snapshot_provider_readonly_20261020.py
           node --check musitu_studio/edge/src/v03_entry.mjs
           node --check musitu_studio/edge/src/v03_do_entry.mjs
@@ -59,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           python ops/studio_build_new_chat_handoff_20261020.py
-          test -s MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip
+          test -s MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021.zip
           test -s STUDIO_NEW_CHAT_HANDOFF_BUILD_RECEIPT_20261020.json
       - name: Independently execute verifier EMBEDDED in the ZIP
         shell: bash
@@ -67,7 +69,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import zipfile,pathlib,subprocess,sys
-          p=pathlib.Path('MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip')
+          p=pathlib.Path('MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021.zip')
           with zipfile.ZipFile(p) as z:
             ver=[x for x in z.namelist() if x.endswith('/07_VERIFY_HANDOFF.py')]
             assert len(ver)==1
@@ -82,7 +84,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import pathlib,zipfile,json
-          p=pathlib.Path('MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip')
+          p=pathlib.Path('MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021.zip')
           dest=pathlib.Path('DIRECT_DRIVE_ZIP_CONTENT')
           dest.mkdir(exist_ok=True)
           with zipfile.ZipFile(p) as z:
@@ -93,25 +95,25 @@ jobs:
               target=dest/name
               target.parent.mkdir(parents=True,exist_ok=True)
               target.write_bytes(z.read(name))
-          root=dest/'MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020'
+          root=dest/'MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021'
           assert (root/'MANIFEST_SHA256.json').is_file()
           manifest=json.loads((root/'MANIFEST_SHA256.json').read_text())
-          assert len(manifest['files'])>=160
+          assert len(manifest['files'])>=200
           assert (root/'PRODUCT_SOURCE/.github/workflows/studio-complete-new-chat-handoff-20261020.yml').is_file()
           print('STUDIO_DIRECT_DRIVE_ARCHIVE_CONTENT=PASS',len(names),'files')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020_DIRECT
+          name: MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021_DIRECT
           path: DIRECT_DRIVE_ZIP_CONTENT/
           retention-days: 45
           include-hidden-files: true
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020
+          name: MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021
           path: |
-            MUSITU_STUDIO_COMPLETE_NEW_CHAT_HANDOFF_20261020.zip
+            MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021.zip
             STUDIO_NEW_CHAT_HANDOFF_BUILD_RECEIPT_20261020.json
             PROVIDER_READONLY_HANDOFF_SNAPSHOT_20261020.json
           retention-days: 45
