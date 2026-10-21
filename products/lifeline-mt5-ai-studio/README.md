@@ -1,10 +1,10 @@
-# LIFELINE MT5 AI Studio — Private Development v0.6
+# LIFELINE MT5 AI Studio — Private Development v0.7
 
 An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
 **This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
 
-**Latest evidence:** [PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md](validation/PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md) — exact run IDs, credential transport, security proofs, blockers, and scope. Earlier evidence in `validation/` remains preserved.
+**Latest evidence:** [PRIVATE_BRIDGE_v07_20261021.md](validation/PRIVATE_BRIDGE_v07_20261021.md) — live private Modal↔Neon signed probe/receipt, newest protected preview, precise still-blocked gates. Previous v0.6 evidence remains in `validation/`. Earlier evidence in `validation/` remains preserved.
 
 ## Proven now
 
@@ -13,13 +13,15 @@ An **isolated research/development system** using the existing GitHub → Vercel
 - **Vercel:** separate private nontrading status UI project `lifeline-mt5-ai-studio-stage` with SSO all deployments. Guest HTTPS request received redirect to authentication; deployment READY. No JavaScript order actions or embedded secrets.
 - **Cloudflare:** exact account `93f395f5121954671f92fffa453d6b61` verified. `lifeline-mt5-edge-isolated` is deployed, unrouted (no workers.dev, DNS or custom route). Separate Access app with an explicit deny-everyone policy; operator login/MFA not yet enrolled or qualified.
 - **Modal private research:** `lifeline-mt5-private-probe-isolated` deployed scale-to-zero with proxy auth. Anonymous HTTP 401; authenticated HTTP 200; temporary token revoked. `POST /research/summary` produces precise `Decimal` P&L stats on supplied synthetic records and denies invalid inputs. No broker or Windows connectivity.
+- **Private signed bridge:** separate proxy-auth Modal service `lifeline-mt5-analytics-isolated` now has the genuine restricted Neon DB queue, and a live synthetic agent completed signed `operator/probe → agent/pull → agent/receipt → operator/status` with HMAC-replay denial. Native agent was a temporary CI process (not MT5/Windows); Cloudflare Access route remains disabled. Run 39549416299.
+- **Database hardening:** actual Neon runtime role and all three RLS tables checked on each transaction with TLS `verify-full`; stale claimed tasks can now be re-signed with their original durable nonce. Windows+Linux acceptance run 39548589034.
 - **Neon:** dedicated project `frosty-rain-34922526`, database `lifeline_mt5_stage`, three FORCE RLS tables. Restricted role `lifeline_stage_app` is NOBYPASSRLS, NOCREATEROLE, NOSUPERUSER and cannot create schema/database objects. **Encrypted RSA-OAEP Neon credential in source; private decryption key only in Modal Secret.** A second internal-only Modal app `lifeline-mt5-neon-rls-probe-isolated` verified actual restricted login, TLS `verify-full`, and synthetic tenant A/B isolation. The database owner and privileged `lifeline_runtime` are forbidden to serve application queries.
 
 ## Not completed
 
 1. No owner-approved continuous Windows host. GitHub-hosted Windows is ephemeral.
 2. Cloudflare Access must transition from deny-all to a real verified owner MFA login **only after** explicit identity verification, negative-auth tests, and an authorized route. No public Worker URL or frontend-to-Modal connection.
-3. Modal read-only research and Neon RLS verifier **have passed separately**, but are not yet one tenant-bound, end-to-end Cloudflare→Modal→Neon→Windows task service.
+3. **Private Modal↔Neon signed PROBE end-to-end passes**, but the full protected Cloudflare Access→Modal→Neon→persistent Windows native path is not connected. The current private app accepts only the paired synthetic staging tenant.
 4. Real historical quote backtests need broker-demo market data and an explicitly approved native agent. Mathematical optimization does not prove a profitable strategy.
 5. Customer publication, compliance, real trading, and revenue are not enabled.
 
