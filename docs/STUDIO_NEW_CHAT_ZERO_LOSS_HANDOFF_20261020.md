@@ -296,3 +296,56 @@ cutover, no customer data migration, no Modal CPU/GPU enablement.** The
 old SQLite DO, Access gate, sole-admin fingerprint and R2 remain the live
 source of truth. A passing source-only test must not be called a live data
 transfer or a provider-enforced zero-charge cap.
+
+## 24. Neon PG17 enterprise terminal-integrity upgrade, synthetic provider proof (2026-10-21)
+
+**Owner-authorized migration; production Cloudflare SQLite DO unchanged.** We found
+a **real security gap in the prior PostgreSQL staging implementation**:
+the pre-v2 `BEFORE UPDATE ON assets` trigger consulted only the destination
+job `NEW.job_id`, so an artifact belonging to an already completed job could
+be moved into another active job without checking the original completed job.
+The original PostgreSQL job trigger also only executed `BEFORE UPDATE OF state`,
+allowing metadata changes to a terminal job without rechecking immutability.
+
+A focused regression first FAILED against the prior source (missing upgrade);
+its four tests passed after adding **additive migration
+`musitu_studio/neon/0002_harden_terminal_asset_integrity.sql`**.
+That PG17 migration is four atomic statements: replace the jobs trigger function
+to prohibit any changes to COMPLETED or FAILED rows; replace the jobs trigger
+to protect ALL UPDATEs, not merely `state`; replace the assets trigger
+function with parent-job `SELECT ... FOR UPDATE` serialization and explicit
+rejection of `NEW.job_id IS DISTINCT FROM OLD.job_id`; and record schema
+version 2 without destructive DDL.
+
+Provider qualification on **sample-only isolated Neon project**
+`proud-frog-19561447`, branch `br-noisy-math-b5xu9qrb`:
+- 4/4 migration statements committed; schema version 2, exactly six
+  user-defined security triggers, and `BEFORE UPDATE ON jobs` verified
+  through the real Neon PostgreSQL provider.
+- A synthetic RUNNING job with three synthetic assets transitioned
+  to COMPLETED; a second independent synthetic RUNNING job was used
+  as the potential reassignment target.
+- **6/6 real SQL negative security checks PASSED**:
+  a completed asset could not be moved to another job, deleted, modified,
+  or added to; completed-job non-state metadata could not be modified;
+  an asset could not be reassigned to another active job.
+- Final readback: completed job remains COMPLETED; exactly three original
+  assets; no assets moved to the target; `error_code` stayed NULL.
+- Public database connections were **blocked again and independently
+  verified** (`block_public_connections:true`); fixed 0.25 CU and
+  small project quotas were retained. Customer data was NOT accessed.
+- Real GitHub Actions source-only workflow **39593053354**, job
+  **119198527925**, passed **37/37** Neon unit/contract tests, with
+  no credentials, billing secrets or live provider compute in CI.
+
+**This closes a PostgreSQL staging security weakness, not production migration.**
+No live Cloudflare-to-Neon connectivity, authorized production DO export,
+real source/target count and HMAC reconciliation, production data backup,
+actual owner-signed end-to-end request, production traffic switch or
+account-level $0 spending cap was verified. The Cloudflare v0.3 Worker,
+v0.2, Axiom main, signed Access policy, CPU/GPU source-lock and R2
+object keys remain unchanged. Do NOT infer that sample-only synthetic
+Neon tests satisfy real-customer migration or Modal billing controls.
+Neon Private Networking uses AWS PrivateLink to a same-region AWS VPC.
+Cloudflare Worker alone is not an AWS PrivateLink client; DO NOT turn off
+Neon's block-public-connections setting to claim private connectivity.

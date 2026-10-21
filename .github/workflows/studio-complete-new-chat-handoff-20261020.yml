@@ -7,6 +7,7 @@ on:
       - 'ops/studio_build_new_chat_handoff_20261020.py'
       - 'ops/studio_snapshot_provider_readonly_20261020.py'
       - 'docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md'
+      - 'musitu_studio/neon/**'
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-complete-new-chat-transfer-20261020
@@ -45,6 +46,8 @@ jobs:
       - name: Execute complete Studio edge test suite including V0.2/V0.3
         working-directory: musitu_studio/edge
         run: npm test
+      - name: Verify Neon migration safety and terminal-asset integrity (offline, no provider compute)
+        run: node --test musitu_studio/neon/tests/*.test.mjs
       - name: Read-only provider check without exposing staff emails, cookies or API token
         continue-on-error: true
         env:
