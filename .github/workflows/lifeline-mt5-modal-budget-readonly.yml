@@ -39,6 +39,6 @@ jobs:
              'billed_usd_so_far':str(billed),
              'modal_credentials_valid':True,'deployment_attempted':False}))
           if billed>0:raise SystemExit('workspace_already_billed_no_automatic_new_compute')
-          if metered>Decimal('25'):raise SystemExit('workspace_near_starter_free_allowance_stop')
+          if metered>Decimal('5'):raise SystemExit('workspace_near_starter_free_allowance_stop')
           print('budget_preflight=PASS_LOW_USAGE_NOT_PROOF_OF_NO_FUTURE_CHARGES')
           PY
