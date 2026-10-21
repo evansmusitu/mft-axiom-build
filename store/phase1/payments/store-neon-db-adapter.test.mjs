@@ -68,7 +68,7 @@ test('Neon provider review batch uses a single serializable two-write transactio
  ]);
  assert.deepEqual(out,[{success:true,meta:{changes:1}},{success:true,meta:{changes:1}}]);
  const t=sql.calls.find(x=>x.kind==='transaction');
- assert.deepEqual(t.options,{isolationLevel:'Serializable',readOnly:false});
+ assert.deepEqual(t.options,{isolationMode:'Serializable',readOnly:false,fullResults:true});
  assert.equal(t.count,2);
  assert.deepEqual(sql.calls.filter(x=>x.kind==='query').map(x=>x.params),
    [['STORE-0123456789ABCDEF','PAYNOW-01'],['STORE-0123456789ABCDEF','review_required']]);
