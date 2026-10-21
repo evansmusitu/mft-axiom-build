@@ -108,6 +108,30 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual([t['name'] for t in response.json()['result']['tools']],['lifeline_status'])
         denied=self.tc.post('/mcp',json={'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'order_send'}},headers=self.edge_headers)
         self.assertEqual(denied.json()['error']['code'],-32601)
+
+    def test_stage_queue_capacity_rejected_with_429(self):
+        for _ in range(8):
+            self.enqueue()
+        overflow=self.tc.post('/operator/probe',json={'operation':'probe'},headers=self.edge_headers)
+        self.assertEqual(overflow.status_code,429)
+        self.assertEqual(self.db.summary('tenant-A','agent-A'),{'PENDING':8})
+
+    def test_signed_receipt_operation_must_match_original_job(self):
+        task=self.enqueue()
+        body={'request':'next','tenant':'tenant-A'}
+        job=self.tc.post('/agent/pull',json=body,headers=poller.headers(body,KEY,'agent-A','tenant-A')).json()['job']
+        self.assertEqual(job['job_id'],task)
+        malicious={'schema':'lifeline.agent.receipt.v1','job_id':task,
+                   'tenant':'tenant-A','operation':'backtest',
+                   'outcome':'completed','result':{'verified':True},
+                   'created_at':int(__import__('time').time()),
+                   'trading_enabled':False}
+        malicious['signature']=agent.sign(malicious,KEY)
+        payload={'receipt':malicious}
+        response=self.tc.post('/agent/receipt',json=payload,headers=poller.headers(payload,KEY,'agent-A','tenant-A'))
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(self.db.summary('tenant-A','agent-A'),{'CLAIMED':1})
+
     def test_http_https_required(self):
         with self.assertRaisesRegex(agent.AgentError,'HTTPS'):
             poller.HTTPSClient('http://example.com')

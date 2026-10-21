@@ -71,7 +71,15 @@ def create_local_app(store:SQLiteQueue,keys:dict[str,bytes],tenants:dict[str,str
         unsigned={k:v for k,v in receipt.items() if k!='signature'}
         if not (isinstance(signature,str) and hmac.compare_digest(signature,agent.sign(unsigned,keys[ident]))):
             raise HTTPException(401,'invalid receipt signature')
-        if receipt.get('schema')!='lifeline.agent.receipt.v1' or receipt.get('tenant')!=tenant or receipt.get('trading_enabled') is not False:
+        if (set(receipt)!={'schema','job_id','tenant','operation','outcome','result',
+                           'created_at','trading_enabled','signature'} or
+            receipt.get('schema')!='lifeline.agent.receipt.v1' or
+            receipt.get('tenant')!=tenant or
+            receipt.get('trading_enabled') is not False or
+            receipt.get('operation') not in ('probe','compile','backtest') or
+            receipt.get('outcome') not in ('completed','rejected') or
+            type(receipt.get('created_at')) is not int or
+            not isinstance(receipt.get('result'),dict)):
             raise HTTPException(400,'incorrect receipt binding')
         if not store.receipt(tenant,ident,receipt):
             raise HTTPException(409,'not claimed or receipt mismatch')
@@ -88,7 +96,10 @@ def create_local_app(store:SQLiteQueue,keys:dict[str,bytes],tenants:dict[str,str
         unsigned={'job_id':str(uuid.uuid4()),'issued_at':int(time.time()),'nonce':secrets.token_urlsafe(18),
                   'operation':'probe','args':{},'tenant':subject}
         job=dict(unsigned,signature=agent.sign(unsigned,keys[ident]))
-        store.enqueue(subject,ident,job)
+        try:
+            store.enqueue(subject,ident,job)
+        except QueueError:
+            raise HTTPException(429,'stage queue capacity exceeded') from None
         return {'schema':'lifeline.bridge.v1','job_id':job['job_id'],'state':'PENDING','trade_execution':False}
 
     @api.post('/operator/status')

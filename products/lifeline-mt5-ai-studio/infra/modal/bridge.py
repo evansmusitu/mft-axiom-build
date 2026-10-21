@@ -13,6 +13,10 @@ from typing import Any
 
 class QueueError(Exception):pass
 
+# Free-tier anti-abuse cap; production retention/pruning needs separate review.
+MAX_ACTIVE_JOBS = 8
+MAX_TOTAL_JOBS = 250
+
 def dumps(payload:Any)->str:
     return json.dumps(payload,sort_keys=True,separators=(',',':'))
 
@@ -38,12 +42,23 @@ class SQLiteQueue:
             c.commit()
     def enqueue(self,tenant:str,ident:str,job:dict)->None:
         if job.get('tenant')!=tenant or not isinstance(job.get('job_id'),str):raise QueueError('invalid tenant or job id')
-        with closing(sqlite3.connect(self.db,timeout=15)) as c:
+        with closing(sqlite3.connect(self.db,timeout=15,isolation_level=None)) as c:
+            c.execute('BEGIN IMMEDIATE')
             try:
+                active,total=c.execute("""SELECT
+                   COALESCE(SUM(CASE WHEN state IN ('PENDING','CLAIMED') THEN 1 ELSE 0 END),0),
+                   COUNT(*) FROM jobs WHERE tenant=? AND agent_id=?""",(tenant,ident)).fetchone()
+                if active>=MAX_ACTIVE_JOBS or total>=MAX_TOTAL_JOBS:
+                    raise QueueError('stage job quota exceeded')
                 c.execute('INSERT INTO jobs(job_id,tenant,agent_id,job_json,created_at) VALUES (?,?,?,?,?)',
                           (job['job_id'],tenant,ident,dumps(job),int(time.time())))
-                c.commit()
-            except sqlite3.IntegrityError as e:raise QueueError('duplicate job') from e
+                c.execute('COMMIT')
+            except sqlite3.IntegrityError as e:
+                c.execute('ROLLBACK')
+                raise QueueError('duplicate job') from e
+            except Exception:
+                c.execute('ROLLBACK')
+                raise
     def nonce_once(self,ident:str,nonce:str,tenant:str)->None:
         with closing(sqlite3.connect(self.db,timeout=15)) as c:
             try:
@@ -88,9 +103,13 @@ class SQLiteQueue:
         if not isinstance(job_id,str) or receipt.get('tenant')!=tenant:return False
         with closing(sqlite3.connect(self.db,timeout=15,isolation_level=None)) as c:
             c.execute('BEGIN IMMEDIATE')
-            row=c.execute('SELECT state,receipt_json FROM jobs WHERE job_id=? AND tenant=? AND agent_id=?',
+            row=c.execute('SELECT state,receipt_json,job_json FROM jobs WHERE job_id=? AND tenant=? AND agent_id=?',
                           (job_id,tenant,ident)).fetchone()
             if row is None:
+                c.execute('ROLLBACK');return False
+            source=json.loads(row[2])
+            if (receipt.get('operation')!=source.get('operation') or
+                source.get('tenant')!=tenant or receipt.get('trading_enabled') is not False):
                 c.execute('ROLLBACK');return False
             if row[0]=='COMPLETED':
                 valid=row[1]==dumps(receipt)

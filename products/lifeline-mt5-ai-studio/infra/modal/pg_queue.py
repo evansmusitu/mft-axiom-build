@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from typing import Any
 import secrets
 import time
-from bridge import QueueError
+from bridge import QueueError, MAX_ACTIVE_JOBS, MAX_TOTAL_JOBS
 
 class PostgresQueue:
     def __init__(self,dsn:str):
@@ -49,6 +49,14 @@ class PostgresQueue:
         if job.get('tenant')!=tenant or not isinstance(job.get('job_id'),str):raise ValueError('invalid tenant job')
         from psycopg.types.json import Jsonb
         with self.connect(tenant) as c:
+            # Transaction-scoped lock makes capacity checks serializable per tenant/agent.
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(tenant+':'+ident,))
+            counts=c.execute("""SELECT
+                COUNT(*) FILTER (WHERE state IN ('PENDING','CLAIMED')),
+                COUNT(*) FROM lifeline.agent_jobs
+                WHERE tenant_subject=%s AND agent_id=%s""",(tenant,ident)).fetchone()
+            if counts is None or counts[0]>=MAX_ACTIVE_JOBS or counts[1]>=MAX_TOTAL_JOBS:
+                raise QueueError('stage job quota exceeded')
             c.execute('INSERT INTO lifeline.agent_jobs(job_id,tenant_subject,agent_id,job,state) VALUES (%s,%s,%s,%s,\'PENDING\')',
                       (job['job_id'],tenant,ident,Jsonb(job)))
     def nonce_once(self,ident:str,nonce:str,tenant:str)->None:
@@ -98,9 +106,12 @@ class PostgresQueue:
         from psycopg.types.json import Jsonb
         if receipt.get('tenant')!=tenant or not isinstance(receipt.get('job_id'),str):return False
         with self.connect(tenant) as c:
-            row=c.execute('SELECT state,receipt FROM lifeline.agent_jobs WHERE job_id=%s AND tenant_subject=%s AND agent_id=%s FOR UPDATE',
+            row=c.execute('SELECT state,receipt,job FROM lifeline.agent_jobs WHERE job_id=%s AND tenant_subject=%s AND agent_id=%s FOR UPDATE',
                           (receipt['job_id'],tenant,ident)).fetchone()
             if not row:return False
+            if (receipt.get('operation')!=row[2].get('operation') or
+                row[2].get('tenant')!=tenant or receipt.get('trading_enabled') is not False):
+                return False
             if row[0]=='COMPLETED':return row[1]==receipt
             if row[0]!='CLAIMED':return False
             return bool(c.execute("UPDATE lifeline.agent_jobs SET state='COMPLETED',receipt=%s,completed_at=now() WHERE job_id=%s AND tenant_subject=%s AND agent_id=%s AND state='CLAIMED' RETURNING job_id",

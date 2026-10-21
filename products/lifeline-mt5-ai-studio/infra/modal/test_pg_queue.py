@@ -18,6 +18,7 @@ sys.path.insert(0,str(HERE))
 import agent
 from bridge import SQLiteQueue, QueueError
 from pg_queue import PostgresQueue
+from bridge import MAX_ACTIVE_JOBS, MAX_TOTAL_JOBS
 
 KEY=b'development-only-hmac-key-very-long-for-tests-001'
 DSN='postgresql://lifeline_stage_app:fake-test-only@ep-staging.us-east-1.aws.neon.tech/lifeline_mt5_stage?sslmode=require'
@@ -53,6 +54,16 @@ class SQLiteRecovery(unittest.TestCase):
         self.assertTrue(self.store.receipt('tenant-A','agent-A',again))
         self.assertTrue(self.store.receipt('tenant-A','agent-A',again))
         self.assertEqual(self.store.summary('tenant-A','agent-A'),{'COMPLETED':1})
+
+
+    def test_capacity_total_and_active_caps(self):
+        self.assertEqual(MAX_ACTIVE_JOBS,8)
+        self.assertEqual(MAX_TOTAL_JOBS,250)
+        for i in range(1,8):
+            request=dict(self.job,job_id=f'ea9fcc09-c931-4d45-b9d4-{i:012x}')
+            self.store.enqueue('tenant-A','agent-A',request)
+        with self.assertRaisesRegex(QueueError,'quota exceeded'):
+            self.store.enqueue('tenant-A','agent-A',dict(self.job,job_id='ea9fcc09-c931-4d45-b9d4-000000000008'))
 
     def test_corrupted_claimed_signature_fails_closed(self):
         first=self.store.pull('tenant-A','agent-A',KEY)
