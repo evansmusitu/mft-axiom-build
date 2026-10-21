@@ -1,0 +1,46 @@
+name: MUSITU Cloud Workspace Independent MFA Readonly Assessment
+
+on:
+  push:
+    branches: [feature/musitu-cloud-workspace-isolated-20261020]
+    paths:
+      - 'studio-edge/cloud-workspace/tests/independent_mfa_assessment.py'
+      - 'studio-edge/cloud-workspace/tests/test_independent_mfa_assessment.py'
+      - '.github/workflows/musitu-cloud-workspace-independent-mfa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      EXPECTED_DOMAIN: mftintelligence.com
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run negative MFA readiness assertions without Cloudflare writes
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_independent_mfa_assessment.py -v
+      - name: Read actual Access org and deny-all app MFA settings
+        run: python3 studio-edge/cloud-workspace/tests/independent_mfa_assessment.py
+      - name: Seal sanitized MFA evidence
+        if: always()
+        run: |
+          if test -f musitu-cloud-workspace-independent-mfa-assessment.json; then
+            sha256sum musitu-cloud-workspace-independent-mfa-assessment.json > musitu-cloud-workspace-independent-mfa-assessment.sha256
+          fi
+      - name: Upload private reviewer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-independent-mfa-readonly-${{ github.run_id }}
+          path: |
+            musitu-cloud-workspace-independent-mfa-assessment.json
+            musitu-cloud-workspace-independent-mfa-assessment.sha256
+          if-no-files-found: ignore
+          retention-days: 14

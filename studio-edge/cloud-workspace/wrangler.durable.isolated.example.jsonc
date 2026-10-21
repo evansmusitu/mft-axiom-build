@@ -1,0 +1,30 @@
+{
+  // SOURCE ONLY: never deploy until Access+MFA and authenticated tenant
+  // provisioning are independently verified. No public route, workers.dev,
+  // shared production binding or enabled cloud workspace in this example.
+  "name": "musitu-cloud-workspace-durable-private-candidate",
+  "main": "durable-worker.mjs",
+  "compatibility_date": "2026-10-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "WORKSPACE_ENABLED": "false",
+    "WORKSPACE_ORIGIN": "https://workspace.mftintelligence.com"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORKSPACE_TENANTS",
+        "class_name": "MUSITUTenantWorkspace"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "workspace-sqlite-v1",
+      "new_sqlite_classes": ["MUSITUTenantWorkspace"]
+    }
+  ]
+  // Authentication domain/audience, WORKSPACE_INTERNAL_KEY, private route and
+  // WORKSPACE_RATE are deliberately absent. The gateway fails closed.
+}

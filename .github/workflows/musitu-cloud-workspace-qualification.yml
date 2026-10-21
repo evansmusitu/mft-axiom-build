@@ -1,0 +1,61 @@
+name: MUSITU Cloud Workspace Isolated Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'studio-edge/cloud-workspace/**'
+      - '.github/workflows/musitu-cloud-workspace-qualification.yml'
+  push:
+    branches:
+      - feature/musitu-cloud-workspace-isolated-20261020
+    paths:
+      - 'studio-edge/cloud-workspace/**'
+      - '.github/workflows/musitu-cloud-workspace-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bundle isolated Durable Object without publishing or Cloudflare credentials
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --dry-run --config studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc --outdir /tmp/musitu-cloud-workspace-build
+          test -d /tmp/musitu-cloud-workspace-build
+          echo 'WRANGLER PRIVATE SQLITE DURABLE OBJECT BUNDLE PASS — DRY RUN ONLY'
+      - name: Fail closed and never deploy
+        run: |
+          set -euo pipefail
+          node --check studio-edge/cloud-workspace/access-jwt.mjs
+          node --check studio-edge/cloud-workspace/gateway.mjs
+          node --check studio-edge/cloud-workspace/client-sync.mjs
+          node --check studio-edge/cloud-workspace/durable-sql-adapter.mjs
+          node --check studio-edge/cloud-workspace/durable-worker.mjs
+          python3 -m py_compile studio-edge/cloud-workspace/tests/cloudflare_readonly_inventory.py
+          python3 -m py_compile studio-edge/cloud-workspace/tests/d1_bootstrap.py
+          node --test studio-edge/cloud-workspace/tests/*.test.mjs
+          python3 studio-edge/cloud-workspace/tests/sql_contract.py
+          python3 studio-edge/cloud-workspace/tests/durable_sql_contract.py
+          python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_d1_bootstrap.py -v
+          grep -Fq '"workers_dev": false' studio-edge/cloud-workspace/wrangler.isolated.example.jsonc
+          grep -Fq '"WORKSPACE_ENABLED": "false"' studio-edge/cloud-workspace/wrangler.isolated.example.jsonc
+          grep -Fq '"workers_dev": false' studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+          grep -Fq '"WORKSPACE_ENABLED": "false"' studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+          grep -Fq '"new_sqlite_classes": ["MUSITUTenantWorkspace"]' studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+          if grep -Eq '"route":|"routes":' studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc; then
+            echo 'Source-only Durable Object must not declare a public route' >&2
+            exit 1
+          fi
+          if grep -q "cloud-workspace" studio-edge/worker.mjs; then
+            echo 'Cloud workspace was unexpectedly wired into existing production Edge Worker' >&2
+            exit 1
+          fi
+          echo 'MUSITU ISOLATED SECURE WORKSPACE + SQLITE DURABLE OBJECT CAS QUALIFIED — NO CLOUD DEPLOYMENT'

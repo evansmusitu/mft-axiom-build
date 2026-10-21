@@ -1,0 +1,85 @@
+name: MUSITU Workspace Private Disabled Worker Gate
+
+on:
+  push:
+    branches: [feature/musitu-cloud-workspace-isolated-20261020]
+    paths:
+      - 'studio-edge/cloud-workspace/tests/disabled_deploy_gate.py'
+      - 'studio-edge/cloud-workspace/tests/test_disabled_deploy_gate.py'
+      - '.github/workflows/musitu-cloud-workspace-disabled-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-workspace-disabled-worker-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-only-when-blocked:
+    runs-on: ubuntu-latest
+    timeout-minutes: 11
+    env:
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      EXPECTED_DOMAIN: mftintelligence.com
+      WORKSPACE_DISABLE_DEPLOY_INTENT: CREATE_UNROUTED_DISABLED_ONLY
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CONFIG: studio-edge/cloud-workspace/wrangler.durable.isolated.example.jsonc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all Access and deployment blocking negative tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_access_hold_bootstrap.py -v
+          python3 -m unittest discover -s studio-edge/cloud-workspace/tests -p test_disabled_deploy_gate.py -v
+          node --check studio-edge/cloud-workspace/durable-worker.mjs
+          node --check studio-edge/cloud-workspace/durable-sql-adapter.mjs
+      - name: Validate this is an unreachable zero-cost candidate
+        run: |
+          set -euo pipefail
+          grep -Fq '"workers_dev": false' "$CONFIG"
+          grep -Fq '"preview_urls": false' "$CONFIG"
+          grep -Fq '"WORKSPACE_ENABLED": "false"' "$CONFIG"
+          grep -Fq '"new_sqlite_classes": ["MUSITUTenantWorkspace"]' "$CONFIG"
+          if grep -Eq '^[[:space:]]*"(routes?|custom_domains|triggers)"[[:space:]]*:' "$CONFIG"; then
+            echo 'BLOCK: deploy config unexpectedly declares a public route or trigger' >&2
+            exit 1
+          fi
+          if grep -q 'cloud-workspace' studio-edge/worker.mjs; then
+            echo 'BLOCK: production Worker has workspace references' >&2
+            exit 1
+          fi
+      - name: Re-qualify canonical account, deny-all Access hold and unique Worker name
+        env:
+          WORKSPACE_DEPLOY_PHASE: preflight
+        run: python3 studio-edge/cloud-workspace/tests/disabled_deploy_gate.py
+      - name: Deploy only the DISABLED isolated Worker without public routes
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.129.0 deploy --config "$CONFIG"
+          echo 'MUSITU PRIVATE WORKER UPLOADED IN DISABLED / UNROUTED CONFIGURATION'
+      - name: Verify Worker readback has no workers.dev and no preview URLs
+        env:
+          WORKSPACE_DEPLOY_PHASE: postdeploy
+        run: python3 studio-edge/cloud-workspace/tests/disabled_deploy_gate.py
+      - name: Seal sanitized disabled deployment evidence
+        if: always()
+        run: |
+          if test -f musitu-cloud-workspace-disabled-worker-verification.json; then
+            sha256sum musitu-cloud-workspace-disabled-worker-verification.json > musitu-cloud-workspace-disabled-worker-verification.sha256
+          fi
+      - name: Publish internal reviewer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-workspace-disabled-worker-${{ github.run_id }}
+          path: |
+            musitu-cloud-workspace-disabled-worker-verification.json
+            musitu-cloud-workspace-disabled-worker-verification.sha256
+          if-no-files-found: ignore
+          retention-days: 14
