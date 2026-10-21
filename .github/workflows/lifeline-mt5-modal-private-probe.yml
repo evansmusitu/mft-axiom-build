@@ -51,8 +51,8 @@ jobs:
           if not isinstance(rows,list): raise SystemExit('cannot safely check app names')
           app='lifeline-mt5-private-probe-isolated'
           existing=[r for r in rows if isinstance(r,dict) and (r.get('name')==app or r.get('app_name')==app)]
-          if existing: raise SystemExit('isolated_probe_app_already_exists_abort_no_replace')
-          print('isolated_modal_app_name_unoccupied=true')
+          if existing and len(existing)!=1: raise SystemExit('duplicate_isolated_app_collision')
+          print('isolated_modal_app_qualified=true')
           PY
       - name: Deploy proxy-auth only, scale-to-zero bounded probe
         shell: bash
@@ -83,22 +83,33 @@ jobs:
           fi
           echo "modal_guest_http=$STATUS"
           echo 'modal_guest_denied=true'
-      - name: Prove authenticated read-only health with Modal API context
+      - name: Verify authenticated health with short-lived workspace proxy token
         shell: bash
         run: |
           set -euo pipefail
-          URL="$(cat /tmp/lifeline-private-url.txt)"
-          modal curl --silent --show-error --max-time 40 "$URL/healthz" >/tmp/lifeline-private-health.json
           python - <<'PY'
-          import json
-          x=json.load(open('/tmp/lifeline-private-health.json'))
-          expected={'schema':'lifeline.private_modal_probe.v1','runtime':'modal-private-stage',
-             'access':'proxy_auth_required','neon_connected':False,
-             'windows_agent_connected':False,'cloudflare_gateway_connected':False,
-             'live_trading':False,'public_mcp_enabled':False}
-          if x!=expected: raise SystemExit('Modal response not fail-closed')
-          print('modal_private_authenticated_health=PASS')
-          print('modal_no_orders_no_windows_no_neon=true')
+          import json, pathlib, urllib.request, modal
+          u=pathlib.Path('/tmp/lifeline-private-url.txt').read_text().strip()
+          workspace=modal.Workspace.from_context()
+          token=workspace.proxy_tokens.create(name='lifeline-ephemeral-probe-delete-after-test')
+          try:
+              headers={'Modal-Key':token.token_id,'Modal-Secret':token.token_secret}
+              req=urllib.request.Request(u+'/healthz',headers=headers)
+              with urllib.request.urlopen(req,timeout=35) as resp:
+                  if resp.status!=200 or resp.headers.get_content_type()!='application/json':
+                      raise SystemExit('authenticated_modal_did_not_return_200_json')
+                  body=resp.read(20000)
+              x=json.loads(body)
+              expected={'schema':'lifeline.private_modal_probe.v1','runtime':'modal-private-stage',
+                 'access':'proxy_auth_required','neon_connected':False,
+                 'windows_agent_connected':False,'cloudflare_gateway_connected':False,
+                 'live_trading':False,'public_mcp_enabled':False}
+              if x!=expected:raise SystemExit('private_modal_health_not_fail_closed')
+              print('modal_private_authenticated_health=PASS')
+              print('modal_no_orders_no_windows_no_neon=true')
+          finally:
+              workspace.proxy_tokens.delete(token.token_id)
+              print('ephemeral_proxy_token_revoked=true')
           PY
       - name: Capture no-secret deployment evidence
         if: always()
