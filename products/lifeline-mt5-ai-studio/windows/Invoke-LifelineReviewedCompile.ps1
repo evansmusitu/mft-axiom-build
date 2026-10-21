@@ -47,7 +47,13 @@ try{
  $source=Join-Path $PSScriptRoot ($SourceRelative.Replace('/',[IO.Path]::DirectorySeparatorChar))
  if(-not (Test-Path -LiteralPath $source -PathType Leaf)){throw 'REVIEWED_SOURCE_NOT_FOUND'}
  if((Get-Item -LiteralPath $source).Length -gt 262144){throw 'SOURCE_SIZE_LIMIT'}
- $actual=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+ # Git for Windows may checkout text as CRLF. Hash a strict UTF-8, LF
+ # canonical copy and compile that EXACT hash-pinned copy, never raw checkout.
+ $utf8=[Text.UTF8Encoding]::new($false,$true)
+ $canonical=[IO.File]::ReadAllText($source,$utf8).Replace("`r`n","`n")
+ if($canonical.Contains("`r") -or $canonical.Contains([char]0)){throw 'SOURCE_BAD_ENCODING'}
+ $sourceBytes=$utf8.GetBytes($canonical)
+ $actual=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($sourceBytes)).ToLowerInvariant()
  if($actual -cne $ExpectedSha256){throw 'SOURCE_HASH_MISMATCH'}
  $proof.source_hash_valid=$true
  $installer=Join-Path $env:RUNNER_TEMP 'lifeline-reviewed-mt5setup.exe'
@@ -82,7 +88,7 @@ try{
  New-Item -ItemType Directory -Path $experts -Force|Out-Null
  $name=[IO.Path]::GetFileNameWithoutExtension($source)
  $target=Join-Path $experts ($name+'.mq5')
- Copy-Item -LiteralPath $source -Destination $target -Force
+ [IO.File]::WriteAllBytes($target,$sourceBytes)
  if((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSha256){
     throw 'SOURCE_COPY_INTEGRITY_FAILED'
  }
@@ -111,7 +117,7 @@ try{
   'REVIEWED_SOURCE_NOT_FOUND','SOURCE_SIZE_LIMIT','SOURCE_HASH_MISMATCH',
   'INSTALLER_TOO_SMALL','UNTRUSTED_VENDOR_INSTALLER','VENDOR_INSTALL_TIMEOUT',
   'METAEDITOR_NOT_INSTALLED','UNTRUSTED_METAEDITOR_BINARY',
-  'SOURCE_COPY_INTEGRITY_FAILED','METAEDITOR_COMPILER_TIMEOUT',
+  'SOURCE_COPY_INTEGRITY_FAILED','SOURCE_BAD_ENCODING','METAEDITOR_COMPILER_TIMEOUT',
   'COMPILER_LOG_MISSING','NATIVE_COMPILE_FAILED')
  $proof.error_code=if($msg -cin $allowed){$msg}else{'INSTALLER_OR_NATIVE_FAILURE'}
 } finally {Write-Proof}
