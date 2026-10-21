@@ -48,8 +48,27 @@ def main():
         auth_domain=org["data"].get("auth_domain","")
     users=get("/accounts/"+ACCOUNT+"/access/users?per_page=100",token)
     entries=users["data"] if users["ok"] and isinstance(users["data"],list) else []
-    # Only inspect users; no identifying usernames/emails emitted.
+    # Do not print or artifact any user ID, address, login timestamp, IP or identity.
     recent=sum(bool(x.get("last_successful_login")) for x in entries if isinstance(x,dict))
+    sole=entries[0] if len(entries)==1 and isinstance(entries[0],dict) else {}
+    identity={"ok":False,"http":0,"data":None}
+    sessions={"ok":False,"http":0,"data":None}
+    user_id=sole.get("id","")
+    if isinstance(user_id,str) and len(user_id)==36:
+        identity=get("/accounts/"+ACCOUNT+"/access/users/"+user_id+"/last_seen_identity",token)
+        sessions=get("/accounts/"+ACCOUNT+"/access/users/"+user_id+"/active_sessions",token)
+    owner_email=(sole.get("email") or "").strip().lower() if isinstance(sole.get("email"),str) else ""
+    known_contacts={"evansmusitu5@gmail.com","musituevans@gmail.com"}
+    owner_contact_matched=owner_email in known_contacts
+    seen=identity["data"] if identity["ok"] and isinstance(identity["data"],dict) else {}
+    auth_status=seen.get("auth_status")
+    auth_types=seen.get("amr",[])
+    # IdP-only logins generally cannot prove Access independent MFA; do not
+    # interpret a successful IdP login as MFA qualification.
+    independent_mfa_qualified=False
+    organization=org["data"] if org["ok"] and isinstance(org["data"],dict) else {}
+    possible_mfa_settings={key:organization.get(key) is not None for key in
+         ("mfa_config","mfa_settings","mfa")}
     # Cloudflare account-level MFA or successful dashboard login are not adequate
     # evidence of this Access app's owner user + app MFA policy.
     result={"schema":"lifeline.cloudflare_owner_mfa_readonly.v1",
@@ -61,7 +80,15 @@ def main():
        "access_users_query_http":users["http"],
        "access_user_records_visible":len(entries),
        "recent_access_users_count":recent,
-       "app_owner_mfa_evidenced":False,
+       "sole_access_user_known_owner_contact":owner_contact_matched,
+       "sole_access_user_identity_http":identity["http"],
+       "sole_access_user_active_sessions_http":sessions["http"],
+       "identity_auth_status_present":isinstance(auth_status,str) and bool(auth_status),
+       "identity_mfa_claim_present":isinstance(auth_types,list) and
+            any("mfa" in str(x).lower() for x in auth_types),
+       "organization_mfa_setting_keys_present":possible_mfa_settings,
+       "app_mfa_config_present":bool(data.get("mfa_config")),
+       "app_owner_mfa_evidenced":independent_mfa_qualified,
        "owner_access_jwt_subject_evidenced":False,
        "live_cloudflare_route_enabled":False,
        "route_created":False,"secrets_exposed":False,"changes_made":False}
