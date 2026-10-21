@@ -18,7 +18,7 @@ ACCOUNT = "93f395f5121954671f92fffa453d6b61"
 DOMAIN = "mftintelligence.com"
 NAME = "musitu-cloud-workspaces-private"
 BASE = "https://api.cloudflare.com/client/v4"
-SCHEMA = Path(__file__).resolve().parent / "schema.sql"
+SCHEMA = Path(__file__).resolve().parent.parent / "schema.sql"
 ARTIFACT = "musitu-cloud-workspace-d1-bootstrap-result.json"
 UUID = re.compile(r"^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$", re.I)
 
