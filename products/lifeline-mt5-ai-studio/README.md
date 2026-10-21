@@ -1,25 +1,35 @@
-# LIFELINE MT5 AI Studio — Five-Cloud Isolated Staging v0.2
+# LIFELINE MT5 AI Studio — Private Development v0.6
 
-One unified product. This source branch copies the existing **architecture pattern**, not live credentials, resources, or the protected Axiom release.
+An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
-**GitHub** source + CI -> **Vercel** private UI -> **Cloudflare** signed Access-JWT-gated MCP edge -> **Modal** private research runtime -> **Neon** isolated RLS evidence store. A separately paired **Windows** agent is needed for real MT5/MetaEditor; Linux Modal does not host the native terminal.
+**This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
 
-Safety: Cloudflare account `93f395f5121954671f92fffa453d6b61`. All resources must be LIFELINE-namespaced. This stage has **no live deployment**, no DNS modifications, no Modal or Neon credential copying, no open trading routes, and no production promotion. Preserve `main` and PR #1.
+**Latest evidence:** [PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md](validation/PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md) — exact run IDs, credential transport, security proofs, blockers, and scope. Earlier evidence in `validation/` remains preserved.
 
-## Gates to deployment
-1. Stage all source on this branch and pass CI. Never publish the Worker while Access issuer/audience is unset.
-2. Provision distinct protected Cloudflare Access app and verify invalid/missing/expired JWT denial.
-3. Provision new Neon stage project and least-privilege runtime role. Apply schema and prove FORCE RLS with same-tenant/cross-tenant tests.
-4. Provision isolated Modal app with **proxy auth** plus separate edge-to-kernel shared secret. Prove direct anonymous requests return 401/403.
-5. Set Worker secrets using GitHub Actions/secrets (never text files): `ACCESS_ISSUER`, `ACCESS_AUD`, `MODAL_ORIGIN`, `MODAL_PROXY_KEY`, `MODAL_PROXY_SECRET`, `EDGE_SHARED_SECRET`. Verify account ID before any Worker mutation.
-6. Deploy private Vercel preview with SSO enabled, not publicly discoverable. Connect Cloudflare gateway only after e2e proofs.
-7. Pair Windows MT5 and MetaEditor over an authenticated, outbound-only channel; verify native compile and tester reports on demo data. Never expose local loopback ports publicly.
+## Proven now
 
-## Subcomponents
-- `infra/cloudflare/`: narrow signed-JWT-verifying MCP entrypoint, read/research allowlist.
-- `infra/modal/`: isolated Modal **private** ASGI runtime skeleton. No Windows trading or MT5 installation inside Modal.
-- `infra/neon/`: RLS SQL migration, a different project from Axiom, MMF, FMI, WhatsApp.
-- `infra/vercel/`: intentionally static preview; no embedded secrets.
-- GitHub test-only CI; zero cloud deploy mutations from push.
+- **Windows native compile:** temporary GitHub Windows runner installed and validated vendor-signed MetaQuotes executables; compiled real MQL5 into EX5 with zero compiler errors and mathematical Strategy Tester report. This is *not* a historical-price market backtest or 24/7 Windows host.
+- **Windows agent:** signed offline jobs, bounded native adapter, replay denial, durable at-most-once SQLite claims; protocol tested on Windows and Linux, but no permanently paired host. Built-in MetaQuotes MCP local-only adapter denies shell/order/unsafe tools; tests are mocked, not live MCP.
+- **Vercel:** separate private nontrading status UI project `lifeline-mt5-ai-studio-stage` with SSO all deployments. Guest HTTPS request received redirect to authentication; deployment READY. No JavaScript order actions or embedded secrets.
+- **Cloudflare:** exact account `93f395f5121954671f92fffa453d6b61` verified. `lifeline-mt5-edge-isolated` is deployed, unrouted (no workers.dev, DNS or custom route). Separate Access app with an explicit deny-everyone policy; operator login/MFA not yet enrolled or qualified.
+- **Modal private research:** `lifeline-mt5-private-probe-isolated` deployed scale-to-zero with proxy auth. Anonymous HTTP 401; authenticated HTTP 200; temporary token revoked. `POST /research/summary` produces precise `Decimal` P&L stats on supplied synthetic records and denies invalid inputs. No broker or Windows connectivity.
+- **Neon:** dedicated project `frosty-rain-34922526`, database `lifeline_mt5_stage`, three FORCE RLS tables. Restricted role `lifeline_stage_app` is NOBYPASSRLS, NOCREATEROLE, NOSUPERUSER and cannot create schema/database objects. **Encrypted RSA-OAEP Neon credential in source; private decryption key only in Modal Secret.** A second internal-only Modal app `lifeline-mt5-neon-rls-probe-isolated` verified actual restricted login, TLS `verify-full`, and synthetic tenant A/B isolation. The database owner and privileged `lifeline_runtime` are forbidden to serve application queries.
 
-The fuller v0.1 local research and native adapter source and offline 41-test v0.2 package are retained as downloadable engineering artifacts in the development conversation, not yet imported into this branch. This staging branch establishes versioned infrastructure boundaries; it is **not** proof of live Cloudflare/Vercel/Modal/Neon integration.
+## Not completed
+
+1. No owner-approved continuous Windows host. GitHub-hosted Windows is ephemeral.
+2. Cloudflare Access must transition from deny-all to a real verified owner MFA login **only after** explicit identity verification, negative-auth tests, and an authorized route. No public Worker URL or frontend-to-Modal connection.
+3. Modal read-only research and Neon RLS verifier **have passed separately**, but are not yet one tenant-bound, end-to-end Cloudflare→Modal→Neon→Windows task service.
+4. Real historical quote backtests need broker-demo market data and an explicitly approved native agent. Mathematical optimization does not prove a profitable strategy.
+5. Customer publication, compliance, real trading, and revenue are not enabled.
+
+## Safe verification
+
+- [Native Windows acceptance](validation/NATIVE_ACCEPTANCE_20261020.md)
+- [Cloud stage provenance](validation/CLOUD_STAGE_20261020.md)
+- [Encrypted private cloud acceptance](validation/PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md)
+- [One-pass earlier handoff](validation/ONE_PASS_ACCEPTANCE_20261021.md)
+- [Windows host safety](windows/README_BRIDGE.md)
+- [Official built-in MetaQuotes MCP local-only adapter](windows/NATIVE_MCP.md)
+
+Do not commit cleartext Neon URLs/passwords, Modal proxy tokens, broker credentials, Cloudflare secrets or agent signing keys. Keep `main` and draft PR #1 untouched. Free plans still have usage caps; new compute must be spend-gated. Nothing on the hosted ChatGPT-facing surface may execute live financial orders.
