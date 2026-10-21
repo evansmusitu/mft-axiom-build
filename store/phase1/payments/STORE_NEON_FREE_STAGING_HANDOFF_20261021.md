@@ -1,3 +1,11 @@
+> **SUPERSEDED on 21 October 2026** — Owner expressly approved the
+> existing **Neon Scale** organization; dedicated Stage DB is now provisioned.
+> This document records the earlier Free-budget planning gate only.
+> See [STORE_NEON_SCALE_STAGE_20261021.md](STORE_NEON_SCALE_STAGE_20261021.md)
+> for authoritative actual Neon project/branch/database, real SQL readback,
+> separate billing and deployment security boundaries. Do not infer from this
+> historical note that staging remains unprovisioned or Neon is free.
+
 # MUSITU Store V2 — isolated Neon Free PostgreSQL staging (21 October 2026)
 
 **Status:** Source engineered for standalone PostgreSQL, **NOT provisioned to Neon**.
