@@ -59,12 +59,16 @@ class Tests(unittest.TestCase):
     def test_mcp_tool_discovery_filtered(self):
         cli,fake=self.client()
         cli.initialize()
-        self.assertEqual([t["name"] for t in cli.list_safe_tools()], ["get_workspace_info"])
+        tools=cli.list_safe_tools()
+        self.assertEqual([t["name"] for t in tools], ["get_workspace_info"])
+        self.assertEqual(tools[0]["inputSchema"],{"type":"object","properties":{},"additionalProperties":False})
 
     def test_cannot_call_trade_shell_compile_or_any_arbitrary_tool(self):
         cli,fake=self.client("metaeditor")
         cli.initialize()
-        for name in ("trade_send_market_order", "shell", "compile_file", "write_file", "send_web_request", "build_project"):
+        for name in ("trade_send_market_order", "shell", "compile_file", "write_file", "send_web_request", "build_project",
+                     "list_directory","find_files_by_glob","find_files_by_name_keyword","tester_get_report",
+                     "get_chart_ticks_history","get_chart_history"):
             with self.subTest(name=name),self.assertRaises(NativeMCPError):
                 cli.call_readonly(name,{})
         self.assertEqual(fake.methods, ["initialize"])
@@ -77,7 +81,9 @@ class Tests(unittest.TestCase):
     def test_reject_bad_readonly_arguments(self):
         cli,fake=self.client()
         cli.initialize()
-        for args in ({"command":"dir"},{"url":"https://evil.test"}, {"headers":{"authorization":"x"}}):
+        for args in ({"command":"dir"},{"url":"https://evil.test"}, {"headers":{"authorization":"x"}},
+                     {"path":"C:/Users/private"},{"depth":999},{"symbol":"XAUUSD"},
+                     {"nested":{"unsafe":True}}):
             with self.assertRaises(NativeMCPError):cli.call_readonly("get_workspace_info",args)
 
     def test_no_initialize_denied(self):

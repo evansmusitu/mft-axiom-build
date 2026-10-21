@@ -54,28 +54,58 @@ def authorized_headers(body:dict, given:dict[str,str], keys:dict[str,bytes], ten
     return ident,tenant,nonce
 
 class HTTPSClient:
+    """Outbound-only, exact trusted HTTPS origin; no redirects, proxy, or token forwarding."""
+    HOST = 'lifeline-mt5-stage.mftintelligence.com'
+
     def __init__(self,base_url:str,timeout:int=12):
         parsed=urllib.parse.urlsplit(base_url)
-        if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise agent.AgentError('agent gateway must be clean HTTPS origin')
+        if (parsed.scheme!='https' or parsed.hostname!=self.HOST or
+            parsed.username or parsed.password or parsed.query or parsed.fragment):
+            raise agent.AgentError('agent gateway must use the pinned LIFELINE HTTPS origin')
         if parsed.port not in (None,443):
             raise agent.AgentError('gateway nonstandard port not allowed')
         if parsed.path not in ('','/'):
             raise agent.AgentError('gateway base path not permitted')
-        self.base_url=parsed.scheme+'://'+parsed.netloc
+        if type(timeout) is not int or not 1<=timeout<=30:
+            raise agent.AgentError('invalid gateway timeout')
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        self.base_url='https://'+self.HOST
         self.timeout=timeout
+        self._client=urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),NoRedirect())
     def post(self,path:str,body:dict,h:dict[str,str])->dict:
         if path not in ('/agent/pull','/agent/receipt'):
             raise agent.AgentError('unsupported bridge route')
         raw=canonical(body)
         if len(raw)>MAX_RESPONSE:raise agent.AgentError('outbound payload too large')
         req=urllib.request.Request(self.base_url+path,raw,headers=h,method='POST')
-        with urllib.request.urlopen(req,timeout=self.timeout) as response:
-            payload=response.read(MAX_RESPONSE+1)
-            if len(payload)>MAX_RESPONSE:raise agent.AgentError('oversized gateway response')
-            if response.headers.get_content_type()!='application/json':
-                raise agent.AgentError('non-JSON gateway response')
-            result=json.loads(payload)
+        try:
+            with self._client.open(req,timeout=self.timeout) as response:
+                # No HTTP redirect is ever authorized. Prevent accidental cross-site
+                # disclosure of agent HMAC headers even if the edge is misconfigured.
+                if response.status!=200:
+                    raise agent.AgentError('agent gateway returned unexpected HTTP status')
+                if response.geturl()!=self.base_url+path:
+                    raise agent.AgentError('agent gateway origin changed')
+                size=response.headers.get('content-length')
+                if size:
+                    try:
+                        if int(size)>MAX_RESPONSE:raise agent.AgentError('oversized gateway response')
+                    except ValueError:raise agent.AgentError('invalid response length') from None
+                if response.headers.get_content_type()!='application/json':
+                    raise agent.AgentError('non-JSON gateway response')
+                payload=response.read(MAX_RESPONSE+1)
+                if len(payload)>MAX_RESPONSE:raise agent.AgentError('oversized gateway response')
+                result=json.loads(payload)
+        except urllib.error.HTTPError as exc:
+            # In particular 301/302/307/308 must never redirect an HMAC request.
+            raise agent.AgentError('agent gateway rejected HTTP status '+str(exc.code)) from None
+        except (urllib.error.URLError,TimeoutError) as exc:
+            raise agent.AgentError('agent gateway unreachable') from None
+        except (ValueError,UnicodeDecodeError):
+            raise agent.AgentError('invalid gateway JSON response') from None
         if not isinstance(result,dict):raise agent.AgentError('unexpected response')
         return result
 

@@ -23,15 +23,16 @@ class NativeMCPError(RuntimeError):
 # Audited capabilities, NOT a wildcard passthrough of MetaQuotes' native API.
 # In particular: trade_*, chart_add_*, shell, write, edit, send_web_request,
 # tester_run_*, tester_prepare_* and all arbitrary file mutations are absent.
+# v0.9 INFORMATIONAL ONLY. No path scanning, arbitrary history ranges,
+# account journals, source text, tester jobs, trading or shell.
+# All exposed tools accept EXACTLY zero arguments. Additional capabilities
+# need independently audited input schemas, quotas and human approval.
 SAFE_TOOLS = {
     "terminal": frozenset({
-        "get_time_information", "get_marketwatch_symbols", "get_chart_history",
-        "get_chart_ticks_history", "get_tester_journal", "tester_get_status",
-        "tester_get_report", "list_available_indicators", "list_available_expert_advisors",
+        "get_time_information", "get_marketwatch_symbols", "tester_get_status",
     }),
     "metaeditor": frozenset({
-        "get_workspace_info", "list_open_documents", "list_directory",
-        "find_files_by_glob", "find_files_by_name_keyword",
+        "get_workspace_info", "list_open_documents",
     }),
 }
 PORTS = {"terminal": 22346, "metaeditor": 22345}
@@ -180,7 +181,7 @@ class NativeMCP:
             name = tool.get("name")
             if name in SAFE_TOOLS[self.config.server]:
                 safe.append({"name": name, "description": str(tool.get("description", ""))[:250],
-                             "inputSchema": tool.get("inputSchema")})
+                             "inputSchema": {"type":"object","properties":{},"additionalProperties":False}})
         return safe
 
     def call_readonly(self, name: str, arguments: dict) -> dict:
@@ -192,12 +193,11 @@ class NativeMCP:
             raise NativeMCPError("tool arguments must be object")
         if len(json.dumps(arguments, default=str).encode()) > MAX_INPUT:
             raise NativeMCPError("tool args too large")
-        # Do not let caller inject shell-like requests in seemingly informational tools.
-        dangerous = frozenset({"command", "cmd", "script", "powershell", "python",
-                               "url", "endpoint", "headers", "body", "write", "path_out"})
-        if dangerous.intersection(arguments):
-            raise NativeMCPError("unsafe argument keys not accepted")
-        return self._rpc("tools/call", {"name": name, "arguments": arguments})
+        # Never forward arbitrary native MCP arguments, including nested paths,
+        # symbol queries or filesystem options; this initial surface is status-only.
+        if arguments:
+            raise NativeMCPError("native read-only tool arguments are not enabled")
+        return self._rpc("tools/call", {"name": name, "arguments": {}})
 
 
 def native_status_from_environment() -> dict:

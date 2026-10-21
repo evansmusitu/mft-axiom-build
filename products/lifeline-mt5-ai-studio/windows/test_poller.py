@@ -135,6 +135,30 @@ class BridgeTests(unittest.TestCase):
     def test_http_https_required(self):
         with self.assertRaisesRegex(agent.AgentError,'HTTPS'):
             poller.HTTPSClient('http://example.com')
+    def test_pinned_gateway_host_and_no_redirect_no_proxy(self):
+        import urllib.request
+        import urllib.error
+        for target in ('https://example.com','https://evil.mftintelligence.com',
+                       'https://lifeline-mt5-stage.mftintelligence.com.evil.com',
+                       'https://user:password@lifeline-mt5-stage.mftintelligence.com'):
+            with self.assertRaisesRegex(agent.AgentError,'pinned'):
+                poller.HTTPSClient(target)
+        client=poller.HTTPSClient('https://lifeline-mt5-stage.mftintelligence.com')
+        self.assertEqual(client.base_url,'https://lifeline-mt5-stage.mftintelligence.com')
+        proxies=[h for h in client._client.handlers if isinstance(h,urllib.request.ProxyHandler)]
+        self.assertEqual(len(proxies),1)
+        self.assertEqual(proxies[0].proxies,{})
+        body={'request':'next','tenant':'tenant-A'}
+        class Fake:
+            def open(self,req,timeout):
+                self.url=req.full_url
+                raise urllib.error.HTTPError(req.full_url,302,'redirect',{'Location':'https://malicious.test/'},None)
+        fake=Fake()
+        client._client=fake
+        with self.assertRaisesRegex(agent.AgentError,'302'):
+            client.post('/agent/pull',body,{'x-lifeline-agent-id':'fake'})
+        self.assertEqual(fake.url,'https://lifeline-mt5-stage.mftintelligence.com/agent/pull')
+
     def test_disallow_nonstandard_https_port(self):
         with self.assertRaisesRegex(agent.AgentError,'nonstandard'):
             poller.HTTPSClient('https://example.com:1234')
