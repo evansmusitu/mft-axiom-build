@@ -7,6 +7,7 @@ import {BREADTH_SURFACES,IDE_CAPABILITIES,MATRIX_ROWS,clean,sha256} from './engi
 import {deriveEngineeringMatrix,makeEngineeringSnapshot} from './engineering_command_center_adapters.js';
 import {verifyEngineeringCommandCenter} from './engineering_command_center_verifier.js';
 import {EngineeringWorkspaceRuntime} from './engineering_workspace_runtime.js';
+import {OPENHANDS_VERIFIED_RUN_REFERENCES,registerOpenHandsEvidence} from './openhands_engineering_bridge.js';
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -50,7 +51,7 @@ function shell(){
     <div class="work-layout section"><article class="card"><small class="eyebrow">Product Reality preview</small><h3>Sandboxed live preview</h3><p>A rendered page or screenshot never self-certifies visual completion.</p><iframe id="ecc-preview" class="ecc-preview" sandbox="allow-scripts" title="Governed project preview"></iframe><div class="dialog-actions"><button id="ecc-preview-refresh" class="button secondary" type="button">Refresh preview</button><span class="badge warn">NO FAKE VISUAL COMPLETION</span></div></article><aside class="card"><small class="eyebrow">Complete state</small><h3>Checkpoint / revert</h3><p>Checkpoints bind the full virtual worktree state. Revert fails closed on tampering.</p><label>Checkpoint<select id="ecc-checkpoint-select"><option value="">No checkpoint</option></select></label><div class="dialog-actions"><button id="ecc-checkpoint" class="button secondary" type="button">Seal checkpoint</button><button id="ecc-restore" class="button secondary" type="button">Revert</button></div></aside></div>
     <div class="dialog-actions"><button id="ecc-space" class="button primary" type="button">Open Engineering Space</button><button id="ecc-refresh" class="button secondary" type="button">Refresh evidence</button></div><pre id="ecc-status" aria-live="polite">No Engineering Space action yet.</pre>
     <section class="section"><div class="card"><small class="eyebrow">Acceptance truth</small><h2>14-row Engineering Command Center matrix</h2><div id="ecc-rows" class="list">${rows}</div></div></section>
-    <section class="section"><div class="card-grid"><article class="card"><h3>Deep Context + System Graph</h3><p>Code · runtime · data · infra · traces · requirements · evidence. Retrieved content remains data, never authority.</p></article><article class="card"><h3>Agent fleet</h3><p id="ecc-fleet">Local governed identities are inspected here; external claims require receipts.</p></article><article class="card"><h3>Models</h3><p>Qualification/cost/privacy routing rejects unqualified candidates.</p></article><article class="card"><h3>Cloud handoff</h3><p>Governed packages remain receipt-gated.</p></article><article class="card"><h3>Deployment lane</h3><p>BUILD → TEST → SECURITY → A11Y → VISUAL → STAGING → SMOKE → CANARY → PRODUCTION → OBSERVE → ROLLBACK.</p></article><article class="card"><h3>Enterprise + Security</h3><p>External SSO and independent red-team proof remain evidence-gated.</p></article></div></section>
+    <section class="section"><div class="card-grid"><article class="card"><h3>Deep Context + System Graph</h3><p>Code · runtime · data · infra · traces · requirements · evidence. Retrieved content remains data, never authority.</p></article><article class="card"><h3>Agent fleet</h3><p id="ecc-fleet">Local governed identities are inspected here; external claims require receipts.</p></article><article class="card"><h3>Models</h3><p>Qualification/cost/privacy routing rejects unqualified candidates.</p></article><article class="card"><h3>Cloud handoff</h3><p>Governed packages remain receipt-gated.</p></article><article class="card"><h3>OpenHands engineering evidence</h3><p id="ecc-openhands-evidence" aria-live="polite">Historical bounded OpenHands SDK qualification; current S3 and production remain unproven.</p></article><article class="card"><h3>Deployment lane</h3><p>BUILD → TEST → SECURITY → A11Y → VISUAL → STAGING → SMOKE → CANARY → PRODUCTION → OBSERVE → ROLLBACK.</p></article><article class="card"><h3>Enterprise + Security</h3><p>External SSO and independent red-team proof remain evidence-gated.</p></article></div></section>
   </section>`;
 }
 
@@ -95,6 +96,8 @@ async function refresh(){
   $('#ecc-agent-count').textContent=String(agents.length);$('#ecc-checkpoint-count').textContent=String(eccSnap.checkpoints.length);$('#ecc-blockers').textContent=String(verification.unsatisfied_rows.length);$('#ecc-matrix').textContent=verification.matrix_status==='PASS'?'MATRIX PASS':'MATRIX BLOCKED';$('#ecc-matrix').className=`badge ${verification.matrix_status==='PASS'?'ok':'block'}`;
   for(const row of matrix){const element=$(`[data-row="${row.row_id}"]`);if(!element)continue;const badge=element.querySelector('.badge');badge.textContent=row.state;badge.className=`badge ${row.state==='IMPLEMENTED_VERIFIED'?'ok':row.state==='FAILED'?'block':'warn'}`;}
   const select=$('#ecc-agent'),keep=activeRuntime()?.agentId||select.value;select.replaceChildren(new Option('Choose agent',''));for(const agent of agents)select.add(new Option(`${agent.name} · ${agent.status}`,agent.agent_id));if(agents.some(agent=>agent.agent_id===keep))select.value=keep;
+  const recorded=Array.isArray(eccSnap.matrix)?eccSnap.matrix.filter(row=>['agent_fleet','cloud_handoff'].includes(row.row_id)&&row.claim_boundary==='HISTORICAL_OPENHANDS_CI_ONLY_S3_AND_PRODUCTION_UNPROVEN'):[];
+  $('#ecc-openhands-evidence').textContent=`${recorded.length}/2 governed rows carry historical OpenHands CI references; S3 independent execution NOT PROVEN; multi-host recovery NOT PROVEN; production authority FALSE.`;
   $('#ecc-fleet').textContent=`${agents.length} registered agent(s); Mission Control integrity ${base.agent_fleet.mission_control_integrity}; external claims remain receipt-gated.`;status(`Implementation integrity ${verification.status}; acceptance matrix ${verification.matrix_status}; blockers: ${verification.unsatisfied_rows.join(', ')||'none'}.`);renderWorkspace();
 }
 
@@ -125,4 +128,11 @@ function bind(){
 
 function install(){ensureBreadth();if(route()!=='build')return;const root=$('#workspace-root');if(!root)return;if(!$('#engineering-command-center')){root.insertAdjacentHTML('beforeend',shell());bind();}void refresh();}
 const observer=new MutationObserver(()=>{if(route()==='build'&&!$('#engineering-command-center'))queueMicrotask(install);});observer.observe(document.documentElement,{subtree:true,childList:true});window.addEventListener('hashchange',()=>queueMicrotask(install));queueMicrotask(install);
-window.AxiomEngineeringCommandCenter=Object.freeze({refresh,boundary:'PROJECT_BOUND_NO_SELF_CERTIFICATION_NO_CLOUD_OR_PRODUCTION_INFERENCE',matrix_rows:MATRIX_ROWS.map(row=>row.id)});
+async function registerOpenHandsRuns(runs){
+  const pid=projectId();if(!pid)throw new Error('Select a Project first.');
+  const db=await open();const report=await registerOpenHandsEvidence({ecc:db.ecc,project_id:pid,actor_id:'local-user',runs});
+  await refresh();return report;
+}
+window.AxiomEngineeringCommandCenter=Object.freeze({refresh,registerOpenHandsRuns,
+  openhands_run_references:OPENHANDS_VERIFIED_RUN_REFERENCES,
+  boundary:'PROJECT_BOUND_NO_SELF_CERTIFICATION_NO_CLOUD_OR_PRODUCTION_INFERENCE',matrix_rows:MATRIX_ROWS.map(row=>row.id)});
