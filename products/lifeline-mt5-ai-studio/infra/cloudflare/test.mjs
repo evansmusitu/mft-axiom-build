@@ -242,3 +242,39 @@ test('owner identity verification denies missing token and mismatched users',asy
     assert.equal(rejected.status,401);assert.equal(backend,0);
   }finally{globalThis.fetch=original;}
 });
+
+test('signed owner cannot pass status arguments or extra RPC parameters to Modal',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-no-extra-params';jwk.use='sig';jwk.alg='RS256';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'kid-no-extra-params'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const original=globalThis.fetch;
+  let calls=0;
+  try{
+    globalThis.fetch=async(url)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      calls++;
+      return new Response(json({result:{content:[{type:'text',text:'only status'}]}}),{status:200});
+    };
+    const headers={'cf-access-jwt-assertion':token};
+    const invalid=[
+      {name:'lifeline_status',arguments:{place_order:true}},
+      {name:'lifeline_status',arguments:['anything']},
+      {name:'lifeline_status',arguments:null},
+      {name:'lifeline_status',other:'unknown'},
+      [],null,'lifeline_status',
+    ];
+    for(const params of invalid){
+      const r=await worker.fetch(message('/mcp',{jsonrpc:'2.0',method:'tools/call',params,id:1},headers),E);
+      assert.equal(r.status,403);
+    }
+    assert.equal(calls,0,'disallowed calls must never reach Modal');
+    const valid=await worker.fetch(message('/mcp',{jsonrpc:'2.0',method:'tools/call',
+      params:{name:'lifeline_status',arguments:{}},id:2},headers),E);
+    assert.equal(valid.status,200);
+    assert.equal(calls,1);
+  }finally{globalThis.fetch=original;}
+});

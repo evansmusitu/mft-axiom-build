@@ -105,9 +105,22 @@ export default {async fetch(request,env){
     subject=await authenticateAccess(request,env,cfg);
     if(!subject)return reply({error:'unauthorized'},401);
   }
-  if(path==='/mcp'&&(body.jsonrpc!=='2.0'||!METHODS.has(body.method)||
-     (body.method==='tools/call'&&!TOOL_ALLOWLIST.has(body.params?.name))))
-    return reply({error:'operation_not_permitted'},403);
+  if(path==='/mcp'){
+    if(body.jsonrpc!=='2.0'||!METHODS.has(body.method))
+      return reply({error:'operation_not_permitted'},403);
+    if(body.method==='tools/call'){
+      const params=body.params;
+      // Never accept extra tool arguments or non-object params even if an
+      // upstream implementation becomes more permissive later.
+      if(!params||Array.isArray(params)||typeof params!=='object'||
+         !TOOL_ALLOWLIST.has(params.name)||
+         Object.keys(params).some(k=>k!=='name'&&k!=='arguments')||
+         (Object.hasOwn(params,'arguments')&&(!params.arguments||
+           typeof params.arguments!=='object'||Array.isArray(params.arguments)||
+           Object.keys(params.arguments).length!==0)))
+        return reply({error:'operation_not_permitted'},403);
+    }
+  }
   const headers={'content-type':'application/json','modal-key':env.MODAL_PROXY_KEY,
                  'modal-secret':env.MODAL_PROXY_SECRET,'x-lifeline-edge-secret':env.EDGE_SHARED_SECRET};
   // Cloudflare JWT sub and Neon tenant are distinct identities.
