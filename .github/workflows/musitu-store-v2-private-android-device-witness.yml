@@ -74,7 +74,7 @@ jobs:
           sign=(tmp/'device-witness-signing.txt').read_text()
           badging=(tmp/'device-witness-badging.txt').read_text()
           perms=(tmp/'device-witness-permissions.txt').read_text()
-          assert re.search(r"^package: name='com\\.musitu\\.store\\.v2acceptance' versionCode='1' versionName='0\\.1-private-test'",badging,re.M),badging[:300]
+          assert re.search(r"^package: name='com\.musitu\.store\.v2acceptance' versionCode='1' versionName='0\.1-private-test'",badging,re.M),badging[:300]
           assert re.search(r'Signer #1 certificate SHA-256 digest: [a-f0-9]{64}',sign,re.I),'missing Android signing identity'
           assert not re.search(r'uses-permission:',perms),'unexpected installed permission'
           with zipfile.ZipFile(apk) as z:
@@ -99,13 +99,13 @@ jobs:
              'physicalDeviceTestCompleted':False
           }
           d=tmp/'musitu-store-v2-device-witness'
-          (d/'MUSITU_ANDROID_PRIVATE_DEVICE_TEST_EVIDENCE.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\\n')
+          (d/'MUSITU_ANDROID_PRIVATE_DEVICE_TEST_EVIDENCE.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\n')
           (d/'README_FIRST.txt').write_text(
-             'PRIVATE MUSITU STORE V2 DEVICE TEST ONLY — NOT THE REAL STORE OR V2 INSTALLER.\\n'
-             'Unzip this archive; confirm the evidence JSON package ID and APK SHA-256.\\n'
-             'Install only MUSITU V2 Device Test on your phone. If Android proposes to replace MUSITU Store, CANCEL.\\n'
-             'Open, copy the offline device receipt, paste it into private ChatGPT, then uninstall test app.\\n'
-             'Never enable purchases, third-party app installation, publisher admission or public distribution.\\n')
+             'PRIVATE MUSITU STORE V2 DEVICE TEST ONLY — NOT THE REAL STORE OR V2 INSTALLER.\n'
+             'Unzip this archive; confirm the evidence JSON package ID and APK SHA-256.\n'
+             'Install only MUSITU V2 Device Test on your phone. If Android proposes to replace MUSITU Store, CANCEL.\n'
+             'Open, copy the offline device receipt, paste it into private ChatGPT, then uninstall test app.\n'
+             'Never enable purchases, third-party app installation, publisher admission or public distribution.\n')
           import shutil
           shutil.copy2(apk,d/'MUSITU_Store_V2_Offline_Device_Test_ONLY.apk')
           print('MUSITU_STORE_V2_DEVICE_PROBE_APK_VERIFIED sha256='+data['apkSha256'])
