@@ -42,5 +42,8 @@
     "sqlite_reference_tests": 13,
     "local_workerd_d1_tests": 2,
     "customer_admission_authorized": false
-  }
+  },
+  "offline_customer_request_body_boundary": "NODE_TESTED_64KIB_NOT_WIRED",
+  "offline_customer_request_body_limit_bytes": 65536,
+  "offline_customer_request_body_scope": "RAW_JSON_BYTE_BOUNDARY_ONLY_NO_AUTH_OR_SEMANTIC_VALIDATION"
 }
