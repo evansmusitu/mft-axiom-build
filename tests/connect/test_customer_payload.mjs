@@ -96,3 +96,34 @@ test('accepts declared ordinary UTF-8 JSON content type with charset',async()=>{
     'content-length':String(Buffer.byteLength(body)),
   })),{ok:true,body:{valid:true}});
 });
+
+test('rejects ambiguous repeated keys at the top level, even with identical values',async()=>{
+  for (const raw of ['{"tenant_id":"alpha","tenant_id":"beta"}',
+                    '{"budget":4,"budget":4}']) {
+    assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+      {ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
+  }
+});
+
+test('rejects duplicate keys nested inside Mining arrays and metadata',async()=>{
+  for (const raw of ['{"rows":[{"hazard":"one","hazard":"two"}]}',
+                    '{"details":{"flag":false,"nested":{"flag":1,"flag":2}}}']) {
+    assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+      {ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
+  }
+});
+
+test('rejects semantically identical escaped JSON property names',async()=>{
+  const raw=String.raw`{"\u0074enant_id":"alpha","tenant_id":"beta"}`;
+  assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+    {ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
+});
+
+test('allows same property names in distinct objects and JSON syntax within strings',async()=>{
+  const raw=JSON.stringify({rows:[{hazard:'A',note:'{"x":1,"x":2}'},
+                                 {hazard:'B',note:'escaped " braces {, } and [ ]'}]});
+  const result=await readBoundedCustomerJson(makeRequest(raw));
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.equal(result.body.rows[0].hazard,'A');
+  assert.equal(result.body.rows[1].hazard,'B');
+});
