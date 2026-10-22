@@ -12,6 +12,7 @@ const REQUEST=/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
 const HEADER=Buffer.from('MUSITU_CONVERSATION_EXPORT_V1\0');
 const BYTE_LIMIT=2*1024*1024,ROW_LIMIT=1000;
 const keyOK=k=>Buffer.isBuffer(k)&&k.length===32;
+const matches=(pattern,value)=>typeof value==='string'&&pattern.test(value);
 const binding=({tenantId,conversationId,requestId})=>Buffer.from(JSON.stringify([tenantId,conversationId,requestId]));
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const membership=`SELECT m.role FROM musitu.memberships m JOIN musitu.tenants t ON t.id=m.tenant_id
@@ -41,7 +42,7 @@ const queries=Object.freeze({
 
 export function openConversationPrivacyExport({encrypted,exportKey,tenantId,conversationId,requestId}={}){
  try{
-  if(!keyOK(exportKey)||!UUID.test(tenantId??'')||!UUID.test(conversationId??'')||!REQUEST.test(requestId??'')||
+  if(!keyOK(exportKey)||!matches(UUID,tenantId)||!matches(UUID,conversationId)||!matches(REQUEST,requestId)||
    !Buffer.isBuffer(encrypted)||encrypted.length<=HEADER.length+28||encrypted.length>BYTE_LIMIT||!encrypted.subarray(0,HEADER.length).equals(HEADER))throw Error();
   const d=createDecipheriv('aes-256-gcm',exportKey,encrypted.subarray(HEADER.length,HEADER.length+12));
   d.setAAD(Buffer.concat([HEADER,binding({tenantId,conversationId,requestId})]));
@@ -57,7 +58,7 @@ export function createConversationPrivacyExporter({pool,contentKey}={}){
  const guarded=createRuntimeRoleBoundPool({pool,expectedRole:'musitu_runtime'});
  return async function exportConversation({tenantId,actorId,conversationId,requestId,exportKey,recheckSession}={}){
   if(typeof recheckSession!=='function')throw Error('PRIVACY_SESSION_RECHECK_REQUIRED');
-  if(!UUID.test(tenantId??'')||!UUID.test(conversationId??'')||!ACTOR.test(actorId??'')||!REQUEST.test(requestId??'')||!keyOK(exportKey))throw Error('PRIVACY_INPUT_REJECTED');
+  if(!matches(UUID,tenantId)||!matches(UUID,conversationId)||!matches(ACTOR,actorId)||!matches(REQUEST,requestId)||!keyOK(exportKey))throw Error('PRIVACY_INPUT_REJECTED');
   await recheckSession();
   const client=await guarded.connect();let active=false,discard;
   try{
@@ -79,7 +80,7 @@ export function createConversationPrivacyExporter({pool,contentKey}={}){
    // repeatable-read export was running; the session is independently rechecked.
    await recheckSession();
    await client.query('BEGIN READ ONLY');active=true;
-   await client.query("SELECT set_config('app.tenant_id',$1,true)",[tenantId]);
+   await client.query("SELECT set_config('app.tenant_id',$1,true),set_config('statement_timeout','4000',true)",[tenantId]);
    if((await client.query(membership,[tenantId,actorId])).rows.length!==1)throw Error('ACCESS_DENIED');
    await client.query('COMMIT');active=false;
    for(const row of data.messages){
@@ -95,10 +96,10 @@ export function createConversationPrivacyExporter({pool,contentKey}={}){
     recipient,channelId:c.phone_number_id,handlingMode:c.handling_mode,data,
     limitations:['Identity/ownership and disclosure approval require operator review.','Other channels, bookings without subject links, staff/identity records, unscoped audit, processor copies and backups are not included.','Expired encrypted message content is excluded; this export does not erase it.','No statutory completeness, deadline, delivery or deletion claim.']};
    const plain=Buffer.from(JSON.stringify(payload));
-   if(plain.length+HEADER.length+28>BYTE_LIMIT)throw Error('PRIVACY_EXPORT_TOO_LARGE');
-   const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',exportKey,iv);
-   cipher.setAAD(Buffer.concat([HEADER,binding({tenantId,conversationId,requestId})]));
    let encrypted;try{
+    if(plain.length+HEADER.length+28>BYTE_LIMIT)throw Error('PRIVACY_EXPORT_TOO_LARGE');
+    const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',exportKey,iv);
+    cipher.setAAD(Buffer.concat([HEADER,binding({tenantId,conversationId,requestId})]));
     const body=Buffer.concat([cipher.update(plain),cipher.final()]);encrypted=Buffer.concat([HEADER,iv,cipher.getAuthTag(),body]);
    }finally{plain.fill(0);}
    return{encrypted,receipt:{requestId,tenantId,conversationId,sha256:digest(encrypted),bytes:encrypted.length,counts:Object.fromEntries(Object.entries(data).map(([name,rows])=>[name,rows.length])),scope:'SINGLE_CONVERSATION_OPERATOR_REVIEW',delivered:false,erased:false}};

@@ -58,4 +58,8 @@ finally{
  try{rmSync(temp,{recursive:true,force:true});}catch(error){failed??=error;}
 }
 if(failed){console.error(failed.message);process.exitCode=1;}
-else console.log(JSON.stringify({...report,fixtureCleanupPassed:true,serverStopped:true,temporaryFilesRemoved:true}));
+else{
+ console.log(JSON.stringify({...report,fixtureCleanupPassed:true,serverStopped:true,temporaryFilesRemoved:true}));
+ // Keep the new boundary evidence below provider per-line log truncation limits.
+ console.log(JSON.stringify({kind:'NATIVE_PRIVACY_QUALIFICATION',...report.privacy,postgresOsUid:report.postgresOsUid,fixtureCleanupPassed:true,serverStopped:true,temporaryFilesRemoved:true}));
+}

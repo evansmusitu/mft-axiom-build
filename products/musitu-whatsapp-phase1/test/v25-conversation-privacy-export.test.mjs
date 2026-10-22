@@ -8,7 +8,8 @@ test('privacy export refuses absent verified-session recheck and malformed scope
  let leases=0;
  const run=createConversationPrivacyExporter({pool:{connect(){leases++;throw Error('SHOULD_NOT_CONNECT');}},contentKey:randomBytes(32)});
  await assert.rejects(run({...scope,exportKey:randomBytes(32)}),{message:'PRIVACY_SESSION_RECHECK_REQUIRED'});
- for(const patch of [{tenantId:'bad'},{conversationId:'bad'},{actorId:''},{requestId:'../arbitrary'},{exportKey:Buffer.alloc(1)}]){
+ for(const patch of [{tenantId:'bad'},{conversationId:'bad'},{actorId:''},{requestId:'../arbitrary'},{exportKey:Buffer.alloc(1)},
+  {tenantId:[scope.tenantId]},{conversationId:[scope.conversationId]},{actorId:['owner']},{requestId:['privacy-test-1']}]){
   await assert.rejects(run({...scope,exportKey:randomBytes(32),recheckSession:async()=>{},...patch}),/PRIVACY_INPUT_REJECTED/);
  }
  assert.equal(leases,0);
