@@ -60,16 +60,17 @@ AI and provider UI acceptance steps cannot be certified while it remains blocked
 
 ## Role nominations — 22 October 2026
 
-The owner nominated **Evans Musitu** as independent reviewer and **Munerudo
-Kudangirana** as second recovery custodian. These nominations are recorded;
-they are not evidence of completed review, accepted custody or recovery access.
+The owner subsequently nominated **Praise Karimatsenga** as independent reviewer,
+replacing the earlier Evans Musitu nomination. **Munerudo Kudangirana** remains
+the nominated second recovery custodian. Evans Musitu retains owner acceptance.
 
-Evans Musitu is also the project owner. His review can establish owner acceptance;
-the nomination alone does not establish independent security/privacy assurance.
-Independent review remains open pending a separate reviewer and an evidence-based
-decision. No acceptance outcome is inferred from the nomination.
+The owner supplied contact addresses for both nominees. Those addresses are kept
+in the private contact record rather than this public repository. The mapping is
+owner-supplied; account control and the nominees' acceptance have not been verified.
 
-Munerudo Kudangirana is the nominated second recovery custodian. A verified
-account/contact, acceptance of the responsibility, controlled recovery-key access
-and a successful recovery exercise are still needed. No message, invitation,
-access grant or key material was sent as part of recording these roles.
+Independent approval remains open pending Praise's actual review, an assessment
+of independence and a recorded evidence-based decision. Custodian qualification
+remains open pending Munerudo's acceptance, verified individual account access,
+controlled recovery-key access and a successful recovery exercise. Nomination is
+not a completed acceptance check. No message, invitation, access grant or key
+material was sent as part of recording these roles.
