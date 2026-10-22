@@ -1,0 +1,120 @@
+name: MUSITU Store V2 isolated Android owner-device evidence build
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - 'store/phase1/device-acceptance/**'
+      - '.github/workflows/musitu-store-v2-private-android-device-witness.yml'
+permissions: {contents: read}
+jobs:
+  private-android-device-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Obtain official Android 36 SDK using runner-provided commandline tools
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Preserve signed Store V1 source immutability
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = "395b488a7841cd5f32065cac9826983e0454d955"
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = "d5ee6821877a151abfe95c50e8677b2f1b19ae5f"
+      - name: Assert physical device witness cannot access network, installer or payments
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('store/phase1/device-acceptance')
+          m=(root/'app/src/main/AndroidManifest.xml').read_text()
+          gradle=(root/'app/build.gradle').read_text()
+          java=(root/'app/src/main/java/com/musitu/store/v2acceptance/DeviceAcceptanceActivity.java').read_text()
+          assert 'com.musitu.store.v2acceptance' in gradle
+          assert 'com.musitu.store.v2acceptance' in java
+          assert 'uses-permission' not in m
+          assert 'android:allowBackup="false"' in m
+          assert 'android:exported="true"' in m
+          assert 'android:usesCleartextTraffic="false"' in m
+          for blocked in ('REQUEST_INSTALL_PACKAGES','INTERNET','SEND_SMS','READ_SMS','ACCESS_FINE_LOCATION',
+                          'FileProvider','startActivityForResult','ACTION_INSTALL_PACKAGE','Payment','paynow',
+                          'https://','http://','android.telephony'):
+              assert blocked not in java,(blocked,'unqualified capability in device-only probe')
+          print('MUSITU_ANDROID_DEVICE_WITNESS_SOURCE_OFFLINE_PROBE=PASS')
+          PY
+      - name: Build disposable owner-device acceptance APK only
+        working-directory: store/phase1/device-acceptance
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Inspect actual APK signing, package identity and empty permission set
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=store/phase1/device-acceptance/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          SDKTOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          "$SDKTOOLS/apksigner" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/device-witness-signing.txt"
+          "$SDKTOOLS/aapt" dump badging "$APK" > "$RUNNER_TEMP/device-witness-badging.txt"
+          "$SDKTOOLS/aapt" dump permissions "$APK" > "$RUNNER_TEMP/device-witness-permissions.txt"
+          mkdir -p "$RUNNER_TEMP/musitu-store-v2-device-witness"
+          python3 - "$APK" <<'PY'
+          import hashlib,json,os,re,sys,zipfile
+          from pathlib import Path
+          apk=Path(sys.argv[1])
+          tmp=Path(os.environ['RUNNER_TEMP'])
+          sign=(tmp/'device-witness-signing.txt').read_text()
+          badging=(tmp/'device-witness-badging.txt').read_text()
+          perms=(tmp/'device-witness-permissions.txt').read_text()
+          assert re.search(r"^package: name='com\\.musitu\\.store\\.v2acceptance' versionCode='1' versionName='0\\.1-private-test'",badging,re.M),badging[:300]
+          assert re.search(r'Signer #1 certificate SHA-256 digest: [a-f0-9]{64}',sign,re.I),'missing Android signing identity'
+          assert not re.search(r'uses-permission:',perms),'unexpected installed permission'
+          with zipfile.ZipFile(apk) as z:
+              names=z.namelist()
+              assert 'AndroidManifest.xml' in names
+              assert len(names)==len(set(names))
+              assert z.testzip() is None,'APK ZIP member checksum mismatch'
+          data={
+             'schema':'musitu.store.android-private-device-test.v1',
+             'scope':'OFFLINE_DEBUG_OWNER_DEVICE_WITNESS_NOT_STORE_V2_INSTALLER',
+             'sourceCommit':os.environ['GITHUB_SHA'],
+             'githubRunId':os.environ['GITHUB_RUN_ID'],
+             'packageId':'com.musitu.store.v2acceptance',
+             'version':'0.1-private-test',
+             'apkSha256':hashlib.sha256(apk.read_bytes()).hexdigest(),
+             'apkBytes':apk.stat().st_size,
+             'signerSha256':re.search(r'Signer #1 certificate SHA-256 digest: ([a-f0-9]{64})',sign,re.I).group(1).lower(),
+             'declaredPermissions':[],
+             'publicReleaseAuthorized':False,
+             'signedStoreV1Modified':False,
+             'v2InstallerCertified':False,
+             'physicalDeviceTestCompleted':False
+          }
+          d=tmp/'musitu-store-v2-device-witness'
+          (d/'MUSITU_ANDROID_PRIVATE_DEVICE_TEST_EVIDENCE.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\\n')
+          (d/'README_FIRST.txt').write_text(
+             'PRIVATE MUSITU STORE V2 DEVICE TEST ONLY — NOT THE REAL STORE OR V2 INSTALLER.\\n'
+             'Unzip this archive; confirm the evidence JSON package ID and APK SHA-256.\\n'
+             'Install only MUSITU V2 Device Test on your phone. If Android proposes to replace MUSITU Store, CANCEL.\\n'
+             'Open, copy the offline device receipt, paste it into private ChatGPT, then uninstall test app.\\n'
+             'Never enable purchases, third-party app installation, publisher admission or public distribution.\\n')
+          import shutil
+          shutil.copy2(apk,d/'MUSITU_Store_V2_Offline_Device_Test_ONLY.apk')
+          print('MUSITU_STORE_V2_DEVICE_PROBE_APK_VERIFIED sha256='+data['apkSha256'])
+          print('MUSITU_STORE_V2_DEVICE_PROBE_SIGNER_SHA256='+data['signerSha256'])
+          print('MUSITU_STORE_V2_DEVICE_PROBE_PERMISSION_COUNT=0')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STORE_V2_PRIVATE_ANDROID_DEVICE_TEST_APK_AND_EVIDENCE
+          path: ${{ runner.temp }}/musitu-store-v2-device-witness/
+          retention-days: 7
+          if-no-files-found: error
