@@ -19,6 +19,9 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(record['assessment_kind'], 'FEATURE_BRANCH_PREPARATORY_NON_ENABLING')
         self.assertEqual(record['offline_customer_identity_verifier'], 'SYNTHETIC_TESTED_DISABLED_NOT_WIRED')
         self.assertNotIn('customer_identity.mjs', self.worker)
+        self.assertNotIn('customer_admission.mjs', self.worker)
+        self.assertEqual(record['offline_sqlite_d1_customer_admission'],
+                         'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
@@ -43,7 +46,10 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
             'customer_beta_acceptance_evidence',
         ):
             with self.subTest(check=name):
-                self.assertEqual(checks[name], 'NOT_DEMONSTRATED')
+                expected = ('NOT_DEMONSTRATED_ON_REAL_D1' if name in (
+                    'tenant_isolation_and_customer_usage_attribution',
+                    'per_customer_rate_quota_and_payload_limits') else 'NOT_DEMONSTRATED')
+                self.assertEqual(checks[name], expected)
         self.assertGreaterEqual(len(self.record['mandatory_external_signoffs']), 5)
 
     def test_contract_names_only_supported_routes_and_protects_internal_auth(self):
