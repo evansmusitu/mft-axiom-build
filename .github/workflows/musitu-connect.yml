@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run production worker tests
-        run: node --test tests/connect/test_production_worker.mjs tests/connect/test_customer_identity.mjs tests/connect/test_customer_admission.mjs tests/connect/test_customer_payload.mjs tests/connect/test_customer_ingress_canary.mjs
+        run: node --test tests/connect/test_production_worker.mjs tests/connect/test_customer_identity.mjs tests/connect/test_customer_admission.mjs tests/connect/test_customer_payload.mjs tests/connect/test_customer_ingress_canary.mjs tests/connect/test_customer_provisioning.mjs
       - name: Enforce production admission guard
         run: python qualification/validate_production_admission.py
       - name: Verify live production runtime guard
