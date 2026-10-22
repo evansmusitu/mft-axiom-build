@@ -12,6 +12,83 @@ export const MAX_CUSTOMER_JSON_BYTES = 65_536;
 const failure = (status, error) => ({ok:false, status, error});
 const contentType = /^application\/json(?:\s*;\s*charset=utf-8)?$/i;
 
+
+/**
+ * Detect repeated JSON object property names at every nesting level.
+ * Call only *after* JSON.parse verifies the grammar. Decoding each property
+ * token via JSON.parse catches collisions between escaped and literal keys.
+ * At most 128 composite nesting levels; deeper payloads fail closed.
+ */
+function hasDuplicateJsonObjectKeys(source) {
+  let pos = 0;
+  const spaces = () => {
+    while (pos < source.length && /\s/.test(source[pos])) pos++;
+  };
+  const stringToken = () => {
+    if (source[pos] !== '"') throw new Error('invalid_json');
+    const start = pos++;
+    while (pos < source.length) {
+      const ch = source[pos++];
+      if (ch === '\\') {
+        pos++; // Ignore the escaped next character, including an escaped quote.
+      } else if (ch === '"') {
+        return JSON.parse(source.slice(start, pos));
+      }
+    }
+    throw new Error('invalid_json');
+  };
+  const visit = depth => {
+    if (depth > 128) throw new Error('json_depth_limit');
+    spaces();
+    if (source[pos] === '"') {
+      stringToken();
+      return false;
+    }
+    if (source[pos] === '{') {
+      pos++;
+      spaces();
+      const seen = new Set();
+      if (source[pos] === '}') { pos++; return false; }
+      while (pos < source.length) {
+        spaces();
+        const key = stringToken();
+        if (seen.has(key)) return true;
+        seen.add(key);
+        spaces();
+        if (source[pos++] !== ':') throw new Error('invalid_json');
+        if (visit(depth + 1)) return true;
+        spaces();
+        const delimiter = source[pos++];
+        if (delimiter === '}') return false;
+        if (delimiter !== ',') throw new Error('invalid_json');
+      }
+      throw new Error('invalid_json');
+    }
+    if (source[pos] === '[') {
+      pos++;
+      spaces();
+      if (source[pos] === ']') { pos++; return false; }
+      while (pos < source.length) {
+        if (visit(depth + 1)) return true;
+        spaces();
+        const delimiter = source[pos++];
+        if (delimiter === ']') return false;
+        if (delimiter !== ',') throw new Error('invalid_json');
+      }
+      throw new Error('invalid_json');
+    }
+    // JSON.parse already validated primitive tokens (number, true, etc.).
+    while (pos < source.length && !/[\s,\]}]/.test(source[pos])) pos++;
+    return false;
+  };
+  const duplicate = visit(0);
+  if (!duplicate) {
+    spaces();
+    if (pos !== source.length) throw new Error('invalid_json');
+  }
+  return duplicate;
+}
+
 export async function readBoundedCustomerJson(request) {
   if (!request || request.method !== 'POST') {
     return failure(405, 'METHOD_NOT_ALLOWED');
@@ -85,6 +162,9 @@ export async function readBoundedCustomerJson(request) {
     const body = JSON.parse(json);
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
       return failure(400, 'INVALID_JSON');
+    }
+    if (hasDuplicateJsonObjectKeys(json)) {
+      return failure(400, 'DUPLICATE_JSON_KEY');
     }
     return {ok:true, body};
   } catch {
