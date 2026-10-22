@@ -109,6 +109,34 @@ class BridgeTests(unittest.TestCase):
         denied=self.tc.post('/mcp',json={'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'order_send'}},headers=self.edge_headers)
         self.assertEqual(denied.json()['error']['code'],-32601)
 
+    def test_private_mcp_rejects_oversized_body(self):
+        oversized={'jsonrpc':'2.0','id':1,'method':'tools/list','padding':'x'*70000}
+        response=self.tc.post('/mcp',json=oversized,headers=self.edge_headers)
+        self.assertEqual(response.status_code,413)
+
+    def test_private_mcp_rejects_bad_json_and_envelope(self):
+        malformed=self.tc.post('/mcp',data='invalid-json',
+                               headers={**self.edge_headers,'content-type':'application/json'})
+        self.assertEqual(malformed.status_code,400)
+        wrong_version=self.tc.post('/mcp',json={'jsonrpc':'1.0','id':1,'method':'tools/list'},
+                                   headers=self.edge_headers)
+        self.assertEqual(wrong_version.status_code,400)
+
+    def test_private_mcp_status_accepts_only_zero_arguments(self):
+        payload={'jsonrpc':'2.0','id':1,'method':'tools/call',
+                 'params':{'name':'lifeline_status','arguments':{'execute':True}}}
+        response=self.tc.post('/mcp',json=payload,headers=self.edge_headers)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['error']['code'],-32602)
+        for params in (None,['lifeline_status'],{'name':'lifeline_status','extra':'anything'}):
+            response=self.tc.post('/mcp',json={'jsonrpc':'2.0','id':2,
+                        'method':'tools/call','params':params},headers=self.edge_headers)
+            self.assertEqual(response.json()['error']['code'],-32602)
+        valid=self.tc.post('/mcp',json={'jsonrpc':'2.0','id':3,'method':'tools/call',
+                        'params':{'name':'lifeline_status','arguments':{}}},headers=self.edge_headers)
+        self.assertEqual(valid.status_code,200)
+        self.assertIn('result',valid.json())
+
     def test_stage_queue_capacity_rejected_with_429(self):
         for _ in range(8):
             self.enqueue()

@@ -120,10 +120,17 @@ def mount_readonly_mcp(api:FastAPI, edge_secret:str):
         require_headers={'x-lifeline-edge-secret','x-lifeline-subject'}
         if not require_headers.issubset(request.headers) or not secrets.compare_digest(request.headers.get('x-lifeline-edge-secret',''),edge_secret):
             raise HTTPException(401,'private edge required')
-        # This route only advertises staged status and does not execute orders.
-        obj=await request.json()
-        method=obj.get('method') if isinstance(obj,dict) else None
-        rpc_id=obj.get('id') if isinstance(obj,dict) else None
+        # Even though Modal proxy authentication is mandatory, reject malformed or
+        # overlarge RPC bodies before parsing.  The status tool accepts NO arguments;
+        # it must not become a generic pass-through when the private bridge is enabled.
+        raw=await request.body()
+        if len(raw)>65536:raise HTTPException(413,'MCP request too large')
+        try:obj=json.loads(raw)
+        except (ValueError,UnicodeDecodeError):raise HTTPException(400,'invalid MCP JSON') from None
+        if not isinstance(obj,dict) or obj.get('jsonrpc')!='2.0':
+            raise HTTPException(400,'invalid MCP JSON-RPC envelope')
+        method=obj.get('method')
+        rpc_id=obj.get('id')
         if method=='initialize':
             result={'protocolVersion':'2025-03-26','serverInfo':{'name':'lifeline-mt5','version':'0.4.0'},'capabilities':{'tools':{}}}
         elif method=='ping':result={}
@@ -131,7 +138,15 @@ def mount_readonly_mcp(api:FastAPI, edge_secret:str):
             result={'tools':[{'name':'lifeline_status','description':'Private MT5 integration staging status (no trading)',
                               'inputSchema':{'type':'object','properties':{},'additionalProperties':False},
                               'annotations':{'readOnlyHint':True,'destructiveHint':False,'openWorldHint':False}}]}
-        elif method=='tools/call' and obj.get('params',{}).get('name')=='lifeline_status':
+        elif method=='tools/call':
+            params=obj.get('params')
+            if (not isinstance(params,dict) or set(params)-{'name','arguments'} or
+                params.get('arguments',{})!={}):
+                return {'jsonrpc':'2.0','id':rpc_id,
+                    'error':{'code':-32602,'message':'Invalid parameters'}}
+            if params.get('name')!='lifeline_status':
+                return {'jsonrpc':'2.0','id':rpc_id,
+                    'error':{'code':-32601,'message':'Not enabled'}}
             result={'content':[{'type':'text','text':'Windows native compiler verified. Hosted agent pairing pending; trading disabled.'}]}
         else:return {'jsonrpc':'2.0','id':rpc_id,'error':{'code':-32601,'message':'Not enabled'}}
         return {'jsonrpc':'2.0','id':rpc_id,'result':result}
