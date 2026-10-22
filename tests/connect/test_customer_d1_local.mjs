@@ -41,9 +41,10 @@ const reserve = (db, token, scope, i, nowMs=TIME) => reserveConnectCustomerReque
 });
 const count = (db, tenant) => db.prepare('SELECT COUNT(*) AS n FROM connect_customer_usage_events WHERE tenant_id=?').bind(tenant).first();
 
-test('Cloudflare local workerd D1: schema, atomic quota, principals and revoked reads', async () => {
-  const db = await createIsolatedD1();
+test('Cloudflare local workerd D1: schema, atomic quota, principals and revoked reads', {timeout:30000}, async () => {
+  let db;
   try {
+    db = await createIsolatedD1();
     const a = await reserve(db,TOKEN_A,'mining.plan',1);
     const b = await reserve(db,TOKEN_B,'mining.risk',2);
     assert.equal(a.ok,true,JSON.stringify(a));
@@ -72,13 +73,14 @@ test('Cloudflare local workerd D1: schema, atomic quota, principals and revoked 
     assert.equal(invalid.ok,false);
     assert.equal((await count(db,'tenant_alpha')).n,3);
   } finally {
-    await mf.dispose();
+    if (mf) await mf.dispose();
   }
 });
 
-test('Cloudflare local workerd D1: concurrent admissions do not exceed a single-tenant cap', async () => {
-  const db = await createIsolatedD1();
+test('Cloudflare local workerd D1: concurrent admissions do not exceed a single-tenant cap', {timeout:30000}, async () => {
+  let db;
   try {
+    db = await createIsolatedD1();
     const results = await Promise.all(Array.from({length:8},(_,index)=>
       reserve(db,TOKEN_B,'mining.risk',index+100)));
     assert.equal(results.filter(v=>v.ok).length,1);
@@ -86,6 +88,6 @@ test('Cloudflare local workerd D1: concurrent admissions do not exceed a single-
     assert.equal((await count(db,'tenant_beta')).n,1);
     assert.equal((await db.prepare('SELECT used FROM connect_customer_minute_usage WHERE tenant_id=?').bind('tenant_beta').first()).used,1);
   } finally {
-    await mf.dispose();
+    if (mf) await mf.dispose();
   }
 });
