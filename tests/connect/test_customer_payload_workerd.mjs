@@ -5,7 +5,7 @@ import {test} from 'node:test';
 import {Miniflare} from 'miniflare';
 
 const source = readFileSync(new URL('../../connect/customer_payload.mjs', import.meta.url), 'utf8');
-const SCRIPT = source + `
+const SCRIPT = source.replace(/^export /gm, '') + `
 export default {
   async fetch(request) {
     const result = await readBoundedCustomerJson(request);
