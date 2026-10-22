@@ -44,6 +44,39 @@ prototype without replacing the separately authorized production Worker.
   cancellation and billing policy is unresolved and must be explicitly
   approved before this interface is made public.
 
+## Additional bounded request-body boundary (22 October 2026)
+
+`connect/customer_payload.mjs` is an **offline-only, non-admission**
+request reader intended for a future customer-facing Worker, not an import
+or execution path of the currently deployed production service. The proposed
+research policy is at most **65,536 raw transport bytes (64 KiB)** for one
+JSON object. This is a provisional engineering ceiling requiring product
+profiling and security sign-off before external customer use.
+
+The reader rejects unsupported HTTP methods and media types, nonidentity
+content encoding, nonnumeric/inconsistent `Content-Length`, actual streamed
+bytes exceeding the cap (including UTF-8 multibyte text), invalid UTF-8,
+malformed JSON and nonobject top-level values. It checks actual byte count
+whether or not `Content-Length` is provided and never returns partial
+JSON on rejection. Transport errors are sanitized.
+
+The `node --test tests/connect/test_customer_payload.mjs` regression
+suite exercised exact-cap success, streamed oversize refusal, declared-size
+mismatch, compressed encoding refusal and malformed-data behavior. The
+test-first red checkpoint was GitHub Connect CI run `39748095502`:
+the disabled implementation failed all 10 new tests while 30 existing
+Node tests passed. After implementation, the same expanded Node suite passed
+**40/40** in GitHub Connect CI run `39748278360`.
+
+**Not established:** duplicate-key rejection, schema-level Mining semantics,
+authenticated tenant admission, real D1 metering, clock/CPU limits, global
+in-flight request limits, customer billing and security ownership. Future
+routing must first authenticate and reserve the request using the trusted
+tenant context, then apply the bounded transport reader *and* the already
+qualified per-operation semantic validator. A malformed request may still
+consume a quota reservation; this must be approved as a product policy.
+No new customer API should be deployed merely because these unit tests pass.
+
 ## Local regression evidence, not production qualification
 
 ```bash
