@@ -92,10 +92,11 @@ const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVA
  */
 export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
   exclusiveLease,readRoute,compareAndSwapRoute,verifySignedBrowser,
-  verifyReconciledTarget,verifyProviderReceipts,verifyCurrentSourceFreeze}={}){
+  verifyReconciledTarget,verifyProviderReceipts,verifyCurrentSourceFreeze,
+  verifyTargetWriteBarrier}={}){
   for(const [name,fn] of Object.entries({readEvidence,exclusiveLease,readRoute,
     compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts,
-    verifyCurrentSourceFreeze}))
+    verifyCurrentSourceFreeze,verifyTargetWriteBarrier}))
     need(fn,name);
   const lease=await exclusiveLease();
   if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
@@ -128,24 +129,47 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
          expires-Date.now()>300000)
         fail('STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED');
     };
+    // This is only a READ-ONLY canary. A database swap before a target write
+    // barrier would lose new Neon writes if a later check rolls back to SQLite.
+    const requireTargetBarrier=async()=>{
+      const r=await verifyTargetWriteBarrier(qualified);
+      const expires=Date.parse(r?.expires_at||'');
+      if(r?.verified!==true||r?.provider_receipt_verified!==true||
+         r?.read_only!==true||r?.writes_blocked!==true||
+         r.freeze_id!==qualified.freeze_id||
+         !Number.isFinite(expires)||expires-Date.now()<15000||
+         expires-Date.now()>300000)
+        fail('STUDIO_TARGET_WRITE_BARRIER_REQUIRED');
+    };
     await requireLiveFence();
-    if(await compareAndSwapRoute('SQLITE_DO','NEON_PROTECTED')!==true)
+    await requireTargetBarrier();
+    if(await compareAndSwapRoute('SQLITE_DO','NEON_CANARY_READONLY')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
+    await requireTargetBarrier();
     const [browser,reconciled]=await Promise.all([
       verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
     if(browser!==true||reconciled!==true)fail('STUDIO_POSTCUTOVER_PROOF_FAILED');
     await requireLiveFence();
-    if(await readRoute()!=='NEON_PROTECTED')fail('STUDIO_ROUTE_READBACK_FAILED');
-    return {promoted:true,route:'NEON_PROTECTED',qualified_gates:qualified.gate_count,
+    await requireTargetBarrier();
+    if(await readRoute()!=='NEON_CANARY_READONLY')fail('STUDIO_ROUTE_READBACK_FAILED');
+    // Both short TTL write barriers will eventually expire. Never leave
+    // customer routing on a canary protected only by expiring barriers:
+    // restore SQLite BEFORE the lease is released, even on successful proof.
+    if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')!==true||
+       await readRoute()!=='SQLITE_DO')
+      fail('STUDIO_CRITICAL_CANARY_RETURN_FAILED');
+    switched=false;
+    return {promoted:false,canary:true,route:'SQLITE_DO',
+      write_activation:false,qualified_gates:qualified.gate_count,
       source_sqlite_preserved:true,rendering_enabled:false,run_id:qualified.run_id};
   }catch(error){
     let observed;
     try{observed=await readRoute()}
     catch{rollbackError=Error('STUDIO_ROUTE_READBACK_UNAVAILABLE')}
-    if(switched||observed==='NEON_PROTECTED'){
+    if(observed==='NEON_CANARY_READONLY'){
       try{
-        if(await compareAndSwapRoute('NEON_PROTECTED','SQLITE_DO')!==true||
+        if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')!==true||
           await readRoute()!=='SQLITE_DO')throw Error('STUDIO_ROLLBACK_READBACK_FAILED');
       }catch(e){rollbackError=e}
     }else if(observed!=='SQLITE_DO')rollbackError=Error('STUDIO_ROUTE_UNKNOWN_AFTER_FAILURE');
@@ -158,9 +182,9 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
       // active just because an exclusive-lease release failed or was lost.
       let route;
       try{route=await readRoute()}catch{}
-      if(route==='NEON_PROTECTED'){
+      if(route==='NEON_CANARY_READONLY'){
         let safe=false;
-        try{safe=await compareAndSwapRoute('NEON_PROTECTED','SQLITE_DO')===true&&
+        try{safe=await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')===true&&
           await readRoute()==='SQLITE_DO'}catch{}
         if(!safe)fail('STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED');
         fail('STUDIO_LEASE_RELEASE_FAILED_AND_NEON_ROLLED_BACK');

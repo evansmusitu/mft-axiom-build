@@ -84,7 +84,10 @@ test('real SQLite: concurrent lease denied; owner can explicitly release; replay
   const a=await acquire(f.storage);
   await assert.rejects(()=>acquire(f.storage),/STUDIO_FREEZE_ALREADY_HELD/);
   assert.equal((await release(f.storage,a)).released,true);
-  f.db.exec("INSERT INTO projects(id,title,owner_sub,created_at) VALUES('after','Test','signed','2026-10-22')");
+  f.db.prepare('INSERT INTO projects(id,title,owner_sub,created_at) VALUES(?,?,?,?)')
+    .run('after','Test',actor.sub,'2026-10-22');
+  f.db.prepare('INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,?,?)')
+    .run('after',actor.sub,'owner','2026-10-22');
   await assert.rejects(()=>read(f.storage,a),/STUDIO_FREEZE_NOT_ACTIVE/);
   const b=await acquire(f.storage);
   await assert.rejects(()=>release(f.storage,a),/STUDIO_FREEZE_RELEASE_EPOCH_MISMATCH/);
@@ -115,5 +118,37 @@ test('real SQLite: owner membership, JWT claim, short TTL and wrong actor fail c
   await assert.rejects(()=>acquire(f.storage,{staffJwtVerified:false}),/STUDIO_FREEZE_SIGNED_OWNER_REQUIRED/);
   await assert.rejects(()=>acquire(f.storage,{ttlSeconds:500}),/STUDIO_FREEZE_TTL_DENIED/);
   await assert.rejects(()=>acquire(f.storage,{ownerSubjectSha256:'a'.repeat(64)}),/STUDIO_FREEZE_OWNER_MISMATCH/);
+ }finally{f.db.close()}
+});
+
+// The write fence is global to the entire single Durable Object, not per project.
+// A co-owner or owner of only some projects must NOT freeze all other tenants.
+test('real SQLite: partial owner of multi-project DO cannot lock another project',async()=>{
+ const f=fixture();try{
+  f.db.prepare('INSERT INTO projects(id,title,owner_sub,created_at) VALUES(?,?,?,?)')
+    .run('p-other','Other owner data','independent-owner-sub','2026-10-22');
+  f.db.prepare('INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,?,?)')
+    .run('p-other','independent-owner-sub','owner','2026-10-22');
+  await assert.rejects(()=>acquire(f.storage),/STUDIO_FREEZE_SINGLE_OWNER_SCOPE_REQUIRED/);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM _studio_export_freeze').get().n,0);
+ }finally{f.db.close()}
+});
+test('real SQLite: presence of an additional co-owner forbids global freeze',async()=>{
+ const f=fixture();try{
+  f.db.prepare('INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,?,?)')
+    .run('p','co-owner-subject','owner','2026-10-22');
+  await assert.rejects(()=>acquire(f.storage),/STUDIO_FREEZE_SINGLE_OWNER_SCOPE_REQUIRED/);
+ }finally{f.db.close()}
+});
+test('real SQLite: same sole owner across several projects can freeze full DO',async()=>{
+ const f=fixture();try{
+  f.db.prepare('INSERT INTO projects(id,title,owner_sub,created_at) VALUES(?,?,?,?)')
+    .run('p-two','Second controlled project',actor.sub,'2026-10-22');
+  f.db.prepare('INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,?,?)')
+    .run('p-two',actor.sub,'owner','2026-10-22');
+  const lease=await acquire(f.storage);
+  assert.equal(lease.triggers_verified,15);
+  assert.throws(()=>f.db.exec("UPDATE projects SET title='changed' WHERE id='p-two'"),
+    /STUDIO_MIGRATION_WRITES_FROZEN/);
  }finally{f.db.close()}
 });

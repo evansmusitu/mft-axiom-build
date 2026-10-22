@@ -29,18 +29,26 @@ function adapter(p=proof(),flags={}){
  async readRoute(){return route},
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){return flags.unverified!==true},
+ async verifyTargetWriteBarrier(info){
+  if(flags.targetWriteBarrierLost||
+     (flags.targetBarrierLostAfterCanary&&route==='NEON_CANARY_READONLY'))
+    return {verified:false};
+  return {verified:true,provider_receipt_verified:true,read_only:true,
+    writes_blocked:true,freeze_id:info.freeze_id,
+    expires_at:new Date(Date.now()+120000).toISOString()};
+ },
  async verifyCurrentSourceFreeze(info){
   if(flags.freezeGone)return {verified:false};
-  if(flags.freezeGoesAwayAfterCutover&&route==='NEON_PROTECTED')return {verified:false};
+  if(flags.freezeGoesAwayAfterCutover&&route==='NEON_CANARY_READONLY')return {verified:false};
   return {verified:true,provider_receipt_verified:true,freeze_id:info.freeze_id,
    triggers_verified:15,expires_at:new Date(Date.now()+120000).toISOString()};
  },
  async compareAndSwapRoute(from,to){
-  if(flags.rollbackFails&&from==='NEON_PROTECTED')return false;
+  if((flags.rollbackFails||flags.canaryReturnFails)&&from==='NEON_CANARY_READONLY')return false;
   if(flags.casFails&&from==='SQLITE_DO')return false;
   if(route!==from)return false;
   route=to;flips++;
-  if(flags.ackLost&&to==='NEON_PROTECTED')throw Error('PROVIDER_ACK_LOST');
+  if(flags.ackLost&&to==='NEON_CANARY_READONLY')throw Error('PROVIDER_ACK_LOST');
   return true;
  },
  async verifySignedBrowser(){return !flags.browserFails},
@@ -68,8 +76,8 @@ test('rejects no protected transport, unenforced spend, unproven recovery or ren
 });
 test('qualified mock requires two independent fresh attestations and CAS',async()=>{
  const x=adapter(),r=await guardedStudioNeonPromotion(x.f);
- assert.equal(r.promoted,true);assert.equal(r.rendering_enabled,false);
- assert.deepEqual(x.state(),{route:'NEON_PROTECTED',flips:1,release:1,reads:2});
+ assert.equal(r.promoted,false);assert.equal(r.canary,true);assert.equal(r.write_activation,false);assert.equal(r.rendering_enabled,false);
+ assert.deepEqual(x.state(),{route:'SQLITE_DO',flips:2,release:1,reads:2});
 });
 test('missing real provider receipts denies promotion before switching',async()=>{
  const x=adapter(proof(),{unverified:true});
@@ -99,7 +107,7 @@ test('CAS applies but acknowledgement is lost: readback and rollback',async()=>{
 test('failed rollback is critical, never falsely reported as safe',async()=>{
  const x=adapter(proof(),{browserFails:true,rollbackFails:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED/);
- assert.equal(x.state().route,'NEON_PROTECTED');assert.equal(x.state().release,1);
+ assert.equal(x.state().route,'NEON_CANARY_READONLY');assert.equal(x.state().release,1);
 });
 test('exclusive lease refuses another promotion attempt',async()=>{
  const x=adapter(proof(),{leaseHeld:true});
@@ -155,11 +163,41 @@ test('source fence lost after switch triggers rollback even with good browser pr
 });
 test('lease-release acknowledgement lost after successful CAS must rollback',async()=>{
  const x=adapter(proof(),{releaseFails:true});
- await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_LEASE_RELEASE_FAILED_AND_NEON_ROLLED_BACK/);
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_LEASE_RELEASE_FAILED_SQLITE_SAFE/);
  assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
 });
 test('lease-release failure and impossible rollback raises critical',async()=>{
  const x=adapter(proof(),{releaseFails:true,rollbackFails:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED/);
- assert.equal(x.state().route,'NEON_PROTECTED');
+ assert.equal(x.state().route,'NEON_CANARY_READONLY');
+});
+
+test('read-write traffic is never routed to a canary backend',async()=>{
+ const x=adapter();const result=await guardedStudioNeonPromotion(x.f);
+ assert.equal(result.write_activation,false);
+ assert.equal(result.route,'SQLITE_DO');
+ assert.equal(result.promoted,false);
+ assert.equal(x.state().route,'SQLITE_DO');
+});
+test('unverified destination write-barrier fails before any route change',async()=>{
+ const x=adapter(proof(),{targetWriteBarrierLost:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
+ assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,0);
+});
+test('target write-barrier removal during canary triggers rollback',async()=>{
+ const x=adapter(proof(),{targetBarrierLostAfterCanary:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
+ assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
+});
+
+test('short-lived target barrier never leaves permanent read-only Neon routing',async()=>{
+ const x=adapter();const result=await guardedStudioNeonPromotion(x.f);
+ assert.equal(result.route,'SQLITE_DO');assert.equal(result.canary,true);
+ assert.equal(result.promoted,false);assert.equal(result.write_activation,false);
+ assert.equal(x.state().flips,2);
+});
+test('unable to restore original SQLite route after canary is critical',async()=>{
+ const x=adapter(proof(),{canaryReturnFails:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED/);
+ assert.equal(x.state().route,'NEON_CANARY_READONLY');
 });

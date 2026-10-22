@@ -46,6 +46,22 @@ function schemaCheck(storage){
   if(version!==2)fail('STUDIO_FREEZE_SCHEMA_VERSION_UNQUALIFIED');
   assertTriggerTopology(storage);
 }
+/** This lock protects the entire DO, never a single owner's project subset.
+ * A signed owner of one project cannot stop unrelated tenants' writes.
+ */
+function assertSoleLedgerOwner(storage,subject){
+  const scope=sqlExec(storage,`SELECT COUNT(*) AS project_count,
+    COALESCE(SUM(CASE WHEN p.owner_sub=? AND EXISTS (
+      SELECT 1 FROM memberships m WHERE m.project_id=p.id
+      AND m.member_sub=? AND m.role='owner') THEN 1 ELSE 0 END),0) AS authorized_count,
+    (SELECT COUNT(*) FROM memberships m WHERE m.role='owner'
+      AND m.member_sub<>?) AS unrelated_owners
+    FROM projects p`,subject,subject,subject).one();
+  const total=Number(scope?.project_count);
+  if(!Number.isSafeInteger(total)||total<1||total>25000||
+     Number(scope?.authorized_count)!==total||Number(scope?.unrelated_owners)!==0)
+    fail('STUDIO_FREEZE_SINGLE_OWNER_SCOPE_REQUIRED');
+}
 function clock(storage){
   const epoch=Number(sqlExec(storage,"SELECT CAST(strftime('%s','now') AS INTEGER) AS epoch").one()?.epoch);
   if(!Number.isSafeInteger(epoch)||epoch<=0)fail('STUDIO_FREEZE_CLOCK_UNAVAILABLE');
@@ -100,6 +116,7 @@ export async function acquireStudioSourceWriteFreeze({storage,actor,ownerSubject
       "SELECT COUNT(*) AS n FROM memberships WHERE member_sub=? AND role='owner'",
       actor.sub).one()?.n);
     if(permitted<1)fail('STUDIO_FREEZE_OWNER_MEMBERSHIP_REQUIRED');
+    assertSoleLedgerOwner(storage,actor.sub);
     const now=clock(storage);
     const prior=sqlExec(storage,
       'SELECT status,expires_epoch FROM _studio_export_freeze WHERE lock_id=1').one();
@@ -124,6 +141,7 @@ export async function releaseStudioSourceWriteFreeze({storage,actor,ownerSubject
       "SELECT COUNT(*) AS n FROM memberships WHERE member_sub=? AND role='owner'",
       actor.sub).one()?.n);
     if(permitted<1)fail('STUDIO_FREEZE_OWNER_MEMBERSHIP_REQUIRED');
+    assertSoleLedgerOwner(storage,actor.sub);
     sqlExec(storage,
       'UPDATE _studio_export_freeze SET status=? WHERE lock_id=1 AND freeze_id=? AND owner_sha256=? AND status=?',
       'released',freezeId,ownerSubjectSha256,'active');
