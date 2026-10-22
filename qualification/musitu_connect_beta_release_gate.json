@@ -1,6 +1,6 @@
 {
   "schema": "musitu.connect.beta_release_gate.v1",
-  "assessment_date": "2026-10-21",
+  "assessment_date": "2026-10-22",
   "product": "MUSITU Connect",
   "release_scope": "invite_only_enterprise_mining_planning_and_axiom_arithmetic",
   "assessment_kind": "FEATURE_BRANCH_PREPARATORY_NON_ENABLING",
@@ -15,8 +15,8 @@
   "checks": {
     "single_row_risk_and_bounded_planner_feature_branch": "IMPLEMENTED_TESTED_NOT_DEPLOYED",
     "separate_tenant_credentials_and_rotation": "NOT_DEMONSTRATED",
-    "tenant_isolation_and_customer_usage_attribution": "NOT_DEMONSTRATED",
-    "per_customer_rate_quota_and_payload_limits": "NOT_DEMONSTRATED",
+    "tenant_isolation_and_customer_usage_attribution": "NOT_DEMONSTRATED_ON_REAL_D1",
+    "per_customer_rate_quota_and_payload_limits": "NOT_DEMONSTRATED_ON_REAL_D1",
     "real_customer_onboarding_and_offboarding": "NOT_DEMONSTRATED",
     "external_paging_human_acknowledgment": "NOT_DEMONSTRATED",
     "connect_customer_terms_privacy_and_dpa_approved": "NOT_DEMONSTRATED",
@@ -32,5 +32,6 @@
     "pilot_customer_owner",
     "separate_production_release_authorization"
   ],
-  "policy": "A green engineering CI run alone does not grant beta admission, public commercial access, OpenAI listing, PR merge, production Worker rollout, or methane safety qualification."
+  "policy": "A green engineering CI run alone does not grant beta admission, public commercial access, OpenAI listing, PR merge, production Worker rollout, or methane safety qualification.",
+  "offline_sqlite_d1_customer_admission": "SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED"
 }
