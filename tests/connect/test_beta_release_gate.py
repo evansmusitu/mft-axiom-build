@@ -22,6 +22,12 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertNotIn('customer_admission.mjs', self.worker)
         self.assertNotIn('customer_payload.mjs', self.worker)
         self.assertNotIn('customer_ingress_canary.mjs', self.worker)
+        self.assertNotIn('customer_provisioning.mjs', self.worker)
+        self.assertEqual(record['offline_customer_provisioning'],
+                         'SYNTHETIC_ONLY_SCOPED_WEBCRYPTO_ISSUANCE_REVOCATION_SUSPENSION_TESTED_NOT_WIRED')
+        self.assertIs(record['offline_customer_provisioning_evidence']['customer_admission_authorized'], False)
+        self.assertIs(record['offline_customer_provisioning_evidence']['remote_hosted_d1_qualified'], False)
+        self.assertEqual(record['offline_customer_provisioning_evidence']['real_customer_credentials_issued'], 0)
         self.assertEqual(record['offline_customer_ingress_orchestration'],
                          'SYNTHETIC_AUTH_QUOTA_BOUNDED_JSON_CANARY_PASS_NOT_WIRED')
         self.assertIs(record['offline_customer_ingress_evidence']['customer_admission_authorized'], False)
