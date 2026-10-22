@@ -131,22 +131,39 @@ function verifyLedgerInvariants(s){
     }
   }
 }
-/** Public receipt exposes HMAC digests only; caller must keep random key secret. */
-export function reconcileStudioLedgers(source,target,{integrityKey}={}){
+/** Reusable keyed attestation of ONE internally complete, normalized ledger.
+ * Caller must independently prove live origin, freeze, protected transport and
+ * secret-key custody. This source-only function makes NO provider assertions.
+ */
+export function attestStudioLedgerSnapshot(snapshot,{integrityKey}={}){
   if(!Buffer.isBuffer(integrityKey)&&!(integrityKey instanceof Uint8Array))
     fail('LEDGER_HMAC_KEY_REQUIRED');
   if(integrityKey.byteLength<32)fail('LEDGER_HMAC_KEY_TOO_SHORT');
-  const a=normalizeStudioLedgerSnapshot(source),b=normalizeStudioLedgerSnapshot(target);
-  if(a.freeze_id!==b.freeze_id)fail('LEDGER_FREEZE_ID_MISMATCH');
+  const normalized=normalizeStudioLedgerSnapshot(snapshot);
   const counts={},table_hmac={};
   for(const table of Object.keys(COLUMNS)){
-    if(a[table].length!==b[table].length)fail('LEDGER_COUNT_MISMATCH_'+table.toUpperCase());
-    const left=snapshotDigest(a,table,integrityKey);
-    const right=snapshotDigest(b,table,integrityKey);
-    if(!timingSafeEqual(left,right))fail('LEDGER_CONTENT_MISMATCH_'+table.toUpperCase());
-    counts[table]=a[table].length;
-    table_hmac[table]=left.toString('hex');
+    counts[table]=normalized[table].length;
+    table_hmac[table]=snapshotDigest(normalized,table,integrityKey).toString('hex');
+  }
+  return {schema:'musitu.studio.v03.neon.ledger-attestation.v1',
+    verified:true,complete:true,freeze_id:normalized.freeze_id,
+    counts,table_hmac,customer_rows_logged:false,provider_verified:false};
+}
+/** Match two independently attested snapshots in constant time.
+ * A matching digest cannot prove the source was authenticated or frozen.
+ */
+export function reconcileStudioLedgers(source,target,{integrityKey}={}){
+  const a=attestStudioLedgerSnapshot(source,{integrityKey});
+  const b=attestStudioLedgerSnapshot(target,{integrityKey});
+  if(a.freeze_id!==b.freeze_id)fail('LEDGER_FREEZE_ID_MISMATCH');
+  for(const table of Object.keys(COLUMNS)){
+    if(a.counts[table]!==b.counts[table])
+      fail('LEDGER_COUNT_MISMATCH_'+table.toUpperCase());
+    if(!timingSafeEqual(Buffer.from(a.table_hmac[table],'hex'),
+      Buffer.from(b.table_hmac[table],'hex')))
+      fail('LEDGER_CONTENT_MISMATCH_'+table.toUpperCase());
   }
   return {schema:'musitu.studio.v03.neon.transfer.v1',verified:true,complete:true,
-    freeze_match:true,counts,table_hmac,customer_rows_logged:false};
+    freeze_match:true,freeze_id:a.freeze_id,counts:a.counts,table_hmac:a.table_hmac,
+    customer_rows_logged:false,provider_verified:false};
 }

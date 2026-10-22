@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {attestStudioLedgerSnapshot} from '../ledger_reconcile.mjs';
 import {assertStudioNeonPromotionEvidence,guardedStudioNeonPromotion,
   STUDIO_NEON_REQUIRED_GATES} from '../migration_promotion_guard.mjs';
 const sha='a'.repeat(40),hex='b'.repeat(64),now=()=>new Date().toISOString();
@@ -7,7 +8,7 @@ const copy=x=>structuredClone(x);
 function proof(){
  const counts={projects:1,memberships:1,jobs:1,assets:3,audit_events:1};
  const table_hmac=Object.fromEntries(Object.keys(counts).map(x=>[x,hex]));
- const r={verified:true,freeze_id:'freeze-20261022-synthetic',counts,table_hmac};
+ const r={schema:'musitu.studio.v03.neon.ledger-attestation.v1',verified:true,complete:true,freeze_id:'freeze-20261022-synthetic',counts,table_hmac};
  return {source_head:sha,run_id:'synthetic-proof-20261022',checked_at:now(),freeze_id:r.freeze_id,
  source_receipt:copy(r),target_receipt:copy(r),
  gates:STUDIO_NEON_REQUIRED_GATES.map(name=>({name,provider:'unit-fixture',
@@ -15,7 +16,8 @@ function proof(){
  cloudflare_database_of_record:'SQLITE_DO',neon_project_is_synthetic_proof:false,
  cpu_enabled:false,gpu_enabled:false,
  channel:{block_public_connections:true,least_privilege:true,private_path_independently_verified:true},
- billing:{neon_organization_hard_spend_enforced:true,modal_zero_out_of_pocket_enforced:true,
+ billing:{neon_spend_control_kind:'provider-hard-stop',neon_alert_only:false,
+ neon_organization_hard_spend_enforced:true,modal_zero_out_of_pocket_enforced:true,
  project_quotas_not_used_as_spend_proof:true},
  rollback:{cloudflare_sqlite_intact:true,restore_pretested:true,snapshot_of_imported_neon_restored:true}};
 }
@@ -25,7 +27,7 @@ function adapter(p=proof(),flags={}){
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
  held=true;return {acquired:true,release:async()=>{held=false;release++}}},
  async readRoute(){return route},
- async readEvidence(){reads++;if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
+ async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){return flags.unverified!==true},
  async compareAndSwapRoute(from,to){
   if(flags.rollbackFails&&from==='NEON_PROTECTED')return false;
@@ -102,4 +104,35 @@ test('stale CAS cannot silently flip backend',async()=>{
  const x=adapter(proof(),{casFails:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_NEON_ROUTE_CAS_REJECTED/);
  assert.equal(x.state().route,'SQLITE_DO');
+});
+
+test('rejects evidence digest refresh under the same run ID',async()=>{
+ const x=adapter(proof(),{changedDigestSameEpoch:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_EVIDENCE_CHANGED_DURING_PROMOTION/);
+ assert.equal(x.state().route,'SQLITE_DO');
+ assert.equal(x.state().flips,0);
+});
+test('rejects omitted synthetic-proof declaration and mismatched attestation schema',()=>{
+ const e=proof();delete e.neon_project_is_synthetic_proof;
+ bad(e,/STUDIO_LIVE_TOPOLOGY_NOT_QUALIFIED/);
+ const x=proof();delete x.target_receipt.schema;
+ bad(x,/STUDIO_ALL_TABLE_RECEIPTS_REQUIRED/);
+});
+test('alerts are not a hard Neon spend cap even if boolean was asserted',()=>{
+ const e=proof();e.billing.neon_spend_control_kind='email-alert-only';
+ bad(e,/STUDIO_SPENDING_GATE_NOT_ENFORCED/);
+ const x=proof();x.billing.neon_alert_only=true;
+ bad(x,/STUDIO_SPENDING_GATE_NOT_ENFORCED/);
+});
+test('real reconciliation receipt schema produces matching independent attestation receipts',()=>{
+ const input={complete:true,freeze_id:'freeze-consistent-provider-bundle',
+  projects:[{id:'project-fixture',title:'Fixture only',owner_sub:'synthetic-owner',created_at:'2026-10-22T00:00:00Z'}],
+  memberships:[{project_id:'project-fixture',member_sub:'synthetic-owner',role:'owner',created_at:'2026-10-22T00:00:00Z'}],
+  jobs:[],assets:[],audit_events:[]};
+ const hmacKey=new Uint8Array(32).fill(44);
+ const r=attestStudioLedgerSnapshot(input,{integrityKey:hmacKey});
+ const e=proof();e.source_receipt=r;e.target_receipt=structuredClone(r);e.freeze_id=r.freeze_id;
+ assert.equal(assertStudioNeonPromotionEvidence(e,{expectedHead:sha}).qualified,true);
+ e.target_receipt.table_hmac.projects='c'.repeat(64);
+ bad(e,/STUDIO_SOURCE_TARGET_MISMATCH_PROJECTS/);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reconcileStudioLedgers,normalizeStudioLedgerSnapshot} from '../ledger_reconcile.mjs';
+import {reconcileStudioLedgers,normalizeStudioLedgerSnapshot,attestStudioLedgerSnapshot} from '../ledger_reconcile.mjs';
 const key=Uint8Array.from({length:32},(_,i)=>i+1);
 const job='b2222222-2222-4222-8222-222222222222';const project='a1111111-1111-4111-8111-111111111111';
 function fixture(){return {complete:true,freeze_id:'synthetic-atomic-freeze-1',
@@ -71,4 +71,21 @@ test('normalization is side-effect free',()=>{
 test('duplicate submission keys cannot pass even if both snapshots agree',()=>{
  const a=fixture();const j=clone(a.jobs[0]);j.id='b5555555-5555-4555-8555-555555555555';a.jobs.push(j);
  assert.throws(()=>reconcile(a,clone(a)),/LEDGER_DUPLICATE_SUBMISSION_KEY/);
+});
+
+test('separately attested snapshots expose freeze id and identical keyed digests',()=>{
+ const a=fixture(),b=clone(a);
+ const source=attestStudioLedgerSnapshot(a,{integrityKey:key});
+ const target=attestStudioLedgerSnapshot(b,{integrityKey:key});
+ assert.equal(source.schema,'musitu.studio.v03.neon.ledger-attestation.v1');
+ assert.equal(source.freeze_id,a.freeze_id);
+ assert.deepEqual(source.counts,target.counts);
+ assert.deepEqual(source.table_hmac,target.table_hmac);
+ assert.equal(reconcile(a,b).freeze_id,a.freeze_id);
+ assert.doesNotMatch(JSON.stringify(source),/staff-1|synthetic-key|payload_json/);
+});
+test('snapshot attestation rejects even internally consistent orphaned audit and weak keys',()=>{
+ const a=fixture();a.audit_events[0].job_id='unrelated';
+ assert.throws(()=>attestStudioLedgerSnapshot(a,{integrityKey:key}),/LEDGER_AUDIT_JOB_ORPHAN/);
+ assert.throws(()=>attestStudioLedgerSnapshot(fixture(),{integrityKey:Uint8Array.of(1)}),/LEDGER_HMAC_KEY_TOO_SHORT/);
 });

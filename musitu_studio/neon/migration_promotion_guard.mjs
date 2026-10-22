@@ -19,7 +19,8 @@ const shortText=v=>typeof v==='string'&&v.length>0&&v.length<=128;
 function sameHash(a,b){return goodHash(a)&&goodHash(b)&&timingSafeEqual(Buffer.from(a,'hex'),Buffer.from(b,'hex'))}
 function validReceipt(r){
   if(!r||typeof r!=='object'||Array.isArray(r)||r.verified!==true||
-    !shortText(r.freeze_id)||!r.counts||!r.table_hmac||
+    r.schema!=='musitu.studio.v03.neon.ledger-attestation.v1'||
+    r.complete!==true||!shortText(r.freeze_id)||!r.counts||!r.table_hmac||
     Object.keys(r.counts).sort().join('|')!==[...TABLES].sort().join('|')||
     Object.keys(r.table_hmac).sort().join('|')!==[...TABLES].sort().join('|'))return false;
   let size=0;
@@ -35,6 +36,7 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
   if(!e||typeof e!=='object'||Array.isArray(e))fail('STUDIO_EVIDENCE_INVALID');
   if(!/^[0-9a-f]{40}$/i.test(expectedHead||''))fail('STUDIO_EXPECTED_SOURCE_HEAD_REQUIRED');
   if(e.source_head!==expectedHead)fail('STUDIO_SOURCE_HEAD_CHANGED');
+  if(JSON.stringify(e).length>65536)fail('STUDIO_EVIDENCE_OVERSIZED');
   if(!NONCE.test(e.run_id||''))fail('STUDIO_ATTESTATION_RUN_ID_INVALID');
   const timestamp=Date.parse(e.checked_at||'');
   if(!Number.isFinite(timestamp)||!Number.isFinite(now)||
@@ -64,13 +66,15 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
       fail('STUDIO_SOURCE_TARGET_MISMATCH_'+t.toUpperCase());
   }
   if(e.cloudflare_database_of_record!=='SQLITE_DO'||
-     e.neon_project_is_synthetic_proof===true||e.cpu_enabled!==false||
+     e.neon_project_is_synthetic_proof!==false||e.cpu_enabled!==false||
      e.gpu_enabled!==false)fail('STUDIO_LIVE_TOPOLOGY_NOT_QUALIFIED');
   if(e.channel?.block_public_connections!==true||
      e.channel?.least_privilege!==true||
      e.channel?.private_path_independently_verified!==true)
     fail('STUDIO_PROTECTED_NEON_TRANSPORT_UNQUALIFIED');
-  if(e.billing?.neon_organization_hard_spend_enforced!==true||
+  if(e.billing?.neon_spend_control_kind!=='provider-hard-stop'||
+     e.billing?.neon_alert_only!==false||
+     e.billing?.neon_organization_hard_spend_enforced!==true||
      e.billing?.modal_zero_out_of_pocket_enforced!==true||
      e.billing?.project_quotas_not_used_as_spend_proof!==true)
     fail('STUDIO_SPENDING_GATE_NOT_ENFORCED');
@@ -108,6 +112,10 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
       fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
     if(second.run_id!==qualified.run_id||second.freeze_id!==qualified.freeze_id)
       fail('STUDIO_EVIDENCE_EPOCH_CHANGED');
+    // A stable run ID alone is insufficient: identical counts can conceal
+    // modified data, billing controls or provider attestation drift.
+    if(JSON.stringify(first)!==JSON.stringify(second))
+      fail('STUDIO_EVIDENCE_CHANGED_DURING_PROMOTION');
     if(await compareAndSwapRoute('SQLITE_DO','NEON_PROTECTED')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
