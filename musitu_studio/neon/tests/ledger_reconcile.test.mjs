@@ -77,7 +77,7 @@ test('separately attested snapshots expose freeze id and identical keyed digests
  const a=fixture(),b=clone(a);
  const source=attestStudioLedgerSnapshot(a,{integrityKey:key});
  const target=attestStudioLedgerSnapshot(b,{integrityKey:key});
- assert.equal(source.schema,'musitu.studio.v03.neon.ledger-attestation.v1');
+ assert.equal(source.schema,'musitu.studio.v03.neon.ledger-attestation.v2');
  assert.equal(source.freeze_id,a.freeze_id);
  assert.deepEqual(source.counts,target.counts);
  assert.deepEqual(source.table_hmac,target.table_hmac);
@@ -88,4 +88,13 @@ test('snapshot attestation rejects even internally consistent orphaned audit and
  const a=fixture();a.audit_events[0].job_id='unrelated';
  assert.throws(()=>attestStudioLedgerSnapshot(a,{integrityKey:key}),/LEDGER_AUDIT_JOB_ORPHAN/);
  assert.throws(()=>attestStudioLedgerSnapshot(fixture(),{integrityKey:Uint8Array.of(1)}),/LEDGER_HMAC_KEY_TOO_SHORT/);
+});
+
+test('HMAC domain binds each table digest to exact immutable freeze epoch',()=>{
+ const a=fixture(),b=clone(a);b.freeze_id='synthetic-different-freeze-2';
+ const left=attestStudioLedgerSnapshot(a,{integrityKey:key});
+ const right=attestStudioLedgerSnapshot(b,{integrityKey:key});
+ assert.notEqual(left.table_hmac.jobs,right.table_hmac.jobs);
+ assert.notEqual(left.table_hmac.audit_events,right.table_hmac.audit_events);
+ assert.equal(left.counts.jobs,right.counts.jobs);
 });

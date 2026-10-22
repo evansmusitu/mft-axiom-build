@@ -8,7 +8,7 @@ const copy=x=>structuredClone(x);
 function proof(){
  const counts={projects:1,memberships:1,jobs:1,assets:3,audit_events:1};
  const table_hmac=Object.fromEntries(Object.keys(counts).map(x=>[x,hex]));
- const r={schema:'musitu.studio.v03.neon.ledger-attestation.v1',verified:true,complete:true,freeze_id:'freeze-20261022-synthetic',counts,table_hmac};
+ const r={schema:'musitu.studio.v03.neon.ledger-attestation.v2',verified:true,complete:true,freeze_id:'freeze-20261022-synthetic',counts,table_hmac};
  return {source_head:sha,run_id:'synthetic-proof-20261022',checked_at:now(),freeze_id:r.freeze_id,
  source_receipt:copy(r),target_receipt:copy(r),
  gates:STUDIO_NEON_REQUIRED_GATES.map(name=>({name,provider:'unit-fixture',
@@ -25,10 +25,16 @@ function adapter(p=proof(),flags={}){
  let route='SQLITE_DO',flips=0,release=0,reads=0,held=false;
  const f={expectedHead:sha,
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
- held=true;return {acquired:true,release:async()=>{held=false;release++}}},
+ held=true;return {acquired:true,release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
  async readRoute(){return route},
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){return flags.unverified!==true},
+ async verifyCurrentSourceFreeze(info){
+  if(flags.freezeGone)return {verified:false};
+  if(flags.freezeGoesAwayAfterCutover&&route==='NEON_PROTECTED')return {verified:false};
+  return {verified:true,provider_receipt_verified:true,freeze_id:info.freeze_id,
+   triggers_verified:15,expires_at:new Date(Date.now()+120000).toISOString()};
+ },
  async compareAndSwapRoute(from,to){
   if(flags.rollbackFails&&from==='NEON_PROTECTED')return false;
   if(flags.casFails&&from==='SQLITE_DO')return false;
@@ -135,4 +141,25 @@ test('real reconciliation receipt schema produces matching independent attestati
  assert.equal(assertStudioNeonPromotionEvidence(e,{expectedHead:sha}).qualified,true);
  e.target_receipt.table_hmac.projects='c'.repeat(64);
  bad(e,/STUDIO_SOURCE_TARGET_MISMATCH_PROJECTS/);
+});
+
+test('expired or absent live write-fence aborts BEFORE switching',async()=>{
+ const x=adapter(proof(),{freezeGone:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED/);
+ assert.equal(x.state().flips,0);assert.equal(x.state().route,'SQLITE_DO');
+});
+test('source fence lost after switch triggers rollback even with good browser proof',async()=>{
+ const x=adapter(proof(),{freezeGoesAwayAfterCutover:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED/);
+ assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
+});
+test('lease-release acknowledgement lost after successful CAS must rollback',async()=>{
+ const x=adapter(proof(),{releaseFails:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_LEASE_RELEASE_FAILED_AND_NEON_ROLLED_BACK/);
+ assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
+});
+test('lease-release failure and impossible rollback raises critical',async()=>{
+ const x=adapter(proof(),{releaseFails:true,rollbackFails:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED/);
+ assert.equal(x.state().route,'NEON_PROTECTED');
 });

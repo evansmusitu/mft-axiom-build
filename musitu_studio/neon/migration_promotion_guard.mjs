@@ -19,7 +19,7 @@ const shortText=v=>typeof v==='string'&&v.length>0&&v.length<=128;
 function sameHash(a,b){return goodHash(a)&&goodHash(b)&&timingSafeEqual(Buffer.from(a,'hex'),Buffer.from(b,'hex'))}
 function validReceipt(r){
   if(!r||typeof r!=='object'||Array.isArray(r)||r.verified!==true||
-    r.schema!=='musitu.studio.v03.neon.ledger-attestation.v1'||
+    r.schema!=='musitu.studio.v03.neon.ledger-attestation.v2'||
     r.complete!==true||!shortText(r.freeze_id)||!r.counts||!r.table_hmac||
     Object.keys(r.counts).sort().join('|')!==[...TABLES].sort().join('|')||
     Object.keys(r.table_hmac).sort().join('|')!==[...TABLES].sort().join('|'))return false;
@@ -92,9 +92,10 @@ const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVA
  */
 export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
   exclusiveLease,readRoute,compareAndSwapRoute,verifySignedBrowser,
-  verifyReconciledTarget,verifyProviderReceipts}={}){
+  verifyReconciledTarget,verifyProviderReceipts,verifyCurrentSourceFreeze}={}){
   for(const [name,fn] of Object.entries({readEvidence,exclusiveLease,readRoute,
-    compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts}))
+    compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts,
+    verifyCurrentSourceFreeze}))
     need(fn,name);
   const lease=await exclusiveLease();
   if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
@@ -116,12 +117,25 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // modified data, billing controls or provider attestation drift.
     if(JSON.stringify(first)!==JSON.stringify(second))
       fail('STUDIO_EVIDENCE_CHANGED_DURING_PROMOTION');
+    // A signed snapshot from a past instant cannot demonstrate that the DO
+    // write fence remains held NOW; require an authenticated live probe.
+    const requireLiveFence=async()=>{
+      const r=await verifyCurrentSourceFreeze(qualified);
+      const expires=Date.parse(r?.expires_at||'');
+      if(r?.verified!==true||r?.provider_receipt_verified!==true||
+         r.freeze_id!==qualified.freeze_id||r.triggers_verified!==15||
+         !Number.isFinite(expires)||expires-Date.now()<15000||
+         expires-Date.now()>300000)
+        fail('STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED');
+    };
+    await requireLiveFence();
     if(await compareAndSwapRoute('SQLITE_DO','NEON_PROTECTED')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
     const [browser,reconciled]=await Promise.all([
       verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
     if(browser!==true||reconciled!==true)fail('STUDIO_POSTCUTOVER_PROOF_FAILED');
+    await requireLiveFence();
     if(await readRoute()!=='NEON_PROTECTED')fail('STUDIO_ROUTE_READBACK_FAILED');
     return {promoted:true,route:'NEON_PROTECTED',qualified_gates:qualified.gate_count,
       source_sqlite_preserved:true,rendering_enabled:false,run_id:qualified.run_id};
@@ -138,7 +152,22 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     if(rollbackError)fail('STUDIO_CRITICAL_ROLLBACK_FAILED_MANUAL_RECOVERY_REQUIRED');
     throw error;
   }finally{
-    await lease.release();
+    try{await lease.release()}
+    catch{
+      // Never surface an apparently failed promotion with Neon secretly
+      // active just because an exclusive-lease release failed or was lost.
+      let route;
+      try{route=await readRoute()}catch{}
+      if(route==='NEON_PROTECTED'){
+        let safe=false;
+        try{safe=await compareAndSwapRoute('NEON_PROTECTED','SQLITE_DO')===true&&
+          await readRoute()==='SQLITE_DO'}catch{}
+        if(!safe)fail('STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED');
+        fail('STUDIO_LEASE_RELEASE_FAILED_AND_NEON_ROLLED_BACK');
+      }
+      if(route!=='SQLITE_DO')fail('STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROUTE_UNKNOWN');
+      fail('STUDIO_LEASE_RELEASE_FAILED_SQLITE_SAFE');
+    }
   }
 }
 export const STUDIO_NEON_REQUIRED_GATES=GATES;

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFrozenStudioDoLedger} from '../do_readonly_export.mjs';
+import {STUDIO_SOURCE_FREEZE_TRIGGER_SQL} from '../do_source_freeze.mjs';
 
 const actor={sub:'synthetic-verified-access-staff-0001'};
 const ownerSubjectSha256=createHash('sha256').update(actor.sub).digest('hex');
@@ -23,6 +24,9 @@ function fixture({version=2,missingColumn=false,overflow=false}={}){
     sql:{exec(s){
       sqlCalls.push(s);
       if(s.includes('MAX(version)'))return {one:()=>({n:version})};
+      if(s.includes('sqlite_master'))return Object.entries(STUDIO_SOURCE_FREEZE_TRIGGER_SQL).map(([name,sql])=>({name,sql}));
+      if(s.includes('issued_epoch'))return {one:()=>({freeze_id:freezeId,owner_sha256:ownerSubjectSha256,issued_epoch:1771470000,expires_epoch:1771470200,status:'active'})};
+      if(s.includes('strftime('))return {one:()=>({epoch:1771470100})};
       const name=s.match(/ FROM (projects|memberships|jobs|assets|audit_events)$/)?.[1];
       if(!name)throw Error('SQL_NOT_ALLOWLISTED');
       return entries[name][Symbol.iterator]();
@@ -41,7 +45,7 @@ test('read-only source export is from one SQLite DO transaction, no external wri
  assert.deepEqual(Object.keys(result).slice(2),tables);
  assert.equal(result.projects[0].owner_sub,actor.sub);
  assert.equal(f.calls().txCount,1);
- assert.equal(f.calls().sqlCalls.length,6);
+ assert.equal(f.calls().sqlCalls.length,14);
  assert.ok(f.calls().sqlCalls.every(s=>/^\s*SELECT\s/i.test(s)));
  assert.equal(result.memberships[0].role,'owner');
 });
@@ -72,7 +76,7 @@ test('refuses malformed freeze IDs and missing cryptographic fingerprint',async(
 });
 test('refuses out-of-date production SQLite schema rather than guessing columns',async()=>{
  const f=fixture({version:1});
- await assert.rejects(()=>call(f),/EXPORT_SCHEMA_VERSION_UNQUALIFIED/);
+ await assert.rejects(()=>call(f),/STUDIO_FREEZE_SCHEMA_VERSION_UNQUALIFIED/);
  assert.equal(f.calls().txCount,1);
  assert.equal(f.calls().sqlCalls.length,1);
 });

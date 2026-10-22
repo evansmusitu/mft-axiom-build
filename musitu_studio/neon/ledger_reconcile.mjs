@@ -27,7 +27,7 @@ function requireText(value,code){if(typeof value!=='string'||value.length===0||v
 function signature(bytes,key){return createHmac('sha256',key).update(bytes).digest()}
 function tuple(row,fields){return JSON.stringify(fields.map(k=>row[k]))}
 function snapshotDigest(snapshot,table,key){
-  const payload=JSON.stringify({schema:'musitu.studio.v03.table.v1',table,rows:snapshot[table]});
+  const payload=JSON.stringify({schema:'musitu.studio.v03.table.v2',freeze_id:snapshot.freeze_id,table,rows:snapshot[table]});
   return signature(payload,key);
 }
 /** Throws a specific non-sensitive error code on malformed/partial input. */
@@ -145,7 +145,7 @@ export function attestStudioLedgerSnapshot(snapshot,{integrityKey}={}){
     counts[table]=normalized[table].length;
     table_hmac[table]=snapshotDigest(normalized,table,integrityKey).toString('hex');
   }
-  return {schema:'musitu.studio.v03.neon.ledger-attestation.v1',
+  return {schema:'musitu.studio.v03.neon.ledger-attestation.v2',
     verified:true,complete:true,freeze_id:normalized.freeze_id,
     counts,table_hmac,customer_rows_logged:false,provider_verified:false};
 }
@@ -163,7 +163,7 @@ export function reconcileStudioLedgers(source,target,{integrityKey}={}){
       Buffer.from(b.table_hmac[table],'hex')))
       fail('LEDGER_CONTENT_MISMATCH_'+table.toUpperCase());
   }
-  return {schema:'musitu.studio.v03.neon.transfer.v1',verified:true,complete:true,
+  return {schema:'musitu.studio.v03.neon.transfer.v2',verified:true,complete:true,
     freeze_match:true,freeze_id:a.freeze_id,counts:a.counts,table_hmac:a.table_hmac,
     customer_rows_logged:false,provider_verified:false};
 }

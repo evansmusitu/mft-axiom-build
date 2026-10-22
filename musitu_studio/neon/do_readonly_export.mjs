@@ -5,6 +5,8 @@
  * is deliberately absent from today's production Worker; this module
  * cannot be activated simply by setting an environment variable.
  */
+import {assertStudioSourceWriteFreeze} from './do_source_freeze.mjs';
+
 const COLUMNS=Object.freeze({
   projects:['id','title','owner_sub','created_at'],
   memberships:['project_id','member_sub','role','created_at'],
@@ -44,6 +46,7 @@ export async function readFrozenStudioDoLedger({storage,actor,ownerSubjectSha256
   // One SQLite transactional snapshot. Never fall back to multiple
   // independent reads that could mix project/job/audit epochs.
   return storage.transactionSync(()=>{
+    assertStudioSourceWriteFreeze(storage,{freezeId,ownerSubjectSha256});
     const version=Number(storage.sql.exec(
       'SELECT COALESCE(MAX(version),0) AS n FROM _studio_schema_versions').one()?.n);
     if(version!==2)deny('EXPORT_SCHEMA_VERSION_UNQUALIFIED');
@@ -65,6 +68,8 @@ export async function readFrozenStudioDoLedger({storage,actor,ownerSubjectSha256
     }
     const bytes=new TextEncoder().encode(JSON.stringify(ledger)).byteLength;
     if(bytes>12500000)deny('EXPORT_BYTE_CAP_REQUIRES_PAGINATED_PLAN');
+    // Prevent leases expiring midway through a long in-memory export.
+    assertStudioSourceWriteFreeze(storage,{freezeId,ownerSubjectSha256});
     return ledger;
   });
 }
