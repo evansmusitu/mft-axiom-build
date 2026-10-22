@@ -66,7 +66,8 @@ Only verified staff identities can use a granted membership. Owners cannot silen
       <button type="button" id="scene-redo" class="ghost" disabled>↷ Redo</button>
       <button type="button" id="scene-upload-json" class="ghost">↑ Import JSON</button>
       <input type="file" id="scene-import-json" accept=".json,application/json" hidden aria-label="Import local scene JSON">
-      <button type="button" id="scene-download-json" class="ghost">↓ Scene JSON</button></div></div>
+      <button type="button" id="scene-download-json" class="ghost">↓ Scene JSON</button>
+      <button type="button" id="scene-download-glb" class="ghost" title="Export a static glTF 2.0 mesh at the current frame">↓ 3D GLB</button></div></div>
   <canvas id="scene-preview-canvas" width="800" height="480" aria-label="Three-dimensional preview of the scene; drag to orbit, pinch to zoom" role="img"></canvas>
   <div id="scene-preview-status" class="preview-status" role="status" aria-live="polite">Loading local preview…</div>
   <div class="timeline-control"><button id="preview-play" class="ghost" type="button">Play animation</button>
@@ -96,7 +97,7 @@ Only verified staff identities can use a granted membership. Owners cannot silen
       </div>
       <p id="scene-track-caption" class="muted" aria-live="polite">Select an object and rotation axis to edit its track.</p>
     </div></div>
-  <p class="muted preview-footnote">Gesture: drag to orbit · pinch or scroll to zoom · scrub frames. This is a local approximation, not a Blender/Cycles or GPU render. Submitting a scene still requires signed staff authorization and project approval.</p>
+  <p class="muted preview-footnote">Gesture: drag to orbit · pinch or scroll to zoom · scrub frames. This is a local approximation, not a Blender/Cycles or GPU render. GLB exports a static mesh at the selected frame, not animated keyframes. Submitting a scene still requires signed staff authorization and project approval.</p>
 </div>
 <form id="job-form"><div class="row">
 <label>Project<select id="project-select" required><option value="">Select a project</option></select></label>
@@ -117,4 +118,4 @@ rows="15" aria-label="Blender scene JSON"></textarea></label>
 <img id="preview-image" class="preview-image" alt="Render output preview" hidden></section>
 <footer>MUSITU Studio v0.3 · SQLite Durable Objects, strict Cloudflare Access and immutable audit<br>
 <small>Independent-review and sole-administrator modes are labeled separately. CPU/GPU require separate verified release conditions; V0.2 remains isolated.</small></footer>
-</main></div><script type="module" src="/studio.js"></script><script type="module" src="/scene-preview.mjs"></script></body></html>
+</main></div><script type="module" src="/studio.js"></script><script type="module" src="/scene-preview.mjs"></script><script type="module" src="/glb-export.mjs"></script></body></html>

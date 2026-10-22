@@ -10,6 +10,8 @@ on:
       - 'musitu_studio/neon/**'
       - 'musitu_studio/edge/public_v03/**'
       - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
+      - 'musitu_studio/edge/tests/v03_glb_export.test.mjs'
+      - 'docs/STUDIO_OFFLINE_GLB_EXPORT_AND_PROVIDER_NO_GO_20261022.md'
       - 'docs/STUDIO_V03_BROWSER_SCENE_WORKBENCH_20261022.md'
       - 'ops/studio_v03_export_offline_keyframe_editor_20261022.py'
       - 'ops/tests/test_studio_offline_keyframe_export_20261022.py'
@@ -49,6 +51,7 @@ jobs:
           node --check musitu_studio/edge/src/v03_do_entry.mjs
           node --check musitu_studio/edge/public_v03/studio.js
           node --check musitu_studio/edge/public_v03/scene-preview.mjs
+          node --check musitu_studio/edge/public_v03/glb-export.mjs
           test -f musitu_studio/edge/tests/v03_scene_preview.test.mjs
       - name: Install test dependencies, save exact resolved lockfile in handoff
         working-directory: musitu_studio/edge

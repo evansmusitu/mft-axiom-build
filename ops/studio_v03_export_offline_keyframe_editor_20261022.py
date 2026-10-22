@@ -19,6 +19,12 @@ def render() -> str:
     full = (WEB / 'index.html').read_text(encoding='utf-8')
     stylesheet = (WEB / 'studio.css').read_text(encoding='utf-8')
     logic = (WEB / 'scene-preview.mjs').read_text(encoding='utf-8')
+    glb = (WEB / 'glb-export.mjs').read_text(encoding='utf-8')
+    import_line = "import {parsePreviewScene,poseAtFrame,previewMeshTriangles} from './scene-preview.mjs';"
+    if glb.count(import_line) != 1:
+        raise ValueError('GLB module imports changed: fail closed')
+    glb = glb.replace(import_line, '', 1)
+    logic += '\n' + glb
     assert 'http://' not in logic and 'https://' not in logic
     assert '</script' not in logic.lower() and '</style' not in stylesheet.lower()
     start = full.index('<section class="panel" id="editor">')
