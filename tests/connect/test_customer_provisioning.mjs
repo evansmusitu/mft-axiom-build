@@ -45,7 +45,9 @@ test('explicit synthetic-mode provisioning persists only validated active tenant
   assert.deepEqual(result,{ok:true,tenant_id:'tenant_alpha'});
   const saved=f.sqlite.prepare('SELECT status,daily_limit,minute_limit FROM connect_customer_tenants WHERE tenant_id=?')
     .get('tenant_alpha');
-  assert.deepEqual(saved,{status:'active',daily_limit:4,minute_limit:2});
+  assert.equal(saved.status,'active');
+  assert.equal(saved.daily_limit,4);
+  assert.equal(saved.minute_limit,2);
   f.sqlite.close();
 });
 
