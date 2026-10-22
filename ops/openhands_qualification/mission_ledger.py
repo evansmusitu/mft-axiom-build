@@ -22,6 +22,8 @@ _DIGEST=re.compile(r'^[0-9a-f]{64}$')
 _ID=re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,99}$')
 _SCHEMA='musitu.axiom.openhands.mission.s0.v1'
 _FIELDS={'schema','tenant_id','work_id','workload_identity_id','request_sha256','risk_class','production_authority'}
+_LOCAL_ANCHOR_SCHEMA='musitu.axiom.ecc.local-anchor.s0.v2'
+_ANCHOR_FIELDS={'schema','generation_id','sequence','mission_state_sha256'}
 
 def _check(req):
     if type(req) is not dict or set(req)!=_FIELDS:raise LedgerDenied('exact mission request required')
@@ -40,6 +42,7 @@ class MissionLedger:
         self.path=Path(path)
         self.anchor=Path(str(self.path)+'.local-anchor')
         self.lock=Path(str(self.path)+'.lock')
+        self.transition=Path(str(self.path)+'.transition')
         if (not self.path.is_absolute() or type(max_active) is not int or not 1<=max_active<=16 or
             type(max_per_tenant) is not int or not 1<=max_per_tenant<=max_active or
             type(ttl_seconds) is not int or not 1<=ttl_seconds<=3600 or not callable(clock)):
@@ -59,49 +62,128 @@ class MissionLedger:
         if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or stat.S_IMODE(s.st_mode)!=0o600:
             raise LedgerDenied('ledger state permissions invalid')
 
+    @staticmethod
+    def _state_hash(con):
+        # Canonical complete committed-relevant row state, not an external MAC.
+        rows=con.execute('SELECT id,tenant,work,workload,request_sha,binding_sha,state,expires,output_sha FROM missions ORDER BY id').fetchall()
+        blob=json.dumps(rows,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
+        return hashlib.sha256(blob).hexdigest()
+
+    @staticmethod
+    def _anchor_bytes(generation,sequence,digest):
+        doc={'schema':_LOCAL_ANCHOR_SCHEMA,'generation_id':generation,
+             'sequence':sequence,'mission_state_sha256':digest}
+        return (json.dumps(doc,sort_keys=True,separators=(',',':'))+'\n').encode()
+
+    def _verify_state(self,con):
+        try:
+            result=con.execute('PRAGMA quick_check').fetchone()
+            if result!=('ok',):raise RecoveryHold('local sqlite integrity check failed')
+            row=con.execute('SELECT generation_id,sequence FROM ledger_meta WHERE id=1').fetchone()
+            if not row or type(row[0]) is not str or not re.fullmatch('[0-9a-f]{32}',row[0]) or type(row[1]) is not int or row[1]<0:
+                raise RecoveryHold('local generation metadata absent or invalid')
+            generation,sequence=row
+            self._check_private(self.anchor)
+            fd=os.open(self.anchor,os.O_RDONLY|getattr(os,'O_NOFOLLOW',0))
+            try:
+                raw=os.read(fd,4096)
+                if os.read(fd,1):raise RecoveryHold('oversized anchor')
+            finally:os.close(fd)
+            try:payload=json.loads(raw)
+            except (UnicodeDecodeError,ValueError) as exc:
+                raise RecoveryHold('malformed local state anchor') from exc
+            if type(payload) is not dict or set(payload)!=_ANCHOR_FIELDS or type(payload['sequence']) is not int:
+                raise RecoveryHold('unexpected local anchor format')
+            if raw!=self._anchor_bytes(generation,sequence,self._state_hash(con)):
+                raise RecoveryHold('local journal and anchor diverged')
+            return generation,sequence
+        except sqlite3.Error as exc:
+            raise RecoveryHold('unreadable local journal') from exc
+
+    def _publish_anchor(self,raw):
+        # Publish only after the SQLite commit is durable. A crash between the
+        # two durability domains leaves a mismatch that next access DENIES.
+        temp=Path(str(self.anchor)+'.pending-'+secrets.token_hex(8))
+        fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0),0o600)
+        try:
+            os.write(fd,raw);os.fsync(fd)
+        finally:os.close(fd)
+        os.replace(temp,self.anchor)
+        dfd=os.open(self.path.parent,os.O_RDONLY|getattr(os,'O_DIRECTORY',0))
+        try:os.fsync(dfd)
+        finally:os.close(dfd)
+
+    def _commit_transition(self,con,generation,sequence):
+        # A local monotonic counter detects unilateral DB/anchor replacement.
+        # It is NOT resistant to privileged rollback of both files.
+        # Synchronous transition marker survives ambiguous publication errors.
+        # Any orphan marker forces a manual recovery hold, even if DB and
+        # anchor appear identical after an uncertain directory fsync.
+        flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0)
+        marker_fd=os.open(self.transition,flags,0o600)
+        try:
+            os.write(marker_fd,b'LOCAL_S0_PENDING_NOT_EXTERNAL_AUTHORITY\n')
+            os.fsync(marker_fd)
+        finally:os.close(marker_fd)
+        directory=os.open(self.path.parent,os.O_RDONLY|getattr(os,'O_DIRECTORY',0))
+        try:os.fsync(directory)
+        finally:os.close(directory)
+        next_sequence=sequence+1
+        con.execute('UPDATE ledger_meta SET sequence=? WHERE id=1',(next_sequence,))
+        digest=self._state_hash(con)
+        raw=self._anchor_bytes(generation,next_sequence,digest)
+        con.commit()
+        self._publish_anchor(raw)
+        os.unlink(self.transition)
+        directory=os.open(self.path.parent,os.O_RDONLY|getattr(os,'O_DIRECTORY',0))
+        try:os.fsync(directory)
+        finally:os.close(directory)
+
     @contextmanager
     def _transaction(self):
         try:
             parent=self.path.parent.stat()
             if not stat.S_ISDIR(parent.st_mode) or parent.st_uid!=os.getuid() or parent.st_mode&0o022:
                 raise LedgerDenied('ledger parent must be owner-private')
-            if self.lock.is_symlink():raise LedgerDenied('symlink lock forbidden')
-            fd=os.open(self.lock,os.O_RDWR|os.O_CREAT|getattr(os,'O_NOFOLLOW',0),0o600)
+            # All files must already exist; a normal operation never bootstraps.
+            for required in (self.lock,self.path,self.anchor):
+                self._check_private(required)
+            fd=os.open(self.lock,os.O_RDWR|getattr(os,'O_NOFOLLOW',0))
             try:
-                self._check_private(self.lock)
                 fcntl.flock(fd,fcntl.LOCK_EX)
-                exists_db=self.path.exists() or self.path.is_symlink()
-                exists_anchor=self.anchor.exists() or self.anchor.is_symlink()
-                if exists_db!=exists_anchor:raise RecoveryHold('ledger/anchor divergence: manual recovery required')
-                if not exists_db:
-                    # A missing lock implies no prior observable state. Loss of ALL three
-                    # files bypasses this local-only marker; NOT an independent witness.
-                    con=sqlite3.connect(self.path,isolation_level=None,timeout=15)
-                    os.chmod(self.path,0o600)
-                    con.execute('PRAGMA journal_mode=DELETE')
+                for required in (self.lock,self.path,self.anchor):
+                    self._check_private(required)
+                if self.transition.exists() or self.transition.is_symlink():
+                    raise RecoveryHold('incomplete local transition requires manual recovery')
+                con=sqlite3.connect(self.path,isolation_level=None,timeout=15)
+                try:
+                    con.execute('PRAGMA busy_timeout=15000')
                     con.execute('PRAGMA synchronous=FULL')
                     con.execute('BEGIN IMMEDIATE')
-                    con.execute('CREATE TABLE IF NOT EXISTS missions (id TEXT PRIMARY KEY, tenant TEXT NOT NULL, work TEXT NOT NULL, workload TEXT NOT NULL, request_sha TEXT UNIQUE NOT NULL, binding_sha TEXT NOT NULL, state TEXT NOT NULL, expires REAL NOT NULL, output_sha TEXT)')
-                    con.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_work ON missions(tenant,work)')
-                    con.commit();con.close()
-                    x=os.open(self.anchor,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0),0o600)
-                    os.write(x,b'LOCAL_S0_ONLY_NOT_ANTIROLLBACK\n');os.fsync(x);os.close(x)
-                self._check_private(self.path);self._check_private(self.anchor)
-                con=sqlite3.connect(self.path,isolation_level=None,timeout=15)
-                con.execute('PRAGMA busy_timeout=15000')
-                con.execute('PRAGMA synchronous=FULL')
-                con.execute('BEGIN IMMEDIATE')
-                try:
-                    yield con
-                    con.commit()
-                except BaseException:
-                    con.rollback();raise
+                    generation,sequence=self._verify_state(con)
+                    before=con.total_changes
+                    try:
+                        yield con
+                    except RecoveryHold:
+                        # Intentional hold transition (expiry or uncertain local
+                        # termination) must persist before the denial is raised.
+                        if con.in_transaction and con.total_changes>before:
+                            self._commit_transition(con,generation,sequence)
+                        elif con.in_transaction:con.rollback()
+                        raise
+                    except BaseException:
+                        if con.in_transaction:con.rollback()
+                        raise
+                    else:
+                        if con.in_transaction and con.total_changes>before:
+                            self._commit_transition(con,generation,sequence)
+                        elif con.in_transaction:con.commit()
                 finally:con.close()
             finally:
                 fcntl.flock(fd,fcntl.LOCK_UN);os.close(fd)
         except (RecoveryHold,LedgerDenied):raise
-        except (OSError,sqlite3.Error) as e:
-            raise RecoveryHold('ledger operation failed closed') from e
+        except (OSError,sqlite3.Error) as exc:
+            raise RecoveryHold('local journal/anchor operation failed closed') from exc
 
     def _receipt(self,row):
         return {'schema':'musitu.axiom.openhands.mission-local-receipt.v1','mission_id':row[0],
@@ -119,7 +201,6 @@ class MissionLedger:
                 if now>=old[7] or old[6]=='RECOVERY_HOLD':
                     con.execute("UPDATE missions SET state='RECOVERY_HOLD' WHERE id=?",(old[0],))
                     # Must commit hold before throwing, without rollback.
-                    con.commit()
                     raise RecoveryHold('expired/ambiguous mission requires independent recovery')
                 if old[6]!='ACTIVE':raise LedgerDenied('terminal mission cannot be re-admitted')
                 return self._receipt(old)
@@ -148,7 +229,6 @@ class MissionLedger:
             if not row:raise LedgerDenied('unknown mission')
             if not termination_verified:
                 con.execute("UPDATE missions SET state='RECOVERY_HOLD' WHERE id=?",(mission_id,))
-                con.commit()
                 raise RecoveryHold('termination not independently witnessed; capacity held')
             if row[6] not in ('ACTIVE','RECOVERY_HOLD'):
                 raise LedgerDenied('mission already terminal')
@@ -159,5 +239,5 @@ class MissionLedger:
         try:
             with self._transaction() as con:
                 return 'LOCAL_ONLY_UNQUALIFIED'
-        except RecoveryHold:
+        except (RecoveryHold,LedgerDenied):
             return 'RECOVERY_HOLD'

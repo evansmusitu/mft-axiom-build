@@ -36,3 +36,42 @@ node --test axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs
 `on: push` workflow `.github/workflows/axiom-trackb-openhands-ecc-requalification-s0-20261022.yml` runs distinct S0 local-multiprocess and credentialless historical-run verification jobs.
 
 No global release gate has been passed by these tests. Any missing external evidence blocks production and live S3 action.
+
+## Isolated local S0 recovery-hardening build (2026-10-22; NOT production)
+
+This newer candidate introduces `local_bootstrap.bootstrap_local_s0(path,
+acknowledged_local_only=True)` as the **explicit operator-initiated** provisioning
+interface. The parent directory must be empty, owned by the local process
+identity and owner-private (`0700`); it must not be agent-exposed. Ordinary
+`admit`, `inspect`, `complete_local`, `active_count`, and `status` do not provision
+missing state. `status` returns `RECOVERY_HOLD` on absent or inconsistent state.
+
+The local anchor `musitu.axiom.ecc.local-anchor.s0.v2` binds a locally generated
+ID, sequence, and canonical digest of the complete mission state to the SQLite
+metadata. Writes use SQLite `synchronous=FULL`, an fsynced transition marker,
+followed by commit, temporary anchor publication and directory fsync. A leftover
+`.transition` marker or an anchor mismatch triggers a fail-closed recovery hold;
+there is **no automatic repair** of an ambiguous transaction. No existing S0
+mission journal may be silently migrated: the new format needs a **separately
+reviewed recovery/migration** procedure and the unchanged original source
+remains the rollback origin. Existing in-service journals must NOT be replaced
+or wiped to make a test pass.
+
+This checks *one-sided local rollback and tampering only*. An administrator who
+can replace both SQLite and anchor, delete all state then reprovision, or change
+the executing source remains outside the claim. Local integrity is NOT
+cryptographic independent authorization, human verification, or global
+antirollback. B27 remains `FAILED_IN_SYNTHETIC_ATTACK`; exact-provider hard
+zero-cost entitlement is `NOT_VERIFIED`; live S3 execution and production
+remain **BLOCKED**. This implementation must never be merged or deployed
+without independent security qualification and user-approved release controls.
+
+Focused security tests:
+
+```sh
+python -m unittest discover -s ops/openhands_qualification/test -p 'test_*.py' -v
+python -m compileall -q ops/openhands_qualification
+```
+
+The new branch-scoped isolated CI workflow executes these tests with **no
+provider secrets, deployment privileges, or persistent credentials**.
