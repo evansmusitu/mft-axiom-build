@@ -1,0 +1,50 @@
+name: MUSITU Store V2 protected Preview anonymous-denial gate
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - '.github/workflows/musitu-store-v2-private-preview-denial.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  anonymous-denied:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify protected Vercel Preview rejects GET and POST without owner authentication
+        env:
+          PREVIEW_URL: https://musitu-store-v2-neon-stage-20261021-e7twfq0bj-evansmusitu.vercel.app/api/stage
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, urllib.request, urllib.error
+          from urllib.parse import urlsplit
+          url=os.environ['PREVIEW_URL']
+          parsed=urlsplit(url)
+          assert parsed.scheme=='https' and parsed.hostname=='musitu-store-v2-neon-stage-20261021-e7twfq0bj-evansmusitu.vercel.app'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          opener=urllib.request.build_opener(NoRedirect())
+          for method in ('GET','POST'):
+              request=urllib.request.Request(url, method=method, headers={'Accept':'application/json','User-Agent':'MUSITU-Store-V2-private-preview-acceptance'})
+              try:
+                  response=opener.open(request, timeout=20)
+              except urllib.error.HTTPError as e:
+                  response=e
+              with response:
+                  status=response.status
+                  type_=response.headers.get('Content-Type','')
+                  body=response.read(8192)
+                  location=response.headers.get('Location','')
+              # A 404 merely shows nonexistence; it is NOT proof of authenticated protection.
+              # Never print private responses or any authentication redirect tokens.
+              assert status in (302,303,307,308,401,403), f'Unprotected or unqualified Preview: {method} HTTP {status}'
+              if 300<=status<400:
+                  assert location.startswith('https://'), f'Unqualified redirect: {method} HTTP {status}'
+                  host=urlsplit(location).hostname or ''
+                  assert host.endswith('.vercel.com') or host.endswith('.vercel.app'), 'Unexpected auth redirect host'
+              assert b'stage_db_connected_disabled' not in body, 'Private stage canary accessible anonymously'
+              assert b'"ok":true' not in body, 'Private stage success accessible anonymously'
+              print('MUSITU_STORE_V2_PRIVATE_PREVIEW_ANONYMOUS_DENIED',method,'HTTP',status,'content_type',type_.split(';')[0])
+          PY
