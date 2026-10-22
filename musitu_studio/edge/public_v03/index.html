@@ -62,6 +62,8 @@ Only verified staff identities can use a granted membership. Owners cannot silen
   <div class="preview-toolbar"><strong>LIVE 3D VIEWPORT <small>LOCAL · NO CLOUD RENDER</small></strong>
     <div class="row"><button type="button" id="preview-refresh" class="ghost">↻ Preview</button>
       <button type="button" id="preview-reset" class="ghost">Reset view</button>
+      <button type="button" id="scene-undo" class="ghost" disabled>↶ Undo</button>
+      <button type="button" id="scene-redo" class="ghost" disabled>↷ Redo</button>
       <button type="button" id="scene-download-json" class="ghost">↓ Scene JSON</button></div></div>
   <canvas id="scene-preview-canvas" width="800" height="480" aria-label="Three-dimensional preview of the scene; drag to orbit, pinch to zoom" role="img"></canvas>
   <div id="scene-preview-status" class="preview-status" role="status" aria-live="polite">Loading local preview…</div>
@@ -79,7 +81,19 @@ Only verified staff identities can use a granted membership. Owners cannot silen
     <label>Material<select id="scene-material">
       <option>teal</option><option>copper</option><option>ivory</option><option>graphite</option>
       <option>blueglass</option><option>rubber</option><option>wood</option></select></label>
-    <button type="button" id="scene-apply-inspector">Apply position</button></div></div>
+    <button type="button" id="scene-apply-inspector">Apply position</button></div>
+    <div class="track-editor" aria-label="Object rotation animation editor">
+      <strong>ROTATION KEYFRAMES</strong>
+      <div class="track-fields">
+      <label>Axis<select id="scene-track-axis"><option>X</option><option>Y</option><option selected>Z</option></select></label>
+      <label>Degrees<input id="scene-track-degrees" type="number" min="-720" max="720" step="1" value="90"></label>
+      <label>Start<input id="scene-track-start" type="number" min="1" max="120" step="1" value="1"></label>
+      <label>End<input id="scene-track-end" type="number" min="2" max="120" step="1" value="32"></label>
+      <button type="button" id="scene-track-set">Set rotation</button>
+      <button type="button" id="scene-track-remove" class="ghost">Remove</button>
+      </div>
+      <p id="scene-track-caption" class="muted" aria-live="polite">Select an object and rotation axis to edit its track.</p>
+    </div></div>
   <p class="muted preview-footnote">Gesture: drag to orbit · pinch or scroll to zoom · scrub frames. This is a local approximation, not a Blender/Cycles or GPU render. Submitting a scene still requires signed staff authorization and project approval.</p>
 </div>
 <form id="job-form"><div class="row">

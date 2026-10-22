@@ -11,6 +11,9 @@ on:
       - 'musitu_studio/edge/public_v03/**'
       - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
       - 'docs/STUDIO_V03_BROWSER_SCENE_WORKBENCH_20261022.md'
+      - 'ops/studio_v03_export_offline_keyframe_editor_20261022.py'
+      - 'ops/tests/test_studio_offline_keyframe_export_20261022.py'
+      - 'docs/STUDIO_V03_KEYFRAME_WORKBENCH_20261022.md'
       - 'docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md'
 permissions: {contents: read}
 concurrency:
@@ -53,6 +56,19 @@ jobs:
       - name: Execute complete Studio edge test suite including V0.2/V0.3
         working-directory: musitu_studio/edge
         run: npm test
+      - name: Export independent offline keyframe editor reproducibly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s ops/tests -p test_studio_offline_keyframe_export_20261022.py
+          python ops/studio_v03_export_offline_keyframe_editor_20261022.py --output "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
+          test -s "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR
+          path: ${{ runner.temp }}/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html
+          retention-days: 45
+          if-no-files-found: error
       - name: Verify Neon migration safety and terminal-asset integrity (offline, no provider compute)
         run: node --test musitu_studio/neon/tests/*.test.mjs
       - name: Read-only provider check without exposing staff emails, cookies or API token

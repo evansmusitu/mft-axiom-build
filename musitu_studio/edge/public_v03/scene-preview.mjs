@@ -42,6 +42,47 @@ export function parsePreviewScene(input){
   }
   return job;
 }
+/** Pure, backend-compatible track operations. Invalid edits cannot escape into the scene. */
+export function setRotationTrack(scene,track){
+  const source=parsePreviewScene(JSON.stringify(scene));
+  if(!track||typeof track!=='object')throw Error('TRACK_INVALID');
+  const next=structuredClone(source);
+  const candidate={object:track.object,axis:track.axis,degrees:track.degrees,
+    start:track.start,end:track.end};
+  const index=(next.animations??[]).findIndex(a=>a.object===candidate.object&&a.axis===candidate.axis);
+  next.animations??=[];
+  if(index<0)next.animations.push(candidate);
+  else next.animations[index]=candidate;
+  return parsePreviewScene(JSON.stringify(next));
+}
+export function removeRotationTrack(scene,{object,axis}={}){
+  const source=parsePreviewScene(JSON.stringify(scene));
+  const next=structuredClone(source);
+  const before=next.animations?.length??0;
+  next.animations=(next.animations??[]).filter(a=>!(a.object===object&&a.axis===axis));
+  if(next.animations.length===before)throw Error('TRACK_NOT_FOUND');
+  return parsePreviewScene(JSON.stringify(next));
+}
+/** Bounded browser-only snapshot history: never stores local secrets or server data. */
+export function createSceneHistory(initial,capacity=25){
+  if(!Number.isInteger(capacity)||capacity<2||capacity>50)throw Error('HISTORY_CAPACITY_INVALID');
+  const snapshot=scene=>JSON.stringify(parsePreviewScene(JSON.stringify(scene)));
+  let list=[snapshot(initial)],index=0;
+  return {
+    current(){return JSON.parse(list[index])},
+    get canUndo(){return index>0},
+    get canRedo(){return index<list.length-1},
+    push(scene){
+      const value=snapshot(scene);
+      if(value===list[index])return false;
+      list=list.slice(0,index+1);list.push(value);
+      if(list.length>capacity)list.shift();
+      index=list.length-1;return true;
+    },
+    undo(){if(index>0)index--;return JSON.parse(list[index])},
+    redo(){if(index<list.length-1)index++;return JSON.parse(list[index])},
+  };
+}
 export function poseAtFrame(scene,frame){
   const f=Math.max(1,Math.min(scene.frame_end??24,Number(frame)||1));
   return scene.objects.map(o=>{
@@ -175,7 +216,7 @@ function initScenePreview(){
   if(!canvas||!textarea||!status||!select||!timeline||!frameLabel)return;
   const ctx=canvas.getContext('2d',{alpha:false});
   if(!ctx){status.textContent='This browser cannot display a local 3D preview.';return}
-  let current=null,selected='',yaw=.84,pitch=.48,distance=13,play=false;
+  let current=null,selected='',yaw=.84,pitch=.48,distance=13,play=false,history=null;
   const pointers=new Map();let touchedAt=0,raf=0,interval=null;
   const report=s=>{status.textContent=s};
   function refreshSelect(){
@@ -186,6 +227,23 @@ function initScenePreview(){
     const obj=current.objects.find(o=>o.name===selected);
     for(const [i,axis]of ['x','y','z'].entries())document.getElementById('scene-pos-'+axis).value=obj.location[i];
     document.getElementById('scene-material').value=obj.material;
+    refreshTrackFields();
+  }
+  function refreshTrackFields(){
+    if(!current||!selected)return;
+    const axis=document.getElementById('scene-track-axis').value;
+    const track=(current.animations??[]).find(a=>a.object===selected&&a.axis===axis);
+    document.getElementById('scene-track-degrees').value=track?.degrees??90;
+    document.getElementById('scene-track-start').value=track?.start??1;
+    document.getElementById('scene-track-end').value=track?.end??(current.frame_end??24);
+    document.getElementById('scene-track-remove').disabled=!track;
+    document.getElementById('scene-track-caption').textContent=track?
+      `Rotation ${axis}: ${track.degrees}° from frame ${track.start} to ${track.end}`:
+      `No ${axis} rotation track for ${selected}.`;
+  }
+  function refreshHistoryButtons(){
+    document.getElementById('scene-undo').disabled=!history?.canUndo;
+    document.getElementById('scene-redo').disabled=!history?.canRedo;
   }
   function canvasSize(){
     const rect=canvas.getBoundingClientRect();
@@ -199,6 +257,9 @@ function initScenePreview(){
   function reload(){
     try{
       current=parsePreviewScene(textarea.value);
+      if(!history)history=createSceneHistory(current);
+      else history.push(current);
+      refreshHistoryButtons();
       timeline.max=String(current.frame_end??24);
       timeline.value=String(Math.min(Number(timeline.value),Number(timeline.max)));
       frameLabel.textContent=timeline.value+' / '+timeline.max;
@@ -215,6 +276,36 @@ function initScenePreview(){
   document.getElementById('preview-refresh').onclick=reload;
   document.getElementById('preview-reset').onclick=()=>{yaw=.84;pitch=.48;distance=13;timeline.value='1';frameLabel.textContent='1 / '+timeline.max;requestPaint()};
   select.onchange=()=>{selected=select.value;refreshSelect();requestPaint()};
+  document.getElementById('scene-track-axis').onchange=refreshTrackFields;
+  function readTrack(){
+    const num=id=>{
+      const input=document.getElementById(id);
+      if(!input.value.trim())throw Error('Rotation values must not be empty');
+      return Number(input.value);
+    };
+    return {object:selected,axis:document.getElementById('scene-track-axis').value,
+      degrees:num('scene-track-degrees'),start:num('scene-track-start'),end:num('scene-track-end')};
+  }
+  document.getElementById('scene-track-set').onclick=()=>applyMutation(s=>{
+    Object.assign(s,setRotationTrack(s,readTrack()));
+  });
+  document.getElementById('scene-track-remove').onclick=()=>applyMutation(s=>{
+    const {object,axis}=readTrack();Object.assign(s,removeRotationTrack(s,{object,axis}));
+  });
+  function recall(next){
+    const saved=history;
+    textarea.value=JSON.stringify(next,null,2);
+    history=null; // Do not record an undo/redo operation as a new state.
+    reload();
+    history=saved;
+    refreshHistoryButtons();
+  }
+  for(const [button,method] of [['scene-undo','undo'],['scene-redo','redo']]){
+    document.getElementById(button).onclick=()=>{
+      if(!history||(method==='undo'&&!history.canUndo)||(method==='redo'&&!history.canRedo))return;
+      recall(history[method]());
+    };
+  }
   timeline.oninput=()=>{frameLabel.textContent=timeline.value+' / '+timeline.max;requestPaint()};
   document.getElementById('preview-play').onclick=(event)=>{
     play=!play;event.currentTarget.textContent=play?'Pause animation':'Play animation';

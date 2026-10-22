@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {parsePreviewScene,poseAtFrame,previewMeshTriangles,
-  previewCamera,projectPreviewPoint} from '../public_v03/scene-preview.mjs';
+  previewCamera,projectPreviewPoint,setRotationTrack,removeRotationTrack,createSceneHistory} from '../public_v03/scene-preview.mjs';
 import {validateScene} from '../src/validation.mjs';
 const base={schema:'musitu.blender.job.v1',job_id:'StudioEnterprise01',frame_end:32,
   objects:[{name:'Foundation',type:'cube',location:[0,0,0],dimensions:[6,4,.3],material:'graphite'},
@@ -68,8 +68,65 @@ test('touch-first static shell includes preview, inspector, CSP and no external 
  const script=readFileSync(new URL('../public_v03/scene-preview.mjs',import.meta.url),'utf8');
  for(const token of ['id="scene-preview-canvas"','id="scene-object-select"',
    'id="scene-apply-inspector"','type="module" src="/scene-preview.mjs"',
-   'id="scene-frame"','id="scene-download-json"'])assert.ok(html.includes(token),token);
+   'id="scene-frame"','id="scene-download-json"',
+   'id="scene-track-axis"','id="scene-track-degrees"',
+   'id="scene-track-start"','id="scene-track-end"',
+   'id="scene-track-set"','id="scene-track-remove"',
+   'id="scene-undo"','id="scene-redo"'])assert.ok(html.includes(token),token);
  assert.ok(css.includes('touch-action:none'));
+ assert.ok(css.includes('.track-editor'));
+ assert.ok(script.includes('createSceneHistory'));
+ assert.ok(script.includes('setRotationTrack'));
  assert.ok(headers.includes("script-src 'self'"));
  assert.ok(!/(https?:\/\/|eval\(|new Function\(|fetch\()/i.test(script));
+});
+
+test('mobile workbench edits a rotation track without mutating source',()=>{
+ const source=copy();const before=encode(source);
+ const next=setRotationTrack(source,{object:'Feature',axis:'X',degrees:-90,start:2,end:30});
+ assert.equal(encode(source),before);
+ assert.deepEqual(next.animations.at(-1),{object:'Feature',axis:'X',degrees:-90,start:2,end:30});
+ assert.deepEqual(validateScene(next),next);
+ const modified=setRotationTrack(next,{object:'Feature',axis:'X',degrees:180,start:1,end:32});
+ assert.equal(modified.animations.length,2);
+ assert.deepEqual(modified.animations.at(-1),{object:'Feature',axis:'X',degrees:180,start:1,end:32});
+ const removed=removeRotationTrack(modified,{object:'Feature',axis:'X'});
+ assert.equal(removed.animations.length,1);
+ assert.equal(next.animations.length,2);
+});
+test('rotation track editor rejects unknown objects, invalid frames and overflow atomically',()=>{
+ const source=copy(),before=encode(source);
+ for(const payload of [
+   {object:'unknown',axis:'Z',degrees:30,start:1,end:8},
+   {object:'Feature',axis:'Q',degrees:30,start:1,end:8},
+   {object:'Feature',axis:'X',degrees:NaN,start:1,end:8},
+   {object:'Feature',axis:'X',degrees:45,start:1,end:33},
+   {object:'Feature',axis:'X',degrees:45,start:5,end:5},
+   {object:'Feature',axis:'X',degrees:45,start:1.2,end:10},
+ ])assert.throws(()=>setRotationTrack(source,payload));
+ assert.throws(()=>removeRotationTrack(source,{object:'Feature',axis:'X'}),/TRACK_NOT_FOUND/);
+ const full=copy();full.animations=[];full.objects=[];
+ for(let i=0;i<6;i++)full.objects.push({name:'Sphere'+i,type:'sphere',location:[i,0,0],dimensions:[1,1,1],material:'teal'});
+ for(let i=0;i<16;i++)full.animations.push({object:'Sphere'+Math.floor(i/3),axis:['X','Y','Z'][i%3],degrees:30,start:1,end:30});
+ assert.throws(()=>setRotationTrack(full,{object:'Sphere5',axis:'Y',degrees:90,start:1,end:32}),/SCENE_PREVIEW_INVALID_TIMELINE/);
+ assert.equal(encode(source),before);
+});
+test('bounded, copy-safe undo/redo restores validated scene and truncates redo on new edit',()=>{
+ const source=copy(),h=createSceneHistory(source,3);
+ assert.equal(h.canUndo,false);assert.equal(h.canRedo,false);
+ const first=setRotationTrack(source,{object:'Feature',axis:'X',degrees:90,start:1,end:20});
+ assert.equal(h.push(first),true);
+ assert.equal(h.canUndo,true);
+ assert.equal(h.undo().animations.length,1);
+ assert.equal(h.canRedo,true);
+ assert.equal(h.redo().animations.length,2);
+ const saved=h.current();saved.animations[0].degrees=-720;
+ assert.notEqual(h.current().animations[0].degrees,-720);
+ h.undo();const alternate=setRotationTrack(source,{object:'Feature',axis:'Y',degrees:90,start:1,end:20});
+ h.push(alternate);
+ assert.equal(h.canRedo,false);
+ assert.equal(h.push(alternate),false);
+ assert.equal(h.current().animations.length,2);
+ assert.throws(()=>h.push({...source,objects:[]}),/SCENE_PREVIEW_INVALID_SCHEMA/); // rejected state is never committed
+ assert.equal(h.current().animations.length,2);
 });

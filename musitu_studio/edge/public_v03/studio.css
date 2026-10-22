@@ -39,3 +39,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
 .preview-footnote{margin:0;padding:10px 15px 15px;font-size:11px}
 @media(max-width:960px){.inspector-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.inspector-fields label:first-child{grid-column:span 2}}
 @media(max-width:480px){.preview-toolbar small{display:block;margin:0}.preview-toolbar .row{display:flex}.preview-toolbar button{font-size:10px;padding:8px}.inspector-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.inspector-fields label:first-child{grid-column:span 2}.inspector-fields label:nth-child(5){grid-column:span 2}.inspector-fields button{grid-column:1/-1}.palette-add button{flex:1}}
+
+/* Scene-only keyframe workstation: mobile and touch controls remain offline. */
+.track-editor{padding:12px 13px;border:1px solid #28465b;border-radius:12px;background:#081c29}
+.track-editor>strong{font-size:11px;letter-spacing:1.1px;color:#8fe8d9}
+.track-editor .track-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto auto;gap:9px;align-items:end;margin:10px 0}
+.track-editor label{min-width:0;font-size:11px;color:#b4c8d9}
+.track-editor select,.track-editor input{margin-top:5px;padding:8px}
+.track-editor button{font-size:11px;padding:9px 11px;min-height:40px;white-space:nowrap}
+.track-editor p{margin:8px 0 0;font-size:11px}
+@media(max-width:750px){.track-editor .track-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.track-editor button{min-height:44px}.preview-toolbar .row{flex-wrap:wrap}}
