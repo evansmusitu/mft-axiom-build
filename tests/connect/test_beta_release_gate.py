@@ -22,8 +22,9 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertNotIn('customer_admission.mjs', self.worker)
         self.assertNotIn('customer_payload.mjs', self.worker)
         self.assertEqual(record['offline_customer_request_body_boundary'],
-                         'NODE_TESTED_64KIB_NOT_WIRED')
+                         'NODE_AND_LOCAL_WORKERD_TESTED_64KIB_NOT_WIRED')
         self.assertEqual(record['offline_customer_request_body_limit_bytes'], 65536)
+        self.assertIs(record['offline_customer_request_workerd_evidence']['customer_admission_authorized'], False)
         self.assertEqual(record['offline_customer_request_body_scope'],
                          'RAW_JSON_BYTE_BOUNDARY_ONLY_NO_AUTH_OR_SEMANTIC_VALIDATION')
         self.assertEqual(record['offline_sqlite_d1_customer_admission'],
