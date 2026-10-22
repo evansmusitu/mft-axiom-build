@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   isolated-d1-contract:
     name: Offline Cloudflare D1 compatibility only
@@ -39,7 +43,7 @@ jobs:
       - name: Node SQLite reference contract
         run: node --test tests/connect/test_customer_admission.mjs
       - name: Local workerd D1 contract (not remote D1)
-        run: node --test tests/connect/test_customer_d1_local.mjs
+        run: timeout 100s node --test tests/connect/test_customer_d1_local.mjs
       - name: Assert this verification is strictly offline and non-enabling
         run: |
           python - <<'PY'
