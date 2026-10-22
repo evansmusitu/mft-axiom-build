@@ -76,7 +76,24 @@ UTF-8 request) alongside the **13/13** reference SQLite and **2/2**
 local D1 tests. Workerd simulation is not a hosted Worker or a real D1
 account. No customer-facing routes or authentication settings were changed.
 
-**Not established:** duplicate-key rejection, schema-level Mining semantics,
+A further adversarial input-integrity round now rejects repeated JSON object
+properties at every nesting level, including identical repeated values and
+property-name collisions expressed using JSON Unicode escapes. Property names
+may legitimately recur in *different* array elements or sibling objects.
+The decoder preserves valid string literals that contain JSON-like text.
+The scanner has a bounded 128-level traversal limit and fails closed for
+unsupported deeper structure.
+
+Regression evidence: Connect CI `39777354968` observed three expected
+duplicate-key failures with the old last-key-wins parser (41/44 Node tests
+passing); the updated parser passed 44/44 in Connect CI `39777581768`.
+The local workerd HTTP suite subsequently passed 4/4 tests in run
+`39777752650`, including nested and escaped-key denials. These are
+synthetic research-only tests of the request transport boundary, not
+evidence of tenant authorization, end-user adoption, or hosted Worker
+deployment.
+
+**Not established:** schema-level Mining semantics,
 authenticated tenant admission, real D1 metering, clock/CPU limits, global
 in-flight request limits, customer billing and security ownership. Future
 routing must first authenticate and reserve the request using the trusted
