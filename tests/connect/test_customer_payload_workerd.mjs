@@ -43,3 +43,34 @@ test('workerd refuses oversized customer JSON without forwarding any parsed obje
     assert.deepEqual(await response.json(),{ok:false,status:413,error:'PAYLOAD_TOO_LARGE'});
   } finally {await mf.dispose();}
 });
+
+
+test('workerd refuses nested or escaped duplicate object properties', {timeout:30000}, async ()=>{
+  const mf=await makeWorker();
+  try {
+    for (const body of [
+      '{"rows":[{"hazard":"a","hazard":"b"}]}',
+      '{"\\u0062udget":2,"budget":3}',
+    ]) {
+      const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
+        method:'POST', headers:{'content-type':'application/json'}, body,
+      });
+      assert.equal(response.status,400);
+      assert.deepEqual(await response.json(),{ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
+    }
+  } finally {await mf.dispose();}
+});
+
+test('workerd allows repeated keys in distinct objects', {timeout:30000}, async ()=>{
+  const mf=await makeWorker();
+  try {
+    const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
+      method:'POST', headers:{'content-type':'application/json'},
+      body:'{"rows":[{"hazard":"a"},{"hazard":"b"}]}',
+    });
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.ok,true);
+    assert.deepEqual(result.body.rows.map(r=>r.hazard),['a','b']);
+  } finally {await mf.dispose();}
+});
