@@ -1,0 +1,56 @@
+name: MUSITU Connect local D1 runtime contract (non-admission)
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-d1-local.yml'
+      - 'infra/connect_customer_registry.sql'
+      - 'connect/customer_admission.mjs'
+      - 'tests/connect/test_customer_d1_local.mjs'
+      - 'tests/connect/test_customer_admission.mjs'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '.github/workflows/musitu-connect-d1-local.yml'
+      - 'infra/connect_customer_registry.sql'
+      - 'connect/customer_admission.mjs'
+      - 'tests/connect/test_customer_d1_local.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-d1-contract:
+    name: Offline Cloudflare D1 compatibility only
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_CF_FETCH_ENABLED: 'false'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install exact stable Miniflare; no Cloudflare account or credentials
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0
+      - name: Node SQLite reference contract
+        run: node --test tests/connect/test_customer_admission.mjs
+      - name: Local workerd D1 contract (not remote D1)
+        run: node --test tests/connect/test_customer_d1_local.mjs
+      - name: Assert this verification is strictly offline and non-enabling
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('qualification/musitu_connect_beta_release_gate.json').read_text())
+          assert r['new_beta_customer_admission_authorized'] is False
+          assert r['public_customer_publication_authorized'] is False
+          assert r['checks']['tenant_isolation_and_customer_usage_attribution']=='NOT_DEMONSTRATED_ON_REAL_D1'
+          assert r['checks']['per_customer_rate_quota_and_payload_limits']=='NOT_DEMONSTRATED_ON_REAL_D1'
+          print('CONNECT_LOCAL_D1_ONLY=TRUE')
+          print('CONNECT_REMOTE_D1_QUALIFICATION=NOT_EXECUTED')
+          print('CONNECT_BETA_CUSTOMER_ADMISSION=BLOCKED')
+          PY
