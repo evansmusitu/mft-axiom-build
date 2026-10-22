@@ -106,8 +106,8 @@ test('CAS applies but acknowledgement is lost: readback and rollback',async()=>{
 });
 test('failed rollback is critical, never falsely reported as safe',async()=>{
  const x=adapter(proof(),{browserFails:true,rollbackFails:true});
- await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED/);
- assert.equal(x.state().route,'NEON_CANARY_READONLY');assert.equal(x.state().release,1);
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(x.state().route,'NEON_CANARY_READONLY');assert.equal(x.state().release,0);
 });
 test('exclusive lease refuses another promotion attempt',async()=>{
  const x=adapter(proof(),{leaseHeld:true});
@@ -168,8 +168,9 @@ test('lease-release acknowledgement lost after successful CAS must rollback',asy
 });
 test('lease-release failure and impossible rollback raises critical',async()=>{
  const x=adapter(proof(),{releaseFails:true,rollbackFails:true});
- await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED/);
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(x.state().route,'NEON_CANARY_READONLY');
+ assert.equal(x.state().release,0);
 });
 
 test('read-write traffic is never routed to a canary backend',async()=>{
@@ -198,6 +199,17 @@ test('short-lived target barrier never leaves permanent read-only Neon routing',
 });
 test('unable to restore original SQLite route after canary is critical',async()=>{
  const x=adapter(proof(),{canaryReturnFails:true});
- await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED/);
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(x.state().route,'NEON_CANARY_READONLY');
+ assert.equal(x.state().release,0);
+});
+
+// Inability to return from a read-only canary is a CRITICAL stuck-route state.
+// Releasing the exclusive lease would allow a second promotion while Neon
+// still serves traffic, and must be forbidden even if browser checks passed.
+test('stuck canary return preserves the migration lease for manual recovery',async()=>{
+ const x=adapter(proof(),{canaryReturnFails:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED|STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(x.state().route,'NEON_CANARY_READONLY');
+ assert.equal(x.state().release,0);
 });

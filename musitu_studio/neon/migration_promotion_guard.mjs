@@ -176,6 +176,15 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     if(rollbackError)fail('STUDIO_CRITICAL_ROLLBACK_FAILED_MANUAL_RECOVERY_REQUIRED');
     throw error;
   }finally{
+    // Security invariant: never surrender the EXCLUSIVE operation lease while
+    // a route is still on Neon or its state cannot be independently read.
+    // A failed canary rollback is a manual-recovery incident, not a reason
+    // to free the lock for a second operator. The lease backend MUST be durable
+    // and non-expiring (or extended under incident fencing) while recovery runs.
+    let routeBeforeRelease;
+    try{routeBeforeRelease=await readRoute()}catch{}
+    if(routeBeforeRelease!=='SQLITE_DO')
+      fail('STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD');
     try{await lease.release()}
     catch{
       // Never surface an apparently failed promotion with Neon secretly

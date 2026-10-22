@@ -1,0 +1,47 @@
+name: MUSITU Studio V0.3 — Provider-Bound No-Go Release Qualification Readonly
+on:
+  push:
+    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
+    paths:
+      - ops/studio_v03_release_readonly_gate_20261022.py
+      - ops/tests/test_studio_v03_release_readonly_gate_20261022.py
+      - musitu_studio/neon/migration_promotion_guard.mjs
+      - .github/workflows/studio-v03-release-readonly-qualification-20261022.yml
+permissions: {contents: read}
+concurrency:
+  group: musitu-studio-v03-release-qualification-only
+  cancel-in-progress: false
+jobs:
+  verify-without-provider-mutation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      STUDIO_NO_GO_REPORT_PATH: STUDIO_RELEASE_GATE_READONLY_20261022.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Fail-closed parser/privacy unit tests
+        run: python -m unittest discover -s ops/tests -p 'test_studio_v03_release_readonly_gate_20261022.py' -v
+      - name: Independently inspect Cloudflare settings and transport metadata with GET only
+        run: python ops/studio_v03_release_readonly_gate_20261022.py
+      - name: Verify report remains NO-GO and contains no customer content
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('STUDIO_RELEASE_GATE_READONLY_20261022.json'))
+          assert p['decision']=='NO_GO' and p['production_cutover_allowed'] is False
+          assert p['blocked_gate_count']==10 and p['customer_data_exported'] is False
+          assert p['no_provider_writes'] and not p['provider']['private_transport_independently_verified']
+          assert p['source_head']==__import__('os').environ['GITHUB_SHA']
+          print('STUDIO_SAFE_READONLY_NO_GO_RECEIPT=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-studio-v03-release-gate-readonly-20261022
+          path: STUDIO_RELEASE_GATE_READONLY_20261022.json
+          if-no-files-found: warn
+          retention-days: 30
