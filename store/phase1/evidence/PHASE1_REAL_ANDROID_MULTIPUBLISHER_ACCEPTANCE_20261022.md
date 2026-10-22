@@ -8,8 +8,8 @@
 | --- | --- | --- | --- |
 | Isolated Android API 24 signed catalog and security runtime | [run 39743975106](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39743975106) | **PASS 7 tests, 0 failures, 0 errors** | Real Android 7.0 emulator; two publisher identities only disposable fixtures; no production release |
 | Android API 24 actual signed disposable APKs with user-consent installer UI | [run 39744039029](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744039029) | **PASS 7 tests, 0 failures, 0 errors**, including 6 APK tests and 1 OS installer-consent test | OS-mediated UIAutomator installation of throwaway packages with ephemeral keys; not a real external publisher, user/customer device, nor public app |
-| Android 8.0 unknown-source permission security | [run 39744490618](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744490618) | **IN PROGRESS at handoff** | No positive claim until actual completed logs |
-| Android 11 package visibility and cancellation | [run 39744501778](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744501778) | **IN PROGRESS at handoff** | No positive claim until actual completed logs |
+| Android 8.0 unknown-source permission security | [run 39744490618](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744490618) | **PASS 1 test, 0 failures, 0 errors, 0 skipped** | Android 8.0 emulator; OS per-source permission test and disposable signed APK identities only |
+| Android 11 package visibility and cancellation | [run 39744501778](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744501778) | **PASS 5 stages, 0 failures, 0 errors, 0 skipped** | Android 11 emulator; source permission initially off, cancelled APK not installed and package visibility checked |
 
 An initial [API24 attempt, run 39743459008](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39743459008), failed **correctly**: the workflow ran cross-API Android tests and actual-APK tests without provisioning the APK fixtures. The workflow was fixed at `bf78afd0d409fd265bd487eac81be1bfd6867448` to run **only the scoped API24 runtime class**, while the explicit actual-APK/consent workflow independently covered the stronger installation cases. Its clean rerun 39743975106 is the authoritative API24 core result. No failed tests were deleted or reclassified as green.
 
@@ -36,3 +36,11 @@ Stage remains protected by Vercel SSO and disabled commerce flags. Real Paynow S
 ## Explicit promotion hold
 
 `PHASE_1=RUNNING`. Continue real publisher approval and legal reviews, real-device Android PWA and Windows coverage, secure developer portal, production root custody, authenticated Vercel positive stage canary, payment provider compliance and independent human sign-offs. `PHASE_2=PENDING`; public release, payments, store entitlement and publisher payout **DENIED until actual gates pass**.
+
+
+### Final independent job readbacks
+
+- [API26 run 39744490618](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744490618) concluded **success**. Actual log: `MUSITU_STORE_V2_API26_SOURCE_PERMISSION_PASS tests=1 failures=0 errors=0 skipped=0`.
+- [API30 run 39744501778](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39744501778) concluded **success**. Actual logs: `MUSITU_API30_SOURCE_PERMISSION_INITIAL_OFF=PASS`, `MUSITU_API30_APK_CANCELLATION_PREVENTED_INSTALL=PASS`, `MUSITU_STORE_V2_API30_PACKAGE_VISIBILITY_PASS stages=5 failures=0 errors=0 skipped=0`.
+
+**Combined fresh result (separate scopes, not double-counted as independent applications or devices):** 7 API24 catalog tests + 7 API24 genuine OS installer/disposable APK tests + 1 API26 permission test + 5 API30 staged scenarios. All corresponding jobs completed with no failed steps. These are ephemeral synthetic applications on real Android emulator OS images, not approved third-party publisher applications. No customer-facing installation authority was granted and no production release flags changed.
