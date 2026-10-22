@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-android-v2-verified-install-20261011
+      - feature/store-v2-publisher-evidence-pilot-20261021
     paths:
       - '.github/workflows/musitu-store-android-v2-api24-emulator.yml'
       - 'store/phase1/android-client/app/build.gradle'
