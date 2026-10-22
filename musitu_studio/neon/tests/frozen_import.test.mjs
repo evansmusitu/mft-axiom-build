@@ -30,8 +30,16 @@ const triggerNames=[
  'job_state_integrity','asset_insert_integrity','asset_update_integrity',
  'asset_delete_integrity','audit_immutable_update','audit_immutable_delete'
 ];
+const triggerMeta=[
+ ['jobs',19,'enforce_job_asset_integrity'],
+ ['assets',7,'enforce_asset_integrity'],
+ ['assets',19,'enforce_asset_integrity'],
+ ['assets',11,'enforce_asset_integrity'],
+ ['audit_events',19,'deny_audit_mutation'],
+ ['audit_events',11,'deny_audit_mutation']
+];
 function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
-  omitTrigger=false,connectError=false}={}){
+  omitTrigger=false,connectError=false,spoofTrigger=false,disabledTrigger=false}={}){
   const trace=[],state=Object.fromEntries(tables.map(t=>[t,[]]));
   if(existing)state.projects.push(sqlcopy(snapshot().projects[0]));
   let checkpoint=null,connected=false,ended=false;
@@ -47,7 +55,13 @@ function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
       if(sql.includes('FROM studio_v03._studio_schema_versions'))
         return {rows:[{n:schemaVersion===2?'1':'0'}]};
       if(sql.includes('FROM pg_trigger'))
-        return {rows:triggerNames.filter((_,i)=>!omitTrigger||i!==2).map(tgname=>({tgname}))};
+        return {rows:triggerNames.map((tgname,i)=>({
+          tgname,table_schema:'studio_v03',table_name:triggerMeta[i][0],
+          tgtype:triggerMeta[i][1],tgenabled:disabledTrigger&&i===2?'D':'O',
+          function_schema:'studio_v03',function_name:triggerMeta[i][2],
+          // A same-named but wrongly wired trigger must never authorize import.
+          ...(spoofTrigger&&i===0?{tgtype:23,function_name:'permissive_noop'}:{})
+        })).filter((_,i)=>!omitTrigger||i!==2)};
       const count=sql.match(/^SELECT COUNT\(\*\) AS n FROM studio_v03\.(\w+)$/);
       if(count)return {rows:[{n:String(state[count[1]].length)}]};
       const insertion=sql.match(/^INSERT INTO studio_v03\.(\w+)\(([^)]+)\) VALUES\(([^)]+)\)$/);
@@ -114,6 +128,17 @@ test('rejects missing v2 protections before touching any ledger row',async()=>{
 test('rejects a disabled/missing asset integrity trigger',async()=>{
   const f=fake({omitTrigger:true});
   await assert.rejects(()=>invoke(f),/NEON_IMMUTABILITY_TRIGGER_MISSING/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+});
+test('rejects a same-named but incorrectly wired trigger before writing',async()=>{
+  const f=fake({spoofTrigger:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_TOPOLOGY_MISMATCH/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+  assert.ok(f.trace.includes('ROLLBACK'));
+});
+test('rejects disabled integrity triggers rather than accepting trigger names',async()=>{
+  const f=fake({disabledTrigger:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_TOPOLOGY_MISMATCH/);
   assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
 });
 test('fails before commit if independently read-back asset differs from source',async()=>{
