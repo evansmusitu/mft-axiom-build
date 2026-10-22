@@ -35,11 +35,17 @@ jobs:
           test -s "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend"
           test -s "$RUNNER_TEMP/2099/AWAKENING_2099_f001.png"
           echo "GOD_MODE_2099_CYCLES_FRAME_1=PASS"
+      - name: Qualify the transformation, face and eye on actual Blender Cycles
+        run: |
+          for frame in 110 205 275 315; do
+            blender -b "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend" -t 4 -o "$RUNNER_TEMP/2099/AWAKENING_2099_f###" -F PNG -f "$frame"
+            test -s "$RUNNER_TEMP/2099/AWAKENING_2099_f$(printf '%03d' "$frame").png"
+          done
       - name: Preserve editable scene and rendered proof only
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: god-mode-2099-genuine-blender-cycles-single-frame
+          name: god-mode-2099-genuine-blender-cycles-five-shot-proof
           path: ${{ runner.temp }}/2099/
           retention-days: 1
           if-no-files-found: warn
