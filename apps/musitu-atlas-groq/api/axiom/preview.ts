@@ -1,9 +1,20 @@
 import {parseBody,parseExpression,hashPayload,respond,fail,OPERATION,authConfigured,verifyApproval,deny} from './_contract.js';
 import {ledgerReady,lookup,assessRuntimeRole} from './_ledger.js';
+import {preflight} from './_entitlementCheck.js';
 export default async function handler(req:any,res:any){
  if(req.method!=='POST')return respond(res,405,{error:'Method not allowed.'});
  try{
   const data=parseBody(req);
+  if(data.action==='credential-preflight'){
+   verifyApproval(data.accessCode,'0'.repeat(64),data.approved);
+   const status=await preflight();
+   return respond(res,200,{
+     status:'ACCOUNT_SCOPE_PREFLIGHT_ONLY',...status,
+     executionEnabled:authConfigured(),
+     neitherArithmeticNorOtherRegisteredToolCalled:true,
+     qualification:'Provider OAuth gateway behavior and actual restricted DB privileges were checked, not a provider compute result.'
+   });
+  }
   if(data.action==='status'){
    verifyApproval(data.accessCode,'0'.repeat(64),true);
    if(typeof data.idempotencyKey!=='string'||!(/^[a-f\d-]{36}$/i.test(data.idempotencyKey)))
