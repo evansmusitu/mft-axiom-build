@@ -132,3 +132,17 @@ test('forbid cookies, cross-origin writes, unsupported paths and missing content
  assert.equal((await h.call('GET','/developer/submissions/sub-00001',
   {headers:{cookie:'stolen=session'}})).status,401);
 });
+
+test('32-byte-hex database submission ID is accessible to owner and independently authenticated reviewer',async()=>{
+ const h=harness();await h.create();
+ const id='sub-'+'a'.repeat(32);
+ const prior=h.repository.records.get('sub-00001');
+ h.repository.records.set(id,{...prior,id,reviews:[]});
+ const owner=await h.call('GET','/developer/submissions/'+id);
+ assert.equal(owner.status,200);
+ const reviewer=await h.call('POST','/review/submissions/'+id,{
+  jwt:token({role:'review_security',sub:'cryptorandom-reviewer-02'}),body:note
+ });
+ assert.equal(reviewer.status,202);
+ assert.equal((await reviewer.json()).publicationAuthorized,false);
+});
