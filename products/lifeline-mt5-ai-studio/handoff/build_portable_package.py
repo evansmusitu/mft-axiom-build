@@ -53,9 +53,14 @@ def main():
     actual=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
     if actual!=os.environ.get("GITHUB_SHA"):
         raise SystemExit("checked_out_commit_does_not_match_runner_sha")
-    if subprocess.run(["git","diff","--quiet","HEAD","--",PROD,".github/workflows"],check=False).returncode:
-        raise SystemExit("tracked_source_dirty")
-    # GitHub Actions checkout is a clean snapshot. Ignore prior out/ generated files.
+    # npm ci may rewrite tracked node_modules files; none enter our ZIP.
+    # Fail only if an IN-SCOPE, FIRST-PARTY file differs from frozen Git HEAD.
+    changed=subprocess.check_output(["git","diff","--name-only","HEAD","--",
+                                     PROD,".github/workflows"],text=True).splitlines()
+    changed_first_party=[x for x in changed if reject_reason(x) is None]
+    if changed_first_party:
+        raise SystemExit("tracked_first_party_source_dirty")
+    # GitHub Actions checkout is a frozen source snapshot. Ignore excluded caches.
     candidates=subprocess.check_output(["git","ls-files","-z"]).decode().split("\x00")
     candidates=[p for p in candidates if p and
        (p.startswith(PROD) or
