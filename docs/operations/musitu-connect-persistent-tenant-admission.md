@@ -7,7 +7,7 @@ prototype without replacing the separately authorized production Worker.
 ## Verified offline contract
 
 - Schema: `infra/connect_customer_registry.sql` defines tenants, hashed
-  credentials, daily quotas, and per-request usage events.
+  credentials, daily and UTC-minute quotas, and per-request usage events.
 - Module: `connect/customer_admission.mjs`, disabled unless
   `CONNECT_CUSTOMER_RUNTIME_ENABLED` is the string `true`.
 - Admission: `reserveConnectCustomerRequest({authorization, scope, env,
@@ -19,10 +19,15 @@ prototype without replacing the separately authorized production Worker.
 - A single `INSERT ... SELECT ... RETURNING` into usage events is guarded by
   SQLite `BEFORE` and `AFTER INSERT` triggers. Within the one SQLite
   statement, a scoped active credential is required, an active tenant is
-  required, one request is recorded, and its daily counter is incremented.
-  When the tenant's daily counter reaches the configured daily limit,
-  subsequent reservations reject with HTTP-equivalent 429 and no partial
-  event/counter write.
+  required, one request is recorded, and both UTC-day and UTC-minute counters
+  are incremented. A daily limit breach returns `CUSTOMER_QUOTA_EXCEEDED`
+  (HTTP-equivalent 429); an exceeded minute limit returns
+  `CUSTOMER_MINUTE_QUOTA_EXCEEDED` (also 429). Neither publishes a partial
+  event/counter write. Each tenant's limits are explicitly configured in
+  its registry record; there is no implicit per-customer production default.
+  The SQL trigger also rejects `observed_at` values that are not canonical
+  UTC timestamps or that disagree with `utc_day`, preventing mislabeled
+  accounting events from bypassing either quota.
 - `readConnectCustomerUsage({db, principal, utcDay, nowMs})` reads only the
   admitted, server-derived, frozen principal's tenant. Forged principal
   objects are denied, and the credential is checked again against the store
@@ -49,10 +54,10 @@ python -m unittest tests.connect.test_beta_release_gate -v
 
 `tests/connect/test_customer_admission.mjs` uses Node's `node:sqlite`
 driver to implement the narrow D1 method contract. Synthetic-only tests
-exercise two tenants, permissions, separate scoped usage, daily quota at a
-UTC boundary, invalid credentials, revocation, duplicate request IDs,
-error sanitization, malicious date inputs, and on-disk persistence across
-SQLite close/reopen.
+exercise two tenants, permissions, separate scoped usage, daily and UTC-minute
+quotas (including a fresh minute window), malformed/contradictory UTC event
+metadata, invalid credentials, revocation, duplicate request IDs, error
+sanitization, malicious dates, and on-disk persistence across SQLite restarts.
 
 **These tests do not constitute a Cloudflare D1 staging qualification.**
 In particular, production D1 prepared-statement `INSERT RETURNING` behavior,
@@ -60,6 +65,21 @@ atomicity under *cross-region concurrent Worker invocations*, durability,
 consistency of revocations, platform rate limits and quota alerts must all
 be verified with isolated nonproduction infrastructure before deployment.
 A local `Promise.all` test over one SQLite connection is not a load test.
+
+### External staging acceptance — not yet executed
+
+Only with a separately authorized *isolated* Cloudflare account or environment,
+create a new nonproduction D1 database with no actual tenant, token, mining
+data, Axiom key or production bindings. Apply this schema to that empty DB,
+then independently confirm the real D1 prepared `INSERT ... RETURNING` and
+trigger semantics, transactional counter behavior with concurrent Worker
+requests, UTC minute/day boundary and revocation consistency, and data
+durability after redeployment. Record the D1 database identity, isolated
+Worker commit, test invocation ID, sanitized result counts and cleanup proof.
+All staging assets must be removed or explicitly placed under approved
+ownership following the test. Never use an existing production D1 database
+to 'see if the schema works'. A local PASS leaves the real-D1 qualification
+and beta admission gates **blocked**.
 
 ## Release-gate separation and operational signoffs
 
@@ -70,7 +90,7 @@ implementation, not an approved migration plan or product switch.
 
 Before onboarding a real customer, engineering must implement and approve
 credential issuance, storage and rotation; tenant-aware data access beyond
-usage aggregation; input-byte and CPU limits; per-minute and daily quotas;
+usage aggregation; input-byte and CPU limits; real-D1 verification of per-minute and daily quotas;
 secure customer operations; audit retention/deletion; support ownership;
 legal terms and DPA; human-acknowledged incident paging; rollout canary and
 rollback; and independently signed release authorization.
