@@ -14,3 +14,14 @@
 .axiom-connection-grid a:hover{border-color:var(--accent)}
 .axiom-connection-boundary{font-size:10px!important;padding:10px 0 0;line-height:1.8!important}
 @media(max-width:700px){.axiom-connection-grid{grid-template-columns:1fr}.axiom-connection-setup{padding:16px}}
+
+
+.axiom-scope-preflight{margin:20px 0 10px;padding:18px;border:1px solid var(--stroke);border-radius:10px;background:var(--panel2)}
+.axiom-scope-preflight h3{font:800 17px 'Manrope',sans-serif;letter-spacing:-.025em;margin:8px 0 10px;color:var(--text)}
+.axiom-scope-preflight>p{font-size:11px;line-height:1.7;color:var(--muted);max-width:850px}
+.axiom-preflight-fields{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.axiom-preflight-fields input{min-width:200px;flex:1;min-height:44px;padding:10px 12px;border:1px solid var(--stroke);border-radius:7px;background:var(--panel);color:var(--text);font-size:12px}
+.axiom-preflight-fields button{border:0;border-radius:7px;padding:10px 14px;min-height:44px;background:var(--accent);color:var(--contrast);font-size:11px;font-weight:800;cursor:pointer}
+.axiom-preflight-fields button:disabled{cursor:not-allowed;opacity:.52}
+.axiom-preflight-good,.axiom-preflight-error{padding:12px;border-radius:7px;border:1px solid var(--stroke);font-size:11px;line-height:1.65;overflow-wrap:anywhere}
+.axiom-preflight-error{border-color:#c85555;color:#ed9b9b}
