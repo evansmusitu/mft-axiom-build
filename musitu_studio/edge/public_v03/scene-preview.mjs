@@ -42,6 +42,15 @@ export function parsePreviewScene(input){
   }
   return job;
 }
+/** Import only a small, valid, local UTF-8 declarative scene. Never upload or evaluate the file. */
+export function parseImportedSceneBytes(bytes){
+  if(!(bytes instanceof Uint8Array))throw Error('SCENE_IMPORT_INVALID_BYTES');
+  if(bytes.byteLength>65536)throw Error('SCENE_IMPORT_TOO_LARGE');
+  let text;
+  try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes)}
+  catch{throw Error('SCENE_IMPORT_INVALID_UTF8')}
+  return parsePreviewScene(text.startsWith('\uFEFF')?text.slice(1):text);
+}
 /** Pure, backend-compatible track operations. Invalid edits cannot escape into the scene. */
 export function setRotationTrack(scene,track){
   const source=parsePreviewScene(JSON.stringify(scene));
@@ -341,6 +350,21 @@ function initScenePreview(){
     const v=['x','y','z'].map(x=>Number(document.getElementById('scene-pos-'+x).value));
     if(!vec(v,-20,20))throw Error('Position must be between −20 and +20');
     o.location=v;o.material=document.getElementById('scene-material').value;
+  });
+  // The same isolated file import works in signed-in Studio and standalone offline builds.
+  const sceneImport=document.getElementById('scene-import-json');
+  document.getElementById('scene-upload-json').onclick=()=>sceneImport.click();
+  sceneImport.addEventListener('change',async()=>{
+    const file=sceneImport.files?.[0];
+    sceneImport.value='';
+    if(!file)return;
+    if(file.size>65536){report('Import rejected: scene file exceeds 64 KiB.');return}
+    try{
+      const parsed=parseImportedSceneBytes(new Uint8Array(await file.arrayBuffer()));
+      textarea.value=JSON.stringify(parsed,null,2);
+      if(!reload())throw Error('SCENE_IMPORT_INVALID_SCENE');
+      report('Imported local scene '+parsed.job_id+'; no server request or job submission was made.');
+    }catch(e){report('Import rejected: '+String(e.message??'invalid file')+'. Nothing was submitted.')}
   });
   document.getElementById('scene-download-json').onclick=()=>{
     if(!current&&!reload())return;

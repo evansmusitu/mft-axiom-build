@@ -64,6 +64,8 @@ Only verified staff identities can use a granted membership. Owners cannot silen
       <button type="button" id="preview-reset" class="ghost">Reset view</button>
       <button type="button" id="scene-undo" class="ghost" disabled>↶ Undo</button>
       <button type="button" id="scene-redo" class="ghost" disabled>↷ Redo</button>
+      <button type="button" id="scene-upload-json" class="ghost">↑ Import JSON</button>
+      <input type="file" id="scene-import-json" accept=".json,application/json" hidden aria-label="Import local scene JSON">
       <button type="button" id="scene-download-json" class="ghost">↓ Scene JSON</button></div></div>
   <canvas id="scene-preview-canvas" width="800" height="480" aria-label="Three-dimensional preview of the scene; drag to orbit, pinch to zoom" role="img"></canvas>
   <div id="scene-preview-status" class="preview-status" role="status" aria-live="polite">Loading local preview…</div>
@@ -101,7 +103,7 @@ Only verified staff identities can use a granted membership. Owners cannot silen
 <label>Compute<select id="device"><option value="CPU">CPU — approved only</option></select></label>
 </div><label class="label">Scene JSON<textarea id="scene" spellcheck="false"
 rows="15" aria-label="Blender scene JSON"></textarea></label>
-<button type="submit">Submit for controlled approval →</button></form>
+<button id="submit-scene" type="submit">Submit for controlled approval →</button></form>
 </section>
 <section class="panel" id="jobs"><div class="panelhead"><div>
 <div class="eyebrow">04 / EXECUTION</div><h2>Authorized job queue</h2></div>
@@ -115,4 +117,4 @@ rows="15" aria-label="Blender scene JSON"></textarea></label>
 <img id="preview-image" class="preview-image" alt="Render output preview" hidden></section>
 <footer>MUSITU Studio v0.3 · SQLite Durable Objects, strict Cloudflare Access and immutable audit<br>
 <small>Independent-review and sole-administrator modes are labeled separately. CPU/GPU require separate verified release conditions; V0.2 remains isolated.</small></footer>
-</main></div><script src="/studio.js" defer></script><script type="module" src="/scene-preview.mjs"></script></body></html>
+</main></div><script type="module" src="/studio.js"></script><script type="module" src="/scene-preview.mjs"></script></body></html>

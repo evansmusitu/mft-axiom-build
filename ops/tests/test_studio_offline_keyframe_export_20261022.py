@@ -14,7 +14,7 @@ class OfflineKeyframeExportTests(unittest.TestCase):
         mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
         text=mod.render()
         for expected in ('id="scene-track-set"','id="scene-track-remove"','id="scene-undo"',
-                         'id="scene-redo"','Validate locally (no submission)','connect-src \'none\''):
+                         'id="scene-redo"','id="scene-import-json"','id="scene-upload-json"','Validate locally (no submission)','connect-src \'none\''):
             self.assertIn(expected,text)
         self.assertNotIn('<script src=',text)
         self.assertNotIn('Submit for controlled approval →</button>',text)

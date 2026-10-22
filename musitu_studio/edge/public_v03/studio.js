@@ -1,3 +1,4 @@
+import {createSubmissionIntent,submittedJobId} from './submission-intent.mjs';
 'use strict';
 // Access-only v0.3. No bearer tokens, external JS, eval, HTML injection or localStorage.
 const el=id=>document.getElementById(id);
@@ -8,6 +9,8 @@ const scene={schema:'musitu.blender.job.v1',job_id:'StudioEnterprise01',frame_en
  animations:[{object:'Feature',axis:'Z',degrees:180,start:1,end:32}]};
 el('scene').value=JSON.stringify(scene,null,2);
 const state={me:null,projects:[],jobs:[],previewUrl:null};
+const submitIntent=createSubmissionIntent();
+let submitBusy=false;
 const notify=(msg,bad=false)=>{el('message').textContent=msg;el('message').className='note'+(bad?' error':'')};
 function element(tag,text,cl){
  const e=document.createElement(tag);if(cl)e.className=cl;
@@ -131,12 +134,24 @@ el('copy-subject').onclick=()=>guarded(async()=>{
 el('project-form').onsubmit=e=>{e.preventDefault();guarded(async()=>{
  await api('/api/projects','POST',{title:el('project-title').value.trim()});
  el('project-title').value='';await refresh()})};
-el('job-form').onsubmit=e=>{e.preventDefault();guarded(async()=>{
- const project_id=el('project-select').value;if(!project_id)throw Error('Select an editable project.');
- let payload;try{payload=JSON.parse(el('scene').value)}catch{throw Error('Invalid JSON scene.')}
- const r=await api('/api/jobs','POST',{project_id,scene:payload,device:'CPU',
-   submission_key:crypto.randomUUID().replaceAll('-','')});
- await refresh();notify('Created '+r.job_id.slice(0,12)+'; job is pending deliberate approval. Paid CPU dispatch stays separately gated.')})};
+el('job-form').onsubmit=e=>{e.preventDefault();if(submitBusy)return;
+ submitBusy=true;
+ const control=el('submit-scene');if(control)control.disabled=true;
+ guarded(async()=>{
+   const projectId=el('project-select').value;
+   if(!projectId)throw Error('Select an editable project.');
+   let payload;try{payload=JSON.parse(el('scene').value)}catch{throw Error('Invalid JSON scene.')}
+   // A network failure may occur AFTER a job is committed. Retry the same
+   // project+scene with the same key, never create an accidental duplicate.
+   const intent=submitIntent.prepare({projectId,scene:payload});
+   const receipt=await api('/api/jobs','POST',intent);
+   const id=submittedJobId(receipt);
+   submitIntent.acknowledge();
+   await refresh();
+   notify((receipt.duplicate?'Existing job ':'Created ')+id.slice(0,12)+
+     '; job requires explicit approval; paid CPU dispatch remains locked.');
+ }).finally(()=>{submitBusy=false;if(control)control.disabled=false});
+};
 el('add-member').onclick=()=>guarded(async()=>{
  const id=el('team-project').value;
  if(!id||!allowedProject(teamProject(id),'team'))throw Error('Only project owners can grant team roles.');
