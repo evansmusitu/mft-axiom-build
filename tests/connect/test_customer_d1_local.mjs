@@ -18,7 +18,7 @@ let mf;
 async function createIsolatedD1() {
   mf = new Miniflare({
     modules: true,
-    compatibilityDate: '2026-10-01',
+    compatibilityDate: '2026-07-01',
     cf: false,
     script: 'export default { async fetch() { return new Response("isolated-local"); } }',
     d1Databases: { CONNECT_CUSTOMER_DB: '00000000-0000-4000-8000-000000000001' },
