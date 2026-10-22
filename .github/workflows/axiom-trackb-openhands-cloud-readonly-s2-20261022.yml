@@ -1,0 +1,44 @@
+name: AXIOM OpenHands Cloud S2 read-only repository preflight (no dispatch)
+on:
+  push:
+    branches:
+      - frontier/axiom-openhands-cloud-s2-readonly-20261022
+    paths:
+      - ops/openhands_qualification/cloud_readonly_probe.py
+      - ops/openhands_qualification/test/test_cloud_probe.py
+      - .github/workflows/axiom-trackb-openhands-cloud-readonly-s2-20261022.yml
+permissions:
+  contents: read
+jobs:
+  offline-credential-safety:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-openhands-cloud-s2-readonly-20261022'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fail closed on missing context and test redaction/contract
+        run: |
+          set -euo pipefail
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          python3 -m unittest discover -s ops/openhands_qualification/test -p 'test_cloud_probe.py' -v
+          echo OPENHANDS_S2_CREDENTIAL_SAFETY_TESTS_PASS_NOT_S3_NOT_RELEASE
+  actual-provider-repository-metadata:
+    needs: offline-credential-safety
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'frontier/axiom-openhands-cloud-s2-readonly-20261022'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Probe OpenHands read-only GitHub repository access (or record missing credential)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/openhands_qualification/cloud_readonly_probe.py
+          echo OPENHANDS_S2_METADATA_READ_ONLY_NO_INFERENCE_NO_MUTATION_NO_RELEASE
