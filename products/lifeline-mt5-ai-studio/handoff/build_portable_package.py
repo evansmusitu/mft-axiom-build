@@ -93,6 +93,9 @@ def main():
         src=ROOT/HANDOFF/required
         if not src.is_file():raise SystemExit("missing_handoff_document")
         stage("handoff/"+required,src.read_bytes())
+    # The startup guide is deliberately duplicated at the ZIP root so a new
+    # chat can identify the authoritative entry point without browsing folders.
+    stage("README_START_HERE.md",(ROOT/HANDOFF/"README_START_HERE.md").read_bytes())
     native_root=Path("/tmp/lifeline-native-artifact")
     native_included=[]
     expected_ex5="2b4e93999c8ca23954263d20154ff87e97638221dd3ff15ebf454ba1ce913b59"
