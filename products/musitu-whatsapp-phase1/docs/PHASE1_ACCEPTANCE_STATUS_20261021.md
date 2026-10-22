@@ -58,6 +58,18 @@ limit and rejected reconnection as a retry of that unresolved gate. Generic user
 approval does not resolve the tool-side restriction. The live-send, authenticated
 AI and provider UI acceptance steps cannot be certified while it remains blocked.
 
-To close human-dependent items, identify the independent reviewer and second
-recovery custodian and establish their actual review/recovery access. No access,
-key material or review request has been sent to an assumed person.
+## Role nominations — 22 October 2026
+
+The owner nominated **Evans Musitu** as independent reviewer and **Munerudo
+Kudangirana** as second recovery custodian. These nominations are recorded;
+they are not evidence of completed review, accepted custody or recovery access.
+
+Evans Musitu is also the project owner. His review can establish owner acceptance;
+the nomination alone does not establish independent security/privacy assurance.
+Independent review remains open pending a separate reviewer and an evidence-based
+decision. No acceptance outcome is inferred from the nomination.
+
+Munerudo Kudangirana is the nominated second recovery custodian. A verified
+account/contact, acceptance of the responsibility, controlled recovery-key access
+and a successful recovery exercise are still needed. No message, invitation,
+access grant or key material was sent as part of recording these roles.
