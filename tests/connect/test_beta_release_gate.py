@@ -22,6 +22,8 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertNotIn('customer_admission.mjs', self.worker)
         self.assertEqual(record['offline_sqlite_d1_customer_admission'],
                          'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
+        self.assertEqual(record['offline_minute_quota_and_utc_event_integrity'],
+                         'SYNTHETIC_SQLITE_VERIFIED_REAL_D1_NOT_EXECUTED')
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
