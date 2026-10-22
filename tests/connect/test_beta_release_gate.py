@@ -24,9 +24,12 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(record['offline_customer_request_body_boundary'],
                          'NODE_AND_LOCAL_WORKERD_TESTED_64KIB_NOT_WIRED')
         self.assertEqual(record['offline_customer_request_body_limit_bytes'], 65536)
+        self.assertEqual(record['offline_customer_duplicate_json_keys'],
+                         'REJECTED_IN_NODE_AND_LOCAL_WORKERD_NONPRODUCTION_TESTS')
+        self.assertIs(record['offline_customer_duplicate_json_evidence']['customer_admission_authorized'], False)
         self.assertIs(record['offline_customer_request_workerd_evidence']['customer_admission_authorized'], False)
         self.assertEqual(record['offline_customer_request_body_scope'],
-                         'RAW_JSON_BYTE_BOUNDARY_ONLY_NO_AUTH_OR_SEMANTIC_VALIDATION')
+                         'RAW_JSON_BYTE_AND_DUPLICATE_KEY_GUARDS_NO_AUTH_OR_SEMANTIC_VALIDATION')
         self.assertEqual(record['offline_sqlite_d1_customer_admission'],
                          'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
         self.assertEqual(record['offline_minute_quota_and_utc_event_integrity'],
