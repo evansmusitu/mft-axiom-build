@@ -445,7 +445,13 @@ def make_compositor(preview=False):
 def configure(preview):
     scene=bpy.context.scene;scene.frame_start=1;scene.frame_end=FRAME_END;scene.render.fps=FPS
     scene.render.engine='CYCLES';scene.cycles.samples=6 if preview else 96
-    scene.cycles.use_denoising=True
+    # The Ubuntu 24.04 distro Blender 4.0.2 was built without OIDN.
+    # The inexpensive preview must run without unavailable denoisers; the
+    # full production preset remains Cycles + denoising on a qualified build.
+    scene.cycles.use_denoising=not preview
+    for view_layer in scene.view_layers:
+        if hasattr(view_layer,'cycles') and hasattr(view_layer.cycles,'use_denoising'):
+            view_layer.cycles.use_denoising=not preview
     scene.render.resolution_x=360 if preview else 1080
     scene.render.resolution_y=640 if preview else 1920
     scene.render.resolution_percentage=100
