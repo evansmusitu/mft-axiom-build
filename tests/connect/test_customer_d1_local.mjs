@@ -24,9 +24,13 @@ async function createIsolatedD1() {
     d1Databases: { CONNECT_CUSTOMER_DB: '00000000-0000-4000-8000-000000000001' },
   });
   const db = await mf.getD1Database('CONNECT_CUSTOMER_DB');
-  // D1 .exec() treats standalone SQL comment lines as empty statements.
-  // Strip comments only for this isolated schema-bootstrap call.
-  await db.exec(SCHEMA.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n'));
+  // D1's exec() treats each newline as a separate complete SQL statement.
+  // Preserve CREATE TRIGGER BEGIN/END blocks by combining each DDL statement
+  // into one line; do not break on the semicolons inside SQL triggers.
+  const ddl = SCHEMA.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n').trim();
+  const statements = ddl.split(/\n(?=CREATE (?:TABLE|TRIGGER)\b)/g);
+  assert.equal(statements.length, 7, 'expected five tables and two triggers');
+  await db.exec(statements.map(sql => sql.replace(/\s+/g, ' ').trim()).join('\n'));
   await db.prepare('INSERT INTO connect_customer_tenants(tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)')
     .bind('tenant_alpha','active',3,2).run();
   await db.prepare('INSERT INTO connect_customer_tenants(tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)')
