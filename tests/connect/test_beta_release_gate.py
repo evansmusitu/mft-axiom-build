@@ -24,6 +24,9 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
                          'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
         self.assertEqual(record['offline_minute_quota_and_utc_event_integrity'],
                          'SYNTHETIC_SQLITE_VERIFIED_REAL_D1_NOT_EXECUTED')
+        self.assertEqual(record['offline_cloudflare_d1_runtime'],
+                         'MINIFLARE_WORKERD_LOCAL_PASS_REMOTE_D1_NOT_EXECUTED')
+        self.assertIs(record['offline_cloudflare_d1_evidence']['customer_admission_authorized'], False)
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
