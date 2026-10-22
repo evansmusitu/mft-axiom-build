@@ -21,6 +21,11 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertNotIn('customer_identity.mjs', self.worker)
         self.assertNotIn('customer_admission.mjs', self.worker)
         self.assertNotIn('customer_payload.mjs', self.worker)
+        self.assertNotIn('customer_ingress_canary.mjs', self.worker)
+        self.assertEqual(record['offline_customer_ingress_orchestration'],
+                         'SYNTHETIC_AUTH_QUOTA_BOUNDED_JSON_CANARY_PASS_NOT_WIRED')
+        self.assertIs(record['offline_customer_ingress_evidence']['customer_admission_authorized'], False)
+        self.assertEqual(record['offline_customer_ingress_evidence']['production_requests_executed'], 0)
         self.assertEqual(record['offline_customer_request_body_boundary'],
                          'NODE_AND_LOCAL_WORKERD_TESTED_64KIB_NOT_WIRED')
         self.assertEqual(record['offline_customer_request_body_limit_bytes'], 65536)
