@@ -59,6 +59,40 @@ quotas (including a fresh minute window), malformed/contradictory UTC event
 metadata, invalid credentials, revocation, duplicate request IDs, error
 sanitization, malicious dates, and on-disk persistence across SQLite restarts.
 
+### Local Cloudflare D1 runtime qualification — 22 October 2026
+
+The isolated `tests/connect/test_customer_d1_local.mjs` suite runs through
+Cloudflare's **Miniflare/workerd local D1 binding**, rather than only the
+Node SQLite compatibility shim. The feature-only GitHub workflow
+`.github/workflows/musitu-connect-d1-local.yml` installs exactly
+`miniflare@4.20260730.0`, with a supported local workerd compatibility
+date of `2026-07-01`, no Cloudflare API token, no production bindings,
+and no external customer records.
+
+Verified branch CI: run
+`39741990668` at commit
+`bfe411843c67d9b2e499beb350ea2821a166bfb5`.
+The successful job separately executed **13 local SQLite reference tests**
+and **2 local workerd-backed D1 tests**, all passing. The local D1 tests
+checked tenant-separated hashed credential admission, independent scopes,
+atomic daily/minute quota reservations, frozen principal usage reads,
+revocation, and a burst of concurrent local requests.
+
+Two portability issues surfaced through actual red test runs and were
+corrected: the pinned stable workerd binary requires an earlier
+compatibility date, and D1's `exec()` requires each schema DDL block,
+including each full SQL trigger, to be supplied as a complete statement.
+The shared schema also no longer embeds a Node-only foreign-key setup
+pragma; SQLite reference fixtures explicitly enable foreign keys and D1
+enforces them by default.
+
+**This is a local simulation, not an account-backed Cloudflare D1 staging
+database.** It does not verify remote replica consistency, multi-region
+concurrency, production identity issuance, customer isolation under
+real network traffic, or a deployed staging Worker. No actual D1 database,
+Cloudflare binding, secret, commercial account or production route was
+created or mutated.
+
 **These tests do not constitute a Cloudflare D1 staging qualification.**
 In particular, production D1 prepared-statement `INSERT RETURNING` behavior,
 atomicity under *cross-region concurrent Worker invocations*, durability,
