@@ -1,0 +1,51 @@
+name: "GOD MODE 2099 — Full 360-frame Genuine Cycles Preview"
+on:
+  push:
+    branches:
+      - experiments/studio-enterprise-v03-sqlite-do-20261018
+    paths:
+      - .github/workflows/god-mode-2099-full-cycles-preview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: god-mode-2099-full-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  self-contained-cycles-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install free standard-runner Blender and FFmpeg (no paid render providers)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender ffmpeg
+          blender -b --version | head -n 3
+      - name: Generate genuine Cycles preview scene without private app data
+        run: |
+          mkdir -p "$RUNNER_TEMP/2099/frames"
+          blender -b -t 4 --python creative/god_mode_2099/build_awaken_2099.py -- --mode preview --output "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend"
+          test -s "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend"
+      - name: Render all 360 frames using actual Cycles, CPU, no provider calls
+        timeout-minutes: 55
+        run: |
+          blender -b "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend" -t 4 -o "$RUNNER_TEMP/2099/frames/frame_####" -F PNG -a
+          test "$(find "$RUNNER_TEMP/2099/frames" -type f -name 'frame_*.png' | wc -l)" -eq 360
+      - name: Make social video from genuine Cycles frames (upscaled preview only)
+        run: |
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 1 -i "$RUNNER_TEMP/2099/frames/frame_%04d.png" -vf scale=1080:1920:flags=lanczos -c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p -movflags +faststart "$RUNNER_TEMP/2099/GOD_MODE_2099_CYCLES_PREVIEW_360F_UPSCALED_1080x1920.mp4"
+          ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height,r_frame_rate -of default=noprint_wrappers=1 "$RUNNER_TEMP/2099/GOD_MODE_2099_CYCLES_PREVIEW_360F_UPSCALED_1080x1920.mp4"
+          echo GOD_MODE_2099_FULL_CYCLES_360_PREVIEW=PASS
+      - name: Upload bounded video and editable scene — no giant frame artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: god-mode-2099-full-360frame-cycles-preview-and-blend
+          path: |
+            ${{ runner.temp }}/2099/*.mp4
+            ${{ runner.temp }}/2099/*.blend
+          retention-days: 1
+          if-no-files-found: warn
