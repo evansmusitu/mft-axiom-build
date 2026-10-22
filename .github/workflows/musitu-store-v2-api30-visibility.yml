@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-android-api30-visibility-20261011
+      - feature/store-v2-publisher-evidence-pilot-20261021
     paths:
       - '.github/workflows/musitu-store-v2-api30-visibility.yml'
       - 'store/phase1/android-client/settings.gradle'
