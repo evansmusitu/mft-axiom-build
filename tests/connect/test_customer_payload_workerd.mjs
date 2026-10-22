@@ -1,0 +1,45 @@
+/** Cloudflare workerd HTTP transport checks; no network or production bindings. */
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {test} from 'node:test';
+import {Miniflare} from 'miniflare';
+
+const source = readFileSync(new URL('../../connect/customer_payload.mjs', import.meta.url), 'utf8');
+const SCRIPT = source + `
+export default {
+  async fetch(request) {
+    const result = await readBoundedCustomerJson(request);
+    return Response.json(result, {status:result.ok ? 200 : result.status});
+  }
+};
+`;
+async function makeWorker(){
+  return new Miniflare({
+    modules:true, compatibilityDate:'2026-07-01', cf:false,
+    script:SCRIPT,
+  });
+}
+test('workerd streaming customer payload accepts a valid JSON object', {timeout:30000}, async ()=>{
+  const mf=await makeWorker();
+  try {
+    const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:'{"rows":[],"budget":7}',
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,body:{rows:[],budget:7}});
+  } finally {await mf.dispose();}
+});
+test('workerd refuses oversized customer JSON without forwarding any parsed object', {timeout:30000}, async ()=>{
+  const mf=await makeWorker();
+  try {
+    const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({note:'🛡️'.repeat(20000)}),
+    });
+    assert.equal(response.status,413);
+    assert.deepEqual(await response.json(),{ok:false,status:413,error:'PAYLOAD_TOO_LARGE'});
+  } finally {await mf.dispose();}
+});
