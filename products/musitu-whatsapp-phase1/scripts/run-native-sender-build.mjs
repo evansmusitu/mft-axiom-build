@@ -41,6 +41,7 @@ try{
  mkdirSync(join(product,'scripts'));
  cpSync(join(root,'scripts/qualify-development-reply-native.mjs'),join(product,'scripts/qualify-development-reply-native.mjs'));
  cpSync(join(root,'scripts/native-current-schema-recovery.mjs'),join(product,'scripts/native-current-schema-recovery.mjs'));
+ cpSync(join(root,'scripts/native-conversation-privacy.mjs'),join(product,'scripts/native-conversation-privacy.mjs'));
  const password=randomBytes(32).toString('hex'),pwfile=join(temp,'local-password');
  writeFileSync(pwfile,password,{mode:0o600});own(pwfile);
  const data=join(temp,'data');
@@ -49,7 +50,7 @@ try{
  run(join(bin,'pg_ctl'),['-D',data,'-l',join(temp,'postgres.log'),'-o',`-h 127.0.0.1 -p ${port} -k ${temp}`,'-w','start']);started=true;
  const output=run(process.execPath,[join(product,'scripts/qualify-development-reply-native.mjs')],{cwd:product,extraEnv:{PG_ISOLATED_QUALIFICATION:'YES',PG_SCHEMA_RECOVERY_QUALIFICATION:'YES',PG_ADMIN_URL:`postgresql://postgres:${password}@127.0.0.1:${port}/postgres`}});
  report=JSON.parse(output.trim());
- if(report.passed!==6||report.failed!==0||report.realMetaPosts!==0||report.hostedDatabaseTouched!==false||report.recovery?.status!=='PASS')throw Error('NATIVE_REPORT_REJECTED');
+ if(report.passed!==6||report.failed!==0||report.realMetaPosts!==0||report.hostedDatabaseTouched!==false||report.recovery?.status!=='PASS'||report.privacy?.status!=='PASS'||report.privacy.passed!==8)throw Error('NATIVE_REPORT_REJECTED');
  report={...report,executionEnvironment:'DISPOSABLE_BUILD_NONROOT_POSTGRES',postgresOsUid:childIdentity.uid};
 }catch(error){failed=error;}
 finally{

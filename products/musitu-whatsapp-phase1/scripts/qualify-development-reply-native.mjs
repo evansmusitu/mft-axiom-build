@@ -12,6 +12,7 @@ import {createDevelopmentReplySender} from '../src/staging/development-reply.mjs
 import {encryptLedger} from '../src/security/ledger-encryption.mjs';
 import {createRuntimeRoleBoundPool} from '../src/postgres/runtime-role-guard.mjs';
 import {qualifyCurrentSchemaRecovery} from './native-current-schema-recovery.mjs';
+import {qualifyConversationPrivacy} from './native-conversation-privacy.mjs';
 
 const raw=process.env.PG_ADMIN_URL||'';
 let url;
@@ -163,7 +164,8 @@ try{
   return{preexistingSyntheticAttempts:4,contenders:10,additionalSyntheticPosts:1,totalAttemptRows:5};
  });
  const recovery=process.env.PG_SCHEMA_RECOVERY_QUALIFICATION==='YES'?await qualifyCurrentSchemaRecovery({admin,seed,Client,connection,migrationPassword:passwords.get('musitu_migrator'),runtimePassword,dbRoot,files,contentKey:key}):null;
- console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,recovery,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
+ const privacy=recovery?await qualifyConversationPrivacy({seed,pool,contentKey:key,tenant,owner,phone}):null;
+ console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,recovery,privacy,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
 }finally{
  await pool?.end();await migration?.end();await seed?.end();
  if(dbCreated)await admin.query(`DROP DATABASE ${database}`);
