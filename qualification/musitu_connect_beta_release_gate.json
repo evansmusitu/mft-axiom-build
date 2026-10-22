@@ -57,5 +57,13 @@
     "green_connect_workflow": 39777581768,
     "local_workerd_workflow": 39777752650,
     "customer_admission_authorized": false
+  },
+  "offline_customer_ingress_orchestration": "SYNTHETIC_AUTH_QUOTA_BOUNDED_JSON_CANARY_PASS_NOT_WIRED",
+  "offline_customer_ingress_evidence": {
+    "red_connect_workflow": 39778665626,
+    "green_connect_workflow": 39779040074,
+    "offline_canary_tests": 6,
+    "customer_admission_authorized": false,
+    "production_requests_executed": 0
   }
 }
