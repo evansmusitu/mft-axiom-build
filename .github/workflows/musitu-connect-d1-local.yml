@@ -8,6 +8,8 @@ on:
       - 'infra/connect_customer_registry.sql'
       - 'connect/customer_admission.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
+      - 'connect/customer_payload.mjs'
+      - 'tests/connect/test_customer_payload_workerd.mjs'
       - 'tests/connect/test_customer_admission.mjs'
       - 'qualification/musitu_connect_beta_release_gate.json'
       - 'docs/operations/musitu-connect-persistent-tenant-admission.md'
@@ -18,6 +20,8 @@ on:
       - 'infra/connect_customer_registry.sql'
       - 'connect/customer_admission.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
+      - 'connect/customer_payload.mjs'
+      - 'tests/connect/test_customer_payload_workerd.mjs'
   workflow_dispatch:
 
 permissions:
@@ -46,6 +50,8 @@ jobs:
         run: node --test tests/connect/test_customer_admission.mjs
       - name: Local workerd D1 contract (not remote D1)
         run: timeout 100s node --test tests/connect/test_customer_d1_local.mjs
+      - name: Local workerd customer JSON size gate (not deployed)
+        run: timeout 100s node --test tests/connect/test_customer_payload_workerd.mjs
       - name: Assert this verification is strictly offline and non-enabling
         run: |
           python - <<'PY'
