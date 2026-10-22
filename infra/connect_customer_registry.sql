@@ -1,7 +1,9 @@
 -- MUSITU Connect customer runtime draft: research-only, no production migration.
 -- SQLite/D1 transactionality: a single admission INSERT and its triggers must
 -- atomically record a usage event and increment daily and minute counters.
-PRAGMA foreign_keys = ON;
+-- D1 enforces foreign-key constraints by default. The Node SQLite test
+-- fixture enables PRAGMA foreign_keys separately; do not embed a runtime
+-- transaction-scoped PRAGMA in the shared D1 migration.
 
 CREATE TABLE IF NOT EXISTS connect_customer_tenants (
   tenant_id TEXT PRIMARY KEY NOT NULL,
