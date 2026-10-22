@@ -65,5 +65,18 @@
     "offline_canary_tests": 6,
     "customer_admission_authorized": false,
     "production_requests_executed": 0
+  },
+  "offline_customer_provisioning": "SYNTHETIC_ONLY_SCOPED_WEBCRYPTO_ISSUANCE_REVOCATION_SUSPENSION_TESTED_NOT_WIRED",
+  "offline_customer_provisioning_evidence": {
+    "tdd_red_workflow_run_id": 39821856379,
+    "green_connect_workflow_run_id": 39822622193,
+    "local_workerd_d1_workflow_run_id": 39822578505,
+    "synthetic_provisioning_tests": 9,
+    "node_connect_tests": 60,
+    "local_sqlite_reference_tests": 14,
+    "local_workerd_d1_tests": 3,
+    "real_customer_credentials_issued": 0,
+    "customer_admission_authorized": false,
+    "remote_hosted_d1_qualified": false
   }
 }
