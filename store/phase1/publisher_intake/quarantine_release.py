@@ -39,7 +39,7 @@ def allowed_release_url(raw):
         if not path.startswith('/') or '..' in path.split('/') or '\\' in path or '//' in path:
             return False
         if p.hostname == 'github.com':
-            return bool(re.fullmatch(r'/(?:FossifyOrg/Gallery|zhanghai/MaterialFiles)/releases/download/[^/]+/[^/]+\\.apk', path)) and not p.query
+            return bool(re.fullmatch(r'/(?:FossifyOrg/Gallery|zhanghai/MaterialFiles)/releases/download/[^/]+/[^/]+\.apk', path)) and not p.query
         return path != '/'
     except (ValueError, TypeError):
         return False
@@ -65,7 +65,7 @@ def inspect_apk_zip(path):
             total_unpacked = 0
             for e in entries:
                 n = e.filename
-                if not n or n.startswith('/') or '\\' in n or '..' in n.split('/') or '\\x00' in n:
+                if not n or n.startswith('/') or '\\' in n or '..' in n.split('/') or '\x00' in n:
                     raise ValueError('unsafe archive path')
                 if e.flag_bits & 1: raise ValueError('encrypted archive member')
                 if stat.S_IFMT(e.external_attr >> 16) == stat.S_IFLNK: raise ValueError('archive symlink')
@@ -115,18 +115,18 @@ def retrieve_release(url, size, expected_sha256, target):
 def run_tool(argv):
     result = subprocess.run(argv, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode: raise ValueError(f'Android SDK inspection failed: {argv[0]} status={result.returncode}')
-    return result.stdout + '\\n' + result.stderr
+    return result.stdout + '\n' + result.stderr
 
 def inspect_apk(path, cfg, apksigner, aapt):
     report = inspect_apk_zip(path)
     signed = run_tool([apksigner, 'verify', '--verbose', '--print-certs', str(path)])
-    signer = re.findall(r'Signer #\\d+ certificate SHA-256 digest:\\s*([0-9a-fA-F]{64})', signed)
+    signer = re.findall(r'Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]{64})', signed)
     if not signer: raise ValueError('no native signing-certificate SHA-256 digest obtained')
     badging = run_tool([aapt, 'dump', 'badging', str(path)])
-    match = re.search(r"^package: name='([^']+)' versionCode='(\\d+)'", badging, re.MULTILINE)
+    match = re.search(r"^package: name='([^']+)' versionCode='(\d+)'", badging, re.MULTILINE)
     if not match or match.group(1) != cfg['package']: raise ValueError('unqualified package identity')
     permissions = run_tool([aapt, 'dump', 'permissions', str(path)])
-    perms = set(re.findall(r"name='(android\\.permission\\.[A-Z_]+)'", permissions))
+    perms = set(re.findall(r"name='(android\.permission\\.[A-Z_]+)'", permissions))
     report.update({
         'app': cfg['app'], 'upstream_release': cfg['release'], 'exact_upstream_sha256': cfg['sha256'],
         'actual_downloaded_bytes': cfg['size'], 'package_id': match.group(1), 'version_code': match.group(2),
@@ -155,7 +155,7 @@ def main():
             results.append(inspect_apk(apk, cfg, args.apksigner, args.aapt))
     Path(args.output).write_text(json.dumps({'schema':'musitu.store.quarantine-evidence.v1',
         'classification':'UPSTREAM_APK_BYTES_VERIFIED_STATIC_ONLY_NOT_PUBLISHER_APPROVED',
-        'files_retained':False, 'results':results}, indent=2, sort_keys=True) + '\\n')
+        'files_retained':False, 'results':results}, indent=2, sort_keys=True) + '\n')
     print(json.dumps({'status':'STATIC_QUARANTINE_VERIFIED_NOT_STORE_ACCEPTANCE',
                       'verified_artifacts':len(results),
                       'digests':[r['exact_upstream_sha256'] for r in results],
