@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import test from 'node:test';
 import {reserveConnectCustomerRequest, readConnectCustomerUsage} from '../../connect/customer_admission.mjs';
@@ -13,8 +15,8 @@ const TIME = Date.parse('2026-10-22T12:00:00Z');
 const DAY = '2026-10-22';
 const uuid = '33333333-3333-4333-8333-333333333333';
 
-function fixture({alphaLimit=2, betaLimit=3}={}) {
-  const sql = new DatabaseSync(':memory:');
+function fixture({alphaLimit=2, betaLimit=3, filePath=':memory:'}={}) {
+  const sql = new DatabaseSync(filePath);
   sql.exec(SQL);
   const seedTenant = sql.prepare('INSERT INTO connect_customer_tenants (tenant_id,status,daily_limit) VALUES(?,?,?)');
   seedTenant.run('tenant_alpha','active',alphaLimit);
@@ -140,4 +142,24 @@ test('previously verified capabilities are frozen and cannot read usage after re
   f.sql.prepare('UPDATE connect_customer_credentials SET status=? WHERE credential_id=?').run('revoked','cred_alpha');
   assert.deepEqual(await readConnectCustomerUsage({db:f.db,principal:a.principal,utcDay:DAY,nowMs:TIME}),
     {ok:false,status:401,error:'UNAUTHORIZED'});
+});
+
+test('on-disk customer quota, event trail and revocation persist across database reopen',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'musitu-connect-tenant-'));
+  try {
+    const filename=join(dir,'tenant.sqlite');
+    const f=fixture({alphaLimit:1,filePath:filename});
+    assert.equal((await admit(f.env)).ok,true);
+    f.sql.close();
+    const reopened=new DatabaseSync(filename);
+    assert.equal(reopened.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=? AND utc_day=?').get('tenant_alpha',DAY).used,1);
+    assert.equal(rows(reopened,'tenant_alpha').length,1);
+    reopened.prepare('UPDATE connect_customer_credentials SET status=? WHERE credential_id=?').run('revoked','cred_alpha');
+    reopened.close();
+    const restarted=new DatabaseSync(filename);
+    assert.equal(restarted.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?').get('cred_alpha').status,'revoked');
+    restarted.close();
+  } finally {
+    rmSync(dir,{recursive:true,force:true});
+  }
 });
