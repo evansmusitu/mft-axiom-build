@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { Miniflare } from 'miniflare';
 import { reserveConnectCustomerRequest, readConnectCustomerUsage } from '../../connect/customer_admission.mjs';
+import { provisionOfflineTenant, issueOfflineCredential, revokeOfflineCredential, suspendOfflineTenant } from '../../connect/customer_provisioning.mjs';
 
 const SCHEMA = readFileSync(new URL('../../infra/connect_customer_registry.sql', import.meta.url), 'utf8');
 const TIME = Date.parse('2026-10-22T12:34:00Z');
@@ -97,3 +98,50 @@ test('Cloudflare local workerd D1: concurrent admissions do not exceed a single-
     if (mf) await mf.dispose();
   }
 });
+
+test('Cloudflare local D1: synthetic-only issued credentials admit, revoke and suspend correctly',
+  {timeout:30000}, async () => {
+    let db;
+    try {
+      db = await createIsolatedD1();
+      const env = {
+        CONNECT_CUSTOMER_DB:db,
+        CONNECT_CUSTOMER_RUNTIME_ENABLED:'true',
+        CONNECT_CUSTOMER_PROVISIONING_MODE:'isolated-synthetic-only',
+      };
+      const created = await provisionOfflineTenant({
+        env,tenantId:'tenant_gamma',dailyLimit:2,minuteLimit:1,
+      });
+      assert.deepEqual(created,{ok:true,tenant_id:'tenant_gamma'});
+      const issued = await issueOfflineCredential({
+        env,tenantId:'tenant_gamma',scopes:['mining.plan'],
+        expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+      });
+      assert.equal(issued.ok,true,JSON.stringify({ok:issued.ok,error:issued.error}));
+      assert.match(issued.bearer_token,/^mct_[A-Za-z0-9_-]{43}$/);
+      const persisted = await db.prepare(
+        'SELECT token_sha256,can_plan,can_risk FROM connect_customer_credentials WHERE credential_id=?'
+      ).bind(issued.credential_id).first();
+      assert.match(persisted.token_sha256,/^[0-9a-f]{64}$/);
+      assert.equal(persisted.can_plan,1);
+      assert.equal(persisted.can_risk,0);
+      assert.equal(JSON.stringify(persisted).includes(issued.bearer_token),false);
+      const result=await reserve(db,issued.bearer_token,'mining.plan',180,TIME);
+      assert.equal(result.ok,true,JSON.stringify(result));
+      assert.equal(result.principal.tenant_id,'tenant_gamma');
+      const revoked=await revokeOfflineCredential({env,tenantId:'tenant_gamma',
+        credentialId:issued.credential_id});
+      assert.equal(revoked.ok,true,JSON.stringify(revoked));
+      assert.deepEqual(await reserve(db,issued.bearer_token,'mining.plan',181,TIME),
+        {ok:false,status:401,error:'UNAUTHORIZED'});
+      const suspended=await suspendOfflineTenant({env,tenantId:'tenant_gamma'});
+      assert.deepEqual(suspended,{ok:true,tenant_id:'tenant_gamma',status:'suspended'});
+      assert.deepEqual(await issueOfflineCredential({
+        env,tenantId:'tenant_gamma',scopes:['mining.plan'],
+        expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+      }),{ok:false,status:403,error:'TENANT_NOT_ELIGIBLE'});
+      assert.equal((await count(db,'tenant_gamma')).n,1);
+    } finally {
+      if (mf) await mf.dispose();
+    }
+  });
