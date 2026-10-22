@@ -199,3 +199,31 @@ test('SQL enforces UTC day and timestamp coherence before quota updates',async()
   assert.equal(rows(f.sql,'tenant_alpha').length,0);
   assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_daily_usage').get().n,0);
 });
+
+
+test('admission capability cannot read a different database with the same tenant and credential IDs',async()=>{
+  // Two unrelated database bindings may contain coincidentally matching IDs.
+  // A signed-in principal from one binding must not become a capability on
+  // another simply because SQL validates its readable identifier fields.
+  const origin=fixture({alphaLimit:5});
+  const unrelated=fixture({alphaLimit:5});
+  try {
+    const admitted=await admit(origin.env,t1,'mining.plan',
+      '11111111-1111-4111-8111-111111111111');
+    assert.equal(admitted.ok,true);
+    assert.equal((await admit(unrelated.env,t1,'mining.plan',
+      '22222222-2222-4222-8222-222222222222')).ok,true);
+    assert.equal((await admit(unrelated.env,t1,'mining.plan',
+      '33333333-3333-4333-8333-333333333333')).ok,true);
+
+    assert.deepEqual(await readConnectCustomerUsage({
+      db:origin.db,principal:admitted.principal,utcDay:DAY,nowMs:TIME,
+    }),{ok:true,tenant_id:'tenant_alpha',utc_day:DAY,used:1,daily_limit:5});
+    assert.deepEqual(await readConnectCustomerUsage({
+      db:unrelated.db,principal:admitted.principal,utcDay:DAY,nowMs:TIME,
+    }),{ok:false,status:401,error:'UNAUTHORIZED'});
+  } finally {
+    origin.sql.close();
+    unrelated.sql.close();
+  }
+});
