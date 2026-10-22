@@ -136,9 +136,9 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    let type=null,id=null;
    if(url.pathname==='/developer/submissions'&&req.method==='POST')type='submit';
    else {
-     let m=/^\/developer\/submissions\/(sub-[0-9]{5,15})$/.exec(url.pathname);
+     let m=/^\/developer\/submissions\/(sub-(?:[0-9]{5,15}|[a-f0-9]{32}))$/.exec(url.pathname);
      if(m&&req.method==='GET'){type='read';id=m[1];}
-     m=/^\/review\/submissions\/(sub-[0-9]{5,15})$/.exec(url.pathname);
+     m=/^\/review\/submissions\/(sub-(?:[0-9]{5,15}|[a-f0-9]{32}))$/.exec(url.pathname);
      if(m&&req.method==='POST'){type='review';id=m[1];}
    }
    if(!type)return json(404,{ok:false,code:'route_not_found',...denied});
