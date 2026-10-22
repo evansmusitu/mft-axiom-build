@@ -45,10 +45,17 @@
   },
   "offline_customer_request_body_boundary": "NODE_AND_LOCAL_WORKERD_TESTED_64KIB_NOT_WIRED",
   "offline_customer_request_body_limit_bytes": 65536,
-  "offline_customer_request_body_scope": "RAW_JSON_BYTE_BOUNDARY_ONLY_NO_AUTH_OR_SEMANTIC_VALIDATION",
+  "offline_customer_request_body_scope": "RAW_JSON_BYTE_AND_DUPLICATE_KEY_GUARDS_NO_AUTH_OR_SEMANTIC_VALIDATION",
   "offline_customer_request_workerd_evidence": {
     "workflow_run_id": 39748986714,
     "workerd_tests": 2,
+    "customer_admission_authorized": false
+  },
+  "offline_customer_duplicate_json_keys": "REJECTED_IN_NODE_AND_LOCAL_WORKERD_NONPRODUCTION_TESTS",
+  "offline_customer_duplicate_json_evidence": {
+    "red_connect_workflow": 39777354968,
+    "green_connect_workflow": 39777581768,
+    "local_workerd_workflow": 39777752650,
     "customer_admission_authorized": false
   }
 }
