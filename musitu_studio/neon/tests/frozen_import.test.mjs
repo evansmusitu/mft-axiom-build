@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {importFrozenStudioLedger} from '../frozen_import.mjs';
+import {readFileSync} from 'node:fs';
 
 const owner='synthetic-owner',pid='a1111111-1111-4111-8111-111111111111';
 const jid='b2222222-2222-4222-8222-222222222222';
@@ -26,6 +27,17 @@ function snapshot(){
       at:'2026-10-21T00:00:01Z',details:'{"source":"synthetic","single_admin":true}'}]
   };
 }
+// Fake catalog rows reflect the canonical migrations; altered function bodies
+// must be rejected even if the trigger's name, event and table appear valid.
+const canonicalFunctions={};
+for(const path of ['../0001_enterprise_postgres_schema.sql',
+                   '../0002_harden_terminal_asset_integrity.sql']){
+  const sql=readFileSync(new URL(path,import.meta.url),'utf8');
+  for(const match of sql.matchAll(/CREATE OR REPLACE FUNCTION studio_v03\.([a-z_]+)\(\) RETURNS trigger\s+LANGUAGE plpgsql AS \$body\$([\s\S]*?)\$body\$;/g))
+    canonicalFunctions[match[1]]=match[2].replace(/\r\n/g,'\n').trim();
+}
+assert.deepEqual(Object.keys(canonicalFunctions).sort(),
+  ['deny_audit_mutation','enforce_asset_integrity','enforce_job_asset_integrity']);
 const triggerNames=[
  'job_state_integrity','asset_insert_integrity','asset_update_integrity',
  'asset_delete_integrity','audit_immutable_update','audit_immutable_delete'
@@ -39,7 +51,9 @@ const triggerMeta=[
  ['audit_events',11,'deny_audit_mutation']
 ];
 function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
-  omitTrigger=false,connectError=false,spoofTrigger=false,disabledTrigger=false}={}){
+  omitTrigger=false,connectError=false,spoofTrigger=false,disabledTrigger=false,
+  partialColumnTrigger=false,conditionalTrigger=false,tamperFunctionBody=false,
+  privilegedFunction=false}={}){
   const trace=[],state=Object.fromEntries(tables.map(t=>[t,[]]));
   if(existing)state.projects.push(sqlcopy(snapshot().projects[0]));
   let checkpoint=null,connected=false,ended=false;
@@ -58,7 +72,13 @@ function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
         return {rows:triggerNames.map((tgname,i)=>({
           tgname,table_schema:'studio_v03',table_name:triggerMeta[i][0],
           tgtype:triggerMeta[i][1],tgenabled:disabledTrigger&&i===2?'D':'O',
+          update_columns:partialColumnTrigger&&i===0?'7':'',
+          has_when_clause:!!(conditionalTrigger&&i===2),
           function_schema:'studio_v03',function_name:triggerMeta[i][2],
+          function_body:tamperFunctionBody&&i===0?'BEGIN RETURN NEW; END;':
+            canonicalFunctions[triggerMeta[i][2]],
+          function_language:'plpgsql',function_args:0,
+          security_definer:!!(privilegedFunction&&i===0),returns_trigger:true,
           // A same-named but wrongly wired trigger must never authorize import.
           ...(spoofTrigger&&i===0?{tgtype:23,function_name:'permissive_noop'}:{})
         })).filter((_,i)=>!omitTrigger||i!==2)};
@@ -139,6 +159,27 @@ test('rejects a same-named but incorrectly wired trigger before writing',async()
 test('rejects disabled integrity triggers rather than accepting trigger names',async()=>{
   const f=fake({disabledTrigger:true});
   await assert.rejects(()=>invoke(f),/NEON_TRIGGER_TOPOLOGY_MISMATCH/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+});
+test('refuses an UPDATE OF-only job guard whose tgtype matches broad UPDATE',async()=>{
+  const f=fake({partialColumnTrigger:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_TOPOLOGY_MISMATCH/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+  assert.ok(f.trace.includes('ROLLBACK'));
+});
+test('refuses an integrity trigger limited by WHEN predicate',async()=>{
+  const f=fake({conditionalTrigger:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_TOPOLOGY_MISMATCH/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+});
+test('refuses a replacement no-op trigger function with matching catalog name',async()=>{
+  const f=fake({tamperFunctionBody:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_FUNCTION_BODY_MISMATCH/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+});
+test('refuses SECURITY DEFINER function privilege drift before data insert',async()=>{
+  const f=fake({privilegedFunction:true});
+  await assert.rejects(()=>invoke(f),/NEON_TRIGGER_FUNCTION_BODY_MISMATCH/);
   assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
 });
 test('fails before commit if independently read-back asset differs from source',async()=>{
