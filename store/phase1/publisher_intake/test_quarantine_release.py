@@ -4,7 +4,8 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from quarantine_release import allowed_release_url, inspect_apk_zip, verify_artifact
+from unittest.mock import patch
+from quarantine_release import allowed_release_url, inspect_apk_zip, verify_artifact, inspect_apk
 
 def zip_bytes(entries):
     buf = io.BytesIO()
@@ -44,5 +45,18 @@ class QuarantineTests(unittest.TestCase):
             p.write_bytes(zip_bytes({'AndroidManifest.xml':b'a', 'classes.dex':b'dex'}))
             out=inspect_apk_zip(p)
             self.assertEqual(out['archive_integrity'],'ZIP_ENTRIES_VALIDATED_ONLY')
+
+    def test_real_aapt_permissions_are_counted_and_high_privilege_flags_retained(self):
+        fake_outputs = [
+            "Signer #1 certificate SHA-256 digest: " + "a"*64,
+            "package: name='org.fossify.gallery' versionCode='29' versionName='1.14.0'",
+            "uses-permission: name='android.permission.CAMERA'\nuses-permission: name='android.permission.MANAGE_EXTERNAL_STORAGE'"
+        ]
+        with patch('quarantine_release.inspect_apk_zip', return_value={'archive_integrity':'ZIP_ENTRIES_VALIDATED_ONLY'}):
+            with patch('quarantine_release.run_tool', side_effect=fake_outputs):
+                report = inspect_apk(Path('fake.apk'), {'app':'Fossify Gallery', 'release':'1.14.0',
+                    'sha256':'0'*64, 'size':123, 'package':'org.fossify.gallery'}, 'apksigner', 'aapt')
+        self.assertEqual(report['declared_android_permission_count'],2)
+        self.assertIn('android.permission.MANAGE_EXTERNAL_STORAGE',report['manual_security_review_flags'])
 
 if __name__=='__main__': unittest.main()
