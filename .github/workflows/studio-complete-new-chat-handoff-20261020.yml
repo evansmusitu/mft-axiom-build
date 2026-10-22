@@ -8,6 +8,9 @@ on:
       - 'ops/studio_snapshot_provider_readonly_20261020.py'
       - 'docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md'
       - 'musitu_studio/neon/**'
+      - 'musitu_studio/edge/public_v03/**'
+      - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
+      - 'docs/STUDIO_V03_BROWSER_SCENE_WORKBENCH_20261022.md'
       - 'docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md'
 permissions: {contents: read}
 concurrency:
@@ -42,6 +45,8 @@ jobs:
           node --check musitu_studio/edge/src/v03_entry.mjs
           node --check musitu_studio/edge/src/v03_do_entry.mjs
           node --check musitu_studio/edge/public_v03/studio.js
+          node --check musitu_studio/edge/public_v03/scene-preview.mjs
+          test -f musitu_studio/edge/tests/v03_scene_preview.test.mjs
       - name: Install test dependencies, save exact resolved lockfile in handoff
         working-directory: musitu_studio/edge
         run: npm install --ignore-scripts --no-audit --no-fund

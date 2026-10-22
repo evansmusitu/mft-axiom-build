@@ -58,6 +58,30 @@ Only verified staff identities can use a granted membership. Owners cannot silen
 <div class="eyebrow">03 / CREATE</div><h2>Declarative Blender scene</h2></div>
 <span class="chip">CPU ONLY</span></div>
 <p class="muted">Use approved primitive objects, materials and keyframes. Scripts, arbitrary files and remote URLs are never executed.</p>
+<div class="scene-workbench" aria-label="Offline 3D scene preview">
+  <div class="preview-toolbar"><strong>LIVE 3D VIEWPORT <small>LOCAL · NO CLOUD RENDER</small></strong>
+    <div class="row"><button type="button" id="preview-refresh" class="ghost">↻ Preview</button>
+      <button type="button" id="preview-reset" class="ghost">Reset view</button>
+      <button type="button" id="scene-download-json" class="ghost">↓ Scene JSON</button></div></div>
+  <canvas id="scene-preview-canvas" width="800" height="480" aria-label="Three-dimensional preview of the scene; drag to orbit, pinch to zoom" role="img"></canvas>
+  <div id="scene-preview-status" class="preview-status" role="status" aria-live="polite">Loading local preview…</div>
+  <div class="timeline-control"><button id="preview-play" class="ghost" type="button">Play animation</button>
+    <label for="scene-frame">Frame <strong id="scene-frame-label">1 / 32</strong></label>
+    <input type="range" id="scene-frame" min="1" max="32" value="1" step="1"></div>
+  <div class="preview-inspector"><div class="palette-add"><span>ADD</span>
+    <button class="ghost" type="button" data-add-primitive="cube">+ Cube</button>
+    <button class="ghost" type="button" data-add-primitive="sphere">+ Sphere</button>
+    <button class="ghost" type="button" data-add-primitive="cylinder">+ Cylinder</button></div>
+    <div class="inspector-fields"><label>Selected<select id="scene-object-select"></select></label>
+    <label>X<input id="scene-pos-x" type="number" min="-20" max="20" step=".1"></label>
+    <label>Y<input id="scene-pos-y" type="number" min="-20" max="20" step=".1"></label>
+    <label>Z<input id="scene-pos-z" type="number" min="-20" max="20" step=".1"></label>
+    <label>Material<select id="scene-material">
+      <option>teal</option><option>copper</option><option>ivory</option><option>graphite</option>
+      <option>blueglass</option><option>rubber</option><option>wood</option></select></label>
+    <button type="button" id="scene-apply-inspector">Apply position</button></div></div>
+  <p class="muted preview-footnote">Gesture: drag to orbit · pinch or scroll to zoom · scrub frames. This is a local approximation, not a Blender/Cycles or GPU render. Submitting a scene still requires signed staff authorization and project approval.</p>
+</div>
 <form id="job-form"><div class="row">
 <label>Project<select id="project-select" required><option value="">Select a project</option></select></label>
 <label>Compute<select id="device"><option value="CPU">CPU — approved only</option></select></label>
@@ -77,4 +101,4 @@ rows="15" aria-label="Blender scene JSON"></textarea></label>
 <img id="preview-image" class="preview-image" alt="Render output preview" hidden></section>
 <footer>MUSITU Studio v0.3 · SQLite Durable Objects, strict Cloudflare Access and immutable audit<br>
 <small>Independent-review and sole-administrator modes are labeled separately. CPU/GPU require separate verified release conditions; V0.2 remains isolated.</small></footer>
-</main></div><script src="/studio.js" defer></script></body></html>
+</main></div><script src="/studio.js" defer></script><script type="module" src="/scene-preview.mjs"></script></body></html>
