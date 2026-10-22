@@ -102,6 +102,40 @@ qualified per-operation semantic validator. A malformed request may still
 consume a quota reservation; this must be approved as a product policy.
 No new customer API should be deployed merely because these unit tests pass.
 
+## Combined customer-ingress canary — offline research only
+
+`connect/customer_ingress_canary.mjs` is an **isolated callable module**;
+it is neither imported by `connect/production_worker.mjs` nor deployed,
+routed, exposed to clients or connected to any live Cloudflare secret.
+
+For internal synthetic tests only, it composes **route-selected scope →
+tenant credential validation and atomic SQLite quota reservation → 64-KiB
+JSON transport and duplicate-key checks**. No Mining planner, Axiom
+calculation, forecast, external HTTP request, record storage or commercial
+charge is executed. An authorized test request returns only
+`NONPRODUCTION_INGRESS_CHECK_ONLY`, `executed:false` and its generated
+audit ID. No tenant identity, access token or customer request data is
+returned. The independent canary feature flag defaults to disabled.
+
+A denied/unknown credential consumes no quota. **An authorized request with
+malformed, duplicate-key or oversized JSON consumes one *attempt*
+reservation**, even though no calculation runs. That is a proposed
+accounting rule only, not an approved commercial billing policy.
+
+Regression evidence: the disabled seam failed five of six new Node
+integration tests as intended in GitHub Connect run `39778665626`. The
+composed module and quota-specific test fixture subsequently passed
+**50/50** Node tests in run `39779040074` (including all six new
+canary tests), with production admission guard preserved. No actual
+Cloudflare D1, credentials, staging Worker or real customer was involved.
+
+**Remaining before launch:** a staging-only hosted D1 account with approved
+ownership, end-to-end semantic Mining validation and bounded compute,
+production-safe tenant-scoped routing and authorization, secure customer
+provisioning, reliable revocation, tenancy-wide accounting and data deletion,
+real support paging, pilot agreements, performance tests and separate
+production release authorization.
+
 ## Local regression evidence, not production qualification
 
 ```bash
