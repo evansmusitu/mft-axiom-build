@@ -21,13 +21,16 @@ jobs:
           set -euo pipefail
           python3 -m py_compile store/phase1/publisher_intake/quarantine_release.py
           python3 -m unittest discover -s store/phase1/publisher_intake -p 'test_quarantine_release.py' -v
-      - uses: android-actions/setup-android@v3
-      - name: Install official Android SDK build-tools
+      - name: Use preinstalled SDK (avoid obsolete Android SDK 'tools' installer)
         run: |
           set -euo pipefail
-          sdkmanager --install 'build-tools;35.0.0'
-          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt"
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
+          SDK_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ ! -x "$SDK_HOME/build-tools/35.0.0/apksigner" ]; then
+            "$SDK_HOME/cmdline-tools/16.0/bin/sdkmanager" --install 'build-tools;35.0.0'
+          fi
+          test -x "$SDK_HOME/build-tools/35.0.0/apksigner"
+          test -x "$SDK_HOME/build-tools/35.0.0/aapt"
       - name: Inspect pinned official GitHub APK binaries without retention
         run: |
           set -euo pipefail
