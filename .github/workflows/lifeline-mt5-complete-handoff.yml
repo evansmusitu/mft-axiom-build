@@ -1,0 +1,59 @@
+name: LIFELINE Complete Portable Drive Handoff Build
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-complete-handoff.yml'
+      - 'products/lifeline-mt5-ai-studio/handoff/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  create-complete-verifiable-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run portable product backend and Windows interface regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'fastapi>=0.115,<1' 'httpx>=0.28,<1'
+          python -m unittest discover -s products/lifeline-mt5-ai-studio/windows -p 'test_*.py' -q 2>&1 | tee /tmp/lifeline-windows-tests.txt
+          python -m unittest discover -s products/lifeline-mt5-ai-studio/infra/modal -p 'test_*.py' -q 2>&1 | tee /tmp/lifeline-modal-tests.txt
+          (cd products/lifeline-mt5-ai-studio/infra/cloudflare && npm ci --ignore-scripts --no-audit --no-fund >/dev/null && node --test test.mjs > /tmp/lifeline-edge-tests.txt)
+          echo 'package_test_gates_passed=true'
+      - name: Retrieve verified sample native Windows EX5 artifact when still available
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/lifeline-native-artifact
+          if gh run download 39562462108 --repo evansmusitu/mft-axiom-build --name lifeline-reviewed-native-ex5-proof --dir /tmp/lifeline-native-artifact >/dev/null 2>&1; then
+            echo 'native_sample_artifact_retrieved=true'
+            test -f /tmp/lifeline-native-artifact/reviewed-native-proof.json
+            test -f /tmp/lifeline-native-artifact/ExampleSafeEA.ex5
+          else
+            echo 'native_sample_artifact_retrieved=false'
+          fi
+      - name: Build clean SHA256-indexed source package with safety exclusion report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/handoff/build_portable_package.py
+      - name: Upload portable package to GitHub Actions as a downloadable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-mt5-complete-handoff
+          path: out/lifeline-handoff/
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: true

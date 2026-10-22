@@ -1,0 +1,18 @@
+MISSION: RESUME LIFELINE MT5 AI STUDIO FROM THE COMPLETE VERIFIED PRIVATE DRIVE HANDOFF — DO NOT RECONSTRUCT FROM MEMORY.
+
+Use my connected Google Drive and GitHub integrations. First open my private Drive folder:
+https://drive.google.com/drive/folders/1JZqELsZ7wO2IkS2UvirCI31g1faND8Vd
+
+Find the NEWEST file whose name starts LIFELINE_MT5_AI_STUDIO_COMPLETE_HANDOFF_20261022_ and ends .zip. Download and inspect the ZIP before engineering anything. Read README_START_HERE.md, handoff/CURRENT_STATE_AND_NEXT_STEPS.md, handoff/SOURCE_MANIFEST.json, handoff/VALIDATION_REPORT.txt, handoff/SECURITY_EXCLUSIONS.md, SHA256SUMS.txt and the product README/most recent validation report. Verify the package SHA manifest, note the exact pinned source commit and identify any excluded files. Treat actual committed source and verified evidence as authoritative, not prior chat summaries.
+
+Repo: evansmusitu/mft-axiom-build
+Isolated branch: product/lifeline-mt5-fivecloud-isolated-20261020
+Draft PR: https://github.com/evansmusitu/mft-axiom-build/pull/30
+Protected main pinned prior reference: bc48ab8aed137e61b76e25f113bb29e1efd7b11a (verify fresh).
+Last recorded product v1.2: Cloudflare identity-only /owner/verify and 3/10 Worker identity bindings; no independently verified successful owner app JWT session; 7 backend bindings missing. On-demand vendor-signed Windows EX5 compilation passed; private Modal-Neon signed synthetic probe passed; no persistent native MT5 Windows host.
+
+After reading, RE-CHECK LIVE GitHub HEAD, Cloudflare Access owner login/MFA/session evidence, Worker secret-name readback, Vercel SSO, Modal/Neon status and CI results. Reconcile any branch changes since the ZIP. Continue autonomously on this isolated branch and zero budget only within authorized scope; solve safe gates, run real tests and distinguish proposed/implemented/verified.
+
+Critical security: owner's Cloudflare dashboard MFA alone DOES NOT prove this LIFELINE app sign-in. If still absent, direct owner only to https://lifeline-mt5-stage.mftintelligence.com/owner/verify in a normal personal browser, accept status/redacted screenshot only—no tokens, JWT, cookies, passwords or codes. Do not expose backend or install missing Worker secrets before owner JWT verification. No public MT5 operations, shell or trading. Do not rotate paired keys or replay one-time bootstrap workflows. No purchases, broker deposits, merges, main modifications or changes to unrelated MUSITU projects. If continuous Windows hosting is genuinely required, request/verify an owner-approved existing host rather than renting or pretending ephemeral GitHub runners are permanent.
+
+Your output must include: exact files and source SHA inspected, fresh capabilities, accepted gates with evidence links, honest remaining blockers, concrete new commits/tests if authorized, and updated portable handoff when significant progress is made. Complete everything possible yourself and stop only at actual identity, security, cost or external-host authorization gates.
