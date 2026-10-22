@@ -81,7 +81,6 @@ def cube(name, loc, scl, material, bevel=0.0):
     if material:ob.data.materials.append(material)
     if bevel:
         m=ob.modifiers.new('machined_precision_edges','BEVEL');m.width=bevel;m.segments=2
-        ob.modifiers.new('weighted_normals','WEIGHTED_NORMAL')
     return ob
 
 
@@ -222,7 +221,7 @@ def build_2077(steel,ink,cyan,purple,gold,white):
     return main
 
 
-def build_face(steel,mercury,cyan,white,gold):
+def build_face(steel,mercury,cyan,white,gold,ink):
     # Bordered half-ellipsoid parameterization with anatomical cheek, nose, eyebrow,
     # mouth, inner orbital basins, jaw; all purely shader/mesh authored.
     nx=120;nz=100
@@ -483,7 +482,7 @@ def main():
     build_blackhole(gold,cyan,ink)
     build_fragment_transformation(cyan,purple,steel)
     face_before={o.name for o in bpy.data.objects}
-    build_face(steel,mercury,cyan,white,gold)
+    build_face(steel,mercury,cyan,white,gold,ink)
     face_root=bpy.data.objects.new('AI_FACE_MATCHCUT_MASTER_VISIBILITY',None)
     bpy.context.collection.objects.link(face_root);face_root.location=(0,74,41)
     bpy.context.view_layer.update()
