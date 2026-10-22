@@ -126,7 +126,7 @@ def inspect_apk(path, cfg, apksigner, aapt):
     match = re.search(r"^package: name='([^']+)' versionCode='(\d+)'", badging, re.MULTILINE)
     if not match or match.group(1) != cfg['package']: raise ValueError('unqualified package identity')
     permissions = run_tool([aapt, 'dump', 'permissions', str(path)])
-    perms = set(re.findall(r"name='(android\.permission\\.[A-Z_]+)'", permissions))
+    perms = set(re.findall(r"name='(android\.permission\.[A-Z_]+)'", permissions))
     report.update({
         'app': cfg['app'], 'upstream_release': cfg['release'], 'exact_upstream_sha256': cfg['sha256'],
         'actual_downloaded_bytes': cfg['size'], 'package_id': match.group(1), 'version_code': match.group(2),
