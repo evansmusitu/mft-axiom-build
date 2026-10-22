@@ -1,0 +1,17 @@
+# MUSITU Studio V0.3 — fail-closed Neon promotion coordinator (2026-10-22)
+
+**STAGING SOURCE ONLY. NOT DEPLOYED. NO CUSTOMER DATA MOVED. NO CUTOVER.**
+
+New `musitu_studio/neon/migration_promotion_guard.mjs` is an isolated, dependency-injected promotion policy and rollback coordinator. It requires all 15 provider-evidence gates (signed frozen Cloudflare SQLite export; complete five-table HMACs; R2 integrity; PG v2, least-privilege and independent imported snapshot restore; verified private transport with public connections blocked; signed-browser Access E2E; tested fallback; Neon organization-wide spending controls; separately proven Modal zero-overage; source-disabled rendering). It rejects stale receipts (>5m), source-head changes, extra/missing row counts and keyed digests, missing provider receipt identity, synthetic flags, changed freeze epochs and all unsigned/unverified gates. HMAC comparison is timing-safe.
+
+An injected authenticated operator control plane must **independently recheck all provider receipts twice** before attempting a durable, exclusive lease and compare-and-swap from SQLite DO to a qualified Neon backend. It verifies signed-browser and target reconciliation after switch. Any post-switch failure attempts immediate compare-and-swap back to SQLite DO, with a critical explicit error if rollback cannot be verified. Even a lost CAS acknowledgement forces route readback and rollback. No external dependencies, secrets, rows, URLs, paid operations, or real routing integration are supplied by this source-only module.
+
+The offline fixture includes successful simulated promotion and negative tests for stale/forged receipts, wrong head, missing hard spending guarantee, exposed channel, incomplete restore, invalid row HMAC, lost CAS acknowledgement, concurrent lease refusal, failed browser/postcheck and rollback failure. **The positive test is only a mock:** fabricated fixture booleans do NOT constitute real provider attestation. The `verifyProviderReceipts` callback and provider-backed lease/CAS are mandatory and presently unimplemented. Never wire this into live routing by setting an environment variable.
+
+## Current real provider evidence and hard blockers
+
+At start, Neon Scale project `proud-frog-19561447` had `block_public_connections=true`, 0.25 CU, 60-second suspend and tight quotas; project usage was reported as zero. A read-only PostgreSQL catalog qualification attempt through connected Neon against isolated recovery branch `br-noisy-math-b5xu9qrb` was **denied by the provider** as `blocked network`. This is a successful fail-closed network restriction, **not** proof of working private Worker-to-Neon access or hosted PG17 function-body attestation.
+
+The real signed-owner live Cloudflare DO export and freeze, production source/target HMAC reconciliation, private protected connection, genuine live browser-to-Neon test, imported-data restore, Cloudflare DO PITR and Neon/Modal enforced spending guarantees remain unverified. This precludes authorized production cutover. Keep SQLite DO as production, preserve existing Access, R2, V0.2, Axiom main; keep CPU/GPU source-off.
+
+Read-only Cloudflare topology via GitHub Actions on previous SHA `4941e3ec20ad82b4597ec24ac1ee0277779a3e1a` passed 8 protected redirects, CPU/GPU off, no writes; full Edge 95/95, prior Neon 60/60. Reverify all checks at the new head, never reuse these as new-head evidence.

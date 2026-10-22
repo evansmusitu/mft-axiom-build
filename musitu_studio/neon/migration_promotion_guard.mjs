@@ -1,0 +1,136 @@
+/** MUSITU Studio V0.3: staged, provider-injected Neon promotion guard.
+ * Source only; not deployed or connected to live routes. External provider
+ * callbacks MUST be authenticated and independently prove each claim.
+ */
+import {timingSafeEqual} from 'node:crypto';
+const TABLES=Object.freeze(['projects','memberships','jobs','assets','audit_events']);
+const HASH=/^[0-9a-f]{64}$/i, NONCE=/^[a-zA-Z0-9-]{16,128}$/;
+const GATES=Object.freeze([
+  'cloudflare_owner_signed_export','source_writes_frozen','source_snapshot_complete',
+  'neon_schema_v2_attested','neon_least_privilege_role',
+  'target_all_rows_reconciled','r2_references_verified','private_worker_neon_transport',
+  'access_policy_unchanged','signed_browser_end_to_end','neon_hosted_import_restore',
+  'rollback_preserves_sqlite','organization_spending_enforced',
+  'modal_zero_out_of_pocket_enforced','rendering_source_locked'
+]);
+const fail=code=>{throw Error(code)};
+const goodHash=v=>typeof v==='string'&&HASH.test(v);
+const shortText=v=>typeof v==='string'&&v.length>0&&v.length<=128;
+function sameHash(a,b){return goodHash(a)&&goodHash(b)&&timingSafeEqual(Buffer.from(a,'hex'),Buffer.from(b,'hex'))}
+function validReceipt(r){
+  if(!r||typeof r!=='object'||Array.isArray(r)||r.verified!==true||
+    !shortText(r.freeze_id)||!r.counts||!r.table_hmac||
+    Object.keys(r.counts).sort().join('|')!==[...TABLES].sort().join('|')||
+    Object.keys(r.table_hmac).sort().join('|')!==[...TABLES].sort().join('|'))return false;
+  let size=0;
+  for(const t of TABLES){
+    if(!Number.isSafeInteger(r.counts[t])||r.counts[t]<0||r.counts[t]>25000||
+      !goodHash(r.table_hmac[t]))return false;
+    size+=r.counts[t];
+  }
+  return size<=25000;
+}
+/** Offline evidence contract; NEVER proof that a provider receipt is genuine. */
+export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()}={}){
+  if(!e||typeof e!=='object'||Array.isArray(e))fail('STUDIO_EVIDENCE_INVALID');
+  if(!/^[0-9a-f]{40}$/i.test(expectedHead||''))fail('STUDIO_EXPECTED_SOURCE_HEAD_REQUIRED');
+  if(e.source_head!==expectedHead)fail('STUDIO_SOURCE_HEAD_CHANGED');
+  if(!NONCE.test(e.run_id||''))fail('STUDIO_ATTESTATION_RUN_ID_INVALID');
+  const timestamp=Date.parse(e.checked_at||'');
+  if(!Number.isFinite(timestamp)||!Number.isFinite(now)||
+    timestamp>now+30000||now-timestamp>300000)fail('STUDIO_EVIDENCE_STALE');
+  if(!Array.isArray(e.gates)||e.gates.length!==GATES.length)
+    fail('STUDIO_MISSING_PROVIDER_GATES');
+  const found=new Set();
+  for(const g of e.gates){
+    if(!g||typeof g!=='object'||found.has(g.name)||!GATES.includes(g.name))
+      fail('STUDIO_GATE_DUPLICATE_OR_UNKNOWN');
+    found.add(g.name);
+    if(g.verified!==true||g.synthetic===true||g.provider_receipt_verified!==true||
+      !shortText(g.receipt_id)||!shortText(g.provider)||!shortText(g.checked_at))
+      fail('STUDIO_UNVERIFIED_GATE_'+String(g.name));
+    const t=Date.parse(g.checked_at);
+    if(!Number.isFinite(t)||t>now+30000||now-t>300000)
+      fail('STUDIO_STALE_GATE_'+g.name);
+  }
+  for(const name of GATES)if(!found.has(name))fail('STUDIO_MISSING_GATE_'+name);
+  if(!validReceipt(e.source_receipt)||!validReceipt(e.target_receipt))
+    fail('STUDIO_ALL_TABLE_RECEIPTS_REQUIRED');
+  const a=e.source_receipt,b=e.target_receipt;
+  if(a.freeze_id!==b.freeze_id||a.freeze_id!==e.freeze_id)
+    fail('STUDIO_FREEZE_ID_MISMATCH');
+  for(const t of TABLES){
+    if(a.counts[t]!==b.counts[t]||!sameHash(a.table_hmac[t],b.table_hmac[t]))
+      fail('STUDIO_SOURCE_TARGET_MISMATCH_'+t.toUpperCase());
+  }
+  if(e.cloudflare_database_of_record!=='SQLITE_DO'||
+     e.neon_project_is_synthetic_proof===true||e.cpu_enabled!==false||
+     e.gpu_enabled!==false)fail('STUDIO_LIVE_TOPOLOGY_NOT_QUALIFIED');
+  if(e.channel?.block_public_connections!==true||
+     e.channel?.least_privilege!==true||
+     e.channel?.private_path_independently_verified!==true)
+    fail('STUDIO_PROTECTED_NEON_TRANSPORT_UNQUALIFIED');
+  if(e.billing?.neon_organization_hard_spend_enforced!==true||
+     e.billing?.modal_zero_out_of_pocket_enforced!==true||
+     e.billing?.project_quotas_not_used_as_spend_proof!==true)
+    fail('STUDIO_SPENDING_GATE_NOT_ENFORCED');
+  if(e.rollback?.cloudflare_sqlite_intact!==true||
+     e.rollback?.restore_pretested!==true||
+     e.rollback?.snapshot_of_imported_neon_restored!==true)
+    fail('STUDIO_RECOVERY_GATE_UNQUALIFIED');
+  return Object.freeze({qualified:true,run_id:e.run_id,source_head:expectedHead,
+    freeze_id:e.freeze_id,gate_count:GATES.length,table_counts:Object.freeze({...a.counts})});
+}
+const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVALID_'+name)};
+/** All callbacks must use authenticated, durable provider controls.
+ * CAS must atomically preserve the original SQLite route as rollback target.
+ * No cloud provider is contacted by this source-only module itself.
+ */
+export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
+  exclusiveLease,readRoute,compareAndSwapRoute,verifySignedBrowser,
+  verifyReconciledTarget,verifyProviderReceipts}={}){
+  for(const [name,fn] of Object.entries({readEvidence,exclusiveLease,readRoute,
+    compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts}))
+    need(fn,name);
+  const lease=await exclusiveLease();
+  if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
+    fail('STUDIO_EXCLUSIVE_LEASE_REQUIRED');
+  let switched=false,rollbackError=null;
+  try{
+    if(await readRoute()!=='SQLITE_DO')fail('STUDIO_SOURCE_NOT_ACTIVE');
+    const first=await readEvidence();
+    const qualified=assertStudioNeonPromotionEvidence(first,{expectedHead});
+    if(await verifyProviderReceipts(first)!==true)
+      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    const second=await readEvidence();
+    assertStudioNeonPromotionEvidence(second,{expectedHead});
+    if(await verifyProviderReceipts(second)!==true)
+      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    if(second.run_id!==qualified.run_id||second.freeze_id!==qualified.freeze_id)
+      fail('STUDIO_EVIDENCE_EPOCH_CHANGED');
+    if(await compareAndSwapRoute('SQLITE_DO','NEON_PROTECTED')!==true)
+      fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
+    switched=true;
+    const [browser,reconciled]=await Promise.all([
+      verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
+    if(browser!==true||reconciled!==true)fail('STUDIO_POSTCUTOVER_PROOF_FAILED');
+    if(await readRoute()!=='NEON_PROTECTED')fail('STUDIO_ROUTE_READBACK_FAILED');
+    return {promoted:true,route:'NEON_PROTECTED',qualified_gates:qualified.gate_count,
+      source_sqlite_preserved:true,rendering_enabled:false,run_id:qualified.run_id};
+  }catch(error){
+    let observed;
+    try{observed=await readRoute()}
+    catch{rollbackError=Error('STUDIO_ROUTE_READBACK_UNAVAILABLE')}
+    if(switched||observed==='NEON_PROTECTED'){
+      try{
+        if(await compareAndSwapRoute('NEON_PROTECTED','SQLITE_DO')!==true||
+          await readRoute()!=='SQLITE_DO')throw Error('STUDIO_ROLLBACK_READBACK_FAILED');
+      }catch(e){rollbackError=e}
+    }else if(observed!=='SQLITE_DO')rollbackError=Error('STUDIO_ROUTE_UNKNOWN_AFTER_FAILURE');
+    if(rollbackError)fail('STUDIO_CRITICAL_ROLLBACK_FAILED_MANUAL_RECOVERY_REQUIRED');
+    throw error;
+  }finally{
+    await lease.release();
+  }
+}
+export const STUDIO_NEON_REQUIRED_GATES=GATES;
