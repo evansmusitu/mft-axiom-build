@@ -13,13 +13,13 @@ const sha=value=>createHash('sha256').update(value).digest('hex');
 const uuid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 let index=0;
 
-function fixture(){
+function fixture({alphaDaily=2,alphaMinute=2}={}){
   const sql=new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
   sql.exec(SCHEMA);
   for(const tenant of ['tenant_alpha','tenant_beta']){
     sql.prepare('INSERT INTO connect_customer_tenants(tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)')
-      .run(tenant,'active',2,2);
+      .run(tenant,'active',tenant==='tenant_alpha'?alphaDaily:2,tenant==='tenant_alpha'?alphaMinute:2);
   }
   const insert=sql.prepare('INSERT INTO connect_customer_credentials(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) VALUES(?,?,?,?,?,?,?)');
   insert.run('cred_alpha','tenant_alpha',sha(tokenA),'active','2030-01-01T00:00:00Z',1,0);
@@ -92,7 +92,9 @@ test('missing customer auth is denied before parsing an oversized body or reserv
 });
 
 test('after authentication, duplicate JSON keys and oversized body fail without executing upstream',async()=>{
-  const f=fixture();
+  // Keep the daily limit above the minute limit so this case tests the
+  // minute-specific denial instead of the earlier daily-quota trigger.
+  const f=fixture({alphaDaily:5});
   const forged=await inspect(req({payload:'{"tenant_id":"alpha","tenant_id":"beta"}'}),f.env);
   assert.deepEqual(forged,{status:400,body:{ok:false,error:'DUPLICATE_JSON_KEY'}});
   const huge=await inspect(req({payload:'{"x":"'+ 'x'.repeat(70000)+'"}'}),f.env);
