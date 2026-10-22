@@ -68,6 +68,14 @@ the disabled implementation failed all 10 new tests while 30 existing
 Node tests passed. After implementation, the same expanded Node suite passed
 **40/40** in GitHub Connect CI run `39748278360`.
 
+A second offline test surface composes the same transport-reader module
+into an isolated Cloudflare **workerd fetch()** handler through
+`tests/connect/test_customer_payload_workerd.mjs`. The GitHub run
+`39748986714` passed **2/2** workerd HTTP tests (valid JSON and oversized
+UTF-8 request) alongside the **13/13** reference SQLite and **2/2**
+local D1 tests. Workerd simulation is not a hosted Worker or a real D1
+account. No customer-facing routes or authentication settings were changed.
+
 **Not established:** duplicate-key rejection, schema-level Mining semantics,
 authenticated tenant admission, real D1 metering, clock/CPU limits, global
 in-flight request limits, customer billing and security ownership. Future
