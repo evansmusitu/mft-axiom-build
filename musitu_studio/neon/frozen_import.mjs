@@ -48,20 +48,47 @@ async function assertEmpty(client){
   }
 }
 /** A transaction must retain the real v2 immutability triggers. */
+// PostgreSQL pg_trigger.tgtype bitmasks: ROW=1, BEFORE=2,
+// INSERT=4, DELETE=8, UPDATE=16. Names alone do not prove guards.
+// The importer must refuse a wrong table, firing event or called function.
+const REQUIRED_TRIGGERS=Object.freeze({
+  job_state_integrity:['jobs',19,'enforce_job_asset_integrity'],
+  asset_insert_integrity:['assets',7,'enforce_asset_integrity'],
+  asset_update_integrity:['assets',19,'enforce_asset_integrity'],
+  asset_delete_integrity:['assets',11,'enforce_asset_integrity'],
+  audit_immutable_update:['audit_events',19,'deny_audit_mutation'],
+  audit_immutable_delete:['audit_events',11,'deny_audit_mutation']
+});
 async function assertIntegrityTriggers(client){
   const versions=await client.query('SELECT COUNT(*) AS n FROM studio_v03._studio_schema_versions WHERE version=2');
   ensure(versions?.rows?.length===1&&strictCount(versions.rows[0].n)===1,
     'NEON_SCHEMA_V2_MISSING');
   const triggers=await client.query(
-    "SELECT tgname FROM pg_trigger WHERE tgrelid IN ("+
-    "'studio_v03.jobs'::regclass,'studio_v03.assets'::regclass,"+
-    "'studio_v03.audit_events'::regclass) AND NOT tgisinternal AND tgenabled='O'");
-  const seen=new Set((triggers?.rows||[]).map(r=>r.tgname));
-  for(const required of ['job_state_integrity','asset_insert_integrity',
-    'asset_update_integrity','asset_delete_integrity',
-    'audit_immutable_update','audit_immutable_delete']){
-    ensure(seen.has(required),'NEON_IMMUTABILITY_TRIGGER_MISSING');
+    'SELECT t.tgname,t.tgenabled,t.tgtype,tn.nspname AS table_schema,'+
+    'c.relname AS table_name,fn.nspname AS function_schema,p.proname AS function_name '+
+    'FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid '+
+    'JOIN pg_namespace tn ON tn.oid=c.relnamespace '+
+    'JOIN pg_proc p ON p.oid=t.tgfoid '+
+    'JOIN pg_namespace fn ON fn.oid=p.pronamespace '+
+    "WHERE t.tgrelid IN ('studio_v03.jobs'::regclass,"+
+    "'studio_v03.assets'::regclass,'studio_v03.audit_events'::regclass) "+
+    'AND NOT t.tgisinternal');
+  ensure(Array.isArray(triggers?.rows),'NEON_TRIGGER_TOPOLOGY_UNAVAILABLE');
+  const found=new Map();
+  for(const row of triggers.rows){
+    ensure(!found.has(row.tgname),'NEON_TRIGGER_TOPOLOGY_MISMATCH');
+    found.set(row.tgname,row);
   }
+  for(const [name,[table,type,func]] of Object.entries(REQUIRED_TRIGGERS)){
+    const row=found.get(name);
+    ensure(row,'NEON_IMMUTABILITY_TRIGGER_MISSING');
+    ensure(row.tgenabled==='O'&&row.table_schema==='studio_v03'&&
+      row.table_name===table&&row.function_schema==='studio_v03'&&
+      row.function_name===func&&Number(row.tgtype)===type,
+      'NEON_TRIGGER_TOPOLOGY_MISMATCH');
+  }
+  ensure(found.size===Object.keys(REQUIRED_TRIGGERS).length,
+    'NEON_TRIGGER_TOPOLOGY_MISMATCH');
 }
 /** Never emit the row contents, subjects, assets or secret HMAC key. */
 export async function importFrozenStudioLedger({makeClient,sourceSnapshot,integrityKey}={}){
