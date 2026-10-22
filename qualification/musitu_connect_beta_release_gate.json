@@ -33,5 +33,6 @@
     "separate_production_release_authorization"
   ],
   "policy": "A green engineering CI run alone does not grant beta admission, public commercial access, OpenAI listing, PR merge, production Worker rollout, or methane safety qualification.",
-  "offline_sqlite_d1_customer_admission": "SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED"
+  "offline_sqlite_d1_customer_admission": "SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED",
+  "offline_minute_quota_and_utc_event_integrity": "SYNTHETIC_SQLITE_VERIFIED_REAL_D1_NOT_EXECUTED"
 }
