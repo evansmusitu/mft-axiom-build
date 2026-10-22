@@ -7,7 +7,9 @@ const TOKEN = /^mct_[A-Za-z0-9_-]{43}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const UTC_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const SCOPES = new Set(['mining.plan', 'mining.risk']);
-const capabilities = new WeakSet();
+// A principal is a capability for exactly the database binding that issued
+// its admission, not for any other D1 database with colliding readable IDs.
+const capabilities = new WeakMap();
 const failure = (status,error) => ({ok:false,status,error});
 const unavailable = () => failure(503,'CUSTOMER_RUNTIME_UNAVAILABLE');
 const unauthorized = () => failure(401,'UNAUTHORIZED');
@@ -75,7 +77,7 @@ export async function reserveConnectCustomerRequest({authorization, scope, env,
         || row.request_id !== requestId || row.scope !== scope) return unavailable();
     const principal = Object.freeze({tenant_id:row.tenant_id,
       credential_id:row.credential_id, scope:row.scope});
-    capabilities.add(principal);
+    capabilities.set(principal, db);
     return {ok:true,request_id:requestId,principal};
   } catch (e) {
     const detail = String(e?.message || '');
@@ -91,7 +93,7 @@ export async function reserveConnectCustomerRequest({authorization, scope, env,
 
 /** Read only an authenticated capability's tenant usage; never accept a client tenant_id. */
 export async function readConnectCustomerUsage({db, principal, utcDay, nowMs=Date.now()}={}) {
-  if (!principal || typeof principal !== 'object' || !capabilities.has(principal)) return unauthorized();
+  if (!principal || typeof principal !== 'object' || capabilities.get(principal) !== db) return unauthorized();
   if (!db || typeof db.prepare !== 'function' || !validClock(nowMs)
       || typeof utcDay !== 'string' || !UTC_DAY.test(utcDay)) return unavailable();
   const dayEpoch = Date.parse(utcDay + 'T00:00:00Z');
