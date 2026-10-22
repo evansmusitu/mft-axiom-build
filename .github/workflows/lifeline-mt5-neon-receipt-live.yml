@@ -1,13 +1,8 @@
 name: LIFELINE Private Neon Receipt Binding Live Proof
+# The product has a strictly $0 authorization. Never auto-deploy potentially
+# metered Modal infrastructure on source pushes. Explicit dispatch is required.
 on:
-  push:
-    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
-    paths:
-      - 'products/lifeline-mt5-ai-studio/infra/modal/app.py'
-      - 'products/lifeline-mt5-ai-studio/infra/modal/staging_api.py'
-      - 'products/lifeline-mt5-ai-studio/infra/modal/bridge.py'
-      - 'products/lifeline-mt5-ai-studio/infra/modal/pg_queue.py'
-      - '.github/workflows/lifeline-mt5-neon-receipt-live.yml'
+  workflow_dispatch:
 permissions: {contents: read}
 jobs:
   restricted-neon-receipt:

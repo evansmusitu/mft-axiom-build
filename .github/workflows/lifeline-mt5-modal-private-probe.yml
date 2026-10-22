@@ -1,10 +1,7 @@
 name: LIFELINE Isolated Modal Private Proxy-Auth Proof
+# The product has a strictly $0 authorization. Never auto-deploy potentially
+# metered Modal infrastructure on source pushes. Explicit dispatch is required.
 on:
-  push:
-    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
-    paths:
-      - 'products/lifeline-mt5-ai-studio/infra/modal/private_probe.py'
-      - '.github/workflows/lifeline-mt5-modal-private-probe.yml'
   workflow_dispatch:
 permissions:
   contents: read
