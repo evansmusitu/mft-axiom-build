@@ -9,6 +9,8 @@ on:
       - 'connect/customer_admission.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
       - 'tests/connect/test_customer_admission.mjs'
+      - 'qualification/musitu_connect_beta_release_gate.json'
+      - 'docs/operations/musitu-connect-persistent-tenant-admission.md'
   pull_request:
     branches: ['main']
     paths:
