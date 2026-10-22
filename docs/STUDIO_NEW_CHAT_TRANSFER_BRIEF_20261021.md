@@ -62,3 +62,19 @@ Complete the above in dependency order, with reproducible tests, exact GitHub co
 `08_PACKAGE_REPORT.json`, `09_FRESH_PROVIDER_READONLY_TOPOLOGY.json` when available, `MANIFEST_SHA256.json` and `SHA256SUMS.txt`.
 `PRODUCT_SOURCE/`: exact tracked Studio relative paths incl V0.2 and V0.3, SQL and config source (not secret values).
 `DEPENDENCIES/edge-package-lock.json`: test-run resolved dependencies when present.
+
+## 2026-10-22 trigger-topology gate — safe source-only continuation
+
+At commit `314de584b6055a478292aacff8639fb1bd044844`,
+the isolated Neon `frozen_import.mjs` candidate was hardened to check
+PostgreSQL's actual BEFORE/ROW table-event trigger mapping, enabled state,
+schema, and called function (not just six user-supplied trigger names).
+Tests intentionally observed 2 failing red cases (miswired/disabled trigger),
+then **56/56 offline Neon checks** passed with the fix. See
+`docs/STUDIO_NEON_IMPORT_TRIGGER_TOPOLOGY_GATE_20261022.md` for exact
+failure modes, scope and what remains unproved.
+
+This does **not** verify database function bodies or constitute a hosted
+Neon import, a protected Cloudflare-to-Neon connection, a signed source
+export, a full zero-loss reconciliation, billing guarantees or a cutover.
+All original production and rendering protections remain in force.
