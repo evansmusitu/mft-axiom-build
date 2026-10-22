@@ -36,9 +36,10 @@ jobs:
           test -s "$RUNNER_TEMP/2099/AWAKENING_2099_f001.png"
           echo "GOD_MODE_2099_CYCLES_FRAME_1=PASS"
       - name: Preserve editable scene and rendered proof only
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: god-mode-2099-genuine-blender-cycles-single-frame
           path: ${{ runner.temp }}/2099/
           retention-days: 1
-          if-no-files-found: error
+          if-no-files-found: warn
