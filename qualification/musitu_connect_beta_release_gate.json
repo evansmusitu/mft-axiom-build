@@ -34,5 +34,13 @@
   ],
   "policy": "A green engineering CI run alone does not grant beta admission, public commercial access, OpenAI listing, PR merge, production Worker rollout, or methane safety qualification.",
   "offline_sqlite_d1_customer_admission": "SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED",
-  "offline_minute_quota_and_utc_event_integrity": "SYNTHETIC_SQLITE_VERIFIED_REAL_D1_NOT_EXECUTED"
+  "offline_minute_quota_and_utc_event_integrity": "SYNTHETIC_SQLITE_VERIFIED_REAL_D1_NOT_EXECUTED",
+  "offline_cloudflare_d1_runtime": "MINIFLARE_WORKERD_LOCAL_PASS_REMOTE_D1_NOT_EXECUTED",
+  "offline_cloudflare_d1_evidence": {
+    "workflow_run_id": 39741990668,
+    "source_commit": "bfe411843c67d9b2e499beb350ea2821a166bfb5",
+    "sqlite_reference_tests": 13,
+    "local_workerd_d1_tests": 2,
+    "customer_admission_authorized": false
+  }
 }
