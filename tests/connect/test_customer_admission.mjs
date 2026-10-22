@@ -144,6 +144,7 @@ test('previously verified capabilities are frozen and cannot read usage after re
     {ok:false,status:401,error:'UNAUTHORIZED'});
 });
 
+
 test('on-disk customer quota, event trail and revocation persist across database reopen',async()=>{
   const dir=mkdtempSync(join(tmpdir(),'musitu-connect-tenant-'));
   try {
