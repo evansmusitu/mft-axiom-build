@@ -20,6 +20,12 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(record['offline_customer_identity_verifier'], 'SYNTHETIC_TESTED_DISABLED_NOT_WIRED')
         self.assertNotIn('customer_identity.mjs', self.worker)
         self.assertNotIn('customer_admission.mjs', self.worker)
+        self.assertNotIn('customer_payload.mjs', self.worker)
+        self.assertEqual(record['offline_customer_request_body_boundary'],
+                         'NODE_TESTED_64KIB_NOT_WIRED')
+        self.assertEqual(record['offline_customer_request_body_limit_bytes'], 65536)
+        self.assertEqual(record['offline_customer_request_body_scope'],
+                         'RAW_JSON_BYTE_BOUNDARY_ONLY_NO_AUTH_OR_SEMANTIC_VALIDATION')
         self.assertEqual(record['offline_sqlite_d1_customer_admission'],
                          'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
         self.assertEqual(record['offline_minute_quota_and_utc_event_integrity'],
