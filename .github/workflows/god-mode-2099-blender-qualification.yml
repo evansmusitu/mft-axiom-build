@@ -1,0 +1,44 @@
+name: "GOD MODE 2099 — Isolated Blender Cycles Scene Qualification"
+on:
+  push:
+    branches:
+      - experiments/studio-enterprise-v03-sqlite-do-20261018
+    paths:
+      - creative/god_mode_2099/**
+      - .github/workflows/god-mode-2099-blender-qualification.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: god-mode-2099-cycles-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  standalone-offline-blender-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated Studio branch only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install distro Blender — no paid render providers or tokens
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender
+          blender -b --version | head -n 4
+      - name: Validate standalone scene syntax
+        run: python -m py_compile creative/god_mode_2099/build_awaken_2099.py
+      - name: Build actual Blender scene and render bounded 360x640 Cycles frame
+        run: |
+          mkdir -p "$RUNNER_TEMP/2099"
+          blender -b -t 4 --python creative/god_mode_2099/build_awaken_2099.py -- --mode preview --output "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend" --render-frame 1
+          test -s "$RUNNER_TEMP/2099/GOD_MODE_AWAKENING_2099_CYCLES_PREVIEW.blend"
+          test -s "$RUNNER_TEMP/2099/AWAKENING_2099_f001.png"
+          echo "GOD_MODE_2099_CYCLES_FRAME_1=PASS"
+      - name: Preserve editable scene and rendered proof only
+        uses: actions/upload-artifact@v4
+        with:
+          name: god-mode-2099-genuine-blender-cycles-single-frame
+          path: ${{ runner.temp }}/2099/
+          retention-days: 1
+          if-no-files-found: error
