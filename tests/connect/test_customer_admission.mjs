@@ -15,12 +15,12 @@ const TIME = Date.parse('2026-10-22T12:00:00Z');
 const DAY = '2026-10-22';
 const uuid = '33333333-3333-4333-8333-333333333333';
 
-function fixture({alphaLimit=2, betaLimit=3, filePath=':memory:'}={}) {
+function fixture({alphaLimit=2, betaLimit=3, alphaMinuteLimit=10, betaMinuteLimit=10, filePath=':memory:'}={}) {
   const sql = new DatabaseSync(filePath);
   sql.exec(SQL);
-  const seedTenant = sql.prepare('INSERT INTO connect_customer_tenants (tenant_id,status,daily_limit) VALUES(?,?,?)');
-  seedTenant.run('tenant_alpha','active',alphaLimit);
-  seedTenant.run('tenant_beta','active',betaLimit);
+  const seedTenant = sql.prepare('INSERT INTO connect_customer_tenants (tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)');
+  seedTenant.run('tenant_alpha','active',alphaLimit,alphaMinuteLimit);
+  seedTenant.run('tenant_beta','active',betaLimit,betaMinuteLimit);
   const seedCred = sql.prepare('INSERT INTO connect_customer_credentials (credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) VALUES(?,?,?,?,?,?,?)');
   seedCred.run('cred_alpha','tenant_alpha',sha(t1),'active','2030-01-01T00:00:00Z',1,0);
   seedCred.run('cred_beta','tenant_beta',sha(t2),'active','2030-01-01T00:00:00Z',0,1);
@@ -163,4 +163,38 @@ test('on-disk customer quota, event trail and revocation persist across database
   } finally {
     rmSync(dir,{recursive:true,force:true});
   }
+});
+
+test('tenant-scoped minute quota refuses burst while accepting the next UTC minute',async()=>{
+  const f=fixture({alphaLimit:3,alphaMinuteLimit:1});
+  const first=await admit(f.env,t1,'mining.plan','10000000-0000-4000-8000-000000000001');
+  const burst=await admit(f.env,t1,'mining.plan','10000000-0000-4000-8000-000000000002');
+  assert.equal(first.ok,true);
+  assert.deepEqual(burst,{ok:false,status:429,error:'CUSTOMER_MINUTE_QUOTA_EXCEEDED'});
+  assert.equal(rows(f.sql,'tenant_alpha').length,1);
+  const next=await admit(f.env,t1,'mining.plan','10000000-0000-4000-8000-000000000003',TIME+60000);
+  assert.equal(next.ok,true);
+  assert.equal(rows(f.sql,'tenant_alpha').length,2);
+  assert.equal(f.sql.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=? AND utc_day=?')
+    .get('tenant_alpha',DAY).used,2);
+  assert.equal(f.sql.prepare('SELECT SUM(used) AS used FROM connect_customer_minute_usage WHERE tenant_id=?')
+    .get('tenant_alpha').used,2);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS minutes FROM connect_customer_minute_usage WHERE tenant_id=?')
+    .get('tenant_alpha').minutes,2);
+  assert.equal(rows(f.sql,'tenant_beta').length,0);
+});
+
+test('SQL enforces UTC day and timestamp coherence before quota updates',async()=>{
+  const f=fixture();
+  const statement=f.sql.prepare(`INSERT INTO connect_customer_usage_events
+    (tenant_id,credential_id,request_id,scope,utc_day,observed_at)
+    VALUES(?,?,?,?,?,?)`);
+  assert.throws(()=>statement.run('tenant_alpha','cred_alpha',
+    '20000000-0000-4000-8000-000000000001','mining.plan',
+    '2026-10-23','2026-10-22T12:00:00.000Z'),/CUSTOMER_EVENT_TIME_INVALID/);
+  assert.throws(()=>statement.run('tenant_alpha','cred_alpha',
+    '20000000-0000-4000-8000-000000000002','mining.plan',
+    '2026-10-22','invalid timestamp'),/CUSTOMER_EVENT_TIME_INVALID/);
+  assert.equal(rows(f.sql,'tenant_alpha').length,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_daily_usage').get().n,0);
 });
