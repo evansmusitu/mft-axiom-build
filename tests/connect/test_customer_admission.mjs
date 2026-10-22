@@ -17,6 +17,7 @@ const uuid = '33333333-3333-4333-8333-333333333333';
 
 function fixture({alphaLimit=2, betaLimit=3, alphaMinuteLimit=10, betaMinuteLimit=10, filePath=':memory:'}={}) {
   const sql = new DatabaseSync(filePath);
+  sql.exec('PRAGMA foreign_keys = ON;');
   sql.exec(SQL);
   const seedTenant = sql.prepare('INSERT INTO connect_customer_tenants (tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)');
   seedTenant.run('tenant_alpha','active',alphaLimit,alphaMinuteLimit);
