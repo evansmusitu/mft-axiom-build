@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { Miniflare } from 'miniflare';
 import { reserveConnectCustomerRequest, readConnectCustomerUsage } from '../../connect/customer_admission.mjs';
-import { provisionOfflineTenant, issueOfflineCredential, revokeOfflineCredential, suspendOfflineTenant } from '../../connect/customer_provisioning.mjs';
+import { provisionOfflineTenant, issueOfflineCredential, revokeOfflineCredential, suspendOfflineTenant, deactivateOfflineTenant } from '../../connect/customer_provisioning.mjs';
 
 const SCHEMA = readFileSync(new URL('../../infra/connect_customer_registry.sql', import.meta.url), 'utf8');
 const TIME = Date.parse('2026-10-22T12:34:00Z');
@@ -145,3 +145,68 @@ test('Cloudflare local D1: synthetic-only issued credentials admit, revoke and s
       if (mf) await mf.dispose();
     }
   });
+
+
+test('Cloudflare local D1: synthetic atomic tenant deactivation revokes all keys but keeps audit', {timeout:30000}, async () => {
+  let db;
+  try {
+    db = await createIsolatedD1();
+    const env = {
+      CONNECT_CUSTOMER_DB:db, CONNECT_CUSTOMER_RUNTIME_ENABLED:'true',
+      CONNECT_CUSTOMER_PROVISIONING_MODE:'isolated-synthetic-only',
+    };
+    assert.equal((await provisionOfflineTenant({env,tenantId:'tenant_gamma',dailyLimit:5,minuteLimit:5})).ok,true);
+    const first=await issueOfflineCredential({
+      env,tenantId:'tenant_gamma',scopes:['mining.plan'],
+      expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+    });
+    const second=await issueOfflineCredential({
+      env,tenantId:'tenant_gamma',scopes:['mining.risk'],
+      expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+    });
+    assert.equal(first.ok,true);
+    assert.equal(second.ok,true);
+    const attempt=await reserve(db,first.bearer_token,'mining.plan',301,TIME);
+    assert.equal(attempt.ok,true);
+    assert.equal((await count(db,'tenant_gamma')).n,1);
+
+    const result=await deactivateOfflineTenant({env,tenantId:'tenant_gamma'});
+    assert.deepEqual(result,{ok:true,tenant_id:'tenant_gamma',status:'suspended',revoked_credentials:2});
+    const statuses=await db.prepare(
+      'SELECT status FROM connect_customer_credentials WHERE tenant_id=? ORDER BY credential_id'
+    ).bind('tenant_gamma').all();
+    assert.deepEqual(statuses.results.map(r=>r.status),['revoked','revoked']);
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_tenants WHERE tenant_id=?').bind('tenant_gamma').first()).status,'suspended');
+
+    assert.deepEqual(await reserve(db,first.bearer_token,'mining.plan',302,TIME),
+      {ok:false,status:401,error:'UNAUTHORIZED'});
+    assert.deepEqual(await reserve(db,second.bearer_token,'mining.risk',303,TIME),
+      {ok:false,status:401,error:'UNAUTHORIZED'});
+    const cannotIssue=await issueOfflineCredential({
+      env,tenantId:'tenant_gamma',scopes:['mining.plan'],
+      expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+    });
+    assert.deepEqual(cannotIssue,{ok:false,status:403,error:'TENANT_NOT_ELIGIBLE'});
+    assert.equal((await count(db,'tenant_gamma')).n,1,'audit reservation intentionally retained');
+    assert.equal((await reserve(db,TOKEN_A,'mining.plan',304,TIME)).ok,true,
+      'unrelated tenant remains active');
+    assert.deepEqual(await deactivateOfflineTenant({env,tenantId:'tenant_gamma'}),
+      {ok:true,tenant_id:'tenant_gamma',status:'suspended',revoked_credentials:0});
+  } finally { if(mf) await mf.dispose(); }
+});
+
+test('Cloudflare local D1: deactivation denies wrong tenants, disabled flags and missing batch', {timeout:30000}, async () => {
+  let db;
+  try {
+    db=await createIsolatedD1();
+    const env={CONNECT_CUSTOMER_DB:db,CONNECT_CUSTOMER_PROVISIONING_MODE:'isolated-synthetic-only'};
+    assert.deepEqual(await deactivateOfflineTenant({env:{...env,CONNECT_CUSTOMER_PROVISIONING_MODE:'false'},tenantId:'tenant_alpha'}),
+      {ok:false,status:503,error:'PROVISIONING_DISABLED'});
+    assert.deepEqual(await deactivateOfflineTenant({env,tenantId:'tenant_absent'}),
+      {ok:false,status:404,error:'TENANT_NOT_FOUND'});
+    assert.deepEqual(await deactivateOfflineTenant({env:{...env,CONNECT_CUSTOMER_DB:{prepare:db.prepare.bind(db)}},tenantId:'tenant_alpha'}),
+      {ok:false,status:503,error:'PROVISIONING_UNAVAILABLE'});
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_tenants WHERE tenant_id=?').bind('tenant_alpha').first()).status,'active');
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?').bind('cred_alpha').first()).status,'active');
+  } finally { if(mf) await mf.dispose(); }
+});
