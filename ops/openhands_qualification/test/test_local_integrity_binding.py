@@ -1,5 +1,6 @@
 """Local integrity boundaries: these remain explicitly NOT global antirollback."""
 import json
+import sqlite3
 from pathlib import Path
 import shutil
 import tempfile
@@ -62,6 +63,32 @@ class LocalIntegrityBindingTests(unittest.TestCase):
                 data[key]=bad
                 anchor.write_text(json.dumps(data,sort_keys=True,separators=(',',':'))+'\n')
                 self.assertEqual(MissionLedger(str(db)).status(),'RECOVERY_HOLD')
+
+    def test_unauthorized_schema_trigger_with_identical_rows_enters_recovery_hold(self):
+        # A malicious local SQLite trigger is not represented in the mission rows.
+        # The old anchor hashing only rows must not silently accept the altered schema.
+        con=sqlite3.connect(self.db)
+        try:
+            con.execute("CREATE TRIGGER unexpected_mission_mutation AFTER INSERT ON missions BEGIN DELETE FROM missions WHERE id!=NEW.id; END")
+            con.commit()
+        finally:con.close()
+        self.assert_hold()
+
+    def test_unauthorized_added_table_without_row_changes_enters_recovery_hold(self):
+        con=sqlite3.connect(self.db)
+        try:
+            con.execute('CREATE TABLE attacker_controlled(payload TEXT)')
+            con.commit()
+        finally:con.close()
+        self.assert_hold()
+
+    def test_previous_v2_anchor_protocol_is_not_silently_migrated(self):
+        # The v3 digest includes sqlite schema. Old format must be rejected
+        # rather than read as if a v2 journal had been transparently certified.
+        data=json.loads(self.anchor.read_text())
+        data['schema']='musitu.axiom.ecc.local-anchor.s0.v2'
+        self.anchor.write_text(json.dumps(data,sort_keys=True,separators=(',',':'))+'\n')
+        self.assert_hold()
 
     def test_corrupted_sqlite_file_denied(self):
         self.db.write_bytes(b'not a database')

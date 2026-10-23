@@ -57,6 +57,18 @@ reviewed recovery/migration** procedure and the unchanged original source
 remains the rollback origin. Existing in-service journals must NOT be replaced
 or wiped to make a test pass.
 
+The 2026-10-23 schema-integrity extension uses the explicit local-anchor
+format `musitu.axiom.ecc.local-anchor.s0.v3`. Its canonical integrity digest
+includes both the full mission-row state and `sqlite_master` schema entries.
+This catches unapproved local triggers and added SQLite objects even when the
+mission rows are unchanged. Legacy v2 anchor files are deliberately rejected;
+there is no silent in-place migration of preexisting local journals. Any
+transition requires separate independent migration/recovery review, with the
+old files and original Git branch retained as rollback evidence. An attacker
+with administrative control of BOTH local SQLite and anchor can still rewrite
+both; an independently administered monotonic witness is required for any
+cross-host security claim.
+
 This checks *one-sided local rollback and tampering only*. An administrator who
 can replace both SQLite and anchor, delete all state then reprovision, or change
 the executing source remains outside the claim. Local integrity is NOT

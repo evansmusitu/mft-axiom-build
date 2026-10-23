@@ -22,7 +22,7 @@ _DIGEST=re.compile(r'^[0-9a-f]{64}$')
 _ID=re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,99}$')
 _SCHEMA='musitu.axiom.openhands.mission.s0.v1'
 _FIELDS={'schema','tenant_id','work_id','workload_identity_id','request_sha256','risk_class','production_authority'}
-_LOCAL_ANCHOR_SCHEMA='musitu.axiom.ecc.local-anchor.s0.v2'
+_LOCAL_ANCHOR_SCHEMA='musitu.axiom.ecc.local-anchor.s0.v3'
 _ANCHOR_FIELDS={'schema','generation_id','sequence','mission_state_sha256'}
 
 def _check(req):
@@ -66,7 +66,11 @@ class MissionLedger:
     def _state_hash(con):
         # Canonical complete committed-relevant row state, not an external MAC.
         rows=con.execute('SELECT id,tenant,work,workload,request_sha,binding_sha,state,expires,output_sha FROM missions ORDER BY id').fetchall()
-        blob=json.dumps(rows,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
+        # Bind schema as well as mission rows: an attacker-controlled SQLite
+        # trigger, view or extra table could otherwise leave existing rows
+        # untouched while silently changing future admission behavior.
+        schema=con.execute('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name,tbl_name').fetchall()
+        blob=json.dumps({'missions':rows,'schema':schema},sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
         return hashlib.sha256(blob).hexdigest()
 
     @staticmethod
