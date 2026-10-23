@@ -1,4 +1,4 @@
-import {createSubmissionIntent,submittedJobId} from './submission-intent.mjs';
+import {createSubmissionIntent,submitSceneWithIdempotentRefresh} from './submission-intent.mjs';
 'use strict';
 // Access-only v0.3. No bearer tokens, external JS, eval, HTML injection or localStorage.
 const el=id=>document.getElementById(id);
@@ -24,7 +24,8 @@ function allowedProject(project,capability){
 async function api(path,method='GET',data){
  const r=await fetch(path,{method,credentials:'same-origin',cache:'no-store',
    headers:method==='GET'?{}:{'Content-Type':'application/json'},
-   body:data===undefined?undefined:JSON.stringify(data)});
+   body:data===undefined?undefined:JSON.stringify(data),
+   signal:AbortSignal.timeout(30_000)});
  let b;try{b=await r.json()}catch{throw Error('Invalid server response ('+r.status+')')}
  if(!r.ok)throw Error(b?.error??'HTTP '+r.status);
  return b;
@@ -143,12 +144,10 @@ el('job-form').onsubmit=e=>{e.preventDefault();if(submitBusy)return;
    let payload;try{payload=JSON.parse(el('scene').value)}catch{throw Error('Invalid JSON scene.')}
    // A network failure may occur AFTER a job is committed. Retry the same
    // project+scene with the same key, never create an accidental duplicate.
-   const intent=submitIntent.prepare({projectId,scene:payload});
-   const receipt=await api('/api/jobs','POST',intent);
-   const id=submittedJobId(receipt);
-   submitIntent.acknowledge();
-   await refresh();
-   notify((receipt.duplicate?'Existing job ':'Created ')+id.slice(0,12)+
+   const {jobId,duplicate}=await submitSceneWithIdempotentRefresh({
+     intent:submitIntent,projectId,scene:payload,
+     post:intent=>api('/api/jobs','POST',intent),refresh});
+   notify((duplicate?'Existing job ':'Created ')+jobId.slice(0,12)+
      '; job requires explicit approval; paid CPU dispatch remains locked.');
  }).finally(()=>{submitBusy=false;if(control)control.disabled=false});
 };

@@ -2,7 +2,7 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import * as preview from '../public_v03/scene-preview.mjs';
-import {createSubmissionIntent,submittedJobId} from '../public_v03/submission-intent.mjs';
+import {createSubmissionIntent,submittedJobId,submitSceneWithIdempotentRefresh} from '../public_v03/submission-intent.mjs';
 
 const scene=()=>({schema:'musitu.blender.job.v1',job_id:'SceneForImport',frame_end:12,
  objects:[{name:'Model',type:'cube',location:[0,0,1],dimensions:[1,1,1],material:'teal'}],
@@ -67,10 +67,44 @@ test('signed Studio remains explicit-submission-only and guards idempotent retri
  const js=readFileSync(new URL('../public_v03/studio.js',import.meta.url),'utf8');
  for(const label of ['id=\"scene-upload-json\"','id=\"scene-import-json\"','type=\"module\" src=\"/studio.js\"'])assert.ok(html.includes(label),label);
  assert.ok(js.includes('createSubmissionIntent()'));
- assert.ok(js.includes('submittedJobId(receipt)'));
+ const intentSource=readFileSync(new URL('../public_v03/submission-intent.mjs',import.meta.url),'utf8');
+ assert.ok(intentSource.includes('submittedJobId(receipt)'));
+ assert.match(js,/AbortSignal\.timeout\(30_000\)/);
  assert.ok(js.includes('submitBusy'));
  assert.doesNotMatch(js,/\blocalStorage\s*[.\[]\s*(?:getItem|setItem|removeItem)/);
  assert.doesNotMatch(js,/\bsessionStorage\s*[.\[]\s*(?:getItem|setItem|removeItem)/);
  assert.ok(!js.includes('STUDIO_RENDER_DEVICE'));
  assert.ok(!js.includes('uploadFile('));
+});
+
+// Regression: cloud accepted the job but the subsequent listing timed out.
+// A second tap must NOT create an extra render/approval record.
+test('successful remote creation followed by failed refresh keeps the same key for retry',async()=>{
+ let serial=0;const intent=createSubmissionIntent(()=>`submission-safe-${++serial}-123456`);
+ const accepted='ee259a63-f4ce-46b1-aa2e-f66a8ad1c621',seen=[],events=[];
+ const post=async data=>{seen.push(data.submission_key);return seen.length===1?{job_id:accepted}:
+   {duplicate:true,job:{id:accepted}}};
+ await assert.rejects(()=>submitSceneWithIdempotentRefresh({intent,projectId:'project-a',scene:scene(),post,refresh:async()=>{events.push('refresh-failed');throw Error('OFFLINE_AFTER_COMMIT')}}),/OFFLINE_AFTER_COMMIT/);
+ assert.equal(serial,1);
+ const second=await submitSceneWithIdempotentRefresh({intent,projectId:'project-a',scene:scene(),post,refresh:async()=>{events.push('refresh-success')}});
+ assert.equal(second.jobId,accepted);assert.equal(second.duplicate,true);
+ assert.deepEqual(seen,[seen[0],seen[0]]);
+ assert.deepEqual(events,['refresh-failed','refresh-success']);
+ const next=intent.prepare({projectId:'project-a',scene:scene()});
+ assert.notEqual(next.submission_key,seen[0],'acknowledge only after confirmed refresh');
+});
+
+test('malformed receipt or failed POST never clears the submission key',async()=>{
+ let serial=0;const intent=createSubmissionIntent(()=>`submission-safe-${++serial}-123456`);
+ let key;
+ await assert.rejects(()=>submitSceneWithIdempotentRefresh({intent,projectId:'project-a',scene:scene(),post:async data=>{key=data.submission_key;return {job_id:'invalid'}},refresh:async()=>{throw Error('SHOULD_NOT_REFRESH')}}),/SUBMISSION_RECEIPT_INVALID/);
+ assert.equal(intent.prepare({projectId:'project-a',scene:scene()}).submission_key,key);
+ await assert.rejects(()=>submitSceneWithIdempotentRefresh({intent,projectId:'project-a',scene:scene(),post:async()=>{throw Error('NETWORK_TIMEOUT')},refresh:async()=>{throw Error('UNREACHABLE')}}),/NETWORK_TIMEOUT/);
+ assert.equal(intent.prepare({projectId:'project-a',scene:scene()}).submission_key,key);
+});
+
+test('signed-in UI invokes the transaction helper instead of acknowledging before refresh',()=>{
+ const js=readFileSync(new URL('../public_v03/studio.js',import.meta.url),'utf8');
+ assert.match(js,/submitSceneWithIdempotentRefresh/);
+ assert.doesNotMatch(js,/submitIntent\.acknowledge\(\)/);
 });

@@ -26,3 +26,20 @@ export function createSubmissionIntent(makeKey=()=>crypto.randomUUID().replaceAl
     acknowledge(){stored=null},
   };
 }
+
+/** A successful POST is not a complete UI commit until the signed job listing refreshes.
+ * If the response was accepted but the refresh fails, preserve the submission key
+ * for the retry. The server responds with a duplicate rather than writing a new job.
+ * All callbacks are same-origin authenticated UI functions, never persisted.
+ */
+export async function submitSceneWithIdempotentRefresh({intent,projectId,scene,post,refresh}={}){
+  if(!intent||typeof intent.prepare!=='function'||typeof intent.acknowledge!=='function'||
+     typeof post!=='function'||typeof refresh!=='function')
+    throw Error('SUBMISSION_CALLBACK_INVALID');
+  const payload=intent.prepare({projectId,scene});
+  const receipt=await post(payload);
+  const jobId=submittedJobId(receipt);
+  await refresh();
+  intent.acknowledge();
+  return Object.freeze({jobId,duplicate:receipt.duplicate===true});
+}
