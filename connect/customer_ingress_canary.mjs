@@ -10,6 +10,7 @@
  */
 import { reserveConnectCustomerRequest } from './customer_admission.mjs';
 import { readBoundedCustomerJson } from './customer_payload.mjs';
+import { validateCustomerMiningBody } from './customer_mining_semantics.mjs';
 
 const headers = {
   'content-type': 'application/json; charset=utf-8',
@@ -45,6 +46,8 @@ export async function inspectIsolatedCustomerIngress(request, env, options={}) {
     // They are never marked as executed or billable usage.
     const intake = await readBoundedCustomerJson(request);
     if (!intake.ok) return failure(intake.status, intake.error);
+    const semantics = validateCustomerMiningBody(intake.body, scope);
+    if (!semantics.ok) return failure(semantics.status, semantics.error);
 
     // No upstream execution is possible on this path.
     return json(200, {
