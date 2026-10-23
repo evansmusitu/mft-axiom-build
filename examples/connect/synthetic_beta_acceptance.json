@@ -1,0 +1,62 @@
+{
+  "plan": {
+    "rows": [
+      {
+        "hazard": "Synthetic ground instability",
+        "exposure": 0.54,
+        "severity": 10,
+        "likelihood": 0.62,
+        "cost": 18000,
+        "benefit": 0.34
+      }
+    ],
+    "budget": 18000
+  },
+  "risk": {
+    "run_id": "synthetic-pilot-001",
+    "rows": [
+      {
+        "hazard": "Synthetic ground instability",
+        "exposure": 0.54,
+        "severity": 10,
+        "likelihood": 0.62,
+        "cost": 18000,
+        "benefit": 0.34
+      }
+    ]
+  },
+  "invalid_multi_record_risk": {
+    "run_id": "synthetic-pilot-negative",
+    "rows": [
+      {
+        "hazard": "Synthetic ground instability",
+        "exposure": 0.54,
+        "severity": 10,
+        "likelihood": 0.62,
+        "cost": 18000,
+        "benefit": 0.34
+      },
+      {
+        "hazard": "Synthetic shaft fall",
+        "exposure": 0.15,
+        "severity": 9,
+        "likelihood": 0.4,
+        "cost": 14000,
+        "benefit": 0.24
+      }
+    ]
+  },
+  "invalid_benefit_plan": {
+    "rows": [
+      {
+        "hazard": "Synthetic ground instability",
+        "exposure": 0.54,
+        "severity": 10,
+        "likelihood": 0.62,
+        "cost": 18000,
+        "benefit": 1.01
+      }
+    ],
+    "budget": 18000
+  }
+}
