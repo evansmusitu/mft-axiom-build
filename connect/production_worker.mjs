@@ -321,8 +321,12 @@ async function handleRisk(request, env) {
   if (rows.length !== 1) {
     throw new Error('RISK_SINGLE_ROW_REQUIRED');
   }
-  const runId = String(body?.run_id || '').trim();
-  if (!runId || runId.length > 80 || /[\r\n]/.test(runId)) {
+  // The run ID becomes part of the outbound x-musitu-request-id header.
+  // Reject all whitespace, controls, non-ASCII values and coercible values
+  // before any upstream request; the feature-branch customer validator uses
+  // the same allowlist.
+  const runId = body?.run_id;
+  if (typeof runId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/.test(runId)) {
     throw new Error('run_id_required');
   }
   const canonical = {
