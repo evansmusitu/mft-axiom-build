@@ -47,3 +47,23 @@ jobs:
           set -euo pipefail
           grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
           echo AXIOM_B27_GLOBAL_ANTIROLLBACK_FAILED_PRESERVED
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Preserve whole-product ECC recovery and Project UI regression coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s ops/openhands_qualification/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-ecc-s0.log
+          grep -Eq 'Ran 37 tests in ' /tmp/axiom-ecc-s0.log
+          grep -Eq '^OK$' /tmp/axiom-ecc-s0.log
+          node --test axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs axiom_interface/vnext/tests/openhands_ecc_bridge.test.mjs 2>&1 | tee /tmp/axiom-ecc-js.log
+          grep -Eq '^# tests 19$' /tmp/axiom-ecc-js.log
+          grep -Eq '^# fail 0$' /tmp/axiom-ecc-js.log
+          echo AXIOM_ECC_PROJECT_BREADTH_S0_56_REGRESSION_TESTS_PASS
+      - name: Preserve actual B27 negative destructive rollback regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/trackb27/VERIFY_B27_LOCAL.py
+          echo AXIOM_B27_SYNTHETIC_ROLLBACK_COUNTEREXAMPLE_PRESERVED_NOT_FIXED
