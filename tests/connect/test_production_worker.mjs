@@ -247,3 +247,53 @@ test('planner refuses expensive search instead of returning an unverified partia
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { ok: false, error: 'PLAN_SEARCH_LIMIT_EXCEEDED' });
 });
+
+
+test('internal Mining risk refuses unsafe correlation identifiers before contacting Axiom', async () => {
+  const mod = await worker();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return Response.json({ok:true, result:{result:'3.348'}});
+  };
+  try {
+    const unsafe = ['abc\\tdef', 'a\\u0000b', 'a\\u007fb', 'a b', 'méthane',
+      ' run-with-padding', 'run-with-padding ', 'A'.repeat(81), '', 3];
+    for (const run_id of unsafe) {
+      const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({run_id, rows:[scenario[0]]}),
+      }), env);
+      assert.equal(response.status, 400, 'identifier should be rejected: ' + JSON.stringify(run_id));
+      assert.deepEqual(await response.json(), {ok:false, error:'INVALID_REQUEST'});
+    }
+    assert.equal(calls, 0, 'unsafe IDs cannot reach the outbound correlation header');
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('internal Mining risk retains valid 80-character safe correlation identifiers', async () => {
+  const mod = await worker();
+  const runId = 'r' + 'a'.repeat(79);
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (_url, init) => {
+    calls++;
+    return Response.json({ok:true, request_id:init.headers['x-musitu-request-id'], result:{result:'3.348'}});
+  };
+  try {
+    const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+      method:'POST',
+      headers:authHeaders(),
+      body:JSON.stringify({run_id:runId, rows:[scenario[0]]}),
+    }),env);
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).ok,true);
+    assert.equal(calls,1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
