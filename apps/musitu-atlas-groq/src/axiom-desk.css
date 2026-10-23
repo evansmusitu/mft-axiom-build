@@ -19,9 +19,12 @@
 .axiom-scope-preflight{margin:20px 0 10px;padding:18px;border:1px solid var(--stroke);border-radius:10px;background:var(--panel2)}
 .axiom-scope-preflight h3{font:800 17px 'Manrope',sans-serif;letter-spacing:-.025em;margin:8px 0 10px;color:var(--text)}
 .axiom-scope-preflight>p{font-size:11px;line-height:1.7;color:var(--muted);max-width:850px}
-.axiom-preflight-fields{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
-.axiom-preflight-fields input{min-width:200px;flex:1;min-height:44px;padding:10px 12px;border:1px solid var(--stroke);border-radius:7px;background:var(--panel);color:var(--text);font-size:12px}
-.axiom-preflight-fields button{border:0;border-radius:7px;padding:10px 14px;min-height:44px;background:var(--accent);color:var(--contrast);font-size:11px;font-weight:800;cursor:pointer}
-.axiom-preflight-fields button:disabled{cursor:not-allowed;opacity:.52}
+.axiom-preflight-fields{display:flex;flex-direction:column;gap:9px;margin-top:13px}.axiom-preflight-fields>label{font-size:11px;font-weight:800;color:var(--text)}.axiom-field-required{font-weight:500;color:var(--muted)}.axiom-preflight-row{display:flex;flex-wrap:wrap;gap:10px}.axiom-preflight-fields>small{font-size:10px;color:var(--muted);line-height:1.65}
+.axiom-preflight-row input{min-width:180px;flex:1;min-height:44px;padding:10px 12px;border:1px solid var(--stroke);border-radius:7px;background:var(--panel);color:var(--text);font-size:12px}
+.axiom-preflight-row button{border:0;border-radius:7px;padding:10px 14px;min-height:44px;background:var(--accent);color:var(--contrast);font-size:11px;font-weight:800;cursor:pointer}
+.axiom-preflight-row button:disabled{cursor:wait;opacity:.6}
 .axiom-preflight-good,.axiom-preflight-error{padding:12px;border-radius:7px;border:1px solid var(--stroke);font-size:11px;line-height:1.65;overflow-wrap:anywhere}
 .axiom-preflight-error{border-color:#c85555;color:#ed9b9b}
+
+.axiom-preflight-working{padding:12px;border:1px solid var(--stroke);border-radius:7px;color:var(--text);font-size:11px;line-height:1.7}
+@media(max-width:650px){.axiom-preflight-row input{flex-basis:100%;min-width:0}.axiom-preflight-row button{width:100%}}
