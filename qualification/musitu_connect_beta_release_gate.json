@@ -90,5 +90,17 @@
     "data_erasure_or_retention_approved": false,
     "customer_admission_authorized": false,
     "real_customer_credentials_issued": 0
+  },
+  "offline_hosted_d1_staging_preflight": "STRUCTURAL_METADATA_ONLY_REMOTE_NOT_VERIFIED",
+  "offline_hosted_d1_staging_evidence": {
+    "connect_workflow_run": 39908089439,
+    "structural_negative_and_positive_tests": 10,
+    "source": "qualification/connect_d1_staging_preflight.py",
+    "real_cloudflare_account_verified": false,
+    "remote_d1_transaction_testing_completed": false,
+    "schema_migration_authorized": false,
+    "staged_worker_deployment_authorized": false,
+    "customer_admission_authorized": false,
+    "existing_production_deployment_changed": false
   }
 }
