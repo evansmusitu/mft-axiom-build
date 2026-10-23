@@ -1,5 +1,7 @@
 # Phase 1 acceptance — 21 October 2026, 21:48 UTC
 
+Historical register. See [23 October continuation](PHASE1_CONTINUATION_20261023.md) for the recovered native privacy result, dependency security patch and current live boundaries. The earlier open-window and QA-membership prose below is superseded by that readback.
+
 Phase 1 is **INCOMPLETE**. This register reconciles current results with the
 historical 13 October matrix; it does not grant public-release permission or
 independent approval. PR 29 remains open, draft and unmerged.

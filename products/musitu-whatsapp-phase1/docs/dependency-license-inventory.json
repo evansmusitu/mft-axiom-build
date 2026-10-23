@@ -31,12 +31,12 @@
   },
   {
     "name": "@next/env",
-    "version": "16.4.0",
+    "version": "16.4.2",
     "license": "MIT"
   },
   {
     "name": "@next/swc-linux-x64-gnu",
-    "version": "16.4.0",
+    "version": "16.4.2",
     "license": "MIT"
   },
   {
@@ -86,7 +86,7 @@
   },
   {
     "name": "next",
-    "version": "16.4.0",
+    "version": "16.4.2",
     "license": "MIT"
   },
   {

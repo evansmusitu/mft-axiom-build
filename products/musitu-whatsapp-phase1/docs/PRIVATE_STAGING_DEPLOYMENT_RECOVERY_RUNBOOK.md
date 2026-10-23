@@ -5,6 +5,8 @@ Use `/api/health` for HTTP health checks, not the descriptive `/api/status` rout
 HTTP health is separate from acceptance, scheduling and tested alert delivery.
 
 Latest verified operations update: [20 October retention and evidence](OPERATIONS_CONTINUATION_20261020.md).
+
+Current continuation and dependency security evidence: [23 October register](PHASE1_CONTINUATION_20261023.md). The stable deployment and the corrected source candidate have separate version pins.
 The existing manual snapshot no longer has automatic expiry. Scheduled backups,
 tested alerts, second-custodian escrow and full SaaS recovery remain unqualified.
 Older dated sections below remain historical and do not override this update.
