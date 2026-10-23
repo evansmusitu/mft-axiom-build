@@ -33,7 +33,7 @@ The first comparison exposed a driver representation mismatch: the connector
 serialized policy name[] roles as JSON arrays while pg returned name[] text.
 The restore now uses PostgreSQL to_jsonb on both sides. This changes comparison
 serialization; it does not relax any policy or comparison. The complete corrected
-native run passed. The operator build deliberately exits78 afterward, preventing
+native run passed. The operator build deliberately exits 78 afterward, preventing
 application promotion.
 
 Evidence: `evidence/20261023/fresh-hosted-offsite-recovery.json`.
@@ -106,7 +106,7 @@ recovery and operational scheduling/alert acceptance remain separate.
 8. Record capture time, artifact identity/hash, store/retrieval outcome, exact
    build IDs, qualification source, cleanup and failures in private operational
    evidence. Check the real stable alias still points to its prior private app
-   deployment; these exit78 builds must not change it. Return success or an
+   deployment; these exit 78 builds must not change it. Return success or an
    actionable failure alert to the owner. Logs alone are not offsite retention,
    and task creation alone is not evidence of job execution or alert delivery.
 
@@ -121,3 +121,14 @@ The ordinary private application build remains separate from these operator
 commands. No customer messaging, public launch, paid plan, password/MFA reset,
 browser workaround, session impersonation, invitation or human sign-off is
 authorized by a backup result.
+
+## Saved daily task and execution qualification
+
+A daily task is enabled for around 08:00 Africa/Harare and pins the reviewed
+operator source `0dc79a6795e422adf3872347816c2f2cf9f8e63d`. Its prompt requires
+the full eight-step workflow above and an actionable owner result. One immediate
+run request was acknowledged. As of 23 October 06:34 Africa/Harare, no run, result
+or next execution was recorded; delivery status remains unknown. Scheduling and
+alert delivery are therefore unqualified. Do not retry an unresolved run request
+or mark this as an operationally proven backup schedule. Native Neon scheduling
+was not changed. See `evidence/20261023/scheduled-recovery-state.json`.

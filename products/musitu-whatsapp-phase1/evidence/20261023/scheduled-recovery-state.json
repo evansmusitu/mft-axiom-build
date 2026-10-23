@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-23T04:34:02.989Z",
+  "title": "MUSITU Phase1 Recovery",
+  "enabled": true,
+  "timingMode": "flexible_schedule",
+  "timezone": "Africa/Harare",
+  "requestedSchedule": "Daily around 08:00 Africa/Harare",
+  "schedule": "BEGIN:VEVENT\nDTSTART;TZID=Africa/Harare:20261023T080000\nRRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0\nEND:VEVENT",
+  "qualifiedSourceCommit": "0dc79a6795e422adf3872347816c2f2cf9f8e63d",
+  "sourceRunbook": "docs/HOSTED_CHECKPOINT_OPERATIONS_20261023.md",
+  "workflow": "Read-only hosted checkpoint; private provider encryption; independent offsite retrieval; disposable native restore; owner task result or actionable failure.",
+  "immediateRunRequested": true,
+  "requestAcknowledged": true,
+  "recordedLastRun": null,
+  "recordedLatestResult": null,
+  "recordedNextRunTime": null,
+  "deliveryStatus": "unknown",
+  "scheduledExecutionQualified": false,
+  "alertDeliveryQualified": false,
+  "nativeNeonSnapshotScheduleChanged": false,
+  "limits": [
+    "Task creation and run request are confirmed; no actual scheduled run or delivery is recorded.",
+    "No repeat immediate run was requested while the first request remains unresolved.",
+    "No independent-custodian or account-loss recovery acceptance is inferred."
+  ]
+}

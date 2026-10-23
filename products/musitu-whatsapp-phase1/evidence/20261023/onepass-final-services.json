@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-23T04:34:02.989Z",
+  "scope": "READ_ONLY_FINAL_SERVICE_CHECK",
+  "database": {
+    "inboundEvents": 3,
+    "outboundAttempts": 0,
+    "uncertainAttempts": 0,
+    "consentRecords": 0,
+    "signedStatusEvents": 0,
+    "activeUnexpiredSessions": 0
+  },
+  "stableAlias": "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+  "stableDeployment": "dpl_CFPK5a9DAQ6i25Xn56kxB2Ju9kzd",
+  "projectLive": false,
+  "ssoAllDeployments": true,
+  "pr29": {
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "head": "0dc79a6795e422adf3872347816c2f2cf9f8e63d",
+    "submittedReviews": 0
+  },
+  "main": "bc48ab8aed137e61b76e25f113bb29e1efd7b11a",
+  "replySent": false,
+  "browserAttempted": false,
+  "sourceDatabaseModified": false,
+  "limits": [
+    "No active owner session, consent or open provider window was established.",
+    "This observation precedes the evidence-register-only commit."
+  ]
+}

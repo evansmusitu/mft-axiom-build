@@ -50,7 +50,7 @@ There were zero active unexpired application sessions. The QA subject had no mem
 
 The stable private alias still resolved to READY deployment `dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe`, source `3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a`. The source manifest at that exact stable commit still pins **Next.js 16.4.0**. This was the pre-update observation. The intentional private staging security update below supersedes that deployment pin. Project live=false; SSO protects all deployments.
 
-The backup schedule remains empty and the preserved snapshot remains `snap-little-smoke-b4sdrjky`, created 14 October. PR29 has zero submitted reviews. Both previously sent nomination threads still contain only the sent message; a separate bounded incoming search also returned no matches. No nominee acceptance, account control or independence is inferred. Private addresses/message IDs are excluded from this public record.
+At that pre-extension observation the native backup schedule was empty and the preserved snapshot remained `snap-little-smoke-b4sdrjky`, created 14 October. PR29 has zero submitted reviews. Both previously sent nomination threads still contain only the sent message; a separate bounded incoming search also returned no matches. No nominee acceptance, account control or independence is inferred. Private addresses/message IDs are excluded from this public record.
 
 Readback evidence: `evidence/20261023/live-readback.json`.
 
@@ -100,15 +100,15 @@ staging. Phase 1 and the remaining real-service/human gates are still incomplete
 
 A fresh current-schema hosted checkpoint is now retained privately outside Neon
 and was independently retrieved from Drive before a disposable native restore.
-All22 table fingerprints/781 rows, six catalog classes and four role profiles
-matched. The run passed22 unscoped denials,168 tenant-scope comparisons,21 foreign
-scope denials and runtime role escalation denial. All118 message bodies recovered,
-including the three target development messages. All32 inactive session envelopes
+All 22 table fingerprints/781 rows, six catalog classes and four role profiles
+matched. The run passed 22 unscoped denials, 168 tenant-scope comparisons, 21 foreign
+scope denials and runtime role escalation denial. All 118 message bodies recovered,
+including the three target development messages. All 32 inactive session envelopes
 opened cryptographically; none was used for authentication. The uncertain AI
-request and23 suppressions survived. The source database was not modified.
+request and 23 suppressions survived. The source database was not modified.
 PostgreSQL, disposable database/roles and private temporary inputs were cleaned up.
 
-Artifact: `MUSITU_PHASE1_ENCRYPTED_PG_BACKUP_2026-10-23.musitubak`,99,111 bytes,
+Artifact: `MUSITU_PHASE1_ENCRYPTED_PG_BACKUP_2026-10-23.musitubak`, 99,111 bytes,
 SHA-256 `3fce212c2cd319e9e06094e303acad2037da11a77d0f4eaa5db73ebd7df4f578`.
 No recovery key is delivered with this file. The previous recovery artifacts and
 manual snapshot remain preserved.
@@ -121,20 +121,54 @@ scheduled execution and alert delivery are recorded separately when demonstrated
 New guarded operator scripts support this exact path. The read-only source query
 explicitly excludes active unrevoked authentication-session rows and records the
 omission count. Six focused boundary tests pass. Fresh `npm run verify` passed
-**326 tests,0 failures,0 skips;151 MJS syntax checks**. The complete source
-manifest contained428 entries at this execution, before the final documentation
+**326 tests, 0 failures, 0 skips; 151 MJS syntax checks**. The complete source
+manifest contained 428 entries at this execution, before the final documentation
 refresh. The private application source/runtime did not change in this extension.
 
 The first restore comparison found a policy array serialization difference
 between the connector's PostgreSQL JSON and the pg driver's name[] text.
 Using to_jsonb on both sides fixed representation without relaxing any security
 comparison. The complete corrected native run passed at
-`dpl_BftajeSMkWgpF9S24svomZWq8hAA`; its terminal exit78 prevents application
+`dpl_BftajeSMkWgpF9S24svomZWq8hAA`; its terminal exit 78 prevents application
 promotion. The stable alias remains on the existing patched application.
 
 Operational instructions: [hosted checkpoint runbook](HOSTED_CHECKPOINT_OPERATIONS_20261023.md).
 Evidence: `evidence/20261023/fresh-hosted-offsite-recovery.json` and
 `evidence/20261023/onepass-engineering-verification.json`.
+
+## Current acceptance command and recovery schedule
+
+`npm run release:gate` now checks `docs/phase1/CURRENT_ACCEPTANCE.json` and
+SHA-256 references to the current bounded evidence. The 13 October historical
+qualification matrix is preserved. Missing, substituted or unsafe evidence and
+malformed gates fail closed. Even an entirely confirmed stored matrix cannot
+authorize release: this diagnostic always exits 2 and requires independent live
+authority. Passing native checks and private builds do not imply owner or reviewer
+acceptance.
+
+A daily recovery task is saved and enabled for **around 08:00 Africa/Harare**,
+pinned to operator source `0dc79a6795e422adf3872347816c2f2cf9f8e63d`.
+An immediate run request was acknowledged once. At **06:34 Africa/Harare /
+04:34 UTC**, the scheduler still reported no recorded run, result or next run
+and delivery status unknown. Actual scheduled execution and alert delivery remain
+**UNVERIFIED**. This task does not configure Neon's native snapshot schedule.
+The prompt preserves private hosting, free plans, key isolation, independent
+retrieval and disposable restoration; it cannot authorize messaging or launch.
+
+At the same final readback, the stable alias still served the patched deployment,
+SSO remained enabled on all deployments and project live=false. The target tenant
+still had 3 inbound events, 0 outbound/uncertain attempts, 0 consent records and 0
+signed status events; there were 0 active unexpired application sessions. PR29
+remained open, draft and unmerged with 0 submitted reviews; main was unchanged.
+
+Evidence: `evidence/20261023/scheduled-recovery-state.json` and
+`evidence/20261023/onepass-final-services.json`.
+
+Final verification after the acceptance-command correction: **329 tests passed,
+0 failed, 0 skipped; 151 MJS syntax checks; 429 source-manifest entries PASS**.
+The release command returned exit2 with evidence integrity PASS and release
+blocked. Evidence: `evidence/20261023/final-pass-engineering-verification.json`
+and `evidence/20261023/final-pass-npm-verify.log`.
 
 ## Remaining acceptance and next permitted work
 
