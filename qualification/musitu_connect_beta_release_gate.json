@@ -102,5 +102,16 @@
     "staged_worker_deployment_authorized": false,
     "customer_admission_authorized": false,
     "existing_production_deployment_changed": false
+  },
+  "offline_synthetic_pilot_acceptance": "FEATURE_BRANCH_SIMULATED_ONLY_NO_REAL_DESIGN_PARTNERS",
+  "offline_synthetic_pilot_acceptance_evidence": {
+    "fixture": "examples/connect/synthetic_beta_acceptance.json",
+    "suite": "tests/connect/test_synthetic_beta_acceptance.mjs",
+    "connect_workflow_run_id": 39914094524,
+    "synthetic_acceptance_tests": 5,
+    "executed_real_customer_requests": 0,
+    "real_partner_signoffs": 0,
+    "hosted_d1_qualified": false,
+    "customer_admission_authorized": false
   }
 }
