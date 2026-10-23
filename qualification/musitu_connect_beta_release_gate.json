@@ -113,5 +113,15 @@
     "real_partner_signoffs": 0,
     "hosted_d1_qualified": false,
     "customer_admission_authorized": false
+  },
+  "offline_customer_mining_semantics": "STRICT_SCOPED_BODY_VALIDATION_NODE_TESTED_NOT_DEPLOYED",
+  "offline_customer_mining_semantics_evidence": {
+    "red_connect_workflow": 39919928152,
+    "green_connect_workflow": 39920153835,
+    "node_tests_passed": 69,
+    "policy": "PROVISIONAL_NOT_PUBLIC_CUSTOMER_CONTRACT",
+    "real_hosted_d1_qualified": false,
+    "actual_customer_requests_executed": 0,
+    "customer_admission_authorized": false
   }
 }
