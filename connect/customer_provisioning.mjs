@@ -102,7 +102,7 @@ export async function revokeOfflineCredential({env,tenantId,credentialId}={}) {
 /**
  * Synthetic-only deactivation. Both account suspension and credential
  * revocation must be one database transaction; D1 batch() supplies that
- * primitive. This preserves the immutable usage trail (not data deletion).
+ * primitive. This leaves existing usage records untouched (not data deletion).
  * There is no HTTP route or approved production operator authority.
  */
 export async function deactivateOfflineTenant({env,tenantId}={}) {
