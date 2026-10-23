@@ -27,6 +27,14 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
                          'SYNTHETIC_ONLY_SCOPED_WEBCRYPTO_ISSUANCE_REVOCATION_SUSPENSION_TESTED_NOT_WIRED')
         self.assertIs(record['offline_customer_provisioning_evidence']['customer_admission_authorized'], False)
         self.assertIs(record['offline_customer_provisioning_evidence']['remote_hosted_d1_qualified'], False)
+        self.assertEqual(record['offline_customer_tenant_deactivation'],
+                         'SYNTHETIC_D1_ATOMIC_SUSPEND_REVOKE_AUDIT_RETAINED_NOT_WIRED')
+        evidence = record['offline_customer_tenant_deactivation_evidence']
+        self.assertIs(evidence['rollback_on_forced_failure_verified_locally'], True)
+        self.assertIs(evidence['remote_hosted_d1_qualified'], False)
+        self.assertIs(evidence['data_erasure_or_retention_approved'], False)
+        self.assertIs(evidence['customer_admission_authorized'], False)
+        self.assertEqual(evidence['real_customer_credentials_issued'], 0)
         self.assertEqual(record['offline_customer_provisioning_evidence']['real_customer_credentials_issued'], 0)
         self.assertEqual(record['offline_customer_ingress_orchestration'],
                          'SYNTHETIC_AUTH_QUOTA_BOUNDED_JSON_CANARY_PASS_NOT_WIRED')
