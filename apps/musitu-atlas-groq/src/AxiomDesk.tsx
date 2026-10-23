@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {api} from './lib/client';
 import {Activity,ArrowRight,CheckCircle2,ClipboardCheck,Cloud,Download,FileCheck2,KeyRound,LockKeyhole,RefreshCw,ShieldCheck,Terminal,Workflow,AlertTriangle} from 'lucide-react';
 import {newId,readMissions,storeMissions,type Mission} from './missionStore';
@@ -33,6 +33,9 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
  const [lastStatus,setLastStatus]=useState('');
  const [qualificationCode,setQualificationCode]=useState('');
  const [qualificationBusy,setQualificationBusy]=useState(false);
+ const qualificationField=useRef<HTMLInputElement>(null);
+ const qualificationRequestInFlight=useRef(false);
+ const [qualificationProgress,setQualificationProgress]=useState('');
  const [qualificationStatus,setQualificationStatus]=useState('');
  const [qualificationError,setQualificationError]=useState('');
  const [code,setCode]=useState('');
@@ -50,22 +53,47 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
   finally{setLoading(false);}
  }
  useEffect(()=>{void inspect();},[]);
- async function checkAccountQualification(){
-  if(!qualificationCode.trim()){setQualificationError('Enter your private operator access code to authorize a non-compute scope check.');return;}
-  setQualificationBusy(true);setQualificationStatus('');setQualificationError('');
+ async function checkAccountQualification(event?:React.FormEvent<HTMLFormElement>){
+  event?.preventDefault();
+  // Guard against double-tap even before React commits the disabled state.
+  if(qualificationRequestInFlight.current)return;
+  setQualificationStatus('');
+  setQualificationError('');
+  setQualificationProgress('');
+  const supplied=qualificationCode.trim();
+  if(!supplied){
+    setQualificationError('Enter your ATLAS private operator access code above, then tap Check account authorization. This is NOT your Neon password or Axiom bearer token.');
+    qualificationField.current?.focus();
+    return;
+  }
+  qualificationRequestInFlight.current=true;
+  setQualificationBusy(true);
+  setQualificationProgress('Checking the restricted database role and Axiom authorization gateway. No computation is being requested…');
   try{
-   const {data}=await api.post('/api/axiom/preview',{action:'credential-preflight',
-     approved:true,accessCode:qualificationCode});
-   if(data.status!=='ACCOUNT_SCOPE_PREFLIGHT_ONLY'||data.operationExecuted!==false)
-    throw Error('Unexpected Axiom preflight response. Provider computation was not authorized.');
+   const {data}=await api.post('/api/axiom/preview',{
+     action:'credential-preflight',approved:true,accessCode:supplied
+   });
+   if(data?.status!=='ACCOUNT_SCOPE_PREFLIGHT_ONLY'||data.operationExecuted!==false)
+     throw new Error('Unexpected authorization response; no actual Axiom computation has been authorized.');
    const label=data.providerGateStatus==='UNKNOWN_TOOL_AFTER_GATE'
      ?'PRELIMINARY AUTHORIZATION SIGNAL'
      :data.providerGateStatus==='CREDENTIAL_REJECTED'
       ?'CREDENTIAL WAS REJECTED':'AUTHORIZATION NOT YET CONFIRMED';
-   setQualificationStatus(label+' — '+String(data.note||''));
+   setQualificationStatus(label+' — '+String(data.note||'No additional detail was returned.'));
    setQualificationCode('');
-  }catch(e){setQualificationError(e instanceof Error?e.message:'Unable to verify the private account connection.');}
-  finally{setQualificationBusy(false);}
+  }catch(error){
+   const status=(error as {status?:number})?.status;
+   let message=error instanceof Error?error.message:'Unable to verify the private account connection.';
+   if(status===401)message='ATLAS requires a private login session. Sign in to this protected lab, then run this check again.';
+   if(status===403)message='Access denied. Enter your ATLAS private operator code, not your Neon password or Axiom bearer token. '+message;
+   if(status===503)message='Connection qualification is unavailable or blocked by safety checks. '+message;
+   if(error instanceof Error&&error.name==='AbortError')message='The authorization check timed out. No registered Axiom computation was requested.';
+   setQualificationError(message);
+  }finally{
+   qualificationRequestInFlight.current=false;
+   setQualificationBusy(false);
+   setQualificationProgress('');
+  }
  }
  async function review(e:React.FormEvent){
   e.preventDefault();setError('');setNotice('');setReceipt(null);setSaved(false);setPreview(null);setConsent(false);setLastStatus('');setRequestKey(crypto.randomUUID());
@@ -156,12 +184,19 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
    <div className="axiom-scope-preflight">
      <div><span className="section-overline">03 / VERIFY AUTHORIZATION WITHOUT COMPUTING</span><h3>Check the real Axiom account gate</h3></div>
      <p>This optional owner-authorized check verifies restricted Neon privileges and presents an intentionally nonexistent tool name to the Axiom OAuth gate. No registered computation is requested. An unknown-tool rejection is preliminary evidence only; it cannot certify real execution, usage charges or all permissions.</p>
-     <div className="axiom-preflight-fields">
-       <input type="password" autoComplete="off" aria-label="Private operator code for permission check" placeholder="Private operator code" value={qualificationCode} onChange={e=>setQualificationCode(e.target.value.slice(0,200))}/>
-       <button type="button" disabled={qualificationBusy||!qualificationCode} onClick={checkAccountQualification}>{qualificationBusy?'Checking…':'Check account authorization (no compute)'}</button>
+     <form className="axiom-preflight-fields" onSubmit={checkAccountQualification} noValidate>
+       <label htmlFor="atlas-qualification-operator-code">ATLAS private operator code <span className="axiom-field-required">(required — not your Neon password)</span></label>
+       <div className="axiom-preflight-row">
+         <input ref={qualificationField} id="atlas-qualification-operator-code" type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} aria-describedby="atlas-qualification-help atlas-qualification-feedback" placeholder="Enter private operator access code" value={qualificationCode} onChange={e=>{setQualificationCode(e.target.value.slice(0,200));if(qualificationError)setQualificationError('');}}/>
+         <button type="submit" disabled={qualificationBusy} aria-busy={qualificationBusy}>{qualificationBusy?'Checking authorization…':'Check account authorization'}</button>
+       </div>
+       <small id="atlas-qualification-help">This button always responds. An empty code shows a prompt; a valid code initiates a non-compute authorization check. Press Enter or tap the button.</small>
+     </form>
+     <div id="atlas-qualification-feedback" aria-live="polite" aria-atomic="true">
+       {qualificationProgress&&<p role="status" className="axiom-preflight-working">{qualificationProgress}</p>}
+       {qualificationStatus&&<p role="status" className="axiom-preflight-good">{qualificationStatus}</p>}
+       {qualificationError&&<p role="alert" className="axiom-preflight-error">{qualificationError}</p>}
      </div>
-     {qualificationStatus&&<p role="status" className="axiom-preflight-good">{qualificationStatus}</p>}
-     {qualificationError&&<p role="alert" className="axiom-preflight-error">{qualificationError}</p>}
    </div>
    <p className="axiom-connection-boundary">A connection is not fully active merely because the registry responds. The account-token gate, runtime role, owner code, explicit per-request approval, one-shot idempotency and daily quota must all pass.</p>
   </section>
