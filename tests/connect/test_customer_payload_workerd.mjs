@@ -37,7 +37,10 @@ test('workerd refuses oversized customer JSON without forwarding any parsed obje
     const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({note:'🛡️'.repeat(20000)}),
+      // Exceed the 64-KiB byte cap by a narrow margin. A much larger
+      // upload can race the local workerd HTTP client's early 413 response
+      // and cause ECONNRESET during upload, obscuring the assertion.
+      body:JSON.stringify({note:'🛡️'.repeat(9400)}),
     });
     assert.equal(response.status,413);
     assert.deepEqual(await response.json(),{ok:false,status:413,error:'PAYLOAD_TOO_LARGE'});
