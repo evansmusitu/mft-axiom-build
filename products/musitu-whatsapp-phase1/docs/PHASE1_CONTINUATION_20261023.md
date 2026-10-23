@@ -172,6 +172,44 @@ and `evidence/20261023/final-pass-npm-verify.log`.
 
 ## Remaining acceptance and next permitted work
 
+The next owner actions are now concrete in
+[Owner phone acceptance](OWNER_PHONE_ACCEPTANCE_20261023.md). A fresh readback at
+07:31 Africa/Harare still found no active unexpired session, new inbound, outbound
+attempt, consent or signed delivery. The target business has no knowledge entries
+or AI requests. Both existing role-handoff threads still contain only their sent
+message; a separate incoming search found no matching replies. No invitation was
+repeated. Privacy intake received one bounded manual subject search, not a
+monitoring or delivery qualification.
+
+An owner-only encrypted conversation-review HTTP/UI candidate now connects the
+already qualified native exporter to the existing private development business.
+It defaults off, binds the actual session subject and selected conversation,
+requires review approval and a fresh client key, bounds requests/downloads,
+rechecks owner membership after encryption and never exposes a key in response
+headers. Browser key/receipt downloads are separate from the encrypted file and
+are retained only as temporary download links until the conversation closes.
+This workflow performs no source-data writes or deletion and grants no database
+permission. It is not a complete subject-access response. Application deployment
+and actual owner phone execution are recorded separately after qualification.
+
+[Provider and privacy review](PROVIDER_PRIVACY_REVIEW_20261023.md) adds the real
+Neon US region, encrypted offsite stores and current primary-source findings.
+Vercel optional-training and Groq ZDR settings remain unverified, as do exact
+applicable provider/transfer arrangements. No legal or security approval is inferred.
+AXIOM Preview metadata contains no application credential and the SaaS transport
+remains disabled. A successful plugin capability read is not SaaS authentication;
+the pinned provider source inspected is not a claim about all live service options.
+
+Evidence: `evidence/20261023/owner-acceptance-prerequisites.json`.
+
+The guarded candidate passed **336 tests, 0 failures, 0 skips; 154 MJS syntax
+checks; 436 source-manifest entries**, plus a successful optimized Next.js build
+including the new dynamic route. Seven focused checks include a reproduced
+post-encryption revocation gap in the new HTTP adapter, corrected by a final
+owner/session recheck. No native qualification was repeated. Actual deployment
+and owner execution remain separate from these local results. Evidence:
+`evidence/20261023/privacy-review-qualification.json`.
+
 | Area | Remaining evidence |
 | --- | --- |
 | Deployment security | Next.js security patch installed on private staging with exact source/build/alias and SSO readbacks. Actual authenticated application/security acceptance remains open. Keep ordinary builds separate from hosted fixture qualifiers. |

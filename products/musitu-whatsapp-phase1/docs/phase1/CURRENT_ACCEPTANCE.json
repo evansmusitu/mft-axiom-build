@@ -1,6 +1,6 @@
 {
   "schema": "musitu.whatsapp.phase1.acceptance.v2",
-  "observedAt": "2026-10-23T04:34:02.989Z",
+  "observedAt": "2026-10-23T05:31:02.485Z",
   "environment": "PRIVATE_STAGING_PROTECTED",
   "publicReleaseAuthorized": false,
   "historicalRegisterPreserved": "docs/phase1/finalization/qualification.json",
@@ -40,6 +40,10 @@
         {
           "path": "evidence/20261023/onepass-final-services.json",
           "sha256": "798bfb1a038238c78a5c4752523141dc0df807d473badd3b98e510424631783d"
+        },
+        {
+          "path": "evidence/20261023/owner-acceptance-prerequisites.json",
+          "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
         }
       ]
     },
@@ -58,13 +62,23 @@
       "id": "real_ai_model_qualified_quality_cost_privacy",
       "status": "BLOCKED",
       "scope": "Earlier isolated model qualification does not establish the owner-authenticated approved-knowledge, draft and review workflow or human quality/privacy acceptance.",
-      "evidence": []
+      "evidence": [
+        {
+          "path": "evidence/20261023/owner-acceptance-prerequisites.json",
+          "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
+        }
+      ]
     },
     {
       "id": "axiom_application_service_identity_and_gateway",
       "status": "BLOCKED",
       "scope": "Actual SaaS service identity and transport remain unqualified; operator MCP access is not application authentication.",
-      "evidence": []
+      "evidence": [
+        {
+          "path": "evidence/20261023/owner-acceptance-prerequisites.json",
+          "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
+        }
+      ]
     },
     {
       "id": "nextjs_customer_dashboard_prod_build",
@@ -118,17 +132,29 @@
         {
           "path": "evidence/20261023/onepass-final-services.json",
           "sha256": "798bfb1a038238c78a5c4752523141dc0df807d473badd3b98e510424631783d"
+        },
+        {
+          "path": "evidence/20261023/owner-acceptance-prerequisites.json",
+          "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
         }
       ]
     },
     {
       "id": "customer_consent_optout_external_requests_and_complaints",
       "status": "BLOCKED",
-      "scope": "Synthetic privacy-export checks passed. Approved real retention/disposition, scoped export/deletion, request monitoring and processor/transfer review remain unqualified.",
+      "scope": "Native synthetic export and the guarded development owner HTTP/download candidate passed bounded checks. Real owner phone execution, approved retention/disposition, actual subject disclosure/deletion, ongoing intake monitoring and processor/transfer acceptance remain unqualified.",
       "evidence": [
         {
           "path": "evidence/20261023/native-privacy-recovered.json",
           "sha256": "287a6a78067cd0de8711a9ea07c6f15cab2cb1f7db36485de43c8cdc2605a837"
+        },
+        {
+          "path": "evidence/20261023/owner-acceptance-prerequisites.json",
+          "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-qualification.json",
+          "sha256": "afd777ec991c233882ef984a967877e9fa813fe87d9d59edd0854ae48be8b0e4"
         }
       ]
     }

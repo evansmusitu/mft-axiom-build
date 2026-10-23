@@ -1,5 +1,6 @@
-/** Operator-review export only. No HTTP route, delivery, data erasure or permission
- * grant. The caller must supply a verified session recheck, approved request scope,
+/** Read-only operator-review export primitive. Its guarded HTTP adapter is separate.
+ * No subject-response delivery, data erasure or permission grant. The caller must
+ * supply a verified session recheck, approved request scope,
  * and a fresh export key. A bundle is not a completed subject-access request.
  */
 import {createCipheriv,createDecipheriv,createHash,randomBytes} from 'node:crypto';
