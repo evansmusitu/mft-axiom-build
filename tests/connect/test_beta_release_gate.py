@@ -98,7 +98,9 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertIs(header_guard['untrusted_run_id_reaches_axiom'], False)
         self.assertIs(header_guard['deployed_to_existing_production_worker'], False)
         self.assertIs(header_guard['customer_admission_authorized'], False)
-        self.assertIn("pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}
+        self.assertIn("pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$'", self.contract)
+        self.assertIn("/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/", self.worker)
+        self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
         for decision in (
