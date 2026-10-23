@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from ops.openhands_qualification.mission_ledger import MissionLedger, LedgerDenied, RecoveryHold
+from ops.openhands_qualification.local_bootstrap import bootstrap_local_s0
 
 H='a'*64
 
@@ -34,6 +35,7 @@ class MissionLedgerTests(unittest.TestCase):
         self.root=tempfile.TemporaryDirectory();self.addCleanup(self.root.cleanup)
         self.db=str(Path(self.root.name)/'journal.sqlite3')
         Path(self.root.name).chmod(0o700)
+        bootstrap_local_s0(self.db,acknowledged_local_only=True)
     def test_distinct_cross_process_admissions_respect_global_capacity(self):
         ctx=mp.get_context('fork');q=ctx.Queue();ps=[ctx.Process(target=compete_distinct,args=(self.db,q,i)) for i in range(8)]
         for p in ps:p.start()
