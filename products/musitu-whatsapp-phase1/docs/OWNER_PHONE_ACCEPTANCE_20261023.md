@@ -61,7 +61,8 @@ synthetic question does not certify broader answer quality or privacy acceptance
 
 ## 4. Prepare a private encrypted review copy
 
-After the guarded export candidate is actually enabled on private staging,
+The guarded export is now enabled on protected private staging at application
+source `bf77a1a2a0132ecc6566317c0256655af395fade`.
 **Read conversation** includes **Private conversation review** for this business.
 Approve preparing the private review copy, then select
 **Prepare encrypted review export**. Save **Download encrypted export** and

@@ -1,6 +1,6 @@
 {
   "schema": "musitu.whatsapp.phase1.acceptance.v2",
-  "observedAt": "2026-10-23T05:31:02.485Z",
+  "observedAt": "2026-10-23T05:54:37.316Z",
   "environment": "PRIVATE_STAGING_PROTECTED",
   "publicReleaseAuthorized": false,
   "historicalRegisterPreserved": "docs/phase1/finalization/qualification.json",
@@ -44,6 +44,10 @@
         {
           "path": "evidence/20261023/owner-acceptance-prerequisites.json",
           "sha256": "cac8ebaada5c65468bc64194ac8bbc712cf432fcee0c145a07b92b7d9d262691"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-private-deployment.json",
+          "sha256": "53b5ab7e2fe527f30e3d9b4a8c9c69147ae6f2cb439f520e3ab015280074c65a"
         }
       ]
     },
@@ -55,6 +59,10 @@
         {
           "path": "evidence/20261023/onepass-final-services.json",
           "sha256": "798bfb1a038238c78a5c4752523141dc0df807d473badd3b98e510424631783d"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-private-deployment.json",
+          "sha256": "53b5ab7e2fe527f30e3d9b4a8c9c69147ae6f2cb439f520e3ab015280074c65a"
         }
       ]
     },
@@ -100,6 +108,10 @@
         {
           "path": "evidence/20261023/npm-build.log",
           "sha256": "e63f0e22b477599de7ae5a4ea012f79cee3f32c752fb440e139ab4443a4c9565"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-private-deployment.json",
+          "sha256": "53b5ab7e2fe527f30e3d9b4a8c9c69147ae6f2cb439f520e3ab015280074c65a"
         }
       ]
     },
@@ -112,7 +124,7 @@
     {
       "id": "monitoring_alerting_backup_restore",
       "status": "PARTIAL",
-      "scope": "Fresh hosted-state encrypted backup, private offsite retention, independent retrieval and disposable native restore passed. Daily task is saved and an immediate run requested, but no run or alert delivery is recorded. Custodian/account-loss/application recovery and accepted RPO/RTO remain open.",
+      "scope": "Fresh manual encrypted offsite retrieval and native restore passed. Daily task is saved, still without recorded execution or delivery; it now requires verified Vercel optional-training opt-out before new private checkpoint uploads. Accepted custodian/account-loss/application recovery and RPO/RTO remain open.",
       "evidence": [
         {
           "path": "evidence/20261023/fresh-hosted-offsite-recovery.json",
@@ -121,6 +133,10 @@
         {
           "path": "evidence/20261023/scheduled-recovery-state.json",
           "sha256": "bc03ee147a573889cb04ac68a359084c59190cac9702a823befdb3e5e2be3f55"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-private-deployment.json",
+          "sha256": "53b5ab7e2fe527f30e3d9b4a8c9c69147ae6f2cb439f520e3ab015280074c65a"
         }
       ]
     },
@@ -142,7 +158,7 @@
     {
       "id": "customer_consent_optout_external_requests_and_complaints",
       "status": "BLOCKED",
-      "scope": "Native synthetic export and the guarded development owner HTTP/download candidate passed bounded checks. Real owner phone execution, approved retention/disposition, actual subject disclosure/deletion, ongoing intake monitoring and processor/transfer acceptance remain unqualified.",
+      "scope": "The development owner encrypted-review HTTP/UI is deployed and locally qualified, with existing native export evidence retained. Actual owner phone execution, approved retention/disposition, subject disclosure/deletion, intake monitoring and processor/transfer acceptance remain unqualified.",
       "evidence": [
         {
           "path": "evidence/20261023/native-privacy-recovered.json",
@@ -155,6 +171,10 @@
         {
           "path": "evidence/20261023/privacy-review-qualification.json",
           "sha256": "afd777ec991c233882ef984a967877e9fa813fe87d9d59edd0854ae48be8b0e4"
+        },
+        {
+          "path": "evidence/20261023/privacy-review-private-deployment.json",
+          "sha256": "53b5ab7e2fe527f30e3d9b4a8c9c69147ae6f2cb439f520e3ab015280074c65a"
         }
       ]
     }

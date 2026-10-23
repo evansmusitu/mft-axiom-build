@@ -210,6 +210,33 @@ owner/session recheck. No native qualification was repeated. Actual deployment
 and owner execution remain separate from these local results. Evidence:
 `evidence/20261023/privacy-review-qualification.json`.
 
+The review-export control is now **deployed and enabled on private staging**:
+source `bf77a1a2a0132ecc6566317c0256655af395fade`, READY deployment
+`dpl_6umGMzg1CuivGuZEmMnKoqKg6Emm`. Exact source/build and independent stable-alias
+readback match. Next.js 16.4.2 compiled the dynamic owner review route; ordinary
+`npm run build` ran no hosted qualifier or migration. The prior patched artifact
+is retained for rollback. Project live=false and hosting SSO remains enabled on
+all deployments. Anonymous unique/stable health probes returned 302 to Vercel
+without credentials, redirect following or body reads; no authenticated health
+or phone workflow is inferred.
+
+At **07:54 Africa/Harare / 05:54 UTC**, the target ledger remained unchanged:
+three inbound events, no new service window, zero attempts/uncertainties,
+consent/status events, knowledge entries, AI requests or active unexpired sessions.
+No reply, model call or owner export was performed by the implementer. Incoming
+nominee search still found no replies.
+
+The existing daily recovery task's exact stable deployment pin was updated for
+this intentional private staging change. Its operator source remains pinned to
+the already qualified checkpoint tools. It now stops before another snapshot or
+private checkpoint upload unless genuine owner/provider evidence establishes
+Vercel optional-training opt-out. The recurrence is unchanged; no second immediate
+run was requested. No run, next execution or delivery result is recorded, so
+scheduled recovery/alert delivery remains unqualified.
+
+Evidence: `evidence/20261023/privacy-review-private-deployment.json` and
+`evidence/20261023/privacy-review-hosted-build.log`.
+
 | Area | Remaining evidence |
 | --- | --- |
 | Deployment security | Next.js security patch installed on private staging with exact source/build/alias and SSO readbacks. Actual authenticated application/security acceptance remains open. Keep ordinary builds separate from hosted fixture qualifiers. |

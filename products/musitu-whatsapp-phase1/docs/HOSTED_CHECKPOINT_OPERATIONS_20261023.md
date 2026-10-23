@@ -132,3 +132,16 @@ or next execution was recorded; delivery status remains unknown. Scheduling and
 alert delivery are therefore unqualified. Do not retry an unresolved run request
 or mark this as an operationally proven backup schedule. Native Neon scheduling
 was not changed. See `evidence/20261023/scheduled-recovery-state.json`.
+
+## Privacy preflight and current application pin
+
+Following the guarded owner-review deployment, the existing task now expects
+stable app `dpl_6umGMzg1CuivGuZEmMnKoqKg6Emm`. The checkpoint code remains pinned
+to `0dc79a6795e422adf3872347816c2f2cf9f8e63d`; no schema or role grant changed.
+Before collecting another hosted checkpoint or uploading private inputs, the task
+must verify actual Vercel optional-training opt-out through admitted provider or
+genuine owner evidence. If unverified, it stops before capture/upload and returns
+an actionable failure. Published defaults are not account-setting evidence.
+The recurrence remains around 08:00 Africa/Harare; no additional immediate run was
+requested, and execution/alert delivery remains unqualified. See the private
+deployment receipt and provider review for the exact scope.
