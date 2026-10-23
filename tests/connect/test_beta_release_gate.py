@@ -92,6 +92,58 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertIs(pilot['customer_admission_authorized'], False)
         self.assertEqual(record['checks']['customer_beta_acceptance_evidence'],
                          'NOT_DEMONSTRATED')
+        self.assertEqual(record['feature_branch_risk_request_id_header_validation'],
+                         'ASCII_ALLOWLIST_REGRESSION_TESTED_NOT_DEPLOYED')
+        header_guard = record['feature_branch_risk_request_id_evidence']
+        self.assertIs(header_guard['untrusted_run_id_reaches_axiom'], False)
+        self.assertIs(header_guard['deployed_to_existing_production_worker'], False)
+        self.assertIs(header_guard['customer_admission_authorized'], False)
+        self.assertIn("pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}
+        self.assertTrue(record['existing_production_runtime_enabled'])
+        self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
+        for decision in (
+            'new_beta_customer_admission_authorized',
+            'public_customer_publication_authorized',
+            'openai_plugin_submission_or_publication_authorized',
+            'predictive_methane_production_authorized',
+        ):
+            with self.subTest(decision=decision):
+                self.assertIs(record[decision], False)
+
+    def test_separate_customer_security_and_operational_requirements_are_outstanding(self):
+        checks = self.record['checks']
+        for name in (
+            'separate_tenant_credentials_and_rotation',
+            'tenant_isolation_and_customer_usage_attribution',
+            'per_customer_rate_quota_and_payload_limits',
+            'real_customer_onboarding_and_offboarding',
+            'external_paging_human_acknowledgment',
+            'connect_customer_terms_privacy_and_dpa_approved',
+            'customer_beta_acceptance_evidence',
+        ):
+            with self.subTest(check=name):
+                expected = ('NOT_DEMONSTRATED_ON_REAL_D1' if name in (
+                    'tenant_isolation_and_customer_usage_attribution',
+                    'per_customer_rate_quota_and_payload_limits') else 'NOT_DEMONSTRATED')
+                self.assertEqual(checks[name], expected)
+        self.assertGreaterEqual(len(self.record['mandatory_external_signoffs']), 5)
+
+    def test_contract_names_only_supported_routes_and_protects_internal_auth(self):
+        for route in ('/health:', '/api/mining/plan:', '/api/mining/risk:'):
+            self.assertIn(route, self.contract)
+        for marker in ('RISK_SINGLE_ROW_REQUIRED', 'PLAN_SEARCH_LIMIT_EXCEEDED'):
+            self.assertIn(marker, self.worker)
+            self.assertIn(marker, self.contract)
+        self.assertIn('NOT a customer', self.contract)
+        self.assertIn('Existing production Worker; feature-branch changes not automatically deployed.', self.contract)
+
+
+if __name__ == '__main__':
+    unittest.main()
+",
+                      self.contract)
+        self.assertIn("/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/",
+                      self.worker)
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
