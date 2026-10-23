@@ -258,8 +258,15 @@ test('internal Mining risk refuses unsafe correlation identifiers before contact
     return Response.json({ok:true, result:{result:'3.348'}});
   };
   try {
-    const unsafe = ['abc\\tdef', 'a\\u0000b', 'a\\u007fb', 'a b', 'méthane',
-      ' run-with-padding', 'run-with-padding ', 'A'.repeat(81), '', 3];
+    const unsafe = [
+      'a' + String.fromCharCode(92) + 'b', // backslash
+      'abc' + String.fromCharCode(9) + 'def', // tab
+      'a' + String.fromCharCode(0) + 'b', // NUL
+      'a' + String.fromCharCode(10) + 'b', // newline
+      'a' + String.fromCharCode(127) + 'b', // DEL
+      'a b', 'méthane', ' run-with-padding', 'run-with-padding ',
+      'A'.repeat(81), '', 3,
+    ];
     for (const run_id of unsafe) {
       const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
         method: 'POST',
