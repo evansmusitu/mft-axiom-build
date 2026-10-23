@@ -47,3 +47,44 @@ jobs:
           grep -Fq 'provider_dispatch_allowed' ops/openhands_qualification/mission_ledger.py
           grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
           echo AXIOM_B27_GLOBAL_ANTIROLLBACK_STILL_FAILED
+
+  ecc-interface-contract-review:
+    needs: local-ecc-recovery-tests
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'build/axiom-ecc-s0-local-hardening-20261022'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify source ancestry and prohibit release credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 383f5f52d6191a2e55bb634c7dcabcafcd3bb654 HEAD
+          test -z "${OPENHANDS_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          echo AXIOM_ECC_S0_JAVASCRIPT_REVIEW_NO_PROVIDER_OR_RELEASE
+      - name: Execute real Project-scoped Engineering Command Center contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs axiom_interface/vnext/tests/openhands_ecc_bridge.test.mjs
+          node --check axiom_interface/vnext/engineering_command_center_ui.js
+          node --check axiom_interface/vnext/openhands_engineering_bridge.js
+          echo AXIOM_ECC_S0_PROJECT_SCOPED_INTEGRATION_TESTS_PASS
+      - name: Keep evidence claims below independently qualified release
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'FAILED_IN_SYNTHETIC_ATTACK' ops/openhands_qualification/README.md
+          grep -Fq 'NOT_CERTIFIED' axiom_interface/vnext/openhands_engineering_bridge.js
+          grep -Fq 'PRODUCTION AUTHORITY: FALSE' axiom_interface/vnext/engineering_command_center_ui.js
+          echo AXIOM_ECC_S0_EXTERNAL_INDEPENDENCE_NOT_CERTIFIED
