@@ -1,5 +1,22 @@
 # Phase 1 continuation — 23 October 2026
 
+> Latest application update: the reported sign-in issue led to two reproduced
+> navigation defects and a missing session-status display. Their correction is
+> deployed privately at source `b2999b2303004c65e1661b4dfd6809fba7680db7`,
+> READY deployment `dpl_HR4xGQTyVd5kneEXyAqiDnKtx2Us`, on the existing stable URL.
+> Full verification passed344 tests and the local/hosted build passed. SSO remains
+> enabled for all deployments; the previous application remains for rollback.
+> The selected business now survives sign-in, preview starts move to the pinned
+> host before issuing a flow cookie, and a real no-store session check supplies
+> dashboard status. Identity proof, expiry, membership and send guards are unchanged.
+> The exact phone error remains unknown and actual phone/owner access remains open.
+> At 11:23 Africa/Harare there were no active sessions or outbound attempts and
+> three target inbound events. The daily recovery deployment pin was updated while
+> preserving its schedule/operator source/prompt; its recorded result and delivery
+> remain unqualified. See [sign-in continuation](SIGNIN_CONTEXT_RECOVERY_20261023.md)
+> and `evidence/20261023/signin-context-private-deployment.json`. This supersedes
+> older application deployment pins below; Phase1 remains incomplete.
+
 Phase 1 remains **INCOMPLETE**. This is the current evidence register for the recovered candidate. PR29 must remain **OPEN, DRAFT and UNMERGED**. Historical registers and emails remain evidence of their original observations.
 
 ## Recovered product and authority

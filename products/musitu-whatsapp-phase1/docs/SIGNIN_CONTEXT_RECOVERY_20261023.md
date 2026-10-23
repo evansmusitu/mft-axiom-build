@@ -73,3 +73,32 @@ transport or hosted database was used by that check. Evidence is in
 
 Actual phone sign-in and target-business access still require confirmation from
 the owner. No earlier browser approval restriction was retried or bypassed.
+
+## Protected deployment confirmed
+
+Application source `b2999b2303004c65e1661b4dfd6809fba7680db7` is READY as
+`dpl_HR4xGQTyVd5kneEXyAqiDnKtx2Us`. The exact uploaded product tree matched the
+locally verified tree. The hosted ordinary Next.js 16.4.2 build compiled the session
+route without running database fixtures or migrations. The stable private alias
+was checked to remain on the previous artifact until intentional assignment;
+independent readback then confirmed the new artifact. The previous artifact is
+retained for rollback. Project live=false and SSO remains enabled on all deployments.
+
+Anonymous HEAD probes to the stable and unique session URLs returned302 to Vercel
+without credentials, redirect following or body reads. The diagnostic connector's
+earlier status fetch created temporary hosting access; its token appeared in a
+tool readback and was promptly revoked without regeneration. Independent alias
+readback confirmed zero remaining temporary share access. No token is persisted
+in source or evidence; this connector path was not used again.
+
+At 11:23 Africa/Harare the ledger still showed 34 total sessions, zero active
+unexpired sessions, three target inbound events and zero outbound attempts.
+The existing daily recovery task now references this deployment. Its recurrence,
+operator source and every other prompt instruction were preserved exactly; no
+additional immediate run was requested. The scheduler has a last-run timestamp
+but exposes no recorded result, next run or delivery evidence. Operational
+qualification remains open.
+
+Evidence: `evidence/20261023/signin-context-private-deployment.json` and
+`signin-context-hosted-build.log`. No actual phone sign-in, target-business access
+or message delivery is inferred from this deployment.

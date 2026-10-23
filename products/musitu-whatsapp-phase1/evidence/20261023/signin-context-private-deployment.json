@@ -1,0 +1,86 @@
+{
+  "observedAt": "2026-10-23T09:23:12.204Z",
+  "scope": "PRIVATE_STAGING_SIGNIN_CONTINUATION_CORRECTION",
+  "sourceCommit": "b2999b2303004c65e1661b4dfd6809fba7680db7",
+  "productTree": "611652361c67e580b9752710009d35f0c6b4a889",
+  "deployment": "dpl_HR4xGQTyVd5kneEXyAqiDnKtx2Us",
+  "state": "READY",
+  "stableUrl": "https://musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+  "uniqueUrl": "https://musitu-whatsapp-phase1-private-20261014-aky2omk8q-evansmusitu.vercel.app",
+  "priorDeploymentRetained": "dpl_6umGMzg1CuivGuZEmMnKoqKg6Emm",
+  "exactSourceTreeMatched": true,
+  "project": {
+    "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "live": false,
+    "ssoProtection": {
+      "enabled": true,
+      "deploymentType": "all"
+    }
+  },
+  "alias": {
+    "alias": "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+    "projectId": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "deploymentId": "dpl_HR4xGQTyVd5kneEXyAqiDnKtx2Us",
+    "temporaryShareAccessCount": 0
+  },
+  "build": {
+    "next": "16.4.2",
+    "command": "npm run build",
+    "installCommand": "npm ci --ignore-scripts --no-audit --no-fund",
+    "sessionRouteCompiled": true,
+    "hostedFixtureQualifierExecuted": false,
+    "migrationExecuted": false,
+    "projectDefaultsChanged": false,
+    "logSha256": "25a10d15cd2721f21e7aa0e6fcdaa4abd980b917560c1dece5427af66766cbcb"
+  },
+  "hostingBoundary": {
+    "stableAndUniqueStatus": 302,
+    "redirectHost": "vercel.com",
+    "credentialsSupplied": false,
+    "redirectsFollowed": false,
+    "responseBodyRead": false
+  },
+  "diagnosticAccessCleanup": {
+    "temporaryConnectorAccessRevoked": true,
+    "regenerated": false,
+    "independentAliasReadbackConfirmed": true,
+    "temporaryShareAccessRemaining": 0,
+    "credentialValuePersistedInRepository": false
+  },
+  "database": {
+    "observed_at": "2026-10-23T09:23:12.204Z",
+    "active_unexpired_sessions": "0",
+    "total_sessions": "34",
+    "target_inbound_events": "3",
+    "target_outbound_attempts": "0"
+  },
+  "recoveryTask": {
+    "id": "6adae1d489008191a6b8d68285f3862c",
+    "enabled": true,
+    "schedule": "BEGIN:VEVENT\nDTSTART;TZID=Africa/Harare:20261023T080000\nRRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0\nEND:VEVENT",
+    "scheduleUnchanged": true,
+    "lastRunTime": "2026-10-23T06:56:58.661967+00:00",
+    "nextRunTime": null,
+    "recordedStatus": null,
+    "hasRecordedResult": false,
+    "deliveryStatus": "unknown",
+    "operatorSource": "0dc79a6795e422adf3872347816c2f2cf9f8e63d",
+    "deploymentPin": "dpl_HR4xGQTyVd5kneEXyAqiDnKtx2Us",
+    "privacyPreflightPreserved": true,
+    "immediateRunRequested": false,
+    "existingPromptPreservedExceptDeploymentPin": true
+  },
+  "genuinePhoneLoginConfirmed": false,
+  "genuineOwnerBusinessAccessConfirmed": false,
+  "whatsappSent": false,
+  "credentialsReset": false,
+  "authenticationChecksRelaxed": false,
+  "browserReconnectionAttempted": false,
+  "phase1Complete": false,
+  "limits": [
+    "The reported phone error text was not supplied; these corrections address reproduced application defects, not every possible provider or hosting failure.",
+    "New aggregate session rows do not attribute account, phone or successful target-business access.",
+    "Local synthetic and hosting-boundary checks do not establish actual phone identity acceptance.",
+    "A task last-run timestamp without a recorded result/delivery does not qualify scheduled recovery."
+  ]
+}
