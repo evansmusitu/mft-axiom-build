@@ -170,13 +170,13 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
        reviewEvidenceCount:found.reviews.length,...denied});
    }
    require_(actor.role==='review_identity'||actor.role==='review_security',403);
-   // Reviewer-role JWT alone cannot authorize the author to review their own app.
-   // Check the original JWT-bound submitting subject before recording evidence.
+   const raw=await readBounded(req),data=strictObject(raw);validateReview(data);
+   // Even a separate valid MFA reviewer token must not let an app author review
+   // their own submission. Fail closed if submitter provenance is unavailable.
    const original=await repository.read(id);
    if(!original)return json(404,{ok:false,code:'submission_not_found',...denied});
-   require_(typeof original.actorId==='string' && original.actorId.length>=6,503);
+   require_(typeof original.actorId==='string'&&original.actorId.length>=6,503);
    require_(original.actorId!==actor.subject,403);
-   const raw=await readBounded(req),data=strictObject(raw);validateReview(data);
    const result=await repository.addReview(id,{subject:actor.subject,role:actor.role,
      decision:data.decision,evidenceSha256:data.evidenceSha256,reviewDigest:sha(raw)});
    if(result?.kind==='missing')return json(404,{ok:false,code:'submission_not_found',...denied});
