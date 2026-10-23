@@ -9,7 +9,16 @@ recorded separately. Keep PR29 open, draft and unmerged.
 Open [the private business dashboard](https://musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app/?business=986eb904-7296-46a9-9e9b-94074db9b547).
 Complete existing hosting sign-in if requested, then select **Sign in** for the
 business identity. Enter credentials and MFA only in the provider's sign-in form.
-After the callback, reopen the same dashboard link and select **Open business**.
+After the callback, select **Open business**. If the business identifier is empty
+on an earlier deployment, reopen the same dashboard link first.
+
+The sign-in continuation correction preserves the selected business through the
+encrypted flow and returns to that business after the callback. It also displays
+the result of a real session check. Use **Open business** when it says **Signed
+in**. **You are signed out** means a fresh business sign-in is needed;
+**This account does not have access to the selected business** is a membership
+denial, not a request to reset credentials. A provider/hosting error still needs
+its actual screen text. Deployment of this correction is recorded separately.
 
 From the verified WhatsApp account ending 2008, send `Phase 1 acceptance test` in
 the existing development test conversation. In the dashboard, select

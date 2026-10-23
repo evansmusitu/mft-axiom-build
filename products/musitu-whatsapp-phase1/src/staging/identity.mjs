@@ -3,6 +3,7 @@ import {EncryptJWT,jwtDecrypt} from 'jose';
 import {database} from './database.mjs';
 import {identityConfig,assertIdentityFlow,providerLogoutUrl,ZITADEL_MAX_AUTH_AGE_SECONDS} from './identity-policy.mjs';
 import {createIdentityProvider} from './identity-provider.mjs';
+import {businessIdentifier,businessSignInPath,businessDestination} from '../shared/business-navigation.mjs';
 const COOKIE='__Host-musitu-session',FLOW='__Host-musitu-flow';
 let providerCache;
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -41,6 +42,10 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
  onStage('CONFIGURATION');
  const cfg=config();
  if(action==='login'&&req.method==='GET'){
+  const requestUrl=new URL(req.url),business=businessIdentifier(requestUrl.searchParams.get('business'));
+  // The host-only flow cookie must be issued on the registered callback host.
+  // A preview hostname never selects a new callback or authentication origin.
+  if(requestUrl.origin!==cfg.origin)return new Response(null,{status:302,headers:{location:cfg.origin+businessSignInPath(business),'cache-control':'no-store','referrer-policy':'no-referrer'}});
   onStage('DISCOVERY');
   await provider(cfg).qualifyDiscovery();
   const state=randomBytes(32).toString('base64url'),nonce=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
@@ -52,7 +57,7 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
    target.searchParams.set('claims',JSON.stringify({id_token:{auth_time:{essential:true}}}));
   }
   onStage('SESSION_ENCRYPTION');
-  return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier},600),600,FLOW),'cache-control':'no-store'}});
+  return new Response(null,{status:302,headers:{location:target.href,'set-cookie':sessionCookie(await seal({purpose:'login',state,nonce,verifier,...(business?{business}:{})},600),600,FLOW),'cache-control':'no-store'}});
  }
  if(action==='callback'&&req.method==='GET'){
   onStage('FLOW_VALIDATION');
@@ -76,7 +81,7 @@ export async function identityAction(req,action,{onStage=()=>{}}={}){
   const raw=randomBytes(32).toString('base64url'),encrypted=await seal({accessToken:tokens.access_token,...proof},Math.min(3600,tokens.expires_in));
   onStage('SESSION_PERSISTENCE');
   await sessionRow(raw,async(c,h)=>c.query('INSERT INTO musitu_identity.sessions(token_hash,encrypted_payload,expires_at) VALUES($1,$2,now()+($3::int * interval \'1 second\'))',[h,encrypted,Math.min(3600,tokens.expires_in)]));
-  const headers=new Headers({location:'/', 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));
+  const headers=new Headers({location:businessDestination(flow.business), 'cache-control':'no-store'});headers.append('set-cookie',sessionCookie(raw,Math.min(3600,tokens.expires_in)));headers.append('set-cookie',sessionCookie('',0,FLOW));
   onStage('COMPLETE');
   return new Response(null,{status:302,headers});
  }

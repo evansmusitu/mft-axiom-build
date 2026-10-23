@@ -5,16 +5,21 @@ import {endBusinessSession} from '../src/dashboard/logout.mjs';
 import {loadBookingView} from '../src/dashboard/booking-view.mjs';
 import DevelopmentReply from './development-reply.jsx';
 import PrivacyReview from './privacy-review.jsx';
+import {businessIdentifier,businessSignInPath} from '../src/shared/business-navigation.mjs';
+import {readBusinessSession} from '../src/dashboard/session-status.mjs';
 const sections=['Overview','Onboarding','Configuration','Conversations','Bookings','Knowledge','Approvals','Channels','Team access','Audit','Operational status'];
 export default function Dashboard(){
  const fence=useRef(null);fence.current??=createScopeFence();
+ const sessionCheck=useRef(0);
  const [conversation,setConversation]=useState(null);
  const [resources,setResources]=useState([]),[selectedResource,setSelectedResource]=useState('');
  const [section,setSection]=useState('Overview'),[tenant,setTenant]=useState(''),[status,setStatus]=useState(null),[records,setRecords]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const [signedIn,setSignedIn]=useState(undefined);
  useEffect(()=>()=>fence.current.invalidate(),[]);
- useEffect(()=>{const requested=new URLSearchParams(window.location.search).get('business');if(requested==='986eb904-7296-46a9-9e9b-94074db9b547'){setTenant(requested);setSection('Conversations');}},[]);
+ useEffect(()=>{const requested=businessIdentifier(new URLSearchParams(window.location.search).get('business'));if(requested){setTenant(requested);setSection('Conversations');}},[]);
+ useEffect(()=>{let active=true;const refresh=()=>{const ticket=++sessionCheck.current;return readBusinessSession().then(value=>{if(active&&sessionCheck.current===ticket)setSignedIn(value);});};void refresh();window.addEventListener('focus',refresh);return()=>{active=false;window.removeEventListener('focus',refresh);};},[]);
  function clearView(){fence.current.invalidate();setRecords(null);setConversation(null);setResources([]);setSelectedResource('');setError('');setBusy(false);}
- async function signOut(event){event.preventDefault();clearView();setBusy(true);try{await endBusinessSession();}catch{setError('Sign out is unavailable.');setBusy(false);}}
+ async function signOut(event){event.preventDefault();clearView();sessionCheck.current++;setSignedIn(null);setBusy(true);try{await endBusinessSession();}catch{setError('Sign out is unavailable.');setBusy(false);}}
  useEffect(()=>{fetch('/api/status',{cache:'no-store'}).then(r=>r.json()).then(setStatus).catch(()=>setError('Status is unavailable'));},[]);
  const kinds={'Configuration':'configuration','Overview':'metrics','Conversations':'conversations','Bookings':'bookings','Knowledge':'knowledge','Approvals':'drafts','Channels':'channels','Team access':'staff','Audit':'audit'};
  async function load(selected=section){
@@ -25,9 +30,12 @@ export default function Dashboard(){
    }
    const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${kinds[selected]}`,{cache:'no-store'});
    if(!fence.current.current(ticket))return;
-   if(!r.ok)throw Error(r.status===403?'Sign in and select a business you belong to.':'The business service is unavailable.');
+   if(!r.ok){
+    if(r.status===403){const session=await readBusinessSession();if(!fence.current.current(ticket))return;setSignedIn(session);throw Error(session===true?'This account does not have access to the selected business.':session===false?'Your business session is unavailable or expired. Sign in again.':'Sign-in status is unavailable. Try checking again.');}
+    throw Error('The business service is unavailable.');
+   }
    const data=await r.json();if(!fence.current.current(ticket))return;
-   if(data.tenantId!==tenant)throw Error('Business response rejected');setRecords(data.data);
+   if(data.tenantId!==tenant)throw Error('Business response rejected');setSignedIn(true);setRecords(data.data);
   }catch(e){if(fence.current.current(ticket)){setRecords(null);setConversation(null);setResources([]);setSelectedResource('');setError(e.message);}}
   finally{if(fence.current.current(ticket))setBusy(false);}
  }
@@ -65,7 +73,7 @@ export default function Dashboard(){
  }
  return <div className="shell"><aside className="sidebar"><div className="brand"><span className="brandmark">M</span><span>MUSITU <small>WhatsApp AI Employee</small></span></div><nav aria-label="Main navigation">{sections.map(s=><button key={s} className={section===s?'active':'nav-btn'} onClick={()=>{clearView();setSection(s);}}>{s}</button>)}</nav><div className="sidebar-footer">Private staging<p>Customer messaging disabled</p></div></aside>
  <main className="content"><header><div><div className="eyebrow">BUSINESS OPERATIONS</div><h1>Your business, <em>in control.</em></h1><p className="subtitle">Approved knowledge, reliable appointments and accountable human service.</p></div><span className="badge">PRIVATE DEVELOPMENT</span></header>
- <section className="connect"><div><h2>Secure business access</h2><p>{status?.identityConfigured?'Sign in with your business identity.':'Business sign-in is awaiting identity-provider configuration.'}</p></div><a className="login-btn" href="/auth/login">Sign in</a><form action="/auth/logout" method="post" onSubmit={signOut}><button type="submit" disabled={busy}>Sign out</button></form><form onSubmit={e=>{e.preventDefault();load();}}><label>Business identifier<input aria-label="Business identifier" value={tenant} onChange={e=>{clearView();setTenant(e.target.value);}} placeholder="Business UUID" autoComplete="off" required/></label><button type="submit" disabled={busy||!tenant||!status?.identityConfigured}>Open business</button></form></section>
+ <section className="connect"><div><h2>Secure business access</h2><p role="status">{!status?.identityConfigured?'Business sign-in is awaiting identity-provider configuration.':signedIn===true?'Signed in. Open your business to continue.':signedIn===false?'You are signed out. Sign in with your business identity.':signedIn===undefined?'Checking your business sign-in status…':'Business sign-in status is unavailable. Use Sign in to continue.'}</p></div><a className="login-btn" href={businessSignInPath(tenant)}>{signedIn===true?'Sign in again':'Sign in'}</a><form action="/auth/logout" method="post" onSubmit={signOut}><button type="submit" disabled={busy||signedIn===false}>Sign out</button></form><form onSubmit={e=>{e.preventDefault();load();}}><label>Business identifier<input aria-label="Business identifier" value={tenant} onChange={e=>{clearView();setTenant(e.target.value);}} placeholder="Business UUID" autoComplete="off" required/></label><button type="submit" disabled={busy||!tenant||!status?.identityConfigured}>Open business</button></form></section>
  {error&&<p role="alert" className="panel">{error}</p>}
  <section className="panel"><div className="panel-title"><div><span className="eyebrow">MUSITU EMPLOYEE</span><h2>{section}</h2></div>{kinds[section]&&<button disabled={busy||!tenant||!status?.identityConfigured} onClick={()=>load()}>Refresh</button>}</div>
  {busy&&<p role="status">Loading business records…</p>}

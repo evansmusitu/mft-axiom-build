@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-23T06:35:47.636Z",
+  "scope": "LOCAL_STANDALONE_HTTP_SYNTHETIC_CONFIGURATION",
+  "passed": true,
+  "checks": {
+    "canonicalLoginHost": 302,
+    "noFlowCookieOnWrongHost": true,
+    "selectedBusinessPreserved": true,
+    "arbitraryDestinationDiscarded": true,
+    "unauthenticatedSession": 401,
+    "browserIdentityIgnored": true,
+    "statusNotCached": true,
+    "noSessionMinted": true,
+    "callbackDenial": 303,
+    "fixedRecoveryPath": true
+  },
+  "genuineOwnerAuthentication": false,
+  "providerCredentialsUsed": false
+}
