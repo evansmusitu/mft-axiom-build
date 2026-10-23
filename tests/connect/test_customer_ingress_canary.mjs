@@ -33,10 +33,12 @@ function fixture({alphaDaily=2,alphaMinute=2}={}){
     CONNECT_CUSTOMER_DB:db,
   }};
 }
-const req=({path='/__offline_connect/plan',token=tokenA,payload='{"rows":[]}',
+const sampleRow={hazard:'Synthetic rockfall',exposure:0.54,severity:8,likelihood:0.4,cost:100,benefit:0.25};
+const req=({path='/__offline_connect/plan',token=tokenA,payload,
   headers={},method='POST'}={})=>new Request('https://offline.invalid'+path,{
     method,headers:{'content-type':'application/json',...(token?{'authorization':'Bearer '+token}:{}),...headers},
-    ...(method==='POST'?{body:payload}:{}),
+    ...(method==='POST'?{body:payload ?? JSON.stringify(path.endsWith('/risk') ?
+      {run_id:'synthetic-run',rows:[sampleRow]} : {rows:[sampleRow],budget:100})}:{}),
   });
 async function inspect(request,env){
   const number=++index;
@@ -113,4 +115,70 @@ test('revoking the credential prevents further ingestion and does not consume te
   assert.deepEqual(await inspect(req(),f.env),{status:401,body:{ok:false,error:'UNAUTHORIZED'}});
   assert.equal(events(f.sql,'tenant_alpha'),0);
   f.sql.close();
+});
+
+
+test('canary refuses empty Mining rows, unknown body fields, and forged tenant metadata',async()=>{
+  const f=fixture({alphaDaily:10,alphaMinute:10});
+  try{
+    for(const payload of [
+      '{"rows":[],"budget":100}',
+      JSON.stringify({rows:[sampleRow],budget:100,tenant_id:'tenant_beta'}),
+      JSON.stringify({rows:[{...sampleRow,admin:true}],budget:100}),
+    ]){
+      const result=await inspect(req({payload}),f.env);
+      assert.deepEqual(result,{status:400,body:{ok:false,error:'INVALID_MINING_REQUEST'}});
+    }
+    assert.equal(events(f.sql,'tenant_alpha'),3,'denied valid-identity attempts still reserve quota');
+    assert.equal(events(f.sql,'tenant_beta'),0);
+  }finally{f.sql.close();}
+});
+
+test('canary refuses numeric coercion and invalid paired geospatial metadata',async()=>{
+  const f=fixture({alphaDaily:10,alphaMinute:10});
+  try{
+    for(const invalidRow of [
+      {...sampleRow,exposure:'0.54'},
+      {...sampleRow,benefit:1.1},
+      {...sampleRow,hazard:'  '},
+      {...sampleRow,latitude:-17.83},
+    ]){
+      const output=await inspect(req({payload:JSON.stringify({rows:[invalidRow],budget:100})}),f.env);
+      assert.deepEqual(output,{status:400,body:{ok:false,error:'INVALID_MINING_REQUEST'}});
+    }
+    assert.equal(events(f.sql,'tenant_alpha'),4);
+  }finally{f.sql.close();}
+});
+
+test('canary enforces one risk row and safe run IDs before accepting customer risk transport',async()=>{
+  const f=fixture({alphaDaily:10,alphaMinute:10});
+  try{
+    const multiple=await inspect(req({path:'/__offline_connect/risk',token:tokenB,payload:JSON.stringify({
+      run_id:'synthetic-run',rows:[sampleRow,{...sampleRow,hazard:'Synthetic second'}],
+    })}),f.env);
+    assert.deepEqual(multiple,{status:400,body:{ok:false,error:'RISK_SINGLE_ROW_REQUIRED'}});
+    const forged=await inspect(req({path:'/__offline_connect/risk',token:tokenB,payload:JSON.stringify({
+      run_id:'a\nb',rows:[sampleRow],
+    })}),f.env);
+    assert.deepEqual(forged,{status:400,body:{ok:false,error:'INVALID_MINING_REQUEST'}});
+    assert.equal(events(f.sql,'tenant_beta'),2);
+  }finally{f.sql.close();}
+});
+
+test('valid spatial metadata with timezone and scoped Mining semantics remains accepted',async()=>{
+  const f=fixture({alphaDaily:10,alphaMinute:10});
+  try{
+    const row={...sampleRow,record_id:'synthetic-01',site:'Synth Site',
+      latitude:-17.83,longitude:31.05,event_time:'2026-10-22T10:00:00Z'};
+    const plan=await inspect(req({payload:JSON.stringify({rows:[row],budget:100})}),f.env);
+    assert.equal(plan.status,200,JSON.stringify(plan));
+    assert.equal(plan.body.executed,false);
+    const risk=await inspect(req({path:'/__offline_connect/risk',token:tokenB,payload:JSON.stringify({
+      rows:[row],run_id:'synthetic-qualified-run',
+    })}),f.env);
+    assert.equal(risk.status,200,JSON.stringify(risk));
+    assert.equal(risk.body.executed,false);
+    assert.equal(events(f.sql,'tenant_alpha'),1);
+    assert.equal(events(f.sql,'tenant_beta'),1);
+  }finally{f.sql.close();}
 });
