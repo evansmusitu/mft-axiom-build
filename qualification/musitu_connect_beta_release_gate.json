@@ -1,6 +1,6 @@
 {
   "schema": "musitu.connect.beta_release_gate.v1",
-  "assessment_date": "2026-10-22",
+  "assessment_date": "2026-10-23",
   "product": "MUSITU Connect",
   "release_scope": "invite_only_enterprise_mining_planning_and_axiom_arithmetic",
   "assessment_kind": "FEATURE_BRANCH_PREPARATORY_NON_ENABLING",
@@ -78,5 +78,17 @@
     "real_customer_credentials_issued": 0,
     "customer_admission_authorized": false,
     "remote_hosted_d1_qualified": false
+  },
+  "offline_customer_tenant_deactivation": "SYNTHETIC_D1_ATOMIC_SUSPEND_REVOKE_AUDIT_RETAINED_NOT_WIRED",
+  "offline_customer_tenant_deactivation_evidence": {
+    "tdd_red_local_d1_workflow": 39897059135,
+    "green_local_d1_workflow": 39897258090,
+    "local_workerd_d1_tests": 6,
+    "local_sqlite_reference_tests": 14,
+    "rollback_on_forced_failure_verified_locally": true,
+    "remote_hosted_d1_qualified": false,
+    "data_erasure_or_retention_approved": false,
+    "customer_admission_authorized": false,
+    "real_customer_credentials_issued": 0
   }
 }
