@@ -210,3 +210,33 @@ test('Cloudflare local D1: deactivation denies wrong tenants, disabled flags and
     assert.equal((await db.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?').bind('cred_alpha').first()).status,'active');
   } finally { if(mf) await mf.dispose(); }
 });
+
+
+test('Cloudflare local D1: failed credential revocation rolls back account suspension atomically', {timeout:30000}, async () => {
+  let db;
+  try {
+    db=await createIsolatedD1();
+    const env={CONNECT_CUSTOMER_DB:db,CONNECT_CUSTOMER_PROVISIONING_MODE:'isolated-synthetic-only'};
+    const created=await provisionOfflineTenant({env,tenantId:'tenant_gamma',dailyLimit:2,minuteLimit:2});
+    assert.equal(created.ok,true);
+    const issued=await issueOfflineCredential({
+      env,tenantId:'tenant_gamma',scopes:['mining.plan'],
+      expiresAt:'2026-11-01T12:34:00Z',nowMs:TIME,
+    });
+    assert.equal(issued.ok,true);
+
+    // Deliberately reject the second batched write. The first write must
+    // roll back as well or the runtime would leave an inconsistent account.
+    await db.exec(
+      "CREATE TRIGGER connect_abort_revocation BEFORE UPDATE ON connect_customer_credentials WHEN OLD.tenant_id='tenant_gamma' AND NEW.status='revoked' BEGIN SELECT RAISE(ABORT,'SYNTHETIC_REVOCATION_ABORT'); END;"
+    );
+    assert.deepEqual(await deactivateOfflineTenant({env,tenantId:'tenant_gamma'}),
+      {ok:false,status:503,error:'PROVISIONING_UNAVAILABLE'});
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_tenants WHERE tenant_id=?')
+      .bind('tenant_gamma').first()).status,'active');
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?')
+      .bind(issued.credential_id).first()).status,'active');
+    assert.equal((await db.prepare('SELECT status FROM connect_customer_tenants WHERE tenant_id=?')
+      .bind('tenant_alpha').first()).status,'active');
+  } finally {if(mf) await mf.dispose();}
+});
