@@ -45,8 +45,9 @@ jobs:
           });
           const w=dom.window;
           Object.assign(globalThis,{
-            window:w,document:w.document,HTMLElement:w.HTMLElement,navigator:w.navigator
+            window:w,document:w.document,HTMLElement:w.HTMLElement
           });
+          Object.defineProperty(globalThis,'navigator',{value:w.navigator,configurable:true});
           globalThis.IS_REACT_ACT_ENVIRONMENT=true;
           let posted=[];
           globalThis.fetch=async (path,opt={})=>{
