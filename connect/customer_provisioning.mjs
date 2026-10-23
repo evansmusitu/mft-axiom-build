@@ -99,6 +99,15 @@ export async function revokeOfflineCredential({env,tenantId,credentialId}={}) {
   } catch {return unavailable();}
 }
 
+/**
+ * Synthetic-only atomic tenant offboarding seam. Not a data deletion workflow.
+ * Not imported by the production Worker and denied without offline mode.
+ */
+export async function deactivateOfflineTenant({env}={}) {
+  if (!ready(env)) return disabled();
+  return unavailable();
+}
+
 export async function suspendOfflineTenant({env,tenantId}={}) {
   if (!ready(env)) return disabled();
   if (!database(env)) return unavailable();
