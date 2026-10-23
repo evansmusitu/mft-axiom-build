@@ -22,6 +22,16 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertNotIn('customer_admission.mjs', self.worker)
         self.assertNotIn('customer_payload.mjs', self.worker)
         self.assertNotIn('customer_ingress_canary.mjs', self.worker)
+        self.assertNotIn('customer_mining_semantics.mjs', self.worker)
+        self.assertEqual(record['offline_customer_mining_semantics'],
+                         'STRICT_SCOPED_BODY_VALIDATION_NODE_TESTED_NOT_DEPLOYED')
+        semantic = record['offline_customer_mining_semantics_evidence']
+        self.assertEqual(semantic['node_tests_passed'], 69)
+        self.assertIs(semantic['real_hosted_d1_qualified'], False)
+        self.assertEqual(semantic['actual_customer_requests_executed'], 0)
+        self.assertIs(semantic['customer_admission_authorized'], False)
+        self.assertEqual(semantic['policy'],
+                         'PROVISIONAL_NOT_PUBLIC_CUSTOMER_CONTRACT')
         self.assertNotIn('customer_provisioning.mjs', self.worker)
         self.assertEqual(record['offline_customer_provisioning'],
                          'SYNTHETIC_ONLY_SCOPED_WEBCRYPTO_ISSUANCE_REVOCATION_SUSPENSION_TESTED_NOT_WIRED')
