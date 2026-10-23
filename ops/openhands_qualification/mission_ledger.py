@@ -197,8 +197,11 @@ class MissionLedger:
                 'independent_verifier':'NOT_PROVEN','external_action_executed':'NOT_PROVEN'}
 
     def admit(self,request):
-        binding=_check(request);now=self._now()
+        binding=_check(request)
         with self._transaction() as con:
+            # Evaluate expiry/TTL after acquiring the serialized journal lock.
+            # Pre-lock timestamps can become stale while another process holds it.
+            now=self._now()
             old=con.execute('SELECT * FROM missions WHERE tenant=? AND work=?',(request['tenant_id'],request['work_id'])).fetchone()
             if old:
                 if old[5]!=binding:raise LedgerDenied('conflicting mission identity')

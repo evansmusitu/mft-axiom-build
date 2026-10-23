@@ -57,6 +57,12 @@ reviewed recovery/migration** procedure and the unchanged original source
 remains the rollback origin. Existing in-service journals must NOT be replaced
 or wiped to make a test pass.
 
+An additional S0 lease-safety regression fixes stale timestamps sampled before
+acquiring the serialized journal lock. Both existing-lease expiry checks and
+new-lease TTL begin from the **post-lock** observed time, preventing a local
+mission from being re-admitted already expired after lock contention. This
+does not prove an independent trusted clock or external authorization.
+
 The 2026-10-23 schema-integrity extension uses the explicit local-anchor
 format `musitu.axiom.ecc.local-anchor.s0.v3`. Its canonical integrity digest
 includes both the full mission-row state and `sqlite_master` schema entries.
