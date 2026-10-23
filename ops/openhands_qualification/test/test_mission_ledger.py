@@ -1,4 +1,5 @@
 import multiprocessing as mp
+from contextlib import contextmanager
 import hashlib
 import os
 from pathlib import Path
@@ -67,6 +68,37 @@ class MissionLedgerTests(unittest.TestCase):
         results=[q.get(timeout=3) for _ in ps]
         self.assertEqual(len(set(results)),1)
         self.assertEqual(MissionLedger(self.db).active_count(),1)
+    def test_contended_lock_does_not_revive_expired_local_mission(self):
+        # Deterministic lock-wait interleaving with a REAL SQLite transaction.
+        # Before the transaction yields, an intervening wait has advanced the
+        # trusted local test clock past the existing lease expiry.
+        now=[100.0]
+        first=MissionLedger(self.db,clock=lambda:now[0],ttl_seconds=10).admit(req())
+        class ContendedLedger(MissionLedger):
+            @contextmanager
+            def _transaction(self):
+                with super()._transaction() as con:
+                    now[0]=111.0
+                    yield con
+        with self.assertRaises(RecoveryHold):
+            ContendedLedger(self.db,clock=lambda:now[0],ttl_seconds=10).admit(req())
+        self.assertEqual(MissionLedger(self.db).inspect(first['mission_id'])['state'],'RECOVERY_HOLD')
+
+    def test_new_lease_ttl_is_measured_after_lock_acquisition(self):
+        now=[100.0]
+        class ContendedLedger(MissionLedger):
+            @contextmanager
+            def _transaction(self):
+                with super()._transaction() as con:
+                    now[0]=111.0
+                    yield con
+        first=ContendedLedger(self.db,clock=lambda:now[0],ttl_seconds=10).admit(req())
+        now[0]=115.0
+        second=MissionLedger(self.db,clock=lambda:now[0],ttl_seconds=10).admit(req())
+        self.assertEqual(first['mission_id'],second['mission_id'])
+        self.assertFalse(second['provider_dispatch_allowed'])
+        self.assertFalse(second['production_authority'])
+
     def test_expired_or_ambiguous_mission_stays_in_hold_across_restart(self):
         ledger=MissionLedger(self.db,clock=lambda:100.,ttl_seconds=10)
         first=ledger.admit(req())

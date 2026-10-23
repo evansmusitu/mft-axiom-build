@@ -1,0 +1,59 @@
+name: AXIOM ECC S0 Post-Lock Lease Qualification — Not Release
+on:
+  push:
+    branches:
+      - build/axiom-ecc-s0-postlock-expiry-20261023
+    paths:
+      - 'ops/openhands_qualification/**'
+      - 'axiom_interface/vnext/**'
+      - '.github/workflows/axiom-ecc-s0-schema-integrity-20261023.yml'
+permissions:
+  contents: read
+jobs:
+  schema-integrity-security-contract:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'build/axiom-ecc-s0-postlock-expiry-20261023'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Require historical source ancestry and strictly local qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 383f5f52d6191a2e55bb634c7dcabcafcd3bb654 HEAD
+          git merge-base --is-ancestor 1f449a09780f894c26e287772eebf33a1bd42e4a HEAD
+          test -z "${OPENHANDS_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          echo AXIOM_ECC_SCHEMA_S0_ONLY_NO_EXTERNAL_PROVIDER_OR_RELEASE
+      - name: Verify schema-anchored ledger and destructive local S0 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s ops/openhands_qualification/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-s0-unittest.log
+          grep -Eq 'Ran 37 tests in ' /tmp/axiom-s0-unittest.log
+          grep -Eq '^OK$' /tmp/axiom-s0-unittest.log
+          python -m compileall -q ops/openhands_qualification
+          grep -Fq "musitu.axiom.ecc.local-anchor.s0.v3" ops/openhands_qualification/mission_ledger.py
+          echo AXIOM_ECC_V3_SCHEMA_LOCAL_37_TESTS_PASS_NOT_INDEPENDENT_SECURITY
+      - name: Preserve Engineering Command Center breadth and provenance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs axiom_interface/vnext/tests/openhands_ecc_bridge.test.mjs
+          node --check axiom_interface/vnext/engineering_command_center_ui.js
+          node --check axiom_interface/vnext/openhands_engineering_bridge.js
+          grep -Fq 'FAILED_IN_SYNTHETIC_ATTACK' ops/openhands_qualification/README.md
+          grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
+          grep -Fq 'PRODUCTION AUTHORITY: FALSE' axiom_interface/vnext/engineering_command_center_ui.js
+          echo AXIOM_ECC_S0_BREADTH_AND_UNEARNED_RELEASE_CLAIMS_BLOCKED
