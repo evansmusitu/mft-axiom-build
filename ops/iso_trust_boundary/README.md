@@ -32,3 +32,28 @@ missing: BLOCK external action. Preserve the B27 deletion/rollback failure.
 CI: `python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v`
 after disposable installation of `cryptography==46.0.4`. No deployment,
 signing key, live provider request, or production authorization occurs.
+
+
+## Signed reservation boundary (2026-10-23, additional isolated S0 candidate)
+
+`reservation_boundary.ReservationBoundary` combines the pinned operator
+receipt verifier with an injected `reserve_once(request)` adapter and a
+second pinned Ed25519 witness key. It demands a witness-signed consumption
+record matching the exact receipt digest, operation, nonce, request digest,
+sequence, witness identity and pinned witness key epoch. It denies mismatches,
+signature substitution, expired receipts, missing adapter, ambiguous transport,
+and replay rejected by the provider adapter. The synthetic tests include a
+thread-safe concurrent in-memory adapter.
+
+**No true external independence was tested.** A builder-controlled adapter or
+trusted root can fabricate a convincing signed reply. Worse, when all fake
+reservation state is wiped, the same receipt can be accepted again. This
+destructive counterexample is retained as `FAILED_IN_SYNTHETIC_ATTACK`.
+The implementation does not store provider keys, issue authority, use the
+network, or invoke live external systems; success only produces evidence
+carrying `execution_allowed=false`, `provider_dispatch_allowed=false`,
+and `production_authority=false`.
+
+An actual separate operator with exclusive pin custody, atomic append-once
+storage, cross-host destructive-recovery evidence, revocation and independent
+review must qualify before connecting this interface to live execution.

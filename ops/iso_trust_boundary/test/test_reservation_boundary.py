@@ -146,7 +146,8 @@ class ReservationBoundaryTests(unittest.TestCase):
         self.deny()
 
     def test_witness_expired_at_response_time_denied(self):
-        self.clock[0]=130.0
+        self.backend.time=100
+        self.clock[0]=120.0
         self.deny()
 
     def test_transport_failure_is_hold_never_retry_or_implicit_fallback(self):

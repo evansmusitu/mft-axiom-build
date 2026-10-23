@@ -33,7 +33,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v
+          python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-reservation-s0.log
+          grep -Eq 'Ran 37 tests in ' /tmp/axiom-iso-reservation-s0.log
+          grep -Eq '^OK          python -m compileall -q ops/iso_trust_boundary
+          echo AXIOM_ISO_S0_RESERVATION_CONTRACT_ONLY_NOT_REAL_CUSTODY
+      - name: Preserve B27 synthetic destructive rollback failure
+        run: |
+          set -euo pipefail
+          grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
+          echo AXIOM_B27_GLOBAL_ANTIROLLBACK_FAILED_PRESERVED
+ /tmp/axiom-iso-reservation-s0.log
           python -m compileall -q ops/iso_trust_boundary
           echo AXIOM_ISO_S0_RESERVATION_CONTRACT_ONLY_NOT_REAL_CUSTODY
       - name: Preserve B27 synthetic destructive rollback failure
