@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-10-23T04:23:14.313194+00:00",
+  "baseCommit": "d985e40448eb03c8a2139f2240b5d414775a4fc8",
+  "scope": "PRIVATE_PHASE1_CHECKPOINT_AND_OFFSITE_OPERATOR_TOOLS",
+  "npmRunVerify": {
+    "exitCode": 0,
+    "pass": 326,
+    "fail": 0,
+    "skip": 0,
+    "syntaxFiles": 151,
+    "manifestAtExecution": 428
+  },
+  "focusedBoundaryTests": 6,
+  "nativeFreshHostedRecovery": "PASS; 22 tables, 781 rows, 6 catalog classes, 4 role profiles, 168 tenant checks",
+  "activeSessionExclusionQuery": "READ_ONLY_QUALIFIED",
+  "applicationRuntimeChanged": false,
+  "phase1Complete": false,
+  "logSha256": "fb695651a9c855987fb88ccbbc5357b30e1cd8306bab649e6e9a123b64d6ecc3",
+  "limits": [
+    "Native builds were explicit private file uploads marked dirty against the base commit.",
+    "Final documentation/telemetry additions are covered by focused tests and a final manifest refresh.",
+    "Custodian, browser, actual owner workflow, privacy acceptance and scheduled execution are separate gates."
+  ]
+}

@@ -96,6 +96,46 @@ Evidence: `evidence/20261023/private-security-deployment.json` and
 `evidence/20261023/vercel-build.log`. The patch is now installed on private
 staging. Phase 1 and the remaining real-service/human gates are still incomplete.
 
+## One-pass recovery extension — 23 October, 06:12 Africa/Harare
+
+A fresh current-schema hosted checkpoint is now retained privately outside Neon
+and was independently retrieved from Drive before a disposable native restore.
+All22 table fingerprints/781 rows, six catalog classes and four role profiles
+matched. The run passed22 unscoped denials,168 tenant-scope comparisons,21 foreign
+scope denials and runtime role escalation denial. All118 message bodies recovered,
+including the three target development messages. All32 inactive session envelopes
+opened cryptographically; none was used for authentication. The uncertain AI
+request and23 suppressions survived. The source database was not modified.
+PostgreSQL, disposable database/roles and private temporary inputs were cleaned up.
+
+Artifact: `MUSITU_PHASE1_ENCRYPTED_PG_BACKUP_2026-10-23.musitubak`,99,111 bytes,
+SHA-256 `3fce212c2cd319e9e06094e303acad2037da11a77d0f4eaa5db73ebd7df4f578`.
+No recovery key is delivered with this file. The previous recovery artifacts and
+manual snapshot remain preserved.
+
+This closes the manual technical fresh hosted-state/offsite restore gap.
+It does not establish an independent second custodian, hosting-account-loss
+recovery, application/provider recovery or human-accepted RPO/RTO. Actual
+scheduled execution and alert delivery are recorded separately when demonstrated.
+
+New guarded operator scripts support this exact path. The read-only source query
+explicitly excludes active unrevoked authentication-session rows and records the
+omission count. Six focused boundary tests pass. Fresh `npm run verify` passed
+**326 tests,0 failures,0 skips;151 MJS syntax checks**. The complete source
+manifest contained428 entries at this execution, before the final documentation
+refresh. The private application source/runtime did not change in this extension.
+
+The first restore comparison found a policy array serialization difference
+between the connector's PostgreSQL JSON and the pg driver's name[] text.
+Using to_jsonb on both sides fixed representation without relaxing any security
+comparison. The complete corrected native run passed at
+`dpl_BftajeSMkWgpF9S24svomZWq8hAA`; its terminal exit78 prevents application
+promotion. The stable alias remains on the existing patched application.
+
+Operational instructions: [hosted checkpoint runbook](HOSTED_CHECKPOINT_OPERATIONS_20261023.md).
+Evidence: `evidence/20261023/fresh-hosted-offsite-recovery.json` and
+`evidence/20261023/onepass-engineering-verification.json`.
+
 ## Remaining acceptance and next permitted work
 
 | Area | Remaining evidence |
@@ -105,7 +145,7 @@ staging. Phase 1 and the remaining real-service/human gates are still incomplete
 | AI and AXIOM | Current owner-authenticated approved-knowledge/draft/review workflow; actual SaaS AXIOM service identity and transport; existing free-plan and uncertainty guards. |
 | Identity/security | Actual mobile/staff and old-token/signing-key checks; resolve exposed QA factor consistently with the no-reset boundary. |
 | Privacy | Approved retention/disposition, qualified actual scoped export/deletion, request monitoring, processor/transfer review. Native synthetic export alone does not close this. |
-| Recovery/operations | Fresh hosted-state encrypted offsite backup and independent restore; approved free scheduling/alerts, accepted recovery targets, accepted custodian and controlled key-access exercise. |
+| Recovery/operations | Manual fresh hosted-state encrypted offsite backup/retrieval/restore is confirmed. Actual free scheduled execution/alerts, accepted recovery targets, accepted custodian/key-access exercise and application/provider recovery remain separate. |
 | Human acceptance | Genuine independent reviewer decision tied to an exact commit and owner acceptance. |
 
 The prior browser reconnection was rejected by automatic approval review after an unresolved usage-limit failure. No reconnection, alternate browser, session minting/copying or protected-endpoint impersonation was attempted. Only actual resolution of tool admission permits those browser-dependent steps. No credential/MFA reset, invitation resend, paid upgrade, public launch, hosted business-data mutation, merge or unrelated product change was performed.
