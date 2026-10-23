@@ -1,7 +1,8 @@
-name: AXIOM ISO S0 Signed Reservation Boundary — Not Release
+name: AXIOM ISO S0 Signed Reservation Boundary - Not Release
 on:
   push:
-    branches: [build/axiom-iso-reservation-boundary-s0-20261023]
+    branches:
+      - build/axiom-iso-reservation-boundary-s0-20261023
     paths:
       - 'ops/iso_trust_boundary/**'
       - '.github/workflows/axiom-iso-reservation-s0-20261023.yml'
@@ -14,9 +15,12 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {fetch-depth: 0, persist-credentials: false}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with: {python-version: '3.12'}
+        with:
+          python-version: '3.12'
       - name: Require isolated ancestry and no provider or production credentials
         shell: bash
         run: |
@@ -35,14 +39,7 @@ jobs:
           set -euo pipefail
           python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-reservation-s0.log
           grep -Eq 'Ran 37 tests in ' /tmp/axiom-iso-reservation-s0.log
-          grep -Eq '^OK          python -m compileall -q ops/iso_trust_boundary
-          echo AXIOM_ISO_S0_RESERVATION_CONTRACT_ONLY_NOT_REAL_CUSTODY
-      - name: Preserve B27 synthetic destructive rollback failure
-        run: |
-          set -euo pipefail
-          grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
-          echo AXIOM_B27_GLOBAL_ANTIROLLBACK_FAILED_PRESERVED
- /tmp/axiom-iso-reservation-s0.log
+          grep -Eq '^OK$' /tmp/axiom-iso-reservation-s0.log
           python -m compileall -q ops/iso_trust_boundary
           echo AXIOM_ISO_S0_RESERVATION_CONTRACT_ONLY_NOT_REAL_CUSTODY
       - name: Preserve B27 synthetic destructive rollback failure
