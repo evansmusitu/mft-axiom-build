@@ -48,17 +48,59 @@ At **23 October 2026, 05:23 Africa/Harare / 03:23 UTC**, the exact development t
 
 There were zero active unexpired application sessions. The QA subject had no membership in this development tenant; its global role/status aggregate was one ACTIVE OWNER and one REVOKED AGENT. This does not qualify phone access or revocation behavior. Zero expired message/reply counts do not qualify a retention job.
 
-The stable private alias still resolved to READY deployment `dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe`, source `3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a`. The source manifest at that exact stable commit still pins **Next.js 16.4.0**. The candidate patch is therefore **not yet a correction of the stable deployment**. Project live=false; SSO protects all deployments.
+The stable private alias still resolved to READY deployment `dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe`, source `3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a`. The source manifest at that exact stable commit still pins **Next.js 16.4.0**. This was the pre-update observation. The intentional private staging security update below supersedes that deployment pin. Project live=false; SSO protects all deployments.
 
 The backup schedule remains empty and the preserved snapshot remains `snap-little-smoke-b4sdrjky`, created 14 October. PR29 has zero submitted reviews. Both previously sent nomination threads still contain only the sent message; a separate bounded incoming search also returned no matches. No nominee acceptance, account control or independence is inferred. Private addresses/message IDs are excluded from this public record.
 
 Readback evidence: `evidence/20261023/live-readback.json`.
 
+## Private staging security update — 23 October, 05:36 Africa/Harare
+
+After the local checks, the existing Hobby project built source
+`7b3360bac3e51235b1036f04e7b7908d054e6724` with a deployment-specific
+`npm run build` override and the exact lockfile. Hosted logs confirm Next.js
+16.4.2 and a successful application build. Deployment
+`dpl_CFPK5a9DAQ6i25Xn56kxB2Ju9kzd` is **READY** at:
+https://musitu-whatsapp-phase1-private-20261014-9y48m7q7m-evansmusitu.vercel.app
+
+A source comparison with the prior stable commit found no changes to app routes,
+authentication, sender implementation or migrations. The source delta includes
+the already tested encrypted-backup validator, the unexposed privacy-export
+candidate, qualification tools and evidence, in addition to the dependency patch.
+
+The stable alias was independently checked to remain on the old deployment
+during candidate qualification. It was then **intentionally assigned** to the
+patched READY artifact. Independent alias and deployment readbacks confirm
+`musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app` now serves that
+exact source. The old deployment remains available for rollback; no artifact
+was deleted. Project defaults were not changed, and the build ran no hosted
+fixture qualifier or migration.
+
+Project live=false and SSO remains enabled on all deployments. Anonymous
+`/api/health` probes to both the stable and unique URLs returned HTTP302 to
+`https://vercel.com`. They supplied no credentials, followed no redirects and
+read no response bodies. This verifies the observed hosting boundary; it does
+not qualify application health, owner login or a browser workflow.
+
+At 05:36 Africa/Harare, post-deployment SQL still reported three inbound events,
+zero outbound attempts, zero consent records, zero signed status events and
+zero active unexpired application sessions. No reply was submitted.
+
+The creation response initially included the stable name among anticipated
+aliases. A cancellation safeguard returned HTTP400 because the build had
+already finished READY. Actual alias readback confirmed the old deployment
+before the later explicit assignment. No second deployment or alias rollback
+was required.
+
+Evidence: `evidence/20261023/private-security-deployment.json` and
+`evidence/20261023/vercel-build.log`. The patch is now installed on private
+staging. Phase 1 and the remaining real-service/human gates are still incomplete.
+
 ## Remaining acceptance and next permitted work
 
 | Area | Remaining evidence |
 | --- | --- |
-| Deployment security | Qualify the patched private candidate and record its actual deployment/source. Stable runtime remediation must be demonstrated separately. Inspect current settings before deployment and use a nonmutating application build; do not run hosted fixture qualifiers as an ordinary build. |
+| Deployment security | Next.js security patch installed on private staging with exact source/build/alias and SSO readbacks. Actual authenticated application/security acceptance remains open. Keep ordinary builds separate from hosted fixture qualifiers. |
 | WhatsApp | Permitted interactive admission; actual owner authentication; a fresh genuine owner inbound; all guards; at most the single authorized exact reply; signed delivery correlated to its durable attempt. |
 | AI and AXIOM | Current owner-authenticated approved-knowledge/draft/review workflow; actual SaaS AXIOM service identity and transport; existing free-plan and uncertainty guards. |
 | Identity/security | Actual mobile/staff and old-token/signing-key checks; resolve exposed QA factor consistently with the no-reset boundary. |
