@@ -146,7 +146,8 @@ el('job-form').onsubmit=e=>{e.preventDefault();if(submitBusy)return;
    // project+scene with the same key, never create an accidental duplicate.
    const {jobId,duplicate}=await submitSceneWithIdempotentRefresh({
      intent:submitIntent,projectId,scene:payload,
-     post:intent=>api('/api/jobs','POST',intent),refresh});
+     post:intent=>api('/api/jobs','POST',intent),
+     readback:jobId=>api('/api/jobs/'+jobId),refresh});
    notify((duplicate?'Existing job ':'Created ')+jobId.slice(0,12)+
      '; job requires explicit approval; paid CPU dispatch remains locked.');
  }).finally(()=>{submitBusy=false;if(control)control.disabled=false});
