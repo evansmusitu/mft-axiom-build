@@ -146,3 +146,12 @@ test('32-byte-hex database submission ID is accessible to owner and independentl
  assert.equal(reviewer.status,202);
  assert.equal((await reviewer.json()).publicationAuthorized,false);
 });
+
+test('developer cannot self-review with another valid MFA token and reviewer role',async()=>{
+ const h=harness();
+ assert.equal((await h.create()).status,202);
+ const anotherRole=token({role:'review_identity',sub:'developer-actor-1'});
+ const response=await h.call('POST','/review/submissions/sub-00001',{jwt:anotherRole,body:note});
+ assert.equal(response.status,403,'developer must never independently review own submission');
+ assert.equal(h.repository.records.get('sub-00001').reviews.length,0);
+});
