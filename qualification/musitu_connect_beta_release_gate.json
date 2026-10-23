@@ -123,5 +123,14 @@
     "real_hosted_d1_qualified": false,
     "actual_customer_requests_executed": 0,
     "customer_admission_authorized": false
+  },
+  "feature_branch_risk_request_id_header_validation": "ASCII_ALLOWLIST_REGRESSION_TESTED_NOT_DEPLOYED",
+  "feature_branch_risk_request_id_evidence": {
+    "tdd_red_connect_workflow": 39999165138,
+    "test_source": "tests/connect/test_production_worker.mjs",
+    "openapi_contract": "contracts/connect.openapi.yaml",
+    "untrusted_run_id_reaches_axiom": false,
+    "deployed_to_existing_production_worker": false,
+    "customer_admission_authorized": false
   }
 }
