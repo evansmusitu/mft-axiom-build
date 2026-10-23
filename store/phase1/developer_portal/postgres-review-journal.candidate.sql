@@ -56,7 +56,7 @@ CREATE TABLE store_publisher_private.review_notes (
 -- Even an authenticated second-role reviewer cannot attest their own app.
 -- Enforce on real database writes, not only the JWT API controller.
 CREATE FUNCTION store_publisher_private.reject_self_review()
-RETURNS TRIGGER LANGUAGE plpgsql AS $
+RETURNS TRIGGER LANGUAGE plpgsql AS $self$
 BEGIN
  IF EXISTS (SELECT 1 FROM store_publisher_private.submissions s
             WHERE s.submission_id=NEW.submission_id
@@ -64,7 +64,7 @@ BEGIN
   RAISE EXCEPTION 'developer self-review denied';
  END IF;
  RETURN NEW;
-END $;
+END $self$;
 CREATE TRIGGER private_reviews_no_self_attestation
  BEFORE INSERT ON store_publisher_private.review_notes
  FOR EACH ROW EXECUTE FUNCTION store_publisher_private.reject_self_review();
