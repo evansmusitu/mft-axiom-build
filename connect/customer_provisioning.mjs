@@ -100,12 +100,38 @@ export async function revokeOfflineCredential({env,tenantId,credentialId}={}) {
 }
 
 /**
- * Synthetic-only atomic tenant offboarding seam. Not a data deletion workflow.
- * Not imported by the production Worker and denied without offline mode.
+ * Synthetic-only deactivation. Both account suspension and credential
+ * revocation must be one database transaction; D1 batch() supplies that
+ * primitive. This preserves the immutable usage trail (not data deletion).
+ * There is no HTTP route or approved production operator authority.
  */
-export async function deactivateOfflineTenant({env}={}) {
+export async function deactivateOfflineTenant({env,tenantId}={}) {
   if (!ready(env)) return disabled();
-  return unavailable();
+  const db = env?.CONNECT_CUSTOMER_DB;
+  if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function') {
+    return unavailable();
+  }
+  if (typeof tenantId !== 'string' || !TENANT_ID.test(tenantId)) return invalid();
+  try {
+    const commands = [
+      db.prepare("UPDATE connect_customer_tenants SET status='suspended' " +
+        "WHERE tenant_id=? RETURNING tenant_id").bind(tenantId),
+      db.prepare("UPDATE connect_customer_credentials SET status='revoked' " +
+        "WHERE tenant_id=? AND status!='revoked' RETURNING credential_id").bind(tenantId),
+    ];
+    const results = await db.batch(commands);
+    if (!Array.isArray(results) || results.length !== 2 ||
+        !Array.isArray(results[0]?.results) || !Array.isArray(results[1]?.results)) {
+      return unavailable();
+    }
+    if (!results[0].results.some(row => row.tenant_id === tenantId)) {
+      return failure(404,'TENANT_NOT_FOUND');
+    }
+    return {ok:true,tenant_id:tenantId,status:'suspended',
+      revoked_credentials:results[1].results.length};
+  } catch {
+    return unavailable();
+  }
 }
 
 export async function suspendOfflineTenant({env,tenantId}={}) {
