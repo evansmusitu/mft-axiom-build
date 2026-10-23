@@ -1,0 +1,99 @@
+name: ATLAS Authorization Button Mobile Smoke
+on:
+  push:
+    branches:
+      - fix/atlas-axiom-auth-button-feedback-20261023
+    paths:
+      - .github/workflows/atlas-auth-button-mobile-smoke.yml
+      - apps/musitu-atlas-groq/src/AxiomDesk.tsx
+      - apps/musitu-atlas-groq/src/axiom-desk.css
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  empty-and-filled-code-click:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: apps/musitu-atlas-groq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install frontend and DOM test dependencies
+        run: npm install --no-save --no-package-lock --ignore-scripts jsdom@26 esbuild@0.25.12
+      - name: Bundle the actual React component for the DOM smoke test
+        run: |
+          node --input-type=module <<'JS'
+          import {build} from 'esbuild';
+          await build({
+           entryPoints:['src/AxiomDesk.tsx'],outfile:'./.axiom-button-smoke.mjs',
+           bundle:true,format:'esm',platform:'browser',jsx:'automatic',
+           external:['react','react-dom','react-dom/client','react/jsx-runtime'],
+           loader:{'.css':'empty'},logLevel:'info'
+          });
+          JS
+      - name: Click authorization button with empty and filled private codes
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {JSDOM} from 'jsdom';
+          const dom=new JSDOM('<html><body><div id="app"></div></body></html>',{
+            url:'https://musitu-atlas-ai-lab.vercel.app/?tab=axiom',pretendToBeVisual:true
+          });
+          const w=dom.window;
+          Object.assign(globalThis,{
+            window:w,document:w.document,HTMLElement:w.HTMLElement,navigator:w.navigator
+          });
+          globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+          let posted=[];
+          globalThis.fetch=async (path,opt={})=>{
+            if(!opt.method||opt.method==='GET')return{
+              ok:true,status:200,json:async()=>({
+                source:'mock real capability shape',endpoint:'test-only',
+                certifiedOperationTools:0,publicTools:0,sample:[],
+                arithmeticAvailable:false,executionConfigured:false,
+                ledgerOperational:false,checkedAt:new Date().toISOString()
+              })
+            };
+            posted.push({path,body:JSON.parse(opt.body||'{}')});
+            return{ok:true,status:200,json:async()=>({
+              status:'ACCOUNT_SCOPE_PREFLIGHT_ONLY',
+              operationExecuted:false,
+              providerGateStatus:'UNKNOWN_TOOL_AFTER_GATE',
+              note:'Mock preflight; no real provider call.'
+            })};
+          };
+          const React=await import('react');
+          const {act}=React;
+          const {createRoot}=await import('react-dom/client');
+          const {default:AxiomDesk}=await import('./.axiom-button-smoke.mjs');
+          const root=createRoot(document.querySelector('#app'));
+          await act(async()=>{root.render(React.createElement(AxiomDesk,{openMissions:()=>{}}));});
+          const button=Array.from(document.querySelectorAll('button')).find(x=>x.textContent.trim()==='Check account authorization');
+          assert.ok(button,'authorization button must exist');
+          assert.equal(button.disabled,false,'button must be clickable before a code is entered');
+          await act(async()=>button.dispatchEvent(new w.MouseEvent('click',{bubbles:true})));
+          assert.match(document.querySelector('#app').textContent,/Enter your ATLAS private operator access code/);
+          assert.equal(posted.length,0,'missing code must never trigger provider test');
+          console.log('PASS: empty-field click displays inline warning; no request');
+          const input=document.getElementById('atlas-qualification-operator-code');
+          assert.ok(input,'required field has an explicit label');
+          const setter=Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype,'value').set;
+          await act(async()=>{
+            setter.call(input,'test-private-operator-access-code');
+            input.dispatchEvent(new w.Event('input',{bubbles:true}));
+            input.dispatchEvent(new w.Event('change',{bubbles:true}));
+          });
+          await act(async()=>button.dispatchEvent(new w.MouseEvent('click',{bubbles:true})));
+          assert.equal(posted.length,1,'filled-field click must send one approved request');
+          assert.equal(posted[0].path,'/api/axiom/preview');
+          assert.equal(posted[0].body.action,'credential-preflight');
+          assert.equal(posted[0].body.approved,true);
+          assert.match(document.querySelector('#app').textContent,/PRELIMINARY AUTHORIZATION SIGNAL/);
+          console.log('PASS: filled-field click invokes mocked preflight once and displays result');
+          console.log('NO actual Axiom token or compute request used.');
+          await act(async()=>root.unmount());
+          JS
