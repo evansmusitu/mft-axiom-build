@@ -70,6 +70,18 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         ):
             with self.subTest(blocker=blocker):
                 self.assertIs(staging[blocker], False)
+        self.assertEqual(record['offline_synthetic_pilot_acceptance'],
+                         'FEATURE_BRANCH_SIMULATED_ONLY_NO_REAL_DESIGN_PARTNERS')
+        pilot = record['offline_synthetic_pilot_acceptance_evidence']
+        self.assertEqual(pilot['synthetic_acceptance_tests'], 5)
+        self.assertTrue((ROOT / pilot['fixture']).is_file())
+        self.assertTrue((ROOT / pilot['suite']).is_file())
+        self.assertEqual(pilot['executed_real_customer_requests'], 0)
+        self.assertEqual(pilot['real_partner_signoffs'], 0)
+        self.assertIs(pilot['hosted_d1_qualified'], False)
+        self.assertIs(pilot['customer_admission_authorized'], False)
+        self.assertEqual(record['checks']['customer_beta_acceptance_evidence'],
+                         'NOT_DEMONSTRATED')
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
