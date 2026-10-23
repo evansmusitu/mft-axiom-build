@@ -30,6 +30,24 @@ isolated test-only account key and replaces the Axiom outbound request with
 a deterministic in-memory response. It does not call the production Worker,
 create a database, fetch live customer information or send a paid request.
 
+### Feature-branch Axiom correlation-header hardening
+
+The Mining risk `run_id` is included in the outbound Axiom
+`x-musitu-request-id` header, so only explicit ASCII identifiers are
+accepted: first character `A-Z`, `a-z`, or `0-9`, followed by at most
+79 characters drawn from letters, digits, underscores, periods, colons,
+and hyphens. No whitespace, control characters, backslashes, Unicode,
+or number-to-string coercion is accepted. Invalid IDs fail with HTTP 400
+`INVALID_REQUEST` **before any upstream request**. The feature-branch
+OpenAPI contract now specifies the same policy for new integrations.
+
+Regression tests in `tests/connect/test_production_worker.mjs` include
+unsafe tab/NUL/newline/DEL bytes, backslashes, padding, non-ASCII, numeric
+and overlength values, as well as a valid 80-character boundary case.
+This tightens the *feature branch* internal API; it has **not** been
+deployed to the currently authorized production Worker. Verify legacy
+client compatibility in a separately approved canary before rollout.
+
 The fixture contains four named scenarios:
 
 | Fixture key | Expected feature-branch behavior | Proved by |
