@@ -56,6 +56,20 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(record['offline_cloudflare_d1_runtime'],
                          'MINIFLARE_WORKERD_LOCAL_PASS_REMOTE_D1_NOT_EXECUTED')
         self.assertIs(record['offline_cloudflare_d1_evidence']['customer_admission_authorized'], False)
+        self.assertEqual(record['offline_hosted_d1_staging_preflight'],
+                         'STRUCTURAL_METADATA_ONLY_REMOTE_NOT_VERIFIED')
+        staging = record['offline_hosted_d1_staging_evidence']
+        self.assertEqual(staging['structural_negative_and_positive_tests'], 10)
+        for blocker in (
+            'real_cloudflare_account_verified',
+            'remote_d1_transaction_testing_completed',
+            'schema_migration_authorized',
+            'staged_worker_deployment_authorized',
+            'customer_admission_authorized',
+            'existing_production_deployment_changed',
+        ):
+            with self.subTest(blocker=blocker):
+                self.assertIs(staging[blocker], False)
         self.assertEqual(record['state'], 'BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE')
         self.assertTrue(record['existing_production_runtime_enabled'])
         self.assertTrue(record['existing_production_connect_axiom_compute_preserved'])
