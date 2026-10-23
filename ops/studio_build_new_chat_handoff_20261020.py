@@ -29,7 +29,9 @@ def command(*args: str) -> str:
 def select(path: str) -> bool:
     return (path.startswith("musitu_studio/")
             or path.startswith("ops/studio_")
-            or path.startswith("ops/tests/test_studio_v03_pitr_")
+            or path.startswith("ops/tests/test_studio_")
+            or path.startswith("creative/god_mode_2099/")
+            or path.startswith(".github/workflows/god-mode-2099-")
             or path.startswith("docs/STUDIO_")
             or path.startswith(".github/workflows/studio-"))
 
@@ -220,7 +222,7 @@ The Studio app is live; Neon staging does not change the live SQLite Durable Obj
         "package_contains_real_credentials":False,
         "package_contains_live_db_snapshot":False,
         "package_contains_customer_render_asset_bytes":False,
-        "selected_rules":["musitu_studio/**","ops/studio_*","docs/STUDIO_*",".github/workflows/studio-*"],
+        "selected_rules":["musitu_studio/**","ops/studio_*","ops/tests/test_studio_*","creative/god_mode_2099/**","docs/STUDIO_*",".github/workflows/studio-*",".github/workflows/god-mode-2099-*"],
         "critical_paths_present":True,
         "external_provider_receipts_must_be_revalidated":True,
         "created_at_utc":datetime.datetime.now(datetime.timezone.utc).isoformat()

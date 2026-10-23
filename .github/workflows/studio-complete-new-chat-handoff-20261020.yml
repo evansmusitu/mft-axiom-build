@@ -11,6 +11,11 @@ on:
       - 'musitu_studio/edge/public_v03/**'
       - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
       - 'musitu_studio/edge/tests/v03_glb_export.test.mjs'
+      - 'musitu_studio/edge/tests/v03_glb_animation.test.mjs'
+      - 'ops/tests/test_studio_complete_handoff_scope_20261023.py'
+      - 'ops/studio_build_new_chat_handoff_20261020.py'
+      - 'creative/god_mode_2099/**'
+      - '.github/workflows/god-mode-2099-*'
       - 'docs/STUDIO_OFFLINE_GLB_EXPORT_AND_PROVIDER_NO_GO_20261022.md'
       - 'docs/STUDIO_V03_BROWSER_SCENE_WORKBENCH_20261022.md'
       - 'ops/studio_v03_export_offline_keyframe_editor_20261022.py'
@@ -64,6 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s ops/tests -p test_studio_offline_keyframe_export_20261022.py
+          python -m unittest discover -s ops/tests -p test_studio_complete_handoff_scope_20261023.py
           python ops/studio_v03_export_offline_keyframe_editor_20261022.py --output "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
           test -s "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
       - uses: actions/upload-artifact@v4
