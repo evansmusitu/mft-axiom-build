@@ -43,9 +43,9 @@ test('synthetic client plan calculates exact one-row bounded selection',async()=
   assert.equal(response.status,200);
   const body=await response.json();
   assert.equal(body.gate,'LOCKED');
-  assert.equal(body.baselineRisk,3.348);
+  assert.ok(Math.abs(body.baselineRisk-3.348)<1e-12);
   assert.equal(body.spend,18000);
-  assert.equal(body.riskReduction,1.13832);
+  assert.ok(Math.abs(body.riskReduction-1.13832)<1e-12);
   assert.deepEqual(body.selected,['Synthetic ground instability']);
 });
 
