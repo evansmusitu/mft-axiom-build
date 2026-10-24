@@ -57,11 +57,25 @@ def _lossless_float_token(token: str) -> float:
     return value
 
 
+def _lossless_int_token(token: str) -> int:
+    # The frozen downstream feature builder casts each numeric sensor to
+    # float. Reject JSON integer literals that would silently change value
+    # (or overflow) under that conversion before publishing canonical data.
+    value = int(token)
+    try:
+        converted = float(value)
+    except OverflowError:
+        raise _JSONNumericPrecisionLoss('partner_mapping_numeric_precision_loss') from None
+    if not isfinite(converted) or Decimal(str(converted)) != Decimal(token):
+        raise _JSONNumericPrecisionLoss('partner_mapping_numeric_precision_loss')
+    return value
+
+
 def _strict_json(payload: str | bytes) -> Any:
     # Reject ambiguous keys, underflow/overflow and silent decimal precision
     # loss. Native finite numeric semantics must survive the 1:1 conversion.
     return json.loads(payload, object_pairs_hook=_unique_object_pairs,
-                      parse_float=_lossless_float_token)
+                      parse_float=_lossless_float_token, parse_int=_lossless_int_token)
 
 
 def _valid_native_direction(value: Any) -> bool:

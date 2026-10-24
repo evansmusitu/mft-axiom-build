@@ -259,6 +259,34 @@ class PartnerMineMappingTests(unittest.TestCase):
         self.assertFalse(self.canonical.exists())
         self.assertFalse(self.manifest.exists())
 
+    def test_large_integer_numeric_source_must_not_round_or_overflow(self):
+        # JSON integer tokens bypass parse_float. Both values used to be
+        # accepted by the mapper, despite lossy downstream float conversion.
+        original = self.source.read_text(encoding='utf-8')
+        needle = '"raw_MM263": 0.2'
+        self.assertIn(needle, original)
+        for literal in ('9007199254740993', '9' * 310):
+            with self.subTest(integer_digits=len(literal)):
+                self.source.write_text(original.replace(
+                    needle, '"raw_MM263": ' + literal, 1), encoding='utf-8')
+                with self.assertRaisesRegex(
+                        ValueError, 'partner_mapping_numeric_precision_loss'):
+                    self.run_adapter()
+                self.assertFalse(self.canonical.exists())
+                self.assertFalse(self.manifest.exists())
+
+    def test_exactly_representable_integer_sensor_remains_accepted(self):
+        original = self.source.read_text(encoding='utf-8')
+        self.source.write_text(original.replace(
+            '"raw_MM263": 0.2', '"raw_MM263": 9007199254740992', 1),
+            encoding='utf-8')
+        report = self.run_adapter()
+        self.assertFalse(report['independent_validation'])
+        self.assertFalse(report['production_admission'])
+        self.assertEqual(json.loads(
+            self.canonical.read_text(encoding='utf-8').splitlines()[0])['MM263'],
+            9007199254740992)
+
     def test_preserves_normal_finite_scientific_notation(self):
         text=self.source.read_text(encoding='utf-8')
         self.source.write_text(text.replace('"raw_MM263": 0.2',
