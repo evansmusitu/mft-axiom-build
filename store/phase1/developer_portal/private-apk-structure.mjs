@@ -143,9 +143,11 @@ export async function createQuarantinedApkPreflight({root,maxEntries=ENTRY_MAX,
     const unique=name.toLowerCase();
     if(seen.has(unique))reject('duplicate ZIP entry / case collision');
     seen.add(unique);
-    const unixMode=madeBy>>8;
-    if(unixMode===3&&((attrib>>>16)&0o170000)===0o120000)
-      reject('symlink ZIP entry forbidden');
+    // Attackers can forge the ZIP creator OS. Never trust `madeBy` when
+    // deciding whether an entry encodes a symlink, device, FIFO or socket.
+    const fileType=(attrib>>>16)&0o170000;
+    if(fileType!==0&&fileType!==0o100000)
+      reject('symlink or special ZIP entry forbidden');
     const extra=dir.subarray(pos+46+nName,pos+46+nName+nExtra);
     ensureNoZip64(extra);
     const local=await readExact(fd,30,offset);

@@ -26,7 +26,7 @@ function zip(entries=[C.manifest,C.dex],opts={}){
   local.writeUInt16LE(name.length,26);local.writeUInt16LE(localExtra.length,28);
   locals.push(local,name,localExtra,data);
   const c=Buffer.alloc(46);
-  c.writeUInt32LE(0x02014b50,0);c.writeUInt16LE(entry.unixMode?0x0314:20,4);
+  c.writeUInt32LE(0x02014b50,0);c.writeUInt16LE(entry.madeBy??(entry.unixMode?0x0314:20),4);
   c.writeUInt16LE(20,6);c.writeUInt16LE(flags,8);c.writeUInt16LE(method,10);
   c.writeUInt32LE(data.length,20);c.writeUInt32LE(entry.expanded??data.length,24);
   c.writeUInt16LE(name.length,28);c.writeUInt32LE((entry.unixMode??0)>>>0,38);
@@ -189,4 +189,12 @@ test('actual private file -> manifest-bound structural review coordinator emits 
  await assert.rejects(runPrivateStructuralPreflight({repository,inspector:raw,isAuthorized:async()=>true,
   submissionId,actor}),/manifest digest mismatch/);
  assert.equal(count,1,'mismatched object must not be accepted into audit');
+}));
+
+test('UNIX special files cannot evade rejection by forging the ZIP creator platform',()=>withQuarantine(async ({inspector,target,key})=>{
+ for(const mode of [0o120777,0o060666,0o020666,0o010666]){
+  const bytes=zip([C.manifest,C.dex,{name:'assets/forged',unixMode:(mode<<16)>>>0,madeBy:20}]);
+  await writeFile(target,bytes,{mode:0o600});
+  await assert.rejects(inspector.inspect(key),/symlink|special|unsafe/i);
+ }
 }));
