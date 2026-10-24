@@ -16,7 +16,7 @@ const input=j64({alg:'RS256',kid:'test_key123'})+'.'+payload;
 const token=input+'.'+b64(await webcrypto.subtle.sign('RSASSA-PKCS1-v1_5',pair.privateKey,new TextEncoder().encode(input)));
 const encrypted=n=>({version:1,iv:b64(Buffer.alloc(12,n)),ciphertext:b64(Buffer.alloc(60,n))});
 class D1{
- constructor(){this.db=new DatabaseSync(':memory:');this.db.exec('PRAGMA foreign_keys=ON');for(const p of [new URL('../migrations/0001_enterprise_workspace.sql',import.meta.url),new URL('../migrations/0002_enterprise_tenant_artifact_limit.sql',import.meta.url),new URL('../migrations/0003_enterprise_artifact_revision.sql',import.meta.url)])this.db.exec(readFileSync(p,'utf8'));
+ constructor(){this.db=new DatabaseSync(':memory:');this.db.exec('PRAGMA foreign_keys=ON');for(const p of [new URL('../migrations/0001_enterprise_workspace.sql',import.meta.url),new URL('../migrations/0002_enterprise_tenant_artifact_limit.sql',import.meta.url),new URL('../migrations/0003_enterprise_artifact_revision.sql',import.meta.url),new URL('../migrations/0004_enterprise_mutation_budget.sql',import.meta.url)])this.db.exec(readFileSync(p,'utf8'));
  for(const t of [TA,TB]){this.db.prepare('INSERT INTO tenants VALUES (?)').run(t);this.db.prepare('INSERT INTO tenant_memberships VALUES (?,?,?,?)').run(t,'account_A_123','editor','active');}}
  prepare(query){return {bind:(...args)=>({query,args,first:async()=>this.db.prepare(query).get(...args)??null})};}
  async batch(stmts){const results=[];this.db.exec('BEGIN');try{for(const x of stmts){const v=this.db.prepare(x.query).run(...x.args);results.push({meta:{changes:v.changes}});}this.db.exec('COMMIT');return results;}catch(e){this.db.exec('ROLLBACK');throw e;}}
