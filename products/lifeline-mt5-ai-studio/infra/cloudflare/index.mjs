@@ -151,7 +151,7 @@ export default {async fetch(request,env){
     if(body.method==='initialize'){
       const params=body.params;
       const boundedString=(v,n)=>typeof v==='string'&&v.length>0&&v.length<=n&&
-        !/[\\x00-\\x1f\\x7f]/.test(v);
+        [...v].every(ch=>ch.codePointAt(0)>=32&&ch.codePointAt(0)!==127);
       const client=params?.clientInfo;
       if(!params||Array.isArray(params)||typeof params!=='object'||
          Object.keys(params).some(k=>!['protocolVersion','capabilities','clientInfo'].includes(k))||
