@@ -155,3 +155,18 @@ test('signed Access JWKS lookup is abortable with bounded failure, even for hung
     fetchJwks:fetchNever,now:CLOCK,jwksTimeoutMs:30}),/certs-timeout/);
   assert.equal(suppliedSignal.aborted,true);
 });
+
+test('noncanonical base64url ciphertext encodings are refused even when decoded bytes are unchanged',async()=>{
+  const {env,db}=setup();
+  const token=await sign();
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const canonical=ciphertext.ciphertext;
+  const last=canonical.at(-1);
+  const alternative=chars[chars.indexOf(last)^1];
+  const noncanonical=canonical.slice(0,-1)+alternative;
+  assert.notEqual(noncanonical,canonical);
+  assert.deepEqual(Buffer.from(noncanonical,'base64url'),Buffer.from(canonical,'base64url'));
+  const response=await call(env,'PUT',TA,ID,token,{...ciphertext,ciphertext:noncanonical});
+  assert.equal(response.status,400);
+  assert.equal(db.items.size,0);assert.equal(db.audit.length,0);
+});
