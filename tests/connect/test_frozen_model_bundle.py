@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import importlib.util
+from hashlib import sha256
 
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
 from benchmarks.mining_adapter.methane_prediction import PredictionExample
@@ -94,6 +95,20 @@ class FrozenBundleTests(unittest.TestCase):
                                    spec=self.spec, source_sha256='0' * 64,
                                    output_dir=self.path / 'wrong',
                                    feature_names=('target_current_max','MM261'))
+
+    def test_duplicate_manifest_keys_refused_even_with_recomputed_pin(self):
+        # A matching SHA pins bytes but does not make ambiguous JSON semantics safe.
+        self.freeze()
+        p = self.path / 'manifest.json'
+        original = p.read_text(encoding='utf-8')
+        self.assertIn('"research_only":true', original)
+        tampered = original.replace('"research_only":true',
+                                    '"research_only":true,"research_only":true', 1)
+        p.write_text(tampered, encoding='utf-8')
+        fresh_sha = sha256(tampered.encode('utf-8')).hexdigest()
+        (self.path / 'manifest.sha256').write_text(fresh_sha + '\n', encoding='ascii')
+        with self.assertRaisesRegex(ValueError, 'frozen_manifest_duplicate_json_key'):
+            load_frozen_bundle(self.path, expected_manifest_sha256=fresh_sha)
 
     def test_requires_out_of_band_pinned_manifest_digest(self):
         self.freeze()
