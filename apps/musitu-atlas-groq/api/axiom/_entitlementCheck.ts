@@ -4,6 +4,7 @@
 // NOT proof of a successful account-metered arithmetic execution.
 import {MCP_URL,deny,mcpCall,requestId} from './_contract.js';
 import {enforceRuntimeRole} from './_ledger.js';
+import {oauthConfigured,oauthBearer} from './_oauth.js';
 const PROBE_NAME='__atlas_permission_probe_NOT_A_REAL_TOOL_v1__';
 function kindOf(token:string):AxiomPreflight['credentialKind']{
  if(token.startsWith('musitu_oauth_at_'))return 'OAUTH_ACCESS';
@@ -40,7 +41,9 @@ export type AxiomPreflight={
 export async function preflight():Promise<AxiomPreflight>{
  const role=await enforceRuntimeRole();
  if(!role.restricted)throw deny(503,'Execution ledger role did not satisfy read-only privilege qualification.');
- const credential=process.env.AXIOM_MCP_BEARER_TOKEN||'';
+ const credential=oauthConfigured()?await oauthBearer():(process.env.AXIOM_MCP_BEARER_TOKEN||'');
+ // The legacy static value is retained only for diagnostic classification.
+ // A live operation can never be unlocked with a static bearer alone.
  const credentialKind=kindOf(credential);
  if(credential.length<12)throw deny(503,'Server-held Axiom bearer credential is missing.');
  const available=await mcpCall({jsonrpc:'2.0',id:requestId(),method:'tools/list',params:{}});
