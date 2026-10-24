@@ -21,4 +21,4 @@ jobs:
           cd products/lifeline-mt5-ai-studio/infra/cloudflare/alternative
           node --check gateway.mjs
           node --check private_worker.mjs
-          node --test --disable-warning=ExperimentalWarning test_alternative.mjs
+          node --test --disable-warning=ExperimentalWarning test_*.mjs
