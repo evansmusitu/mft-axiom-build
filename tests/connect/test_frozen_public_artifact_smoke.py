@@ -55,6 +55,27 @@ class FrozenPublicArtifactSmokeTests(unittest.TestCase):
                 run_frozen_artifact_smoke(bundle_dir=Path(bundle_path), output=root/'report.json')
 
     @unittest.skipUnless(importlib.util.find_spec('lightgbm'), 'native LightGBM research-only CI')
+    def test_synthetic_smoke_report_race_does_not_replace_another_writer(self):
+        import benchmarks.mining_adapter.frozen_public_artifact_smoke as smoke
+        bundle_path = os.environ.get('AXIOM_FROZEN_REAL_BUNDLE_DIR')
+        if not bundle_path:
+            self.skipTest('requires exact published frozen model artifact')
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p) / 'synthetic_evidence.json'
+            marker = 'race-created external report: do not overwrite'
+            real_assess = smoke.assess_external_evidence
+
+            def inject_concurrent_writer(evidence):
+                target.write_text(marker, encoding='utf-8')
+                return real_assess(evidence)
+
+            with patch.object(smoke, 'assess_external_evidence',
+                              side_effect=inject_concurrent_writer):
+                with self.assertRaises(FileExistsError):
+                    run_frozen_artifact_smoke(bundle_dir=Path(bundle_path), output=target)
+            self.assertEqual(target.read_text(encoding='utf-8'), marker)
+
+    @unittest.skipUnless(importlib.util.find_spec('lightgbm'), 'native LightGBM research-only CI')
     def test_real_model_bundle_tamper_detection(self):
         import shutil
         bundle_path=os.environ.get('AXIOM_FROZEN_REAL_BUNDLE_DIR')
