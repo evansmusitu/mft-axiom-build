@@ -20,6 +20,7 @@ class SQLiteD1 {
     this.sql=new DatabaseSync(':memory:');
     this.sql.exec('PRAGMA foreign_keys=ON;');
     this.sql.exec(readFileSync(new URL('../migrations/0001_enterprise_workspace.sql',import.meta.url),'utf8'));
+    this.sql.exec(readFileSync(new URL('../migrations/0002_enterprise_tenant_artifact_limit.sql',import.meta.url),'utf8'));
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(TENANT);
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(OTHER);
     this.sql.prepare('INSERT INTO tenant_memberships VALUES (?,?,?,?)').run(TENANT,'account_A_123','editor','active');
@@ -86,5 +87,18 @@ test('normal encrypted PUT/GET/DELETE work, missing delete does not write false 
     assert.equal(db.count('tenant_audit'),2);
     assert.equal((await request(db,'DELETE')).status,404);
     assert.equal(db.count('tenant_audit'),2);
+  }finally{db.close();}
+});
+
+test('workspace API reports bounded quota without falsely persisting or auditing',async()=>{
+  const db=new SQLiteD1();
+  try{
+    const statement=db.sql.prepare('INSERT INTO tenant_artifacts VALUES (?,?,?,?,?,?)');
+    for(let i=0;i<50;i++)statement.run(TENANT,'slot_'+String(i).padStart(8,'0'),envelope.iv,envelope.ciphertext,1,NOW);
+    const response=await request(db,'PUT');
+    assert.equal(response.status,409);
+    assert.equal((await response.json()).code,'TENANT_ARTIFACT_LIMIT');
+    assert.equal(db.count('tenant_artifacts'),50);
+    assert.equal(db.count('tenant_audit'),0);
   }finally{db.close();}
 });
