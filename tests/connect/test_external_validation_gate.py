@@ -1,4 +1,8 @@
 import copy
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 import unittest
 from benchmarks.mining_adapter.external_validation_gate import assess_external_evidence
 
@@ -41,6 +45,27 @@ def report():
 
 
 class ExternalValidationGateTests(unittest.TestCase):
+    def test_external_gate_output_race_fails_without_overwriting(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / 'input_evidence.json'
+            target = Path(directory) / 'research_audit.json'
+            source.write_text('{}', encoding='utf-8')
+            marker = 'previously published evidence - must not overwrite'
+
+            def concurrent_writer(*args, **kwargs):
+                target.write_text(marker, encoding='utf-8')
+                return {'status': 'PENDING_EXTERNAL_PROVENANCE_AND_INDEPENDENT_REVIEW',
+                        'production_admission': False}
+
+            argv = ['external_validation_gate', '--evidence', str(source),
+                    '--output', str(target)]
+            with patch.object(validator, 'assess_external_evidence',
+                              side_effect=concurrent_writer), patch.object(sys, 'argv', argv):
+                with self.assertRaises(FileExistsError):
+                    validator.main()
+            self.assertEqual(target.read_text(encoding='utf-8'), marker)
+
     def test_high_measured_scores_never_grant_independent_status(self):
         result=assess_external_evidence(report())
         self.assertTrue(result['research_performance_meets_predeclared_thresholds'])
