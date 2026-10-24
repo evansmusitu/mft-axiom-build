@@ -32,7 +32,9 @@ export function fail(res:any,error:unknown){
 }
 export function authConfigured():boolean{
  return process.env.ATLAS_AXIOM_EXECUTE_ENABLED==='enabled'
-  && Boolean(process.env.AXIOM_MCP_BEARER_TOKEN)
+  && process.env.ATLAS_AXIOM_OAUTH_ENABLED==='enabled'
+  && Boolean(process.env.ATLAS_AXIOM_OAUTH_CLIENT_ID)
+  && Boolean(process.env.ATLAS_AXIOM_OAUTH_DATA_KEY)
   && Boolean(process.env.ATLAS_AXIOM_OPERATOR_CODE)
   && (process.env.ATLAS_AXIOM_OPERATOR_CODE||'').length>=24;
 }
