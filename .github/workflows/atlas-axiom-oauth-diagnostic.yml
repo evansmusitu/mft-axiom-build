@@ -60,7 +60,7 @@ jobs:
           process.env.AXIOM_MCP_BEARER_TOKEN='musitu_axiom_representative_fake_account_key';
           let result=await preflight();
           assert.equal(result.providerGateStatus,'CREDENTIAL_REJECTED');
-          assert.equal(result.credentialKind,'ACCOUNT_KEY');
+          assert.equal(result.credentialKind,'NON_OAUTH_MUSITU_PREFIX');
           assert.equal(result.identityVerification,'NOT_CHECKED');
           assert.equal(calls.filter(x=>x.u.includes('userinfo')).length,0);
           process.env.AXIOM_MCP_BEARER_TOKEN='musitu_oauth_at_representative_fake_expired';
@@ -72,7 +72,7 @@ jobs:
           assert.equal(calls.filter(x=>x.u.includes('/mcp')).length,4);
           assert.equal(result.operationExecuted,false);
           assert.equal(result.providerComputeUnitsClaimed,0);
-          console.log('PASS: account keys recognized as wrong OAuth token type');
+          console.log('PASS: non-OAuth MUSITU-like credentials distinguished from bearer access tokens');
           console.log('PASS: expired/unrecognized OAuth access token surfaced without identity details');
           console.log('PASS: all mock MCP calls are public discovery or nonexistent-tool checks');
           console.log('PASS: no Axiom computation, secret exposure, or external network');
