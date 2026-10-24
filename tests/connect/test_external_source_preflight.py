@@ -114,6 +114,25 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'source_is_known_development_dataset'):
             self.inspect()
 
+    def test_manifest_and_source_reject_impossible_utc_offsets(self):
+        for value in ('2025-04-07T00:00:00+14:01', '2025-04-07T00:00:00-14:01',
+                      '2025-04-07T00:00:00+15:00'):
+            with self.subTest(layer='manifest', value=value):
+                self.metadata['declared_start_time'] = value
+                self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')
+                with self.assertRaisesRegex(ValueError, 'external_source_timezone_offset_invalid'):
+                    self.inspect()
+        self.write_source()
+        self.lines[0]['event_time'] = '2025-04-07T00:00:00+15:00'
+        self.write_source()
+        with self.assertRaisesRegex(ValueError, 'external_source_timezone_offset_invalid'):
+            self.inspect()
+
+    def test_boundary_utc_offsets_parse_without_normalizing_them_away(self):
+        from benchmarks.mining_adapter.external_source_preflight import _parsed_time
+        self.assertEqual(_parsed_time('2025-04-07T14:00:00+14:00'), self.start)
+        self.assertEqual(_parsed_time('2025-04-06T10:00:00-14:00'), self.start)
+
     def test_source_hash_mismatch_fails_closed(self):
         self.metadata['source_sha256'] = 'e'*64
         self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')

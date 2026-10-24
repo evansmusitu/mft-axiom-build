@@ -101,6 +101,8 @@ def _parsed_time(value: Any) -> datetime:
         raise ValueError('external_source_timestamp_invalid') from None
     if result.tzinfo is None or result.utcoffset() is None:
         raise ValueError('external_source_timestamp_timezone_required')
+    if abs(result.utcoffset()) > timedelta(hours=14):
+        raise ValueError('external_source_timezone_offset_invalid')
     return result
 
 

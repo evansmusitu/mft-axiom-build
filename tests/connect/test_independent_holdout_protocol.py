@@ -140,6 +140,26 @@ class HoldoutProtocolTests(unittest.TestCase):
         q['approved_for_production']=True
         with self.assertRaisesRegex(ValueError,'unknown_fields'):inspect_protocol(q)
 
+    def test_preregistered_timestamps_reject_physically_invalid_utc_offsets(self):
+        for name in ('source_start_time', 'source_end_time'):
+            for value in ('2025-01-01T00:00:00+14:01',
+                          '2025-01-01T00:00:00-14:01',
+                          '2025-01-01T00:00:00+15:00'):
+                q = candidate()
+                q[name] = value
+                with self.subTest(name=name, value=value), self.assertRaisesRegex(
+                        ValueError, 'independent_protocol_timezone_offset_invalid'):
+                    inspect_protocol(q)
+        q = candidate()
+        q['folds'][0]['first_feature_time'] = '2025-01-01T00:00:00+14:01'
+        with self.assertRaisesRegex(ValueError, 'independent_protocol_timezone_offset_invalid'):
+            inspect_protocol(q)
+
+    def test_preregistered_timestamps_accept_boundary_offsets(self):
+        from benchmarks.mining_adapter.independent_holdout_protocol import _timestamp
+        self.assertEqual(_timestamp('2025-01-01T14:00:00+14:00'), START)
+        self.assertEqual(_timestamp('2024-12-31T10:00:00-14:00'), START)
+
     def test_invalid_hashes_raw_personal_identifiers_and_naive_timestamps_fail(self):
         for field,value in [('canonical_source_sha256','0'*63),('sensor_mapping_sha256','invalid'),
                             ('source_start_time','2025-01-01T00:00:00'),('candidate_alias','')]:

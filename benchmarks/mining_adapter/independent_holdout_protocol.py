@@ -67,6 +67,8 @@ def _timestamp(v: Any) -> datetime:
         raise ValueError('independent_protocol_timestamp_invalid') from None
     if t.tzinfo is None or t.utcoffset() is None:
         raise ValueError('independent_protocol_timezone_required')
+    if abs(t.utcoffset()) > timedelta(hours=14):
+        raise ValueError('independent_protocol_timezone_offset_invalid')
     return t.astimezone(timezone.utc)
 
 
