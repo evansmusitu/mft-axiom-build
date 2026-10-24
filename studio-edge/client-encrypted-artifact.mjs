@@ -16,7 +16,7 @@ function requireId(value) {
 }
 function requireKey(key,operation) {
   if(!key || key.type!=='secret' || key.algorithm?.name!=='AES-GCM' ||
-     key.algorithm.length!==256 || !key.usages?.includes(operation)) throw Error('INVALID_CRYPTO_KEY');
+     key.algorithm.length!==256 || key.extractable!==false || !key.usages?.includes(operation)) throw Error('INVALID_CRYPTO_KEY');
   if(!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues)throw Error('CRYPTO_UNAVAILABLE');
 }
 function context(tenant,artifact) {
