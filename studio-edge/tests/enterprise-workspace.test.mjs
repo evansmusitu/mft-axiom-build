@@ -130,3 +130,13 @@ test('worker integrates enterprise route while public health remains honest',asy
  assert.equal(health.status,200);
  assert.equal((await health.json()).tools.some(x=>x.id==='enterprise'),false);
 });
+
+test('oversized JWKS without content-length is rejected before parsing or verifying JWT',async()=>{
+ const token=await sign();
+ const hugeJson=JSON.stringify({keys:[{...pub,alg:'RS256',use:'sig',kid:'key_12345678'}],padding:'X'.repeat(45000)});
+ const fetchLarge=async()=>new Response(hugeJson,{status:200,headers:{'content-type':'application/json'}});
+ await assert.rejects(
+  verifyAccessJwt(token,{teamDomain:TEAM,audience:AUD,fetchJwks:fetchLarge,now:CLOCK}),
+  /certs/
+ );
+});
