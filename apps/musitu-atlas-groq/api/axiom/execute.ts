@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {evaluate} from './_rational.js';
 import {claim,start,mark,ledgerReady} from './_ledger.js';
+import {oauthBearer} from './_oauth.js';
 import {parseBody,parseExpression,hashPayload,respond,deny,fail,authConfigured,verifyApproval,OPERATION,TOOL_NAME,mcpCall} from './_contract.js';
 function uuid(x:unknown):string {
  if(typeof x!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(x))
@@ -19,6 +20,9 @@ export default async function handler(req:any,res:any){
   if(input.digest!==hashPayload(expression))
    throw deny(409,'Expression changed after preview. Request was not sent.');
   const key=uuid(input.idempotencyKey);
+  // Resolve/refresh owner-issued OAuth before claiming a chargeable compute request.
+  // A static, possibly expired bearer from Vercel must never authorize execution.
+  const authorizedBearer=await oauthBearer();
   // Durable unique-key claim; duplicate requests fail closed across all Vercel replicas.
   requestId=randomUUID();
   await claim(requestId,key,hashPayload(expression),expression);
@@ -28,7 +32,7 @@ export default async function handler(req:any,res:any){
   // One external dispatch. NO automatic retries under any circumstances.
   const data=await mcpCall({jsonrpc:'2.0',id:requestId,method:'tools/call',
     params:{name:TOOL_NAME,arguments:{args:{expression}}}
-  },process.env.AXIOM_MCP_BEARER_TOKEN);
+  },authorizedBearer);
   const response=data?.result;
   if(!response||response.isError===true||response?.structuredContent?.authenticated===false)
    throw deny(502,'Axiom did not return a successful entitled operation.');
