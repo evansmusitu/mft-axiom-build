@@ -124,6 +124,50 @@ export function createTenantWorkspaceClient(options) {
        fail('INVALID_RESPONSE');
      return result.data;
    },
+   async exportEncryptedBundle() {
+     // Explicit caller-initiated operation: NEVER auto-upload, decrypt to a
+     // saved file, or touch the five unrelated local vault slots.
+     // This is a best-effort consistent export; concurrent modifications
+     // fail closed rather than producing an internally contradictory bundle.
+     const artifacts=[],seen=new Set();
+     let after=null;
+     for(let pageNumber=0;pageNumber<6;pageNumber++){
+       const response=await send('GET',{after,limit:10});
+       const page=response.data;
+       if(!Array.isArray(page?.items)||page.items.length>10||
+          !(page.nextAfter===null||(typeof page.nextAfter==='string'&&ID.test(page.nextAfter))))
+         fail('INVALID_RESPONSE');
+       for(const item of page.items){
+         if(!item||!ID.test(item.id)||!ETAG.test('"'+item.revision+'"')||
+            !Number.isSafeInteger(item.updatedAt)||seen.has(item.id)||
+            (after!==null&&item.id<=after)||artifacts.length>=50)
+           fail('EXPORT_CONFLICT');
+         const previous=artifacts.at(-1);
+         if(previous&&item.id<=previous.id)fail('EXPORT_CONFLICT');
+         seen.add(item.id);
+         let found;
+         try{found=await send('GET',{id:item.id});}
+         catch(error){
+           if(error?.status===404||error?.status===412)fail('EXPORT_CONFLICT');
+           throw error;
+         }
+         const currentTag=successfulTag(found.etag);
+         if(found.data?.id!==item.id || currentTag.slice(1,-1)!==item.revision)
+           fail('EXPORT_CONFLICT');
+         // Authenticate the ciphertext and AAD without copying plaintext into
+         // the returned bundle, network requests, localStorage, or logs.
+         await decryptTenantText(found.data.envelope,key,tenantId,item.id);
+         artifacts.push({id:item.id,etag:currentTag,envelope:found.data.envelope});
+       }
+       if(page.nextAfter===null)
+         return {kind:'musitu-enterprise-encrypted-export',version:1,tenantId,artifacts};
+       if(!page.items.length || page.nextAfter!==page.items[page.items.length-1].id ||
+          seen.has(page.nextAfter)===false)
+         fail('EXPORT_CONFLICT');
+       after=page.nextAfter;
+     }
+     fail('EXPORT_CONFLICT');
+   },
    async get({id}={}) {
      validateId(id);
      const result=await send('GET',{id});
