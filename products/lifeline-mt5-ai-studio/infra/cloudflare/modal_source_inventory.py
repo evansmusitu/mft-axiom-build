@@ -50,8 +50,8 @@ def inventory(cloudflare_token: str, modal_module) -> dict:
     worker_secrets=get_json("/accounts/"+ACCOUNT+"/workers/scripts/"+WORKER+"/secrets",cloudflare_token)
     if not isinstance(worker_secrets,list):raise RuntimeError("private Worker secret readback unavailable")
     names={s.get("name") for s in worker_secrets if isinstance(s,dict)}
-    if names!=EXPECTED_IDENTITY:
-        raise RuntimeError("existing Worker binding scope changed; refuses any assumption")
+    if not EXPECTED_IDENTITY.issubset(names) or names-EXPECTED_IDENTITY-NEEDED_BACKEND:
+        raise RuntimeError("existing Worker binding scope changed; refuses unknown values")
     # Modal metadata API: hydrated Secret handles provide NAMES, not secret values.
     try:
         secret_names={s.name for s in modal_module.Secret.objects.list(max_objects=100)}
@@ -69,9 +69,10 @@ def inventory(cloudflare_token: str, modal_module) -> dict:
         raise RuntimeError("Modal bridge prerequisite absent or unsafe API response")
     return {"schema":"lifeline.cloudflare_modal_secret_inventory.v1",
       "cloudflare_account_pinned":True,"access_app_pinned":True,
-      "independent_owner_mfa_policy":True,"worker_identity_only":True,
+      "independent_owner_mfa_policy":True,"worker_identity_only":names==EXPECTED_IDENTITY,
+      "worker_binding_count":len(names),
       "identity_binding_count":len(EXPECTED_IDENTITY),
-      "missing_backend_binding_count":len(NEEDED_BACKEND),
+      "missing_backend_binding_count":len(NEEDED_BACKEND-names),
       "modal_bridge_named_secret_exists":True,
       "modal_unwrap_named_secret_exists":True,
       "private_modal_endpoint_metadata_valid":True,
