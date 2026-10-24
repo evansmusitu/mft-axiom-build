@@ -1,0 +1,43 @@
+name: MUSITU Studio V0.3 — Offline Security + 3D Qualification
+on:
+  push:
+    branches:
+      - experiments/studio-enterprise-v03-sqlite-do-20261018
+    paths:
+      - 'musitu_studio/neon/**'
+      - 'musitu_studio/edge/public_v03/**'
+      - 'musitu_studio/edge/tests/v03_glb_*.test.mjs'
+      - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
+      - 'ops/tests/test_studio_*.py'
+      - '.github/workflows/studio-v03-offline-security-qualification-20261024.yml'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: studio-v03-offline-security-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  offline-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Pure Node Neon security and frozen import tests — no provider access
+        run: node --test musitu_studio/neon/tests/*.test.mjs
+      - name: Pure GLB / high angular speed / editor preview tests
+        run: node --test musitu_studio/edge/tests/v03_glb_*.test.mjs musitu_studio/edge/tests/v03_scene_preview.test.mjs
+      - name: Python Studio release recovery and offline security tests
+        run: python -m unittest discover -s ops/tests -p 'test_studio_*.py' -v
+      - name: Verify no provider env or deployment script was required
+        run: |
+          python - <<'PY'
+          import os
+          assert os.environ['GITHUB_REF_NAME']=='experiments/studio-enterprise-v03-sqlite-do-20261018'
+          print('OFFLINE_ONLY_NO_PROVIDER_WRITES_OR_BILLED_RENDERING=PASS')
+          PY
