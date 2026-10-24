@@ -257,7 +257,7 @@ test('signed owner cannot pass status arguments or extra RPC parameters to Modal
       if(String(url).includes('/cdn-cgi/access/certs'))
         return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
       calls++;
-      return new Response(json({result:{content:[{type:'text',text:'only status'}]}}),{status:200});
+      return new Response(json({result:{content:[{type:'text',text:'only status'}]}}),{status:200,headers:{'content-type':'application/json'}});
     };
     const headers={'cf-access-jwt-assertion':token};
     const invalid=[
@@ -363,7 +363,7 @@ test('oversized declared upstream body fails closed without reading a single byt
   try {
     globalThis.fetch=async()=>new Response(new ReadableStream({
       pull(controller){reads++;controller.enqueue(new TextEncoder().encode('secret'));controller.close();}
-    }),{status:200,headers:{'content-type':'application/json','content-length':'1000000'}});
+    },{highWaterMark:0}),{status:200,headers:{'content-type':'application/json','content-length':'1000000'}});
     const r=await worker.fetch(message('/agent/pull',b,signedHeaders(b)),E);
     assert.equal(r.status,502);
     assert.equal(reads,0);
