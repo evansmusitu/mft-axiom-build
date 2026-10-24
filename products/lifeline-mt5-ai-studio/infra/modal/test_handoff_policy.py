@@ -53,4 +53,31 @@ class HandoffPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             encrypt_to_gh(src,pub)
 
+
+    def test_ephemeral_handoff_challenge_binds_envelope(self):
+        """An attacker must not replay a Modal ciphertext from another GH run."""
+        private,pub=self.keypair()
+        challenge="A"*43
+        encrypted=encrypt_to_gh(SOURCE,pub,challenge=challenge)
+        self.assertEqual(encrypted["challenge"],challenge)
+        self.assertEqual(decrypt_for_gh(encrypted,private,expected_challenge=challenge),SOURCE)
+        with self.assertRaises(ValueError):
+            decrypt_for_gh(encrypted,private,expected_challenge="B"*43)
+
+    def test_ephemeral_handoff_context_cannot_be_modified(self):
+        """Recipient must reject changed exact Cloudflare/Worker context."""
+        private,pub=self.keypair()
+        challenge="C"*43
+        encrypted=encrypt_to_gh(SOURCE,pub,challenge=challenge)
+        tampered=dict(encrypted)
+        tampered["target_worker"]="unrelated-production-worker"
+        with self.assertRaises(ValueError):
+            decrypt_for_gh(tampered,private,expected_challenge=challenge)
+
+    def test_challenge_is_mandatory_and_not_guessably_short(self):
+        _,pub=self.keypair()
+        for challenge in ("", "easy", "1"*42, "1"*44, "x"*42+"!", None):
+            with self.assertRaises(ValueError):
+                encrypt_to_gh(SOURCE,pub,challenge=challenge)
+
 if __name__=="__main__":unittest.main()
