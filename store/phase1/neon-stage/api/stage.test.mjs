@@ -53,7 +53,9 @@ test('protected qualified private neon canary returns no payment authority',asyn
  let calls=0;const res=await simulate(env({STORE_NEON_DATABASE_URL:DB}),
   {probe:async()=>{calls++;return {rowCount:1,rows:[{db:'musitu_store_v2_staging',
    role_name:'musitu_store_v2_gateway',elevated:false,store_tables:4,product_count:0,
-   order_count:0,review_count:0}]}}});
+   order_count:0,review_count:0,token_count:0,role_superuser:false,
+   role_can_createdb:false,role_can_createrole:false,role_can_bypassrls:false,
+   role_can_login:true}]}}});
  assert.equal(calls,1);assert.equal(res.code,200);
  assert.deepEqual(Object.keys(res.body).sort(),[
   'callbacks_certified','checkout_enabled','code','entitlement_granted','ok',

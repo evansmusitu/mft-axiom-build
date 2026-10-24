@@ -1,7 +1,7 @@
 name: MUSITU Store V2 isolated protected Neon stage acceptance
 on:
   push:
-    branches: [feature/musitu-store-v2-package-state-20261012]
+    branches: [feature/musitu-store-v2-package-state-20261012, feature/store-v2-publisher-evidence-pilot-20261021]
     paths:
       - 'store/phase1/neon-stage/**'
       - '.github/workflows/musitu-store-v2-neon-stage-acceptance.yml'
@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check api/stage.js
-          node --test api/stage.test.mjs
+          node --test api/stage.test.mjs api/stage.adversarial.test.mjs
           python3 - <<'PY'
           from pathlib import Path
           s=Path('api/stage.js').read_text()

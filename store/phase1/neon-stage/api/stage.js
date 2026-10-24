@@ -14,7 +14,13 @@ const PROBE_SQL = `SELECT current_database() AS db,
   'store_checkout_intents','store_checkout_reviews')) AS store_tables,
  (SELECT count(*)::int FROM store_products) AS product_count,
  (SELECT count(*)::int FROM store_checkout_intents) AS order_count,
- (SELECT count(*)::int FROM store_checkout_reviews) AS review_count`;
+ (SELECT count(*)::int FROM store_checkout_reviews) AS review_count,
+ (SELECT count(*)::int FROM store_customer_tokens) AS token_count,
+ (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname=current_user) AS role_superuser,
+ (SELECT rolcreatedb FROM pg_catalog.pg_roles WHERE rolname=current_user) AS role_can_createdb,
+ (SELECT rolcreaterole FROM pg_catalog.pg_roles WHERE rolname=current_user) AS role_can_createrole,
+ (SELECT rolbypassrls FROM pg_catalog.pg_roles WHERE rolname=current_user) AS role_can_bypassrls,
+ (SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname=current_user) AS role_can_login`;
 const respond=(res,status,code)=>res.status(status).json({ok:status===200,code,...flags});
 function safeUrl(value){
  try{
@@ -41,6 +47,8 @@ export function createStageHandler({probe}={}){
   if(env.STORE_NEON_STAGING_ONLY!=='true'||
      env.STORE_CHECKOUT_ENABLED!=='false'||
      env.STORE_CALLBACKS_CERTIFIED!=='false'||
+     (env.STORE_PAYOUTS_ENABLED && env.STORE_PAYOUTS_ENABLED!=='false')||
+     (env.STORE_ENTITLEMENTS_ENABLED && env.STORE_ENTITLEMENTS_ENABLED!=='false')||
      env.STORE_PAYNOW_ID||env.STORE_PAYNOW_INTEGRATION_KEY)
    return respond(res,503,'stage_gate_closed');
   if(!env.STORE_NEON_DATABASE_URL)return respond(res,503,'stage_database_not_attached');
@@ -52,7 +60,10 @@ export function createStageHandler({probe}={}){
       row.role_name!=='musitu_store_v2_gateway'||row.elevated!==false||
       Number(row.store_tables)!==4||
       Number(row.product_count)!==0||Number(row.order_count)!==0||
-      Number(row.review_count)!==0)
+      Number(row.review_count)!==0||Number(row.token_count)!==0||
+      row.role_superuser!==false||row.role_can_createdb!==false||
+      row.role_can_createrole!==false||row.role_can_bypassrls!==false||
+      row.role_can_login!==true)
     return respond(res,503,'stage_database_not_qualified');
    return respond(res,200,'stage_db_connected_disabled');
   }catch{

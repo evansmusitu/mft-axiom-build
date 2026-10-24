@@ -1,0 +1,75 @@
+name: MUSITU Store V2 real PostgreSQL private publisher-review constraints
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - 'store/phase1/developer_portal/postgres-review-journal.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-review-journal.regression.sql'
+      - 'store/phase1/developer_portal/postgres-apk-quarantine.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-apk-quarantine.regression.sql'
+      - 'store/phase1/developer_portal/postgres-session-status.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-session-status.regression.sql'
+      - 'store/phase1/developer_portal/postgres-upload-session-binding.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-upload-session-binding.regression.sql'
+      - 'store/phase1/developer_portal/postgres-repository.mjs'
+      - 'store/phase1/developer_portal/postgres-apk-structure.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-apk-structure.regression.sql'
+      - '.github/workflows/musitu-store-v2-developer-review-postgres-ci.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  immutable-evidence-journal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: storepilot
+          POSTGRES_PASSWORD: private-disposable-test-only
+          POSTGRES_DB: storepilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U storepilot -d storepilot"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve frozen signed Store V1 Java
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+      - name: Execute actual PostgreSQL journal schema and adversarial mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          id="$(docker ps -q --filter ancestor=postgres:16 | head -1)"
+          test -n "$id"
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-review-journal.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-review-journal.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-apk-quarantine.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-apk-quarantine.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-session-status.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-session-status.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-upload-session-binding.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-upload-session-binding.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-apk-structure.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-apk-structure.regression.sql
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.apk_structural_checks')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.portal_sessions')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.principal_enrollments')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.apk_quarantine_receipts')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.submissions')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.review_notes')" = 0
+          echo MUSITU_STORE_V2_PUBLISHER_REVIEW_POSTGRES_DENIALS=PASS
