@@ -31,3 +31,5 @@ jobs:
         run: python3 studio-edge/tests/enterprise_sqlite_contract.py
       - name: Per-tenant storage quota enforced in real SQLite
         run: python3 studio-edge/tests/enterprise_quota_contract.py
+      - name: Atomic per-tenant mutation budget contract
+        run: python3 studio-edge/tests/enterprise_mutation_budget.py
