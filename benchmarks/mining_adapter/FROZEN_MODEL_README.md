@@ -81,7 +81,9 @@ sidecar. A manifest or model file changed while the long-running scoring pass is
 underway fails closed instead of producing apparently SHA-backed results. Both
 evaluator and evidence-gate CLI outputs use exclusive file creation: a competing
 writer cannot silently replace an existing audit file after an earlier path
-check. These controls **do not** independently authenticate an operator,
+check. The evidence gate also rejects duplicate JSON keys at any nesting level
+and nonstandard NaN/Infinity values before assessing untrusted research evidence.
+These controls **do not** independently authenticate an operator,
 sensor calibration or physical methane events.
 
 The evidence audit recomputes all confusion and F2 metrics; checks source and
