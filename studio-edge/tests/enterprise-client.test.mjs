@@ -95,3 +95,29 @@ test('refuses unsafe endpoints, invalid IDs/versions, or missing identity withou
  await assert.rejects(missing.list());
  assert.equal(called,0);
 });
+
+test('browser request has an AbortSignal and a bounded timeout with no retries',async()=>{
+ let calls=0, suppliedSignal;
+ const api=setup(async(_url,options)=>{
+   calls++;suppliedSignal=options.signal;
+   assert.ok(suppliedSignal instanceof AbortSignal);
+   return new Promise((_,reject)=>{
+     suppliedSignal.addEventListener('abort',()=>reject(new Error('fetch-aborted')),{once:true});
+   });
+ },{requestTimeoutMs:30});
+ await assert.rejects(api.list(),error=>error.code==='REQUEST_TIMEOUT');
+ assert.equal(calls,1);assert.equal(suppliedSignal.aborted,true);
+});
+test('oversized successful and error response bodies are rejected before JSON parsing',async()=>{
+ const long=JSON.stringify({items:[],nextAfter:null,padding:'X'.repeat(75000)});
+ for(const status of [200,412]){
+  const api=setup(async()=>new Response(long,{status,headers:{'content-type':'application/json'}}));
+  await assert.rejects(api.list(),error=>error.code==='RESPONSE_TOO_LARGE');
+ }
+});
+test('reject incorrect response media type and malformed content-length header before payload consumption',async()=>{
+ for(const headers of [{'content-type':'text/html'}, {'content-type':'application/json','content-length':'abc'}]){
+  const api=setup(async()=>new Response(JSON.stringify({items:[],nextAfter:null}),{status:200,headers}));
+  await assert.rejects(api.list(),error=>error.code==='INVALID_RESPONSE');
+ }
+});
