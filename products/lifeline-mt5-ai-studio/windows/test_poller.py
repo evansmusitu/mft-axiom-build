@@ -268,4 +268,19 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(allowed.status_code,200)
         self.assertEqual(allowed.json()['result']['protocolVersion'],'2025-03-26')
 
+
+    def test_private_mcp_status_must_bind_to_enrolled_tenant_not_just_known_edge_secret(self):
+        """A shared edge secret must not let arbitrary caller-subjects use MCP."""
+        method={'jsonrpc':'2.0','id':7,'method':'tools/call',
+                'params':{'name':'lifeline_status','arguments':{}}}
+        allowed=self.tc.post('/mcp',json=method,headers=self.edge_headers)
+        self.assertEqual(allowed.status_code,200)
+        for subject in ('tenant-B','other-tenant','', 'tenant A','../admin'):
+            with self.subTest(subject=subject):
+                headers=dict(self.edge_headers)
+                headers['x-lifeline-subject']=subject
+                resp=self.tc.post('/mcp',json=method,headers=headers)
+                self.assertEqual(resp.status_code,403)
+                self.assertNotIn('result',resp.json())
+
 if __name__=='__main__':unittest.main()
