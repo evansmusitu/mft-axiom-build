@@ -29,3 +29,5 @@ jobs:
         run: node --test studio-edge/tests/*.test.mjs
       - name: Real SQLite tenant boundary and migration contracts (no cloud database mutations)
         run: python3 studio-edge/tests/enterprise_sqlite_contract.py
+      - name: Per-tenant storage quota enforced in real SQLite
+        run: python3 studio-edge/tests/enterprise_quota_contract.py
