@@ -185,17 +185,34 @@ def execute_once(job: dict[str,Any], key: bytes, root: Path, editor: str | None,
                  terminal: str | None, database: Path, now: int | None = None) -> dict[str,Any]:
     """At-most-once local dispatch; unknown claims are never automatically retried."""
     payload = verify_job(job,key,now=now)
+    # A legitimate server may refresh issued_at and re-sign a CLAIMED job.
+    # It may NOT change the tenant, operation, arguments, job id or nonce
+    # while reusing the same durable receipt. Persist only a SHA256 of the
+    # immutable signed request, never any broker/user secret or source body.
+    binding = hashlib.sha256(canonical({name: payload[name] for name in
+                       ("job_id","nonce","operation","args","tenant")})).hexdigest()
     database.parent.mkdir(parents=True,exist_ok=True)
     with closing(sqlite3.connect(database,timeout=15)) as db:
         db.execute("CREATE TABLE IF NOT EXISTS jobs (job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL, receipt TEXT)")
+        # Separate additive table keeps preexisting durable claims intact.
+        # A legacy completed job without its binding MUST fail closed rather
+        # than inheriting an unproven receipt under the new policy.
+        db.execute("CREATE TABLE IF NOT EXISTS job_bindings (job_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)")
         try:
             db.execute("INSERT INTO jobs (job_id,nonce,state,receipt) VALUES (?,?,'CLAIMED',NULL)",
                        (payload["job_id"],payload["nonce"]))
+            db.execute("INSERT INTO job_bindings(job_id,fingerprint) VALUES (?,?)",
+                       (payload["job_id"],binding))
             db.commit()
         except sqlite3.IntegrityError:
+            db.rollback()
             existing=db.execute("SELECT nonce,state,receipt FROM jobs WHERE job_id=?",(payload["job_id"],)).fetchone()
-            if existing is not None and existing[0]==payload["nonce"] and existing[1]=="COMPLETED":
-                return json.loads(existing[2])
+            if existing is not None and existing[0]==payload["nonce"]:
+                stored=db.execute("SELECT fingerprint FROM job_bindings WHERE job_id=?",(payload["job_id"],)).fetchone()
+                if stored is None or not hmac.compare_digest(stored[0],binding):
+                    raise AgentError("job binding mismatch; manual reconciliation required")
+                if existing[1]=="COMPLETED":
+                    return json.loads(existing[2])
             raise AgentError("job already claimed or nonce reused; manual reconciliation required")
     # Deliberate commit BEFORE execution; restart cannot repeat an uncertain native operation.
     receipt=execute(job,key,root,editor,terminal,now=now)
