@@ -54,6 +54,16 @@ test('signed, known Meta status is verified and changes only matching tenant out
  assert.equal(db.released.length,1);
 });
 
+test('padded signed status id is matched byte for byte and still requires known binding',async()=>{
+ const id='wamid.SYNTHETIC+/==',raw=statusBody({statuses:[single({id})]}),db=fakePool();
+ const result=await ingestor(db.pool).ingest({rawBody:raw,signature:sign(raw)});
+ assert.equal(result[0].providerMessageId,id);assert.equal(db.attempt.status,'DELIVERED');
+ assert.equal(db.calls.find(x=>x.sql.includes('FROM musitu.outbound_attempts')).params[2],id);
+ const unknown=fakePool({known:false});
+ await assert.rejects(ingestor(unknown.pool).ingest({rawBody:raw,signature:sign(raw)}),/UNKNOWN_OR_UNBOUND_OUTBOUND/);
+ assert.equal(unknown.calls.some(x=>x.sql.includes('INSERT INTO musitu.message_status_events')),false);
+});
+
 test('unknown, wrong-recipient, and missing-recipient statuses fail closed without ACK or ledger writes',async()=>{
  for(const opts of [{known:false},{recipientHash:hashRecipient(B,'PHONE_B',RECIPIENT)},{recipientHash:null}]){
   const db=fakePool(opts),raw=statusBody();

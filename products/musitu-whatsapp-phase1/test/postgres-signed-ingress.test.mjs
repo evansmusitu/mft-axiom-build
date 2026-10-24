@@ -46,6 +46,16 @@ test('authentic Meta text is scoped by bound WABA+phone and committed as one ten
  assert.deepEqual(calls.find(c=>c.sql.includes('FROM musitu.faqs'))?.params,[TA,'what hours?'],'approved FAQ lookup uses normalized question');
  assert.equal(releases.length,1);
 });
+
+test('padded signed inbound id is persisted unchanged without relaxing HMAC checks',async()=>{
+ const messageId='wamid.SYNTHETIC+/==',raw=body({messageId}),db=fakePool();
+ const result=await ingestor(db.pool).ingest({rawBody:raw,signature:sig(raw)});
+ assert.equal(result[0].providerMessageId,messageId);
+ assert.equal(db.calls.find(x=>x.sql.includes('INSERT INTO musitu.inbound_events')).params[2],messageId);
+ const forged=fakePool();
+ await assert.rejects(ingestor(forged.pool).ingest({rawBody:raw,signature:'sha256='+'0'.repeat(64)}),/INVALID_META_SIGNATURE/);
+ assert.equal(forged.calls.length,0);
+});
 test('invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB',async()=>{
  const f=fakePool(),reader=ingestor(f.pool),raw=body();
  await assert.rejects(reader.ingest({rawBody:raw,signature:'sha256='+'0'.repeat(64)}),/INVALID_META_SIGNATURE/);

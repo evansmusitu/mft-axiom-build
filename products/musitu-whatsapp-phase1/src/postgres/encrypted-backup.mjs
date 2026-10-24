@@ -3,12 +3,12 @@ import {createCipheriv,createDecipheriv,createHash,randomBytes} from 'node:crypt
 import {deflateRawSync,inflateRawSync} from 'node:zlib';
 const HEADER=Buffer.from('MUSITU_PG_BACKUP_V1\0'),LIMIT=8*1024*1024;
 const TABLES=['action_audit','ai_policy','ai_requests','bookings','business_configuration','channel_consent_evidence','contacts','conversations','customer_suppressions','draft_approvals','faqs','inbound_events','memberships','message_status_events','messages','outbound_attempts','outbound_preparations','reply_drafts','resources','tenants','whatsapp_channels'].map(n=>'musitu.'+n).concat('musitu_identity.sessions');
-const MIGRATIONS=['private_tenant_core','faq_draft_rls_candidate','runtime_role_permissions','signed_ingress_role','verified_status_reconciliation','offline_draft_approvals','offline_outbound_preparations','signed_customer_suppression','private_business_commands','private_identity_sessions','locked_review_context','business_configuration','private_contact_message_ledger','governed_ai_drafts','development_reply_sender'].map((n,i)=>String(i+1).padStart(3,'0')+'_'+n+'.sql');
+const MIGRATIONS=['private_tenant_core','faq_draft_rls_candidate','runtime_role_permissions','signed_ingress_role','verified_status_reconciliation','offline_draft_approvals','offline_outbound_preparations','signed_customer_suppression','private_business_commands','private_identity_sessions','locked_review_context','business_configuration','private_contact_message_ledger','governed_ai_drafts','development_reply_sender','meta_message_id_compatibility'].map((n,i)=>String(i+1).padStart(3,'0')+'_'+n+'.sql');
 function schema(p){
  if(p.version===1)return p.migrations.length===14; // Preserve the tested 18 October archive.
  // Version 2 records the current schema explicitly. Digests establish internal
  // consistency only; a restore must still compare SQL with reviewed source.
- return p.version===2&&p.schemaVersion===15&&p.migrations.length===15&&
+ return p.version===2&&[15,16].includes(p.schemaVersion)&&p.migrations.length===p.schemaVersion&&
   TABLES.every(n=>Object.hasOwn(p.data,n))&&p.migrations.every((m,i)=>
    m?.name===MIGRATIONS[i]&&typeof m.sql==='string'&&m.sql.length>0&&
    typeof m.sha256==='string'&&m.sha256===createHash('sha256').update(m.sql).digest('hex'));

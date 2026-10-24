@@ -55,3 +55,12 @@ test('provider rejection is recorded once and completion failure stays uncertain
  const lost=fixture({completionError:true});
  const r=await lost.run();assert.equal(r.status,'UNKNOWN');assert.equal(r.outcomeRecorded,false);assert.equal(lost.calls.filter(x=>x.options.method==='POST').length,1);
 });
+
+test('padded incoming and outgoing ids cross the real sender seam unchanged',async()=>{
+ const id='wamid.SYNTHETIC+/==';
+ const f=fixture({response:()=>Response.json({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id}]})});
+ assert.equal((await f.run({messageId:'wamid.SYNTHETIC_INPUT='})).status,'ACCEPTED');
+ assert.equal(f.db[0].args[2],'wamid.SYNTHETIC_INPUT=');
+ assert.equal(f.db[1].args[3],id);
+ assert.equal(f.calls.filter(x=>x.options.method==='POST').length,1);
+});

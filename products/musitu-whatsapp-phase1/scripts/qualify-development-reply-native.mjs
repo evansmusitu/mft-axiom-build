@@ -80,7 +80,7 @@ async function fixtures(count=12){
  }
  return inputs;
 }
-function transport({hold=false,uncertain=false}={}){
+function transport({hold=false,uncertain=false,providerId}={}){
  const started=deferred(),release=deferred();let posts=0;
  const sender=createDevelopmentReplySender({scoped,enabled:true,contentKey:key,recipientSha256:digest(recipient),token:'EAA'+'N'.repeat(40),request:async(path,options)=>{
   if(options.method==='GET'&&path==='https://graph.facebook.com/v25.0/app?fields=id')return Response.json({id:'1096094346481018'});
@@ -94,7 +94,7 @@ function transport({hold=false,uncertain=false}={}){
   assert.equal(rows.rows[0].n,1,'only one committed UNKNOWN may reach transport');
   started.resolve();if(hold)await bounded(release.promise,'release transport');
   if(uncertain)throw Error('SYNTHETIC_CONNECTION_LOSS');
-  return Response.json({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id:'wamid.NATIVE_RESULT_'+posts}]});
+  return Response.json({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id:providerId??('wamid.NATIVE_RESULT_'+posts)}]});
  }});
  return{sender,started,release,get posts(){return posts;}};
 }
@@ -132,7 +132,7 @@ try{
  migration=new Client({connectionString:connection(database,'musitu_migrator',passwords.get('musitu_migrator'))});await migration.connect();
  const dbRoot=resolve(import.meta.dirname,'../db');
  const files=readdirSync(dbRoot).filter(f=>/^\d{3}_.*\.sql$/.test(f)).sort();
- assert.equal(files.length,15,'review migrations before expanding qualification');
+ assert.equal(files.length,16,'review migrations before expanding qualification');
  for(const file of files)await migration.query(readFileSync(resolve(dbRoot,file),'utf8'));
  await migration.end();migration=null;
  seed=new Client({connectionString:connection(database)});await seed.connect();guarded=newPool();
@@ -152,6 +152,21 @@ try{
   await assert.rejects(http.sender(f[1]),{message:'DEVELOPMENT_UNCERTAIN_ATTEMPT',code:'P0001'});assert.equal(http.posts,1);
   return{syntheticPosts:1,replayPosts:0,newPool:true};
  });
+ await check('padded_provider_id_native_completion_and_uncertain_replay',async()=>{
+  const f=await fixtures(1),id='wamid.NATIVE_SYNTHETIC+/==',http=transport({providerId:id});
+  assert.equal((await http.sender(f[0])).status,'ACCEPTED');
+  const row=(await seed.query('SELECT status,provider_message_id FROM musitu.outbound_attempts')).rows[0];
+  assert.deepEqual(row,{status:'ACCEPTED',provider_message_id:id});
+  assert.equal((await http.sender(f[0])).idempotent,true);assert.equal(http.posts,1);
+  const unknown=await fixtures(1),lost=transport({uncertain:true});
+  const result=await lost.sender(unknown[0]);assert.equal(result.status,'UNKNOWN');
+  for(const invalid of ['wamid.BAD=INNER','wamid.BAD===','wamid.'+'a'.repeat(181)]){
+   await assert.rejects(scoped(tenant,owner,['OWNER'],c=>c.query('SELECT musitu.complete_development_reply($1,$2,$3,$4,$5)',[owner,result.attemptId,'ACCEPTED',invalid,200])),/INVALID_DEVELOPMENT_OUTCOME/);
+  }
+  assert.equal((await lost.sender(unknown[0])).status,'UNKNOWN');assert.equal(lost.posts,1);
+  assert.deepEqual((await seed.query('SELECT status,provider_message_id FROM musitu.outbound_attempts')).rows[0],{status:'UNKNOWN',provider_message_id:null});
+  return{paddedIdPreserved:true,invalidIdsRejected:3,uncertainReplayPosts:0};
+ });
  await check('concurrent_daily_budget_never_exceeds_five',async()=>{
   const f=await fixtures(16),http=transport();
   for(const input of f.slice(0,4))assert.equal((await http.sender(input)).status,'ACCEPTED');
@@ -165,7 +180,7 @@ try{
  });
  const recovery=process.env.PG_SCHEMA_RECOVERY_QUALIFICATION==='YES'?await qualifyCurrentSchemaRecovery({admin,seed,Client,connection,migrationPassword:passwords.get('musitu_migrator'),runtimePassword,dbRoot,files,contentKey:key}):null;
  const privacy=recovery?await qualifyConversationPrivacy({seed,pool,contentKey:key,tenant,owner,phone}):null;
- console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:15,passed:results.length,failed:0,results,recovery,privacy,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
+ console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:files.length,passed:results.length,failed:0,results,recovery,privacy,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
 }finally{
  await pool?.end();await migration?.end();await seed?.end();
  if(dbCreated)await admin.query(`DROP DATABASE ${database}`);

@@ -1,5 +1,6 @@
 import {encryptLedger} from '../security/ledger-encryption.mjs';
 import {createRuntimeRoleBoundPool} from './runtime-role-guard.mjs';
+import {isMetaMessageId} from '../adapters/meta-message-id.mjs';
 /**
  * CANDIDATE for a private signed-Meta -> PostgreSQL ingress boundary.
  * Does not send WhatsApp messages. No public HTTP listener is included here.
@@ -19,6 +20,9 @@ const STATUS_RANK=Object.freeze({RESERVED:0,UNKNOWN:0,ACCEPTED:1,DELIVERED:2,FAI
 const MAX_BYTES=256*1024,MAX_EVENTS=50;
 const fail=code=>{throw new Error(code);};
 function requiredText(value,re,max){return typeof value==='string'&&value.length<=max&&re.test(value);}
+// Preserve existing generic ids used by offline fixtures; only message ids gain
+// Meta's base64 alphabet. Channel, WABA and tenant validators are unchanged.
+const messageId=value=>requiredText(value,VALID_ID,160)||isMetaMessageId(value);
 function classifyPayload(raw,bindings,key){
  let payload;
  try{payload=JSON.parse(raw.toString('utf8'));}catch{fail('INVALID_META_JSON');}
@@ -46,7 +50,7 @@ function classifyPayload(raw,bindings,key){
     const tenantId=matches[0].tenantId;
     let event,eventKey;
     if(statusKind){
-     if(!requiredText(item?.id,VALID_ID,160)||!META_STATUS.has(item?.status)||
+     if(!messageId(item?.id)||!META_STATUS.has(item?.status)||
          typeof item?.timestamp!=='string'||!/^\d{10}$/.test(item.timestamp)||
          !requiredText(item?.recipient_id,REMOTE,20))fail('INVALID_META_STATUS');
      const fingerprint=createHmac('sha256',key).update(JSON.stringify([tenantId,entry.id,phoneId,item])).digest('hex');
@@ -57,7 +61,7 @@ function classifyPayload(raw,bindings,key){
        providerTimestamp:providerTimestamp.toISOString(),fingerprint,remoteId,remoteRaw:item.recipient_id};
      eventKey=JSON.stringify([kind,tenantId,phoneId,item.id,item.status,item.timestamp]);
     }else{
-     if(!requiredText(item?.id,VALID_ID,160)||!requiredText(item?.from,REMOTE,20)||typeof item.type!=='string')fail('INVALID_META_WEBHOOK');
+     if(!messageId(item?.id)||!requiredText(item?.from,REMOTE,20)||typeof item.type!=='string')fail('INVALID_META_WEBHOOK');
      if(item.timestamp!==undefined&&(typeof item.timestamp!=='string'||!/^\d{10}$/.test(item.timestamp)))fail('INVALID_META_TIMESTAMP');
      const text=item.type==='text'&&typeof item.text?.body==='string'?item.text.body:'';
      const isText=item.type==='text'&&text.trim().length>0&&text.length<=1000;

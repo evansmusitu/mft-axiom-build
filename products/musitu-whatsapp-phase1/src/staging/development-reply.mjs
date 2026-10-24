@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {encryptLedger,decryptLedger} from '../security/ledger-encryption.mjs';
 import {buildMetaTextSubmission,classifyMetaSendOutcome} from '../adapters/meta-send-protocol.mjs';
+import {isMetaMessageId} from '../adapters/meta-message-id.mjs';
 const TENANT='986eb904-7296-46a9-9e9b-94074db9b547',OWNER='395558180472062118',APP='1096094346481018',WABA='1955690452095441',PHONE='1292923853915392';
 const BASE='https://graph.facebook.com/v25.0/';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,7 +26,7 @@ export function createDevelopmentReplySender({scoped,token,enabled=false,content
   finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
  }
  return async input=>{
-  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!KEYS.has(k))||input.tenantId!==TENANT||input.actorId!==OWNER||!UUID.test(input.conversationId??'')||typeof input.messageId!=='string'||!/^wamid\.[A-Za-z0-9._~-]{1,180}$/.test(input.messageId)||typeof input.requestKey!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(input.requestKey)||typeof input.body!=='string'||!input.body.trim()||Buffer.byteLength(input.body)>1000||input.body.includes('\u0000')||input.approveText!==true||input.confirmOwnNumber!==true||typeof input.recheckSession!=='function')fail('DEVELOPMENT_REPLY_REJECTED');
+  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!KEYS.has(k))||input.tenantId!==TENANT||input.actorId!==OWNER||!UUID.test(input.conversationId??'')||!isMetaMessageId(input.messageId)||typeof input.requestKey!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(input.requestKey)||typeof input.body!=='string'||!input.body.trim()||Buffer.byteLength(input.body)>1000||input.body.includes('\u0000')||input.approveText!==true||input.confirmOwnNumber!==true||typeof input.recheckSession!=='function')fail('DEVELOPMENT_REPLY_REJECTED');
   if(enabled!==true||!Buffer.isBuffer(contentKey)||contentKey.length!==32||typeof recipientSha256!=='string'||!/^[a-f0-9]{64}$/.test(recipientSha256)||typeof token!=='string'||!/^EAA[A-Za-z0-9_-]{30,}$/.test(token))fail('DEVELOPMENT_SENDING_DISABLED');
   await input.recheckSession();
   const app=await call('app?fields=id');

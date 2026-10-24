@@ -8,7 +8,7 @@
  */
 const VERSION=/^v[0-9]{1,3}\.[0-9]{1,2}$/;
 const PHONE=/^[0-9]{6,20}$/;
-const WAMID=/^wamid\.[A-Za-z0-9._~-]{1,180}$/;
+import {isMetaMessageId} from './meta-message-id.mjs';
 const REQUEST_KEYS=new Set(['graphVersion','phoneNumberId','recipientWaId','body']);
 const RECEIPT_KEYS=new Set(['httpStatus','response','expectedRecipient']);
 const unknown=()=>({status:'UNKNOWN',providerMessageId:null,automaticRetry:false});
@@ -42,6 +42,6 @@ export function classifyMetaSendOutcome(raw={}){
     !Array.isArray(response?.contacts)||response.contacts.length!==1||
     response.contacts[0]?.wa_id!==expectedRecipient||
     !Array.isArray(response?.messages)||response.messages.length!==1||
-    typeof response.messages[0]?.id!=='string'||!WAMID.test(response.messages[0].id))return unknown();
+    !isMetaMessageId(response.messages[0]?.id))return unknown();
  return {status:'ACCEPTED',providerMessageId:response.messages[0].id,automaticRetry:false};
 }

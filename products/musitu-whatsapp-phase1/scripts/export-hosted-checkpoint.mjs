@@ -16,7 +16,9 @@ try{
  if(statSync(input).size>8*1024*1024)throw Error();
  const snapshot=JSON.parse(readFileSync(input,'utf8'));
  const dir=new URL('../db/',import.meta.url),names=readdirSync(dir).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
- if(names.length!==15)throw Error();
+ const schemaVersion=snapshot.schemaVersion??15;
+ if(![15,16].includes(schemaVersion)||names.length<schemaVersion)throw Error();
+ names.length=schemaVersion;
  const migrations=names.map(name=>{const sql=readFileSync(new URL(name,dir),'utf8');return{name,sql,sha256:createHash('sha256').update(sql).digest('hex')};});
  const {encrypted,receipt}=sealHostedCheckpoint({snapshot,migrations,backupKey:keys[0],contentEncryptionKey:keys[1],sessionEncryptionKey:keys[2]});
  const encoded=encrypted.toString('base64'),chunks=Math.ceil(encoded.length/1024);

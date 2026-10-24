@@ -39,7 +39,7 @@ export async function qualifyCurrentSchemaRecovery({admin,seed,Client,connection
   const expected=Object.fromEntries(tableNames.map(n=>[n,{count:data[n].length,sha256:digest(JSON.stringify(data[n]))}]));
   const migrations=files.map(file=>{const sql=readFileSync(join(dbRoot,file),'utf8');return{name:file,sql,sha256:digest(sql)};});
   const backupKey=randomBytes(32),archive=join(directory,'synthetic.musitubak');
-  writeFileSync(archive,sealPostgresBackup({backupKey,data:{version:2,schemaVersion:15,qualificationOnly:true,source:{project:'jolly-scene-02112141',branch:'br-jolly-fire-b4klddds',database:'musitu_whatsapp_phase1'},migrations,data,applicationKeys:{contentEncryptionKey:contentKey.toString('base64'),sessionEncryptionKey:randomBytes(32).toString('base64')}}}),{mode:0o600});
+  writeFileSync(archive,sealPostgresBackup({backupKey,data:{version:2,schemaVersion:files.length,qualificationOnly:true,source:{project:'jolly-scene-02112141',branch:'br-jolly-fire-b4klddds',database:'musitu_whatsapp_phase1'},migrations,data,applicationKeys:{contentEncryptionKey:contentKey.toString('base64'),sessionEncryptionKey:randomBytes(32).toString('base64')}}}),{mode:0o600});
   const recovered=openPostgresBackup({encrypted:readFileSync(archive),backupKey});
   for(const [i,m] of recovered.migrations.entries()){assert.equal(m.name,files[i]);assert.equal(m.sql,readFileSync(join(dbRoot,files[i]),'utf8'));}
   await admin.query(`CREATE DATABASE ${name} OWNER musitu_migrator`);created=true;
@@ -64,7 +64,7 @@ export async function qualifyCurrentSchemaRecovery({admin,seed,Client,connection
   for(const table of tableNames.filter(n=>n.startsWith('musitu.')))assert.equal((await runtime.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n,0,'FOREIGN_RESTORE_READ_DENIED:'+table);
   await runtime.query('ROLLBACK');
   let decrypted=0;for(const row of recovered.data['musitu.messages']){assert.equal(decryptLedger(row.encrypted_body,Buffer.from(recovered.applicationKeys.contentEncryptionKey,'base64'),[row.tenant_id,row.phone_number_id,row.provider_message_id]),'Synthetic inbound');decrypted++;}
-  return{scope:'NATIVE_SYNTHETIC_CURRENT_SCHEMA_ENCRYPTED_RESTORE_NOT_HOSTED_BACKUP',status:'PASS',migrations:15,tables:22,rowFingerprintsMatched:22,schemaSecurityFingerprintMatched:true,unscopedAndForeignTenantReadsDenied:true,unknownAttemptsRetained:1,suppressionsRetained:1,encryptedMessagesRecovered:decrypted,offsiteRetrievalQualified:false,secondCustodianQualified:false};
+  return{scope:'NATIVE_SYNTHETIC_CURRENT_SCHEMA_ENCRYPTED_RESTORE_NOT_HOSTED_BACKUP',status:'PASS',migrations:files.length,tables:22,rowFingerprintsMatched:22,schemaSecurityFingerprintMatched:true,unscopedAndForeignTenantReadsDenied:true,unknownAttemptsRetained:1,suppressionsRetained:1,encryptedMessagesRecovered:decrypted,offsiteRetrievalQualified:false,secondCustodianQualified:false};
  }finally{
   await runtime?.end();await migration?.end();await restore?.end();
   if(created)await admin.query(`DROP DATABASE ${name}`);

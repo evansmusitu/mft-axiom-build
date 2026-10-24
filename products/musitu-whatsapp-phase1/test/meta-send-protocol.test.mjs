@@ -38,3 +38,20 @@ test('4xx and transport uncertainty are not treated as delivery; no blind retry'
 test('invalid receipt context cannot be classified as accepted',()=>{
  assert.throws(()=>classifyMetaSendOutcome({httpStatus:200,response:{},expectedRecipient:'+'}),/INVALID_META_RECEIPT_CONTEXT/);
 });
+
+test('Meta padded and base64 message ids survive acceptance without normalization',()=>{
+ // Meta webhook reference, retrieved 24 October 2026, contains trailing '='.
+ for(const id of ['wamid.HBgLMTY1MDM4Nzk0MzkVAgASGBQzQTRBNjU5OUFFRTAzODEwMTQ0RgA=','wamid.SYNTHETIC+/==']){
+  const response={messaging_product:'whatsapp',contacts:[{wa_id:opt.recipientWaId}],messages:[{id}]};
+  assert.deepEqual(classifyMetaSendOutcome({httpStatus:200,response,expectedRecipient:opt.recipientWaId}),{status:'ACCEPTED',providerMessageId:id,automaticRetry:false});
+ }
+});
+
+test('malformed, oversized and uncorrelated padded receipts remain UNKNOWN',()=>{
+ for(const id of ['wamid.','wamid.BAD=INNER','wamid.BAD===','wamid.BAD\n','wamid.'+'a'.repeat(181),'wamid.<script>']){
+  const response={messaging_product:'whatsapp',contacts:[{wa_id:opt.recipientWaId}],messages:[{id}]};
+  assert.equal(classifyMetaSendOutcome({httpStatus:200,response,expectedRecipient:opt.recipientWaId}).status,'UNKNOWN');
+ }
+ const response={messaging_product:'whatsapp',contacts:[{wa_id:'263779999999'}],messages:[{id:'wamid.SYNTHETIC='}]};
+ assert.equal(classifyMetaSendOutcome({httpStatus:200,response,expectedRecipient:opt.recipientWaId}).status,'UNKNOWN');
+});
