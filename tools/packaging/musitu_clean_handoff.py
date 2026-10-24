@@ -98,7 +98,7 @@ def main() -> None:
             or live_main != main_sha):
         raise RuntimeError("HANDOFF_UNSAFE_LIVE_GITHUB_STATE")
 
-    stage = Path(os.environ["RUNNER_TEMP"]) / "musitu-clean-whole-product-20261018"
+    stage = Path(os.environ["RUNNER_TEMP"]) / "musitu-clean-whole-product-20261024"
     stage.mkdir(parents=True, exist_ok=False)
     hand = stage / "HANDOFF"
     hand.mkdir()
@@ -141,6 +141,16 @@ def main() -> None:
     head_runs = [{"name": r["name"], "run_id": r["id"],
                   "status": r["status"], "conclusion": r["conclusion"],
                   "html_url": r["html_url"]} for r in all_runs if r["head_sha"] == head]
+    release_gate_path = stage / "PRODUCT_ACTIVE_FEATURE_BRANCH" / "qualification" / "musitu_connect_beta_release_gate.json"
+    if not release_gate_path.is_file():
+        raise RuntimeError("MISSING_CUSTOMER_BETA_RELEASE_GATE")
+    beta_gate = json.loads(release_gate_path.read_text())
+    if (beta_gate.get("state") != "BLOCKED_PENDING_CUSTOMER_AND_OPERATIONS_EVIDENCE"
+            or beta_gate.get("new_beta_customer_admission_authorized") is not False
+            or beta_gate.get("public_customer_publication_authorized") is not False
+            or beta_gate.get("predictive_methane_production_authorized") is not False):
+        raise RuntimeError("CUSTOMER_BETA_GATE_UNEXPECTEDLY_OPEN")
+
     state = {
         "schema": "musitu.whole_product.chat_handoff.v2026_10_18",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -153,6 +163,13 @@ def main() -> None:
         "pull_request": 9,
         "pull_request_open_unmerged": True,
         "source_files_per_snapshot": counts,
+        "beta_customer_admission_authorized": False,
+        "public_customer_publication_authorized": False,
+        "beta_customer_release_state": beta_gate["state"],
+        "customer_beta_checks": beta_gate["checks"],
+        "hosted_cloudflare_d1_qualified": False,
+        "launch_gate_source": "PRODUCT_ACTIVE_FEATURE_BRANCH/qualification/musitu_connect_beta_release_gate.json",
+        "chat_shift_procedure": "verify_checksums_read_handoff_compare_live_refs_then_engineer_on_feature",
         "model_sha256": MODEL_SHA, "model_manifest_sha256": MANIFEST_SHA,
         "evidence": evidence_log,
         "github_checks_observed_at_export": head_runs,
@@ -168,7 +185,7 @@ def main() -> None:
 
     read_first = f"""# MUSITU Connect + MUSITU Axiom — FULL PRODUCT HANDOFF
 
-Date: 2026-10-18
+Date: 2026-10-24
 Repository: {REPO}
 Active feature branch: {FEATURE}
 Active source commit: {head}
@@ -217,6 +234,18 @@ Handoff rules:
   admission gates, leak secrets or manufacture green evidence.
 - Existing holdout preregistration and source-readiness work exists. Inspect
   before extending; avoid redundant synthetic infrastructure.
+- Customer beta release gate is FAIL-CLOSED. The feature branch contains
+  synthetic-only tenant credentials, D1/SQLite quota reservations, minute limits,
+  bounded JSON intake, Mining semantic validation, provisioning/offboarding
+  examples, staging preflight and synthetic pilot acceptance. These are not
+  commercial customer admission or an approved hosted D1 deployment.
+- Do NOT distribute production's internal HMAC bearer or upstream Axiom key.
+  Independent customer credentials and tenant-admin pathways remain unqualified.
+- Primary launch blockers: independently approved isolated hosted Cloudflare D1
+  staging, real concurrent/tenant/revocation tests, secure provisioning,
+  human-acknowledged operations paging, legal/privacy and pilot signatures.
+- The authoritative next action is to compare LIVE GitHub state and evidence,
+  rather than assuming either this ZIP or an earlier chat remains current.
 """
     (hand / "00_READ_FIRST.md").write_text(read_first)
 
@@ -255,12 +284,28 @@ verified safe feature-branch commits with compare-and-swap. Do not blindly merge
 a snapshot into main, particularly because main moved after the older seal.
 The new chat must not assume prior chat conclusions are current.
 """
+    continuation += """
+ENTERPRISE LAUNCH CONTINUATION (24 October 2026):
+- This handoff supersedes 2026-10-18 package's feature-head context.
+- Feature branch contains the nonproduction Connect customer lifecycle and
+  simulated enterprise acceptance package, with local GitHub CI proof only.
+- The beta gate's NOT_DEMONSTRATED and NOT_DEMONSTRATED_ON_REAL_D1 entries
+  remain authoritative for hosted D1, ops and customer admission.
+- FIRST check live feature/main SHAs, PR #9, CI and beta gate before editing.
+- Advance with useful code/tests and documented proof inside the feature
+  branch; NEVER run production deployment, main merge, Cloudflare changes,
+  issue customer credentials or contact real mines without separate consent.
+- Scope: MUSITU Connect enterprise infrastructure first; Mining is adapter #1,
+  Axiom quantitative executor. Independent methane predictor qualification
+  is still blocked by absent qualified real underground mine evidence.
+- No ChatGPT Connect publication or customer billing is authorized.
+"""
     (hand / "CONTINUATION.md").write_text(continuation)
 
     fresh_command = (
         "Continue MUSITU Connect and MUSITU Axiom from the NEW complete clean "
         "whole-product handoff ZIP saved in my connected Google Drive. "
-        "Use the matching 2026-10-18 handoff ZIP, extract it and FIRST read "
+        "Use the matching 2026-10-24 handoff ZIP, extract it and FIRST read "
         "HANDOFF/00_READ_FIRST.md, HANDOFF/STATE.json, "
         "HANDOFF/CONTINUATION.md and verify HANDOFF/CHECKSUMS.json with "
         "python HANDOFF/VERIFY_PACKAGE.py. "
@@ -275,13 +320,58 @@ The new chat must not assume prior chat conclusions are current.
         "Respect MUSITU Connect's enterprise platform boundary and Axiom's "
         "downstream predictive role. Production compute integration was recorded "
         "enabled, but independent mine validation and production methane safety "
-        "qualification remain NOT achieved. Resume the highest-value honest "
-        "external-mine evidence and frozen-holdout engineering. Do not fabricate "
-        "data, permissions, models, positive tests or safety claims. "
+        "qualification remain NOT achieved. Continue the complete product engineering, "
+        "prioritizing enterprise Connect security, customer isolation, and a "
+        "hosted D1 staging qualification ONLY with separate infrastructure approval; "
+        "preserve synthetic pilot gates and actual human/legal signoffs. Preserve "
+        "the independent methane holdout research and frozen models. Never "
+        "fabricate data, permissions, models, CI or safety claims. "
         "Carry the work through to verified CI and accurate final gate status "
         "inside this chat without asking me to restate the project."
     )
     (hand / "EXACT_NEW_CHAT_COMMAND.txt").write_text(fresh_command + "\n")
+
+    (hand / "PRODUCT_AND_LAUNCH_INDEX.md").write_text("""# Product and launch orientation
+
+This ZIP contains full tracked source snapshots under:
+- PRODUCT_ACTIVE_FEATURE_BRANCH: feature branch at STATE.json feature_head.
+- PRODUCT_CURRENT_MAIN: true main SHA at export, unchanged by packaging.
+- REFERENCE_PREVIOUSLY_SEALED_MAIN: historical separately sealed baseline.
+- EVIDENCE_PUBLIC_RESEARCH_ONLY: model and research evidence, with frozen SHA.
+
+Review these component entrypoints in the feature snapshot:
+- Connect production Worker: connect/production_worker.mjs
+- Internal Connect/Axiom auth and mining API: contracts/connect.openapi.yaml
+- Customer identity and quota: connect/customer_identity.mjs,
+  connect/customer_admission.mjs and infra/connect_customer_registry.sql
+- Customer request safety: connect/customer_payload.mjs,
+  connect/customer_mining_semantics.mjs, connect/customer_ingress_canary.mjs
+- Nonproduction customer lifecycle: connect/customer_provisioning.mjs
+- Local D1 verification: tests/connect/test_customer_d1_local.mjs
+- Synthetic partner acceptance: examples/connect/synthetic_beta_acceptance.json,
+  tests/connect/test_synthetic_beta_acceptance.mjs
+- Hosted D1 staging candidate check: qualification/connect_d1_staging_preflight.py
+- Beta hard stop: qualification/musitu_connect_beta_release_gate.json
+- Detailed procedures: docs/operations/musitu-connect-*.md
+- Mining adapter and independent evidence: connect/partner_mine_mapping.py,
+  benchmarks/mining_adapter/, qualification/, EVIDENCE_PUBLIC_RESEARCH_ONLY/
+
+Every successful CI claim is limited to the observed SHA and date. Local
+workerd/Miniflare tests do not imply a hosted D1 qualification. The customer
+admission and public launch flags in the beta gate remain FALSE.
+
+Operational boundaries:
+- No production redeploy, main mutation, PR merge, Cloudflare zone/security
+  changes, OAuth/customer-key issuance or safety promotion without separate
+  explicit authorization.
+- The existing Connect-to-Axiom production arithmetic computation was recorded
+  separately authorized and enabled; verify live state before making claims.
+- Independently qualified, production methane safety predictions are blocked.
+- ChatGPT Axiom submission is separate from Connect plugin publication.
+
+Read HANDOFF/STATE.json first for pinned feature/main refs, then verify GitHub
+live state. If newer code exists, reconcile it and make a new verified snapshot.
+""")
 
     verifier = '''from pathlib import Path
 import hashlib,json,sys
