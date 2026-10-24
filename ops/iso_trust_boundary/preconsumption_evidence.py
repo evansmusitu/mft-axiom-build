@@ -27,6 +27,19 @@ def _hold(reason):
 _ID=re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}\Z')
 
 
+def _fingerprint_inputs(items):
+    # A malicious local clock/callback may mutate signed or screened dicts
+    # between sub-verifiers. Detect any resulting proof/input divergence.
+    try:
+        raw=json.dumps(items,sort_keys=True,separators=(',',':'),
+                       ensure_ascii=True,allow_nan=False).encode('utf-8')
+    except (TypeError,ValueError,OverflowError,RecursionError,RuntimeError,UnicodeEncodeError):
+        _hold('INPUT_SNAPSHOT_INVALID')
+    if len(raw)>32768:
+        _hold('INPUT_SNAPSHOT_TOO_LARGE')
+    return hashlib.sha256(raw).hexdigest()
+
+
 class S0PreconsumptionReviewer:
     """Purely local S0 verifier. Never consumes or issues an execution grant."""
 
@@ -74,6 +87,10 @@ class S0PreconsumptionReviewer:
                 '..' in expected_agent_id or type(operation) is not dict or
                 type(expected) is not dict or type(receipt) is not dict):
             _hold('LOCAL_EXPECTATION_FORMAT')
+        all_inputs=(operation,financial,expected,expected_agent_id,
+                    receipt,receipt_signature_b64,revocation_anchor,
+                    revocation_envelope,checkpoint_anchor,checkpoint_envelope)
+        entry_fingerprint=_fingerprint_inputs(all_inputs)
         if operation.get('risk_class')!='S0' or expected.get('risk_class')!='S0':
             _hold('NON_S0_OPERATION')
         if operation.get('agent_id')!=expected_agent_id:
@@ -113,6 +130,8 @@ class S0PreconsumptionReviewer:
                 revocation_evidence['execution_allowed'] is not False or
                 checkpoint_evidence['execution_allowed'] is not False):
             _hold('UNEXPECTED_UPSTREAM_AUTHORIZATION')
+        if _fingerprint_inputs(all_inputs)!=entry_fingerprint:
+            _hold('INPUT_MUTATED_AFTER_REVIEW')
         # Even individually authentic signatures cannot form one coherent proof
         # if their signed half-open validity intervals share no instant. These
         # checks do NOT establish a common trusted wall clock or external time.
