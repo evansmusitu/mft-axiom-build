@@ -113,6 +113,14 @@ class S0PreconsumptionReviewer:
                 revocation_evidence['execution_allowed'] is not False or
                 checkpoint_evidence['execution_allowed'] is not False):
             _hold('UNEXPECTED_UPSTREAM_AUTHORIZATION')
+        # Even individually authentic signatures cannot form one coherent proof
+        # if their signed half-open validity intervals share no instant. These
+        # checks do NOT establish a common trusted wall clock or external time.
+        intervals=(receipt,revocation_envelope['snapshot'],checkpoint_envelope['checkpoint'])
+        valid_from=max(item['issued_at_unix'] for item in intervals)
+        valid_until=min(item['expires_at_unix'] for item in intervals)
+        if valid_from>=valid_until:
+            _hold('NON_OVERLAPPING_SIGNED_EVIDENCE_TTL')
         return {
             'schema':'musitu.axiom.iso.s0.preconsumption-reconciliation.v1',
             'status':'S0_PRECONSUMPTION_EVIDENCE_RECONCILED_NOT_ADMITTED',
@@ -123,6 +131,9 @@ class S0PreconsumptionReviewer:
             'revocation_snapshot_sha256':revocation_evidence['snapshot_sha256'],
             'checkpoint_sha256':checkpoint_evidence['checkpoint_sha256'],
             'next_sequence':checkpoint_evidence['next_sequence'],
+            'signed_evidence_possible_valid_from_unix':valid_from,
+            'signed_evidence_possible_valid_until_unix':valid_until,
+            'clock_independence':'NOT_PROVEN',
             'product_objects':['Project','Work','Agent','Artifact','Evidence'],
             'external_provider_budget':'NOT_PROVEN',
             'independent_operator_custody':'NOT_PROVEN',
