@@ -1,4 +1,5 @@
 import { calculate, CalculationError } from './math.mjs';
+import { handleEnterpriseWorkspace } from './enterprise-workspace.mjs';
 import { searchPublicSources } from './research.mjs';
 import { constrainResearchCitations } from './citations.mjs';
 import { searchScholarlyWorks, ScholarSearchError } from './scholar.mjs';
@@ -76,6 +77,9 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get('origin') || '';
+
+    // Opt-in signed tenant API; existing public AI functionality is unchanged.
+    if (path.startsWith('/api/enterprise/')) return handleEnterpriseWorkspace(request, env);
 
     if (request.method === 'OPTIONS' && (path === '/api/chat' || path === '/api/calculate' || path === '/api/image' || path === '/api/scholar')) {
       if (origin !== SITE) return new Response(null, { status: 403 });
