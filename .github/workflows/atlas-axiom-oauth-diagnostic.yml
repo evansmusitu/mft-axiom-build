@@ -1,0 +1,79 @@
+name: ATLAS OAuth Credential Diagnostics
+on:
+  push:
+    branches: [feature/atlas-axiom-oauth-diagnostics-20261024]
+    paths:
+      - .github/workflows/atlas-axiom-oauth-diagnostic.yml
+      - apps/musitu-atlas-groq/api/axiom/**
+      - apps/musitu-atlas-groq/src/AxiomDesk.tsx
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-compute-mock-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Simulate account-key and expired OAuth denial without external network
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/atlas-oauth-diag
+          mkdir -p "$ROOT/node_modules/@neondatabase/serverless"
+          cp apps/musitu-atlas-groq/api/axiom/{_contract.ts,_rational.ts} "$ROOT/"
+          for part in _ledger _entitlementCheck; do
+            sed -e 's@./_contract.js@./_contract.ts@g' -e 's@./_ledger.js@./_ledger.ts@g' \
+                "apps/musitu-atlas-groq/api/axiom/${part}.ts" > "$ROOT/${part}.ts"
+          done
+          printf '%s\n' '{"type":"module","name":"@neondatabase/serverless","exports":"./index.js"}' > "$ROOT/node_modules/@neondatabase/serverless/package.json"
+          cat > "$ROOT/node_modules/@neondatabase/serverless/index.js" <<'STUB'
+          export function neon(){return async ()=>[{
+            can_read:true,can_insert:true,can_update:true,
+            can_delete_attempt:false,can_delete_audit:false,can_delete_quota:false,
+            can_create:false,privileged_member:false,superuser:false,
+            can_create_roles:false,can_create_dbs:false,can_bypass_rls:false
+          }]}
+          STUB
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          process.env.ATLAS_AXIOM_DATABASE_URL='postgresql://fake.invalid/testing';
+          let calls=[];
+          globalThis.fetch=async (url,options)=>{
+           const u=String(url);calls.push({u,method:options.method});
+           if(u.includes('/oauth/userinfo'))return {status:401};
+           const request=JSON.parse(options.body);
+           if(request.method==='tools/list')return {
+             status:200,ok:true,headers:{get:()=> 'application/json'},
+             text:async()=>JSON.stringify({result:{tools:[{name:'axiom_arithmetic_evaluate'}]}})
+           };
+           assert.equal(request.method,'tools/call');
+           assert.equal(request.params.name,'__atlas_permission_probe_NOT_A_REAL_TOOL_v1__');
+           return {status:200,ok:true,
+             text:async()=>JSON.stringify({result:{structuredContent:{authenticated:false},isError:true}})
+           };
+          };
+          const {preflight}=await import('file:///tmp/atlas-oauth-diag/_entitlementCheck.ts');
+          process.env.AXIOM_MCP_BEARER_TOKEN='musitu_axiom_representative_fake_account_key';
+          let result=await preflight();
+          assert.equal(result.providerGateStatus,'CREDENTIAL_REJECTED');
+          assert.equal(result.credentialKind,'ACCOUNT_KEY');
+          assert.equal(result.identityVerification,'NOT_CHECKED');
+          assert.equal(calls.filter(x=>x.u.includes('userinfo')).length,0);
+          process.env.AXIOM_MCP_BEARER_TOKEN='musitu_oauth_at_representative_fake_expired';
+          result=await preflight();
+          assert.equal(result.providerGateStatus,'CREDENTIAL_REJECTED');
+          assert.equal(result.credentialKind,'OAUTH_ACCESS');
+          assert.equal(result.identityVerification,'INVALID_OR_EXPIRED');
+          assert.equal(calls.filter(x=>x.u.includes('/oauth/userinfo')).length,1);
+          assert.equal(calls.filter(x=>x.u.includes('/mcp')).length,4);
+          assert.equal(result.operationExecuted,false);
+          assert.equal(result.providerComputeUnitsClaimed,0);
+          console.log('PASS: account keys recognized as wrong OAuth token type');
+          console.log('PASS: expired/unrecognized OAuth access token surfaced without identity details');
+          console.log('PASS: all mock MCP calls are public discovery or nonexistent-tool checks');
+          console.log('PASS: no Axiom computation, secret exposure, or external network');
+          JS
