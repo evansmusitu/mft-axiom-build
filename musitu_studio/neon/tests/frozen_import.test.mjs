@@ -20,7 +20,7 @@ function snapshot(){
       created_at:'2026-10-21T00:00:00Z',approved_at:'2026-10-21T00:00:01Z',
       dispatched_at:'2026-10-21T00:00:02Z',finished_at:'2026-10-21T00:00:03Z'}],
     assets:['scene.blend','scene.glb','preview.png'].map((filename,i)=>({
-      job_id:jid,filename,object_key:'synthetic/job/'+filename,
+      job_id:jid,filename,object_key:'studio-v03/jobs/'+jid+'/'+filename,
       sha256:String(i+1).repeat(64),bytes:1024})),
     audit_events:[{id:'c3333333-3333-4333-8333-333333333333',project_id:pid,
       job_id:jid,action:'JOB_APPROVED_SINGLE_ADMIN',actor_sub:owner,
@@ -53,7 +53,7 @@ const triggerMeta=[
 function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
   omitTrigger=false,connectError=false,spoofTrigger=false,disabledTrigger=false,
   partialColumnTrigger=false,conditionalTrigger=false,tamperFunctionBody=false,
-  privilegedFunction=false}={}){
+  privilegedFunction=false,replicationRole='origin'}={}){
   const trace=[],state=Object.fromEntries(tables.map(t=>[t,[]]));
   if(existing)state.projects.push(sqlcopy(snapshot().projects[0]));
   let checkpoint=null,connected=false,ended=false;
@@ -66,6 +66,8 @@ function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
       if(sql==='SET LOCAL search_path TO studio_v03, pg_catalog')return {rowCount:0,rows:[]};
       if(sql==='COMMIT')return {rowCount:0,rows:[]};
       if(sql==='ROLLBACK'){for(const t of tables)state[t]=sqlcopy(checkpoint[t]);return {rowCount:0,rows:[]}};
+      if(sql==="SELECT current_setting('session_replication_role') AS replication_role")
+        return {rows:[{replication_role:replicationRole}]};
       if(sql.includes('FROM studio_v03._studio_schema_versions'))
         return {rows:[{n:schemaVersion===2?'1':'0'}]};
       if(sql.includes('FROM pg_trigger'))
@@ -104,7 +106,7 @@ function fake({existing=false,tamper=false,auditError=false,schemaVersion=2,
       const read=sql.match(/^SELECT (.+) FROM studio_v03\.(\w+)$/);
       if(read){
         let rows=sqlcopy(state[read[2]]);
-        if(tamper&&read[2]==='assets'&&rows.length)rows[0].object_key='forged-destination-object';
+        if(tamper&&read[2]==='assets'&&rows.length)rows[0].sha256='f'.repeat(64);
         return {rows};
       }
       throw Error('UNKNOWN_SQL');
@@ -211,4 +213,16 @@ test('closes client even when initial connect fails',async()=>{
   await assert.rejects(()=>invoke(f),/CONNECTION_DENIED/);
   assert.equal(f.trace.at(-1),'END');
   assert.equal(f.trace.filter(x=>x==='COMMIT').length,0);
+});
+
+// REPLICATION ROLE IS INDEPENDENT OF pg_trigger metadata; a user with elevated
+// privileges can set replica and silently suppress ordinary origin triggers.
+test('refuses replica or locally suppressed session triggers before any insert',async()=>{
+ for(const role of ['replica','local',null]){
+  const f=fake({replicationRole:role});
+  await assert.rejects(()=>invoke(f),/NEON_REPLICATION_ROLE_UNSAFE/);
+  assert.equal(f.trace.filter(x=>x.startsWith('INSERT INTO')).length,0);
+  assert.equal(f.trace.filter(x=>x==='COMMIT').length,0);
+  assert.ok(f.trace.includes('ROLLBACK'));
+ }
 });

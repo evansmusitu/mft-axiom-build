@@ -4,6 +4,7 @@
  * This does not authorize a production cutover or prove provider network access.
  */
 import {createHmac,timingSafeEqual} from 'node:crypto';
+import {safeObjectKey} from '../edge/src/v03_policy.mjs';
 
 const COLUMNS=Object.freeze({
   projects:['id','title','owner_sub','created_at'],
@@ -104,6 +105,13 @@ function verifyLedgerInvariants(s){
     if(!ASSET_FILES.has(a.filename)||!/^[a-f0-9]{64}$/i.test(a.sha256||''))
       fail('LEDGER_ASSET_INVALID');
     requireText(a.object_key,'LEDGER_ASSET_OBJECT_KEY');
+    // Preserve the production Worker R2 tenancy boundary during migration.
+    // SQLite schema permits generic strings, but production writes only use
+    // safeObjectKey(job, filename); a forged key could target a V0.2 asset.
+    try {
+      if(a.object_key!==safeObjectKey(a.job_id,a.filename))
+        fail('LEDGER_ASSET_OBJECT_KEY_MISMATCH');
+    } catch { fail('LEDGER_ASSET_OBJECT_KEY_MISMATCH'); }
     if(keys.has(a.object_key))fail('LEDGER_DUPLICATE_OBJECT_KEY');
     keys.add(a.object_key);
     assetsByJob.set(a.job_id,(assetsByJob.get(a.job_id)||0)+1);

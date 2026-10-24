@@ -98,3 +98,17 @@ test('HMAC domain binds each table digest to exact immutable freeze epoch',()=>{
  assert.notEqual(left.table_hmac.audit_events,right.table_hmac.audit_events);
  assert.equal(left.counts.jobs,right.counts.jobs);
 });
+
+test('rejects asset metadata pointing outside immutable Studio V0.3 job R2 namespace',()=>{
+ const cases=[
+  'studio-v02/jobs/'+job+'/scene.glb',
+  'studio-v03/jobs/another-job/scene.glb',
+  'studio-v03/jobs/'+job+'/../scene.glb',
+  'studio-v03/jobs/'+job+'/scene.blend',
+  'studio-v03/jobs/'+job+'/scene.glb?x=1',
+ ];
+ for(const object_key of cases){
+  const s=fixture();s.assets=[{job_id:job,filename:'scene.glb',object_key,sha256:'b'.repeat(64),bytes:1024}];
+  assert.throws(()=>normalizeStudioLedgerSnapshot(s),/LEDGER_ASSET_OBJECT_KEY_MISMATCH/);
+ }
+});

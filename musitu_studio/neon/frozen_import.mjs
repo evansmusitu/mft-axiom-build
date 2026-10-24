@@ -123,6 +123,12 @@ export async function importFrozenStudioLedger({makeClient,sourceSnapshot,integr
     await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
     started=true;
     await client.query('SET LOCAL search_path TO studio_v03, pg_catalog');
+    // pg_trigger reports tgenabled='O' even if a privileged session uses
+    // session_replication_role='replica' to suppress origin triggers. Verify
+    // the *actual importing transaction* cannot bypass immutability guards.
+    const replication=await client.query("SELECT current_setting('session_replication_role') AS replication_role");
+    ensure(replication?.rows?.length===1&&replication.rows[0]?.replication_role==='origin',
+      'NEON_REPLICATION_ROLE_UNSAFE');
     await assertIntegrityTriggers(client);
     await assertEmpty(client);
 

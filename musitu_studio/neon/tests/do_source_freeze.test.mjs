@@ -37,11 +37,11 @@ function fixture({installed=true,withOwner=true}={}){
  if(withOwner)db.prepare('INSERT INTO memberships(project_id,member_sub,role,created_at) VALUES(?,?,?,?)')
    .run('p',actor.sub,'owner','2026-10-22');
  db.prepare('INSERT INTO jobs(id,project_id,submission_key,payload_json,payload_sha256,render_device,state,created_by_sub,approved_by_sub,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-   .run('synthetic-job','p','job-frozen-synthetic','{\"scene\":\"synthetic\",\"objects\":[\"cube\"]}', 'a'.repeat(64),'CPU','RUNNING',actor.sub,actor.sub,'2026-10-22');
+   .run('b2222222-2222-4222-8222-222222222222','p','job-frozen-synthetic','{\"scene\":\"synthetic\",\"objects\":[\"cube\"]}', 'a'.repeat(64),'CPU','RUNNING',actor.sub,actor.sub,'2026-10-22');
  db.prepare('INSERT INTO assets(job_id,filename,object_key,sha256,bytes) VALUES(?,?,?,?,?)')
-   .run('synthetic-job','scene.blend','synthetic-job/scene.blend','b'.repeat(64),2048);
+   .run('b2222222-2222-4222-8222-222222222222','scene.blend','studio-v03/jobs/b2222222-2222-4222-8222-222222222222/scene.blend','b'.repeat(64),2048);
  db.prepare('INSERT INTO audit_events(id,project_id,job_id,action,actor_sub,at,details) VALUES(?,?,?,?,?,?,?)')
-   .run('audit-synthetic','p','synthetic-job','JOB_APPROVED_SINGLE_ADMIN',actor.sub,'2026-10-22','{}');
+   .run('audit-synthetic','p','b2222222-2222-4222-8222-222222222222','JOB_APPROVED_SINGLE_ADMIN',actor.sub,'2026-10-22','{}');
  if(installed)db.exec(STUDIO_SOURCE_FREEZE_SETUP_SQL);
  return {db,storage:fakeSqlStorage(db)};
 }
