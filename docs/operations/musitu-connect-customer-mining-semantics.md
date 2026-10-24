@@ -33,7 +33,11 @@ likelihood in [0,1], severity in [0,10], benefit in [0,1], cost nonnegative,
 latitude in [-90,90] and longitude in [-180,180]. Meaningful strings
 have bounded lengths and cannot contain control characters. Geospatial
 coordinates must be provided as a **pair**. Event timestamps require
-time-zone designators and parseable ISO-like syntax.
+time-zone designators and parseable ISO-like syntax, a real Gregorian calendar
+date (including leap-year rules) and a physically supported UTC offset within
+±14 hours. JavaScript `Date.parse()` may silently normalize impossible dates,
+so the isolated canary explicitly rejects examples such as 30 February and
+UTC offsets of +15:00. This is input hygiene, not operator clock verification.
 
 **`mining.plan`:** Requires a nonnegative numeric `budget` and at most
 64 rows. No `tenant_id`, run ID, or extra body property is accepted.
