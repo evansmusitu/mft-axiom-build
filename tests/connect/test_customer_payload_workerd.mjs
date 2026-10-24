@@ -77,3 +77,20 @@ test('workerd allows repeated keys in distinct objects', {timeout:30000}, async 
     assert.deepEqual(result.body.rows.map(r=>r.hazard),['a','b']);
   } finally {await mf.dispose();}
 });
+
+
+test('workerd rejects lossy numeric JSON before customer admission', {timeout:30000}, async()=>{
+  const mf=await makeWorker();
+  try {
+    for(const body of ['{"budget":9007199254740993}',
+                       '{"rows":[{"cost":0.10000000000000001}]}',
+                       '{"budget":1e-400}']) {
+      const response=await mf.dispatchFetch('https://isolated.test/v1/customer/plan',{
+        method:'POST',headers:{'content-type':'application/json'},body,
+      });
+      assert.equal(response.status,400);
+      assert.deepEqual(await response.json(),
+        {ok:false,status:400,error:'NUMERIC_PRECISION_LOSS'});
+    }
+  } finally {await mf.dispose();}
+});

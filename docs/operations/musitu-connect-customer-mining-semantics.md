@@ -93,3 +93,16 @@ The controlling gate remains
 **new beta admission and public publication are BLOCKED.** Existing
 production Connect-to-Axiom general-purpose computation is preserved, and
 unqualified production methane prediction remains blocked.
+
+
+## Research-only JSON numeric fidelity at the ingress boundary
+
+The offline, **non-deployed** `connect/customer_payload.mjs` intake now checks
+numeric JSON tokens before returning a parsed customer object. If JavaScript
+`JSON.parse` would silently round an integer, underflow a nonzero decimal
+or overflow a number, the canary returns `NUMERIC_PRECISION_LOSS` (HTTP 400)
+instead of processing the altered value. Exact decimal/scientific notation
+remains accepted. The 64-KiB byte cap, duplicate-key protection, independent
+authentication and quota reservation stay in force. This is **not** a unit,
+calibration, rights or field-safety equivalence check, and does not authorize
+customer onboarding, production routing or methane prediction.

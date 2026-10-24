@@ -127,3 +127,30 @@ test('allows same property names in distinct objects and JSON syntax within stri
   assert.equal(result.body.rows[0].hazard,'A');
   assert.equal(result.body.rows[1].hazard,'B');
 });
+
+
+test('raw numeric lexemes cannot change numerical value during JSON.parse',async()=>{
+  const invalid=[
+    '{"budget":9007199254740993}',
+    '{"rows":[{"cost":9007199254740993}]}',
+    '{"budget":0.10000000000000001}',
+    '{"budget":1e-400}',
+    '{"budget":1e400}',
+    '{"rows":[{"cost":1.234567890123456789}]}',
+  ];
+  for(const raw of invalid) {
+    assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+      {ok:false,status:400,error:'NUMERIC_PRECISION_LOSS'},raw);
+  }
+  for(const raw of ['{"budget":0.2}','{"budget":2e-1}',
+                    '{"budget":9007199254740992}','{"budget":4.500e1}',
+                    '{"rows":[{"cost":1e23}]}']) {
+    assert.equal((await readBoundedCustomerJson(makeRequest(raw))).ok,true,raw);
+  }
+});
+
+test('duplicate-key error remains higher priority than numerical-fidelity errors',async()=>{
+  const raw='{"budget":9007199254740993,"budget":1}';
+  assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+    {ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
+});

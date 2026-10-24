@@ -19,8 +19,37 @@ const contentType = /^application\/json(?:\s*;\s*charset=utf-8)?$/i;
  * token via JSON.parse catches collisions between escaped and literal keys.
  * At most 128 composite nesting levels; deeper payloads fail closed.
  */
-function hasDuplicateJsonObjectKeys(source) {
+
+/** Compare numeric JSON lexemes to the shortest round-trippable Number
+ * decimal. This rejects silent rounding, underflow and overflow without
+ * changing legitimate decimal or scientific-notation numeric values. */
+function normalizedDecimal(token) {
+  const match = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(token);
+  if (!match) return null;
+  const fraction = match[3] || '';
+  let digits = (match[2] + fraction).replace(/^0+/, '');
+  if (!digits) return ['0','0','0'];
+  const count = digits.length;
+  digits = digits.replace(/0+$/, '');
+  const exponentText = match[4] || '0';
+  if (exponentText.length > 32) return null;
+  const exponent = BigInt(exponentText) - BigInt(fraction.length)
+    + BigInt(count - digits.length);
+  return [match[1] === '-' ? '-' : '+', digits, exponent.toString()];
+}
+
+function numberPreservesDecimalValue(token) {
+  const converted = Number(token);
+  if (!Number.isFinite(converted)) return false;
+  const original = normalizedDecimal(token);
+  const reproduced = normalizedDecimal(converted.toString());
+  return original !== null && reproduced !== null
+    && original.every((value, index) => value === reproduced[index]);
+}
+
+function inspectJsonObjectTokens(source) {
   let pos = 0;
+  let lossy = false;
   const spaces = () => {
     while (pos < source.length && /\s/.test(source[pos])) pos++;
   };
@@ -77,8 +106,11 @@ function hasDuplicateJsonObjectKeys(source) {
       }
       throw new Error('invalid_json');
     }
-    // JSON.parse already validated primitive tokens (number, true, etc.).
+    // JSON.parse validates grammar, but it may silently round numeric tokens.
+    const start = pos;
     while (pos < source.length && !/[\s,\]}]/.test(source[pos])) pos++;
+    const token = source.slice(start, pos);
+    if (/^[-0-9]/.test(token) && !numberPreservesDecimalValue(token)) lossy = true;
     return false;
   };
   const duplicate = visit(0);
@@ -86,7 +118,7 @@ function hasDuplicateJsonObjectKeys(source) {
     spaces();
     if (pos !== source.length) throw new Error('invalid_json');
   }
-  return duplicate;
+  return {duplicate, lossy};
 }
 
 export async function readBoundedCustomerJson(request) {
@@ -163,9 +195,9 @@ export async function readBoundedCustomerJson(request) {
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
       return failure(400, 'INVALID_JSON');
     }
-    if (hasDuplicateJsonObjectKeys(json)) {
-      return failure(400, 'DUPLICATE_JSON_KEY');
-    }
+    const inspected = inspectJsonObjectTokens(json);
+    if (inspected.duplicate) return failure(400, 'DUPLICATE_JSON_KEY');
+    if (inspected.lossy) return failure(400, 'NUMERIC_PRECISION_LOSS');
     return {ok:true, body};
   } catch {
     return failure(400, 'INVALID_JSON');
