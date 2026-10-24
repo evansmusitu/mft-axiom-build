@@ -99,5 +99,51 @@ export function createPostgresReviewRepository({query}={}){
    [submissionId,publisherId,sha256,bytes,objectKey]);
   return {kind:result.rowCount===1?'created':'conflict'};
  }
- return Object.freeze({create,read,addReview,recordUpload});
+ async function readQuarantineReceipt(submissionId){
+  if(typeof submissionId!=='string'||!/^sub-[a-f0-9]{32}$/.test(submissionId))
+   throw Error('invalid private submission identifier');
+  const result=await execute(
+   `SELECT s.submission_id,s.publisher_id,s.submitting_subject,s.apk_sha256,
+    s.apk_bytes,q.storage_key
+    FROM store_publisher_private.submissions s
+    JOIN store_publisher_private.apk_quarantine_receipts q
+     ON q.submission_id=s.submission_id AND q.publisher_id=s.publisher_id
+       AND q.apk_sha256=s.apk_sha256 AND q.apk_bytes=s.apk_bytes
+    WHERE s.submission_id=$1 AND q.disposition='QUARANTINED_UNSCANNED'`,[submissionId]);
+  if(result.rowCount===0)return null;
+  if(result.rowCount!==1||result.rows.length!==1)throw Error('ambiguous private quarantine receipt');
+  const x=result.rows[0];
+  if(x.submission_id!==submissionId)throw Error('misbound private quarantine receipt');
+  return {submissionId,publisherId:x.publisher_id,actorId:x.submitting_subject,
+   apkSha256:x.apk_sha256,apkBytes:Number(x.apk_bytes),storageKey:x.storage_key};
+ }
+ async function recordStructuralCheck({submissionId,publisherId,apkSha256,apkBytes,
+  storageKey,inspectorSubject,inspectorTokenId,entryCount,expandedBytes,evidenceSha256}={}){
+  if(typeof submissionId!=='string'||!/^sub-[a-f0-9]{32}$/.test(submissionId)||
+     typeof publisherId!=='string'||!/^[a-z][a-z0-9-]{2,63}$/.test(publisherId)||
+     typeof apkSha256!=='string'||!/^[a-f0-9]{64}$/.test(apkSha256)||
+     !Number.isSafeInteger(apkBytes)||apkBytes<22||apkBytes>536870912||
+     typeof storageKey!=='string'||!/^private\/apk\/[0-9a-f]{48}$/.test(storageKey)||
+     typeof inspectorSubject!=='string'||!/^[A-Za-z0-9_-]{6,120}$/.test(inspectorSubject)||
+     typeof inspectorTokenId!=='string'||!/^[A-Za-z0-9_-]{12,200}$/.test(inspectorTokenId)||
+     !Number.isSafeInteger(entryCount)||entryCount<2||entryCount>4096||
+     !Number.isSafeInteger(expandedBytes)||expandedBytes<0||expandedBytes>2147483648||
+     typeof evidenceSha256!=='string'||!/^[a-f0-9]{64}$/.test(evidenceSha256))
+    throw Error('invalid private structural evidence binding');
+  const result=await execute(
+   `INSERT INTO store_publisher_private.apk_structural_checks
+    (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key,
+     inspector_subject,inspector_token_id,entry_count,expanded_bytes,evidence_sha256)
+    SELECT q.submission_id,q.publisher_id,q.apk_sha256,q.apk_bytes,q.storage_key,
+     $6,$7,$8,$9,$10 FROM store_publisher_private.apk_quarantine_receipts q
+    WHERE q.submission_id=$1 AND q.publisher_id=$2 AND q.apk_sha256=$3
+     AND q.apk_bytes=$4 AND q.storage_key=$5
+     AND q.disposition='QUARANTINED_UNSCANNED'
+    ON CONFLICT DO NOTHING RETURNING submission_id`,
+   [submissionId,publisherId,apkSha256,apkBytes,storageKey,
+    inspectorSubject,inspectorTokenId,entryCount,expandedBytes,evidenceSha256]);
+  return {kind:result.rowCount===1?'created':'conflict'};
+ }
+ return Object.freeze({create,read,addReview,recordUpload,
+  readQuarantineReceipt,recordStructuralCheck});
 }
