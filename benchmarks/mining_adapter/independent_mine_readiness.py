@@ -24,6 +24,19 @@ REJECTED_SOURCE_MARKERS = (
     "yd7vw4c5mk", "10.17632/yd7vw4c5mk", "openml:42701",
     "openml.org/d/42701", "openml.org/search?type=data&id=42701",
 )
+def _unique_candidate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("independent_candidate_duplicate_json_key")
+        result[key] = value
+    return result
+
+
+def _reject_nonstandard_candidate_number(token: str) -> None:
+    raise ValueError("independent_candidate_nonstandard_json_number")
+
+
 REQUIRED_EXTERNAL_REVIEWS = (
     "source_owner_data_use_authorization",
     "independent_site_chain_of_custody",
@@ -170,10 +183,17 @@ def main() -> None:
     args = parser.parse_args()
     if args.output.exists() or args.output.resolve() == args.candidate.resolve():
         raise FileExistsError("independent_mine_report_must_be_new")
-    candidate = json.loads(args.candidate.read_text(encoding="utf-8"))
+    source_raw = args.candidate.read_bytes()
+    candidate = json.loads(source_raw, object_pairs_hook=_unique_candidate_pairs,
+                           parse_constant=_reject_nonstandard_candidate_number)
     result = screen_independent_mine_candidate(candidate)
+    # Local byte-consistency check, not an independent provenance attestation.
+    if args.candidate.read_bytes() != source_raw:
+        raise ValueError("independent_candidate_changed_during_screening")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # Never overwrite evidence created by another writer during screening.
+    with args.output.open("x", encoding="utf-8") as output:
+        output.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({
         "status": result["status"],
         "outstanding_requirements": len(result["outstanding_requirements"]),

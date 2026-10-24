@@ -8,6 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from benchmarks.mining_adapter.independent_mine_readiness import (
     SCHEMA, SOURCE_HASH, FROZEN_MANIFEST_HASH, REQUIRED_EXTERNAL_REVIEWS,
@@ -164,6 +165,79 @@ class IndependentMineReadinessTests(unittest.TestCase):
                 self.assertFalse(r["independent_validation"])
                 self.assertGreaterEqual(len(r["outstanding_requirements"]), 2)
         self.assertTrue(screen_independent_mine_candidate(catalog["sources"][0])["known_development_source"])
+
+    def test_cli_rejects_ambiguous_lineage_and_duplicate_nested_review(self):
+        import benchmarks.mining_adapter.independent_mine_readiness as checker
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            candidate = complete_but_self_attested()
+            candidate['source_lineage_identifiers'] = ['openml:42701']
+            raw = json.dumps(candidate)
+            top = raw[:-1] + ', "source_lineage_identifiers": ["unrelated-site"]}'
+            nested = raw.replace(
+                '"source_owner_data_use_authorization": "self_supplied_unverified_reference_001"',
+                '"source_owner_data_use_authorization": "forged", '
+                '"source_owner_data_use_authorization": "self_supplied_unverified_reference_001"', 1)
+            for payload in (top, nested):
+                with self.subTest(nested=payload == nested):
+                    source, target = root/'input.json', root/'report.json'
+                    source.write_text(payload, encoding='utf-8')
+                    with patch.object(sys, 'argv', [
+                            'independent_mine_readiness', '--candidate', str(source),
+                            '--output', str(target)]):
+                        with self.assertRaisesRegex(
+                                ValueError, 'independent_candidate_duplicate_json_key'):
+                            checker.main()
+                    self.assertFalse(target.exists())
+
+    def test_cli_rejects_nonstandard_json_nan(self):
+        import benchmarks.mining_adapter.independent_mine_readiness as checker
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td); source=root/'input.json'; target=root/'report.json'
+            source.write_text(json.dumps(complete_but_self_attested())[:-1] +
+                              ', "unsupported_metric": NaN}', encoding='utf-8')
+            with patch.object(sys,'argv',['independent_mine_readiness',
+                    '--candidate',str(source),'--output',str(target)]):
+                with self.assertRaisesRegex(
+                        ValueError, 'independent_candidate_nonstandard_json_number'):
+                    checker.main()
+            self.assertFalse(target.exists())
+
+    def test_cli_concurrent_writer_cannot_replace_prior_evidence(self):
+        import benchmarks.mining_adapter.independent_mine_readiness as checker
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); source=root/'input.json'; target=root/'report.json'
+            source.write_text(json.dumps(complete_but_self_attested()), encoding='utf-8')
+            marker='external provenance evidence must never be overwritten'
+            original=checker.screen_independent_mine_candidate
+            def concurrent(candidate):
+                target.write_text(marker, encoding='utf-8')
+                return original(candidate)
+            with patch.object(checker,'screen_independent_mine_candidate',
+                              side_effect=concurrent), patch.object(sys,'argv',[
+                         'independent_mine_readiness','--candidate',str(source),
+                         '--output',str(target)]):
+                with self.assertRaises(FileExistsError):
+                    checker.main()
+            self.assertEqual(target.read_text(encoding='utf-8'),marker)
+
+    def test_cli_rejects_candidate_changed_during_screening(self):
+        import benchmarks.mining_adapter.independent_mine_readiness as checker
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);source=root/'input.json';target=root/'report.json'
+            source.write_text(json.dumps(complete_but_self_attested()),encoding='utf-8')
+            original=checker.screen_independent_mine_candidate
+            def mutate(candidate):
+                source.write_bytes(source.read_bytes()+b' ')
+                return original(candidate)
+            with patch.object(checker,'screen_independent_mine_candidate',
+                              side_effect=mutate), patch.object(sys,'argv',[
+                         'independent_mine_readiness','--candidate',str(source),
+                         '--output',str(target)]):
+                with self.assertRaisesRegex(
+                        ValueError,'independent_candidate_changed_during_screening'):
+                    checker.main()
+            self.assertFalse(target.exists())
 
     def test_cli_writes_only_new_research_report_not_private_records(self):
         with tempfile.TemporaryDirectory() as td:

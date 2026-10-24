@@ -122,3 +122,17 @@ Primary references:
 - https://www.nature.com/articles/s41598-024-64181-7
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC13517353/
 
+
+## Candidate intake evidence integrity — 25 October 2026
+
+The *offline*, non-admitting candidate readiness CLI now rejects repeated
+JSON object keys (including same-value collisions and nested review keys)
+and the nonstandard `NaN`/`Infinity` constants. It checks that the original
+candidate descriptor bytes did not change while metadata screening ran and
+creates output exclusively, failing if a concurrent writer introduced the
+target report path. These are local fail-closed input/evidence safeguards,
+**not** independent proof of mine ownership, reviewer consent or telemetry
+authenticity. Tests construct adversarial synthetic JSON and confirm no
+research report is published following a duplicate, source mutation, or
+output collision.
+
