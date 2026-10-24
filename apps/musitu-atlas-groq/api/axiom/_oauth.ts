@@ -8,6 +8,33 @@ import {deny} from './_contract.js';
 import {enforceRuntimeRole} from './_ledger.js';
 
 export const CALLBACK='https://musitu-atlas-ai-lab.vercel.app/api/axiom/capabilities';
+/** Read-only check of the issuer's public OAuth discovery. Never sends
+ * Axiom account keys, tokens, client secrets or private tenant identifiers.
+ * Public issuer readiness does not imply website callback is enabled.
+ */
+export async function publicIssuerStatus():Promise<{
+ reachable:boolean;pkce:boolean;executionScope:boolean;registration:boolean;reason:string;
+}>{
+ try{
+  const response=await fetch('https://auth.mftintelligence.com/.well-known/oauth-authorization-server',{
+   method:'GET',headers:{'Accept':'application/json'},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return {reachable:false,pkce:false,executionScope:false,registration:false,reason:'Public issuer HTTP '+response.status};
+  const text=await response.text();
+  if(text.length>13000)throw Error('Metadata size limit');
+  const m=JSON.parse(text);
+  const issuer=m?.issuer==='https://auth.mftintelligence.com';
+  const pkce=issuer&&Array.isArray(m?.code_challenge_methods_supported)&&m.code_challenge_methods_supported.includes('S256');
+  const scope=issuer&&Array.isArray(m?.scopes_supported)&&m.scopes_supported.includes('axiom.execute');
+  const reg=issuer&&m?.registration_endpoint==='https://auth.mftintelligence.com/oauth/register';
+  const token=issuer&&m?.token_endpoint==='https://auth.mftintelligence.com/oauth/token';
+  return {reachable:issuer&&token,pkce:Boolean(pkce),executionScope:Boolean(scope),registration:Boolean(reg),
+   reason:issuer&&token&&pkce&&scope&&reg?'Live public issuer discovery passed. Owner OAuth client registration remains a separate requirement.':'Public OAuth metadata is incomplete.'};
+ }catch{
+  return {reachable:false,pkce:false,executionScope:false,registration:false,reason:'Public issuer discovery unavailable; no credentials were sent.'};
+ }
+}
+
 const ISSUER='https://auth.mftintelligence.com';
 const RESOURCE='https://mcp.mftintelligence.com';
 const COOKIE='atlas_axiom_oauth_state';
