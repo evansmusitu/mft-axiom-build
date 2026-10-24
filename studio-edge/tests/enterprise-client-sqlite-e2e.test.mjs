@@ -201,3 +201,15 @@ test('portable export never includes tampered or undecryptable records',async()=
     await assert.rejects(api.exportEncryptedBundle());
   }finally{h.db.close();}
 });
+
+test('browser and Worker agree on the supported 8 KiB plaintext ceiling',async()=>{
+  const h=makeHarness();
+  try{
+    const k=await key(), jwt=await tokenFor('alice_signed_subject');
+    const api=client(h,TA,k,async()=>jwt);
+    const content='A'.repeat(7900);
+    const created=await api.create({id:ITEM,text:content});
+    assert.match(created.etag,/^"[a-f0-9-]{36}"$/);
+    assert.equal((await api.get({id:ITEM})).text,content);
+  }finally{h.db.close();}
+});
