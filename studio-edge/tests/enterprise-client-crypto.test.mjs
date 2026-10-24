@@ -49,3 +49,8 @@ test('enforce signed-off size, identifier and AES-256 encryption prerequisites',
  await assert.rejects(encryptTenantText('secret',key,'../tenant',ID));
  await assert.rejects(encryptTenantText('secret',key,A,'!'));
 });
+
+test('enterprise client refuses exportable long-term encryption keys',async()=>{
+ const exportable=await webcrypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
+ await assert.rejects(encryptTenantText('confidential',exportable,A,ID),/INVALID_CRYPTO_KEY/);
+});
