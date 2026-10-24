@@ -29,3 +29,11 @@ test('configuration command without an explicit predecessor stops before provide
  assert.equal(result.status,1);assert.equal(result.stdout,'');assert.match(result.stderr,/ISOLATED_CALLBACK_REQUIRED/);
  assert.equal(result.stderr.includes('a'.repeat(32)),false);
 });
+
+test('compact replacement command rejects missing, extra or noncanonical deployment suffixes before transport',()=>{
+ const script=new URL('../deployments/meta-ingress/scripts/build.mjs',import.meta.url).pathname;
+ for(const args of [[],['new1'],['valid1','valid2','extra1'],['https://other.invalid','valid2'],['valid1','BAD/2']]){
+  const result=spawnSync(process.execPath,[script,'--replace',...args],{env:{PATH:process.env.PATH},encoding:'utf8',timeout:3000});
+  assert.equal(result.status,1);assert.equal(result.stdout,'');assert.match(result.stderr,/RECEIVER_DEPLOYMENT_IDS_REQUIRED/);
+ }
+});
