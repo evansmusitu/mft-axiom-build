@@ -33,13 +33,13 @@ export function fail(res:any,error:unknown){
 export function authConfigured():boolean{
  return process.env.ATLAS_AXIOM_EXECUTE_ENABLED==='enabled'
   && Boolean(process.env.AXIOM_MCP_BEARER_TOKEN)
-  && Boolean(process.env.ATLAS_FRONTIER_ACCESS_CODE)
-  && (process.env.ATLAS_FRONTIER_ACCESS_CODE||'').length>=16;
+  && Boolean(process.env.ATLAS_AXIOM_OPERATOR_CODE)
+  && (process.env.ATLAS_AXIOM_OPERATOR_CODE||'').length>=24;
 }
 export function verifyApproval(value:unknown,expected:unknown,approved:unknown){
  if(approved!==true)throw deny(403,'Approve the specific Axiom operation before it can execute.');
- const secret=process.env.ATLAS_FRONTIER_ACCESS_CODE||'';
- if(secret.length<16||typeof value!=='string')throw deny(403,'Private operator code required.');
+ const secret=process.env.ATLAS_AXIOM_OPERATOR_CODE||'';
+ if(secret.length<24||typeof value!=='string')throw deny(403,'Private operator code required.');
  const a=createHash('sha256').update(value).digest();
  const b=createHash('sha256').update(secret).digest();
  if(!timingSafeEqual(a,b))throw deny(403,'Invalid private operator code.');
