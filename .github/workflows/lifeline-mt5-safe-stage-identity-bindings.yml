@@ -52,7 +52,7 @@ jobs:
           if len(token)<20:raise SystemExit('Cloudflare secret unavailable')
           base='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
           def call(path,method='GET',data=None):
-              if not path.startswith('/'):raise RuntimeError('invalid API path')
+              if path!='' and not path.startswith('/'):raise RuntimeError('invalid API path')
               h={'Authorization':'Bearer '+token,'Accept':'application/json'}
               if data is not None:h['Content-Type']='application/json'
               req=urllib.request.Request(base+path,headers=h,method=method,
