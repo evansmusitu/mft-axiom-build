@@ -84,10 +84,22 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
       !ID.test(parts[4]) || parts[5] !== 'artifacts') return fail('NOT_FOUND',404,origin);
   const tenant=parts[4];
   if (!['GET','PUT','DELETE'].includes(request.method))return fail('METHOD_DENIED',405,origin);
-  const artifact=new URL(request.url).searchParams.get('id');
-  if (artifact !== null && !ID.test(artifact))return fail('INVALID_ID',400,origin);
-  if ((request.method==='PUT'||request.method==='DELETE') && artifact === null)return fail('INVALID_ID',400,origin);
-  if (request.method==='GET' && artifact === null) return fail('INVALID_ID',400,origin);
+  const params=new URL(request.url).searchParams;
+  const artifact=params.get('id');
+  const listing=request.method==='GET' && artifact===null;
+  if(params.getAll('id').length>1 || params.getAll('limit').length>1 || params.getAll('after').length>1)
+    return fail('INVALID_QUERY',400,origin);
+  if(artifact !== null && !ID.test(artifact))return fail('INVALID_ID',400,origin);
+  if(request.method!=='GET' && artifact===null)return fail('INVALID_ID',400,origin);
+  if((!listing && (params.has('after') || params.has('limit'))) ||
+     [...params.keys()].some(key=>!['id','limit','after'].includes(key)))
+    return fail('INVALID_QUERY',400,origin);
+  const after=listing ? params.get('after') : null;
+  const rawLimit=listing ? params.get('limit') : null;
+  if(listing && ((after!==null && !ID.test(after)) ||
+      (rawLimit!==null && !/^(?:[1-9]|10)$/.test(rawLimit))))
+    return fail('INVALID_QUERY',400,origin);
+  const pageSize=rawLimit===null?10:Number(rawLimit);
   let subject;
   try {subject = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'),{
     teamDomain:env.ACCESS_TEAM_DOMAIN,audience:env.ACCESS_AUDIENCE,fetchJwks,now});}
@@ -96,6 +108,17 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     const member=await env.WORKSPACE_DB.prepare('SELECT role FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = ?')
       .bind(tenant,subject,'active').first();
     if(!member || !['owner','editor','viewer'].includes(member.role))return fail('NOT_FOUND',404,origin);
+    if(listing) {
+      // Keyset pagination by immutable identifier; the SQL join rechecks live
+      // membership at read time so revoked sessions cannot enumerate records.
+      const page=await env.WORKSPACE_DB.prepare(
+        "SELECT a.artifact_id AS id, a.revision, a.updated_at AS updatedAt FROM tenant_artifacts AS a JOIN tenant_memberships AS m ON m.tenant_id = a.tenant_id AND m.subject = ? AND m.status = 'active' AND m.role IN ('owner','editor','viewer') WHERE a.tenant_id = ? AND a.artifact_id > ? ORDER BY a.artifact_id ASC LIMIT ?"
+      ).bind(subject,tenant,after||'',pageSize+1).all();
+      if(!Array.isArray(page?.results))return fail('STORE_UNAVAILABLE',503,origin);
+      const items=page.results.slice(0,pageSize).map(a=>({id:a.id,revision:a.revision,updatedAt:a.updatedAt}));
+      const nextAfter=page.results.length>pageSize?items[items.length-1].id:null;
+      return reply({items,nextAfter},200,origin);
+    }
     if(request.method!=='GET' && member.role==='viewer')return fail('FORBIDDEN',403,origin);
     // A version precondition is mandatory on every mutation, including DELETE.
     // The SQL predicate below enforces it atomically, not in a JS read/compare race.
