@@ -81,7 +81,14 @@ sidecar. A manifest or model file changed while the long-running scoring pass is
 underway fails closed instead of producing apparently SHA-backed results. Both
 evaluator and evidence-gate CLI outputs use exclusive file creation: a competing
 writer cannot silently replace an existing audit file after an earlier path
-check. The evidence gate also rejects duplicate JSON keys at any nesting level
+check. The research evidence auditor now also requires the *independently published*
+native LightGBM manifest and model SHA-256, exact precommitted score threshold
+(0.022545819099925965), measured-methane hard-warning threshold (1.0), and
+54-feature identity. An unpinned substitute or changed threshold fails closed
+even when aggregate metrics appear favorable. This is evidence-identity
+validation, **not** external mine authenticity or prediction qualification.
+
+The evidence gate also rejects duplicate JSON keys at any nesting level
 and nonstandard NaN/Infinity values before assessing untrusted research evidence.
 These controls **do not** independently authenticate an operator,
 sensor calibration or physical methane events.

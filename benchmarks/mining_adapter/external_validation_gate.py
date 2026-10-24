@@ -14,6 +14,11 @@ from typing import Any, Mapping
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
 
 PUBLIC_DEV_SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+PINNED_MODEL_MANIFEST_SHA256 = 'f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf'
+PINNED_MODEL_SHA256 = '3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab030eb'
+PINNED_SCORE_THRESHOLD = 0.022545819099925965
+PINNED_WARNING_THRESHOLD = 1.0
+PINNED_FEATURE_COUNT = 54
 
 def _unique_evidence_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     record: dict[str, Any] = {}
@@ -66,6 +71,17 @@ def assess_external_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError('external_gate_source_or_model_digest_invalid')
     if evidence['source_sha256']==PUBLIC_DEV_SHA:
         raise ValueError('external_gate_known_development_data')
+    # Compare against the out-of-band published research bundle, not values
+    # claimed by the incoming JSON. This never authenticates mine provenance.
+    if (evidence['model_manifest_sha256'] != PINNED_MODEL_MANIFEST_SHA256
+            or evidence['model_sha256'] != PINNED_MODEL_SHA256
+            or type(evidence.get('frozen_score_threshold')) is not float
+            or evidence['frozen_score_threshold'] != PINNED_SCORE_THRESHOLD
+            or type(evidence.get('frozen_warning_threshold')) is not float
+            or evidence['frozen_warning_threshold'] != PINNED_WARNING_THRESHOLD
+            or type(evidence.get('feature_count')) is not int
+            or evidence['feature_count'] != PINNED_FEATURE_COUNT):
+        raise ValueError('external_gate_frozen_model_pin_mismatch')
     preflight=evidence.get('preflight')
     if (not isinstance(preflight,Mapping)
             or preflight.get('source_integrity') != 'HASH_AND_SCHEMA_VERIFIED'

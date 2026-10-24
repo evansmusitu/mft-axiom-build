@@ -23,10 +23,11 @@ def report():
               'f2_delta_vs_hard_warning':m['f2']-metric(200, 1100, 300, 8400)['f2']})
     return {'schema':'musitu.axiom.frozen_external_mine_evaluation.v1',
             'status':'RESEARCH_ONLY_NOT_ADMITTED','source_sha256':'a'*64,
-            'model_manifest_sha256':'b'*64,'model_sha256':'c'*64,'source_manifest_sha256':'d'*64,
+            'model_manifest_sha256':'f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf','model_sha256':'3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab030eb','source_manifest_sha256':'d'*64,
+            'frozen_score_threshold':0.022545819099925965,'frozen_warning_threshold':1.0,
             'source_rows':100_000,'eligible_examples':10_000,'test_positives':500,
             'observed_hard_warnings':1300,'hard_warning_preserved':True,
-            'model':m,'baseline':metric(200,1100,300,8400),'feature_count':52,
+            'model':m,'baseline':metric(200,1100,300,8400),'feature_count':54,
             'window_proxy_audit': {'schema':'musitu.axiom.external_window_proxy_audit.v1',
                'window_count':10000,'positive_label_windows':500,
                'hard_observed_warning_windows':1300,'false_alert_windows':1900,
@@ -104,6 +105,24 @@ class ExternalValidationGateTests(unittest.TestCase):
                 with self.assertRaises(FileExistsError):
                     validator.main()
             self.assertEqual(target.read_text(encoding='utf-8'), marker)
+
+    def test_unpinned_model_and_modified_frozen_threshold_are_rejected(self):
+        variants = (
+            ('model_manifest_sha256', 'b' * 64),
+            ('model_sha256', 'c' * 64),
+            ('frozen_score_threshold', 0.025),
+            ('frozen_warning_threshold', 1.01),
+            ('frozen_score_threshold', '0.022545819099925965'),
+            ('frozen_warning_threshold', True),
+            ('frozen_score_threshold', None),
+            ('feature_count', 52),
+        )
+        for field, replacement in variants:
+            with self.subTest(field=field, replacement=replacement):
+                altered = report()
+                altered[field] = replacement
+                with self.assertRaisesRegex(ValueError, 'external_gate_frozen_model_pin_mismatch'):
+                    assess_external_evidence(altered)
 
     def test_high_measured_scores_never_grant_independent_status(self):
         result=assess_external_evidence(report())
