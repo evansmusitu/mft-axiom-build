@@ -95,7 +95,8 @@ def main():
         stage("handoff/"+required,src.read_bytes())
     # The startup guide is deliberately duplicated at the ZIP root so a new
     # chat can identify the authoritative entry point without browsing folders.
-    stage("README_START_HERE.md",(ROOT/HANDOFF/"README_START_HERE.md").read_bytes())\n    stage("verify_handoff.py",(ROOT/HANDOFF/"verify_handoff.py").read_bytes())
+    stage("README_START_HERE.md",(ROOT/HANDOFF/"README_START_HERE.md").read_bytes())
+    stage("verify_handoff.py",(ROOT/HANDOFF/"verify_handoff.py").read_bytes())
     native_root=Path("/tmp/lifeline-native-artifact")
     native_included=[]
     expected_ex5="2b4e93999c8ca23954263d20154ff87e97638221dd3ff15ebf454ba1ce913b59"
@@ -131,8 +132,15 @@ def main():
         "native_ex5_sample_evidence_status":evidence_status,
         "native_evidence_filenames":native_included,
         "credential_transport":"no_credentials_or_plaintext_secrets_in_archive",
-        "historical_owner_app_access_session_previously_verified":True,\n        "current_owner_app_session_at_handoff_unproven":True,
-        "legacy_worker_binding_names_last_verified":6,\n        "legacy_worker_required_binding_names":10,\n        "legacy_worker_four_sensitive_bindings_missing":True,\n        "separate_cutover_required_and_not_authorized":True,\n        "cloudflare_d1_service_binding_alt_source_only":True,\n        "cloudflare_d1_alt_deployed":False,\n        "full_customer_route_operational":False,
+        "historical_owner_app_access_session_previously_verified":True,
+        "current_owner_app_session_at_handoff_unproven":True,
+        "legacy_worker_binding_names_last_verified":6,
+        "legacy_worker_required_binding_names":10,
+        "legacy_worker_four_sensitive_bindings_missing":True,
+        "separate_cutover_required_and_not_authorized":True,
+        "cloudflare_d1_service_binding_alt_source_only":True,
+        "cloudflare_d1_alt_deployed":False,
+        "full_customer_route_operational":False,
         "persistent_windows_host_paired":False,
         "live_trading":False,"out_of_pocket_spend_authorized":False
     }
@@ -162,13 +170,18 @@ def main():
         "Earlier private Modal-Neon real signed probe/receipt run: 39549416299",
         "Earlier actual private Neon mismatched-receipt rejection: 39557904660",
         "Cloudflare Access: previously verified app-specific owner session; current active session NOT asserted",
-        "Cloudflare legacy Worker latest validated: 6/10 bindings, four sensitive missing (run 40076927002)",\n        "Cloudflare separate cutover flag: NOT enabled",\n        "New Cloudflare D1/Service Binding alternative: SOURCE ONLY, NOT deployed (runs 40133125178, 40133361256)",\n        "Shared Modal environment 13 other apps; proxy token isolation NOT verified (run 40079161052)",\n        "Offline Node+Python signed bridge Windows/Ubuntu: PASS historical (runs 40095181801, 40091145427)",
+        "Cloudflare legacy Worker latest validated: 6/10 bindings, four sensitive missing (run 40076927002)",
+        "Cloudflare separate cutover flag: NOT enabled",
+        "New Cloudflare D1/Service Binding alternative: SOURCE ONLY, NOT deployed (runs 40133125178, 40133361256)",
+        "Shared Modal environment 13 other apps; proxy token isolation NOT verified (run 40079161052)",
+        "Offline Node+Python signed bridge Windows/Ubuntu: PASS historical (runs 40095181801, 40091145427)",
         "Protected Vercel v1.2 guest-auth redirect run: 39668082801",
         "Full routed Cloudflare+Modal+Neon+permanent Windows host: NOT VERIFIED",
         "Broker login/orders/real trading: DISABLED",
         "Source file count: "+str(len(included)),
         "Excluded generated/legacy file count: "+str(len(excluded)),
-        "This report is not proof of current interactive owner app MFA login or permanent Windows.",\n        "This handoff packages the complete LIFELINE product scope only, NOT the whole MUSITU monorepo.",
+        "This report is not proof of current interactive owner app MFA login or permanent Windows.",
+        "This handoff packages the complete LIFELINE product scope only, NOT the whole MUSITU monorepo.",
         ""
     ])).encode())
     # Checksums cover every packaged entry except checksum itself.
