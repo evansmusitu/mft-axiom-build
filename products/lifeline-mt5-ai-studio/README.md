@@ -1,57 +1,39 @@
-# LIFELINE MT5 AI Studio — Private Owner-Only Research Stage (2026-10-24)
+# LIFELINE MT5 AI Studio — Isolated owner-only development
 
+**Operational status, 24 October 2026:** private research and engineering stage. **NOT an operating public MT5 trading system, not a connected Cloudflare→Modal backend, and not a permanently hosted Windows agent.** Do not advertise live customer execution or results.
 
-## Authoritative 2026-10-24 continuation
+Repository: [evansmusitu/mft-axiom-build](https://github.com/evansmusitu/mft-axiom-build), branch `product/lifeline-mt5-fivecloud-isolated-20261020`, [draft PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30). Protected `main` is out of scope. Budget **$0**; no paid provision, uncontrolled compute, public launch, broker orders, real customer data or arbitrary shell.
 
-- **Owner Access and MFA:** The earlier v1.2 lack-of-login statements below are historical, not current. The owner subsequently reported a valid owner-verification JSON response, with separate Cloudflare provider audit confirming one LIFELINE app-specific allow and active owner session: [evidence](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39666881641). No raw owner JWT was captured or shared.
-- **Cloudflare Worker:** A fresh read-only exact-account audit [re-run 40076927002](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40076927002) confirmed **6/10 bindings**, **4 missing**. Owner-only `GET /owner/readiness` remains diagnostic, not an active backend.
-- **Modal workspace isolation:** Independent live [scope audit 40079161052](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40079161052) verified **one environment containing 13 other live apps** and **44 proxy token metadata records**. With no verified per-app proxy scoping on the free tier, introducing a new token into this shared workspace is **blocked**. It does not mean an existing token was compromised.
-- **Security upgrade:** Run-specific challenge and exact-source/target bound encrypted handoff has passed [12/12 offline tests](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40078698001), without any live credential transfer. See [complete security acceptance and pending gates](validation/SECURE_SCOPE_GATE_20261024.md).
-- **Money and release:** $0 billed at the recent Modal audit, but no guaranteed future-free usage; no spending, public release, backend cutover, live trades, recurring Windows host or real native MCP pairing. Protected main, other MUSITU apps and draft PR #30 stay unchanged.
+## Verified, evidence-backed progress
 
-> Prior v1.2 statements below are archived implementation history; use the section above and the named latest audits for current status.
+| Surface | Real verification and limitation |
+|---|---|
+| Cloudflare Access | Dedicated single-owner Access app with independent MFA; a prior audited owner session succeeded. `GET /owner/verify` and `GET /owner/readiness` are owner-only, credential-safe and **diagnostic**. |
+| Private Worker | Latest authenticated provider evidence: **6/10** binding names installed, **four sensitive bindings absent**. Explicit `LIFELINE_PRIVATE_BACKEND_CUTOVER` remains **OFF**. Backend routes intentionally fail closed. |
+| Modal ↔ Neon | Previously tested **private** synthetic signed probe and receipt with restricted Neon `lifeline_stage_app`, FORCE RLS and HMAC replay denial. **Not** a Cloudflare-originated live request. |
+| Windows MetaEditor | Verified vendor-signed MetaEditor produced a no-order EX5 on disposable GitHub Actions Windows runner ([proof 39562462108](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39562462108)). This is not an enduring Windows computer or historical-market backtest. |
+| Windows + Python/JS integration | Real Node Edge→loopback FastAPI/SQLite synthetic signed round trip passed on **native Windows Server 2022 GitHub runner** ([40095181801](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40095181801)) and Ubuntu ([40095041178](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40095041178)). Neither CI run connected to live Modal/Neon or native MT5. |
+| MCP security | Only a read-only `lifeline_status` tool. MCP 2025-03-26 initialize schema, authenticated `notifications/initialized` HTTP 202, SSE-less GET HTTP 405, strict request IDs and cross-tenant rejection tested. |
+| Vercel | Isolated owner-only stage UI with deployment SSO; no trading controls or public customer release. |
 
-## Current GitHub Secrets connection status — 2026-10-24
+Current detailed acceptance: [Native Windows, initialization and tenant isolation](validation/NATIVE_CROSSLANG_SECURITY_20261024.md), [offline cross-language integration](validation/OFFLINE_FULLSTACK_ACCEPTANCE_20261024.md), [provider scope gate](validation/SECURE_SCOPE_GATE_20261024.md), [six of ten binding evidence](validation/GITHUB_EXISTING_SECRETS_20261024.md).
 
-The isolated Cloudflare Worker now has **6/10** required binding names, validated using existing GitHub Actions credentials. See [direct provider verification and tests](validation/GITHUB_EXISTING_SECRETS_20261024.md). `MODAL_ORIGIN` came from authenticated Modal metadata; `AGENT_ID` and `AGENT_TENANT` came from the existing pinned bootstrap source, **not from reading Modal Secret values**. The four sensitive bindings `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, and `MODAL_PROXY_SECRET` remain missing. **Private Cloudflare→Modal→Neon routing remains unconnected and fail-closed.** There is no persistent Windows host; trading and public launch remain disabled. The lower historical sections retain their original time-stamped evidence.
+## The real blockers
 
+1. **Modal proxy token scope:** Live read-only metadata found **13 unrelated applications sharing LIFELINE's Modal environment** and **44 proxy token records**. On the existing Starter workspace, per-app proxy-token authorization is **not demonstrated**. Do not generate a broadly scoped token, export shared workspace API credentials to Cloudflare, disable Modal proxy auth, or deploy publicly to evade the restriction. An official support inquiry is open.
+2. **Four Worker secret bindings:** `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, and `MODAL_PROXY_SECRET` are **missing** from the Worker. Modal existing secrets do not reveal their values via metadata and GitHub secret aliases are unavailable. A proof-tested source-only encrypted handoff exists, **not a live transfer**.
+3. **Actual Cloudflare→Modal→Neon acceptance:** Do not authorize backend cutover merely because keys appear present. Require a truly isolated proxy identity, owner Access JWT, strict tenant binding, positive and negative live tests, and proven zero-cost operating constraints.
+4. **Permanent Windows host:** No approved 24/7 native Windows x64 machine. GitHub Windows runners compile/tests only, and OCI enrollment was blocked by a declined card; no vendor approval for an alternative yet.
+5. **Product certification:** No actual native MT5 MCP paired, broker demonstration market-history backtest, compliance or customer/public release.
 
-An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
+## Engineering & safe verification
 
-**This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
+`infra/cloudflare/` is the Cloudflare Access gateway and read-only MCP interface. `infra/modal/` contains the private Modal/FastAPI queue, signed probe/receipt and restricted Neon DB backend. `windows/` contains reviewed MQL5, signed compiler and native read-only MCP adapters. `infra/oracle_free/` contains a **candidate** ARM/Wine hosting feasibility policy, not a deployed Oracle server.
 
-**Latest evidence:** [OWNER_JWT_PROBE_v12_20261021.md](validation/OWNER_JWT_PROBE_v12_20261021.md) — verified real 24-hour owner-login audit (no positive app login), an isolated identity-only Access JWT verification endpoint, 3/10 private Worker bindings, and live negative access checks. Earlier v1.1 and lower evidence is preserved.
+The safe CI suites live under `.github/workflows/lifeline*.yml` and include authenticated edge tests, Windows+Ubuntu agent tests, disposable Windows MetaEditor compilation, offline Node→Python signed-bridge integration and nonmutating provider metadata checks. Native Windows *cross-language* acceptance workflow triggers only on its own source change or explicit dispatch to conserve Actions minutes.
 
-## Proven now
+Check [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30) and the most recent CI evidence before trusting claims. Git history and dated validation records preserve earlier v0.4–v1.4 progression. Never substitute stale snapshot assertions for provider-backed evidence. No code deploys automatically to Modal from a source push.
 
-- **No-PC on-demand Windows EX5 compile:** isolated GitHub Actions can be dispatched from Android for a SHA256-pinned, reviewed MQL5 file. Native signed MetaEditor compiled EX5 with zero errors and published log/hash/proof artifact (run 39562462108). This is not a permanent MT5 host or a full live AI pipeline.
-- **Gateway isolation:** outbound Windows HTTPS polling is now restricted to the exact staging hostname with proxy/redirect rejection; local official-MCP access is reduced to five no-argument observational tools. Host verification is prepared but actual local MCP remains unpaired.
+## Immediate next step
 
-- **Operator and queue safety:** Cloudflare JWT owner subject must be pinned to the single enrolled Access identity before mapping to the Neon tenant (mock signed-JWT tests); owner policy MFA is configured but real LIFELINE app sign-in has not occurred. Staging allows up to 8 active and 250 total jobs per tenant/agent and rejects receipts claiming a different original operation. Live Modal↔Neon hardening acceptance run 39557904660 PASS.
-- **Windows native compile:** temporary GitHub Windows runner installed and validated vendor-signed MetaQuotes executables; compiled real MQL5 into EX5 with zero compiler errors and mathematical Strategy Tester report. This is *not* a historical-price market backtest or 24/7 Windows host.
-- **Windows agent:** signed offline jobs, bounded native adapter, replay denial, durable at-most-once SQLite claims; protocol tested on Windows and Linux, but no permanently paired host. Built-in MetaQuotes MCP local-only adapter denies shell/order/unsafe tools; tests are mocked, not live MCP.
-- **Vercel:** separate private nontrading status UI project `lifeline-mt5-ai-studio-stage` with SSO all deployments. Guest HTTPS request received redirect to authentication; deployment READY. No JavaScript order actions or embedded secrets.
-- **Cloudflare:** exact account `93f395f5121954671f92fffa453d6b61` verified. Isolated Worker has dedicated Custom Domain `lifeline-mt5-stage.mftintelligence.com`. Its new **[owner-only JWT verification endpoint](https://lifeline-mt5-stage.mftintelligence.com/owner/verify)** verifies a pinned Cloudflare Access owner token without accessing customer data. Single-owner independent MFA policy remains active, and only 3/10 identity bindings are provisioned. Seven private Modal/agent secrets are still missing, so **backend routes remain HTTP 503**. No positive owner Access app session was detected in the fresh 24-hour audit; anonymous automated clients received a Cloudflare WAF challenge.
-- **Modal private research:** `lifeline-mt5-private-probe-isolated` deployed scale-to-zero with proxy auth. Anonymous HTTP 401; authenticated HTTP 200; temporary token revoked. `POST /research/summary` produces precise `Decimal` P&L stats on supplied synthetic records and denies invalid inputs. No broker or Windows connectivity.
-- **Private signed bridge:** separate proxy-auth Modal service `lifeline-mt5-analytics-isolated` now has the genuine restricted Neon DB queue, and a live synthetic agent completed signed `operator/probe → agent/pull → agent/receipt → operator/status` with HMAC-replay denial. Native agent was a temporary CI process (not MT5/Windows); Cloudflare Access route remains disabled. Run 39549416299.
-- **Database hardening:** actual Neon runtime role and all three RLS tables checked on each transaction with TLS `verify-full`; stale claimed tasks can now be re-signed with their original durable nonce. Windows+Linux acceptance run 39548589034.
-- **Neon:** dedicated project `frosty-rain-34922526`, database `lifeline_mt5_stage`, three FORCE RLS tables. Restricted role `lifeline_stage_app` is NOBYPASSRLS, NOCREATEROLE, NOSUPERUSER and cannot create schema/database objects. **Encrypted RSA-OAEP Neon credential in source; private decryption key only in Modal Secret.** A second internal-only Modal app `lifeline-mt5-neon-rls-probe-isolated` verified actual restricted login, TLS `verify-full`, and synthetic tenant A/B isolation. The database owner and privileged `lifeline_runtime` are forbidden to serve application queries.
-
-## Not completed
-
-1. No owner-approved continuous Windows host. GitHub-hosted Windows is ephemeral.
-2. Cloudflare single-owner policy, independent MFA, live hostname and a JWT-only verification endpoint are active. **Fresh Access logs still show zero positive owner app login. Only 3/10 identity bindings are installed; the 7 backend bindings are missing.** Owner must [open the verification endpoint](https://lifeline-mt5-stage.mftintelligence.com/owner/verify), complete specific app MFA, and obtain a cryptographically verified real owner token before any private backend cutover.
-3. **Private Modal↔Neon signed PROBE end-to-end passes**, but the full protected Cloudflare Access→Modal→Neon→persistent Windows native path is not connected. The current private app accepts only the paired synthetic staging tenant.
-4. Real historical quote backtests need broker-demo market data and an explicitly approved native agent. Mathematical optimization does not prove a profitable strategy.
-5. Customer publication, compliance, real trading, and revenue are not enabled.
-
-## Safe verification
-
-- [Native Windows acceptance](validation/NATIVE_ACCEPTANCE_20261020.md)
-- [Cloud stage provenance](validation/CLOUD_STAGE_20261020.md)
-- [Encrypted private cloud acceptance](validation/PRIVATE_CLOUD_ACCEPTANCE_v06_20261021.md)
-- [One-pass earlier handoff](validation/ONE_PASS_ACCEPTANCE_20261021.md)
-- [Windows host safety](windows/README_BRIDGE.md)
-- [Official built-in MetaQuotes MCP local-only adapter](windows/NATIVE_MCP.md)
-
-Do not commit cleartext Neon URLs/passwords, Modal proxy tokens, broker credentials, Cloudflare secrets or agent signing keys. Keep `main` and draft PR #1 untouched. Free plans still have usage caps; new compute must be spend-gated. Nothing on the hosted ChatGPT-facing surface may execute live financial orders.
+Await legitimate provider isolation guidance from Modal or qualify an independent LIFELINE-only account/workspace with explicit zero-spend controls. Only then design a controlled secret-to-secret transfer and **genuine** end-to-end live Cloudflare→Modal→Neon test. Preserve the draft PR, protected main and all separate MUSITU projects. No purchase, MFA reset, API-key leak, trade operation or production release.
