@@ -7,6 +7,8 @@ on:
       - 'store/phase1/developer_portal/postgres-review-journal.regression.sql'
       - 'store/phase1/developer_portal/postgres-apk-quarantine.candidate.sql'
       - 'store/phase1/developer_portal/postgres-apk-quarantine.regression.sql'
+      - 'store/phase1/developer_portal/postgres-session-status.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-session-status.regression.sql'
       - '.github/workflows/musitu-store-v2-developer-review-postgres-ci.yml'
   workflow_dispatch:
 permissions: {contents: read}
@@ -47,6 +49,12 @@ jobs:
             < store/phase1/developer_portal/postgres-apk-quarantine.candidate.sql
           docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
             < store/phase1/developer_portal/postgres-apk-quarantine.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-session-status.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-session-status.regression.sql
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.portal_sessions')" = 0
+          test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.principal_enrollments')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.apk_quarantine_receipts')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.submissions')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.review_notes')" = 0

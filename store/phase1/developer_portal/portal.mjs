@@ -124,7 +124,7 @@ function trustedAuthorizer({issuer,audience,publicKeys,now}){
     typeof claims.jti==='string'&&/^[a-zA-Z0-9_-]{12,200}$/.test(claims.jti),401);
   if(claims.role==='developer')require_(typeof claims.publisherId==='string'&&SLUG.test(claims.publisherId),401);
   return {subject:claims.sub,role:claims.role,publisherId:claims.publisherId,
-   tokenId:claims.jti,expiresAt:claims.exp};
+   tokenId:claims.jti,expiresAt:claims.exp,issuer:claims.iss,audience:claims.aud};
  };
 }
 export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine,isTokenActive}={}){
@@ -157,7 +157,8 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    // unavailable source never authorizes intake, reads or review actions.
    require_(typeof isTokenActive==='function',503);
    const active=await isTokenActive({tokenId:actor.tokenId,subject:actor.subject,
-     role:actor.role,expiresAt:actor.expiresAt});
+     role:actor.role,publisherId:actor.publisherId,expiresAt:actor.expiresAt,
+     issuer:actor.issuer,audience:actor.audience});
    require_(active===true,401);
    if(type==='submit'){
      require_(actor.role==='developer',403);
