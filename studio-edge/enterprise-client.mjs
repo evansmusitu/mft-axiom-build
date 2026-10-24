@@ -17,7 +17,7 @@ class WorkspaceRequestError extends Error {
 const fail=(code,status=0)=>{throw new WorkspaceRequestError(code,status);};
 const validateId=value=>{if(typeof value!=='string'||!ID.test(value))fail('INVALID_ID');return value;};
 const validateEtag=value=>{if(typeof value!=='string'||!ETAG.test(value))fail('INVALID_ETAG');return value;};
-function providerConfig({baseUrl,tenantId,key,getToken,fetcher}) {
+function providerConfig({baseUrl,tenantId,key,getToken,fetcher,requestTimeoutMs=12000}) {
  if(typeof baseUrl!=='string')fail('INVALID_ENDPOINT');
  let origin;
  try{
@@ -33,11 +33,36 @@ function providerConfig({baseUrl,tenantId,key,getToken,fetcher}) {
  if(typeof getToken!=='function')fail('MISSING_TOKEN_PROVIDER');
  const fetchFn=fetcher ?? globalThis.fetch;
  if(typeof fetchFn!=='function')fail('FETCH_UNAVAILABLE');
- return {origin,tenantId,key,getToken,fetchFn};
+ if(!Number.isSafeInteger(requestTimeoutMs)||requestTimeoutMs<10||requestTimeoutMs>30000)
+   fail('INVALID_REQUEST_TIMEOUT');
+ return {origin,tenantId,key,getToken,fetchFn,requestTimeoutMs};
 }
 export function createTenantWorkspaceClient(options) {
- const {origin,tenantId,key,getToken,fetchFn}=providerConfig(options||{});
+ const {origin,tenantId,key,getToken,fetchFn,requestTimeoutMs}=providerConfig(options||{});
  const route=origin+'/api/enterprise/tenants/'+tenantId+'/artifacts';
+ async function boundedResponseJson(response) {
+   if(!response.headers || typeof response.headers.get!=='function')fail('INVALID_RESPONSE',response.status);
+   if(!/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type')||''))fail('INVALID_RESPONSE',response.status);
+   const lengthHeader=response.headers.get('content-length');
+   if(lengthHeader!==null && !/^\d+$/.test(lengthHeader))fail('INVALID_RESPONSE',response.status);
+   if(lengthHeader!==null && Number(lengthHeader)>65536)fail('RESPONSE_TOO_LARGE',response.status);
+   const reader=response.body?.getReader();
+   if(!reader)fail('INVALID_RESPONSE',response.status);
+   const chunks=[];let size=0;
+   try {
+     while(true){
+       const {value,done}=await reader.read();
+       if(done)break;
+       size+=value.byteLength;
+       if(size>65536)fail('RESPONSE_TOO_LARGE',response.status);
+       chunks.push(value);
+     }
+   }finally{await reader.cancel().catch(()=>{});}
+   const bytes=new Uint8Array(size);let offset=0;
+   for(const part of chunks){bytes.set(part,offset);offset+=part.byteLength;}
+   try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
+   catch{fail('INVALID_RESPONSE',response.status);}
+ }
  async function send(method,params={},body=null,etag=null,noneMatch=false) {
    const token=await getToken();
    if(typeof token!=='string'||token.length<1||token.length>10000)fail('AUTH_REQUIRED',401);
@@ -47,25 +72,40 @@ export function createTenantWorkspaceClient(options) {
    if(body!==null)headers['content-type']='application/json';
    if(etag!==null)headers['if-match']=validateEtag(etag);
    if(noneMatch)headers['if-none-match']='*';
-   let response;
-   try {
-     response=await fetchFn(url.href,{
+   const controller=new AbortController();
+   let timer,timedOut=false;
+   const timeout=new Promise((_,reject)=>{
+     timer=setTimeout(()=>{
+       timedOut=true;controller.abort();
+       reject(new WorkspaceRequestError('REQUEST_TIMEOUT'));
+     },requestTimeoutMs);
+   });
+   async function execute(){
+     const response=await fetchFn(url.href,{
        method,headers,body:body===null?undefined:JSON.stringify(body),
-       credentials:'omit',redirect:'error',cache:'no-store',mode:'cors'
+       credentials:'omit',redirect:'error',cache:'no-store',mode:'cors',
+       signal:controller.signal
      });
-   }catch{fail('NETWORK_UNAVAILABLE');}
-   if(!response||typeof response.ok!=='boolean')fail('INVALID_RESPONSE');
-   if(!response.ok) {
-     let code='REQUEST_FAILED';
-     try{
-       const payload=await response.json();
-       if(typeof payload?.code==='string' && /^[A-Z_]{3,64}$/.test(payload.code))code=payload.code;
-     }catch{}
-     fail(code,response.status);
+     if(!response||typeof response.ok!=='boolean')fail('INVALID_RESPONSE');
+     let data;
+     try{data=await boundedResponseJson(response);}
+     catch(error){
+       if(response.ok || error?.code!=='INVALID_RESPONSE')throw error;
+       data={};
+     }
+     if(!response.ok){
+       let code='REQUEST_FAILED';
+       if(typeof data?.code==='string'&&/^[A-Z_]{3,64}$/.test(data.code))code=data.code;
+       fail(code,response.status);
+     }
+     return {data,etag:response.headers.get('etag')};
    }
-   let data;
-   try{data=await response.json();}catch{fail('INVALID_RESPONSE',response.status);}
-   return {data,etag:response.headers.get('etag')};
+   try{return await Promise.race([execute(),timeout]);}
+   catch(error){
+     if(timedOut)fail('REQUEST_TIMEOUT');
+     if(error instanceof WorkspaceRequestError)throw error;
+     fail('NETWORK_UNAVAILABLE');
+   }finally{clearTimeout(timer);}
  }
  function successfulTag(tag) {
    if(!ETAG.test(tag||''))fail('INVALID_RESPONSE');
