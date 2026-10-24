@@ -1,5 +1,20 @@
 # MUSITU ATLAS Axiom — owner OAuth connection handoff (24 October 2026)
 
+## Verified continuation — 25 October 2026
+
+**Isolated private lab deployment:** `dpl_6vsSkjVqKRd2GA2XKdvKq1RcMiR8` is Vercel READY at `https://musitu-atlas-ai-lab.vercel.app/?tab=axiom`, pinned commit `d509385fdd52bedd449d77ab3feedca8f9e7533c` before this documentation-only update. The deployment kept private SSO enabled. No production Axiom core, main or commercial ATLAS code changed.
+
+**Public issuer verified live (read-only):** GET `https://auth.mftintelligence.com/.well-known/oauth-authorization-server` and GET `/health` both returned HTTP 200 via GitHub Actions. Issuer metadata positively advertised the canonical authorization/token/registration endpoints, `S256` PKCE and `axiom.execute` scope. Workflow `ATLAS Axiom Live Issuer Discovery Read-only` passed after correcting a cosmetic service-name mismatch. This proves issuer discovery, **not** that the ATLAS callback client has registered or that the account is entitled.
+
+**Account-state UX:** `/api/axiom/capabilities` now exposes a separate, credential-free `issuerDiscovery` result; the mobile ATLAS desk displays issuer availability separately from the website-client switch. Regression `ATLAS Owner OAuth Session Contract` passed, including PKCE, encrypted stored tokens, single-use callback, rotation and read-only issuer discovery in mocks. Zero real account operations were run.
+
+**Actual Cloudflare gate — explicit evidence:** The isolated GitHub Actions `ATLAS Cloudflare OAuth Access Preflight (Read Only)` failed because GitHub Actions secret `CLOUDFLARE_AXIOM_DEPLOY_TOKEN` is **not configured**. No Cloudflare requests were sent in that check. The earlier October 24 legacy deploy path failed with HTTP 401 during its first D1 request and did not deploy that attempted worker revision. The feature-branch production deployment job is intentionally skipped; it must not mutate the real issuer until owner-authorized credentials and manual rollout review exist.
+
+**Unchanged hard locks:** `ATLAS_AXIOM_OAUTH_ENABLED` is unset; `ATLAS_AXIOM_OAUTH_CLIENT_ID` is unset; `ATLAS_AXIOM_EXECUTE_ENABLED` is unset. `ATLAS_AXIOM_OAUTH_DATA_KEY` exists only as Vercel Sensitive, never committed or displayed. OAuth sessions are not yet linked, no compute metering has been incurred by this connection work, and the retired static bearer is not used by the execution path.
+
+**One external owner action:** Via `https://dash.cloudflare.com/profile/api-tokens` issue a scoped account/zone token, matching the exact worker deployment operations and Cloudflare account/D1 permissions; save it **directly** at `https://github.com/evansmusitu/mft-axiom-build/settings/secrets/actions` with name `CLOUDFLARE_AXIOM_DEPLOY_TOKEN`. Never put the raw value into chat, issues or repository content. Afterwards rerun the safe read-only preflight, review and authorize a staged issuer deploy, then register the specific named ATLAS OAuth client. Keep live owner execution disabled until authorization and compute-receipt tests pass.
+
+
 **Continuation only.** Isolated source branch: `feature/atlas-axiom-oauth-owner-web-20261024`.
 Private ATLAS Vercel project: `prj_OnSD5cwqsgrGDoDoRD1owAnov6yG`.
 Do not merge or modify protected `main`, commercial ATLAS, the production Axiom MCP core, or the original ChatGPT OAuth client. No paid AI upgrades.
