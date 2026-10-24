@@ -121,3 +121,16 @@ test('reject incorrect response media type and malformed content-length header b
   await assert.rejects(api.list(),error=>error.code==='INVALID_RESPONSE');
  }
 });
+
+test('signed Access token is never sent to public, capacity-canary, or unrelated same-account Workers',()=>{
+ const fetcher=async()=>{throw Error('network must not be called');};
+ for(const name of [
+  'musitu-intelligence-edge-20261019',
+  'musitu-intelligence-edge-capacity-canary-20261019',
+  'musitu-saas-test',
+  'musitu-notes-private',
+ ]){
+  assert.throws(()=>setup(fetcher,{baseUrl:'https://'+name+'.mft-education-nexus-93f395f5.workers.dev'}),
+   error=>error.code==='INVALID_ENDPOINT',name);
+ }
+});
