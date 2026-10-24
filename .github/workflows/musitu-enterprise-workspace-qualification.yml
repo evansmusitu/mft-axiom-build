@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Assert pinned no-deploy release boundary
+        run: python3 studio-edge/tests/enterprise_release_boundary.py
       - name: Syntax
         run: |
           node --check studio-edge/enterprise-workspace.mjs
