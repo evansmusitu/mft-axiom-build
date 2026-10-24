@@ -179,7 +179,10 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
      const stored=await repository.read(id);
      if(!stored||stored.publisherId!==actor.publisherId)
        return json(404,{ok:false,code:'submission_not_found',...denied});
-     const receipt=await intakeQuarantinedApk({req,submission:stored,actor,quarantine,repository});
+     const receipt=await intakeQuarantinedApk({req,submission:stored,actor,quarantine,repository,
+      revalidateSession:async()=>isTokenActive({tokenId:actor.tokenId,subject:actor.subject,
+       role:actor.role,publisherId:actor.publisherId,expiresAt:actor.expiresAt,
+       issuer:actor.issuer,audience:actor.audience})});
      return json(202,{ok:true,id,...receipt,...denied});
    }
    if(type==='read'){

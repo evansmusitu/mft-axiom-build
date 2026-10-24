@@ -18,7 +18,7 @@ function jwt(patch={}){
  return signed+'.'+sign('sha256',Buffer.from(signed),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 }
 function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expectedBytes=apk.length,
- failSeal=false,failDb=false,missingStore=false}={}){
+ failSeal=false,failDb=false,missingStore=false,isTokenActive=async()=>true}={}){
  const record={id:'sub-'+'e'.repeat(32),publisherId:owner,actorId:'developer-actor-1',
   apkSha256:expectedHash,apkBytes:expectedBytes,reviews:[]};
  const objects=[];let writes=0,aborts=0,revokes=0,dbWrites=0;
@@ -34,7 +34,7 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
  const portal=createDeveloperPortal({issuer:'https://idp.example.org',audience:'store-v2-internal',
   publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},repository:repo,
   quarantine:missingStore?undefined:store,origin:ORIGIN,now:()=>time*1000,
-  isTokenActive:async()=>true});
+  isTokenActive});
  async function upload({path='/developer/submissions/'+record.id+'/apk',method='PUT',token=jwt(),
    type='application/vnd.android.package-archive',bytes=body,headers={}}={}){
   const all={authorization:'Bearer '+token,'content-type':type,...headers};
@@ -106,4 +106,17 @@ test('SQL repository binds exact manifest in atomic INSERT, never trusts client 
  assert.match(calls[0].sql,/ON CONFLICT DO NOTHING/);
  assert.equal(calls[0].params.length,5);
  assert.ok(!calls[0].sql.includes('test-publisher'));
+});
+
+test('session revoked during upload is denied before seal and cannot append receipt',async()=>{
+ let n=0;const h=harness({isTokenActive:async()=>++n===1});
+ const r=await h.upload();assert.equal(r.status,401);
+ assert.equal(h.dbWrites,0);assert.equal(h.aborts,1);assert.equal(h.revokes,0);
+ assert.equal(n,2,'portal authentication and pre-seal revalidation required');
+});
+test('post-seal revocation recheck fails closed and revokes stored blob',async()=>{
+ let n=0;const h=harness({isTokenActive:async()=>++n<3});
+ const r=await h.upload();assert.equal(r.status,401);
+ assert.equal(h.dbWrites,0);assert.equal(h.aborts,1);assert.equal(h.revokes,1);
+ assert.equal(n,3);
 });

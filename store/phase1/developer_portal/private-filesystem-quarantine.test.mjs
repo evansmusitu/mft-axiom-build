@@ -59,10 +59,10 @@ test('service intake writes only unscanned private object; conflicted receipt re
  const repo={async recordUpload(x){calls++;assert.equal(x.publisherId,'owner-tenant');
    if(calls===1){storedKey=x.objectKey;return {kind:'created'};}
    return {kind:'conflict'};}};
- const good=await intakeQuarantinedApk({req:req(),submission,actor,quarantine:q,repository:repo});
+ const good=await intakeQuarantinedApk({req:req(),submission,actor,quarantine:q,repository:repo,revalidateSession:async()=>true});
  assert.equal(good.state,'QUARANTINED_UNSCANNED');
  assert.deepEqual(await q.inspectForPrivateTests(storedKey),apk);
- await assert.rejects(intakeQuarantinedApk({req:req(),submission,actor,quarantine:q,repository:repo}),e=>e.httpStatus===409);
+ await assert.rejects(intakeQuarantinedApk({req:req(),submission,actor,quarantine:q,repository:repo,revalidateSession:async()=>true}),e=>e.httpStatus===409);
  assert.equal((await readdir(root)).length,1,'concurrent loser must not leave an orphan');
  assert.equal(await q.revoke(storedKey),true);
  assert.deepEqual(await readdir(root),[]);
