@@ -152,6 +152,9 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     // Map only the known SQLite abort marker; all other failures stay fail-closed.
     if(request.method === 'PUT' && String(error?.message || '').includes('tenant_artifact_limit_exceeded'))
       return fail('TENANT_ARTIFACT_LIMIT',409,origin);
+    if((request.method === 'PUT' || request.method === 'DELETE') &&
+       String(error?.message || '').includes('tenant_mutation_budget_exceeded'))
+      return fail('TENANT_MUTATION_LIMIT',429,origin);
     return fail('STORE_UNAVAILABLE',503,origin);
   }
 }
