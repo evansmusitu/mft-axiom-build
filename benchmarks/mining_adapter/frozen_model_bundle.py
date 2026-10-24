@@ -27,6 +27,18 @@ from benchmarks.mining_adapter.methane_prediction import PredictionExample
 PUBLIC_DEV_SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
 SCHEMA = 'musitu.axiom.frozen_methane_lightgbm.v1'
 
+def _unique_model_manifest_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    record: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in record:
+            raise ValueError('frozen_manifest_duplicate_json_key')
+        record[key] = value
+    return record
+
+
+def _reject_manifest_nonstandard_number(value: str) -> None:
+    raise ValueError('frozen_manifest_nonstandard_json_number')
+
 
 def _hash(data: bytes) -> str:
     return sha256(data).hexdigest()
@@ -163,7 +175,8 @@ def load_frozen_bundle(bundle_dir: Path, *, expected_manifest_sha256: str | None
     if (not hmac.compare_digest(digest, expected_manifest_sha256)
             or not hmac.compare_digest(digest, sidecar)):
         raise ValueError('frozen_manifest_sha256_mismatch')
-    manifest = json.loads(raw)
+    manifest = json.loads(raw, object_pairs_hook=_unique_model_manifest_pairs,
+                          parse_constant=_reject_manifest_nonstandard_number)
     if (manifest.get('schema') != SCHEMA or manifest.get('research_only') is not True
             or manifest.get('production_admission') is not False
             or manifest.get('independent_validation') is not False
