@@ -1,6 +1,6 @@
 import {mcpCall,respond,fail,authConfigured,requestId} from './_contract.js';
 import {ledgerReady,auditStatus,assessRuntimeRole} from './_ledger.js';
-import {finishOAuth,oauthConfigured,sessionStatus} from './_oauth.js';
+import {finishOAuth,oauthConfigured,sessionStatus,publicIssuerStatus} from './_oauth.js';
 export default async function handler(req:any,res:any){
  if(req.method!=='GET')return respond(res,405,{error:'Method not allowed.'});
  const u=new URL(String(req.url||'/api/axiom/capabilities'),'https://musitu-atlas-ai-lab.vercel.app');
@@ -23,7 +23,7 @@ export default async function handler(req:any,res:any){
   if(!Array.isArray(all)||!all.length)throw Object.assign(new Error('Axiom registry returned no tools.'),{code:502});
   const math=all.filter((item:any)=>typeof item?.name==='string'&&item.name.startsWith('axiom_'));
   const hasArithmetic=math.some((item:any)=>item.name==='axiom_arithmetic_evaluate');
-  const [audit,role,oauth]=await Promise.all([ledgerReady()?auditStatus().catch(()=>null):null,ledgerReady()?assessRuntimeRole().catch(()=>null):null,sessionStatus().catch(()=>({configured:false,connected:false,status:'UNAVAILABLE'}))]);
+  const [audit,role,oauth,issuer]=await Promise.all([ledgerReady()?auditStatus().catch(()=>null):null,ledgerReady()?assessRuntimeRole().catch(()=>null):null,sessionStatus().catch(()=>({configured:false,connected:false,status:'UNAVAILABLE'})),publicIssuerStatus()]);
   return respond(res,200,{
    source:'live MUSITU Axiom MCP tools/list',
    endpoint:'mcp.mftintelligence.com',
@@ -34,6 +34,7 @@ export default async function handler(req:any,res:any){
    executionConfigured:authConfigured()&&ledgerReady()&&role?.restricted===true,
    credentialStored:Boolean(process.env.AXIOM_MCP_BEARER_TOKEN),
    oauthConfigured:oauthConfigured(),oauthSession:oauth,
+   issuerDiscovery:issuer,
    ledgerConfigured:ledgerReady(),ledgerOperational:audit!==null,ledger:audit,
    runtimeRoleRestricted:role?.restricted===true,
    runtimeRoleChecked:role!==null,
