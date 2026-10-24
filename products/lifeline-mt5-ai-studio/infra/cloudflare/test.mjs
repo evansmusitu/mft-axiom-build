@@ -278,3 +278,53 @@ test('signed owner cannot pass status arguments or extra RPC parameters to Modal
     assert.equal(calls,1);
   }finally{globalThis.fetch=original;}
 });
+
+test('authenticated owner sees binding names but no secrets or backend requests',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='readiness-owner';jwk.alg='RS256';jwk.use='sig';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'readiness-owner'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const redactionMarker='never-reflect-this-secret-value-0123456789';
+  const partial={ACCESS_ISSUER:E.ACCESS_ISSUER,ACCESS_AUD:E.ACCESS_AUD,
+    ACCESS_OPERATOR_SUB:E.ACCESS_OPERATOR_SUB,MODAL_PROXY_KEY:redactionMarker};
+  const old=globalThis.fetch;let jwks=0,backend=0;
+  try{
+    globalThis.fetch=async url=>{
+      if(String(url).includes('/cdn-cgi/access/certs')){
+        jwks++;
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      }
+      backend++;throw Error('readiness must never reach private backend');
+    };
+    const make=(suffix='',headers={})=>new Request('https://lifeline.example/owner/readiness'+suffix,{headers});
+    const unauthenticated=await worker.fetch(make(),partial);
+    assert.equal(unauthenticated.status,401);
+    const allowed=await worker.fetch(make('',{'cf-access-jwt-assertion':token}),partial);
+    assert.equal(allowed.status,200);
+    assert.equal(allowed.headers.get('cache-control'),'no-store');
+    const response=await allowed.text();
+    assert.equal(response.includes(redactionMarker),false);
+    const status=JSON.parse(response);
+    assert.equal(status.configured_bindings,1);
+    assert.equal(status.required_bindings,7);
+    assert.equal(status.backend_connected,false);
+    assert.equal(status.native_windows_connected,false);
+    assert.equal(status.trading_enabled,false);
+    assert.equal(status.missing_bindings.includes('MODAL_PROXY_SECRET'),true);
+    const withQuery=await worker.fetch(make('?client=ignored',{'cf-access-jwt-assertion':token}),partial);
+    assert.equal(withQuery.status,400);
+    const post=await worker.fetch(message('/owner/readiness',{}, {'cf-access-jwt-assertion':token}),partial);
+    assert.equal(post.status,405);
+    assert.equal(jwks,1);
+    assert.equal(backend,0);
+  }finally{globalThis.fetch=old;}
+});
+
+test('unconfigured owner identity cannot read binding inventory',async()=>{
+  const response=await worker.fetch(new Request('https://lifeline.example/owner/readiness'),
+    {MODAL_PROXY_KEY:'top-secret-but-owner-auth-unavailable'});
+  assert.equal(response.status,503);
+  assert.equal(JSON.stringify(await response.json()).includes('top-secret'),false);
+});

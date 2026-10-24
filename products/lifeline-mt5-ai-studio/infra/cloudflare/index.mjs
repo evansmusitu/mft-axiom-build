@@ -1,4 +1,5 @@
 import {createRemoteJWKSet, jwtVerify} from 'jose';
+import {backendBindingReadiness} from './backend_readiness.mjs';
 
 // LIFELINE Cloudflare Access gateway. Broker/finance trading is forbidden on this surface.
 const TOOL_ALLOWLIST=new Set(['lifeline_status']);
@@ -85,6 +86,17 @@ export default {async fetch(request,env){
       trading_enabled:false,
       private_backend_connected:false,
       windows_host_connected:false},200);
+  }
+  if(path==='/owner/readiness'){
+    // This route is deliberately diagnostic-only: never invoke Modal/Neon or
+    // return raw values, hashes or lengths of any credential to the browser.
+    if(request.method!=='GET')return reply({error:'method_not_allowed'},405);
+    if(new URL(request.url).search)return reply({error:'unexpected_query'},400);
+    const ownerCfg=readOwnerConfig(env);
+    if(!ownerCfg)return reply({error:'owner_identity_not_configured'},503);
+    const subject=await authenticateAccess(request,env,ownerCfg);
+    if(!subject)return reply({error:'access_jwt_required'},401);
+    return reply(backendBindingReadiness(env),200);
   }
   const cfg=readConfig(env);
   if(!cfg)return reply({error:'not_configured'},503);
