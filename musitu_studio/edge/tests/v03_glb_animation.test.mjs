@@ -105,3 +105,46 @@ test('animated local geometry + sampled node quaternion equals static baked geom
   for(let k=0;k<3;k++)near(transformed[k],ps[i][k],2e-5);
  }
 });
+
+test('a 720-degree rotation in a single frame interval has enough keys to preserve two turns',()=>{
+ const input=sample();input.frame_end=2;
+ input.animations=[{object:'Orbit',axis:'Z',degrees:720,start:1,end:2}];
+ const {data,bin}=parse(buildAnimatedSceneGlb(input));
+ const sampler=data.animations[0].samplers[0];
+ const times=access(data,bin,sampler.input).map(v=>v[0]);
+ const rotations=access(data,bin,sampler.output);
+ assert.ok(times.length>=9,'need intermediate subframe samples for 720-degree spin');
+ assert.equal(rotations.length,times.length);
+ near(times[0],0);near(times.at(-1),1/30);
+ for(let i=1;i<times.length;i++){
+  assert.ok(times[i]>times[i-1],'strictly increasing glTF keyframe time');
+  const dot=rotations[i].reduce((s,x,k)=>s+x*rotations[i-1][k],0);
+  assert.ok(dot>0.70,`rotation cannot jump across shortest arc: ${dot}`);
+ }
+ const mid=Math.floor((rotations.length-1)/2);
+ // At frame 1.5 (360 degrees), quaternion must reach the opposite hemisphere.
+ near(rotations[mid][3],-1,0.0001);
+});
+
+test('simultaneous compressed XYZ rotations use a common bounded subframe timeline',()=>{
+ const input=sample();input.frame_end=3;
+ input.animations=[
+  {object:'Orbit',axis:'X',degrees:720,start:1,end:2},
+  {object:'Orbit',axis:'Y',degrees:-720,start:1,end:2},
+  {object:'Orbit',axis:'Z',degrees:720,start:1,end:2},
+  {object:'Still',axis:'Z',degrees:360,start:1,end:2},
+ ];
+ const {data,bin}=parse(buildAnimatedSceneGlb(input));
+ assert.equal(data.animations[0].channels.length,2);
+ const [first,second]=data.animations[0].samplers;
+ assert.equal(first.input,second.input);
+ const times=access(data,bin,first.input).map(t=>t[0]);
+ assert.ok(times.length>24,'combined angular speed requires subdivision');
+ assert.ok(times.length<100,'must remain bounded');
+ const q=access(data,bin,first.output);
+ for(let i=1;i<q.length;i++){
+  assert.ok(times[i]>times[i-1]);
+  assert.ok(q[i].reduce((s,x,k)=>s+x*q[i-1][k],0)>0.69);
+ }
+ near(times.at(-1),2/30);
+});

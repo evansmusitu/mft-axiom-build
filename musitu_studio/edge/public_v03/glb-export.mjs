@@ -95,17 +95,42 @@ export function buildSceneGlb(scene,frame=1,{animate=false}={}){
     nodes,meshes,materials,accessors,bufferViews,buffers:[{byteLength:align4(binSize)}]};
   if(animate&&(s.animations??[]).length){
     const keyCount=s.frame_end??24, fps=30;
-    // A frame-by-frame sampling is bounded by the scene schema (<=120 frames,
-    // <=16 tracks), and handles simultaneous X/Y/Z rotations correctly.
-    const timeline=Array.from({length:keyCount},(_,i)=>Math.fround(i/fps));
+    // A 360° or 720° turn between adjacent frames cannot be represented by
+    // endpoint quaternions alone: glTF LINEAR interpolation takes the shorter
+    // arc and can erase the intended full revolutions. Insert bounded subframe
+    // keys when angular travel exceeds 90° per interval. The summed XYZ travel
+    // provides a conservative bound for simultaneous rotation tracks.
+    const activeByObject=new Map();
+    for(const track of s.animations??[]){
+      if(!activeByObject.has(track.object))activeByObject.set(track.object,[]);
+      activeByObject.get(track.object).push(track);
+    }
+    const motionAt=(track,f)=>{
+      const progress=Math.max(0,Math.min(1,(f-track.start)/(track.end-track.start)));
+      return track.degrees*progress;
+    };
+    const subframes=[1];
+    for(let frame=1;frame<keyCount;frame++){
+      let maxTravel=0;
+      for(const tracks of activeByObject.values()){
+        const travel=tracks.reduce((sum,t)=>
+          sum+Math.abs(motionAt(t,frame+1)-motionAt(t,frame)),0);
+        maxTravel=Math.max(maxTravel,travel);
+      }
+      // The validated scene bounds any one object to three axes * 720°.
+      const steps=Math.max(1,Math.ceil(maxTravel/90));
+      for(let part=1;part<=steps;part++)subframes.push(frame+part/steps);
+    }
+    const timeline=subframes.map(f=>Math.fround((f-1)/fps));
     const input=addFloatBuffer(timeline,'SCALAR',[0],[Math.fround((keyCount-1)/fps)]);
+    const poses=subframes.map(frame=>poseAtFrame(s,frame));
     const animation={name:s.job_id+' rotation',channels:[],samplers:[]};
     for(let node=0;node<s.objects.length;node++){
       const obj=s.objects[node];
       if(!(s.animations??[]).some(track=>track.object===obj.name))continue;
       const output=[];let previous=null;
-      for(let f=1;f<=keyCount;f++){
-        const rotations=poseAtFrame(s,f)[node].rotations;
+      for(const pose of poses){
+        const rotations=pose[node].rotations;
         let q=quatFor(rotations);
         // glTF slerp uses the shortest quaternion arc. Preserve 360°/720°
         // motion by continuous hemisphere selection between adjacent keys.
@@ -134,7 +159,7 @@ export function buildSceneGlb(scene,frame=1,{animate=false}={}){
   return out;
 }
 
-/** Exports sampled rotation animation, preserving every declared frame at 30fps. */
+/** Exports 30 FPS rotation animation with bounded subframe keys for rapid turns. */
 export function buildAnimatedSceneGlb(scene){return buildSceneGlb(scene,1,{animate:true})}
 
 /** Download is an explicit user gesture; never submit, upload or render. */
