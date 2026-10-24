@@ -75,6 +75,15 @@ confusion matrices, positive support and scores, digests and privacy-conscious
 preflight metadata. It does **not** train, update weights, recalibrate alerts,
 request credentials, upload mine data, or modify Connect runtime.
 
+Integrity across inference: after scoring, the evaluator rehashes the original
+external-source manifest and the frozen bundle's manifest, model bytes and digest
+sidecar. A manifest or model file changed while the long-running scoring pass is
+underway fails closed instead of producing apparently SHA-backed results. Both
+evaluator and evidence-gate CLI outputs use exclusive file creation: a competing
+writer cannot silently replace an existing audit file after an earlier path
+check. These controls **do not** independently authenticate an operator,
+sensor calibration or physical methane events.
+
 The evidence audit recomputes all confusion and F2 metrics; checks source and
 bundle checksums and the original task thresholds, and may report that a single
 research cohort passes descriptive performance thresholds. **It always leaves
