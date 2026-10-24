@@ -1,0 +1,15 @@
+✔ private review export is disabled by default and rejects foreign business/origin before export (6.052491ms)
+✔ review approval, canonical fresh-key representation and exact input shape are mandatory (2.514713ms)
+✔ authenticated scope is bound by server and response contains only encrypted bytes with safe receipt headers (1.715884ms)
+✔ owner revocation committed during encryption prevents delivery after export work finishes (1.522094ms)
+✔ expired/replaced sessions, denied owner membership and corrupt/oversize results fail without disclosure (2.838419ms)
+✔ browser download preparation uses a new key per request and verifies ciphertext digest (8.806193ms)
+✔ browser preparation rejects oversized, stalled and redirected downloads without returning a key (27.882146ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 146.162591

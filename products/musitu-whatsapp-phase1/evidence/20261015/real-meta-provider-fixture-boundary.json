@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-10-15T18:44:23.081Z",
+  "scope": "GENUINE_META_DASHBOARD_SYNTHETIC_FIXTURE_TRANSPORT_NOT_CUSTOMER_TRAFFIC",
+  "appId": "1096094346481018",
+  "graphFixtureVersion": "v26.0",
+  "receiverSource": "0da9c4d48d56887e056e73190e797be8ed1de6fb",
+  "receiverDeployment": "dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd",
+  "tests": [
+    {
+      "sampleType": "Incoming Message",
+      "timestamp": "2026-10-15T18:37:21.379Z",
+      "httpStatus": 422,
+      "providerUi": "Successfully tested",
+      "expectedAdmission": "DENIED_UNBOUND_SAMPLE_CHANNEL"
+    },
+    {
+      "sampleType": "Status Message / Delivered",
+      "timestamp": "2026-10-15T18:41:10.247Z",
+      "httpStatus": 422,
+      "providerUi": "Successfully tested",
+      "expectedAdmission": "DENIED_UNBOUND_SAMPLE_CHANNEL"
+    }
+  ],
+  "evidenceLimitation": "422 establishes signed payload rejection after HMAC validation, not a persisted customer message or genuine sent-message delivery receipt. The public reply deliberately does not expose rejection details.",
+  "runtimeLog": "## Runtime Logs\n\n**Project:** prj_mHTGlXe8GPj4WEFeGgXdAIh6H0aL\n**Deployment:** dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd\n**Time range:** 2026-10-15T18:37:00.090Z → 2026-10-15T18:42:00.090Z\n\n### 2026-10-15T18:41:10.247Z POST /api/meta/webhook [info/function]\ndep=dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd branch=0da9c4d48d56887e056e73190e797be8ed1de6fb request=cw8vr-1792089670072-d2ffed26f267 domain=musitu-whatsapp-meta-receiver-20261015-5e92j7yrd-evansmusitu.vercel.app environment=preview region=sfo1 runtime=nodejs24.x stream=stdout\n    {\"event\":\"MUSITU_META_CALLBACK_HTTP\",\"method\":\"POST\",\"status\":422,\"queryCount\":0,\"modeKeyCount\":0,\"tokenKeyCount\":0,\"challengeKeyCount\":0}\n\n### 2026-10-15T18:37:21.379Z POST /api/meta/webhook [info/function]\ndep=dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd branch=0da9c4d48d56887e056e73190e797be8ed1de6fb request=wp9t8-1792089440668-f1b70c76fb34 domain=musitu-whatsapp-meta-receiver-20261015-5e92j7yrd-evansmusitu.vercel.app environment=preview region=sfo1 runtime=nodejs24.x stream=stdout\n    {\"event\":\"MUSITU_META_CALLBACK_HTTP\",\"method\":\"POST\",\"status\":422,\"queryCount\":0,\"modeKeyCount\":0,\"tokenKeyCount\":0,\"challengeKeyCount\":0}\n",
+  "databaseCounts": "[\n  [\n    {\n      \"set_config\": \"986eb904-7296-46a9-9e9b-94074db9b547\"\n    }\n  ],\n  [\n    {\n      \"database_name\": \"musitu_whatsapp_phase1\",\n      \"current_user\": \"musitu_ingress\",\n      \"session_user\": \"musitu_ingress\",\n      \"accepted_inbound_events\": \"0\",\n      \"accepted_status_events\": \"0\",\n      \"persisted_messages\": \"0\"\n    }\n  ]\n]",
+  "customerMessagesSent": 0,
+  "wabaSubscriptionsChanged": false,
+  "appPublished": false
+}

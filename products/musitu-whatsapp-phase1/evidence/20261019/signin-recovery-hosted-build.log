@@ -1,0 +1,82 @@
+Running build in Washington, D.C., USA (East) – iad1
+Build machine configuration: 2 cores, 8 GB
+Cloning github.com/evansmusitu/mft-axiom-build (Branch: ba970aa0b6153166192d352e534f7c185064d603, Commit: ba970aa)
+Previous build caches not available.
+Cloning completed: 421.000ms
+Running "vercel build"
+Vercel CLI 64.3.1
+Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Running "install" command: `npm ci --ignore-scripts --no-audit --no-fund`...
+npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+added 44 packages in 6s
+Detected Next.js version: 16.4.0
+Running "node scripts/staging-postgres-qualification.mjs && npm run build"
+REAL_PG_PASS direct_login_nonowner_nobypass
+REAL_PG_PASS all_rls_policies
+REAL_PG_PASS runtime_grant_ceiling
+REAL_PG_PASS extension_and_identity_privilege_ceiling
+REAL_PG_PASS cross_tenant_membership_denial
+REAL_PG_PASS all_tables_context_isolation
+REAL_PG_PASS invalid_context_fails_closed
+REAL_PG_PASS changed_context_and_rollback
+REAL_PG_PASS cross_tenant_write_denial
+REAL_PG_PASS direct_membership_update_denied
+REAL_PG_PASS synthetic_signed_ingress_into_real_pg
+REAL_PG_PASS encrypted_message_and_contact_ledger
+REAL_PG_PASS second_business_message_ledger_isolation
+REAL_PG_PASS private_session_scope_and_logout_revocation
+REAL_PG_PASS business_configuration_and_approved_knowledge
+REAL_PG_PASS staff_enrollment_and_immediate_revocation
+REAL_PG_PASS signed_status_reconciliation_real_pg_synthetic_only
+REAL_PG_PASS ingress_replay_protection
+REAL_PG_PASS ingress_forged_signature_denied
+REAL_PG_PASS human_review_and_consent_required
+REAL_PG_PASS stop_suppression_and_no_auto_resubscribe
+REAL_PG_PASS handover_command_and_audit
+REAL_PG_PASS previously_revoked_staff_denied
+REAL_PG_PASS ten_simultaneous_booking_requests
+REAL_PG_PASS booking_replay_and_content_conflict
+REAL_PG_PASS new_pool_recovery
+{"runId":"83c8e061-419b-4d1b-9414-25becd6cb1cd","timestamp":"2026-10-19T10:37:55.734Z","scope":"REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP","passed":26,"failed":0,"results":[{"name":"direct_login_nonowner_nobypass","status":"PASS","detail":null},{"name":"all_rls_policies","status":"PASS","detail":{"role":"musitu_runtime","tablesChecked":21,"policiesChecked":21,"qualified":true}},{"name":"runtime_grant_ceiling","status":"PASS","detail":{"qualified":true,"tablesChecked":15,"insertTablesChecked":4,"mode":"EFFECTIVE_PRIVILEGES"}},{"name":"extension_and_identity_privilege_ceiling","status":"PASS","detail":{"qualified":true,"extensionReadOnlyTables":6,"opaqueSessionRls":true,"temporaryDatabaseObjectsDenied":true}},{"name":"cross_tenant_membership_denial","status":"PASS","detail":null},{"name":"all_tables_context_isolation","status":"PASS","detail":{"tables":21,"scopes":3}},{"name":"invalid_context_fails_closed","status":"PASS","detail":null},{"name":"changed_context_and_rollback","status":"PASS","detail":null},{"name":"cross_tenant_write_denial","status":"PASS","detail":null},{"name":"direct_membership_update_denied","status":"PASS","detail":null},{"name":"synthetic_signed_ingress_into_real_pg","status":"PASS","detail":{"eventSource":"SYNTHETIC_NOT_META","receipts":[{"tenantId":"00000000-0000-4000-8000-00000000000a","phoneNumberId":"PHONE_A","providerMessageId":"wamid.83c8e061-419b-4d1b-9414-25becd6cb1cd","conversationId":"e7fb6040-34f9-460c-9248-b483abc07249","status":"ACCEPTED","draftStatus":"DRAFT"}]}},{"name":"encrypted_message_and_contact_ledger","status":"PASS","detail":null},{"name":"second_business_message_ledger_isolation","status":"PASS","detail":null},{"name":"private_session_scope_and_logout_revocation","status":"PASS","detail":{"scope":"SESSION_DATABASE_NOT_LIVE_KEYCLOAK"}},{"name":"business_configuration_and_approved_knowledge","status":"PASS","detail":null},{"name":"staff_enrollment_and_immediate_revocation","status":"PASS","detail":null},{"name":"sign...[truncated]
+npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+  Applying modifyConfig from Vercel
+✓ Running next.config.mjs took 70ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.0s
+  Running TypeScript ...
+  Finished TypeScript in 7ms ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/2) ...
+✓ Generating static pages using 1 worker (2/2) in 120ms
+  Finalizing page optimization ...
+  Running onBuildComplete from Vercel
+Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/meta/webhook
+├ ƒ /api/onboard
+├ ƒ /api/status
+├ ƒ /api/tenants/[tenant]/[...operation]
+├ ƒ /auth/[action]
+└ ƒ /sign-in-help
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Build Completed in /vercel/output [22s]
+Deploying outputs...
+Deployment completed
+Creating build cache...
+Created build cache: 8s
+Uploading build cache [149.77 MB]
+Build cache uploaded: 1.655s

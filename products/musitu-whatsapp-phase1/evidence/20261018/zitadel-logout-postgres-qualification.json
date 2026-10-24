@@ -1,0 +1,179 @@
+{
+  "runId": "8b768cde-e5cf-48e4-83c6-aae426b02b92",
+  "timestamp": "2026-10-18T14:50:39.387Z",
+  "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+  "passed": 26,
+  "failed": 0,
+  "results": [
+    {
+      "name": "direct_login_nonowner_nobypass",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "all_rls_policies",
+      "status": "PASS",
+      "detail": {
+        "role": "musitu_runtime",
+        "tablesChecked": 21,
+        "policiesChecked": 21,
+        "qualified": true
+      }
+    },
+    {
+      "name": "runtime_grant_ceiling",
+      "status": "PASS",
+      "detail": {
+        "qualified": true,
+        "tablesChecked": 15,
+        "insertTablesChecked": 4,
+        "mode": "EFFECTIVE_PRIVILEGES"
+      }
+    },
+    {
+      "name": "extension_and_identity_privilege_ceiling",
+      "status": "PASS",
+      "detail": {
+        "qualified": true,
+        "extensionReadOnlyTables": 6,
+        "opaqueSessionRls": true,
+        "temporaryDatabaseObjectsDenied": true
+      }
+    },
+    {
+      "name": "cross_tenant_membership_denial",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "all_tables_context_isolation",
+      "status": "PASS",
+      "detail": {
+        "tables": 21,
+        "scopes": 3
+      }
+    },
+    {
+      "name": "invalid_context_fails_closed",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "changed_context_and_rollback",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "cross_tenant_write_denial",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "direct_membership_update_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "synthetic_signed_ingress_into_real_pg",
+      "status": "PASS",
+      "detail": {
+        "eventSource": "SYNTHETIC_NOT_META",
+        "receipts": [
+          {
+            "tenantId": "00000000-0000-4000-8000-00000000000a",
+            "phoneNumberId": "PHONE_A",
+            "providerMessageId": "wamid.8b768cde-e5cf-48e4-83c6-aae426b02b92",
+            "conversationId": "6d3195b1-00b9-44f4-bdb3-a698460fce79",
+            "status": "ACCEPTED",
+            "draftStatus": "DRAFT"
+          }
+        ]
+      }
+    },
+    {
+      "name": "encrypted_message_and_contact_ledger",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "second_business_message_ledger_isolation",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "private_session_scope_and_logout_revocation",
+      "status": "PASS",
+      "detail": {
+        "scope": "SESSION_DATABASE_NOT_LIVE_KEYCLOAK"
+      }
+    },
+    {
+      "name": "business_configuration_and_approved_knowledge",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "staff_enrollment_and_immediate_revocation",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "signed_status_reconciliation_real_pg_synthetic_only",
+      "status": "PASS",
+      "detail": {
+        "eventSource": "SYNTHETIC_NOT_META",
+        "monotonicState": "DELIVERED"
+      }
+    },
+    {
+      "name": "ingress_replay_protection",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "ingress_forged_signature_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "human_review_and_consent_required",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "stop_suppression_and_no_auto_resubscribe",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "handover_command_and_audit",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "previously_revoked_staff_denied",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "ten_simultaneous_booking_requests",
+      "status": "PASS",
+      "detail": {
+        "confirmed": 1,
+        "conflicts": 9
+      }
+    },
+    {
+      "name": "booking_replay_and_content_conflict",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "new_pool_recovery",
+      "status": "PASS",
+      "detail": {
+        "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+      }
+    }
+  ]
+}

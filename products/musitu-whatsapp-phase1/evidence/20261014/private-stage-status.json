@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "status": 200,
+  "statusText": "OK",
+  "text": "{\"phase1\":\"IN_PROGRESS\",\"publicMessaging\":false,\"identityConfigured\":false,\"databaseConfigured\":true,\"modelConfigured\":false,\"metaConfigured\":false,\"axiomConfigured\":false}",
+  "headers": {
+    "age": "0",
+    "cache-control": "no-store",
+    "content-encoding": "br",
+    "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+    "content-type": "application/json",
+    "date": "Wed, 14 Oct 2026 03:13:53 GMT",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "no-referrer",
+    "server": "Vercel",
+    "strict-transport-security": "max-age=31536000",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "x-matched-path": "/api/status",
+    "x-robots-tag": "noindex",
+    "x-vercel-cache": "MISS",
+    "x-vercel-id": "bom1:iad1::iad1::9ldxf-1791947633322-45bb50490fc7"
+  }
+}

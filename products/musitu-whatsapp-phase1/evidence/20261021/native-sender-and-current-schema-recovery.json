@@ -1,0 +1,116 @@
+{
+  "schema": "musitu.phase1.native_concurrency_and_schema_recovery.v1",
+  "sourceCommit": "84729e6cd368d24a0abb3d5db3d4d1039a52ccf1",
+  "buildId": "dpl_2wua4aoH9shL2bfULj9V6eMZy3sK",
+  "report": {
+    "observedAt": "2026-10-21T21:47:07.968Z",
+    "scope": "DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP",
+    "postgresVersion": "17.10",
+    "migrations": 15,
+    "passed": 6,
+    "failed": 0,
+    "results": [
+      {
+        "name": "runtime_identity_and_no_direct_outbound_authority",
+        "status": "PASS",
+        "detail": {
+          "role": "musitu_runtime",
+          "rolsuper": false,
+          "rolbypassrls": false,
+          "insert_allowed": false
+        }
+      },
+      {
+        "name": "ten_same_key_requests_one_committed_transport",
+        "status": "PASS",
+        "detail": {
+          "contenders": 10,
+          "syntheticPosts": 1,
+          "attemptRows": 1
+        }
+      },
+      {
+        "name": "ten_keys_same_source_one_committed_transport",
+        "status": "PASS",
+        "detail": {
+          "contenders": 10,
+          "syntheticPosts": 1,
+          "attemptRows": 1
+        }
+      },
+      {
+        "name": "ten_conversations_share_uncertain_attempt_gate",
+        "status": "PASS",
+        "detail": {
+          "contenders": 10,
+          "syntheticPosts": 1,
+          "attemptRows": 1
+        }
+      },
+      {
+        "name": "uncertain_transport_survives_new_pool_without_resend",
+        "status": "PASS",
+        "detail": {
+          "syntheticPosts": 1,
+          "replayPosts": 0,
+          "newPool": true
+        }
+      },
+      {
+        "name": "concurrent_daily_budget_never_exceeds_five",
+        "status": "PASS",
+        "detail": {
+          "preexistingSyntheticAttempts": 4,
+          "contenders": 10,
+          "additionalSyntheticPosts": 1,
+          "totalAttemptRows": 5
+        }
+      }
+    ],
+    "recovery": {
+      "scope": "NATIVE_SYNTHETIC_CURRENT_SCHEMA_ENCRYPTED_RESTORE_NOT_HOSTED_BACKUP",
+      "status": "PASS",
+      "migrations": 15,
+      "tables": 22,
+      "rowFingerprintsMatched": 22,
+      "schemaSecurityFingerprintMatched": true,
+      "unscopedAndForeignTenantReadsDenied": true,
+      "unknownAttemptsRetained": 1,
+      "suppressionsRetained": 1,
+      "encryptedMessagesRecovered": 16,
+      "offsiteRetrievalQualified": false,
+      "secondCustodianQualified": false
+    },
+    "realMetaPosts": 0,
+    "identityQualified": false,
+    "hostedDatabaseTouched": false,
+    "executionEnvironment": "DISPOSABLE_BUILD_NONROOT_POSTGRES",
+    "postgresOsUid": 65534,
+    "fixtureCleanupPassed": true,
+    "serverStopped": true,
+    "temporaryFilesRemoved": true
+  },
+  "buildConclusion": {
+    "qualifierExitCode": 0,
+    "deliberateTerminalExitCode": 78,
+    "reason": "QUALIFICATION_ONLY_NO_APP_PROMOTION",
+    "applicationDeployed": false
+  },
+  "earlierRuns": [
+    {
+      "buildId": "dpl_AVzEjVwmFDSosUaVm9xJhfLswctS",
+      "status": "FAILED_TEST_ASSERTION",
+      "reason": "Actual PostgreSQL error name is lowercase error; assertion now matches exact message and SQLSTATE P0001."
+    },
+    {
+      "buildId": "dpl_9dPw3JQ9jG9TGpqTrs3GFnUaNT19",
+      "status": "SIX_NATIVE_CHECKS_PASSED",
+      "sourceCommit": "333d8dc855780a73922d734bdadb35b6a3d534ab"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixed-target HTTP; no real Meta send, owner identity, or delivery qualification.",
+    "Synthetic native recovery is not a fresh hosted database backup or independent offsite retrieval.",
+    "No backup schedule, alert delivery, second custodian, or independent approval is established."
+  ]
+}

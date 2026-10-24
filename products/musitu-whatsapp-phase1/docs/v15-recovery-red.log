@@ -1,0 +1,99 @@
+TAP version 13
+# (node:9118) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: online backup captures committed WAL rows; encrypted restore preserves opt-out and audit across reopening
+not ok 1 - online backup captures committed WAL rows; encrypted restore preserves opt-out and audit across reopening
+  ---
+  duration_ms: 6.668013
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:20:1'
+  failureType: 'testCodeFailure'
+  error: 'BACKUP_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    backupEncryptedPrivateStage (file:///mnt/data/musitu-whatsapp-phase1-v15/src/private-stage/encrypted-recovery.mjs:1:59)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:21:38)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: tampered and wrong-key backups are rejected without creating or overwriting destination
+not ok 2 - tampered and wrong-key backups are rejected without creating or overwriting destination
+  ---
+  duration_ms: 4.33183
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:35:1'
+  failureType: 'testCodeFailure'
+  error: 'BACKUP_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    backupEncryptedPrivateStage (file:///mnt/data/musitu-whatsapp-phase1-v15/src/private-stage/encrypted-recovery.mjs:1:59)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:36:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: existing target path is never overwritten and source identity remains a separate requirement
+not ok 3 - existing target path is never overwritten and source identity remains a separate requirement
+  ---
+  duration_ms: 2.858293
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:44:1'
+  failureType: 'testCodeFailure'
+  error: 'BACKUP_NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    backupEncryptedPrivateStage (file:///mnt/data/musitu-whatsapp-phase1-v15/src/private-stage/encrypted-recovery.mjs:1:59)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:45:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: missing, malformed and truncated archive or key fail closed
+not ok 4 - missing, malformed and truncated archive or key fail closed
+  ---
+  duration_ms: 3.224284
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:52:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /BACKUP_KEY_REQUIRED/. Input:
+    
+    'Error: BACKUP_NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'BACKUP_NOT_IMPLEMENTED'
+  stack: |-
+    backupEncryptedPrivateStage (file:///mnt/data/musitu-whatsapp-phase1-v15/src/private-stage/encrypted-recovery.mjs:1:59)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:54:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-encrypted-recovery.test.mjs:54:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 86.42002

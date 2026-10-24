@@ -1,0 +1,68 @@
+✖ private review export is disabled by default and rejects foreign business/origin before export (6.002757ms)
+✔ review approval, canonical fresh-key representation and exact input shape are mandatory (2.129114ms)
+✖ authenticated scope is bound by server and response contains only encrypted bytes with safe receipt headers (1.395274ms)
+✖ owner revocation committed during encryption prevents delivery after export work finishes (0.674782ms)
+✔ expired/replaced sessions, denied owner membership and corrupt/oversize results fail without disclosure (2.762175ms)
+✔ browser download preparation uses a new key per request and verifies ciphertext digest (8.733955ms)
+✔ browser preparation rejects oversized, stalled and redirected downloads without returning a key (27.795305ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 4
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120.949397
+
+✖ failing tests:
+
+test at test/v27-privacy-review-http.test.mjs:20:1
+✖ private review export is disabled by default and rejects foreign business/origin before export (6.002757ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 404
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/9bde8d1df964/working/products/musitu-whatsapp-phase1/test/v27-privacy-review-http.test.mjs:21:98)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 404,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/v27-privacy-review-http.test.mjs:33:1
+✖ authenticated scope is bound by server and response contains only encrypted bytes with safe receipt headers (1.395274ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/9bde8d1df964/working/products/musitu-whatsapp-phase1/test/v27-privacy-review-http.test.mjs:39:9)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/v27-privacy-review-http.test.mjs:42:1
+✖ owner revocation committed during encryption prevents delivery after export work finishes (0.674782ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/9bde8d1df964/working/products/musitu-whatsapp-phase1/test/v27-privacy-review-http.test.mjs:44:88)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

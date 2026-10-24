@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: least-privilege runtime has only read and three explicit insert tables
+ok 1 - least-privilege runtime has only read and three explicit insert tables
+  ---
+  duration_ms: 1.755674
+  type: 'test'
+  ...
+# Subtest: runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+ok 2 - runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+  ---
+  duration_ms: 0.747384
+  type: 'test'
+  ...
+# Subtest: column-level UPDATE grant is not mistaken for least privilege
+ok 3 - column-level UPDATE grant is not mistaken for least privilege
+  ---
+  duration_ms: 0.171012
+  type: 'test'
+  ...
+# Subtest: trusted non-bypass role and full RLS plus tenant policy matrix qualify in one leased client
+ok 4 - trusted non-bypass role and full RLS plus tenant policy matrix qualify in one leased client
+  ---
+  duration_ms: 1.6379
+  type: 'test'
+  ...
+# Subtest: native PostgreSQL pg_policies expression formatting and text-array roles are accepted without weakening tenant scope
+ok 5 - native PostgreSQL pg_policies expression formatting and text-array roles are accepted without weakening tenant scope
+  ---
+  duration_ms: 0.383537
+  type: 'test'
+  ...
+# Subtest: Neon owner BYPASSRLS detected despite FORCE ROW LEVEL SECURITY
+ok 6 - Neon owner BYPASSRLS detected despite FORCE ROW LEVEL SECURITY
+  ---
+  duration_ms: 0.406261
+  type: 'test'
+  ...
+# Subtest: superusers, role mismatch, weak or incomplete RLS matrix fail closed
+ok 7 - superusers, role mismatch, weak or incomplete RLS matrix fail closed
+  ---
+  duration_ms: 0.378059
+  type: 'test'
+  ...
+# Subtest: missing, duplicated or broadened tenant policy rejects an otherwise secure RLS role
+ok 8 - missing, duplicated or broadened tenant policy rejects an otherwise secure RLS role
+  ---
+  duration_ms: 1.411265
+  type: 'test'
+  ...
+# Subtest: qualification errors release leased client and never return success
+ok 9 - qualification errors release leased client and never return success
+  ---
+  duration_ms: 0.206034
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 67.406348

@@ -1,0 +1,19 @@
+✔ online introspection fails closed for missing or malformed expiry, revocation and mismatched identities (1.988818ms)
+✔ provider logout is pinned, has an exact callback and never carries session tokens or client secrets (1.209211ms)
+✔ logout and login flow purposes cannot be interchanged or returned with another state (0.253499ms)
+✔ late business responses cannot repopulate a changed view, including switching back to the original business (0.23405ms)
+✔ new requests supersede older replies and logout invalidates pending messages and errors (0.15996ms)
+✔ ZITADEL requires explicit provider, canonical generated HTTPS origin and separate API audience credentials (1.441319ms)
+✔ Keycloak remains the default with its original pinned realm paths (0.212859ms)
+✔ ZITADEL uses separately scoped Basic authentication for token exchange and introspection (0.485647ms)
+✔ discovery is an assertion against pinned endpoints, never an instruction to follow an arbitrary URL (0.416794ms)
+✔ ZITADEL online validation requires exact issuer, client, subject, expiration and API audience (0.371967ms)
+✔ ZITADEL logout preserves exact callback and state without exposing tokens or secrets (0.83419ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.110137

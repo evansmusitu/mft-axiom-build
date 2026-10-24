@@ -1,0 +1,249 @@
+{
+  "scope": "PRIVATE_GOVERNED_DEVELOPMENT_REPLY_DEPLOYMENT_NO_SEND",
+  "deployment": {
+    "id": "dpl_ASAVXQWD5PzTWNRfdzN1rMkffxX9",
+    "source": "6307c0a85e65bdfd222f6a1378d0127049aab94d",
+    "readyState": "READY",
+    "target": "staging"
+  },
+  "stableAliasDeployment": "dpl_ASAVXQWD5PzTWNRfdzN1rMkffxX9",
+  "previousStableDeployment": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+  "defaultBuildRestored": true,
+  "ssoProtection": {
+    "enabled": true,
+    "deploymentType": "all"
+  },
+  "live": false,
+  "hostedQualification": {
+    "runId": "f9afb971-4d40-48ec-bbc5-502a92b62eb9",
+    "timestamp": "2026-10-20T09:48:14.607Z",
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+    "passed": 26,
+    "failed": 0,
+    "results": [
+      {
+        "name": "direct_login_nonowner_nobypass",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_rls_policies",
+        "status": "PASS",
+        "detail": {
+          "role": "musitu_runtime",
+          "tablesChecked": 21,
+          "policiesChecked": 21,
+          "qualified": true
+        }
+      },
+      {
+        "name": "runtime_grant_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "tablesChecked": 15,
+          "insertTablesChecked": 4,
+          "mode": "EFFECTIVE_PRIVILEGES"
+        }
+      },
+      {
+        "name": "extension_and_identity_privilege_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "extensionReadOnlyTables": 6,
+          "opaqueSessionRls": true,
+          "temporaryDatabaseObjectsDenied": true
+        }
+      },
+      {
+        "name": "cross_tenant_membership_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_tables_context_isolation",
+        "status": "PASS",
+        "detail": {
+          "tables": 21,
+          "scopes": 3
+        }
+      },
+      {
+        "name": "invalid_context_fails_closed",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "changed_context_and_rollback",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "cross_tenant_write_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "direct_membership_update_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "synthetic_signed_ingress_into_real_pg",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "receipts": [
+            {
+              "tenantId": "00000000-0000-4000-8000-00000000000a",
+              "phoneNumberId": "PHONE_A",
+              "providerMessageId": "wamid.f9afb971-4d40-48ec-bbc5-502a92b62eb9",
+              "conversationId": "fabe6f7f-6412-4182-a3f5-25eb68a11fd7",
+              "status": "ACCEPTED",
+              "draftStatus": "DRAFT"
+            }
+          ]
+        }
+      },
+      {
+        "name": "encrypted_message_and_contact_ledger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "second_business_message_ledger_isolation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "private_session_scope_and_logout_revocation",
+        "status": "PASS",
+        "detail": {
+          "scope": "SESSION_DATABASE_NOT_LIVE_KEYCLOAK"
+        }
+      },
+      {
+        "name": "business_configuration_and_approved_knowledge",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "staff_enrollment_and_immediate_revocation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "signed_status_reconciliation_real_pg_synthetic_only",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "monotonicState": "DELIVERED"
+        }
+      },
+      {
+        "name": "ingress_replay_protection",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ingress_forged_signature_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "human_review_and_consent_required",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "stop_suppression_and_no_auto_resubscribe",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "handover_command_and_audit",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "previously_revoked_staff_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ten_simultaneous_booking_requests",
+        "status": "PASS",
+        "detail": {
+          "confirmed": 1,
+          "conflicts": 9
+        }
+      },
+      {
+        "name": "booking_replay_and_content_conflict",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "new_pool_recovery",
+        "status": "PASS",
+        "detail": {
+          "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+        }
+      }
+    ]
+  },
+  "tokenAppInspection": {
+    "observedAt": "2026-10-20T09:48:14.787Z",
+    "scope": "EXACT_TEST_WABA_ADD_CURRENT_DEV_APP_PRESERVE_EXISTING_SUBSCRIBERS",
+    "appId": "1096094346481018",
+    "wabaId": "1955690452095441",
+    "phoneId": "1292923853915392",
+    "writeAttempted": false,
+    "operations": [
+      {
+        "method": "GET",
+        "operation": "TOKEN_APP_ID",
+        "httpStatus": 200
+      }
+    ],
+    "tokenAppId": "1096094346481018",
+    "tokenAppMatched": true,
+    "status": "TOKEN_APP_ID_VERIFIED_NO_WRITE",
+    "noSendAttempted": true,
+    "noCallbackOverride": true
+  },
+  "health": {
+    "httpStatus": 200,
+    "body": {
+      "status": "HEALTHY_PRIVATE_STAGING",
+      "phase1Complete": false,
+      "publicMessaging": false
+    }
+  },
+  "unauthenticatedHistory": {
+    "httpStatus": 403,
+    "body": {
+      "error": "ACCESS_DENIED"
+    }
+  },
+  "database": [
+    {
+      "observed_at": "2026-10-20T09:50:21.541Z",
+      "inbound_count": "1",
+      "outbound_count": "0",
+      "consent_count": "0",
+      "status_count": "0"
+    }
+  ],
+  "reviewUrl": "https://musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app/?business=986eb904-7296-46a9-9e9b-94074db9b547",
+  "browserVerified": {
+    "conversationsSelected": true,
+    "businessPrefilled": true,
+    "authenticatedReviewNotPerformed": true,
+    "screenshot": "musitu-development-review-1792489786264.jpg"
+  },
+  "humanApprovalPending": true,
+  "noSendAttempted": true,
+  "phase1Complete": false
+}

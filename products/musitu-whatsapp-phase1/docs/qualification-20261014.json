@@ -1,0 +1,36 @@
+{
+  "candidate": "1.8.0",
+  "phase1_complete": false,
+  "public_release_authorized": false,
+  "local_tests": {
+    "pass": 220,
+    "fail": 0
+  },
+  "hosted_postgres_tests": {
+    "pass": 26,
+    "fail": 0,
+    "evidence": "evidence/20261014/real-postgres-qualification-meta-http.json",
+    "provider_events": "synthetic"
+  },
+  "nextjs_optimized_build": "PASS",
+  "restricted_native_roles_rls": "PASS",
+  "latest_schema_backup_restore": "BLOCKED_SNAPSHOT_CAPACITY",
+  "authenticated_chromium": "BLOCKED_VERCEL_SIGN_IN_AND_OIDC_SETUP",
+  "live_meta": "APP_CREATED_TEST_NUMBER_OBSERVED_NO_SEND_OR_CALLBACK",
+  "live_model": "UNVERIFIED",
+  "axiom_connector_arithmetic": "PASS_SINGLE_OPERATION",
+  "axiom_saas_service_identity": "UNVERIFIED",
+  "required_release_gates": "REMAIN_BLOCKED",
+  "latest_schema_branch_recovery_checkpoint": "PASS_20_RELATION_CHECKSUMS_AND_RESTRICTED_LOGIN",
+  "provider_logout": "IMPLEMENTED_LOCAL_TESTED_LIVE_UNVERIFIED",
+  "meta_account_access": "AVAILABLE_APP_CREATED",
+  "meta_http_boundary": "LOCAL_6_CASES_PASS_LIVE_META_UNVERIFIED",
+  "meta_development_app_id": "1096094346481018",
+  "meta_test_number_observed": true,
+  "meta_access_token": "NOT_GENERATED",
+  "isolated_callback_receiver": "READY_17_GENUINE_HTTP_BOUNDARY_CHECKS_PASS_META_UNCONFIGURED",
+  "isolated_callback_evidence": "evidence/20261015/hosted-isolated-http-final.json",
+  "isolated_callback_source": "47ce72ec817747a32318114a37f3fa98bd90fc89",
+  "isolated_callback_project": "prj_mHTGlXe8GPj4WEFeGgXdAIh6H0aL",
+  "isolated_callback_credentials": "4_ENCRYPTED_PREVIEW_VALUES_INSTALLED_META_SECRET_BINDINGS_RECIPIENTS_PENDING"
+}

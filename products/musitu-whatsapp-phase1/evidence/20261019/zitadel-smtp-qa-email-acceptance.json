@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "scope": "ACTUAL_SMTP_QA_EMAIL_VERIFIED_TOTP_READY_EXISTING_FACTOR_CALLBACK_DENIED_NOT_STAFF_SESSION",
+  "phase1_complete": false,
+  "source_head": "0082ff7a60c37103892209b28b46e0d9e57781ba",
+  "runtime_source": "4ffd3f2163c5eac9998ec5a453963d96c4fb7306",
+  "authorization": {
+    "smtp_setup_previously_approved": true,
+    "new_credentials_user_controlled": true,
+    "lost_first_key_revocation_explicitly_approved": true,
+    "extra_diagnostic_test_or_manual_resend_performed": false
+  },
+  "smtp": {
+    "provider_id": "395779741543625920",
+    "description": "MUSITU Phase1 isolated authentication",
+    "host_port": "smtp.resend.com:587",
+    "tls": true,
+    "username": "resend",
+    "sender_address": "musitu-auth@mftintelligence.com",
+    "sender_name": "MUSITU Phase1 Staging",
+    "reply_to": "",
+    "initially_active": false,
+    "activated": true,
+    "independent_activation_indicator": "data-e2e=active-provider; la-check-circle",
+    "password_read_or_changed_by_agent": false
+  },
+  "credentials": {
+    "lost_key_revoked": "01c58fc6-8075-4f4d-bad3-42dca5fa01fb",
+    "r1_key_id": "a65149c9-8cdb-4bcb-8890-de7295a537ed",
+    "r2_key_id": "9eaf00bd-5324-4d01-86d6-c783441da905",
+    "r2_created_at": "2026-10-19T08:33:56.093116Z",
+    "r1_and_onboarding_still_listed": true,
+    "r2_permission_and_domain_independently_verified": true,
+    "smtp_key_binding_independently_verified": false,
+    "secrets_read_or_recorded": false,
+    "r2_permission": "Sending access",
+    "r2_domain": "mftintelligence.com",
+    "no_secret_read_claim_scope": "SMTP credentials only; separate QA seed exposure is recorded below."
+  },
+  "qa_authentication": {
+    "existing_user_id": "395706056631686016",
+    "selected_username": "musitu-phase1-staff-qa",
+    "password_accepted_in_actual_flow": true,
+    "provider_rendered_new_verification_email_sent": true,
+    "email_code_submitted_via_secure_entry": true,
+    "email_code_accepted_by_ui": true,
+    "next_page": "Existing-factor login reached SaaS callback; FLOW_VALIDATION rejected.",
+    "email_verified_profile_flag_independently_read": true,
+    "new_mfa_enrollment_user_handoff": true,
+    "mfa_completed": true,
+    "signed_staff_saas_session_qualified": false,
+    "staff_role_or_revocation_acceptance_qualified": false,
+    "mfa_completion_scope": "Provider enrollment TOTP Ready; secure MFA acceptance remains open due to actual seed exposure.",
+    "existing_password_and_code_secure_requests_submitted": true,
+    "actual_callback_diagnostic": {
+      "at": "2026-10-19T10:00:35.721Z",
+      "event": "MUSITU_IDENTITY_DENIED",
+      "stage": "FLOW_VALIDATION",
+      "reason": "ERR_JWE_INVALID",
+      "claim": "NONE"
+    },
+    "flow_cookie_lifetime_seconds": 600,
+    "expiry_explanation": "INFERENCE: elapsed login exceeded flow lifetime; no cookie/token value inspected.",
+    "fresh_account_entry_request_result": "submitted; final Welcome back page unchanged after more than ten minutes; no further password/code request in expired window."
+  },
+  "delivery": {
+    "provider_email_id": "01a1535b-4e86-7289-a390-c8bc51e258a0",
+    "created_at": "2026-10-19T08:50:55.381Z",
+    "provider_status": "delivered",
+    "recipient_count": 1,
+    "recipient_scope": "EXISTING_OWNER_CONTROLLED_QA_GMAIL",
+    "gmail_method": "METADATA_ONLY",
+    "gmail_labels": [
+      "UNREAD",
+      "CATEGORY_UPDATES",
+      "INBOX"
+    ],
+    "gmail_internal_date_ms": "1792399855000",
+    "exact_provider_message_id_matches": true,
+    "sender_matches": true,
+    "recipient_matches": true,
+    "spf": "pass",
+    "dkim": "pass",
+    "dmarc": "NOT_REPORTED_IN_INSPECTED_HEADERS",
+    "body_snippet_or_code_read": false
+  },
+  "remaining": [
+    "Verify exact SMTP key binding without exposing a secret.",
+    "Respect existing-factor no-reset instruction; unresolved QA seed exposure remains an acceptance issue.",
+    "Complete fresh signed staff session, actual allowed/denied actions, revocation and remaining Phase1 gates."
+  ],
+  "protected_systems_changed": false,
+  "runtime_code_or_deployment_changed": false,
+  "public_launch": false,
+  "qa_security_incident": {
+    "actual_setup_seed_exposed_in_browser_tab_metadata": true,
+    "credential_value_persisted_in_evidence": false,
+    "otp_derived_from_seed": false,
+    "exposed_tabs_closed": true,
+    "user_explicitly_instructed_no_reset": true,
+    "factor_reset_performed": false,
+    "security_acceptance_resolved": false
+  },
+  "session_aggregate": {
+    "observed_at": "2026-10-19T10:01:49.426Z",
+    "total_sessions": 16,
+    "active_unexpired_sessions": 0,
+    "latest_expiry": "2026-10-19T09:43:47.643Z",
+    "contents_read_or_decrypted": false,
+    "qa_identity_attributed": false
+  }
+}

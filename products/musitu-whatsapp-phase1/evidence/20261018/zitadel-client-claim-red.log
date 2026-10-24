@@ -1,0 +1,42 @@
+✔ cryptographic JWT verification precedes online introspection; revoked tokens fail on immediate reuse (15.357184ms)
+✔ wrong issuer, audience, client, expiry, signature and algorithm never reach introspection (95.231796ms)
+✔ provider failure after an earlier successful request cannot reuse cached active status (2.708176ms)
+✖ signed ZITADEL access client_id can identify the exact web client when azp is absent (1.58241ms)
+✖ missing, malformed or conflicting signed client identifiers never reach introspection (4.293001ms)
+✔ ID token must bind nonce, subject and authorized client to the same login flow (4.787026ms)
+✔ code exchange forwards PKCE to pinned token endpoint and uses web credentials only (0.643013ms)
+✔ unresponsive HTTP or response stream is bounded even if the transport ignores abort (41.644398ms)
+✔ identity transport rejects redirects, unexpected status/type and oversized JSON (1.228871ms)
+✔ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (5.756472ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 8
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 468.850236
+
+✖ failing tests:
+
+test at test/v18-zitadel-provider-transport.test.mjs:37:1
+✖ signed ZITADEL access client_id can identify the exact web client when azp is absent (1.58241ms)
+  Error: TOKEN_CLIENT_REJECTED
+      at Object.verifyAccess (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/src/staging/identity-provider.mjs:32:83)
+      at async TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-provider-transport.test.mjs:39:16)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+
+test at test/v18-zitadel-provider-transport.test.mjs:43:1
+✖ missing, malformed or conflicting signed client identifiers never reach introspection (4.293001ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-provider-transport.test.mjs:45:250)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }

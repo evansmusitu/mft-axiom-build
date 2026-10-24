@@ -1,0 +1,301 @@
+{
+  "observedAt": "2026-10-20T05:35:13.274Z",
+  "scope": "ACTUAL_PROTECTED_STAGING_HEALTH_AND_HOSTED_DATABASE_QUALIFICATION",
+  "runtimeCommit": "3f7eb7b3be8d65a51e13e09387035c4e8ae5043c",
+  "deployment": {
+    "id": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+    "name": "musitu-whatsapp-phase1-private-20261014",
+    "url": "musitu-whatsapp-phase1-private-20261014-m44p4mugj-evansmusitu.vercel.app",
+    "type": "LAMBDAS",
+    "state": "READY",
+    "createdAt": 1792474422715,
+    "creator": {
+      "uid": "28fJc3gJCfQ093CSgWKom7pP",
+      "username": "evansmusitu"
+    },
+    "project": {
+      "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+      "name": "musitu-whatsapp-phase1-private-20261014",
+      "framework": "nextjs"
+    },
+    "meta": {
+      "githubCommitRef": "3f7eb7b3be8d65a51e13e09387035c4e8ae5043c",
+      "githubCommitSha": "3f7eb7b3be8d65a51e13e09387035c4e8ae5043c",
+      "githubCommitMessage": "fix(musitu): add bounded private staging operational health",
+      "githubRepo": "mft-axiom-build",
+      "githubOrg": "evansmusitu"
+    },
+    "alias": [
+      "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+      "musitu-whatsapp-phase1-private-20261014-git-2de204-evansmusitu.vercel.app"
+    ],
+    "target": "staging",
+    "regions": [
+      "iad1"
+    ],
+    "buildingAt": 1792474423924,
+    "ready": 1792474451342,
+    "readyState": "READY",
+    "aliasError": null
+  },
+  "health": {
+    "success": true,
+    "status": 200,
+    "statusText": "OK",
+    "text": "{\"status\":\"HEALTHY_PRIVATE_STAGING\",\"phase1Complete\":false,\"publicMessaging\":false}",
+    "headers": {
+      "age": "0",
+      "cache-control": "no-store",
+      "content-encoding": "br",
+      "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+      "content-type": "application/json",
+      "date": "Tue, 20 Oct 2026 05:34:41 GMT",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "referrer-policy": "no-referrer",
+      "server": "Vercel",
+      "strict-transport-security": "max-age=31536000",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-matched-path": "/api/health",
+      "x-robots-tag": "noindex",
+      "x-vercel-cache": "MISS",
+      "x-vercel-id": "arn1:iad1::iad1::sbm94-1792474480939-5963656d2d69"
+    }
+  },
+  "postgres": {
+    "runId": "71d4025d-6f83-4a05-b8fc-696da220ebb0",
+    "timestamp": "2026-10-20T05:33:58.452Z",
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+    "passed": 26,
+    "failed": 0,
+    "results": [
+      {
+        "name": "direct_login_nonowner_nobypass",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_rls_policies",
+        "status": "PASS",
+        "detail": {
+          "role": "musitu_runtime",
+          "tablesChecked": 21,
+          "policiesChecked": 21,
+          "qualified": true
+        }
+      },
+      {
+        "name": "runtime_grant_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "tablesChecked": 15,
+          "insertTablesChecked": 4,
+          "mode": "EFFECTIVE_PRIVILEGES"
+        }
+      },
+      {
+        "name": "extension_and_identity_privilege_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "extensionReadOnlyTables": 6,
+          "opaqueSessionRls": true,
+          "temporaryDatabaseObjectsDenied": true
+        }
+      },
+      {
+        "name": "cross_tenant_membership_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_tables_context_isolation",
+        "status": "PASS",
+        "detail": {
+          "tables": 21,
+          "scopes": 3
+        }
+      },
+      {
+        "name": "invalid_context_fails_closed",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "changed_context_and_rollback",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "cross_tenant_write_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "direct_membership_update_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "synthetic_signed_ingress_into_real_pg",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "receipts": [
+            {
+              "tenantId": "00000000-0000-4000-8000-00000000000a",
+              "phoneNumberId": "PHONE_A",
+              "providerMessageId": "wamid.71d4025d-6f83-4a05-b8fc-696da220ebb0",
+              "conversationId": "68a3814a-f6f5-4f4f-9d5a-53601ddcc70c",
+              "status": "ACCEPTED",
+              "draftStatus": "DRAFT"
+            }
+          ]
+        }
+      },
+      {
+        "name": "encrypted_message_and_contact_ledger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "second_business_message_ledger_isolation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "private_session_scope_and_logout_revocation",
+        "status": "PASS",
+        "detail": {
+          "scope": "SESSION_DATABASE_NOT_LIVE_KEYCLOAK"
+        }
+      },
+      {
+        "name": "business_configuration_and_approved_knowledge",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "staff_enrollment_and_immediate_revocation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "signed_status_reconciliation_real_pg_synthetic_only",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "monotonicState": "DELIVERED"
+        }
+      },
+      {
+        "name": "ingress_replay_protection",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ingress_forged_signature_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "human_review_and_consent_required",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "stop_suppression_and_no_auto_resubscribe",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "handover_command_and_audit",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "previously_revoked_staff_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ten_simultaneous_booking_requests",
+        "status": "PASS",
+        "detail": {
+          "confirmed": 1,
+          "conflicts": 9
+        }
+      },
+      {
+        "name": "booking_replay_and_content_conflict",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "new_pool_recovery",
+        "status": "PASS",
+        "detail": {
+          "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+        }
+      }
+    ]
+  },
+  "protection": {
+    "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "name": "musitu-whatsapp-phase1-private-20261014",
+    "framework": "nextjs",
+    "accountId": "team_9iEOhSAcZojn7sEClzc1Y8E6",
+    "createdAt": 1791929592596,
+    "updatedAt": 1792330480203,
+    "nodeVersion": "24.x",
+    "live": false,
+    "latestDeployment": {
+      "id": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+      "url": "musitu-whatsapp-phase1-private-20261014-m44p4mugj-evansmusitu.vercel.app",
+      "createdAt": 1792474422715,
+      "readyState": "READY",
+      "target": "staging"
+    },
+    "domains": [
+      "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+      "musitu-whatsapp-phase1-private-20261014-git-06e25d-evansmusitu.vercel.app"
+    ],
+    "passwordProtection": {
+      "enabled": false,
+      "deploymentType": null
+    },
+    "ssoProtection": {
+      "enabled": true,
+      "deploymentType": "all"
+    },
+    "trustedIps": {
+      "enabled": false,
+      "deploymentType": null,
+      "addresses": [],
+      "protectionMode": null
+    }
+  },
+  "axiom": {
+    "serviceCredentialPresent": false,
+    "adapter": "DISABLED_UNLESS_QUALIFIED_EXECUTOR_SUPPLIED",
+    "operatorProviderStatus": {
+      "schema": "musitu.axiom.operator-provider-status.v1",
+      "status": "UNAVAILABLE",
+      "external_provider_execution_authority": false,
+      "provider_admission_required": true,
+      "production_authority": false
+    }
+  },
+  "evidenceLimits": {
+    "databaseEvents": "SYNTHETIC_NO_META_NO_IDP",
+    "hostedDatabaseOutageTest": false,
+    "scheduledMonitor": false,
+    "alertDelivery": false,
+    "scheduledRecovery": false,
+    "staffAcceptance": false,
+    "phase1Complete": false,
+    "publicLaunch": false
+  }
+}

@@ -1,0 +1,125 @@
+
+> musitu-whatsapp-phase1-private-stage@0.2.0 verify
+> npm run check && npm test && npm run audit:hashes
+
+
+> musitu-whatsapp-phase1-private-stage@0.2.0 check
+> node --check src/core/*.mjs && node --check src/adapters/*.mjs && node --check src/private-stage/*.mjs && node --check scripts/local-demo.mjs
+
+
+> musitu-whatsapp-phase1-private-stage@0.2.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+ok 1 - Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+  ---
+  duration_ms: 2.011583
+  type: 'test'
+  ...
+# Subtest: provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+ok 2 - provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+  ---
+  duration_ms: 1.854356
+  type: 'test'
+  ...
+# Subtest: WABA mismatch and unknown phone fail closed
+ok 3 - WABA mismatch and unknown phone fail closed
+  ---
+  duration_ms: 0.774492
+  type: 'test'
+  ...
+# Subtest: inbox ingress is idempotent per tenant/provider message ID
+ok 4 - inbox ingress is idempotent per tenant/provider message ID
+  ---
+  duration_ms: 0.458854
+  type: 'test'
+  ...
+# Subtest: human takeover disables automated replies and other tenants cannot control conversation
+ok 5 - human takeover disables automated replies and other tenants cannot control conversation
+  ---
+  duration_ms: 0.7472
+  type: 'test'
+  ...
+# Subtest: all real sends, live checkout, production email and signup fail closed regardless of env variables
+ok 6 - all real sends, live checkout, production email and signup fail closed regardless of env variables
+  ---
+  duration_ms: 0.353595
+  type: 'test'
+  ...
+# Subtest: rejected cross-tenant conversation collision must not change message ledger
+ok 7 - rejected cross-tenant conversation collision must not change message ledger
+  ---
+  duration_ms: 0.387707
+  type: 'test'
+  ...
+# (node:5567) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 8 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 24.714446
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 9 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 5.243497
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 10 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 4.451715
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 11 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 5.898714
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 12 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 10.35755
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 13 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 5.264575
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 14 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 70.843492
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 15 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 4.263825
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 16 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 6.699215
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 446.464619
+
+> musitu-whatsapp-phase1-private-stage@0.2.0 audit:hashes
+> node scripts/verify-manifest.mjs
+
+LOCAL_SOURCE_MANIFEST_PASS (20 tracked files)

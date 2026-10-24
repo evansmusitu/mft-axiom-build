@@ -1,0 +1,23 @@
+{
+  "observedAt": "2026-10-15T18:50:46.457Z",
+  "deployment": "dpl_3pGQrhWd6upHDDebPmZLcXq9K44N",
+  "source": "8323922105380492b883e98be9bdc1dcb13055a7",
+  "browser": "Chromium cloud browser",
+  "observations": [
+    {
+      "action": "Open private staging root",
+      "result": "MUSITU overview rendered; identity-provider configuration pending; no records exposed"
+    },
+    {
+      "action": "Click Conversations",
+      "result": "Heading changed to Conversations; sign-in/open-business prompt retained; no business records exposed"
+    },
+    {
+      "action": "Click Sign in",
+      "result": "Browser URL policy rejected navigation; no successful business authentication; no bypass attempted"
+    }
+  ],
+  "screenshot": "browser-evidence/private-application-overview.jpg",
+  "authenticationScope": "HOSTING_ACCESS_ONLY_NOT_OWNER_OR_STAFF_OIDC",
+  "phase1Complete": false
+}

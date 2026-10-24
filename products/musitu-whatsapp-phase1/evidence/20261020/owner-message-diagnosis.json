@@ -1,0 +1,70 @@
+{
+  "scope": "USER_REPORTED_SEND_CONFIRMED_IN_META_UI_NOT_PERSISTED_IN_SAAS",
+  "observedDate": "2026-10-20",
+  "appId": "1096094346481018",
+  "metaEvent": {
+    "uiEventTime": "20/10/2026, 09:11:48",
+    "displayTimezone": "UNSTATED",
+    "providerSentAt": "2026-10-20T07:11:45.000Z",
+    "wabaMatches": true,
+    "phoneMatches": true,
+    "verifiedOwnerMatches": true,
+    "expectedTextMatches": true,
+    "providerMessageIdSha256": "66b2be7f8ea0ffbe050a02dce11f32dbe528f4e8dfad0dd135f360528412e315",
+    "rawPayloadRetained": false
+  },
+  "databaseReadbacks": [
+    {
+      "observedAt": "2026-10-20T07:12:56.033Z",
+      "inboundCount": 0,
+      "storedMessageCount": 0,
+      "latestInboundAt": null
+    },
+    {
+      "observedAt": "2026-10-20T07:20:33.486Z",
+      "inboundCount": 0,
+      "latestInboundAt": null
+    }
+  ],
+  "receiverLogRead": {
+    "firstWindow": "2026-10-20T06:53:08.134Z/2026-10-20T07:13:08.134Z",
+    "onlyEntries": "Prior operator GET400/unsignedPOST401 at06:57",
+    "laterWindow": "2026-10-20T07:08:54.313Z/2026-10-20T07:18:54.313Z",
+    "laterResult": "No matching callback logs"
+  },
+  "serverCredentialDiagnostic": {
+    "observedAt": "2026-10-20T07:17:27.495Z",
+    "scope": "GENUINE_META_TEST_WABA_READ_ONLY_NO_SEND_NO_SUBSCRIPTION_WRITE",
+    "appId": "1096094346481018",
+    "wabaId": "1955690452095441",
+    "phoneId": "1292923853915392",
+    "operations": [
+      {
+        "operation": "GET_EXACT_TEST_PHONE",
+        "httpStatus": 401
+      }
+    ],
+    "status": "PHONE_READ_DENIED",
+    "providerErrorCode": 190,
+    "providerErrorSubcode": 463,
+    "noSendAttempted": true,
+    "noSubscriptionChanged": true
+  },
+  "diagnosticDeployment": {
+    "id": "dpl_7duHnVaLqYkqiXm1s2TphhhGkqXM",
+    "state": "READY",
+    "target": "staging",
+    "source": "a5c4f297c4acf874471119a15a207efaa4042ee2",
+    "defaultBuildRestored": "node scripts/staging-postgres-qualification.mjs && npm run build",
+    "stableAliasTemporarilyAutoMoved": true,
+    "stableAliasRestoredTo": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+    "restorationIndependentlyRead": true,
+    "ssoEnabledAll": true,
+    "live": false
+  },
+  "conclusion": "Meta received exact owner message; callback delivery/persistence is not qualified. Saved credential was rejected with190/463 before subscription GET. Account subscription remains unknown, and expiry is not proven to cause inbound-delivery absence.",
+  "noSendAttempted": true,
+  "noSubscriptionChanged": true,
+  "noCredentialReplaced": true,
+  "phase1Complete": false
+}

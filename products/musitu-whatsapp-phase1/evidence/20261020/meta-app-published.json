@@ -1,0 +1,157 @@
+{
+  "scope": "CONFIRMED_META_APP_PUBLICATION_AND_NEGATIVE_RECEIVER_CHECKS_NOT_REAL_INBOUND_ACCEPTANCE",
+  "observedDate": "2026-10-20",
+  "confirmation": "User explicitly confirmed publishing isolated MUSITU AI Employee Dev for real webhook testing at 08:51:55 Africa/Harare.",
+  "appId": "1096094346481018",
+  "appName": "MUSITU AI Employee Dev",
+  "published": true,
+  "providerResult": "Your app was successfully published",
+  "providerStatus": "Published",
+  "providerFinalControl": "Unpublish",
+  "publicationScreenshotObservedAt": "2026-10-20T06:53:30.680Z",
+  "noExtraTermsOrCaptchaPresented": true,
+  "callback": {
+    "url": "https://musitu-whatsapp-meta-receiver-20261015-ad7qjgbm7-evansmusitu.vercel.app/api/meta/webhook",
+    "savedUrlReadAfterPublication": true,
+    "verifyToken": "MASKED_NOT_READ",
+    "messagesSubscribed": true,
+    "subscriptionVersion": "v26.0",
+    "callbackSubscriptionTokenChanged": false
+  },
+  "testSender": {
+    "displayNumber": "+1 (555) 663-7079",
+    "phoneNumberId": "1292923853915392",
+    "messagingAccountId": "1955690452095441",
+    "source": "Actual Step 1 Try it out rendered view after publication",
+    "newTokenGenerated": false,
+    "dashboardSendClicked": false
+  },
+  "databaseBinding": {
+    "observedAt": "2026-10-20T06:54:14.834Z",
+    "tenantId": "986eb904-7296-46a9-9e9b-94074db9b547",
+    "tenantLegalName": "MUSITU Meta Acceptance Test - Synthetic Business",
+    "tenantStatus": "ACTIVE",
+    "channelStatus": "VERIFIED",
+    "wabaId": "1955690452095441",
+    "phoneNumberId": "1292923853915392",
+    "inboundCount": 0,
+    "storedMessageCount": 0,
+    "latestInboundAt": null
+  },
+  "negativeHttpProbes": {
+    "observedAt": "2026-10-20T06:57:18.339516+00:00",
+    "scope": "UNAUTHENTICATED_NEGATIVE_CALLBACK_PROBES_NO_PROVIDER_EVENT",
+    "results": [
+      {
+        "check": "callback_get_without_verification",
+        "status": 400,
+        "body": "INVALID_VERIFY_REQUEST",
+        "headers": {
+          "age": "0",
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+          "content-type": "text/plain; charset=utf-8",
+          "date": "Tue, 20 Oct 2026 06:57:06 GMT",
+          "referrer-policy": "no-referrer",
+          "server": "envoy",
+          "strict-transport-security": "max-age=31536000",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "x-robots-tag": "noindex, nofollow, noarchive",
+          "x-vercel-cache": "MISS",
+          "x-vercel-id": "cle1::iad1::r5bbw-1792479425919-e75e28c89534",
+          "x-envoy-upstream-service-time": "825",
+          "connection": "close",
+          "transfer-encoding": "chunked"
+        }
+      },
+      {
+        "check": "callback_post_without_signature",
+        "status": 401,
+        "body": "SIGNATURE_REJECTED",
+        "headers": {
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+          "content-type": "text/plain; charset=utf-8",
+          "date": "Tue, 20 Oct 2026 06:57:12 GMT",
+          "referrer-policy": "no-referrer",
+          "server": "envoy",
+          "strict-transport-security": "max-age=31536000",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "x-robots-tag": "noindex, nofollow, noarchive",
+          "x-vercel-cache": "MISS",
+          "x-vercel-id": "cle1::iad1::lz748-1792479432429-87999daeef2d",
+          "x-envoy-upstream-service-time": "218",
+          "connection": "close",
+          "transfer-encoding": "chunked"
+        }
+      },
+      {
+        "check": "receiver_root_denied",
+        "status": 404,
+        "body": "NOT_FOUND",
+        "headers": {
+          "age": "0",
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+          "content-type": "text/plain; charset=utf-8",
+          "date": "Tue, 20 Oct 2026 06:57:18 GMT",
+          "referrer-policy": "no-referrer",
+          "server": "envoy",
+          "strict-transport-security": "max-age=31536000",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "x-robots-tag": "noindex, nofollow, noarchive",
+          "x-vercel-cache": "MISS",
+          "x-vercel-id": "cle1::iad1::tvhzf-1792479438188-ac5dc04d7b8e",
+          "x-envoy-upstream-service-time": "167",
+          "connection": "close",
+          "transfer-encoding": "chunked"
+        }
+      }
+    ]
+  },
+  "databaseAfterNegativeProbes": {
+    "observedAt": "2026-10-20T06:57:37.064Z",
+    "inboundCount": 0,
+    "storedMessageCount": 0,
+    "latestInboundAt": null
+  },
+  "saasProtectionReadback": {
+    "projectId": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "live": false,
+    "ssoEnabled": true,
+    "ssoDeploymentType": "all",
+    "runtimeDeployment": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+    "runtimeUnchanged": true
+  },
+  "receiverProjectReadback": {
+    "id": "prj_mHTGlXe8GPj4WEFeGgXdAIh6H0aL",
+    "latestDeployment": "dpl_25wBEMWyoWgAn493DaAJphkE2f4s",
+    "latestDeploymentUrl": "musitu-whatsapp-meta-receiver-20261015-4a0spcqrj-evansmusitu.vercel.app",
+    "note": "Latest deployment is not the configured callback hostname; no alias or callback was changed."
+  },
+  "receiverEnvironmentReadbackScope": "Names/types/targets only, decrypt=false. An existing META_ACCESS_TOKEN key name remains listed; prior runbook records its value cleared. This turn did not decrypt or independently requalify emptiness. No sender credential installed or rotated.",
+  "genuineInboundQualified": false,
+  "outboundAttempted": false,
+  "providerReceiptsQualified": false,
+  "modelRequestSent": false,
+  "phase1Complete": false,
+  "nextTest": {
+    "actor": "Owner using already verified WhatsApp recipient number",
+    "destination": "+1 555 663 7079",
+    "text": "MUSITU phase1 test 20261020",
+    "expectedEvidence": "Fresh genuine provider event persisted under exact synthetic channel; compare provider ID/time and encrypted-row presence without exposing private content. No automatic reply expected."
+  },
+  "preserved": [
+    "Protected SaaS SSO",
+    "Original Nexus and other production products",
+    "No customer imports",
+    "No new permissions or subscriptions",
+    "No charges/upgrades",
+    "No password/factor resets",
+    "Draft PR unmerged",
+    "Release gate blocked"
+  ]
+}

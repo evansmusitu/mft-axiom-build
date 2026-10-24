@@ -1,0 +1,141 @@
+TAP version 13
+# Subtest: builds exact official Graph text-message contract without credentials or side effects
+not ok 1 - builds exact official Graph text-message contract without credentials or side effects
+  ---
+  duration_ms: 1.067344
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:6:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    buildMetaTextSubmission (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-send-protocol.mjs:1:49)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:7:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: rejects invalid Graph versions, phones, raw recipients, unapproved extensions and long bodies
+not ok 2 - rejects invalid Graph versions, phones, raw recipients, unapproved extensions and long bodies
+  ---
+  duration_ms: 1.343031
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /INVALID_META_SEND_REQUEST/. Input:
+    
+    'Error: NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'NOT_IMPLEMENTED'
+  stack: |-
+    buildMetaTextSubmission (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-send-protocol.mjs:1:49)
+    file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:17:23
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:17:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:17:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: accepted Graph response is only ACCEPTED, never DELIVERED; validates recipient correlation
+not ok 3 - accepted Graph response is only ACCEPTED, never DELIVERED; validates recipient correlation
+  ---
+  duration_ms: 0.401087
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:20:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    classifyMetaSendOutcome (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-send-protocol.mjs:2:49)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:22:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: 4xx and transport uncertainty are not treated as delivery; no blind retry
+not ok 4 - 4xx and transport uncertainty are not treated as delivery; no blind retry
+  ---
+  duration_ms: 1.968797
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:27:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    classifyMetaSendOutcome (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-send-protocol.mjs:2:49)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:28:19)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: invalid receipt context cannot be classified as accepted
+not ok 5 - invalid receipt context cannot be classified as accepted
+  ---
+  duration_ms: 0.520056
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /INVALID_META_RECEIPT_CONTEXT/. Input:
+    
+    'Error: NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'NOT_IMPLEMENTED'
+  stack: |-
+    classifyMetaSendOutcome (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-send-protocol.mjs:2:49)
+    file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:39:20
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:39:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-send-protocol.test.mjs:39:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 118.476777

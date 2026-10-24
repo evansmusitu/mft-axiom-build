@@ -1,0 +1,54 @@
+TAP version 13
+# (node:5014) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 1 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 12.159733
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 2 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 4.503883
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 3 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 6.448729
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 4 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 8.347077
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 5 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 6.525971
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 6 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 4.007562
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 7 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 78.778833
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 370.878886

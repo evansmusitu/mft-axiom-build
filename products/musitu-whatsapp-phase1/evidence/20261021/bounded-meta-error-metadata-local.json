@@ -1,0 +1,65 @@
+{
+  "kind": "BOUNDED_META_READ_FAILURE_METADATA",
+  "dateUtc": "2026-10-21",
+  "base": "8edf850c6fb575da96e2d9c193e3b99ddfeedb06",
+  "contract": "Keep actual sender and two fixed GET targets; hard throw before all DB work; report only allowlisted bounded integer error codes/subcodes and a boolean transient flag. No raw error messages, trace identifiers, response URLs, credential values, additional network targets, provider POSTs or automatic retries.",
+  "red": {
+    "test": "sender preflight reports only bounded numeric provider error metadata",
+    "result": "FAIL_BEFORE_FIX",
+    "reason": "Expected numeric metadata absent; prior output contained only operation and HTTP status."
+  },
+  "green": {
+    "focused": 5,
+    "fullSuite": {
+      "passed": 315,
+      "failed": 0,
+      "skipped": 0
+    },
+    "syntax": {
+      "passed": 137
+    },
+    "manifest": {
+      "tracked": 409,
+      "passed": true
+    },
+    "limits": [
+      "All new tests use injected transport and synthetic values, not live Meta credentials",
+      "Focused cases cover numeric whitelist, invalid types/ranges, oversized JSON and an 8-second stalled stream",
+      "This change cannot itself authorize the missing test-account access"
+    ]
+  },
+  "firstHostedObservation": {
+    "observedAt": "2026-10-21T04:55:42.516Z",
+    "scope": "ACTUAL_SENDER_CONFIG_AND_META_GET_GUARDS_ONLY",
+    "configuration": {
+      "enabled": true,
+      "contentKeyValid": true,
+      "recipientAllowlistValid": true,
+      "tokenFormatValid": true
+    },
+    "operations": [
+      {
+        "operation": "APP_ID",
+        "httpStatus": 200
+      },
+      {
+        "operation": "TEST_PHONE",
+        "httpStatus": 400
+      }
+    ],
+    "result": "META_TEST_PHONE_REJECTED",
+    "preflightPassed": false,
+    "identityQualified": false,
+    "databaseQualified": false,
+    "consentRecorded": false,
+    "noSendAttempted": true
+  },
+  "firstHostedDatabaseQualification": {
+    "runId": "bf554a4e-3bf4-493f-81b5-4db757a257b2",
+    "passed": 26,
+    "failed": 0,
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP"
+  },
+  "browserLimitation": "Automatic approval review blocked Meta UI observation after private credential handoff; no alternate browser route was attempted after that rejection.",
+  "phase1": "INCOMPLETE"
+}

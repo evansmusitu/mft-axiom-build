@@ -1,0 +1,78 @@
+{
+  "observedAt": "2026-10-20T08:45:29.251Z",
+  "scope": "EXACT_TEST_WABA_ADD_CURRENT_DEV_APP_PRESERVE_EXISTING_SUBSCRIBERS",
+  "appId": "1096094346481018",
+  "wabaId": "1955690452095441",
+  "phoneId": "1292923853915392",
+  "writeAttempted": true,
+  "operations": [
+    {
+      "method": "GET",
+      "operation": "TOKEN_APP_ID",
+      "httpStatus": 200
+    },
+    {
+      "method": "GET",
+      "operation": "TEST_PHONE_ID",
+      "httpStatus": 200
+    },
+    {
+      "method": "GET",
+      "operation": "TEST_WABA_SUBSCRIBED_APPS",
+      "httpStatus": 200
+    },
+    {
+      "method": "POST",
+      "operation": "TEST_WABA_SUBSCRIBED_APPS",
+      "httpStatus": 200
+    },
+    {
+      "method": "GET",
+      "operation": "TEST_WABA_SUBSCRIBED_APPS",
+      "httpStatus": 200
+    }
+  ],
+  "tokenAppId": "1096094346481018",
+  "tokenAppMatched": true,
+  "beforeCount": 1,
+  "beforeSnapshotDigest": "d7d8734424246594cf5f46eb0b964d0eb0dc25647f8858a40a8cf469a34a17c4",
+  "writeAcknowledged": true,
+  "afterCount": 2,
+  "appSubscribed": true,
+  "existingSubscriberIdsPreserved": true,
+  "existingSubscriberMetadataPreserved": true,
+  "onlyExpectedAppAdded": true,
+  "afterSnapshotDigest": "7aae4394d55ce2fe9a9be8181983d85de8c1873f8e48f502bf00199ae4cc2649",
+  "status": "SUBSCRIBED_READBACK_VERIFIED",
+  "noSendAttempted": true,
+  "noCallbackOverride": true,
+  "credentialMetadata": {
+    "type": "sensitive",
+    "target": [
+      "preview"
+    ],
+    "updatedAt": 1792485838496,
+    "valueRead": false
+  },
+  "deployment": {
+    "id": "dpl_DSixupSFu7QKCRrs8TEB9KT2UAyR",
+    "state": "READY",
+    "source": "df0a36f3a93b2038e7c45f611bf24918a408a769",
+    "target": "staging"
+  },
+  "normalBuildRestored": true,
+  "stableAliasReadbackDeployment": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+  "inboundBaseline": {
+    "observedAt": "2026-10-20T08:46:25.115Z",
+    "inboundCount": 0,
+    "messageCount": 0,
+    "latestInboundAt": null
+  },
+  "receiverLogWindow": {
+    "since": "2026-10-20T08:36:01.791Z",
+    "until": "2026-10-20T08:46:01.791Z",
+    "matchedLogs": 0
+  },
+  "phase1Complete": false,
+  "nextAction": "FRESH_OWNER_SYNTHETIC_WHATSAPP_MESSAGE_THEN_SIGNED_CALLBACK_AND_DATABASE_VERIFICATION"
+}

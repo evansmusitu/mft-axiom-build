@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: exact approved FAQ is a provenance-linked draft, model text never becomes the answer
+ok 1 - exact approved FAQ is a provenance-linked draft, model text never becomes the answer
+  ---
+  duration_ms: 1.350315
+  type: 'test'
+  ...
+# Subtest: non-exact AI-selected FAQ is always human review only, never auto-send
+ok 2 - non-exact AI-selected FAQ is always human review only, never auto-send
+  ---
+  duration_ms: 0.258772
+  type: 'test'
+  ...
+# Subtest: unknown, hallucinated or revoked source never returns an answer
+ok 3 - unknown, hallucinated or revoked source never returns an answer
+  ---
+  duration_ms: 0.349887
+  type: 'test'
+  ...
+# Subtest: provider failure and invalid structured results fail closed without drafting invented text
+ok 4 - provider failure and invalid structured results fail closed without drafting invented text
+  ---
+  duration_ms: 0.296818
+  type: 'test'
+  ...
+# Subtest: invalid tenant-scoped inputs and oversized sensitive prompts are rejected before model call
+ok 5 - invalid tenant-scoped inputs and oversized sensitive prompts are rejected before model call
+  ---
+  duration_ms: 0.516774
+  type: 'test'
+  ...
+# Subtest: implicit, null and truthy approval are never usable as customer-facing evidence
+ok 6 - implicit, null and truthy approval are never usable as customer-facing evidence
+  ---
+  duration_ms: 1.015059
+  type: 'test'
+  ...
+# Subtest: explicit boolean true approval remains an owner-sourced draft
+ok 7 - explicit boolean true approval remains an owner-sourced draft
+  ---
+  duration_ms: 0.242418
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 53.189556

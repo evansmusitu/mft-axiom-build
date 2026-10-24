@@ -1,0 +1,550 @@
+{
+  "timestamp": "2026-10-14T18:06:20.002Z",
+  "scope": "REAL_NEON_HEAD_BRANCH_COPY_NOT_AUTOMATED_EXTERNAL_BACKUP",
+  "source_branch": "br-jolly-fire-b4klddds",
+  "recovery_branch": "br-autumn-rain-b4saskvl",
+  "parent_lsn": "0/1DD70F0",
+  "endpoint": "ep-quiet-flower-b4vgzsw3",
+  "passed": true,
+  "all_20_relation_checksums_match": true,
+  "checksums": [
+    {
+      "relation": "musitu.action_audit",
+      "records": 10,
+      "checksum": "2618b653d962a592cce039e1ad1d72cf64629afd3504d7095f41b110c3a8c510"
+    },
+    {
+      "relation": "musitu.bookings",
+      "records": 2,
+      "checksum": "ee58ee3a691dcffc6e00852000d50a1dd01fd71dccbd6e2663fb56e406bd96cd"
+    },
+    {
+      "relation": "musitu.business_configuration",
+      "records": 2,
+      "checksum": "19d2f0aa4890df2ec34b35434cf8083a56318ebae7da559322d12a56d97e528b"
+    },
+    {
+      "relation": "musitu.channel_consent_evidence",
+      "records": 0,
+      "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relation": "musitu.contacts",
+      "records": 2,
+      "checksum": "a7456916feefa160563be00f3ec3ce9a579f4ca738860366225e29e107840215"
+    },
+    {
+      "relation": "musitu.conversations",
+      "records": 5,
+      "checksum": "be5c5e08f5584a006c933b55d0c5fd2a152127176aa6a78cc335076ed7f4c229"
+    },
+    {
+      "relation": "musitu.customer_suppressions",
+      "records": 2,
+      "checksum": "0972e09861a5f6509e3f22b0142c9ff5ab19076442d55e68ed84b896cf39e381"
+    },
+    {
+      "relation": "musitu.draft_approvals",
+      "records": 2,
+      "checksum": "11a8e0eece028ee4abc54e3a7a3eef7fddc4200ef4c7998ec50c3d33d11ad8ae"
+    },
+    {
+      "relation": "musitu.faqs",
+      "records": 4,
+      "checksum": "543af566f8b6696f3d5dce4c4d79a54e8d527e7378433a8011ab546db4315443"
+    },
+    {
+      "relation": "musitu.inbound_events",
+      "records": 9,
+      "checksum": "deab9e21b1c1e52ce5880a34daf91fc9760593ce09990c6091ac20eaa39e00aa"
+    },
+    {
+      "relation": "musitu.memberships",
+      "records": 4,
+      "checksum": "5dc7f0a45a35195765f0c21194e83dbd344d934182b9d3a08cd822372bab9f26"
+    },
+    {
+      "relation": "musitu.message_status_events",
+      "records": 3,
+      "checksum": "4ab7626340b46e7cb14f4793c8c638e140ea9679b87fd9ac3650f8a3a3527da3"
+    },
+    {
+      "relation": "musitu.messages",
+      "records": 5,
+      "checksum": "952976a50845dcd08f5c8e6d5148b896f61113ac3bf262abec64d02c109f0892"
+    },
+    {
+      "relation": "musitu.outbound_attempts",
+      "records": 1,
+      "checksum": "c86db790c387c790538411e177bd74f0225c5c83571e31b1bf257b600584b950"
+    },
+    {
+      "relation": "musitu.outbound_preparations",
+      "records": 0,
+      "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relation": "musitu.reply_drafts",
+      "records": 3,
+      "checksum": "d9fcd60a011d818cf65831ebca8ee0b2bf571ee2d72e634866e88148dec8f188"
+    },
+    {
+      "relation": "musitu.resources",
+      "records": 2,
+      "checksum": "3180eb5a54ed06793764c6d80c249b49cfc1030dd345883913de8b7a56e96579"
+    },
+    {
+      "relation": "musitu.tenants",
+      "records": 2,
+      "checksum": "eb183032c1dc1c0c6762d026a0bb734f3e9aba259cb636c112ebde4325ce3f61"
+    },
+    {
+      "relation": "musitu.whatsapp_channels",
+      "records": 2,
+      "checksum": "2a2417ae54746a2870e3513d7114d43b50f972d05ee66becf2401d15d7b41436"
+    },
+    {
+      "relation": "musitu_identity.sessions",
+      "records": 1,
+      "checksum": "c9e38c1d6f58f8b6e736b29366d2f9e2199454edb96b425d69ded4191177eb1a"
+    }
+  ],
+  "restricted_role_and_scope_probes": [
+    [
+      {
+        "current_user": "musitu_runtime",
+        "session_user": "musitu_runtime",
+        "rolsuper": false,
+        "rolbypassrls": false
+      }
+    ],
+    [
+      {
+        "relname": "action_audit",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "bookings",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "business_configuration",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "channel_consent_evidence",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "contacts",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "conversations",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "customer_suppressions",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "draft_approvals",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "faqs",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "inbound_events",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "memberships",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "message_status_events",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "messages",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "outbound_attempts",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "outbound_preparations",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "reply_drafts",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "resources",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "tenants",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      },
+      {
+        "relname": "whatsapp_channels",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "runtime_owns_table": false
+      }
+    ],
+    [
+      {
+        "set_config": ""
+      }
+    ],
+    [
+      {
+        "relation": "action_audit",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "bookings",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "business_configuration",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "channel_consent_evidence",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "contacts",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "conversations",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "customer_suppressions",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "draft_approvals",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "faqs",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "inbound_events",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "memberships",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "message_status_events",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "messages",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_attempts",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_preparations",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "reply_drafts",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "resources",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "tenants",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "whatsapp_channels",
+        "records": 0,
+        "foreign_records": 0
+      }
+    ],
+    [
+      {
+        "set_config": "00000000-0000-4000-8000-00000000000a"
+      }
+    ],
+    [
+      {
+        "relation": "action_audit",
+        "records": 8,
+        "foreign_records": 0
+      },
+      {
+        "relation": "bookings",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "business_configuration",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "channel_consent_evidence",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "contacts",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "conversations",
+        "records": 3,
+        "foreign_records": 0
+      },
+      {
+        "relation": "customer_suppressions",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "draft_approvals",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "faqs",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "inbound_events",
+        "records": 8,
+        "foreign_records": 0
+      },
+      {
+        "relation": "memberships",
+        "records": 3,
+        "foreign_records": 0
+      },
+      {
+        "relation": "message_status_events",
+        "records": 3,
+        "foreign_records": 0
+      },
+      {
+        "relation": "messages",
+        "records": 4,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_attempts",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_preparations",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "reply_drafts",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "resources",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "tenants",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "whatsapp_channels",
+        "records": 1,
+        "foreign_records": 0
+      }
+    ],
+    [
+      {
+        "set_config": "00000000-0000-4000-8000-00000000000b"
+      }
+    ],
+    [
+      {
+        "relation": "action_audit",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "bookings",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "business_configuration",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "channel_consent_evidence",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "contacts",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "conversations",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "customer_suppressions",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "draft_approvals",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "faqs",
+        "records": 2,
+        "foreign_records": 0
+      },
+      {
+        "relation": "inbound_events",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "memberships",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "message_status_events",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "messages",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_attempts",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "outbound_preparations",
+        "records": 0,
+        "foreign_records": 0
+      },
+      {
+        "relation": "reply_drafts",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "resources",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "tenants",
+        "records": 1,
+        "foreign_records": 0
+      },
+      {
+        "relation": "whatsapp_channels",
+        "records": 1,
+        "foreign_records": 0
+      }
+    ]
+  ],
+  "limitations": [
+    "Snapshot quota still prevents an additional snapshot.",
+    "Same-provider branch copy is not independent off-provider backup.",
+    "Encryption-key escrow and genuine merchant recovery remain unqualified.",
+    "Only synthetic qualification records exist."
+  ]
+}

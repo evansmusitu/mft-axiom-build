@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-10-17T20:31:00.463Z",
+  "classification": "REAL_PUBLIC_PROVIDER_METADATA_WITH_LOCAL_CONTRACT_ASSERTION",
+  "issuer": "https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud",
+  "contract": "PASS",
+  "authenticated": false,
+  "clientCredentials": "SYNTHETIC_LOCAL_ONLY",
+  "tokenExchangeExecuted": false,
+  "revocationExecuted": false
+}

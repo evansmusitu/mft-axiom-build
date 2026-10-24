@@ -1,0 +1,168 @@
+{
+  "observedDate": "2026-10-20",
+  "sourceCommit": "e29c9394d0896845c8f4120a11754c53b63dcd14",
+  "operator": "Evans Musitu",
+  "publicPrivacyContact": "evansmusitu5@gmail.com",
+  "userApproved": true,
+  "scope": "STATIC_PUBLIC_NOTICES_ONLY_PRIVATE_SAAS_NOT_LAUNCHED",
+  "projectId": "prj_Yu5kIBesDFgUTUGAPLSwW6Kz00Az",
+  "deploymentId": "dpl_3T6H8BkA3idtn8cQ7xenqsACAqHY",
+  "deploymentState": "READY",
+  "target": "production",
+  "deploymentUrl": "https://musitu-privacy-notice-5rndndt6r-evansmusitu.vercel.app",
+  "privacyUrl": "https://musitu-privacy-notice.vercel.app/privacy",
+  "deletionUrl": "https://musitu-privacy-notice.vercel.app/data-deletion",
+  "noProjectEnvironmentVariables": true,
+  "projectSSOEnabled": false,
+  "sourceDeploymentMethod": "Four committed static/config files uploaded directly. Git repository linking failed with integration-not-installed; no extra integration or credentials added.",
+  "deploymentMetadataReadback": {},
+  "provenance": "Published HTML bytes independently match local committed source SHA-256; no assertion of server-retained Git metadata.",
+  "anonymousHttp": [
+    {
+      "route": "/privacy",
+      "status": 200,
+      "url": "https://musitu-privacy-notice.vercel.app/privacy",
+      "headers": {
+        "accept-ranges": "bytes",
+        "access-control-allow-origin": "*",
+        "age": "0",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-disposition": "inline; filename=\"privacy\"",
+        "content-security-policy": "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Tue, 20 Oct 2026 06:25:54 GMT",
+        "etag": "\"c74320f4d9163a19a6915af45ff9e985\"",
+        "last-modified": "Tue, 20 Oct 2026 06:25:54 GMT",
+        "permissions-policy": "camera=(), microphone=(), geolocation=()",
+        "referrer-policy": "no-referrer",
+        "server": "envoy",
+        "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+        "x-content-type-options": "nosniff",
+        "x-vercel-cache": "MISS",
+        "x-vercel-id": "cle1::lzvzs-1792477554201-06298ab127c8",
+        "content-length": "6079",
+        "x-envoy-upstream-service-time": "227",
+        "connection": "close"
+      },
+      "sha256": "ce4840228843a9cadfea6b5aae0f1734bd2b3566a3719014c3f1f70ee5751bb7",
+      "bytes": 6079,
+      "contains_expected_title": true
+    },
+    {
+      "route": "/data-deletion",
+      "status": 200,
+      "url": "https://musitu-privacy-notice.vercel.app/data-deletion",
+      "headers": {
+        "accept-ranges": "bytes",
+        "access-control-allow-origin": "*",
+        "age": "0",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-disposition": "inline; filename=\"data-deletion\"",
+        "content-security-policy": "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Tue, 20 Oct 2026 06:25:59 GMT",
+        "etag": "\"4c9ccfead65cdcba139266db1ffc1b3b\"",
+        "last-modified": "Tue, 20 Oct 2026 06:25:59 GMT",
+        "permissions-policy": "camera=(), microphone=(), geolocation=()",
+        "referrer-policy": "no-referrer",
+        "server": "envoy",
+        "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+        "x-content-type-options": "nosniff",
+        "x-vercel-cache": "MISS",
+        "x-vercel-id": "cle1::mv5n8-1792477559374-c5ac139216d2",
+        "content-length": "3498",
+        "x-envoy-upstream-service-time": "148",
+        "connection": "close"
+      },
+      "sha256": "42ca4a35ea0d7cd69611bd63af1542631e1d8eb55cac02ce4c67529f12b0ebd0",
+      "bytes": 3498,
+      "contains_expected_title": true
+    },
+    {
+      "route": "/",
+      "status": 200,
+      "url": "https://musitu-privacy-notice.vercel.app/privacy",
+      "headers": {
+        "accept-ranges": "bytes",
+        "access-control-allow-origin": "*",
+        "age": "15",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-disposition": "inline; filename=\"privacy\"",
+        "content-security-policy": "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Tue, 20 Oct 2026 06:26:09 GMT",
+        "etag": "\"c74320f4d9163a19a6915af45ff9e985\"",
+        "last-modified": "Tue, 20 Oct 2026 06:25:54 GMT",
+        "permissions-policy": "camera=(), microphone=(), geolocation=()",
+        "referrer-policy": "no-referrer",
+        "server": "envoy",
+        "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+        "x-content-type-options": "nosniff",
+        "x-vercel-cache": "HIT",
+        "x-vercel-id": "cle1::nxkxq-1792477569739-eedf82106cb4",
+        "content-length": "6079",
+        "x-envoy-upstream-service-time": "87",
+        "connection": "close"
+      },
+      "sha256": "ce4840228843a9cadfea6b5aae0f1734bd2b3566a3719014c3f1f70ee5751bb7",
+      "bytes": 6079,
+      "contains_expected_title": true
+    },
+    {
+      "route": "/api/health",
+      "status": 404
+    },
+    {
+      "route": "/api/meta/webhook",
+      "status": 404
+    }
+  ],
+  "browserRoutesRendered": true,
+  "meta": {
+    "appId": "1096094346481018",
+    "appName": "MUSITU AI Employee Dev",
+    "privacyUrlSaved": true,
+    "deletionInstructionsUrlSaved": true,
+    "persistedAfterReload": true,
+    "deletionMode": "Data deletion instructions URL",
+    "publishHeading": "All required app settings are complete. Review use cases below before publishing this app.",
+    "finalPublishEnabled": true,
+    "finalPublishClicked": false,
+    "appPublicationPerformed": false,
+    "permissionsObserved": {
+      "public_profile": {
+        "apiCalls": 2,
+        "status": "Ready for testing"
+      },
+      "whatsapp_business_management": {
+        "apiCalls": 1,
+        "status": "Ready for testing"
+      },
+      "whatsapp_business_messaging": {
+        "apiCalls": 0,
+        "status": "Ready for testing"
+      }
+    },
+    "extraPermissionsAdded": false,
+    "messagesSent": 0,
+    "callbackOrVerifyTokenChanged": false
+  },
+  "saasProtectionReadback": {
+    "projectId": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "live": false,
+    "ssoProtection": {
+      "enabled": true,
+      "deploymentType": "all"
+    },
+    "runtimeUnchanged": true
+  },
+  "phase1Complete": false,
+  "limits": [
+    "No live Meta inbound/send/receipt acceptance",
+    "No production retention schedule or automatic physical erasure",
+    "No completed legal/provider transfer review",
+    "Privacy request handling is manual; no request processed or email sent by this change",
+    "QA exposed-factor issue remains unresolved under no-reset instruction",
+    "No public SaaS launch, charges, customer imports or unrelated product changes"
+  ]
+}

@@ -1,0 +1,394 @@
+{
+  "appId": "1096094346481018",
+  "deployment": "dpl_BkLhvbCnaorsnvrLZ5pitorpcke3",
+  "providerConfigurationDeployment": "dpl_9D3FXY11GP9Zw8rjTGmXUQG1czUL",
+  "scope": "GENUINE_META_VERIFICATION_FAILURE_NOT_A_MOCK",
+  "finding": "Direct three-parameter preflight returned 200. The actual Meta request carried six query parameters, with each required hub key present once, and was rejected with 400 by the handler's overly strict total count. Meta API returned HTTP 400/code 2200. No webhook subscription was configured, no app published and no message sent.",
+  "runtimeLogs": "## Runtime Logs\n\n**Project:** prj_mHTGlXe8GPj4WEFeGgXdAIh6H0aL\n**Deployment:** dpl_BkLhvbCnaorsnvrLZ5pitorpcke3\n**Time range:** 2026-10-15T18:13:59.412Z → 2026-10-15T18:28:59.412Z\n\n### 2026-10-15T18:28:09.136Z GET /api/meta/webhook [info/function]\ndep=dpl_BkLhvbCnaorsnvrLZ5pitorpcke3 branch=2c22bd3d19f64594e9ae6684e40072e6f73abed0 request=jj2q8-1792088889069-5d45fbd676bb domain=musitu-whatsapp-meta-receiver-20261015-2uqfpqdne-evansmusitu.vercel.app environment=preview region=iad1 runtime=nodejs24.x stream=stdout\n    {\"event\":\"MUSITU_META_CALLBACK_HTTP\",\"method\":\"GET\",\"status\":400,\"queryCount\":6,\"modeKeyCount\":1,\"tokenKeyCount\":1,\"challengeKeyCount\":1}\n\n### 2026-10-15T18:28:08.712Z GET /api/meta/webhook [info/function]\ndep=dpl_BkLhvbCnaorsnvrLZ5pitorpcke3 branch=2c22bd3d19f64594e9ae6684e40072e6f73abed0 request=t6hb4-1792088888630-385ac679fed7 domain=musitu-whatsapp-meta-receiver-20261015-2uqfpqdne-evansmusitu.vercel.app environment=preview region=iad1 runtime=nodejs24.x stream=stdout\n    {\"event\":\"MUSITU_META_CALLBACK_HTTP\",\"method\":\"GET\",\"status\":200,\"queryCount\":3,\"modeKeyCount\":1,\"tokenKeyCount\":1,\"challengeKeyCount\":1}\n",
+  "providerBuildLogs": {
+    "result": {
+      "events": [
+        {
+          "created": 1792088884905,
+          "date": 1792088884905,
+          "type": "stdout",
+          "text": "Running build in Washington, D.C., USA (East) – iad1",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088884906,
+          "date": 1792088884906,
+          "type": "stdout",
+          "text": "Build machine configuration: 2 cores, 8 GB",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088885109,
+          "date": 1792088885109,
+          "type": "stdout",
+          "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: d652bbcbdbbee5e2c6824d8afc2e66baec3abc9b, Commit: d652bbc)",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088885703,
+          "date": 1792088885703,
+          "type": "stdout",
+          "text": "Cloning completed: 593.000ms",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088885822,
+          "date": 1792088885822,
+          "type": "stdout",
+          "text": "Restored build cache from previous deployment (GRZwA3YYwnJwt1vZBhE6G3H1sQGY)",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088886304,
+          "date": 1792088886304,
+          "type": "stdout",
+          "text": "Running \"vercel build\"",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088886315,
+          "date": 1792088886315,
+          "type": "stderr",
+          "text": "Vercel CLI 64.0.2",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088887325,
+          "date": 1792088887325,
+          "type": "stdout",
+          "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`...",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088887969,
+          "date": 1792088887969,
+          "type": "stderr",
+          "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+          "level": "warning",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088888304,
+          "date": 1792088888304,
+          "type": "stdout",
+          "text": "",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088888304,
+          "date": 1792088888304,
+          "type": "stdout",
+          "text": "added 14 packages in 839ms",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889161,
+          "date": 1792088889161,
+          "type": "stdout",
+          "text": "MUSITU_META_APP_CONFIGURATION_ERROR={\"appId\":\"1096094346481018\",\"method\":\"POST\",\"httpStatus\":400,\"providerErrorCode\":2200,\"providerErrorSubcode\":null,\"message\":\"(#2200) Callback verification failed with the following errors: HTTP Status Code = 400; HTTP Message = Bad Request\",\"noMessageSent\":true}",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889162,
+          "date": 1792088889162,
+          "type": "stdout",
+          "text": "MUSITU_META_APP_CONFIGURATION_FAILURE={\"appId\":\"1096094346481018\",\"code\":\"META_SUBSCRIPTION_API_REJECTED\",\"noMessageSent\":true}",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "node:internal/errors:986",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  const err = new Error(message);",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "              ^",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "Error: Command failed: /node24/bin/node /vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/configure-meta-app-webhook.mjs https://musitu-whatsapp-meta-receiver-20261015-2uqfpqdne-evansmusitu.vercel.app/api/meta/webhook",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "    at genericNodeError (node:internal/errors:986:15)",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "    at wrappedFn (node:internal/errors:540:14)",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "    at checkExecSyncError (node:child_process:942:11)",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "    at execFileSync (node:child_process:978:15)",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "    at file:///vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/build.mjs:8:49 {",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  status: 1,",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  signal: null,",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  output: [ null, null, null ],",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  pid: 65,",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  stdout: null,",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "  stderr: null",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "}",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889174,
+          "date": 1792088889174,
+          "type": "stderr",
+          "text": "Node.js v24.21.0",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        },
+        {
+          "created": 1792088889183,
+          "date": 1792088889183,
+          "type": "stderr",
+          "text": "Error: [BUILD_UTILS_SPAWN_1] Command \"node scripts/build.mjs --configure-meta-webhook https://musitu-whatsapp-meta-receiver-20261015-2uqfpqdne-evansmusitu.vercel.app/api/meta/webhook\" exited with 1",
+          "level": "error",
+          "info": {
+            "type": "build",
+            "name": "bld_12lijd984",
+            "entrypoint": "."
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "scope": "ACTUAL_NEON_SNAPSHOT_METADATA_UPDATE_AND_INDEPENDENT_READBACK",
+  "observedAt": "2026-10-20T03:27:08.698Z",
+  "projectId": "jolly-scene-02112141",
+  "branchId": "br-jolly-fire-b4klddds",
+  "subscriptionType": "free_v3",
+  "before": {
+    "id": "snap-little-smoke-b4sdrjky",
+    "name": "whatsapp-phase1-qualified-20261014",
+    "source_branch_id": "br-jolly-fire-b4klddds",
+    "created_at": "2026-10-14T03:14:23Z",
+    "expires_at": "2026-10-21T03:15:00Z",
+    "manual": true,
+    "full_size": 32710656
+  },
+  "request": {
+    "snapshot_id": "snap-little-smoke-b4sdrjky",
+    "expires_at": null
+  },
+  "update": {
+    "id": "snap-little-smoke-b4sdrjky",
+    "name": "whatsapp-phase1-qualified-20261014",
+    "source_branch_id": "br-jolly-fire-b4klddds",
+    "created_at": "2026-10-14T03:14:23Z",
+    "manual": true,
+    "full_size": 32710656
+  },
+  "independentReadback": [
+    {
+      "id": "snap-little-smoke-b4sdrjky",
+      "name": "whatsapp-phase1-qualified-20261014",
+      "source_branch_id": "br-jolly-fire-b4klddds",
+      "created_at": "2026-10-14T03:14:23Z",
+      "manual": true,
+      "full_size": 32710656
+    }
+  ],
+  "readbackExpirationField": "ABSENT_AFTER_EXPLICIT_NULL_UPDATE",
+  "interpretation": "Existing manual snapshot auto-expiration cleared; same ID, original source branch, creation time and full size. No new backup or restore was executed.",
+  "schedule": [],
+  "officialReferences": [
+    "https://neon.com/docs/ai/ai-database-versioning",
+    "https://api-docs.neon.tech/reference/updatesnapshot",
+    "https://neon.com/docs/introduction/plans"
+  ],
+  "newSnapshot": false,
+  "deletedSnapshot": false,
+  "planChanged": false,
+  "scheduledBackupAcceptance": false,
+  "alertAcceptance": false,
+  "phase1Complete": false
+}
+

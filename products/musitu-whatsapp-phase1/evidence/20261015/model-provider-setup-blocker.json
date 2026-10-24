@@ -1,0 +1,10 @@
+{
+  "observedAt": "2026-10-15T18:44:23.086Z",
+  "operation": "OpenAI Platform API key target inspection",
+  "firstResult": "Authentication requested and accepted; retry requested",
+  "retryResult": "OpenAI Platform rejected the API key target request.",
+  "apiKeyCreated": false,
+  "providerInvocations": 0,
+  "newSpendingAuthorized": false,
+  "scope": "ACTUAL_CONNECTOR_REJECTION_NOT_A_MODEL_TEST"
+}

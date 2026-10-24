@@ -1,0 +1,39 @@
+{
+  "observedAt": "2026-10-21T11:35:53.277Z",
+  "scope": "NO_SEND_LEDGER_AND_INBOUND_WINDOW",
+  "branch": "saas/musitu-whatsapp-phase1-private-20261014",
+  "sourceHead": "8a9c08d18c3e987abe451ff83af721e513a25613",
+  "ledger": [
+    {
+      "observed_at": "2026-10-21T11:34:55.226Z",
+      "outbound_attempts": "0",
+      "consent_records": "0",
+      "status_events": "0"
+    }
+  ],
+  "window": [
+    {
+      "observed_at": "2026-10-21T11:35:26.553Z",
+      "inbound_count": "2",
+      "latest_provider_sent_at": "2026-10-20T10:05:05.000Z",
+      "latest_received_at": "2026-10-20T10:05:07.712Z",
+      "guarded_window_ends_at": "2026-10-21T10:00:05.000Z",
+      "guarded_window_open": false
+    }
+  ],
+  "browser": {
+    "currentStatus": "UNRESOLVED_AUTOMATIC_APPROVAL_REVIEW_BLOCK",
+    "previousFailure": "Earlier usage-limit review failure; subsequent reconnection rejected as retry of unresolved gate",
+    "noFurtherBrowserRetryThisTurn": true,
+    "ownerSessionVerified": false
+  },
+  "lastSuccessfulMetaCheck": {
+    "observedAt": "2026-10-21T06:19:27.457Z",
+    "deploymentId": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+    "appHttpStatus": 200,
+    "testPhoneHttpStatus": 200,
+    "noSend": true
+  },
+  "next": "Fresh genuine inbound message from verified owner ending2008 to test sender +15556637079 is needed to reopen guarded customer-service window. Browser approval block must be resolved before guarded UI session can be verified. Recheck ledger immediately before original exact-one approved reply; never send against closed window, fabricate inbound, mint owner session or retry uncertain attempts.",
+  "phase1Complete": false
+}

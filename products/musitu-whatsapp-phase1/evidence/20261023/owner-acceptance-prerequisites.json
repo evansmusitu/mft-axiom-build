@@ -1,0 +1,69 @@
+{
+  "observedAt": "2026-10-23T05:31:02.485Z",
+  "sourceCommit": "b15cc7032063aa6f5beb5e668d7a2cd5a8c005cf",
+  "scope": "READ_ONLY_OWNER_ACCEPTANCE_PREREQUISITES",
+  "developmentTenant": {
+    "inboundEvents": 3,
+    "latestProviderTimestamp": "2026-10-21T17:40:36.000Z",
+    "outboundAttempts": 0,
+    "consentRecords": 0,
+    "signedStatusEvents": 0,
+    "activeUnexpiredApplicationSessions": 0,
+    "knowledgeRecords": 0,
+    "aiRequests": 0
+  },
+  "roleHandoffThreads": {
+    "messagesEach": 1,
+    "incomingReplies": 0,
+    "boundedSeparateIncomingMatches": 0,
+    "reviewerAcceptance": false,
+    "custodianAcceptance": false
+  },
+  "privacyIntake": {
+    "boundedSubjectSearchMatches": 0,
+    "manualSearchOnly": true,
+    "deliveredTestRequestQualified": false,
+    "ongoingMonitoringQualified": false
+  },
+  "axiom": {
+    "protectedPreviewCredentialPresent": false,
+    "currentSaasTransportEnabled": false,
+    "pluginCapabilityReadSucceeded": true,
+    "pluginReadIsServiceAuthentication": false,
+    "pinnedProviderSource": "bc48ab8aed137e61b76e25f113bb29e1efd7b11a",
+    "pinnedProviderSourceGrantTypes": [
+      "authorization_code",
+      "refresh_token"
+    ],
+    "pinnedProviderSourceRedirectScope": "ChatGPT connector routes only",
+    "currentProductionServiceProvisioningQualified": false
+  },
+  "providerConfiguration": {
+    "neonRegion": "aws-us-east-2",
+    "vercelProjectLive": false,
+    "vercelSsoAllDeployments": true,
+    "vercelOptionalTrainingPreference": "NOT_EXPOSED_BY_CONNECTED_READ_OR_UPDATE_TOOLS",
+    "groqZeroDataRetention": "NOT_READ_BACK",
+    "groqCredentialExpiration": "NOT_READ_BACK",
+    "providerCredentialsDecryptedOrExported": false
+  },
+  "recoveryTask": {
+    "enabled": true,
+    "recordedRun": null,
+    "recordedResult": null,
+    "recordedNextRun": null,
+    "delivery": "unknown"
+  },
+  "browser": {
+    "attempted": false,
+    "priorAutomaticApprovalRejectionUnresolved": true
+  },
+  "phase1Complete": false,
+  "whatsappSendPerformed": false,
+  "dataErased": false,
+  "limits": [
+    "The provider source inspected is a pinned repository contract, not a claim about all current production authentication options.",
+    "No human identity, independence, custodian access or actual owner workflow is inferred from aggregate counts.",
+    "No new invitation, permission grant, credential/MFA reset, charge or unrelated product change."
+  ]
+}

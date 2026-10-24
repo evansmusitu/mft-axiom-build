@@ -1,0 +1,40 @@
+Completion excerpt from npm run verify; process exit 0. Earlier output included ALL_MJS_SYNTAX_PASS (154 files).
+✔ sender preflight reaches a hard database boundary with GETs only and no credential disclosure (7.263071ms)
+✔ sender preflight identifies missing configuration and wrong app without reaching writes (0.741773ms)
+✔ sender preflight reports only bounded numeric provider error metadata (2.415563ms)
+✔ sender preflight omits malformed or oversized provider error metadata (2.738517ms)
+✔ sender preflight bounds a stalled error stream without writing or disclosing its body (8008.725648ms)
+✔ authentication rejection gives a credential recovery reason rather than an unknown send outcome (1.281652ms)
+✔ unknown and inherited error names never expose provider messages or secrets (0.220711ms)
+✔ destructive native sender qualifier refuses remote, ambiguous and unapproved targets before loading pg (475.080775ms)
+✔ current-schema envelope accepts all 15 source migrations and the exact 22-table inventory (8.26238ms)
+✔ current-schema envelope rejects missing or substituted tables and invalid migration provenance (7.550443ms)
+✔ privacy export refuses absent verified-session recheck and malformed scope before leasing a database (2.621251ms)
+✔ privacy export envelope rejects invalid, oversized and unauthenticated input uniformly (0.390145ms)
+✔ hosted checkpoint seals current schema and recovery metadata without exposing keys in its receipt (10.470452ms)
+✔ operator export and restore commands deny accidental execution before input or credentials are used (76.152068ms)
+✔ restore child rejects remote or ambiguous targets before opening pg or archived data (114.158568ms)
+✔ omitted active-session counts remain explicit in the authenticated backup and safe receipt (5.000249ms)
+✔ hosted checkpoint refuses wrong identity, missing inventory and active copied sessions (5.417124ms)
+✔ hosted checkpoint rejects malformed keys and substituted source migrations before producing output (0.533861ms)
+✔ private review export is disabled by default and rejects foreign business/origin before export (8.262611ms)
+✔ review approval, canonical fresh-key representation and exact input shape are mandatory (4.024105ms)
+✔ authenticated scope is bound by server and response contains only encrypted bytes with safe receipt headers (2.029223ms)
+✔ owner revocation committed during encryption prevents delivery after export work finishes (1.598087ms)
+✔ expired/replaced sessions, denied owner membership and corrupt/oversize results fail without disclosure (4.861711ms)
+✔ browser download preparation uses a new key per request and verifies ciphertext digest (11.961017ms)
+✔ browser preparation rejects oversized, stalled and redirected downloads without returning a key (28.122442ms)
+ℹ tests 336
+ℹ suites 0
+ℹ pass 336
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10023.212004
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 audit:hashes
+> node scripts/verify-manifest.mjs
+
+LOCAL_SOURCE_MANIFEST_PASS (436 tracked files; source tree completeness checked)

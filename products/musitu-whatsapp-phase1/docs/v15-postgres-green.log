@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+ok 1 - offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+  ---
+  duration_ms: 2.369281
+  type: 'test'
+  ...
+# Subtest: identical reservation replays are idempotent; changed key and reused key conflict
+ok 2 - identical reservation replays are idempotent; changed key and reused key conflict
+  ---
+  duration_ms: 0.70387
+  type: 'test'
+  ...
+# Subtest: revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+ok 3 - revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+  ---
+  duration_ms: 1.662166
+  type: 'test'
+  ...
+# Subtest: closed service window, missing verified consent, revoked consent and expired consent are blocked
+ok 4 - closed service window, missing verified consent, revoked consent and expired consent are blocked
+  ---
+  duration_ms: 0.57486
+  type: 'test'
+  ...
+# Subtest: invalid ids/keys and storage fault never cause partial staging
+ok 5 - invalid ids/keys and storage fault never cause partial staging
+  ---
+  duration_ms: 0.469433
+  type: 'test'
+  ...
+# Subtest: issuer-pinned private API allows stage-offline but has no outbound send endpoint
+ok 6 - issuer-pinned private API allows stage-offline but has no outbound send endpoint
+  ---
+  duration_ms: 327.354398
+  type: 'test'
+  ...
+# Subtest: a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+ok 7 - a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+  ---
+  duration_ms: 0.325481
+  type: 'test'
+  ...
+# Subtest: authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+ok 8 - authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+  ---
+  duration_ms: 3.362168
+  type: 'test'
+  ...
+# Subtest: invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+ok 9 - invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+  ---
+  duration_ms: 1.235526
+  type: 'test'
+  ...
+# Subtest: idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+ok 10 - idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+  ---
+  duration_ms: 1.949951
+  type: 'test'
+  ...
+# Subtest: unsupported message type and existing human handover must not create bot drafts
+ok 11 - unsupported message type and existing human handover must not create bot drafts
+  ---
+  duration_ms: 0.581829
+  type: 'test'
+  ...
+# Subtest: database failures roll back and release; no partial inbound commit or provider sends
+ok 12 - database failures roll back and release; no partial inbound commit or provider sends
+  ---
+  duration_ms: 0.442254
+  type: 'test'
+  ...
+# Subtest: private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+ok 13 - private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+  ---
+  duration_ms: 49.019404
+  type: 'test'
+  ...
+# Subtest: provider message replay cannot silently change an image attachment reference
+ok 14 - provider message replay cannot silently change an image attachment reference
+  ---
+  duration_ms: 0.643141
+  type: 'test'
+  ...
+# Subtest: signed provider timestamp is persisted as the only usable source for a customer-service session window
+ok 15 - signed provider timestamp is persisted as the only usable source for a customer-service session window
+  ---
+  duration_ms: 0.734695
+  type: 'test'
+  ...
+# Subtest: authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+ok 16 - authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+  ---
+  duration_ms: 0.506769
+  type: 'test'
+  ...
+# Subtest: persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+ok 17 - persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+  ---
+  duration_ms: 0.432018
+  type: 'test'
+  ...
+# Subtest: a PostgreSQL STOP write failure rolls back all ingress rows
+ok 18 - a PostgreSQL STOP write failure rolls back all ingress rows
+  ---
+  duration_ms: 0.356737
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 421.088124

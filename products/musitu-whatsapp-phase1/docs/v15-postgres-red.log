@@ -1,0 +1,180 @@
+TAP version 13
+# Subtest: offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+ok 1 - offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+  ---
+  duration_ms: 2.769902
+  type: 'test'
+  ...
+# Subtest: identical reservation replays are idempotent; changed key and reused key conflict
+ok 2 - identical reservation replays are idempotent; changed key and reused key conflict
+  ---
+  duration_ms: 0.73108
+  type: 'test'
+  ...
+# Subtest: revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+ok 3 - revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+  ---
+  duration_ms: 1.816684
+  type: 'test'
+  ...
+# Subtest: closed service window, missing verified consent, revoked consent and expired consent are blocked
+ok 4 - closed service window, missing verified consent, revoked consent and expired consent are blocked
+  ---
+  duration_ms: 0.993447
+  type: 'test'
+  ...
+# Subtest: invalid ids/keys and storage fault never cause partial staging
+ok 5 - invalid ids/keys and storage fault never cause partial staging
+  ---
+  duration_ms: 0.47347
+  type: 'test'
+  ...
+# Subtest: issuer-pinned private API allows stage-offline but has no outbound send endpoint
+ok 6 - issuer-pinned private API allows stage-offline but has no outbound send endpoint
+  ---
+  duration_ms: 226.43534
+  type: 'test'
+  ...
+# Subtest: a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+not ok 7 - a persisted signed customer opt-out blocks even a previously approved and consented offline preparation
+  ---
+  duration_ms: 0.971145
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/postgres-outbound-staging.test.mjs:137:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/postgres-outbound-staging.test.mjs:139:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+ok 8 - authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+  ---
+  duration_ms: 3.680868
+  type: 'test'
+  ...
+# Subtest: invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+ok 9 - invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+  ---
+  duration_ms: 1.336144
+  type: 'test'
+  ...
+# Subtest: idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+ok 10 - idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+  ---
+  duration_ms: 2.218188
+  type: 'test'
+  ...
+# Subtest: unsupported message type and existing human handover must not create bot drafts
+ok 11 - unsupported message type and existing human handover must not create bot drafts
+  ---
+  duration_ms: 0.872579
+  type: 'test'
+  ...
+# Subtest: database failures roll back and release; no partial inbound commit or provider sends
+ok 12 - database failures roll back and release; no partial inbound commit or provider sends
+  ---
+  duration_ms: 0.491256
+  type: 'test'
+  ...
+# Subtest: private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+ok 13 - private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+  ---
+  duration_ms: 50.044084
+  type: 'test'
+  ...
+# Subtest: provider message replay cannot silently change an image attachment reference
+ok 14 - provider message replay cannot silently change an image attachment reference
+  ---
+  duration_ms: 0.81264
+  type: 'test'
+  ...
+# Subtest: signed provider timestamp is persisted as the only usable source for a customer-service session window
+ok 15 - signed provider timestamp is persisted as the only usable source for a customer-service session window
+  ---
+  duration_ms: 0.801705
+  type: 'test'
+  ...
+# Subtest: authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+not ok 16 - authenticated STOP writes a durable Postgres opt-out instead of creating an FAQ draft
+  ---
+  duration_ms: 1.139173
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:124:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'DRAFT'
+    - 'SUPPRESSED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'SUPPRESSED'
+  actual: 'DRAFT'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:126:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+not ok 17 - persisted suppression blocks subsequent signed incoming FAQ even without STOP text
+  ---
+  duration_ms: 0.637581
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:135:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'DRAFT'
+    - 'SUPPRESSED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'SUPPRESSED'
+  actual: 'DRAFT'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:138:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a PostgreSQL STOP write failure rolls back all ingress rows
+not ok 18 - a PostgreSQL STOP write failure rolls back all ingress rows
+  ---
+  duration_ms: 0.327674
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:143:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/postgres-signed-ingress.test.mjs:145:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 14
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 317.412524

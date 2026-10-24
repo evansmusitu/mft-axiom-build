@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-10-23T04:36:01.765708+00:00",
+  "scope": "CURRENT_EVIDENCE_REGISTER_AND_OPERATOR_RECOVERY_TOOLS",
+  "baseCommit": "0dc79a6795e422adf3872347816c2f2cf9f8e63d",
+  "npmRunVerify": {
+    "exitCode": 0,
+    "pass": 329,
+    "fail": 0,
+    "skip": 0,
+    "syntaxFiles": 151,
+    "manifestAtExecution": 429
+  },
+  "logSha256": "5cf768017e7c187d1abc115622b2b63b1a6de760ae1118fc1c0e96490ee88702",
+  "releaseGate": {
+    "exitCode": 2,
+    "status": "PHASE1_RELEASE_BLOCKED",
+    "evidenceIntegrity": "PASS"
+  },
+  "applicationRuntimeChanged": false,
+  "publicReleaseAuthorized": false,
+  "phase1Complete": false,
+  "limits": [
+    "Final documentation-only refresh is followed by source-manifest and release-evidence checks.",
+    "Stored technical evidence cannot establish real service, owner or independent reviewer acceptance.",
+    "Scheduler creation and an immediate request are not scheduled execution or alert delivery."
+  ]
+}

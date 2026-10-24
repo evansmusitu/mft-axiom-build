@@ -1,0 +1,25 @@
+// Checks actual saved connector evidence; does not simulate a backup or database.
+import assert from 'node:assert/strict';import{readFileSync}from'node:fs';
+const r=JSON.parse(readFileSync(new URL('./encrypted-postgres-backup-recovery.json',import.meta.url),'utf8'));
+assert.equal(r.classification,'REAL_ENCRYPTED_INDEPENDENT_EXPORT_ESCROW_KEY_RECOVERY_AND_EMPTY_DATABASE_RESTORE');
+assert.equal(r.backup.sha256,'a0fe266403a2cb01bda21b2bf30e09f88eaaaa299b9a8b8e9506b502636a475a');
+assert.equal(r.backup.tables,22);assert.equal(r.backup.rows,277);assert.equal(r.backup.migrations,14);
+assert.equal(r.keyEscrow.localBackupKeyRemovedBeforeRecovery,true);assert.equal(r.keyEscrow.keyRetrievedFromEscrow,true);
+assert.equal(r.keyEscrow.type,'encrypted');assert.deepEqual(r.keyEscrow.target,['preview']);
+assert.equal(r.restore.emptyDatabaseEvidence[0].application_objects_before,0);
+assert.equal(r.restore.emptyDatabaseEvidence[0].current_database,'musitu_restore_20261018');
+assert.deepEqual(r.restore.restoredRows,r.restore.sourceRows);
+for(const key of ['schema_hash','roles','relations'])assert.deepEqual(r.restore.restoredContract[key],r.restore.sourceContract[key]);
+assert.ok(Object.values(r.restore.checks).every(x=>x===true));
+assert.equal(r.restore.missingTenantContext.length,22);assert.ok(r.restore.missingTenantContext.every(x=>x.visible===0));
+for(const i of [1,3])assert.ok(r.restore.tenantTransitions[i].every(x=>x.foreign_rows===0));
+for(const e of Object.values(r.restore.expectedFailures))assert.equal(e.isError,true);
+assert.equal(r.restore.cryptographicApplicationKeyRecovery.qualifiedFixtureMessagesOpened,8);
+assert.equal(r.restore.cryptographicApplicationKeyRecovery.sessionsCryptoOpened,6);
+assert.equal(r.restore.cryptographicApplicationKeyRecovery.sessionsCryptoRejected,0);
+assert.equal(r.restore.cryptographicApplicationKeyRecovery.plaintextLogged,false);
+assert.equal(r.restore.cryptographicApplicationKeyRecovery.authenticationClaim,false);
+assert.equal(r.restore.endpointFinal.disabled,true);assert.equal(r.restore.endpointFinal.current_state,'idle');
+assert.equal(r.restore.sourceEndpointBranch,'br-jolly-fire-b4klddds');assert.equal(r.restore.defaultBranch,'br-jolly-fire-b4klddds');
+assert.equal(r.phase1Complete,false);assert.equal(r.paidUpgrade,false);assert.equal(r.productionSystemsModified,false);
+console.log('REAL_ENCRYPTED_RECOVERY_RETAINED_EVIDENCE_PASS: independent bytes/key retrieval, empty database, 22 exact table hashes, schema/roles/RLS, fixture ciphertext opening and disabled restore compute.');

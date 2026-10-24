@@ -1,0 +1,164 @@
+
+> musitu-whatsapp-saas-foundation@0.1.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+not ok 1 - Meta signature authenticates exact raw bytes and rejects malformed or altered signatures
+  ---
+  duration_ms: 0.979931
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:12:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    verifyMetaSignature (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:1:47)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:13:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+not ok 2 - provider WABA plus phone binding selects one tenant and never trusts customer-supplied tenant ID
+  ---
+  duration_ms: 0.326774
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    resolveWebhookEvents (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:2:48)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:22:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: WABA mismatch and unknown phone fail closed
+not ok 3 - WABA mismatch and unknown phone fail closed
+  ---
+  duration_ms: 0.980653
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /UNAUTHORIZED_CHANNEL/. Input:
+    
+    'Error: NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'NOT_IMPLEMENTED'
+  stack: |-
+    resolveWebhookEvents (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:2:48)
+    file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:27:21
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:27:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:27:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inbox ingress is idempotent per tenant/provider message ID
+not ok 4 - inbox ingress is idempotent per tenant/provider message ID
+  ---
+  duration_ms: 0.15936
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    new IsolatedInbox (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:3:52)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:33:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: human takeover disables automated replies and other tenants cannot control conversation
+not ok 5 - human takeover disables automated replies and other tenants cannot control conversation
+  ---
+  duration_ms: 0.166802
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    new IsolatedInbox (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:3:52)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:41:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: all real sends, live checkout, production email and signup fail closed regardless of env variables
+not ok 6 - all real sends, live checkout, production email and signup fail closed regardless of env variables
+  ---
+  duration_ms: 0.819098
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:49:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /ACTION_DISABLED/. Input:
+    
+    'Error: NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'NOT_IMPLEMENTED'
+  stack: |-
+    allowExternalAction (file:///mnt/data/musitu-whatsapp-two-phase/src/core/verify.mjs:4:47)
+    file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:51:23
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:51:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-two-phase/test/core.test.mjs:51:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 102.209764
