@@ -131,8 +131,19 @@ def mount_readonly_mcp(api:FastAPI, edge_secret:str):
             raise HTTPException(400,'invalid MCP JSON-RPC envelope')
         method=obj.get('method')
         rpc_id=obj.get('id')
+        valid_id=(type(rpc_id) is int and abs(rpc_id)<=9007199254740991) or (
+            type(rpc_id) is str and 1<=len(rpc_id)<=128 and
+            all(' '<=ch<='~' for ch in rpc_id))
+        if 'id' not in obj or not valid_id or set(obj)-{'jsonrpc','id','method','params'}:
+            raise HTTPException(400,'invalid MCP JSON-RPC envelope')
         if method=='initialize':
+            if 'params' in obj and not isinstance(obj['params'],dict):
+                return {'jsonrpc':'2.0','id':rpc_id,
+                    'error':{'code':-32602,'message':'Invalid parameters'}}
             result={'protocolVersion':'2025-03-26','serverInfo':{'name':'lifeline-mt5','version':'0.4.0'},'capabilities':{'tools':{}}}
+        elif method in ('ping','tools/list') and ('params' in obj and obj['params']!={}):
+            return {'jsonrpc':'2.0','id':rpc_id,
+                'error':{'code':-32602,'message':'Invalid parameters'}}
         elif method=='ping':result={}
         elif method=='tools/list':
             result={'tools':[{'name':'lifeline_status','description':'Private MT5 integration staging status (no trading)',
