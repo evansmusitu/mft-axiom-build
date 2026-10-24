@@ -40,6 +40,9 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
      maxTotalChunks>HARD_TOTAL_CHUNKS)
     fail('STUDIO_R2_INVALID_CHUNK_BUDGET');
   const expectedBytes=source.assets.reduce((sum,asset)=>sum+asset.bytes,0);
+  // Every present asset requires >=1 nonempty chunk. Reject an impossible
+  // total chunk quota before any independently authenticated R2 read.
+  if(source.assets.length>maxTotalChunks)fail('STUDIO_R2_TOTAL_CHUNK_LIMIT_EXCEEDED');
   // Reject an impossible budget BEFORE ANY external provider callback.
   if(expectedBytes>maxTotalBytes)fail('STUDIO_R2_BYTE_BUDGET_EXCEEDED');
   const table=attestStudioLedgerSnapshot(source,{integrityKey});

@@ -96,3 +96,10 @@ test('invalid streaming budgets reject before reading protected objects',async()
  }
  assert.equal(attempts,0);
 });
+test('impossible aggregate chunk quota rejects before any protected provider read',async()=>{
+ let calls=0;
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxTotalChunks:2,readObject:async a=>{calls++;return[payload[a.filename]]}
+ })),/STUDIO_R2_TOTAL_CHUNK_LIMIT_EXCEEDED/);
+ assert.equal(calls,0);
+});
