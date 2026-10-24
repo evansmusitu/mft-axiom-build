@@ -1,0 +1,26 @@
+name: LIFELINE Bridge Recovery and Neon Identity Contract
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/modal/bridge.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/pg_queue.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/test_pg_queue.py'
+      - '.github/workflows/lifeline-mt5-pg-contract-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fail-closed-recovery:
+    strategy:
+      fail-fast: false
+      matrix: {os: [ubuntu-24.04, windows-2022]}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Run offline signed-claim recovery, TLS and Neon role checks
+        run: python -m unittest discover -s products/lifeline-mt5-ai-studio/infra/modal -p test_pg_queue.py -v

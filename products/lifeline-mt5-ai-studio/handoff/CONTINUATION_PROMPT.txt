@@ -1,0 +1,22 @@
+MISSION: CONTINUE LIFELINE MT5 AI STUDIO FROM THE NEWEST COMPLETE VERIFIED 24 OCT 2026 PRIVATE DRIVE HANDOFF — DO NOT RESTART, REPLAN FROM MEMORY OR SUBSTITUTE AN OLDER ZIP.
+
+Open this authoritative private Drive folder via connected Google Drive:
+https://drive.google.com/drive/folders/1JZqELsZ7wO2IkS2UvirCI31g1faND8Vd
+
+Find the newest file named LIFELINE_MT5_AI_STUDIO_WHOLE_PRODUCT_20261024_*.zip. Do not use the older 20261022_v14 archive. Download the ZIP; verify SHA-256 using the GitHub Actions artifact digest if available and all individual files with 'python3 verify_handoff.py' / SHA256SUMS.txt; read README_START_HERE.md, handoff/CURRENT_STATE_AND_NEXT_STEPS.md, handoff/SOURCE_MANIFEST.json, handoff/VALIDATION_REPORT.txt, handoff/SECURITY_EXCLUSIONS.md, and product README + newest validation reports BEFORE any engineering.
+
+Repo: evansmusitu/mft-axiom-build
+Branch: product/lifeline-mt5-fivecloud-isolated-20261020
+Draft PR: https://github.com/evansmusitu/mft-axiom-build/pull/30
+Use the exact frozen source SHA in handoff/SOURCE_MANIFEST.json, not a guessed SHA. RECHECK LIVE GitHub HEAD and reconcile any newer commits. Preserve protected main, other MUSITU projects and all existing cloud services.
+
+KEY CURRENT REALITY (as of source handoff; verify anew):
+- Native Windows reviewed no-order MQL5 EX5 compile succeeded on disposable Windows GitHub runner. Offline real Node Cloudflare edge → Python FastAPI signed agent/probe/receipt succeeded on Ubuntu and Windows (synthetic only), with MCP lifecycle and tenant-security checks.
+- Legacy Cloudflare owner-only Worker: 6/10 bindings, four sensitive bindings missing, independent LIFELINE_PRIVATE_BACKEND_CUTOVER flag OFF. Modal private signed synthetic Neon RLS queue previously worked, but full owner Cloudflare→Modal→Neon route NOT connected. Existing Modal environment shares 13 other apps; avoid new shared-scope proxy token.
+- Owner prefers $0, no new Modal workspace, no permanent Windows host. NEW Cloudflare-native private Service Binding + D1 synthetic-status alternative is implemented SOURCE ONLY, tested offline, NOT deployed. Verify exact Cloudflare account Free Workers+D1 allowance and hard no-spend controls before provisioning, and only with explicit safety gates. Avoid public workers_dev, preview, routes, secrets in logs, unreviewed trading tools and cross-project changes.
+- Oracle denied card and private-support cannot waive standard verification; no Oracle server. Temporary GitHub Windows runner is NOT a permanent Windows host.
+- No live trading, broker credentials, real historical-quote performance, customer release, revenue or paid hosting.
+
+Continue actual implementation and verification autonomously on isolated branch and within $0; honor payment/security/identity approvals. Read real provider responses and tests; distinguish proposed, source implemented, deployed, tested and fully live. Keep PR draft. If user requests another handoff, create a fresh full source/evidence package with verified SHA and Drive upload.
+
+Your final answer must report exact source files/commit inspected, real CI links and provider evidence, what you built, which gates remain blocked and any new Drive handoff URL. Do not stop for artificial short intervals or ask questions whose answers are in this handoff.

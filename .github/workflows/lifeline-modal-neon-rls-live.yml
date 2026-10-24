@@ -1,0 +1,73 @@
+name: LIFELINE Modal-to-Neon Restricted Role Live Acceptance
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/modal/neon_envelope.json'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/private_neon_probe.py'
+      - '.github/workflows/lifeline-modal-neon-rls-live.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  encrypted-private-neon:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Spending and sealed envelope integrity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          modal billing summary --for 'this month' --json >/tmp/lifeline-billing.json
+          python - <<'PY'
+          import json,base64
+          from decimal import Decimal
+          from pathlib import Path
+          x=json.load(open('/tmp/lifeline-billing.json'))
+          if Decimal(str(x["metered_cost"]))>Decimal('5') or Decimal(str(x["billed_cost"]))!=0:
+              raise SystemExit('Modal zero-spend protection denied')
+          p=Path('products/lifeline-mt5-ai-studio/infra/modal/neon_envelope.json')
+          d=json.loads(p.read_text())
+          if d.get('schema')!='lifeline.secret_envelope.rsa_oaep_sha256.v1' or d.get('plaintext_in_git') is not False:
+              raise SystemExit('untrusted credential format')
+          if len(base64.b64decode(d['ciphertext_b64'],validate=True))!=384:
+              raise SystemExit('unexpected RSA ciphertext size')
+          for prohibited in ('postgresql://','password=','NEON_DATABASE_URL='):
+              if prohibited.lower() in p.read_text().lower():
+                  raise SystemExit('plain credential detected in public envelope')
+          print('rsa_envelope_ciphertext_only=true')
+          print('modal_current_bill_zero=true')
+          PY
+      - name: Deploy only new isolated non-web Neon verifier app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile products/lifeline-mt5-ai-studio/infra/modal/private_neon_probe.py
+          modal deploy products/lifeline-mt5-ai-studio/infra/modal/private_neon_probe.py --name lifeline-mt5-neon-rls-probe-isolated --strategy recreate >/tmp/lifeline-neon-deploy.log 2>&1 || {
+            echo "no_secret_neon_deploy_failed"
+            tail -15 /tmp/lifeline-neon-deploy.log | sed -E 's/[A-Za-z0-9_-]{36,}/[redacted]/g'
+            exit 1
+          }
+          echo 'modal_neon_internal_app_deployed=true'
+      - name: Invoke internal Modal role+RLS verifier (no public HTTP)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,modal
+          f=modal.Function.from_name('lifeline-mt5-neon-rls-probe-isolated','verify_restricted_role')
+          result=f.remote()
+          expected={'schema':'lifeline.modal_neon_exact_login.v1','connected':True,
+              'restricted_role':True,'row_level_security':True,'tenant_isolation':True,
+              'database_write_attempted':False,'live_trading':False,'credential_exposed':False}
+          if any(result.get(k)!=v for k,v in expected.items()):
+              raise SystemExit('Neon exact-login RLS acceptance mismatch')
+          print(json.dumps(result,sort_keys=True))
+          PY

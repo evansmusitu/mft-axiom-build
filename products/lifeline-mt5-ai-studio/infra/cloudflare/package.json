@@ -1,0 +1,15 @@
+{
+  "name": "lifeline-mt5-cloudflare-edge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check index.mjs",
+    "test": "node --test test.mjs"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

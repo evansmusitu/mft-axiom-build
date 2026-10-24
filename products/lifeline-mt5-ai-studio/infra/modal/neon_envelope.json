@@ -1,0 +1,8 @@
+{
+  "schema": "lifeline.secret_envelope.rsa_oaep_sha256.v1",
+  "recipient_secret": "lifeline-mt5-neon-stage-unwrap-key-20261021",
+  "recipient_spki_sha256": "c50624d34d0c3a11e71b14d89c97dacf99ac1f735eafd16cf14bdc5e642239e0",
+  "ciphertext_b64": "A21/4j4IabfGBCkwfXvMfKibkncM37VhaGafO3hAGyWKectCFkUxhEc/DfgoOUNz2AmRsRvSpp5t7bxmns8cxQLKfQZjXAGoTtdR0t+9YgfV+ruqaymSvRkAIx0xqmxENORkgkQEabRBMNTvp1NtQ0IPXK9CFBHCG7JdWQA0kHKjqB7hW192zHuTLBCY9mcVVavfwenHNc1NBr/vBtYqk/KLaqDyseDWdqsn6g6d2klioIqhIErA2EsHIIcz2vGB2l/qeh3vfuKX3QHl8+JCROgJ47cjY1utiZCXuz5xQS6L/LkwAYLgj/Hh5sG8LMFueUfzRJUAENZIGoJeWrFec8/gl9rHuDtceh/FZV0LhGgdmhBIoTOumfqvU76ARH3mMObp2EIjS/yGjboZ8ywmwVA8+xa5cjgC9zaWYDwy1T8WrBS7PstgWj7OJ67SoowW3tk9+Qj3zhJ85lLDvCJPJFzWAyLwJpLj1yqeyE2pvA9/sJAM2Dcy1WaVB2nwyrqs",
+  "payload_kind": "dedicated_neon_restricted_postgres_dsn",
+  "plaintext_in_git": false
+}

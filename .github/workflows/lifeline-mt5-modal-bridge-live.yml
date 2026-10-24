@@ -1,0 +1,40 @@
+name: LIFELINE Private Modal-Neon Signed Probe E2E
+# One-time bootstrap creates a non-rotatable pairing Secret; don't re-run
+# automatically on code pushes. Subsequent regression uses
+# lifeline-mt5-neon-receipt-live.yml, which reuses existing Modal Secrets.
+on:
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  private-signed-neon-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Enforce zero billed and low free-credit usage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          modal billing summary --for 'this month' --json >/tmp/lifeline-modal-budget.json
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          v=json.load(open("/tmp/lifeline-modal-budget.json"))
+          if Decimal(str(v["billed_cost"]))!=0 or Decimal(str(v["metered_cost"]))>Decimal("5"):
+              raise SystemExit("No-spend Modal guard blocked further compute")
+          print("modal_bill_zero=true")
+          PY
+      - name: Deploy dedicated private bridge and prove signed Neon probe/receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile products/lifeline-mt5-ai-studio/infra/modal/app.py products/lifeline-mt5-ai-studio/infra/modal/accept_bridge.py
+          python products/lifeline-mt5-ai-studio/infra/modal/accept_bridge.py

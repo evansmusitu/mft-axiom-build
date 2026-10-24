@@ -1,0 +1,51 @@
+name: LIFELINE Offline Cross-Language Signed Full Stack Acceptance
+# No real providers, card, paid compute, credentials, deployment or Windows host.
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/**'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/staging_api.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/bridge.py'
+      - 'products/lifeline-mt5-ai-studio/windows/agent.py'
+      - 'products/lifeline-mt5-ai-studio/windows/poller.py'
+      - '.github/workflows/lifeline-mt5-offline-fullstack-ci.yml'
+permissions: {contents: read}
+jobs:
+  offline-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install only offline harness dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'fastapi>=0.115,<1' 'uvicorn>=0.30,<1' 'httpx>=0.28,<1'
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Run real Node edge against loopback Python FastAPI, no external service
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          python -m py_compile local_stack_server.py
+          node --check test_local_full_stack.mjs
+          python local_stack_server.py &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 35); do
+            if curl --fail --silent http://127.0.0.1:19234/__offline_ready > /dev/null; then break; fi
+            sleep 0.2
+          done
+          curl --fail --silent http://127.0.0.1:19234/__offline_ready > /dev/null
+          node --test test_local_full_stack.mjs
+          echo 'real_cloudflare_logic_to_local_fastapi_and_sqlite=true'
+          echo 'actual_modal_neon_windows_host_or_broker_tested=false'
+          echo 'production_private_backend_cutover_performed=false'
+          echo 'cloud_usage_and_trading_performed=false'
