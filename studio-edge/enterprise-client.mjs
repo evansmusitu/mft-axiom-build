@@ -7,7 +7,7 @@
 import {encryptTenantText,decryptTenantText} from './client-encrypted-artifact.mjs';
 const ID=/^[A-Za-z0-9_-]{8,64}$/;
 const ETAG=/^"[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}"$/;
-const HOST=/^[a-z0-9-]+\.mft-education-nexus-93f395f5\.workers\.dev$/;
+const HOST=/^(?:musitu-private-canary|musitu-intelligence-enterprise-private-[a-z0-9]{6,32})\.mft-education-nexus-93f395f5\.workers\.dev$/;
 class WorkspaceRequestError extends Error {
  constructor(code,status=0){
    super('Workspace operation could not be completed.');
