@@ -15,10 +15,17 @@ function reply(data, status = 200, origin = '', revision = null) {
   return new Response(encoded(data),{status,headers});
 }
 function fail(code, status, origin) {return reply({code,error:'Enterprise workspace request denied.'},status,origin);}
-function decode(segment) {
-  if (!B64.test(segment) || segment.length > 8192) throw Error('bad encoding');
+function decode(segment,maxLength=8192) {
+  if (!B64.test(segment) || segment.length > maxLength) throw Error('bad encoding');
   const bytes = atob(segment.replace(/-/g,'+').replace(/_/g,'/') + '='.repeat((4-segment.length%4)%4));
   return Uint8Array.from(bytes, c => c.charCodeAt(0));
+}
+function canonicalUrl64(value,maxLength=8192) {
+  const bytes=decode(value,maxLength);
+  let binary='';
+  for(let offset=0;offset<bytes.length;offset+=4096)
+    binary+=String.fromCharCode(...bytes.subarray(offset,offset+4096));
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')===value;
 }
 function object(segment) { return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(decode(segment))); }
 function validTeam(domain) { return typeof domain === 'string' && /^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain); }
@@ -97,9 +104,10 @@ async function limitedJson(request) {
 function validEnvelope(value) {
   return value && typeof value === 'object' && !Array.isArray(value) &&
     Object.keys(value).sort().join(',') === 'ciphertext,iv,version' && value.version === 1 &&
-    typeof value.iv === 'string' && value.iv.length === 16 && B64.test(value.iv) && decode(value.iv).length === 12 &&
+    typeof value.iv === 'string' && value.iv.length === 16 && B64.test(value.iv) && decode(value.iv).length === 12 && canonicalUrl64(value.iv) &&
     typeof value.ciphertext === 'string' && value.ciphertext.length >= 24 &&
-    value.ciphertext.length <= 12000 && B64.test(value.ciphertext) && decode(value.ciphertext).length >= 16;
+    value.ciphertext.length <= 12000 && B64.test(value.ciphertext) &&
+    decode(value.ciphertext,12000).length >= 16 && canonicalUrl64(value.ciphertext,12000);
 }
 export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,now=Math.floor(Date.now()/1000)}={}) {
   const origin=request.headers.get('origin')||'';
