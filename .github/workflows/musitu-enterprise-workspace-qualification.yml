@@ -35,3 +35,5 @@ jobs:
         run: python3 studio-edge/tests/enterprise_quota_contract.py
       - name: Atomic per-tenant mutation budget contract
         run: python3 studio-edge/tests/enterprise_mutation_budget.py
+      - name: Portable offline verifier (independent reproduction)
+        run: bash studio-edge/scripts/verify-enterprise-workspace.sh
