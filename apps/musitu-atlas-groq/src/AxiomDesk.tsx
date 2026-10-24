@@ -64,8 +64,8 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
       ?'CREDENTIAL WAS REJECTED':'AUTHORIZATION NOT YET CONFIRMED';
    let diagnosis='';
    if(data.providerGateStatus==='CREDENTIAL_REJECTED'){
-    if(data.credentialKind==='ACCOUNT_KEY')
-      diagnosis=' The configured secret is an Axiom account key, not the short-lived OAuth access token required by the public gateway. A dedicated ATLAS OAuth authorization flow is needed.';
+    if(data.credentialKind==='NON_OAUTH_MUSITU_PREFIX')
+      diagnosis=' The configured secret has a non-OAuth MUSITU-style prefix. It may be an account key or another secret, but it is not the short-lived access-token format expected by this gateway. A dedicated ATLAS OAuth authorization flow is needed.';
     else if(data.credentialKind==='OAUTH_REFRESH')
       diagnosis=' A refresh token cannot be used directly to invoke Axiom. A legitimate OAuth refresh exchange is needed.';
     else if(data.credentialKind==='OAUTH_ACCESS'&&data.identityVerification==='INVALID_OR_EXPIRED')
