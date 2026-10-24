@@ -1,0 +1,56 @@
+name: AXIOM ISO S0 Revocation and Finance Evidence Only - Not Release
+
+on:
+  push:
+    branches:
+      - build/axiom-iso-revocation-finance-s0-20261024
+    paths:
+      - 'ops/iso_trust_boundary/**'
+      - '.github/workflows/axiom-iso-revocation-finance-s0-20261024.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  s0-nonrelease-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'build/axiom-iso-revocation-finance-s0-20261024'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Enforce lineage, no secrets and no production authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor b23dd41e0c208becee85cee3d3b2c8deadcffd3b HEAD
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${OPENHANDS_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          echo AXIOM_S0_SOURCE_SCOPE_ONLY_NOT_RELEASE
+      - name: Install pinned synthetic-crypto test dependency
+        run: python -m pip install -q --disable-pip-version-check 'cryptography==46.0.4'
+      - name: Full ISO S0 tests and financial/revocation negative checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-s0.log
+          grep -Eq 'Ran 110 tests in ' /tmp/axiom-iso-s0.log
+          grep -Eq '^OK$' /tmp/axiom-iso-s0.log
+          python -m compileall -q ops/iso_trust_boundary
+          echo AXIOM_ISO_S0_110_TESTS_LOCAL_ONLY
+      - name: Keep B27 destructive antirollback failure reproduced
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/trackb27/VERIFY_B27_LOCAL.py 2>&1 | tee /tmp/axiom-b27.log
+          grep -Fq 'AXIOM_B27_GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED' /tmp/axiom-b27.log
+          grep -Fq 'B27_EXTERNAL_INDEPENDENCE_NOT_PROVEN_ROLLBACK_ATTACK_REPRODUCED' /tmp/axiom-b27.log
+          grep -Fq 'The replay succeeds.' ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md
+          echo AXIOM_S0_FINANCE_REVOCATION_NOT_EXTERNAL_NOT_RELEASE
