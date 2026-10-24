@@ -149,8 +149,18 @@ export default {async fetch(request,env){
         return reply({error:'operation_not_permitted'},403);
     }
     if(body.method==='initialize'){
-      if(Object.hasOwn(body,'params')&&(!body.params||typeof body.params!=='object'||
-         Array.isArray(body.params)))return reply({error:'operation_not_permitted'},403);
+      const params=body.params;
+      const boundedString=(v,n)=>typeof v==='string'&&v.length>0&&v.length<=n&&
+        !/[\\x00-\\x1f\\x7f]/.test(v);
+      const client=params?.clientInfo;
+      if(!params||Array.isArray(params)||typeof params!=='object'||
+         Object.keys(params).some(k=>!['protocolVersion','capabilities','clientInfo'].includes(k))||
+         params.protocolVersion!=='2025-03-26'||
+         !params.capabilities||typeof params.capabilities!=='object'||Array.isArray(params.capabilities)||
+         !client||typeof client!=='object'||Array.isArray(client)||
+         Object.keys(client).some(k=>!['name','version'].includes(k))||
+         !boundedString(client.name,100)||!boundedString(client.version,60))
+        return reply({error:'operation_not_permitted'},403);
     }else if(body.method==='ping'||body.method==='tools/list'){
       if(Object.hasOwn(body,'params')&&(!body.params||typeof body.params!=='object'||
          Array.isArray(body.params)||Object.keys(body.params).length!==0))

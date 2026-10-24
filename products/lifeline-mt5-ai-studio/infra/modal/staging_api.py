@@ -142,7 +142,17 @@ def mount_readonly_mcp(api:FastAPI, edge_secret:str):
         if 'id' not in obj or not valid_id or set(obj)-{'jsonrpc','id','method','params'}:
             raise HTTPException(400,'invalid MCP JSON-RPC envelope')
         if method=='initialize':
-            if 'params' in obj and not isinstance(obj['params'],dict):
+            params=obj.get('params')
+            client=params.get('clientInfo') if type(params) is dict else None
+            def bounded(value,size):
+                return (type(value) is str and 0<len(value)<=size and
+                    all(ord(ch)>=32 and ord(ch)!=127 for ch in value))
+            if (type(params) is not dict or
+                set(params)-{'protocolVersion','capabilities','clientInfo'} or
+                params.get('protocolVersion')!='2025-03-26' or
+                type(params.get('capabilities')) is not dict or
+                type(client) is not dict or set(client)-{'name','version'} or
+                not bounded(client.get('name'),100) or not bounded(client.get('version'),60)):
                 return {'jsonrpc':'2.0','id':rpc_id,
                     'error':{'code':-32602,'message':'Invalid parameters'}}
             result={'protocolVersion':'2025-03-26','serverInfo':{'name':'lifeline-mt5','version':'0.4.0'},'capabilities':{'tools':{}}}
