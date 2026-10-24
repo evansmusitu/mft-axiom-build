@@ -21,6 +21,7 @@ class SQLiteD1 {
     this.sql.exec('PRAGMA foreign_keys=ON;');
     this.sql.exec(readFileSync(new URL('../migrations/0001_enterprise_workspace.sql',import.meta.url),'utf8'));
     this.sql.exec(readFileSync(new URL('../migrations/0002_enterprise_tenant_artifact_limit.sql',import.meta.url),'utf8'));
+    this.sql.exec(readFileSync(new URL('../migrations/0003_enterprise_artifact_revision.sql',import.meta.url),'utf8'));
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(TENANT);
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(OTHER);
     this.sql.prepare('INSERT INTO tenant_memberships VALUES (?,?,?,?)').run(TENANT,'account_A_123','editor','active');
@@ -48,12 +49,16 @@ class SQLiteD1 {
 }
 async function request(db,method='GET'){
   const headers={origin:'https://evansmusitu.github.io','cf-access-jwt-assertion':token};
-  if(method==='PUT')headers['content-type']='application/json';
+  if(method==='PUT'){headers['content-type']='application/json';headers['if-none-match']='*';}
+  if(method==='DELETE'){
+    const row=db.sql.prepare('SELECT revision FROM tenant_artifacts WHERE tenant_id=? AND artifact_id=?').get(TENANT,ITEM);
+    headers['if-match']='"'+(row?.revision||'00000000-0000-4000-8000-000000000001')+'"';
+  }
   const req=new Request('https://test.invalid/api/enterprise/tenants/'+TENANT+'/artifacts?id='+ITEM,{
     method,headers,body:method==='PUT'?JSON.stringify(envelope):undefined});
   return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},{fetchJwks:jwks,now:NOW});
 }
-const seed=db=>db.sql.prepare('INSERT INTO tenant_artifacts VALUES (?,?,?,?,?,?)').run(TENANT,ITEM,envelope.iv,envelope.ciphertext,1,NOW);
+const seed=db=>db.sql.prepare('INSERT INTO tenant_artifacts (tenant_id,artifact_id,iv,ciphertext,version,updated_at) VALUES (?,?,?,?,?,?)').run(TENANT,ITEM,envelope.iv,envelope.ciphertext,1,NOW);
 const revoke=db=>db.prepare('UPDATE tenant_memberships SET status=? WHERE tenant_id=? AND subject=?').run('revoked',TENANT,'account_A_123');
 const downgrade=db=>db.prepare('UPDATE tenant_memberships SET role=? WHERE tenant_id=? AND subject=?').run('viewer',TENANT,'account_A_123');
 
@@ -78,14 +83,14 @@ test('revocation between preflight and DELETE cannot delete or log',async()=>{
 });
 test('normal encrypted PUT/GET/DELETE work, missing delete does not write false audit',async()=>{
   const db=new SQLiteD1();try{
-    db.sql.prepare('INSERT INTO tenant_artifacts VALUES (?,?,?,?,?,?)').run(OTHER,ITEM,envelope.iv,envelope.ciphertext,1,NOW);
+    db.sql.prepare('INSERT INTO tenant_artifacts (tenant_id,artifact_id,iv,ciphertext,version,updated_at) VALUES (?,?,?,?,?,?)').run(OTHER,ITEM,envelope.iv,envelope.ciphertext,1,NOW);
     assert.equal((await request(db,'PUT')).status,200);
     const res=await request(db,'GET');assert.equal(res.status,200);
     assert.deepEqual((await res.json()).envelope,envelope);
     assert.equal((await request(db,'DELETE')).status,200);
     assert.equal(db.count('tenant_artifacts'),1);
     assert.equal(db.count('tenant_audit'),2);
-    assert.equal((await request(db,'DELETE')).status,404);
+    assert.equal((await request(db,'DELETE')).status,412);
     assert.equal(db.count('tenant_audit'),2);
   }finally{db.close();}
 });
@@ -93,7 +98,7 @@ test('normal encrypted PUT/GET/DELETE work, missing delete does not write false 
 test('workspace API reports bounded quota without falsely persisting or auditing',async()=>{
   const db=new SQLiteD1();
   try{
-    const statement=db.sql.prepare('INSERT INTO tenant_artifacts VALUES (?,?,?,?,?,?)');
+    const statement=db.sql.prepare('INSERT INTO tenant_artifacts (tenant_id,artifact_id,iv,ciphertext,version,updated_at) VALUES (?,?,?,?,?,?)');
     for(let i=0;i<50;i++)statement.run(TENANT,'slot_'+String(i).padStart(8,'0'),envelope.iv,envelope.ciphertext,1,NOW);
     const response=await request(db,'PUT');
     assert.equal(response.status,409);
