@@ -67,6 +67,30 @@ function ensureNoZip64(extra){
   pos+=n;
  }
 }
+async function checkApkSigningBlock(fd,start,end){
+ // Structure only: matching Android APK Signing Block v2/v3 framing is
+ // NOT cryptographic verification of any signer, certificate or digest.
+ const span=end-start;
+ if(span<36||span>32*1024*1024)reject('untrusted ZIP gap / invalid signing block size');
+ const footer=await readExact(fd,24,end-24);
+ if(!footer.subarray(8).equals(Buffer.from('APK Sig Block 42')))
+  reject('untrusted ZIP gap; no APK signing block');
+ const size=footer.readBigUInt64LE(0);
+ if(size!==BigInt(span-8))reject('APK signing block size mismatch');
+ const head=await readExact(fd,8,start);
+ if(head.readBigUInt64LE(0)!==size)reject('APK signing block header mismatch');
+ let cursor=start+8,count=0;
+ while(cursor<end-24){
+  if(cursor+12>end-24)reject('APK signing block truncated pair');
+  const pair=await readExact(fd,12,cursor);
+  const pairSize=pair.readBigUInt64LE(0);
+  if(pairSize<4n||pairSize>BigInt(end-24-cursor-8))
+   reject('APK signing block invalid pair length');
+  cursor+=8+Number(pairSize);
+  if(++count>4096)reject('APK signing block excessive pairs');
+ }
+ if(cursor!==end-24||count===0)reject('APK signing block malformed pairs');
+}
 function structuralOutput(count,total){
  return Object.freeze({status:'STRUCTURAL_PREFLIGHT_ONLY',entryCount:count,
   declaredExpandedBytes:total,signatureVerified:false,malwareCleared:false,
@@ -161,13 +185,32 @@ export async function createQuarantinedApkPreflight({root,maxEntries=ENTRY_MAX,
     if(!localName.equals(rawName))reject('ZIP local vs central filename mismatch');
     const localExtra=await readExact(fd,localExtraLen,offset+30+localNameLen);
     ensureNoZip64(localExtra);
-    if(!(flags&8)&&
-       (local.readUInt32LE(14)!==crc||local.readUInt32LE(18)!==compressed||
-         local.readUInt32LE(22)!==expanded))reject('ZIP local size/CRC mismatch');
+    const localCrc=local.readUInt32LE(14),localCompressed=local.readUInt32LE(18),
+      localExpanded=local.readUInt32LE(22);
+    if(!(flags&8)?(localCrc!==crc||localCompressed!==compressed||localExpanded!==expanded):
+      ((localCrc!==0&&localCrc!==crc)||
+       (localCompressed!==0&&localCompressed!==compressed)||
+       (localExpanded!==0&&localExpanded!==expanded)))
+      reject('ZIP local size/CRC mismatch');
     const dataStart=offset+30+nName+localExtraLen, dataEnd=dataStart+compressed;
     if(dataEnd>cdStart||dataStart>dataEnd)
       reject('ZIP compressed member offset exceeds private object');
-    members.push({name,start:offset,end:dataEnd});
+    let physicalEnd=dataEnd;
+    if(flags&8){
+      // Bit 3 requires a physical CRC/size data descriptor after the member.
+      // A forged flag must never let attacker-controlled bytes escape bounds.
+      if(dataEnd+12>cdStart)reject('ZIP data descriptor missing');
+      const probe=await readExact(fd,4,dataEnd);
+      const signed=probe.readUInt32LE(0)===0x08074b50;
+      const descriptor=await readExact(fd,signed?16:12,dataEnd);
+      const start=signed?4:0;
+      if(descriptor.readUInt32LE(start)!==crc||
+         descriptor.readUInt32LE(start+4)!==compressed||
+         descriptor.readUInt32LE(start+8)!==expanded)
+       reject('ZIP data descriptor mismatch');
+      physicalEnd=dataEnd+descriptor.length;
+    }
+    members.push({name,start:offset,end:physicalEnd});
     if(name==='AndroidManifest.xml')manifest=true;
     if(name==='classes.dex')dex=true;
     pos=endEntry;
@@ -178,7 +221,11 @@ export async function createQuarantinedApkPreflight({root,maxEntries=ENTRY_MAX,
    for(let i=1;i<members.length;i++){
     if(members[i].start<members[i-1].end)
       reject('ZIP overlapping local compressed ranges');
+    if(members[i].start!==members[i-1].end)
+      reject('untrusted ZIP gap between local members');
    }
+   if(members[members.length-1].end<cdStart)
+    await checkApkSigningBlock(fd,members[members.length-1].end,cdStart);
    for(const {name} of members){
     const pieces=name.toLowerCase().split('/');let parent='';
     for(let i=0;i<pieces.length-1;i++){

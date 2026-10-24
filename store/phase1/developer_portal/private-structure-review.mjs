@@ -49,6 +49,11 @@ export async function runPrivateStructuralPreflight({repository,inspector,isAuth
    inspectorSubject:actor.subject,inspectorTokenId:actor.tokenId,entryCount:result.entryCount,
    expandedBytes:result.declaredExpandedBytes,status:'STRUCTURAL_PREFLIGHT_ONLY'};
  const evidenceSha256=createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
+ // Revalidate at the evidence-commit boundary: the reviewer may be revoked
+ // during a long private inspection. The SQL INSERT independently enforces
+ // current enrolled-role and session status in the same DB transaction.
+ if(await isAuthorized({subject:actor.subject,role:actor.role,tokenId:actor.tokenId})!==true)
+  throw Error('reviewer session revoked before structural evidence commit');
  const stored=await repository.recordStructuralCheck({...evidence,evidenceSha256});
  if(stored?.kind!=='created')throw Error('structural evidence record conflict or storage failure');
  return Object.freeze({status:'STRUCTURAL_PREFLIGHT_ONLY',entryCount:result.entryCount,

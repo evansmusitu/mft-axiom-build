@@ -198,3 +198,69 @@ test('UNIX special files cannot evade rejection by forging the ZIP creator platf
   await assert.rejects(inspector.inspect(key),/symlink|special|unsafe/i);
  }
 }));
+
+test('ZIP data-descriptor flag cannot suppress required physical descriptor',()=>withQuarantine(async ({inspector,target,key})=>{
+ const bytes=zip();
+ const cdStart=bytes.readUInt32LE(bytes.length-6);
+ bytes.writeUInt16LE(8,6); // local flags say descriptor follows compressed bytes
+ bytes.writeUInt16LE(8,cdStart+8); // central flags agree
+ await writeFile(target,bytes,{mode:0o600});
+ await assert.rejects(inspector.inspect(key),/descriptor|gap|unbound/i);
+}));
+
+test('ZIP hidden padding between compressed locals and central directory is denied',()=>withQuarantine(async ({inspector,target,key})=>{
+ const raw=zip(), end=raw.length-22,cdStart=raw.readUInt32LE(end+16);
+ const junk=Buffer.alloc(22,0x5a);
+ const evil=Buffer.concat([raw.subarray(0,cdStart),junk,raw.subarray(cdStart)]);
+ evil.writeUInt32LE(cdStart+junk.length,evil.length-22+16);
+ await writeFile(target,evil,{mode:0o600});
+ await assert.rejects(inspector.inspect(key),/gap|signing block|untrusted|ZIP/i);
+}));
+
+function beforeCentral(raw,insertion){
+ const cdStart=raw.readUInt32LE(raw.length-22+16);
+ const out=Buffer.concat([raw.subarray(0,cdStart),insertion,raw.subarray(cdStart)]);
+ out.writeUInt32LE(cdStart+insertion.length,out.length-22+16);
+ return out;
+}
+test('valid ZIP data descriptor is structurally inspected but never treated as clearance',()=>withQuarantine(async ({inspector,target,key})=>{
+ const raw=zip(),cd=raw.readUInt32LE(raw.length-22+16);
+ const firstLocalBytes=30+Buffer.byteLength('AndroidManifest.xml')+C.manifest.data.length;
+ const secondCd=cd+46+Buffer.byteLength('AndroidManifest.xml');
+ raw.writeUInt16LE(8,firstLocalBytes+6);
+ raw.writeUInt16LE(8,secondCd+8);
+ const descriptor=Buffer.alloc(16);
+ descriptor.writeUInt32LE(0x08074b50,0);descriptor.writeUInt32LE(C.dex.data.length,8);
+ descriptor.writeUInt32LE(C.dex.data.length,12);
+ const valid=beforeCentral(raw,descriptor);
+ await writeFile(target,valid,{mode:0o600});
+ const passed=await inspector.inspect(key);
+ assert.equal(passed.entryCount,2);assert.equal(passed.signatureVerified,false);
+ assert.equal(passed.malwareCleared,false);
+ const corrupt=Buffer.from(valid);
+ corrupt.writeUInt32LE(999,cd+8);
+ await writeFile(target,corrupt,{mode:0o600});
+ await assert.rejects(inspector.inspect(key),/descriptor mismatch/);
+}));
+
+test('APK Signing Block framing is accepted without claiming a verified signature',()=>withQuarantine(async ({inspector,target,key})=>{
+ const value=Buffer.from('untrusted-test-pair');
+ const pairSize=4+value.length;
+ const size=8+pairSize+8+16;
+ const block=Buffer.alloc(8+size);
+ block.writeBigUInt64LE(BigInt(size),0);
+ block.writeBigUInt64LE(BigInt(pairSize),8);
+ block.writeUInt32LE(0x7109871a,16);
+ value.copy(block,20);
+ block.writeBigUInt64LE(BigInt(size),20+value.length);
+ Buffer.from('APK Sig Block 42').copy(block,28+value.length);
+ const raw=zip(),cd=raw.readUInt32LE(raw.length-22+16);
+ const valid=beforeCentral(raw,block);
+ await writeFile(target,valid,{mode:0o600});
+ const passed=await inspector.inspect(key);
+ assert.equal(passed.status,'STRUCTURAL_PREFLIGHT_ONLY');
+ assert.equal(passed.signatureVerified,false);
+ const corrupt=Buffer.from(valid);corrupt.writeBigUInt64LE(BigInt(size+1),cd);
+ await writeFile(target,corrupt,{mode:0o600});
+ await assert.rejects(inspector.inspect(key),/signing block header mismatch/);
+}));

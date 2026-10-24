@@ -80,3 +80,20 @@ test('SQL receipt INSERT binds uploader digest, size, tenant and independent rev
  assert.match(calls[0].sql,/q\.storage_key=\$5/);
  assert.equal(calls[0].params.length,10);
 });
+
+test('revoked independent reviewer during slow structural inspection never appends an audit receipt',async()=>{
+ const f=fixture();let checks=0;
+ f.isAuthorized=async()=>++checks===1;
+ await assert.rejects(run(f),/auth|revok|session/i);
+ assert.equal(f.t.inspections,1,'revocation occurs after inspection begins');
+ assert.equal(f.t.writes,0,'revoked review cannot produce even structural acceptance evidence');
+ assert.equal(checks,2);
+});
+
+test('temporary session-status outage just before committing inspection evidence fails closed',async()=>{
+ const f=fixture();let checks=0;
+ f.isAuthorized=async()=>{if(++checks===2)throw Error('session registry offline');return true;};
+ await assert.rejects(run(f),/session registry offline/);
+ assert.equal(f.t.inspections,1);
+ assert.equal(f.t.writes,0);
+});
