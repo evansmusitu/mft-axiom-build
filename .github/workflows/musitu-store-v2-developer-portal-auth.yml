@@ -25,7 +25,8 @@ jobs:
           set -euo pipefail
           node --check store/phase1/developer_portal/portal.mjs
           node --check store/phase1/developer_portal/quarantine-upload.mjs
-          node --test store/phase1/developer_portal/portal.test.mjs store/phase1/developer_portal/postgres-repository.test.mjs store/phase1/developer_portal/quarantine-upload.test.mjs
+          node --check store/phase1/developer_portal/private-filesystem-quarantine.mjs
+          node --test store/phase1/developer_portal/portal.test.mjs store/phase1/developer_portal/postgres-repository.test.mjs store/phase1/developer_portal/quarantine-upload.test.mjs store/phase1/developer_portal/private-filesystem-quarantine.test.mjs
           echo MUSITU_STORE_V2_PORTAL_TESTS=PASS
       - name: Qualify fail-closed no-payment and no-public-release contract
         run: |
