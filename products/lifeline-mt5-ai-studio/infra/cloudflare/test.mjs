@@ -487,3 +487,47 @@ test('legacy MCP GET without SSE must send authenticated 405, never a 404 or bac
     assert.equal(backend,0);
   }finally{globalThis.fetch=orig;}
 });
+
+test('MCP initialize validates legacy negotiated protocol, client capabilities and identity before forwarding',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='init-validation';jwk.use='sig';jwk.alg='RS256';
+  const jwt=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'init-validation'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const headers={'cf-access-jwt-assertion':jwt};
+  const good={protocolVersion:'2025-03-26',capabilities:{},
+    clientInfo:{name:'lifeline-offline-client',version:'1.0.0'}};
+  const invalid=[
+    undefined,{},[],
+    {protocolVersion:'bad',capabilities:{},clientInfo:good.clientInfo},
+    {protocolVersion:'2025-03-26',capabilities:null,clientInfo:good.clientInfo},
+    {protocolVersion:'2025-03-26',capabilities:[],clientInfo:good.clientInfo},
+    {...good,clientInfo:{}},
+    {...good,clientInfo:{name:'',version:'1.0.0'}},
+    {...good,clientInfo:{name:'x',version:'v',trade:true}},
+    {...good,command:'order_send'},
+  ];
+  const prev=globalThis.fetch;let count=0;
+  try{
+    globalThis.fetch=async(url)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      count++;
+      return new Response(json({jsonrpc:'2.0',id:1,
+        result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'lifeline-mt5',version:'0.4.0'}}}),
+        {headers:{'content-type':'application/json'}});
+    };
+    for(const params of invalid){
+      const payload={jsonrpc:'2.0',id:1,method:'initialize'};
+      if(params!==undefined)payload.params=params;
+      const response=await worker.fetch(message('/mcp',payload,headers),E);
+      assert.equal(response.status,403,'unsupported initialization cannot reach Modal');
+    }
+    assert.equal(count,0);
+    const allowed=await worker.fetch(message('/mcp',
+      {jsonrpc:'2.0',id:1,method:'initialize',params:good},headers),E);
+    assert.equal(allowed.status,200);assert.equal(count,1);
+    assert.equal((await allowed.json()).result.protocolVersion,'2025-03-26');
+  }finally{globalThis.fetch=prev;}
+});

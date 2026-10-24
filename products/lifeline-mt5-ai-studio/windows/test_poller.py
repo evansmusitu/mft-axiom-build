@@ -244,4 +244,28 @@ class BridgeTests(unittest.TestCase):
                 response=self.tc.post('/mcp',json=bad,headers=self.edge_headers)
                 self.assertEqual(response.status_code,400)
 
+
+    def test_private_mcp_initialize_requires_bounded_client_protocol_fields(self):
+        base={'jsonrpc':'2.0','id':44,'method':'initialize'}
+        good={'protocolVersion':'2025-03-26','capabilities':{},
+              'clientInfo':{'name':'lifeline-offline-client','version':'1.0.0'}}
+        invalid=[None,{},[],
+             {'protocolVersion':'bad','capabilities':{},'clientInfo':good['clientInfo']},
+             {'protocolVersion':'2025-03-26','capabilities':None,'clientInfo':good['clientInfo']},
+             {'protocolVersion':'2025-03-26','capabilities':[],'clientInfo':good['clientInfo']},
+             {**good,'clientInfo':{}},
+             {**good,'clientInfo':{'name':'','version':'1.0.0'}},
+             {**good,'clientInfo':{'name':'x','version':'v','trade':True}},
+             {**good,'command':'order_send'}]
+        for params in invalid:
+            with self.subTest(params=params):
+                request=dict(base)
+                if params is not None:request['params']=params
+                resp=self.tc.post('/mcp',json=request,headers=self.edge_headers)
+                self.assertEqual(resp.status_code,200)
+                self.assertEqual(resp.json()['error']['code'],-32602)
+        allowed=self.tc.post('/mcp',json={**base,'params':good},headers=self.edge_headers)
+        self.assertEqual(allowed.status_code,200)
+        self.assertEqual(allowed.json()['result']['protocolVersion'],'2025-03-26')
+
 if __name__=='__main__':unittest.main()
