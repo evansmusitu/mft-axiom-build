@@ -1,0 +1,35 @@
+name: LIFELINE Modal Proxy Authorization Scope Audit — Read Only
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/modal/proxy_scope_readonly.py'
+      - 'products/lifeline-mt5-ai-studio/infra/modal/test_proxy_scope_readonly.py'
+      - '.github/workflows/lifeline-mt5-modal-proxy-scope-readonly.yml'
+permissions: {contents: read}
+jobs:
+  confirm-no-cross-project-proxy-access:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify no-creation policy under synthetic and adversarial providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/modal
+          python -m unittest -v test_proxy_scope_readonly
+          python -m py_compile proxy_scope_readonly.py
+      - name: Read existing provider metadata only — never create tokens or run compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID" && test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          python products/lifeline-mt5-ai-studio/infra/modal/proxy_scope_readonly.py
