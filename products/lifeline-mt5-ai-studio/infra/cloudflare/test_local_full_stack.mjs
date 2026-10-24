@@ -61,6 +61,10 @@ test('full signed owner → edge → local Modal contract → queue → agent re
   const token=await new SignJWT({sub:OWNER}).setProtectedHeader({alg:'RS256',kid:'offline-jwks-1'})
     .setIssuer(ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
     .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const differentOwner=await new SignJWT({sub:'lifeline-unapproved-user'})
+    .setProtectedHeader({alg:'RS256',kid:'offline-jwks-1'})
+    .setIssuer(ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
   const original=globalThis.fetch;
   let backendCalls=0;
   globalThis.fetch=async(url,options)=>{
@@ -87,6 +91,12 @@ test('full signed owner → edge → local Modal contract → queue → agent re
     const owner={'cf-access-jwt-assertion':token};
     const anon=await call('/operator/status',{}, {});
     assert.equal(anon.status,401,'anonymous owner never reaches stage');
+    const other=await call('/operator/status',{}, {'cf-access-jwt-assertion':differentOwner});
+    assert.equal(other.status,401,'wrong user with valid signing key denied');
+    assert.equal(backendCalls,0,'neither anonymous nor wrong user reached private bridge');
+    const disabled=await worker.fetch(post('/operator/status',{},owner),
+      {...E,LIFELINE_PRIVATE_BACKEND_CUTOVER:undefined});
+    assert.equal(disabled.status,503,'real cutover remains independently gated');
     const before=await call('/operator/status',{},owner);
     assert.equal(before.status,200);
     assert.deepEqual(before.body.jobs,{});
@@ -95,6 +105,7 @@ test('full signed owner → edge → local Modal contract → queue → agent re
     const trade=await call('/mcp',{jsonrpc:'2.0',id:1,method:'tools/call',
       params:{name:'order_send',arguments:{}}},owner);
     assert.equal(trade.status,403,'trade rejected by Cloudflare without calling stage');
+    assert.equal(backendCalls,1,'trade denial occurred at edge, before any extra backend call');
     const list=await call('/mcp',{jsonrpc:'2.0',id:2,method:'tools/list',params:{}},owner);
     assert.equal(list.status,200);
     assert.deepEqual(list.body.result.tools.map(x=>x.name),['lifeline_status']);
@@ -105,6 +116,10 @@ test('full signed owner → edge → local Modal contract → queue → agent re
 
     const request={request:'next',tenant:TENANT};
     const headers=authHeaders(request);
+    const rejectedHeaders={...authHeaders(request),'x-lifeline-signature':'0'.repeat(64)};
+    const beforeBadAgent=backendCalls;
+    assert.equal((await call('/agent/pull',request,rejectedHeaders)).status,401);
+    assert.equal(backendCalls,beforeBadAgent,'invalid HMAC blocked at the edge');
     const pulled=await call('/agent/pull',request,headers);
     assert.equal(pulled.status,200);
     assert.equal(pulled.body.job.job_id,task.body.job_id);
@@ -123,11 +138,24 @@ test('full signed owner → edge → local Modal contract → queue → agent re
       created_at:Math.floor(Date.now()/1000),trading_enabled:false
     };
     receipt.signature=hmac(receipt);
+    const tampered={...receipt,operation:'backtest'};
+    delete tampered.signature;
+    tampered.signature=hmac(tampered);
+    const invalidReceipt={receipt:tampered};
+    const rejected=await call('/agent/receipt',invalidReceipt,authHeaders(invalidReceipt));
+    assert.equal(rejected.status,502,'backend rejected mismatched signed receipt');
+    assert.equal(rejected.body.error,'private_runtime_rejected','no sensitive backend error leaks');
     const payload={receipt};
     const acknowledged=await call('/agent/receipt',payload,authHeaders(payload));
     assert.equal(acknowledged.status,200);
     assert.equal(acknowledged.body.job_id,task.body.job_id);
     assert.equal(acknowledged.body.accepted,true);
+    const second=await call('/agent/receipt',payload,authHeaders(payload));
+    assert.equal(second.status,200,'same receipt may be acknowledged without re-execution');
+    assert.equal(second.body.accepted,true);
+    const idle=await call('/agent/pull',request,authHeaders(request));
+    assert.equal(idle.status,200);
+    assert.equal(idle.body.job,null,'completed job was not reissued for execution');
     const after=await call('/operator/status',{},owner);
     assert.equal(after.status,200);
     assert.equal(after.body.jobs.COMPLETED,1);
