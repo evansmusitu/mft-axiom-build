@@ -155,7 +155,8 @@ def main() -> None:
         raise FileExistsError('external_gate_output_already_exists')
     result=assess_external_evidence(json.loads(args.evidence.read_text()))
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
+    with args.output.open('x', encoding='utf-8') as out:
+        out.write(json.dumps(result,sort_keys=True,indent=2)+'\n')
     print(json.dumps({'status':result['status'],'production_admission':False},sort_keys=True))
 
 
