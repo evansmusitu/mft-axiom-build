@@ -12,6 +12,9 @@ const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.f
 const hex=a=>Array.from(new Uint8Array(a),x=>x.toString(16).padStart(2,'0')).join('');
 const same=(a,b)=>{if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;};
 function readConfig(env){
+  // Credential presence never authorizes activation. Explicit owner-governed
+  // cutover is an independent binding that is absent from staging by default.
+  if(env?.LIFELINE_PRIVATE_BACKEND_CUTOVER!=='AUTHORIZED')return null;
   const needed=['ACCESS_ISSUER','ACCESS_AUD','MODAL_ORIGIN','MODAL_PROXY_KEY','MODAL_PROXY_SECRET','EDGE_SHARED_SECRET',
     'AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY','ACCESS_OPERATOR_SUB'];
   if(needed.some(k=>typeof env[k]!=='string'||!env[k]))return null;
