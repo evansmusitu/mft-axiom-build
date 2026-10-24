@@ -36,9 +36,26 @@ export async function verifyAccessJwt(token, {teamDomain,audience,fetchJwks = fe
       claims.exp - claims.iat > 86400 || typeof claims.sub !== 'string' ||
       claims.sub.length < 1 || claims.sub.length > 256) throw Error('claims');
   const r = await fetchJwks(teamDomain + '/cdn-cgi/access/certs',{method:'GET',redirect:'error'});
-  if (!r?.ok || Number(r.headers?.get('content-length') || 0) > 32768) throw Error('certs');
-  const jwks = await r.json();
-  const key = jwks.keys?.find(k => k.kid === header.kid && k.kty === 'RSA' && k.alg === 'RS256' && k.use === 'sig');
+  if (!r?.ok) throw Error('certs');
+  const declared=Number(r.headers?.get('content-length') || 0);
+  if(!Number.isSafeInteger(declared) || declared<0 || declared>32768) throw Error('certs');
+  const reader=r.body?.getReader();
+  if(!reader) throw Error('certs');
+  const chunks=[];let total=0;
+  try{
+    while(true){
+      const {value,done}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>32768)throw Error('certs');
+      chunks.push(value);
+    }
+  }finally{await reader.cancel().catch(()=>{});}
+  const bytes=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  const jwks=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+  if(!jwks || !Array.isArray(jwks.keys) || jwks.keys.length>32)throw Error('certs');
+  const key = jwks.keys.find(k => k.kid === header.kid && k.kty === 'RSA' && k.alg === 'RS256' && k.use === 'sig');
   if (!key || !key.n || !key.e) throw Error('key');
   const pub = await crypto.subtle.importKey('jwk',{kty:'RSA',n:key.n,e:key.e,alg:'RS256',ext:true},
     {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
