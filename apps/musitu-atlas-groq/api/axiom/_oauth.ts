@@ -140,8 +140,17 @@ export async function sessionStatus(){
  const sql=db(),rows=await sql`SELECT status,expires_at,scopes
  FROM atlas_axiom_oauth_sessions WHERE tenant_id=${owner()} LIMIT 1`;
  const r=rows[0];
- return {configured:true,connected:Boolean(r?.status==='ACTIVE'),status:r?.status||'NOT_CONNECTED',
-  expiresAt:r?.expires_at||null,approvedScope:typeof r?.scopes==='string'&&r.scopes.split(/\s+/).includes('axiom.execute')};
+ const scopeOk=typeof r?.scopes==='string'&&r.scopes.split(/\s+/).includes('axiom.execute');
+ const active=r?.status==='ACTIVE'&&scopeOk;
+ const expiresAt=r?.expires_at||null;
+ const time=expiresAt?new Date(String(expiresAt)).getTime():0;
+ const accessTokenFresh=Boolean(active&&Number.isFinite(time)&&time>Date.now()+120000);
+ // A stored rotating refresh grant may still work after access expiry,
+ // but cannot be called "fresh" until the issuer actually renews it.
+ const renewalRequired=Boolean(active&&!accessTokenFresh);
+ return {configured:true,connected:Boolean(active),status:active&&!accessTokenFresh?
+   'ACCESS_EXPIRED_OR_NEAR_EXPIRY':r?.status||'NOT_CONNECTED',
+  expiresAt,accessTokenFresh,renewalRequired,approvedScope:scopeOk};
 }
 export async function oauthBearer():Promise<string>{
  assertConfigured();
