@@ -127,7 +127,8 @@ def run_frozen_artifact_smoke(*, bundle_dir: Path, output: Path) -> dict[str, An
         'claim_policy': 'Generated synthetic smoke only: no external mine, no production admission, no statistical validation.',
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    with output.open('x', encoding='utf-8') as handle:
+        handle.write(json.dumps(result, indent=2, sort_keys=True) + '\n')
     return result
 
 
