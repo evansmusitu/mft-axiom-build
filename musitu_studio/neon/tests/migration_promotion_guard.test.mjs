@@ -33,8 +33,9 @@ function proof(){
  project_quotas_not_used_as_spend_proof:true},
  rollback:{cloudflare_sqlite_intact:true,restore_pretested:true,snapshot_of_imported_neon_restored:true}};
 }
-function adapter(p=proof(),flags={}){
+function adapter(p=proof(),flags={},nonceRegistry=new Set()){
  let route='SQLITE_DO',flips=0,release=0,reads=0,held=false,signedChecks=0;
+ let nonceClaims=0;
  const f={expectedHead:sha,
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
  held=true;return {acquired:true,release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
@@ -42,9 +43,10 @@ function adapter(p=proof(),flags={}){
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){return flags.unverified!==true},
  async verifySignedR2VersionEvidence(){signedChecks++;return flags.unsignedR2!==true&&
-  !(flags.r2SignerRevokedOnSecondCheck&&signedChecks>=2)},
+  !(flags.r2SignerRevokedOnSecondCheck&&signedChecks>=2)&&
+  !(flags.r2SignerRevokedImmediatelyBeforeCanary&&signedChecks>=3)},
  async verifyTargetWriteBarrier(info){
-  if(flags.targetWriteBarrierLost||
+  if(flags.targetWriteBarrierLost||flags.targetWriteBarrierLostAfterNonce&&nonceClaims>0||
      (flags.targetBarrierLostAfterCanary&&route==='NEON_CANARY_READONLY'))
     return {verified:false};
   return {verified:true,provider_receipt_verified:true,read_only:true,
@@ -52,7 +54,7 @@ function adapter(p=proof(),flags={}){
     expires_at:new Date(Date.now()+120000).toISOString()};
  },
  async verifyCurrentSourceFreeze(info){
-  if(flags.freezeGone)return {verified:false};
+  if(flags.freezeGone||flags.freezeGoneAfterNonce&&nonceClaims>0)return {verified:false};
   if(flags.freezeGoesAwayAfterCutover&&route==='NEON_CANARY_READONLY')return {verified:false};
   return {verified:true,provider_receipt_verified:true,freeze_id:info.freeze_id,
    triggers_verified:15,expires_at:new Date(Date.now()+120000).toISOString()};
@@ -75,6 +77,7 @@ function adapter(p=proof(),flags={}){
    receipt_id:'synthetic-owner-browser-acceptance-20261024',
    checked_at:new Date().toISOString(),expires_at:new Date(Date.now()+120000).toISOString()};
   if(flags.browserExpired)right.expires_at=new Date(Date.now()-1000).toISOString();
+  if(flags.browserExpiresDuringNonce)right.expires_at=new Date(Date.now()+15100).toISOString();
   if(flags.browserBeyondMaximum)right.expires_at=new Date(Date.now()+600000).toISOString();
   if(flags.browserStale)right.checked_at=new Date(Date.now()-600000).toISOString();
   if(flags.browserAmbiguousTime)right.checked_at='2026-10-24 20:55:00';
@@ -87,8 +90,21 @@ function adapter(p=proof(),flags={}){
     right.receipt_id='synthetic-other-owner-browser-approval';
   return right;
  },
+ async reserveCanaryNonce(info){
+  nonceClaims++;
+  if(flags.browserExpiresDuringNonce)await new Promise(done=>setTimeout(done,200));
+  if(flags.nonceServiceUnavailable)throw Error('provider-unavailable');
+  if(flags.nonceInvalidAck)return {durable:true,unique:true};
+  const nonce=info.r2_receipt_id+':'+info.run_id;
+  if(nonceRegistry.has(nonce))return {durable:true,unique:false,nonce};
+  nonceRegistry.add(nonce);
+  return {durable:true,unique:true,nonce,source_head:info.source_head,
+    freeze_id:info.freeze_id,run_id:info.run_id,
+    r2_receipt_id:info.r2_receipt_id,
+    owner_receipt_id:info.owner_receipt_id};
+ },
  async verifyReconciledTarget(){return !flags.readbackFails}};
- return {f,state:()=>({route,flips,release,reads})};
+ return {f,state:()=>({route,flips,release,reads}),nonceClaims:()=>nonceClaims};
 }
 const bad=(e,regex)=>assert.throws(()=>assertStudioNeonPromotionEvidence(e,{expectedHead:sha}),regex);
 test('sixteen required gates and five exact HMAC tables',()=>{
@@ -340,5 +356,61 @@ test('missing cryptographic version-verifier callback is never silently optional
 test('revoked signer between first and second signed proof denies route CAS',async()=>{
  const x=adapter(proof(),{r2SignerRevokedOnSecondCheck:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED/);
+ assert.equal(x.state().flips,0);
+});
+
+// A transiently valid provider receipt cannot be replayed by a second
+// operator once a durable nonce has been consumed; the reservation is
+// mandatory and occurs before the *first* canary route CAS.
+test('missing durable nonce reservation callback fails closed before canary',async()=>{
+ const x=adapter();delete x.f.reserveCanaryNonce;
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CONTROL_PLANE_INVALID_reserveCanaryNonce/);
+ assert.equal(x.state().flips,0);
+});
+test('nonce registry read failure and malformed acknowledgement block route CAS',async()=>{
+ for(const flag of ['nonceServiceUnavailable','nonceInvalidAck']){
+  const x=adapter(proof(),{[flag]:true});
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED|provider-unavailable/);
+  assert.equal(x.state().flips,0,flag);
+ }
+});
+test('same provider R2 receipt and run cannot authorize second canary operation',async()=>{
+ const store=new Set();
+ const one=adapter(proof(),{},store);
+ assert.equal((await guardedStudioNeonPromotion(one.f)).route,'SQLITE_DO');
+ const two=adapter(proof(),{},store);
+ await assert.rejects(()=>guardedStudioNeonPromotion(two.f),/STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED/);
+ assert.equal(two.state().flips,0);
+ assert.equal(two.state().release,1);
+});
+test('a wrong nonce or owner receipt binding fails before any route modification',async()=>{
+ const x=adapter();x.f.reserveCanaryNonce=async()=>({durable:true,unique:true,
+  nonce:'made-up',source_head:sha,freeze_id:'wrong',run_id:'wrong',
+  r2_receipt_id:'wrong',owner_receipt_id:'wrong'});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED/);
+ assert.equal(x.state().flips,0);
+});
+
+// Independent provider conditions can expire while Android owner approval or
+// durable nonce reservation runs. The final proof must immediately precede CAS.
+test('live SQLite freeze expiring during nonce reservation prevents route CAS',async()=>{
+ const x=adapter(proof(),{freezeGoneAfterNonce:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED/);
+ assert.equal(x.state().flips,0);
+});
+test('Neon read-only target barrier expiring during nonce reservation prevents route CAS',async()=>{
+ const x=adapter(proof(),{targetWriteBarrierLostAfterNonce:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
+ assert.equal(x.state().flips,0);
+});
+test('signed R2 signer revoked immediately before route CAS denies switch',async()=>{
+ const x=adapter(proof(),{r2SignerRevokedImmediatelyBeforeCanary:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED/);
+ assert.equal(x.state().flips,0);
+});
+
+test('owner browser receipt expiring during nonce reservation never reaches route CAS',async()=>{
+ const x=adapter(proof(),{browserExpiresDuringNonce:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/);
  assert.equal(x.state().flips,0);
 });

@@ -14,6 +14,7 @@ const fail=x=>{throw Error(x)};
 const SHA=/^[0-9a-f]{64}$/i, HEAD=/^[0-9a-f]{40}$/i;
 const ID=/^[A-Za-z0-9_-]{8,80}$/;
 const VERSION=/^[A-Za-z0-9][A-Za-z0-9_.:-]{15,191}$/;
+const RFC3339_MILLIS=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const DOM='MUSITU/STUDIO-V03/R2-SIGNED-ATTESTATION/V1\n';
 const MANIFEST_SCHEMA='musitu.studio.v03.r2-pinned-version-manifest.v1';
 const ATTEST_SCHEMA='musitu.studio.v03.r2-provider-signed-evidence.v1';
@@ -146,6 +147,39 @@ export function verifyStudioR2SignedAttestation(envelope,{trustedPublicKeys,
     provider_origin_verified:false,cutover_authorized:false});
 }
 
+/** Bind the exact independently configured Ed25519 public key to an active,
+ * externally authenticated signer lifecycle record. This callback result MUST
+ * originate from an access-controlled registry outside the untrusted receipt
+ * bundle. Boolean provider_authenticated is a contract, not an attestation.
+ */
+export function verifyStudioR2SignerLifecycle(record,{signerKeyId,trustedPublicKeys,
+  signatureTime,now=Date.now()}={}){
+  const fields=['key_id','spki_sha256','state','revoked_at','owner_approved',
+    'valid_from','valid_until','checked_at','provider_authenticated'];
+  if(!own(record,fields)||record.key_id!==signerKeyId||
+     record.state!=='active'||record.revoked_at!==null||
+     record.owner_approved!==true||record.provider_authenticated!==true||
+     !SHA.test(record.spki_sha256||'')||
+     !(trustedPublicKeys instanceof Map))return false;
+  const parse=(x)=>{
+    if(typeof x!=='string'||!RFC3339_MILLIS.test(x))return NaN;
+    const t=Date.parse(x);
+    return Number.isFinite(t)&&new Date(t).toISOString()===x?t:NaN;
+  };
+  const from=parse(record.valid_from),until=parse(record.valid_until),
+    checked=parse(record.checked_at),issued=parse(signatureTime);
+  if(!Number.isFinite(from)||!Number.isFinite(until)||!Number.isFinite(checked)||
+     !Number.isFinite(issued)||!Number.isFinite(now)||
+     issued<from||issued>=until||now>=until||
+     checked>now+30000||now-checked>300000)return false;
+  const key=trustedPublicKeys.get(signerKeyId);
+  if(key?.type!=='public'||key?.asymmetricKeyType!=='ed25519')return false;
+  try{
+    const fingerprint=createHash('sha256').update(key.export({format:'der',type:'spki'})).digest();
+    return timingSafeEqual(fingerprint,Buffer.from(record.spki_sha256,'hex'));
+  }catch{return false}
+}
+
 /** Optional composition adapter for guardedStudioNeonPromotion's mandatory
  * verifyProviderReceipts callback. All five upstream callbacks MUST be
  * independent of the untrusted evidence body and authenticated by the owner.
@@ -155,10 +189,11 @@ export function verifyStudioR2SignedAttestation(envelope,{trustedPublicKeys,
  * provider receipts cannot be proven. Never install synthetic callbacks live.
  */
 export function createStudioR2ProviderReceiptVerifier({readSignedEnvelope,
-  readPinnedVersionManifest,readOwnerTrustedKeys,verifyAuthenticatedR2Versions,
+  readPinnedVersionManifest,readOwnerTrustedKeys,readSignerRegistryRecord,
+  verifyAuthenticatedR2Versions,
   verifyRemainingProviderReceipts}={}){
   const methods={readSignedEnvelope,readPinnedVersionManifest,readOwnerTrustedKeys,
-    verifyAuthenticatedR2Versions,verifyRemainingProviderReceipts};
+    readSignerRegistryRecord,verifyAuthenticatedR2Versions,verifyRemainingProviderReceipts};
   if(Object.values(methods).some(fn=>typeof fn!=='function'))
     fail('STUDIO_R2_PROVIDER_VERIFIER_CALLBACKS_REQUIRED');
   return async function verifyProviderReceipts(e){
@@ -168,6 +203,10 @@ export function createStudioR2ProviderReceiptVerifier({readSignedEnvelope,
       const [envelope,pins,keys]=await Promise.all([
         readSignedEnvelope(e.run_id),readPinnedVersionManifest(e.freeze_id),
         readOwnerTrustedKeys()]);
+      const signerRegistry=await readSignerRegistryRecord(envelope?.signer_key_id);
+      if(!verifyStudioR2SignerLifecycle(signerRegistry,{
+        signerKeyId:envelope?.signer_key_id,trustedPublicKeys:keys,
+        signatureTime:envelope?.payload?.checked_at}))return false;
       const signed=verifyStudioR2SignedAttestation(envelope,{
         expectedHead:e.source_head,expectedFreezeId:e.freeze_id,
         expectedRunId:e.run_id,expectedContentReceipt:e.r2_content_receipt,

@@ -24,6 +24,11 @@ const opts=()=>({integrityKey,readObject:async()=>[bytes]});
 const {publicKey,privateKey}=generateKeyPairSync('ed25519');
 const other=generateKeyPairSync('ed25519');
 const keys=new Map([['owner-key-20261024',publicKey]]);
+const signerRecord=()=>({key_id:'owner-key-20261024',
+ spki_sha256:createHash('sha256').update(publicKey.export({format:'der',type:'spki'})).digest('hex'),
+ state:'active',revoked_at:null,owner_approved:true,
+ valid_from:'2026-01-01T00:00:00.000Z',valid_until:'2099-01-01T00:00:00.000Z',
+ checked_at:new Date().toISOString(),provider_authenticated:true});
 const now=Date.now();
 async function bundle(){
  const content=await verifyStudioR2ObjectBytes(source(),opts());
@@ -121,6 +126,7 @@ function callbacks(b,overrides={}){
  return {readSignedEnvelope:async()=>b.envelope,
   readPinnedVersionManifest:async()=>b.versions,
   readOwnerTrustedKeys:async()=>keys,
+  readSignerRegistryRecord:async()=>signerRecord(),
   verifyAuthenticatedR2Versions:async()=>true,
   verifyRemainingProviderReceipts:async()=>true,...overrides};
 }
@@ -185,4 +191,21 @@ test('opaque version IDs reject path traversal before reaching any provider call
   integrityKey,bucketIdSha256:bucket}),/PIN_INVALID/);
  assert.throws(()=>attestStudioR2PinnedVersions(source(),[pin('opaque-version..unsafe')],{
   integrityKey,bucketIdSha256:bucket}),/PIN_INVALID/);
+});
+
+test('signed evidence requires an independently checked active signer key lifecycle',async()=>{
+ const b=await bundle(),e=joined(b);
+ for(const rec of [null,{...signerRecord(),state:'revoked'},
+  {...signerRecord(),revoked_at:new Date().toISOString()},
+  {...signerRecord(),spki_sha256:'f'.repeat(64)},
+  {...signerRecord(),valid_until:'2026-01-01T00:00:00.000Z'},
+  {...signerRecord(),provider_authenticated:false},
+  {...signerRecord(),checked_at:'2020-01-01T00:00:00.000Z'}]){
+   const verifier=createStudioR2ProviderReceiptVerifier(callbacks(b,{readSignerRegistryRecord:async()=>rec}));
+   assert.equal(await verifier(e),false);
+ }
+});
+test('signed R2 provider adapter fails closed without registry callback',async()=>{
+ const b=await bundle(),c=callbacks(b);delete c.readSignerRegistryRecord;
+ assert.throws(()=>createStudioR2ProviderReceiptVerifier(c),/CALLBACKS_REQUIRED/);
 });

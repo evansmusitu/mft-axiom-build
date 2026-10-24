@@ -167,10 +167,12 @@ const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVA
 export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
   exclusiveLease,readRoute,compareAndSwapRoute,verifySignedBrowser,
   verifyReconciledTarget,verifyProviderReceipts,verifySignedR2VersionEvidence,
-  verifyCurrentSourceFreeze,verifyTargetWriteBarrier}={}){
+  verifyCurrentSourceFreeze,verifyTargetWriteBarrier,
+  reserveCanaryNonce}={}){
   for(const [name,fn] of Object.entries({readEvidence,exclusiveLease,readRoute,
     compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts,
-    verifySignedR2VersionEvidence,verifyCurrentSourceFreeze,verifyTargetWriteBarrier}))
+    verifySignedR2VersionEvidence,verifyCurrentSourceFreeze,verifyTargetWriteBarrier,
+    reserveCanaryNonce}))
     need(fn,name);
   const lease=await exclusiveLease();
   if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
@@ -229,6 +231,34 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // condition. Never route customer reads to Neon before authenticated
     // browser signoff has been independently verified for this freeze/run.
     const ownerBefore=await verifySignedBrowser(qualified);
+    if(!validOwnerBrowserApproval(ownerBefore,qualified))
+      fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
+    // This is a SINGLE-USE operation: persist the provider attestation nonce
+    // using an independently authenticated durable insert-if-absent registry.
+    // A retry using the same signed receipts MUST NOT reach the route CAS,
+    // even if the former operation completed safely or failed after claiming.
+    const nonce=`${second.r2_provider_attestation.receipt_id}:${qualified.run_id}`;
+    const reservationRequest=Object.freeze({nonce,source_head:qualified.source_head,
+      freeze_id:qualified.freeze_id,run_id:qualified.run_id,
+      r2_receipt_id:second.r2_provider_attestation.receipt_id,
+      owner_receipt_id:ownerBefore.receipt_id});
+    let reserved;
+    try{reserved=await reserveCanaryNonce(reservationRequest)}
+    catch{fail('STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED')}
+    if(!reserved||reserved.durable!==true||reserved.unique!==true||
+       Object.keys(reservationRequest).some(k=>reserved[k]!==reservationRequest[k]))
+      fail('STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED');
+    // Consent and durable nonce operations may take enough time for a freeze,
+    // target write barrier or signer registry state to become stale. Recheck
+    // all three immediately before routing. A consumed nonce is never reused,
+    // including when one of these final probes fails.
+    await requireLiveFence();
+    await requireTargetBarrier();
+    if(await verifySignedR2VersionEvidence(second)!==true)
+      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    // Android owner consent can expire during external nonce storage too.
+    // Revalidate the original signed receipt just before the route CAS;
+    // never silently substitute a different owner approval post-reservation.
     if(!validOwnerBrowserApproval(ownerBefore,qualified))
       fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
     if(await compareAndSwapRoute('SQLITE_DO','NEON_CANARY_READONLY')!==true)
