@@ -328,3 +328,44 @@ test('unconfigured owner identity cannot read binding inventory',async()=>{
   assert.equal(response.status,503);
   assert.equal(JSON.stringify(await response.json()).includes('top-secret'),false);
 });
+
+
+test('private Modal invalid content-type cannot masquerade as a successful JSON result',async()=>{
+  const old=globalThis.fetch;
+  const b={request:'next',tenant:'tenant-A'};
+  try {
+    globalThis.fetch=async()=>new Response('<html>internal application error</html>',{
+      status:200,headers:{'content-type':'text/html'}});
+    const r=await worker.fetch(message('/agent/pull',b,signedHeaders(b)),E);
+    assert.equal(r.status,502);
+    assert.equal((await r.json()).error,'invalid_private_backend_response');
+  } finally {globalThis.fetch=old;}
+});
+
+test('private Modal HTTP errors must never reflect internal secrets or stack traces',async()=>{
+  const old=globalThis.fetch;
+  const b={request:'next',tenant:'tenant-A'};
+  try {
+    globalThis.fetch=async()=>new Response('private stack: '+E.MODAL_PROXY_SECRET,{
+      status:500,headers:{'content-type':'text/plain'}});
+    const r=await worker.fetch(message('/agent/pull',b,signedHeaders(b)),E);
+    assert.equal(r.status,502);
+    const t=await r.text();
+    assert.equal(t.includes(E.MODAL_PROXY_SECRET),false);
+    assert.equal(t.includes('private stack'),false);
+  } finally {globalThis.fetch=old;}
+});
+
+test('oversized declared upstream body fails closed without reading a single byte',async()=>{
+  const old=globalThis.fetch;
+  const b={request:'next',tenant:'tenant-A'};
+  let reads=0;
+  try {
+    globalThis.fetch=async()=>new Response(new ReadableStream({
+      pull(controller){reads++;controller.enqueue(new TextEncoder().encode('secret'));controller.close();}
+    }),{status:200,headers:{'content-type':'application/json','content-length':'1000000'}});
+    const r=await worker.fetch(message('/agent/pull',b,signedHeaders(b)),E);
+    assert.equal(r.status,502);
+    assert.equal(reads,0);
+  } finally {globalThis.fetch=old;}
+});
