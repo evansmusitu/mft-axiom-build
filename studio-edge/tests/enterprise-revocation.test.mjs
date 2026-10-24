@@ -22,6 +22,7 @@ class SQLiteD1 {
     this.sql.exec(readFileSync(new URL('../migrations/0001_enterprise_workspace.sql',import.meta.url),'utf8'));
     this.sql.exec(readFileSync(new URL('../migrations/0002_enterprise_tenant_artifact_limit.sql',import.meta.url),'utf8'));
     this.sql.exec(readFileSync(new URL('../migrations/0003_enterprise_artifact_revision.sql',import.meta.url),'utf8'));
+    this.sql.exec(readFileSync(new URL('../migrations/0004_enterprise_mutation_budget.sql',import.meta.url),'utf8'));
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(TENANT);
     this.sql.prepare('INSERT INTO tenants VALUES (?)').run(OTHER);
     this.sql.prepare('INSERT INTO tenant_memberships VALUES (?,?,?,?)').run(TENANT,'account_A_123','editor','active');
@@ -106,4 +107,32 @@ test('workspace API reports bounded quota without falsely persisting or auditing
     assert.equal(db.count('tenant_artifacts'),50);
     assert.equal(db.count('tenant_audit'),0);
   }finally{db.close();}
+});
+
+test('rolling mutation budget blocks 21st valid encrypted write and preserves revision and audit',async()=>{
+ const db=new SQLiteD1();try{
+  let response=await request(db,'PUT');
+  assert.equal(response.status,200);
+  let revision=response.headers.get('etag');
+  const write=async(current)=>{
+    const req=new Request('https://test.invalid/api/enterprise/tenants/'+TENANT+'/artifacts?id='+ITEM,{
+      method:'PUT',headers:{origin:'https://evansmusitu.github.io','cf-access-jwt-assertion':token,
+        'content-type':'application/json','if-match':current},body:JSON.stringify(envelope)});
+    return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},
+      {fetchJwks:jwks,now:NOW});
+  };
+  for(let i=1;i<20;i++){
+    response=await write(revision);
+    assert.equal(response.status,200,'mutation index '+i);
+    revision=response.headers.get('etag');
+  }
+  const recordBefore=db.sql.prepare('SELECT revision, ciphertext FROM tenant_artifacts WHERE tenant_id=? AND artifact_id=?').get(TENANT,ITEM);
+  assert.equal(db.count('tenant_audit'),20);
+  response=await write(revision);
+  assert.equal(response.status,429);
+  assert.equal((await response.json()).code,'TENANT_MUTATION_LIMIT');
+  assert.equal(db.count('tenant_audit'),20);
+  assert.deepEqual(db.sql.prepare('SELECT revision, ciphertext FROM tenant_artifacts WHERE tenant_id=? AND artifact_id=?').get(TENANT,ITEM),recordBefore);
+  assert.equal((await request(db,'GET')).headers.get('etag'),revision);
+ }finally{db.close();}
 });
