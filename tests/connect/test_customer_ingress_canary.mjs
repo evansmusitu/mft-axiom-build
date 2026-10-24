@@ -165,6 +165,19 @@ test('canary enforces one risk row and safe run IDs before accepting customer ri
   }finally{f.sql.close();}
 });
 
+test('offline customer canary rejects impossible calendar timestamps',async()=>{
+  const f=fixture({alphaDaily:10,alphaMinute:10});
+  try {
+    for(const event_time of ['2026-02-29T09:00:00Z','2026-02-30T09:00:00Z','2026-10-22T10:00:00+15:00']){
+      const payload=JSON.stringify({rows:[{...sampleRow,event_time}],budget:100});
+      assert.equal((await inspect(req({payload}),f.env)).status,400);
+    }
+    const payload=JSON.stringify({rows:[{...sampleRow,event_time:'2028-02-29T09:00:00+02:00'}],budget:100});
+    assert.equal((await inspect(req({payload}),f.env)).status,200);
+    assert.equal(events(f.sql,'tenant_alpha'),4);
+  } finally { f.sql.close(); }
+});
+
 test('valid spatial metadata with timezone and scoped Mining semantics remains accepted',async()=>{
   const f=fixture({alphaDaily:10,alphaMinute:10});
   try{
