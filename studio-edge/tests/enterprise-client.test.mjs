@@ -44,7 +44,7 @@ test('read decrypts ONLY for correct tenant/object and supports revisioned updat
   const q=new URL(url);const h=new Headers(init.headers);
   commands.push({method:init.method,id:q.searchParams.get('id'),ifMatch:h.get('if-match')});
   if(init.method==='GET')return ok({id:ID,envelope});
-  return ok({id:ID,stored:true});
+  return init.method==='DELETE'?ok({id:ID,deleted:true}):ok({id:ID,stored:true});
  });
  const read=await api.get({id:ID});
  assert.equal(read.text,'sealed text');assert.equal(read.etag,ETag);
