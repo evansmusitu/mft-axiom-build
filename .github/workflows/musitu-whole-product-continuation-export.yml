@@ -38,8 +38,8 @@ jobs:
       - name: Archive all 3 source trees and sealed public research evidence
         uses: actions/upload-artifact@v4
         with:
-          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261018
-          path: ${{ runner.temp }}/musitu-clean-whole-product-20261018/
+          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261024
+          path: ${{ runner.temp }}/musitu-clean-whole-product-20261024/
           include-hidden-files: true
           retention-days: 90
           if-no-files-found: error
