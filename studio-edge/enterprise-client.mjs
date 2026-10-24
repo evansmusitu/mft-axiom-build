@@ -64,7 +64,9 @@ export function createTenantWorkspaceClient(options) {
    catch{fail('INVALID_RESPONSE',response.status);}
  }
  async function send(method,params={},body=null,etag=null,noneMatch=false) {
-   const token=await getToken();
+   let token;
+   try{token=await getToken();}
+   catch{fail('AUTH_REQUIRED',401);}
    if(typeof token!=='string'||token.length<1||token.length>10000)fail('AUTH_REQUIRED',401);
    const url=new URL(route);
    for(const [name,value] of Object.entries(params))if(value!==null&&value!==undefined)url.searchParams.set(name,String(value));
