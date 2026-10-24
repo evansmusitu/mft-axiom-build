@@ -122,3 +122,50 @@ test('signed tenant isolation and revocation fail closed across the real HTTP br
     assert.equal((await b.get({id:ITEM})).text,'tenant B separate record');
   }finally{h.db.close();}
 });
+
+test('explicit portable export contains only encrypted sealed envelopes and never mutates D1',async()=>{
+  const h=makeHarness();
+  try{
+    const k=await key(),t=await tokenFor('alice_signed_subject');
+    const api=client(h,TA,k,async()=>t);
+    const items=['artifact_entry_001','artifact_entry_002'];
+    await api.create({id:items[0],text:'private export content A'});
+    await api.create({id:items[1],text:'private export content B'});
+    const auditBefore=h.db.count('tenant_audit');
+    const portable=await api.exportEncryptedBundle();
+    assert.equal(portable.kind,'musitu-enterprise-encrypted-export');
+    assert.equal(portable.version,1);
+    assert.equal(portable.tenantId,TA);
+    assert.deepEqual(portable.artifacts.map(x=>x.id),items);
+    for(const item of portable.artifacts){
+      assert.deepEqual(Object.keys(item).sort(),['envelope','etag','id']);
+      assert.deepEqual(Object.keys(item.envelope).sort(),['ciphertext','iv','version']);
+      assert.match(item.etag,/^"[a-f0-9-]{36}"$/);
+    }
+    assert.ok(!JSON.stringify(portable).includes('private export content'));
+    assert.equal(h.db.count('tenant_audit'),auditBefore);
+  }finally{h.db.close();}
+});
+
+test('portable export refuses silently inconsistent cross-request snapshots',async()=>{
+  const h=makeHarness();
+  try{
+    const k=await key(),t=await tokenFor('alice_signed_subject');
+    const a=client(h,TA,k,async()=>t);
+    await a.create({id:ITEM,text:'first version'});
+    let injected=false;
+    const intercept=async(url,options)=>{
+      const result=await h.fetcher(url,options);
+      const q=new URL(url);
+      if(!injected&&options.method==='GET'&&!q.searchParams.has('id')&&result.status===200){
+        injected=true;
+        h.db.db.prepare('UPDATE tenant_artifacts SET revision=? WHERE tenant_id=? AND artifact_id=?')
+          .run('00000000-0000-4000-8000-000000000999',TA,ITEM);
+      }
+      return result;
+    };
+    const api=createTenantWorkspaceClient({baseUrl:BASE,tenantId:TA,key:k,getToken:async()=>t,fetcher:intercept});
+    await assert.rejects(api.exportEncryptedBundle(),error=>error.code==='EXPORT_CONFLICT');
+    assert.equal(injected,true);
+  }finally{h.db.close();}
+});
