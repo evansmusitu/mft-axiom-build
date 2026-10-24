@@ -43,6 +43,15 @@ recovery and operational scheduling/alert acceptance remain separate.
 
 ## Fixed workflow for an operator or scheduled executor
 
+The current source supports schema versions 15 and 16. Migration 016 changes
+the Meta message-ID completion validator without changing the 22-table inventory
+or grants. Keep all reviewed SQL files available. The read-only snapshot records
+the observed function version; export and restore must select and verify the
+matching ordered migration prefix. Do not label a schema-15 snapshot as schema16
+or substitute SQL in an older archive. Application/task pins and schedule states
+in dated sections below are historical; read the current authorized private
+checkpoint and actual provider state before executing.
+
 1. Fetch the reviewed pinned source and read current authorization. Verify the
    source manifest. Use only project `jolly-scene-02112141`, branch
    `br-jolly-fire-b4klddds`, database `musitu_whatsapp_phase1`; hosting project
@@ -62,7 +71,7 @@ recovery and operational scheduling/alert acceptance remain separate.
 
 3. In a private API file deployment, provide the returned checkpoint as
    `products/musitu-whatsapp-phase1/.private-hosted-checkpoint.json`, the three
-   required export module/script files, all 15 reviewed db SQL files and the
+   required export module/script files, all reviewed db SQL files and the
    exact package/lockfile. Prefix every file with the existing product root.
    Root-directory null did not clear this project's configured root and must
    not be used. Do not change project defaults or supply a production target.
@@ -89,7 +98,7 @@ recovery and operational scheduling/alert acceptance remain separate.
 6. Supply those retrieved ciphertext bytes as
    `products/musitu-whatsapp-phase1/.private-offsite-checkpoint.musitubak` in a
    separate private operator build. Include the reviewed src, restore scripts,
-   all15 migrations, exact package/lockfile and existing root. Its build is:
+   the full reviewed migration inventory, exact package/lockfile and existing root. Its build is:
    `PG_HOSTED_RECOVERY_QUALIFICATION=YES EXPECTED_BACKUP_SHA256=<verified digest> node scripts/run-hosted-recovery-build.mjs && node -e 'console.log("RECOVERY_ONLY_NO_APP_PROMOTION");process.exit(78)'`.
    The parent compares the hash and every recovered SQL byte/digest with reviewed
    source before starting PostgreSQL. Restored SQL never comes from an unreviewed

@@ -1,5 +1,10 @@
 # Owner phone acceptance
 
+Before following any send step below, the operator must read the current private
+continuation and freshly inspect every durable attempt. Any existing or uncertain
+attempt means stop and investigate without resending, including from another
+incoming message. Historical zero-attempt observations are not current authority.
+
 This checklist targets the existing private development business only. It is not
 an approval record. Current application source and actual outcomes must be
 recorded separately. Keep PR29 open, draft and unmerged.
