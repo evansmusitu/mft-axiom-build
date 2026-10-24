@@ -114,16 +114,18 @@ class SecurityTests(unittest.TestCase):
         # Existing completed claims remain on disk; no fabricated binding is
         # retroactively assigned to an unproven historical command.
         import sqlite3
+        from contextlib import closing
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); ledger=root/"old-ledger.sqlite"; request=job()
             receipt=agent.execute(request,KEY,root,None,None)
-            with sqlite3.connect(ledger) as db:
+            with closing(sqlite3.connect(ledger)) as db:
                 db.execute("CREATE TABLE jobs (job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL, receipt TEXT)")
                 db.execute("INSERT INTO jobs VALUES (?,?,?,?)",
                           (request["job_id"],request["nonce"],"COMPLETED",json.dumps(receipt)))
+                db.commit()
             with self.assertRaisesRegex(agent.AgentError,"job binding mismatch"):
                 agent.execute_once(request,KEY,root,None,None,ledger)
-            with sqlite3.connect(ledger) as db:
+            with closing(sqlite3.connect(ledger)) as db:
                 stored=db.execute("SELECT state,receipt FROM jobs WHERE job_id=?",(request["job_id"],)).fetchone()
             self.assertEqual(stored[0],"COMPLETED","never erase legacy uncertain claims")
             self.assertEqual(json.loads(stored[1]),receipt)
