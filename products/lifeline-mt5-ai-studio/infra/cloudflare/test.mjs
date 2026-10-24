@@ -461,3 +461,29 @@ test('legacy MCP initialized notification is allowed only for pinned owner, with
     assert.equal(routed,1);
   }finally{globalThis.fetch=previous;}
 });
+
+test('legacy MCP GET without SSE must send authenticated 405, never a 404 or backend call',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-get';jwk.use='sig';jwk.alg='RS256';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'kid-get'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const orig=globalThis.fetch;let backend=0;
+  try{
+    globalThis.fetch=async(url)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(JSON.stringify({keys:[jwk]}),
+          {headers:{'content-type':'application/json'}});
+      backend++;throw Error('GET must never reach Modal');
+    };
+    const host='https://lifeline.example/mcp';
+    const anon=await worker.fetch(new Request(host),E);
+    assert.equal(anon.status,401);
+    const allowed=await worker.fetch(new Request(host,{headers:{'cf-access-jwt-assertion':token}}),E);
+    assert.equal(allowed.status,405);
+    assert.equal(allowed.headers.get('allow'),'POST');
+    assert.equal(await allowed.text(),'');
+    assert.equal(backend,0);
+  }finally{globalThis.fetch=orig;}
+});

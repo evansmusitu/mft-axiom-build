@@ -89,6 +89,11 @@ test('full signed owner → edge → local Modal contract → queue → agent re
   };
   try{
     const owner={'cf-access-jwt-assertion':token};
+    const noStream=await worker.fetch(new Request('https://lifeline-offline.invalid/mcp',
+      {headers:owner}),E);
+    assert.equal(noStream.status,405,'legacy Streamable HTTP GET without SSE must reject with 405');
+    assert.equal(noStream.headers.get('allow'),'POST');
+    assert.equal(await noStream.text(),'');
     const anon=await call('/operator/status',{}, {});
     assert.equal(anon.status,401,'anonymous owner never reaches stage');
     const other=await call('/operator/status',{}, {'cf-access-jwt-assertion':differentOwner});
