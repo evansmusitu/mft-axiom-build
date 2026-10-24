@@ -65,6 +65,28 @@ class SQLiteRecovery(unittest.TestCase):
         with self.assertRaisesRegex(QueueError,'quota exceeded'):
             self.store.enqueue('tenant-A','agent-A',dict(self.job,job_id='ea9fcc09-c931-4d45-b9d4-000000000008'))
 
+    def test_simultaneous_stage_enqueues_enforce_active_limit(self):
+        # Many requests from the SAME tenant must never overrun the 8-job
+        # allowance; this is an offline SQLite fixture, not a live Neon proof.
+        from concurrent.futures import ThreadPoolExecutor
+        import uuid
+        def enqueue_one(_):
+            request=dict(self.job,job_id=str(uuid.uuid4()))
+            request["signature"]=agent.sign(
+                {k:v for k,v in request.items() if k!="signature"},KEY)
+            try:
+                self.store.enqueue("tenant-A","agent-A",request)
+                return "accepted"
+            except QueueError as exc:
+                if "quota exceeded" not in str(exc):
+                    raise
+                return "rejected"
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            results=list(pool.map(enqueue_one,range(24)))
+        self.assertEqual(results.count("accepted"),7)
+        self.assertEqual(results.count("rejected"),17)
+        self.assertEqual(self.store.summary("tenant-A","agent-A"),{"PENDING":8})
+
     def test_corrupted_claimed_signature_fails_closed(self):
         first=self.store.pull('tenant-A','agent-A',KEY)
         with closing(sqlite3.connect(self.store.db)) as c:

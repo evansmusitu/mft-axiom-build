@@ -110,6 +110,24 @@ class SecurityTests(unittest.TestCase):
             self.assertGreaterEqual(len(results),1)
             self.assertTrue(all(r==results[0] for r in results))
 
+    def test_pre_upgrade_ledger_cannot_reuse_receipt_without_binding_proof(self):
+        # Existing completed claims remain on disk; no fabricated binding is
+        # retroactively assigned to an unproven historical command.
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); ledger=root/"old-ledger.sqlite"; request=job()
+            receipt=agent.execute(request,KEY,root,None,None)
+            with sqlite3.connect(ledger) as db:
+                db.execute("CREATE TABLE jobs (job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state TEXT NOT NULL, receipt TEXT)")
+                db.execute("INSERT INTO jobs VALUES (?,?,?,?)",
+                          (request["job_id"],request["nonce"],"COMPLETED",json.dumps(receipt)))
+            with self.assertRaisesRegex(agent.AgentError,"job binding mismatch"):
+                agent.execute_once(request,KEY,root,None,None,ledger)
+            with sqlite3.connect(ledger) as db:
+                stored=db.execute("SELECT state,receipt FROM jobs WHERE job_id=?",(request["job_id"],)).fetchone()
+            self.assertEqual(stored[0],"COMPLETED","never erase legacy uncertain claims")
+            self.assertEqual(json.loads(stored[1]),receipt)
+
     def test_nonce_reuse_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);d=root/"leases.db";first=job()
