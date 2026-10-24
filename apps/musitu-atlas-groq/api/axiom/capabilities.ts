@@ -17,6 +17,7 @@ export default async function handler(req:any,res:any){
    sample:math.slice(0,12).map((item:any)=>({name:String(item.name).slice(0,80),title:String(item.title||item.name).slice(0,100)})),
    arithmeticAvailable:hasArithmetic,
    executionConfigured:authConfigured()&&ledgerReady()&&role?.restricted===true,
+   credentialStored:Boolean(process.env.AXIOM_MCP_BEARER_TOKEN),
    ledgerConfigured:ledgerReady(),ledgerOperational:audit!==null,ledger:audit,
    runtimeRoleRestricted:role?.restricted===true,
    runtimeRoleChecked:role!==null,
