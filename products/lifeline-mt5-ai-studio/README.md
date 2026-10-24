@@ -1,5 +1,10 @@
 # LIFELINE MT5 AI Studio — Owner-Access JWT Proof Stage v1.2
 
+## Current GitHub Secrets connection status — 2026-10-24
+
+The isolated Cloudflare Worker now has **6/10** required binding names, validated using existing GitHub Actions credentials. See [direct provider verification and tests](validation/GITHUB_EXISTING_SECRETS_20261024.md). `MODAL_ORIGIN` came from authenticated Modal metadata; `AGENT_ID` and `AGENT_TENANT` came from the existing pinned bootstrap source, **not from reading Modal Secret values**. The four sensitive bindings `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, and `MODAL_PROXY_SECRET` remain missing. **Private Cloudflare→Modal→Neon routing remains unconnected and fail-closed.** There is no persistent Windows host; trading and public launch remain disabled. The lower historical sections retain their original time-stamped evidence.
+
+
 An **isolated research/development system** using the existing GitHub → Vercel → Cloudflare → Modal → Neon architecture, plus a necessary separate Windows MT5/MetaEditor native execution layer.
 
 **This is NOT a public, broker-connected product or a working end-to-end customer platform.** Source is in draft [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30); protected main and all other MUSITU projects remain unchanged. Live trading and unrestricted remote shell/MT5 tools are disabled.
