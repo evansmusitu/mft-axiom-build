@@ -38,3 +38,18 @@ No trades, broker accounts, production customer data, paid compute, Windows VPS,
 ## Next acceptance gate
 
 A dedicated, genuinely app-scoped Modal authentication boundary plus confidential transport of existing LIFELINE stage keys, followed by live owner-MFA Cloudflare→Modal→Neon positive and negative requests **with cost controls**. A persistent trusted native Windows x64 host remains separately required. Do not infer the gate has passed from offline mocks.
+
+
+## MCP interoperability fix (legacy lifecycle) — test-led implementation
+
+The LIFELINE staging MCP server advertises **2025-03-26**, whose official lifecycle requires the client to send a notification **without an id** after the `initialize` response. A compliant initialized notification must be acknowledged by Streamable HTTP `202 Accepted` with **no body**, not a fabricated JSON-RPC response. Previously, the Cloudflare edge denied the method and the Python bridge rejected any message without an id.
+
+Reference: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-03-26/basic/lifecycle.mdx and https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-03-26/basic/transports.mdx
+
+- **Red** [run #40091493368](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091493368): legacy notification assertion failed in the Cloudflare edge; Python rejected 202 lifecycle assertion [run #40091493397](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091493397); cross-language offline harness also rejected it [run #40091493367](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091493367).
+- **Green** [signed-bridge #40091616074](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091616074): **24/24 Cloudflare tests PASS**, Windows/Ubuntu agent+bridge jobs PASS. [Cross-language offline #40091616041](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091616041): integrated synthetic signed probe plus legacy lifecycle **PASS**. Owner-readiness contract and Five-Cloud status at source commit `c1790b1393658213d473699b796768302e66bd83` are separately checked.
+- Cloudflare allows **only** exact `notifications/initialized` with no id and no unexpected fields, after owner JWT and independent cutover checks; upstream must return `202` with empty body. Other notifications and trade tools remain forbidden.
+- The staging FastAPI handler accepts that one notification, denies forged/extra fields, and responds with **202 no content**.
+- This is a narrow legacy MCP protocol fix; it is **not evidence of full MCP certification, owner login on the live bridge, or live Modal/Neon cutover**.
+
+Strict $0 scope preserved: no Cloudflare production deployment, no Modal remote functions, no broker/trading, no Windows server, no private credential changes and no release.
