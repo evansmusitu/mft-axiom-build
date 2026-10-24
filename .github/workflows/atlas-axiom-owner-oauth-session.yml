@@ -81,7 +81,7 @@ jobs:
           process.env.ATLAS_AXIOM_OAUTH_CLIENT_ID='musitu_dcr_abcdefghijklmnopqrstu01';
           process.env.ATLAS_AXIOM_OAUTH_DATA_KEY=Buffer.alloc(32,7).toString('base64url');
           const base='file:///tmp/atlas-owner-oauth-test/';
-          const {beginOAuth,finishOAuth,sessionStatus,oauthBearer,oauthConfigured}=await import(base+'_oauth.ts');
+          const {beginOAuth,finishOAuth,sessionStatus,oauthBearer,oauthConfigured,publicIssuerStatus}=await import(base+'_oauth.ts');
           let tokenCount=0,requests=[];
           globalThis.fetch=async (url,options)=>{
            requests.push(String(url));
@@ -138,6 +138,31 @@ jobs:
           assert.equal(oauthConfigured(),false);
           await assert.rejects(()=>oauthBearer(),/not activated/);
           assert.equal(requests.length,2);
+          let discoveryCalls=0;
+          globalThis.fetch=async (url,options)=>{
+           discoveryCalls++;
+           assert.equal(url,'https://auth.mftintelligence.com/.well-known/oauth-authorization-server');
+           assert.equal(options.method,'GET');
+           assert.equal(options.headers.Authorization,undefined);
+           return {ok:true,text:async()=>JSON.stringify({
+            issuer:'https://auth.mftintelligence.com',
+            token_endpoint:'https://auth.mftintelligence.com/oauth/token',
+            registration_endpoint:'https://auth.mftintelligence.com/oauth/register',
+            code_challenge_methods_supported:['S256'],
+            scopes_supported:['axiom.execute']
+           })};
+          };
+          let disc=await publicIssuerStatus();
+          assert.equal(disc.reachable,true);
+          assert.equal(disc.pkce,true);
+          assert.equal(disc.executionScope,true);
+          assert.equal(disc.registration,true);
+          assert.equal(discoveryCalls,1);
+          globalThis.fetch=async ()=>({ok:false,status:401});
+          disc=await publicIssuerStatus();
+          assert.equal(disc.reachable,false);
+          assert.equal(disc.registration,false);
+          console.log('PASS: live issuer discovery uses unauthenticated metadata GET and fails closed on errors');
           console.log('PASS: PKCE state, exact callback and expected issuer');
           console.log('PASS: browser state mismatch rejected before issuing token');
           console.log('PASS: OAuth callback one-time consumption');
