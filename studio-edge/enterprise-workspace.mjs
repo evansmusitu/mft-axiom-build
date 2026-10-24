@@ -99,7 +99,8 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     if(request.method==='PUT') {
       let envelope;
       try {envelope=await limitedJson(request);}catch{return fail('BAD_ENVELOPE',400,origin);}
-      if(!validEnvelope(envelope))return fail('BAD_ENVELOPE',400,origin);
+      try { if(!validEnvelope(envelope))return fail('BAD_ENVELOPE',400,origin); }
+      catch { return fail('BAD_ENVELOPE',400,origin); }
       await env.WORKSPACE_DB.batch([
         env.WORKSPACE_DB.prepare('INSERT INTO tenant_artifacts (tenant_id, artifact_id, iv, ciphertext, version, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(tenant_id, artifact_id) DO UPDATE SET iv=excluded.iv, ciphertext=excluded.ciphertext, version=excluded.version, updated_at=excluded.updated_at').bind(tenant,artifact,envelope.iv,envelope.ciphertext,1,now),
         env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) VALUES (?, ?, ?, ?, ?)').bind(tenant,artifact,subject,'put',now)
