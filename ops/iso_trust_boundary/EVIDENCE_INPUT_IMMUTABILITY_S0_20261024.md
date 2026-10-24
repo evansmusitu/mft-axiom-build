@@ -10,7 +10,7 @@ This bounded change is an S0 read-only evidence integrity repair. It does not cr
 
 Before this change, `S0PreconsumptionReviewer.review` verified signed receipt, revocation snapshot, and checkpoint in order, but then calculated the apparent common signed validity period directly from **caller-owned mutable dictionaries**. A caller-controlled `clock()` callback of a later verifier can mutate an already validated earlier signed record or budget inputs after those checks. Thus the reviewer could falsely report reconcilable signed validity periods or safe zero-cost inputs although the signed bytes or inputs had changed between checks.
 
-The isolated test fixture signed three genuine ephemeral test-key envelopes. Six distinct mutation tests **failed on the exact previous source**, and the unmutated evidence-only control passed (RED). The mutated fields included receipt validity period, revocation validity period, S0 provider dispatch boolean, quoted cost, signed receipt nonce, and expected nonce.
+The isolated test fixture signed three genuine ephemeral test-key envelopes. Six distinct mutation tests **failed on the exact previous source**, and the unmutated evidence-only control passed (RED). A second bounded **30-case mutation matrix** yielded **19 incorrectly reconciled local evidence results on the baseline** (still no execution authority), and **0 incorrectly reconciled results after the repair**. These are deterministic same-process synthetic attacks, not evidence of hostile-host, remote-provider or independent gateway certification. The mutated fields included receipt validity period, revocation validity period, S0 provider dispatch boolean, quoted cost, signed receipt nonce, and expected nonce.
 
 ## S0 repair
 
@@ -21,6 +21,8 @@ The tests assert that these mutations are rejected with `INPUT_MUTATED_AFTER_REV
 ## Local reproducibility
 
 `python -m unittest ops.iso_trust_boundary.test.test_preconsumption_mutation -v`
+
+`python -m unittest ops.iso_trust_boundary.test.test_input_mutation_matrix -v`
 
 `python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v`
 
