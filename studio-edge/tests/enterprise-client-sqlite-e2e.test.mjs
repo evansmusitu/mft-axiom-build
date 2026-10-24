@@ -169,3 +169,35 @@ test('portable export refuses silently inconsistent cross-request snapshots',asy
     assert.equal(injected,true);
   }finally{h.db.close();}
 });
+
+test('portable export traverses encrypted multi-page inventory without new audit writes',async()=>{
+  const h=makeHarness();
+  try{
+    const k=await key(),t=await tokenFor('alice_signed_subject');
+    const {encryptTenantText}=await import('../client-encrypted-artifact.mjs');
+    const ids=Array.from({length:12},(_,i)=>'artifact_entry_'+String(i).padStart(4,'0'));
+    const insert=h.db.db.prepare('INSERT INTO tenant_artifacts(tenant_id,artifact_id,iv,ciphertext,version,updated_at,revision) VALUES(?,?,?,?,?,?,?)');
+    for(const id of ids){
+      const envelope=await encryptTenantText('Private historical '+id,k,TA,id);
+      insert.run(TA,id,envelope.iv,envelope.ciphertext,1,clock,crypto.randomUUID());
+    }
+    const api=client(h,TA,k,async()=>t);
+    const result=await api.exportEncryptedBundle();
+    assert.equal(result.artifacts.length,12);
+    assert.deepEqual(result.artifacts.map(x=>x.id),ids);
+    assert.equal(h.db.count('tenant_audit'),0);
+    assert.equal(h.requests.filter(r=>new URL(r.url).searchParams.has('limit')).length,2);
+    assert.ok(!JSON.stringify(result).includes('Private historical'));
+  }finally{h.db.close();}
+});
+
+test('portable export never includes tampered or undecryptable records',async()=>{
+  const h=makeHarness();
+  try{
+    const k=await key(),t=await tokenFor('alice_signed_subject');
+    const api=client(h,TA,k,async()=>t);
+    await api.create({id:ITEM,text:'valid private evidence'});
+    h.db.db.prepare('UPDATE tenant_artifacts SET ciphertext=? WHERE tenant_id=? AND artifact_id=?').run('tamperedCiphertext',TA,ITEM);
+    await assert.rejects(api.exportEncryptedBundle());
+  }finally{h.db.close();}
+});
