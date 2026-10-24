@@ -203,4 +203,31 @@ class BridgeTests(unittest.TestCase):
         with patch.dict(__import__('os').environ,{'LIFELINE_ALLOW_NATIVE_DEVELOPMENT':'0'}):
             worker=poller.OutboundAgent(Fake(),'agent-A','tenant-A',KEY,Path(self.tmp.name)/'non-native')
             with self.assertRaisesRegex(agent.AgentError,'requires explicit'):worker.step()
+
+    def test_private_mcp_rejects_extra_envelope_fields_and_nonconforming_ids(self):
+        invalid=[
+            {'jsonrpc':'2.0','id':1,'method':'tools/list','extra':'unsafe'},
+            {'jsonrpc':'2.0','id':True,'method':'tools/list'},
+            {'jsonrpc':'2.0','id':None,'method':'tools/list'},
+            {'jsonrpc':'2.0','id':1.5,'method':'tools/list'},
+            {'jsonrpc':'2.0','method':'tools/list'},
+            {'jsonrpc':'2.0','id':'x'*200,'method':'tools/list'},
+        ]
+        for payload in invalid:
+            with self.subTest(payload=payload):
+                response=self.tc.post('/mcp',json=payload,headers=self.edge_headers)
+                self.assertEqual(response.status_code,400)
+
+    def test_private_mcp_ping_listing_and_initialize_require_object_parameters(self):
+        invalid=[
+            {'jsonrpc':'2.0','id':1,'method':'tools/list','params':{'unexpected':'order_send'}},
+            {'jsonrpc':'2.0','id':2,'method':'ping','params':['unexpected']},
+            {'jsonrpc':'2.0','id':3,'method':'initialize','params':'unexpected'},
+        ]
+        for payload in invalid:
+            with self.subTest(payload=payload):
+                response=self.tc.post('/mcp',json=payload,headers=self.edge_headers)
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.json()['error']['code'],-32602)
+
 if __name__=='__main__':unittest.main()

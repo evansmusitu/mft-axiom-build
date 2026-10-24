@@ -369,3 +369,37 @@ test('oversized declared upstream body fails closed without reading a single byt
     assert.equal(reads,0);
   } finally {globalThis.fetch=old;}
 });
+
+
+test('owner-authenticated MCP refuses extra envelope fields and malformed request IDs before Modal',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-envelope';jwk.use='sig';jwk.alg='RS256';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB}).setProtectedHeader({alg:'RS256',kid:'kid-envelope'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const prior=globalThis.fetch;let calls=0;
+  try{
+    globalThis.fetch=async url=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      calls++;throw Error('malformed RPC reached Modal');
+    };
+    const h={'cf-access-jwt-assertion':token};
+    const invalid=[
+      {jsonrpc:'2.0',method:'tools/list',id:1,extra:'unsafe'},
+      {jsonrpc:'2.0',method:'tools/list',id:true},
+      {jsonrpc:'2.0',method:'tools/list',id:null},
+      {jsonrpc:'2.0',method:'tools/list',id:1.5},
+      {jsonrpc:'2.0',method:'tools/list'},
+      {jsonrpc:'2.0',method:'tools/list',id:'x'.repeat(200)},
+      {jsonrpc:'2.0',method:'tools/list',id:1,params:{request:'order_send'}},
+      {jsonrpc:'2.0',method:'ping',id:2,params:['unexpected']},
+      {jsonrpc:'2.0',method:'initialize',id:3,params:'unsafe'},
+    ];
+    for(const payload of invalid){
+      const response=await worker.fetch(message('/mcp',payload,h),E);
+      assert.equal(response.status,403,JSON.stringify(payload));
+    }
+    assert.equal(calls,0);
+  }finally{globalThis.fetch=prior;}
+});
