@@ -1,0 +1,140 @@
+"""Fail-closed S0 preconsumption evidence reconciliation, NEVER authorization.
+
+Verify operation identity/risk/cost, an operator-signed receipt, a fresh signed
+revocation snapshot, and a dual-signed checkpoint BEFORE any reservation call.
+This class intentionally has NO reserve_once adapter, signer, transport, secret,
+or execution side effect. It cannot certify independent root/custody/storage,
+complete rollback safety, revocation freshness, or provider-account USD0.
+"""
+import hashlib
+import json
+import re
+
+from .verify_operator_receipt import ReceiptVerifier, ReceiptHold
+from .revocation_snapshot_review import RevocationSnapshotReview, RevocationHold
+from .checkpoint_protocol import ExternalCheckpointVerifier, CheckpointHold
+from .financial_zero_boundary import FinancialZeroBoundary, FinancialHold
+
+
+class PreconsumptionHold(ValueError):
+    """Deny any unverifiable cross-boundary evidence or operation binding."""
+
+
+def _hold(reason):
+    raise PreconsumptionHold('AXIOM_ISO_S0_PRECONSUMPTION_HOLD:'+reason)
+
+
+_ID=re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}\Z')
+
+
+class S0PreconsumptionReviewer:
+    """Purely local S0 verifier. Never consumes or issues an execution grant."""
+
+    def __init__(self, *,receipt_verifier,revocation_verifier,
+                 checkpoint_verifier,financial_reviewer):
+        if (type(receipt_verifier) is not ReceiptVerifier or
+            type(revocation_verifier) is not RevocationSnapshotReview or
+            type(checkpoint_verifier) is not ExternalCheckpointVerifier or
+            type(financial_reviewer) is not FinancialZeroBoundary):
+            _hold('EXACT_VERIFIER_TYPES_REQUIRED')
+        # The preflight MUST NOT silently cross-connect two valid receipts from
+        # incompatible public roots, policies, key epochs or operator identities.
+        if not (receipt_verifier.pinned_policy_sha256==
+                revocation_verifier.policy_sha256==
+                checkpoint_verifier.policy_sha256==
+                financial_reviewer.pinned_policy_sha256):
+            _hold('PINNED_POLICY_MISMATCH')
+        if (receipt_verifier.pinned_operator_id!=revocation_verifier.ids[1] or
+                receipt_verifier.pinned_operator_id!=checkpoint_verifier.operator_id or
+                checkpoint_verifier.witness_id!=revocation_verifier.ids[2]):
+            _hold('PINNED_IDENTITY_MISMATCH')
+        if (receipt_verifier.pinned_key_epoch!=revocation_verifier.epochs[1] or
+                checkpoint_verifier.operator_epoch!=receipt_verifier.pinned_key_epoch or
+                checkpoint_verifier.witness_epoch!=revocation_verifier.epochs[2]):
+            _hold('PINNED_EPOCH_MISMATCH')
+        if (receipt_verifier.pinned_public_key!=revocation_verifier.pinned_operator_public_key or
+                receipt_verifier.pinned_public_key!=checkpoint_verifier.operator_key.public_bytes_raw() or
+                revocation_verifier.pinned_witness_public_key!=checkpoint_verifier.witness_key.public_bytes_raw()):
+            _hold('PINNED_SIGNER_MISMATCH')
+        if (revocation_verifier.pinned_revocation_public_key==receipt_verifier.pinned_public_key or
+                revocation_verifier.pinned_revocation_public_key==revocation_verifier.pinned_witness_public_key):
+            _hold('PINNED_KEY_REUSE')
+        self.receipt_verifier=receipt_verifier
+        self.revocation_verifier=revocation_verifier
+        self.checkpoint_verifier=checkpoint_verifier
+        self.financial_reviewer=financial_reviewer
+
+    def review(self, *,operation,financial,expected,expected_agent_id,
+               receipt,receipt_signature_b64,revocation_anchor,
+               revocation_envelope,checkpoint_anchor,checkpoint_envelope):
+        # Validation is deliberately ordered so malformed or costly requests
+        # cannot cause a witness reservation attempt or any provider call.
+        if (type(expected_agent_id) is not str or
+                _ID.fullmatch(expected_agent_id) is None or
+                '..' in expected_agent_id or type(operation) is not dict or
+                type(expected) is not dict or type(receipt) is not dict):
+            _hold('LOCAL_EXPECTATION_FORMAT')
+        if operation.get('risk_class')!='S0' or expected.get('risk_class')!='S0':
+            _hold('NON_S0_OPERATION')
+        if operation.get('agent_id')!=expected_agent_id:
+            _hold('OPERATION_ACTOR_MISMATCH')
+        for field in ('operation_id','project_id','work_id','workload_identity_id',
+                      'request_sha256','risk_class'):
+            if (type(operation.get(field)) is not str or
+                    operation.get(field)!=expected.get(field) or
+                    receipt.get(field)!=expected.get(field)):
+                _hold('OPERATION_BINDING_MISMATCH')
+        try:
+            finance_evidence=self.financial_reviewer.review(operation=operation,
+                                                              financial=financial)
+        except (FinancialHold,KeyError,TypeError,ValueError):
+            _hold('FINANCIAL_UNVERIFIED')
+        try:
+            operator_evidence=self.receipt_verifier.verify(receipt=receipt,
+                signature_b64=receipt_signature_b64, expected=expected)
+        except (ReceiptHold,KeyError,TypeError,ValueError):
+            _hold('RECEIPT_UNVERIFIED')
+        try:
+            revocation_evidence=self.revocation_verifier.review(
+                anchor=revocation_anchor,envelope=revocation_envelope)
+        except (RevocationHold,KeyError,TypeError,ValueError):
+            _hold('REVOCATION_UNVERIFIED')
+        try:
+            checkpoint_evidence=self.checkpoint_verifier.review(
+                anchor=checkpoint_anchor,envelope=checkpoint_envelope,
+                expected={'operation_id':expected['operation_id'],
+                          'receipt_sha256':operator_evidence['receipt_sha256']})
+        except (CheckpointHold,KeyError,TypeError,ValueError):
+            _hold('CHECKPOINT_UNVERIFIED')
+        # All four evidence objects were returned by the real local verifiers.
+        # A caller can still roll back all anchors or fabricate pin custody.
+        if (finance_evidence['execution_allowed'] is not False or
+                operator_evidence['execution_allowed'] is not False or
+                revocation_evidence['execution_allowed'] is not False or
+                checkpoint_evidence['execution_allowed'] is not False):
+            _hold('UNEXPECTED_UPSTREAM_AUTHORIZATION')
+        return {
+            'schema':'musitu.axiom.iso.s0.preconsumption-reconciliation.v1',
+            'status':'S0_PRECONSUMPTION_EVIDENCE_RECONCILED_NOT_ADMITTED',
+            'operation_id':expected['operation_id'],
+            'policy_sha256':self.financial_reviewer.pinned_policy_sha256,
+            'receipt_sha256':operator_evidence['receipt_sha256'],
+            'financial_review_sha256':finance_evidence['financial_input_sha256'],
+            'revocation_snapshot_sha256':revocation_evidence['snapshot_sha256'],
+            'checkpoint_sha256':checkpoint_evidence['checkpoint_sha256'],
+            'next_sequence':checkpoint_evidence['next_sequence'],
+            'product_objects':['Project','Work','Agent','Artifact','Evidence'],
+            'external_provider_budget':'NOT_PROVEN',
+            'independent_operator_custody':'NOT_PROVEN',
+            'independently_pinned_roots':'NOT_PROVEN',
+            'revocation_freshness':'NOT_PROVEN_EXTERNALLY',
+            'destructive_recovery':'NOT_PROVEN',
+            'single_use_admission':'NOT_PROVEN',
+            'global_antirollback':'FAILED_IN_SYNTHETIC_ATTACK',
+            'reservation_issued':False,
+            'execution_allowed':False,
+            'provider_dispatch_allowed':False,
+            'recovery_authorized':False,
+            'production_authority':False,
+            'security_qualification':'NOT_CERTIFIED',
+        }
