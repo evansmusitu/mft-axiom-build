@@ -140,3 +140,18 @@ test('oversized JWKS without content-length is rejected before parsing or verify
   /certs/
  );
 });
+
+test('signed Access JWKS lookup is abortable with bounded failure, even for hung key authority',async()=>{
+  const token=await sign();
+  let suppliedSignal;
+  const fetchNever=async (_url,options)=>{
+    suppliedSignal=options?.signal;
+    assert.ok(suppliedSignal instanceof AbortSignal,'JWKS fetch must receive AbortSignal');
+    return new Promise((_,reject)=>{
+      suppliedSignal.addEventListener('abort',()=>reject(new Error('certs-timeout')),{once:true});
+    });
+  };
+  await assert.rejects(verifyAccessJwt(token,{teamDomain:TEAM,audience:AUD,
+    fetchJwks:fetchNever,now:CLOCK,jwksTimeoutMs:30}),/certs-timeout/);
+  assert.equal(suppliedSignal.aborted,true);
+});
