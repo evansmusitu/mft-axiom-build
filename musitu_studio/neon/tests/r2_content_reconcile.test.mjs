@@ -69,3 +69,30 @@ test('empty pending-job inventory verifies zero referenced objects only, not an 
  let calls=0;const receipt=await verifyStudioR2ObjectBytes(s,options({readObject:async()=>{calls++;throw Error('never-called')}}));
  assert.equal(calls,0);assert.equal(receipt.objects_verified,0);assert.equal(receipt.provider_verified,false);
 });
+
+// An attacker-controlled streaming reader may emit infinite empty chunks, or
+// millions of tiny chunks without exceeding the nominal byte quota.
+test('rejects empty chunks and bounded per-object / total streaming chunk exhaustion',async()=>{
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  readObject:async a=>(async function*(){yield new Uint8Array(0);yield payload[a.filename]})()
+ })),/STUDIO_R2_EMPTY_CHUNK/);
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxChunksPerObject:20,readObject:async a=>(async function*(){
+   for(const byte of payload[a.filename])yield Uint8Array.of(byte);
+  })()
+ })),/STUDIO_R2_CHUNK_LIMIT_EXCEEDED/);
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxTotalChunks:3,readObject:async a=>(async function*(){
+   const b=payload[a.filename];yield b.subarray(0,512);yield b.subarray(512)
+  })()
+ })),/STUDIO_R2_TOTAL_CHUNK_LIMIT_EXCEEDED/);
+});
+test('invalid streaming budgets reject before reading protected objects',async()=>{
+ let attempts=0;
+ for(const bad of [-1,0,NaN,Infinity,1.4,'20',1_000_001]){
+  await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+   maxChunksPerObject:bad,readObject:async()=>{attempts++;return[]}
+  })),/STUDIO_R2_INVALID_CHUNK_BUDGET/);
+ }
+ assert.equal(attempts,0);
+});

@@ -260,8 +260,23 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // including when one of these final probes fails.
     await requireLiveFence();
     await requireTargetBarrier();
+    // Re-evaluate the entire canonical evidence bundle at the CURRENT instant.
+    // A nonce-reservation round trip may outlive provider timestamps even if
+    // the short-lived source/target fencing receipts were renewed meanwhile.
+    assertStudioNeonPromotionEvidence(second,{expectedHead});
+    // Signer/owner registries, provider provenance and private transport may
+    // be revoked independently of the narrower pinned-version callback.
+    // Require all independent receipts to remain valid immediately before CAS.
+    if(await verifyProviderReceipts(second)!==true)
+      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
     if(await verifySignedR2VersionEvidence(second)!==true)
       fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    // Provider callbacks may perform remote HMAC/R2 checks. They can take long
+    // enough to expire the evidence or lose the SQLite and Neon write fences.
+    // Recheck after their LAST await, immediately before touching route state.
+    assertStudioNeonPromotionEvidence(second,{expectedHead});
+    await requireLiveFence();
+    await requireTargetBarrier();
     // Android owner consent can expire during external nonce storage too.
     // Revalidate the original signed receipt just before the route CAS;
     // never silently substitute a different owner approval post-reservation.

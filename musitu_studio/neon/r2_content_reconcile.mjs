@@ -9,6 +9,10 @@ import {normalizeStudioLedgerSnapshot,attestStudioLedgerSnapshot} from './ledger
 const fail=code=>{throw Error(code)};
 const DEFAULT_BUDGET=128_000_000; // 128 MB; larger runs require an explicit budget.
 const HARD_BUDGET=1_000_000_000_000;
+// CPU and iterator-exhaustion guardrails independent of the byte budget.
+// They bound per-object and aggregate chunk work, including tiny-byte chunks.
+const DEFAULT_MAX_OBJECT_CHUNKS=65536, DEFAULT_MAX_TOTAL_CHUNKS=262144;
+const HARD_MAX_CHUNKS=1_000_000, HARD_TOTAL_CHUNKS=2_000_000;
 /**
  * Verify every referenced object by streaming its actual bytes, not trusting
  * R2 HTTP ETags, stored metadata, reported content lengths or file extensions.
@@ -20,7 +24,8 @@ const HARD_BUDGET=1_000_000_000_000;
  * protections and read-only transport must be established independently.
  */
 export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integrityKey,
-  maxTotalBytes=DEFAULT_BUDGET}={}){
+  maxTotalBytes=DEFAULT_BUDGET,maxChunksPerObject=DEFAULT_MAX_OBJECT_CHUNKS,
+  maxTotalChunks=DEFAULT_MAX_TOTAL_CHUNKS}={}){
   // Validate the COMPLETE ledger and exact V0.3 asset namespace first.
   const source=normalizeStudioLedgerSnapshot(sourceSnapshot);
   if(!(integrityKey instanceof Uint8Array)||integrityKey.byteLength<32)
@@ -28,12 +33,18 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
   if(typeof readObject!=='function')fail('STUDIO_R2_READER_REQUIRED');
   if(!Number.isSafeInteger(maxTotalBytes)||maxTotalBytes<1||maxTotalBytes>HARD_BUDGET)
     fail('STUDIO_R2_INVALID_BYTE_BUDGET');
+  // All option validation happens before an authenticated provider read.
+  if(!Number.isSafeInteger(maxChunksPerObject)||maxChunksPerObject<1||
+     maxChunksPerObject>HARD_MAX_CHUNKS||
+     !Number.isSafeInteger(maxTotalChunks)||maxTotalChunks<1||
+     maxTotalChunks>HARD_TOTAL_CHUNKS)
+    fail('STUDIO_R2_INVALID_CHUNK_BUDGET');
   const expectedBytes=source.assets.reduce((sum,asset)=>sum+asset.bytes,0);
   // Reject an impossible budget BEFORE ANY external provider callback.
   if(expectedBytes>maxTotalBytes)fail('STUDIO_R2_BYTE_BUDGET_EXCEEDED');
   const table=attestStudioLedgerSnapshot(source,{integrityKey});
   const objects=[];
-  let verifiedBytes=0;
+  let verifiedBytes=0, totalChunks=0;
   for(const asset of source.assets){
     let stream;
     try {stream=await readObject({...asset});}
@@ -43,11 +54,14 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
     if(typeof iterator?.[Symbol.iterator]!=='function'&&
        typeof iterator?.[Symbol.asyncIterator]!=='function')
       fail('STUDIO_R2_STREAM_REQUIRED');
-    let size=0;
+    let size=0, objectChunks=0;
     const hasher=createHash('sha256');
     try{
       for await(const chunk of iterator){
         if(!(chunk instanceof Uint8Array))fail('STUDIO_R2_INVALID_CHUNK');
+        if(chunk.byteLength===0)fail('STUDIO_R2_EMPTY_CHUNK');
+        if(++objectChunks>maxChunksPerObject)fail('STUDIO_R2_CHUNK_LIMIT_EXCEEDED');
+        if(++totalChunks>maxTotalChunks)fail('STUDIO_R2_TOTAL_CHUNK_LIMIT_EXCEEDED');
         size+=chunk.byteLength;
         if(size>asset.bytes)fail('STUDIO_R2_CONTENT_SIZE_MISMATCH');
         verifiedBytes+=chunk.byteLength;

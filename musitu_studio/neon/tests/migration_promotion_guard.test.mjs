@@ -35,18 +35,22 @@ function proof(){
 }
 function adapter(p=proof(),flags={},nonceRegistry=new Set()){
  let route='SQLITE_DO',flips=0,release=0,reads=0,held=false,signedChecks=0;
- let nonceClaims=0;
+ let nonceClaims=0,providerCalls=0;
  const f={expectedHead:sha,
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
  held=true;return {acquired:true,release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
  async readRoute(){return route},
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
- async verifyProviderReceipts(){return flags.unverified!==true},
+ async verifyProviderReceipts(){providerCalls++;
+  if(flags.delayProviderAfterNonceMs&&nonceClaims>0)
+   await new Promise(done=>setTimeout(done,flags.delayProviderAfterNonceMs));
+  return flags.unverified!==true&&!(flags.providerRevokedAfterNonce&&nonceClaims>0)},
  async verifySignedR2VersionEvidence(){signedChecks++;return flags.unsignedR2!==true&&
   !(flags.r2SignerRevokedOnSecondCheck&&signedChecks>=2)&&
   !(flags.r2SignerRevokedImmediatelyBeforeCanary&&signedChecks>=3)},
  async verifyTargetWriteBarrier(info){
   if(flags.targetWriteBarrierLost||flags.targetWriteBarrierLostAfterNonce&&nonceClaims>0||
+     flags.targetLostDuringFinalProvider&&providerCalls>=3||
      (flags.targetBarrierLostAfterCanary&&route==='NEON_CANARY_READONLY'))
     return {verified:false};
   return {verified:true,provider_receipt_verified:true,read_only:true,
@@ -54,7 +58,8 @@ function adapter(p=proof(),flags={},nonceRegistry=new Set()){
     expires_at:new Date(Date.now()+120000).toISOString()};
  },
  async verifyCurrentSourceFreeze(info){
-  if(flags.freezeGone||flags.freezeGoneAfterNonce&&nonceClaims>0)return {verified:false};
+  if(flags.freezeGone||flags.freezeGoneAfterNonce&&nonceClaims>0||
+   flags.freezeLostDuringFinalProvider&&providerCalls>=3)return {verified:false};
   if(flags.freezeGoesAwayAfterCutover&&route==='NEON_CANARY_READONLY')return {verified:false};
   return {verified:true,provider_receipt_verified:true,freeze_id:info.freeze_id,
    triggers_verified:15,expires_at:new Date(Date.now()+120000).toISOString()};
@@ -93,6 +98,7 @@ function adapter(p=proof(),flags={},nonceRegistry=new Set()){
  async reserveCanaryNonce(info){
   nonceClaims++;
   if(flags.browserExpiresDuringNonce)await new Promise(done=>setTimeout(done,200));
+  if(flags.delayNonceMs)await new Promise(done=>setTimeout(done,flags.delayNonceMs));
   if(flags.nonceServiceUnavailable)throw Error('provider-unavailable');
   if(flags.nonceInvalidAck)return {durable:true,unique:true};
   const nonce=info.r2_receipt_id+':'+info.run_id;
@@ -429,4 +435,39 @@ test('ambiguous provider gate times never qualify despite parsed time being fres
 test('R2 provider timestamp must be canonical UTC with explicit milliseconds',()=>{
  const e=proof();e.r2_provider_attestation.checked_at=new Date().toISOString().replace('Z','+00:00');
  bad(e,/STUDIO_R2_PROVIDER_ATTESTATION_STALE/);
+});
+
+// Generic provider attestations may be revoked while the external nonce
+// registry is contacted. A narrow signed-version callback does not cover all
+// provider dependencies; reverify the complete provider proof before CAS.
+test('revoked provider receipts during durable nonce reservation block route switch',async()=>{
+ const x=adapter(proof(),{providerRevokedAfterNonce:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED/);
+ assert.equal(x.state().flips,0);
+ assert.equal(x.state().route,'SQLITE_DO');
+});
+// All canonical evidence timestamps must still be fresh immediately before
+// the first route CAS, not just when the long asynchronous verification began.
+test('evidence expiration while reserving a nonce blocks canary before CAS',async()=>{
+ const p=proof();p.checked_at=new Date(Date.now()-299000).toISOString();
+ const x=adapter(p,{delayNonceMs:1400});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_EVIDENCE_STALE/);
+ assert.equal(x.state().flips,0);
+});
+
+test('evidence expiring during final provider revalidation cannot reach route CAS',async()=>{
+ const p=proof();p.checked_at=new Date(Date.now()-299000).toISOString();
+ const x=adapter(p,{delayProviderAfterNonceMs:1400});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_EVIDENCE_STALE/);
+ assert.equal(x.state().flips,0);
+});
+test('freeze lost during final provider verification blocks route CAS',async()=>{
+ const x=adapter(proof(),{freezeLostDuringFinalProvider:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED/);
+ assert.equal(x.state().flips,0);
+});
+test('Neon target write barrier lost during final provider verification blocks route CAS',async()=>{
+ const x=adapter(proof(),{targetLostDuringFinalProvider:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
+ assert.equal(x.state().flips,0);
 });
