@@ -125,6 +125,15 @@ jobs:
           assert.equal(tokenCount,2);
           assert.equal(globalThis.__session.status,'ACTIVE');
           assert.equal((await sessionStatus()).connected,true);
+          assert.equal((await sessionStatus()).accessTokenFresh,true);
+          assert.equal((await sessionStatus()).renewalRequired,false);
+          globalThis.__session.expires_at=new Date(Date.now()-5000).toISOString();
+          const expiring=await sessionStatus();
+          assert.equal(expiring.connected,true);
+          assert.equal(expiring.accessTokenFresh,false);
+          assert.equal(expiring.renewalRequired,true);
+          assert.equal(expiring.status,'ACCESS_EXPIRED_OR_NEAR_EXPIRY');
+          assert.equal(tokenCount,2,'read-only status must not trigger network refresh');
           process.env.ATLAS_AXIOM_OAUTH_ENABLED='disabled';
           assert.equal(oauthConfigured(),false);
           await assert.rejects(()=>oauthBearer(),/not activated/);
@@ -133,6 +142,6 @@ jobs:
           console.log('PASS: browser state mismatch rejected before issuing token');
           console.log('PASS: OAuth callback one-time consumption');
           console.log('PASS: AES-GCM encrypted token storage, no raw tokens in database rows');
-          console.log('PASS: one refresh exchange and disabled-owner fail-close');
+          console.log('PASS: one refresh exchange, precise expired-session status and disabled-owner fail-close');
           console.log('PASS: no actual MCP operations or external network were sent');
           JS
