@@ -1,0 +1,74 @@
+name: LIFELINE One-Pass Read-only Cloudflare Modal Spend and Secret Provenance
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: [.github/workflows/lifeline-mt5-one-pass-readonly-acceptance.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect-no-cutover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Qualify exact Account, Worker, owner-only MFA, absent backend bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py
+      - name: Install Modal SDK (control-plane metadata ONLY)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID" && test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+      - name: Confirm named Modal secret stores without reading sensitive values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/modal_source_inventory.py
+      - name: Verify actual Modal workspace billing; no paid budget escalation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          import modal
+          summary=modal.Workspace.from_context().billing.summary()
+          billed=Decimal(str(summary.billed_cost))
+          metered=Decimal(str(summary.metered_cost))
+          if billed < 0 or metered < 0:
+              raise RuntimeError('invalid billing summary')
+          output={
+              "schema":"lifeline.modal_spend_readonly.v1",
+              "metered_cost_usd":str(metered),
+              "billed_cost_usd":str(billed),
+              "confirmed_billed_zero":billed==0,
+              "provider_compute_called":False,
+              "modal_proxy_token_created":False,
+              "cloudflare_secret_uploaded":False,
+              "backend_activated":False,
+              "trading_enabled":False
+          }
+          with open("lifeline-modal-billing-readonly.json","w") as f:
+              json.dump(output,f,sort_keys=True)
+          print(json.dumps(output,sort_keys=True))
+          PY
+      - name: Save nonsecret evidence for owner
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-one-pass-readonly-acceptance
+          path: |
+            lifeline-backend-cutover-readiness.json
+            lifeline-modal-billing-readonly.json
+          retention-days: 3
+          if-no-files-found: warn
