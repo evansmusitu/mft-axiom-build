@@ -1,10 +1,19 @@
 import {parseBody,parseExpression,hashPayload,respond,fail,OPERATION,authConfigured,verifyApproval,deny} from './_contract.js';
 import {ledgerReady,lookup,assessRuntimeRole} from './_ledger.js';
 import {preflight} from './_entitlementCheck.js';
+import {beginOAuth} from './_oauth.js';
 export default async function handler(req:any,res:any){
  if(req.method!=='POST')return respond(res,405,{error:'Method not allowed.'});
  try{
   const data=parseBody(req);
+  if(data.action==='oauth-start'){
+   verifyApproval(data.accessCode,'0'.repeat(64),data.approved);
+   const flow=await beginOAuth();
+   res.setHeader('Set-Cookie',flow.setCookie);
+   return respond(res,200,{status:'OWNER_OAUTH_APPROVAL_REQUIRED',
+    authorizationUrl:flow.authorizationUrl,expiresInSeconds:flow.expiresInSeconds,
+    note:'Account credentials must be entered only on the official MUSITU Axiom OAuth authorization page. No compute request occurs.'});
+  }
   if(data.action==='credential-preflight'){
    verifyApproval(data.accessCode,'0'.repeat(64),data.approved);
    const status=await preflight();
