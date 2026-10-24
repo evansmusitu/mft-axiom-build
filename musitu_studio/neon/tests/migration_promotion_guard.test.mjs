@@ -414,3 +414,19 @@ test('owner browser receipt expiring during nonce reservation never reaches rout
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/);
  assert.equal(x.state().flips,0);
 });
+
+test('strict UTC-millisecond timestamps required on outer migration evidence',()=>{
+ for(const time of ['2026-10-24 23:00:00','2026-10-24T21:00:00+00:00',
+                    new Date().toISOString().replace(/\.\d{3}Z$/,'Z')]){
+  const e=proof();e.checked_at=time;
+  bad(e,/STUDIO_EVIDENCE_STALE/);
+ }
+});
+test('ambiguous provider gate times never qualify despite parsed time being fresh',()=>{
+ const e=proof();e.gates[0].checked_at=new Date().toISOString().replace('Z','+00:00');
+ bad(e,/STUDIO_STALE_GATE_/);
+});
+test('R2 provider timestamp must be canonical UTC with explicit milliseconds',()=>{
+ const e=proof();e.r2_provider_attestation.checked_at=new Date().toISOString().replace('Z','+00:00');
+ bad(e,/STUDIO_R2_PROVIDER_ATTESTATION_STALE/);
+});

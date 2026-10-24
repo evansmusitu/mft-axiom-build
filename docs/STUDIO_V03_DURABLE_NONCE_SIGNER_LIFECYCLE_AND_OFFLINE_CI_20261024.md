@@ -29,3 +29,7 @@ A complete Edge server suite still requires dependency installation (`jose`) and
 ## Non-authorizations and remaining production requirements
 
 These changes implement **interfaces**, not a production nonce service or trusted registry. Before any production canary, independent owner infrastructure must supply an authenticated durable registry, atomic unique nonce store, Cloudflare-origin R2 asset byte/version provenance, signed Android owner consent, true frozen production SQLite DO export and immutable audit reconciliation, private Cloudflare-to-Neon routing, hosted restore/rollback, and hard provider spending controls. The operator Ed25519 signature is **not** native R2 proof. No production keys, R2 objects, database records, Access configuration, Neon credentials, payment or Modal rendering were read or changed.
+
+## Follow-up timestamp validation
+
+The outer canary evidence timestamp, each independent provider gate timestamp, and the R2 provider attestation timestamp now require exact RFC 3339 UTC millisecond canonical form (`YYYY-MM-DDTHH:mm:ss.sssZ`). Previously `Date.parse` accepted local timestamps and equivalent offsets, which could produce different authorization outcomes on operator machines. The new validation rejects ambiguous/noncanonical forms and impossible calendar dates, while keeping bounded freshness checks. Three regression tests failed before this tightening and passed afterward.

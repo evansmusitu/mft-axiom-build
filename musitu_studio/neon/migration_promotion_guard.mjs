@@ -5,6 +5,12 @@
 import {timingSafeEqual} from 'node:crypto';
 const TABLES=Object.freeze(['projects','memberships','jobs','assets','audit_events']);
 const HASH=/^[0-9a-f]{64}$/i, NONCE=/^[a-zA-Z0-9-]{16,128}$/;
+const ISO_MILLIS=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+function parseCanonicalUtc(s){
+ if(typeof s!=='string'||!ISO_MILLIS.test(s))return NaN;
+ const t=Date.parse(s);
+ return Number.isFinite(t)&&new Date(t).toISOString()===s?t:NaN;
+}
 const GATES=Object.freeze([
   'cloudflare_owner_signed_export','source_writes_frozen','source_snapshot_complete',
   'neon_schema_v2_attested','neon_least_privilege_role',
@@ -39,7 +45,7 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
   if(e.source_head!==expectedHead)fail('STUDIO_SOURCE_HEAD_CHANGED');
   if(JSON.stringify(e).length>65536)fail('STUDIO_EVIDENCE_OVERSIZED');
   if(!NONCE.test(e.run_id||''))fail('STUDIO_ATTESTATION_RUN_ID_INVALID');
-  const timestamp=Date.parse(e.checked_at||'');
+  const timestamp=parseCanonicalUtc(e.checked_at);
   if(!Number.isFinite(timestamp)||!Number.isFinite(now)||
     timestamp>now+30000||now-timestamp>300000)fail('STUDIO_EVIDENCE_STALE');
   if(!Array.isArray(e.gates)||e.gates.length!==GATES.length)
@@ -52,7 +58,7 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
     if(g.verified!==true||g.synthetic===true||g.provider_receipt_verified!==true||
       !shortText(g.receipt_id)||!shortText(g.provider)||!shortText(g.checked_at))
       fail('STUDIO_UNVERIFIED_GATE_'+String(g.name));
-    const t=Date.parse(g.checked_at);
+    const t=parseCanonicalUtc(g.checked_at);
     if(!Number.isFinite(t)||t>now+30000||now-t>300000)
       fail('STUDIO_STALE_GATE_'+g.name);
   }
@@ -112,7 +118,7 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
     fail('STUDIO_R2_PROVIDER_ATTESTATION_SOURCE_HEAD_MISMATCH');
   if(!sameHash(r2.content_hmac,content.content_hmac))
     fail('STUDIO_R2_PROVIDER_ATTESTATION_CONTENT_MISMATCH');
-  const r2Checked=Date.parse(r2.checked_at||'');
+  const r2Checked=parseCanonicalUtc(r2.checked_at);
   if(!Number.isFinite(r2Checked)||r2Checked>now+30000||now-r2Checked>300000)
     fail('STUDIO_R2_PROVIDER_ATTESTATION_STALE');
   if(e.cloudflare_database_of_record!=='SQLITE_DO'||
