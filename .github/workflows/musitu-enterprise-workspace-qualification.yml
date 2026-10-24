@@ -27,5 +27,5 @@ jobs:
           node --check studio-edge/worker.mjs
       - name: Complete worker and tenant adversarial tests (no network or inference)
         run: node --test studio-edge/tests/*.test.mjs
-      - name: Migration parses in SQLite (no cloud database mutations)
-        run: python3 -c "import sqlite3; sqlite3.connect(':memory:').executescript(open('studio-edge/migrations/0001_enterprise_workspace.sql').read()); print('Migration syntax valid')"
+      - name: Real SQLite tenant boundary and migration contracts (no cloud database mutations)
+        run: python3 studio-edge/tests/enterprise_sqlite_contract.py
