@@ -7,15 +7,21 @@ This feature is **NOT LIVE** and has no configured Cloudflare Access identity or
 - Auth: signed RS256 JWT in cf-access-jwt-assertion, validated against the configured Cloudflare Access issuer's public JWKS, exact issuer, audience, expiry, issued-at and signature.
 - Authorization: on EVERY request, the signed subject must have an ACTIVE row in D1 tenant_memberships for the URL's tenant; owner/editor can write, viewer can only read. The client never sets its authorization role.
 - Storage: server receives a strictly shaped opaque AES-GCM envelope (version=1, 12-byte base64url IV, base64url ciphertext including authentication tag). Server does NOT encrypt, decrypt, manage keys, validate an encryption password, or verify the plaintext. Clients must use genuine authenticated encryption with random unique IVs.
-- Durable tenant-scoped rows use compound (tenant_id,artifact_id) keys. Mutation and minimal audit event are written in one database batch. Delete removes ciphertext, but retains audit rows without content.
+- Durable tenant-scoped rows use compound (tenant_id,artifact_id) keys. Mutation and minimal audit event are written in one D1 database transaction. The SQL statement itself checks active membership and owner/editor role, closing revoked-access races between an earlier JS lookup and database mutation; the read query joins active membership as well. Audit events are inserted only when SQLite reports a changed row. A missing DELETE returns 404 without a false audit. Delete removes ciphertext, but retains audit rows without content.
+- A **new 50-artifact per-tenant row cap** is enforced by the `0002` SQLite AFTER INSERT trigger. The same tenant can update existing records at capacity and reuse freed slots after deletion. A recognized quota abort maps to HTTP 409 `TENANT_ARTIFACT_LIMIT`. This bounds *stored artifact count in the dedicated D1 database*, NOT request frequency, aggregate audit growth, AI consumption, bandwidth, worldwide cross-provider costs, or any already-deployed service. It remains inactive until the new D1 database and migration are actually provisioned and independently verified.
 - No cross-origin browser access beyond the MUSITU website; browser Origin is NOT authentication. GET must specify an artifact id. No listing or provisioning API is exposed.
 - This feature is only a foundation, NOT a production-qualified enterprise workspace. Rate caps, operational deletion policy, customer consent, backups, abuse monitoring, identity lifecycle, verified revocation latency, session control, transport and threat-model acceptance remain gating work.
 
 ## Deployment prerequisites (separate authorized resources)
-1. Provision an isolated dedicated Cloudflare D1 instance, **not** any existing Neon/customer/project database; apply migrations/0001_enterprise_workspace.sql there.
+1. Provision an isolated dedicated Cloudflare D1 instance, **not** any existing Neon/customer/project database; apply `migrations/0001_enterprise_workspace.sql` then `migrations/0002_enterprise_tenant_artifact_limit.sql` there. Do not point either migration at unrelated/customer databases.
 2. Provision and verify Cloudflare Access protected identity application, and configure WORKSPACE_DB binding, ACCESS_TEAM_DOMAIN (https://<team>.cloudflareaccess.com), ACCESS_AUDIENCE (actual application audience). Do not log or echo tokens.
 3. Insert tenants and memberships through a separately audited administrator path, not from user-supplied tenant claims.
-4. Deploy first to a NEW private canary, not the public Worker, and run valid/invalid JWT, tenant A/B, revoked access, real D1 encrypted save/read/delete and independent security/privacy acceptance.
+4. Deploy first to a NEW private canary, not the public Worker, and run valid/invalid JWT, tenant A/B, concurrent revocation, 50/51-item quota including overwrites at capacity, real D1 encrypted save/read/delete and independent security/privacy acceptance.
 5. No production promotion without reviewed rollback, controls, cost and retention approval.
 
 Existing Wrangler files intentionally do not reference WORKSPACE_DB or Access variables. Without complete configuration every enterprise API request returns NOT_CONFIGURED; ordinary public AI endpoints stay unchanged.
+
+## Verified non-deploy test boundaries
+- Real SQLite integration tests reproduce the membership revocation race and confirm SQL-statement authorization prevents writes, deletes, and reads after revocation. Membership pre-check alone was insufficient.
+- SQLite migration quota tests fill two tenants independently, deny their 51st insert, permit updates at capacity, and permit inserts after deletion.
+- The local tests and CI are **not** a real Cloudflare D1 canary acceptance. No tenant can use cloud storage until an authorized Cloudflare Access application, dedicated D1 binding and live security acceptance exist.
