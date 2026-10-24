@@ -304,3 +304,84 @@ test('internal Mining risk retains valid 80-character safe correlation identifie
     globalThis.fetch = previousFetch;
   }
 });
+
+
+test('planner never spends a positive sub-picounit cost with zero budget', async () => {
+  const mod=await worker();
+  const row={hazard:'Fractional positive cost',exposure:1,severity:1,likelihood:1,cost:5e-13,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.equal(plan.spend,0);
+  assert.deepEqual(plan.selected,[]);
+});
+
+test('planner still selects free interventions at zero budget', async () => {
+  const mod=await worker();
+  const row={hazard:'Free',exposure:1,severity:1,likelihood:1,cost:0,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.equal(plan.spend,0);
+  assert.deepEqual(plan.selected,['Free']);
+});
+
+test('planner preserves positive sub-epsilon risk reductions', async () => {
+  const mod=await worker();
+  const row={hazard:'Micro reduction',exposure:1,severity:1,likelihood:1,cost:0,benefit:5e-13};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.deepEqual(plan.selected,['Micro reduction']);
+  assert.equal(plan.riskReduction,5e-13);
+});
+
+test('planner correctly reports 100 percent reduction of a tiny nonzero baseline', async () => {
+  const mod=await worker();
+  const row={hazard:'Tiny baseline',exposure:5e-13,severity:1,likelihood:1,cost:0,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.deepEqual(plan.selected,['Tiny baseline']);
+  assert.equal(plan.relativeReduction,100);
+  assert.equal(plan.residualRisk,0);
+});
+
+test('planner matches exhaustive integer-budget oracle in 45 deterministic cases', async () => {
+  const mod=await worker();
+  let seed=0x6c842111;
+  const next=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed;};
+  for(let trial=0;trial<45;trial++){
+    const rows=Array.from({length:7},(_,i)=>({
+      hazard:'Oracle '+i,exposure:1,severity:1,likelihood:1,
+      cost:next()%9,benefit:(next()%9)/8,
+    }));
+    const budget=next()%19;
+    const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+      method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget}),
+    }),env);
+    assert.equal(response.status,200);
+    const plan=await response.json();
+    let optimum=-1,minSpend=Infinity;
+    for(let bits=0;bits<(1<<rows.length);bits++){
+      let cost=0,benefit=0;
+      for(let i=0;i<rows.length;i++)if(bits&(1<<i)){
+        cost+=rows[i].cost;benefit+=rows[i].benefit;
+      }
+      if(cost<=budget && (benefit>optimum || (benefit===optimum && cost<minSpend))){
+        optimum=benefit;minSpend=cost;
+      }
+    }
+    assert.ok(plan.spend<=budget,'budget exceeded in trial '+trial);
+    assert.equal(plan.riskReduction,optimum,'suboptimal objective at '+trial);
+    assert.equal(plan.spend,minSpend,'nonminimum tie-spend at '+trial);
+  }
+});

@@ -165,7 +165,7 @@ function optimizeInterventions(rows, budget) {
         density: row.cost <= epsilon ? Number.POSITIVE_INFINITY : riskReduction / row.cost,
       };
     })
-    .filter(item => item.riskReduction > epsilon)
+    .filter(item => item.riskReduction > 0)
     .sort((left, right) => {
       if (left.density !== right.density) return right.density - left.density;
       if (left.cost !== right.cost) return left.cost - right.cost;
@@ -190,7 +190,7 @@ function optimizeInterventions(rows, budget) {
         bound += item.riskReduction;
         continue;
       }
-      if (remaining > epsilon) {
+      if (remaining > 0) {
         bound += item.riskReduction * (remaining / item.cost);
       }
       break;
@@ -207,10 +207,11 @@ function optimizeInterventions(rows, budget) {
   }
 
   function isBetter(reduction, spend, selected) {
-    if (reduction > bestReduction + epsilon) return true;
-    if (Math.abs(reduction - bestReduction) > epsilon) return false;
-    if (spend < bestSpend - epsilon) return true;
-    if (Math.abs(spend - bestSpend) > epsilon) return false;
+    // Compare the represented objective without discarding small gains.
+    if (reduction > bestReduction) return true;
+    if (reduction < bestReduction) return false;
+    if (spend < bestSpend) return true;
+    if (spend > bestSpend) return false;
     return lexicographicallyBefore(selected, bestSelected);
   }
 
@@ -243,7 +244,8 @@ function optimizeInterventions(rows, budget) {
       selected: state.selected,
     });
     const nextSpend = state.spend + item.cost;
-    if (nextSpend <= budget + epsilon) {
+    // A budget is a hard ceiling; epsilon must never authorize overspending.
+    if (nextSpend <= budget) {
       stack.push({
         index: state.index + 1,
         spend: nextSpend,
@@ -253,7 +255,7 @@ function optimizeInterventions(rows, budget) {
     }
   }
 
-  const relativeReduction = baselineRisk <= epsilon
+  const relativeReduction = baselineRisk === 0
     ? 0
     : (bestReduction / baselineRisk) * 100;
   return {

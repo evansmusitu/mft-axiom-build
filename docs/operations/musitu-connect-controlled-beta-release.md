@@ -45,6 +45,16 @@ establish supported workload policy with security review, run isolated canary,
 verify old clients' responses, retain rollback and validate live behavior.
 Passing branch CI does **not** authorize a production update.
 
+**Additional feature-branch numeric correctness hardening:** The branch planner
+now enforces a strict nonnegative budget without granting an arbitrary
+1e-12 overspend allowance. It also considers nonzero micro-scale risk
+reductions and computes relative reduction against genuinely nonzero
+baselines. Five new tests include a deterministic exhaustive reference
+over 45 small integer-budget cases. The search cap and error-on-exhaustion
+remain unchanged. IEEE-754 and decimal-currency semantics must still
+receive product review; these changes do not authorize beta admission or
+a production Worker rollout.
+
 ## Blocking engineering and operational controls
 
 | Gate | Required proof | Current verified position |
