@@ -4,6 +4,7 @@ on:
     branches: [feature/atlas-axiom-oauth-owner-web-20261024]
     paths:
       - auth/musitu_axiom_oauth_worker.mjs
+      - auth/atlas_oauth_registration_contract.test.mjs
       - .github/workflows/atlas-oauth-redirect-isolation.yml
   workflow_dispatch:
 permissions:
@@ -44,3 +45,5 @@ jobs:
           console.log('PASS: dedicated ATLAS exact redirect opt-in and ChatGPT redirects unchanged');
           console.log('PASS: external redirects and hostname/path impersonation blocked');
           JS
+      - name: Test end-to-end registration and opt-out with in-memory D1
+        run: node auth/atlas_oauth_registration_contract.test.mjs
