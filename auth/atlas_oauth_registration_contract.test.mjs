@@ -48,9 +48,23 @@ const c=await provider.fetch(new Request(
 ),{AXIOM_DB:db,ATLAS_OAUTH_CALLBACK_ENABLED:'disabled'});
 assert.equal(c.status,400);
 assert.equal(dbWrites.length,1);
+const approve=await provider.fetch(new Request(
+ 'https://auth.mftintelligence.com/oauth/authorize?'+new URLSearchParams({
+ response_type:'code',client_id:ok.data.client_id,redirect_uri:ATLAS_OAUTH_REDIRECT,
+ resource:'https://mcp.mftintelligence.com',scope:'axiom.execute',
+ code_challenge:'A'.repeat(43),code_challenge_method:'S256'
+ }).toString()
+),{AXIOM_DB:db,ATLAS_OAUTH_CALLBACK_ENABLED:'enabled'});
+assert.equal(approve.status,200);
+const page=await approve.text();
+assert.ok(page.includes('Authorize MUSITU ATLAS'));
+assert.ok(!page.includes('Authorize ChatGPT'));
+assert.equal(dbWrites.length,2);
 const chatgpt=await register('ChatGPT','https://chatgpt.com/connector/oauth/atlas-regression',false);
 assert.equal(chatgpt.status,201);
 console.log('PASS: disabled ATLAS registration causes zero D1 writes');
 console.log('PASS: exact ATLAS callback and named-client registration succeed when explicitly opted in');
 console.log('PASS: disabled callback cannot be used to authorize existing ATLAS clients');
 console.log('PASS: legacy ChatGPT connector redirect registration remains functional');
+
+console.log('PASS: owner consent names MUSITU ATLAS, not the unrelated ChatGPT client');
