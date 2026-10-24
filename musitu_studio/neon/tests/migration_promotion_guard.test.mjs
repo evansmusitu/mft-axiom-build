@@ -34,13 +34,15 @@ function proof(){
  rollback:{cloudflare_sqlite_intact:true,restore_pretested:true,snapshot_of_imported_neon_restored:true}};
 }
 function adapter(p=proof(),flags={}){
- let route='SQLITE_DO',flips=0,release=0,reads=0,held=false;
+ let route='SQLITE_DO',flips=0,release=0,reads=0,held=false,signedChecks=0;
  const f={expectedHead:sha,
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
  held=true;return {acquired:true,release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
  async readRoute(){return route},
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){return flags.unverified!==true},
+ async verifySignedR2VersionEvidence(){signedChecks++;return flags.unsignedR2!==true&&
+  !(flags.r2SignerRevokedOnSecondCheck&&signedChecks>=2)},
  async verifyTargetWriteBarrier(info){
   if(flags.targetWriteBarrierLost||
      (flags.targetBarrierLostAfterCanary&&route==='NEON_CANARY_READONLY'))
@@ -322,4 +324,21 @@ test('boolean claims, expired approvals and unverifiable browser clock never qua
   await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/,flag);
   assert.equal(x.state().flips,0,flag);
  }
+});
+
+test('dedicated signed R2 version proof must be verified before any canary route change',async()=>{
+ const x=adapter(proof(),{unsignedR2:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED/);
+ assert.equal(x.state().flips,0);
+});
+test('missing cryptographic version-verifier callback is never silently optional',async()=>{
+ const x=adapter();delete x.f.verifySignedR2VersionEvidence;
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CONTROL_PLANE_INVALID_verifySignedR2VersionEvidence/);
+ assert.equal(x.state().flips,0);
+});
+
+test('revoked signer between first and second signed proof denies route CAS',async()=>{
+ const x=adapter(proof(),{r2SignerRevokedOnSecondCheck:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED/);
+ assert.equal(x.state().flips,0);
 });

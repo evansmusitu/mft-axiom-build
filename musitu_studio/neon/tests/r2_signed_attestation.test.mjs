@@ -160,3 +160,29 @@ test('strict UTC millisecond timestamp rejects ambiguous local formats',async()=
  const b=await bundle();b.envelope.payload.checked_at='2026-10-24 20:55:00';
  assert.throws(()=>verify(b),/SIGNED_PAYLOAD_INVALID/);
 });
+
+test('pinned-version digest covers complete multi-asset inventory regardless of declaration order',()=>{
+ const s=source();
+ const extra=['scene.blend','preview.png'].map((filename,i)=>({
+  job_id:job,filename,object_key:`studio-v03/jobs/${job}/${filename}`,
+  sha256:createHash('sha256').update(Buffer.alloc(1300+i*100,i+1)).digest('hex'),
+  bytes:1300+i*100}));
+ s.jobs[0].state='COMPLETED';s.assets.push(...extra);
+ const pins=[pin(),...extra.map((a,i)=>({object_key:a.object_key,
+  version_id:`immutable-other-version-${i+1}-000000`,sha256:a.sha256,bytes:a.bytes}))];
+ const params={integrityKey,bucketIdSha256:bucket};
+ const a=attestStudioR2PinnedVersions(s,pins,params);
+ const b=attestStudioR2PinnedVersions(s,pins.toReversed(),params);
+ assert.equal(a.versions_sha256,b.versions_sha256);assert.equal(a.objects_pinned,3);
+ const wrong=structuredClone(pins);wrong[2].sha256='f'.repeat(64);
+ assert.throws(()=>attestStudioR2PinnedVersions(s,wrong,params),/PIN_ASSET_MISMATCH/);
+ s.freeze_id='new-frozen-source-after-owner-consent';
+ const c=attestStudioR2PinnedVersions(s,pins,params);
+ assert.notEqual(a.versions_sha256,c.versions_sha256);
+});
+test('opaque version IDs reject path traversal before reaching any provider callback',()=>{
+ assert.throws(()=>attestStudioR2PinnedVersions(source(),[pin('opaque-version/../some-object')],{
+  integrityKey,bucketIdSha256:bucket}),/PIN_INVALID/);
+ assert.throws(()=>attestStudioR2PinnedVersions(source(),[pin('opaque-version..unsafe')],{
+  integrityKey,bucketIdSha256:bucket}),/PIN_INVALID/);
+});

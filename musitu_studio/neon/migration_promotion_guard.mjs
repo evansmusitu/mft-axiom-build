@@ -166,11 +166,11 @@ const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVA
  */
 export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
   exclusiveLease,readRoute,compareAndSwapRoute,verifySignedBrowser,
-  verifyReconciledTarget,verifyProviderReceipts,verifyCurrentSourceFreeze,
-  verifyTargetWriteBarrier}={}){
+  verifyReconciledTarget,verifyProviderReceipts,verifySignedR2VersionEvidence,
+  verifyCurrentSourceFreeze,verifyTargetWriteBarrier}={}){
   for(const [name,fn] of Object.entries({readEvidence,exclusiveLease,readRoute,
     compareAndSwapRoute,verifySignedBrowser,verifyReconciledTarget,verifyProviderReceipts,
-    verifyCurrentSourceFreeze,verifyTargetWriteBarrier}))
+    verifySignedR2VersionEvidence,verifyCurrentSourceFreeze,verifyTargetWriteBarrier}))
     need(fn,name);
   const lease=await exclusiveLease();
   if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
@@ -182,10 +182,18 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     const qualified=assertStudioNeonPromotionEvidence(first,{expectedHead});
     if(await verifyProviderReceipts(first)!==true)
       fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    // An independent, signed pinned-version proof is mandatory and cannot be
+    // implicitly delegated to a generic provider receipt boolean. Callers
+    // should use createStudioR2ProviderReceiptVerifier with a pinned owner
+    // public key and independently authenticated R2 version provenance.
+    if(await verifySignedR2VersionEvidence(first)!==true)
+      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     const second=await readEvidence();
     assertStudioNeonPromotionEvidence(second,{expectedHead});
     if(await verifyProviderReceipts(second)!==true)
       fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    if(await verifySignedR2VersionEvidence(second)!==true)
+      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     if(second.run_id!==qualified.run_id||second.freeze_id!==qualified.freeze_id)
       fail('STUDIO_EVIDENCE_EPOCH_CHANGED');
     // A stable run ID alone is insufficient: identical counts can conceal

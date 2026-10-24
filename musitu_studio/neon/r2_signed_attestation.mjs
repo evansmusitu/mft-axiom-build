@@ -13,7 +13,7 @@ import {normalizeStudioLedgerSnapshot,attestStudioLedgerSnapshot} from './ledger
 const fail=x=>{throw Error(x)};
 const SHA=/^[0-9a-f]{64}$/i, HEAD=/^[0-9a-f]{40}$/i;
 const ID=/^[A-Za-z0-9_-]{8,80}$/;
-const VERSION=/^[A-Za-z0-9][A-Za-z0-9_.:/-]{15,191}$/;
+const VERSION=/^[A-Za-z0-9][A-Za-z0-9_.:-]{15,191}$/;
 const DOM='MUSITU/STUDIO-V03/R2-SIGNED-ATTESTATION/V1\n';
 const MANIFEST_SCHEMA='musitu.studio.v03.r2-pinned-version-manifest.v1';
 const ATTEST_SCHEMA='musitu.studio.v03.r2-provider-signed-evidence.v1';
@@ -42,7 +42,8 @@ export function attestStudioR2PinnedVersions(sourceSnapshot,pins,{integrityKey,b
   const seen=new Set(),normalized=[];
   for(const pin of pins){
     if(!own(pin,['object_key','version_id','sha256','bytes'])||
-       typeof pin.object_key!=='string'||!VERSION.test(pin.version_id||''))
+       typeof pin.object_key!=='string'||!VERSION.test(pin.version_id||'')||
+       pin.version_id.includes('..'))
       fail('STUDIO_R2_PIN_INVALID');
     if(seen.has(pin.object_key))fail('STUDIO_R2_PIN_DUPLICATE');
     seen.add(pin.object_key);
