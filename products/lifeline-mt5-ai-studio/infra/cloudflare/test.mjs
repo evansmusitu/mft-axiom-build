@@ -531,3 +531,54 @@ test('MCP initialize validates legacy negotiated protocol, client capabilities a
     assert.equal((await allowed.json()).result.protocolVersion,'2025-03-26');
   }finally{globalThis.fetch=prev;}
 });
+
+
+test('real owner Access JWT gates the no-Modal Service Binding status independently of legacy credentials',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-no-modal';jwk.use='sig';jwk.alg='RS256';
+  const token=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'kid-no-modal'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const someoneElse=await new SignJWT({sub:'not-enrolled-owner'})
+    .setProtectedHeader({alg:'RS256',kid:'kid-no-modal'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  let inner=0,remote=0;
+  const stage={LIFELINE_ALT_CUTOVER:'OFFLINE_STAGE_AUTHORIZED',
+    LIFELINE_ALT_KEY:'OFFLINE_ONLY_SIGNING_SECRET_MORE_THAN_32_CHARACTERS',
+    AGENT_TENANT:E.AGENT_TENANT,
+    ACCESS_ISSUER:E.ACCESS_ISSUER,ACCESS_AUD:E.ACCESS_AUD,
+    ACCESS_OPERATOR_SUB:E.ACCESS_OPERATOR_SUB,
+    LIFELINE_ALT_SERVICE:{fetch:async req=>{
+      inner++;
+      assert.equal(new URL(req.url).pathname,'/stage/status');
+      assert.equal(req.headers.get('x-lifeline-stage-tenant'),E.AGENT_TENANT);
+      assert.match(req.headers.get('x-lifeline-stage-signature'),/^[a-f0-9]{64}$/);
+      return new Response(json({schema:'lifeline.cloudflare_alt_status.v1',
+        jobs:{PENDING:0,CLAIMED:0,COMPLETED:0},trading_enabled:false,
+        native_windows_connected:false,modal_connected:false,neon_connected:false}),
+        {headers:{'content-type':'application/json'}});
+    }}};
+  const prev=globalThis.fetch;
+  try{
+    globalThis.fetch=async url=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(json({keys:[jwk]}),{headers:{'content-type':'application/json'}});
+      remote++;throw Error('never use Modal or external API');
+    };
+    const url='https://lifeline.example/owner/alternative/status';
+    const visit=(jwt,env=stage)=>worker.fetch(new Request(url,jwt?{
+      headers:{'cf-access-jwt-assertion':jwt}}:{}),env);
+    assert.equal((await visit(null)).status,401);
+    assert.equal((await visit(someoneElse)).status,401);
+    assert.equal(inner,0);
+    const withoutCutover={...stage};delete withoutCutover.LIFELINE_ALT_CUTOVER;
+    assert.equal((await visit(token,withoutCutover)).status,503);
+    const good=await visit(token);
+    assert.equal(good.status,200);
+    assert.deepEqual((await good.json()).jobs,{PENDING:0,CLAIMED:0,COMPLETED:0});
+    assert.equal(inner,1);
+    assert.equal(remote,0);
+  }finally{globalThis.fetch=prev;}
+});
