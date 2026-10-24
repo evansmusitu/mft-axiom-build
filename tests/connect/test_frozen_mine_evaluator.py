@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import importlib.util
+import sys
 from unittest.mock import patch
 
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
@@ -93,6 +94,55 @@ class FrozenExternalEvaluatorTests(unittest.TestCase):
         self.metadata.write_text(json.dumps(original))
         with self.assertRaisesRegex(ValueError,'source_sha256_mismatch'):
             self.evaluate()
+
+    def test_manifest_changed_after_preflight_during_scoring_is_rejected(self):
+        import benchmarks.mining_adapter.frozen_mine_evaluator as evaluator
+        original = evaluator._stream_source
+
+        def swapped(source, state):
+            for index, row in enumerate(original(source, state)):
+                if index == 25:
+                    self.metadata.write_bytes(self.metadata.read_bytes() + b' ')
+                yield row
+
+        with patch.object(evaluator, '_stream_source', side_effect=swapped):
+            with self.assertRaisesRegex(ValueError, 'frozen_external_manifest_changed'):
+                self.evaluate()
+
+    def test_model_bundle_file_changed_during_scoring_is_rejected(self):
+        import benchmarks.mining_adapter.frozen_mine_evaluator as evaluator
+        original = evaluator._stream_source
+
+        def swapped(source, state):
+            for index, row in enumerate(original(source, state)):
+                if index == 25:
+                    with (self.bundle / 'model.txt').open('ab') as fh:
+                        fh.write(b'\n# changed after model was loaded\n')
+                yield row
+
+        with patch.object(evaluator, '_stream_source', side_effect=swapped):
+            with self.assertRaisesRegex(ValueError, 'frozen_external_bundle_changed'):
+                self.evaluate()
+
+    def test_report_filename_race_must_not_overwrite_external_evidence(self):
+        import benchmarks.mining_adapter.frozen_mine_evaluator as evaluator
+        target = self.source.parent / 'private_result.json'
+        marker = 'prior external evidence - never replace'
+
+        def concurrent_writer(**kwargs):
+            target.write_text(marker, encoding='utf-8')
+            return {'status': 'RESEARCH_ONLY_NOT_ADMITTED', 'eligible_examples': 1,
+                    'independent_validation': False, 'production_admission': False}
+
+        argv = ['frozen_mine_evaluator', '--source', str(self.source),
+                '--manifest', str(self.metadata), '--bundle', str(self.bundle),
+                '--expected-manifest-sha256', self.manifest_sha,
+                '--output', str(target)]
+        with patch.object(evaluator, 'evaluate_external_mine', side_effect=concurrent_writer), \
+                patch.object(sys, 'argv', argv):
+            with self.assertRaises(FileExistsError):
+                evaluator.main()
+        self.assertEqual(target.read_text(encoding='utf-8'), marker)
 
     def test_external_data_incompatible_feature_schema_is_rejected(self):
         # Bundle feature metadata unchanged but incompatible model expectations.
