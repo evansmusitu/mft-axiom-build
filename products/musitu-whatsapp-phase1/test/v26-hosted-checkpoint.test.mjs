@@ -8,14 +8,14 @@ import {openPostgresBackup} from '../src/postgres/encrypted-backup.mjs';
 
 const tenant='986eb904-7296-46a9-9e9b-94074db9b547';
 const migrations=readdirSync(new URL('../db/',import.meta.url)).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort().map(name=>{const sql=readFileSync(new URL('../db/'+name,import.meta.url),'utf8');return{name,sql,sha256:createHash('sha256').update(sql).digest('hex')};});
-const fixture=()=>({schemaVersion:16,source:{project:'jolly-scene-02112141',branch:'br-jolly-fire-b4klddds',database:'musitu_whatsapp_phase1'},capturedAt:new Date().toISOString(),postgresVersion:'17.11',relationInventory:HOSTED_CHECKPOINT_TABLES.map(name=>({name})),data:Object.fromEntries(HOSTED_CHECKPOINT_TABLES.map(n=>[n,n==='musitu.tenants'?[{id:tenant,legal_name:'Synthetic checkpoint',status:'ACTIVE'}]:[]])),catalog:[[],[],[],[],[],[]],dependencies:[],roles:[]});
+const fixture=()=>({schemaVersion:17,source:{project:'jolly-scene-02112141',branch:'br-jolly-fire-b4klddds',database:'musitu_whatsapp_phase1'},capturedAt:new Date().toISOString(),postgresVersion:'17.11',relationInventory:HOSTED_CHECKPOINT_TABLES.map(name=>({name})),data:Object.fromEntries(HOSTED_CHECKPOINT_TABLES.map(n=>[n,n==='musitu.tenants'?[{id:tenant,legal_name:'Synthetic checkpoint',status:'ACTIVE'}]:[]])),catalog:[[],[],[],[],[],[]],dependencies:[],roles:[]});
 const keys=()=>({backupKey:randomBytes(32),contentEncryptionKey:randomBytes(32),sessionEncryptionKey:randomBytes(32)});
 
 test('hosted checkpoint seals current schema and recovery metadata without exposing keys in its receipt',()=>{
  const snapshot=fixture(),keyring=keys();
  const out=sealHostedCheckpoint({snapshot,migrations,...keyring});
  const opened=openPostgresBackup({encrypted:out.encrypted,backupKey:keyring.backupKey});
- assert.deepEqual(opened.data,snapshot.data);assert.equal(opened.schemaVersion,16);assert.equal(opened.qualificationOnly,false);
+ assert.deepEqual(opened.data,snapshot.data);assert.equal(opened.schemaVersion,17);assert.equal(opened.qualificationOnly,false);
  assert.equal(opened.applicationKeys.contentEncryptionKey,keyring.contentEncryptionKey.toString('base64'));
  assert.equal(out.receipt.rows,1);assert.equal(out.receipt.tables,22);assert.equal(out.receipt.sourceCapturedAt,snapshot.capturedAt);
  for(const k of Object.values(keyring))assert.equal(JSON.stringify(out.receipt).includes(k.toString('base64')),false);
@@ -68,10 +68,13 @@ test('hosted checkpoint rejects malformed keys and substituted source migrations
  assert.throws(()=>sealHostedCheckpoint({snapshot,migrations:altered,...keyring}));
 });
 
-test('checkpoint schema must match observed function version; legacy schema-15 snapshots retain their source prefix',()=>{
+test('checkpoint schema must match observed function version; legacy schema-15/16 snapshots retain their source prefix',()=>{
  const snapshot=fixture(),keyring=keys();
  snapshot.schemaVersion=15;
  assert.throws(()=>sealHostedCheckpoint({snapshot,migrations,...keyring}),/HOSTED_CHECKPOINT_SCHEMA_MISMATCH/);
+ snapshot.schemaVersion=16;
+ assert.throws(()=>sealHostedCheckpoint({snapshot,migrations,...keyring}),/HOSTED_CHECKPOINT_SCHEMA_MISMATCH/);
+ assert.equal(openPostgresBackup({encrypted:sealHostedCheckpoint({snapshot,migrations:migrations.slice(0,16),...keyring}).encrypted,backupKey:keyring.backupKey}).schemaVersion,16);
  delete snapshot.schemaVersion;
  const out=sealHostedCheckpoint({snapshot,migrations:migrations.slice(0,15),...keyring});
  assert.equal(openPostgresBackup({encrypted:out.encrypted,backupKey:keyring.backupKey}).schemaVersion,15);

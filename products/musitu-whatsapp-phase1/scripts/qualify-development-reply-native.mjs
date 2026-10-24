@@ -13,6 +13,7 @@ import {encryptLedger} from '../src/security/ledger-encryption.mjs';
 import {createRuntimeRoleBoundPool} from '../src/postgres/runtime-role-guard.mjs';
 import {qualifyCurrentSchemaRecovery} from './native-current-schema-recovery.mjs';
 import {qualifyConversationPrivacy} from './native-conversation-privacy.mjs';
+import {qualifyAiResumption} from './native-ai-resumption.mjs';
 
 const raw=process.env.PG_ADMIN_URL||'';
 let url;
@@ -132,10 +133,11 @@ try{
  migration=new Client({connectionString:connection(database,'musitu_migrator',passwords.get('musitu_migrator'))});await migration.connect();
  const dbRoot=resolve(import.meta.dirname,'../db');
  const files=readdirSync(dbRoot).filter(f=>/^\d{3}_.*\.sql$/.test(f)).sort();
- assert.equal(files.length,16,'review migrations before expanding qualification');
+ assert.equal(files.length,17,'review migrations before expanding qualification');
  for(const file of files)await migration.query(readFileSync(resolve(dbRoot,file),'utf8'));
  await migration.end();migration=null;
  seed=new Client({connectionString:connection(database)});await seed.connect();guarded=newPool();
+ const resumption=await qualifyAiResumption({seed,pool,scoped,fixtures,transport,tenant,owner,phone});
  await check('runtime_identity_and_no_direct_outbound_authority',async()=>{
   const client=await guarded.connect();try{
    const {rows}=await client.query("SELECT current_user AS role,rolsuper,rolbypassrls,has_any_column_privilege(current_user,'musitu.outbound_attempts','INSERT') AS insert_allowed FROM pg_roles WHERE rolname=current_user");
@@ -180,7 +182,7 @@ try{
  });
  const recovery=process.env.PG_SCHEMA_RECOVERY_QUALIFICATION==='YES'?await qualifyCurrentSchemaRecovery({admin,seed,Client,connection,migrationPassword:passwords.get('musitu_migrator'),runtimePassword,dbRoot,files,contentKey:key}):null;
  const privacy=recovery?await qualifyConversationPrivacy({seed,pool,contentKey:key,tenant,owner,phone}):null;
- console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:files.length,passed:results.length,failed:0,results,recovery,privacy,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
+ console.log(JSON.stringify({observedAt:new Date().toISOString(),scope:'DISPOSABLE_NATIVE_POSTGRES_REAL_SENDER_FAKE_HTTP_NO_META_NO_IDP',postgresVersion:(await seed.query('SHOW server_version')).rows[0].server_version,migrations:files.length,passed:results.length,failed:0,results,recovery,privacy,resumption,realMetaPosts:0,identityQualified:false,hostedDatabaseTouched:false}));
 }finally{
  await pool?.end();await migration?.end();await seed?.end();
  if(dbCreated)await admin.query(`DROP DATABASE ${database}`);

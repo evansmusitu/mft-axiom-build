@@ -27,7 +27,7 @@ try{
  if(encrypted.length>8*1024*1024||createHash('sha256').update(encrypted).digest('hex')!==hash)throw Error('OFFSITE_CIPHERTEXT_HASH_MISMATCH');
  const rawKey=process.env.BACKUP_KEY_20261018||'';if(!/^[A-Za-z0-9+/]{43}=$/.test(rawKey))throw Error('EXISTING_ESCROW_KEY_REQUIRED');
  key=Buffer.from(rawKey,'base64');const payload=openPostgresBackup({encrypted,backupKey:key});key.fill(0);
- if(payload.version!==2||![15,16].includes(payload.schemaVersion)||!payload.sourceCatalog||payload.sourceCatalog.length!==6||!payload.sourceRoles||!payload.sourceDependencies)throw Error('CURRENT_HOSTED_CHECKPOINT_REQUIRED');
+ if(payload.version!==2||![15,16,17].includes(payload.schemaVersion)||!payload.sourceCatalog||payload.sourceCatalog.length!==6||!payload.sourceRoles||!payload.sourceDependencies)throw Error('CURRENT_HOSTED_CHECKPOINT_REQUIRED');
  const files=readdirSync(join(root,'db')).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
  if(files.length<payload.schemaVersion||payload.migrations.length!==payload.schemaVersion)throw Error('MIGRATION_INVENTORY_REJECTED');
  for(const [i,m] of payload.migrations.entries()){const sql=readFileSync(join(root,'db',files[i]),'utf8');if(m.name!==files[i]||m.sql!==sql||m.sha256!==createHash('sha256').update(sql).digest('hex'))throw Error('RESTORE_SQL_PROVENANCE_REJECTED');}

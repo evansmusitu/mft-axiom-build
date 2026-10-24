@@ -63,9 +63,14 @@ Use only the synthetic acceptance question, with the existing free-plan guards.
    Approve that fact only if it is accurate; select **Publish approved source**.
 2. Open **Configuration**. Read the Groq processing disclosure, tick
    **Allow staff to request AI draft assistance**, then **Save AI permission**.
-3. Open the new conversation and select **Suggest approved answer** once.
+3. If the conversation is assigned to human handling, an active owner must tick
+   **I approve returning this conversation to AI draft assistance**, then select
+   **Return to AI draft assistance**. This requires enabled AI permission and
+   cannot override an opt-out or uncertain AI request. It records one audited
+   transition and sends no message; the original outbound uncertainty remains.
+4. Open the new conversation and select **Suggest approved answer** once.
    An uncertain provider result must be investigated rather than retried.
-4. Open **Approvals**. Compare the draft with the approved source and select
+5. Open **Approvals**. Compare the draft with the approved source and select
    **Approve response** only if it matches. This records a review; it does not
    authorize sending another WhatsApp reply.
 

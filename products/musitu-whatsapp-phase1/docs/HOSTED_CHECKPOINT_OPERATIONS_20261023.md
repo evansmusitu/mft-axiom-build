@@ -43,9 +43,11 @@ recovery and operational scheduling/alert acceptance remain separate.
 
 ## Fixed workflow for an operator or scheduled executor
 
-The current source supports schema versions 15 and 16. Migration 016 changes
+The current source supports schema versions 15, 16 and 17. Migration 016 changes
 the Meta message-ID completion validator without changing the 22-table inventory
-or grants. Keep all reviewed SQL files available. The read-only snapshot records
+or grants. Migration017 adds an owner-confirmed AI draft resumption function
+without changing the 22-table inventory or direct runtime write permissions.
+Its observed function marker selects schema17. Keep all reviewed SQL files available. The read-only snapshot records
 the observed function version; export and restore must select and verify the
 matching ordered migration prefix. Do not label a schema-15 snapshot as schema16
 or substitute SQL in an older archive. Application/task pins and schedule states

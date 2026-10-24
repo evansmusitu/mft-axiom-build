@@ -7,7 +7,7 @@ export const checkpointDigest=value=>createHash('sha256').update(JSON.stringify(
 const keyOK=k=>Buffer.isBuffer(k)&&k.length===32;
 export function sealHostedCheckpoint({snapshot,migrations,backupKey,contentEncryptionKey,sessionEncryptionKey}={}){
  const s=snapshot,now=Date.now(),schemaVersion=s?.schemaVersion??15;
- if(![15,16].includes(schemaVersion)||!Array.isArray(migrations)||migrations.length!==schemaVersion)throw Error('HOSTED_CHECKPOINT_SCHEMA_MISMATCH');
+ if(![15,16,17].includes(schemaVersion)||!Array.isArray(migrations)||migrations.length!==schemaVersion)throw Error('HOSTED_CHECKPOINT_SCHEMA_MISMATCH');
  if(!s||s.source?.project!=='jolly-scene-02112141'||s.source?.branch!=='br-jolly-fire-b4klddds'||s.source?.database!=='musitu_whatsapp_phase1'||
  !Number.isFinite(Date.parse(s.capturedAt))||Date.parse(s.capturedAt)>now+30000||
  !s.data||Object.keys(s.data).length!==22||!HOSTED_CHECKPOINT_TABLES.every(n=>Array.isArray(s.data[n]))||
