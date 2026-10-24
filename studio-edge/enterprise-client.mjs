@@ -28,7 +28,7 @@ function providerConfig({baseUrl,tenantId,key,getToken,fetcher,requestTimeoutMs=
  }catch{fail('INVALID_ENDPOINT');}
  validateId(tenantId);
  if(!key || key.type!=='secret' || key.algorithm?.name!=='AES-GCM'||
-    key.algorithm.length!==256||!key.usages?.includes('encrypt')||!key.usages?.includes('decrypt'))
+    key.algorithm.length!==256||key.extractable!==false||!key.usages?.includes('encrypt')||!key.usages?.includes('decrypt'))
     fail('INVALID_CRYPTO_KEY');
  if(typeof getToken!=='function')fail('MISSING_TOKEN_PROVIDER');
  const fetchFn=fetcher ?? globalThis.fetch;
