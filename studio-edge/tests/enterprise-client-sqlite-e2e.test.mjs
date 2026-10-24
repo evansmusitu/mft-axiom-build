@@ -202,7 +202,7 @@ test('portable export never includes tampered or undecryptable records',async()=
   }finally{h.db.close();}
 });
 
-test('browser and Worker agree on the supported 8 KiB plaintext ceiling',async()=>{
+test('browser and Worker agree on supported 8000-byte plaintext budget',async()=>{
   const h=makeHarness();
   try{
     const k=await key(), jwt=await tokenFor('alice_signed_subject');
