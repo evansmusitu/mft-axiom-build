@@ -1,0 +1,16 @@
+{
+  "schema": "musitu.connect.production_promotion_authorization.v1",
+  "authorization_id": "MUSITU-CONNECT-PROMOTION-AUTH-2026-10-04-001",
+  "authorized_by": "project_owner_explicit_chat_authorization",
+  "authorized_on": "2026-10-04",
+  "authorization": "production promotion authorized",
+  "constraints": {
+    "merge_pr_9_authorized": false,
+    "production_runtime_enablement_authorized": false,
+    "production_axiom_integration_enablement_authorized": false
+  },
+  "prerequisite_state": "PRODUCTION_ADMISSION_QUALIFIED__PROMOTION_AUTHORIZATION_REQUIRED",
+  "technical_ready_required": true,
+  "technical_ready_observed": true,
+  "enablement_remains_separately_blocked": true
+}

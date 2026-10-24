@@ -1,0 +1,19 @@
+{
+  "schema": "musitu.connect.production_runtime_authorization.v1",
+  "authorization_id": "MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001",
+  "authorized_by": "project_owner_explicit_chat_authorization",
+  "authorized_on": "2026-10-05",
+  "authorization": "MUSITU Connect production runtime enablement authorized",
+  "constraints": {
+    "merge_pr_9_authorized": false,
+    "fail_closed_controls_required": true,
+    "canary_before_full_activation_required": true,
+    "automatic_rollback_on_failed_production_verification_required": true
+  },
+  "prerequisite_promotion_authorization_id": "MUSITU-CONNECT-PROMOTION-AUTH-2026-10-04-001",
+  "target": {
+    "canonical_hostname": "connect.musitu.com",
+    "production_worker": "musitu-connect-production",
+    "axiom_backend_lane": "https://axiom.mftintelligence.com/v1/compute"
+  }
+}
