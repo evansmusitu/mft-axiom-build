@@ -35,5 +35,14 @@ class OfflineCIContract(unittest.TestCase):
             'curl ', 'npm install', 'npm ci', 'docker ', 'actions/upload-artifact']:
             self.assertNotIn(forbidden,source,forbidden)
 
+
+    def test_godmode_script_and_mock_tests_trigger_offline_qualification(self):
+        source=CI.read_text()
+        self.assertIn("'creative/god_mode_2099/**'",source)
+        self.assertIn("'ops/tests/test_god_mode_2099_*.py'",source)
+        self.assertIn("'ops/studio_v03_*.py'",source)
+        self.assertIn("python -m unittest discover -s ops/tests -p 'test_god_mode_2099_*.py' -v",source)
+        self.assertIn("'musitu_studio/edge/src/**'",source)
+
 if __name__=='__main__':
     unittest.main()

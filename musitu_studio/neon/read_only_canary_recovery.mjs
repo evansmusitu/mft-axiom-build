@@ -74,6 +74,22 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
   if(await lease.assertHeld(lease.fencing_token)!==true)
    fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
   if(route==='NEON_CANARY_READONLY'){
+   // The owner/provider checks above can be delayed by incident infrastructure.
+   // Re-read the same immutable incident identity and route under the held
+   // exclusive lease immediately before the only write-capable CAS. This
+   // deliberately does not treat the initial positive callback as a permanent
+   // authorization and closes stale-approval, stale-source and route-ABA
+   // opportunities during the pre-CAS provider round trips.
+   const latest=incident(await readIncident(),expectedHead,Date.now());
+   if(latest.run_id!==epoch.run_id||latest.freeze_id!==epoch.freeze_id||
+      latest.started_at!==epoch.started_at)
+    fail('STUDIO_RECOVERY_INCIDENT_CHANGED');
+   if(await readRoute()!=='NEON_CANARY_READONLY')
+    fail('STUDIO_RECOVERY_ROUTE_CHANGED');
+   signedApproval(await verifyOwnerRecoveryApproval(epoch),epoch,Date.now());
+   authority(await verifySQLiteAuthority(epoch),epoch,Date.now());
+   if(await lease.assertHeld(lease.fencing_token)!==true)
+    fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
    // No connection to Neon or SQLite customer data is required. A durable
    // operator-supplied CAS must check the lease token and exact route epoch.
    if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO',

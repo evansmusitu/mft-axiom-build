@@ -109,3 +109,36 @@ test('owner approval timestamp after its own expiry is rejected',async()=>{
  await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_RECOVERY_OWNER_APPROVAL_EXPIRED/);
  assert.equal(f.state().flips,0);
 });
+
+// Crash recovery can span multiple provider round trips. Old good receipts
+// cannot authorize a later CAS after their source of authority has changed.
+test('revoked owner approval during recovery fails before route CAS',async()=>{
+ const f=adapter();const original=f.opts.verifyOwnerRecoveryApproval;let checks=0;
+ f.opts.verifyOwnerRecoveryApproval=async(...args)=>{
+  const result=await original(...args);return ++checks===1?result:{...result,verified:false};
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(checks,2);assert.equal(f.state().flips,0);assert.equal(f.state().released,0);
+});
+test('lost SQLite authority while preparing rescue blocks route CAS',async()=>{
+ const f=adapter();const original=f.opts.verifySQLiteAuthority;let checks=0;
+ f.opts.verifySQLiteAuthority=async(...args)=>{
+  const result=await original(...args);return ++checks===1?result:{...result,customer_writes_to_neon:true};
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(checks,2);assert.equal(f.state().flips,0);
+});
+test('incident epoch changing under recovery lease blocks stale route CAS',async()=>{
+ const f=adapter();const original=f.opts.readIncident;let checks=0;
+ f.opts.readIncident=async()=>{
+  const epoch=await original();return ++checks===1?epoch:{...epoch,run_id:'replacement-canary-run-20261025'};
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(checks,2);assert.equal(f.state().flips,0);
+});
+test('route changing between initial read and guarded CAS cannot reuse stale state',async()=>{
+ const f=adapter();const original=f.opts.readRoute;let n=0;
+ f.opts.readRoute=async()=>{if(++n===2)return 'SQLITE_DO';return original();};
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(f.state().flips,0);assert.equal(f.state().released,0);
+});
