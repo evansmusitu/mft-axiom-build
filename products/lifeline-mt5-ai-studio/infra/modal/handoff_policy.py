@@ -8,6 +8,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
+import secrets
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -15,8 +17,26 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 IDENTITY=frozenset({"ACCESS_ISSUER","ACCESS_AUD","ACCESS_OPERATOR_SUB"})
 ORIGIN=frozenset({"MODAL_ORIGIN"})
 TRANSFER=frozenset({"AGENT_ID","AGENT_TENANT","AGENT_HMAC_KEY","EDGE_SHARED_SECRET"})
-AAD=b"lifeline.mt5.stage.modal_to_cloudflare.v1"
-SCHEMA="lifeline.secret_handoff.aes256gcm_rsa_oaep.v1"
+AAD=b"lifeline.mt5.stage.modal_to_cloudflare.v2"
+SCHEMA="lifeline.secret_handoff.aes256gcm_rsa_oaep.v2"
+TARGET_ACCOUNT="93f395f5121954671f92fffa453d6b61"
+TARGET_WORKER="lifeline-mt5-edge-isolated"
+TARGET_SECRET_STORE="lifeline-mt5-bridge-probe-20261021"
+ENVELOPE_FIELDS={"schema","iv","key","ciphertext_b64","challenge",
+                 "target_account","target_worker","source_secret_store"}
+
+def _validate_challenge(challenge):
+    # An independent CI run must generate a *new* 32-byte random challenge
+    # using secrets.token_urlsafe(32). String format cannot prove entropy.
+    if type(challenge) is not str or not re.fullmatch(r"[A-Za-z0-9_-]{43}",challenge):
+        raise ValueError("ephemeral recipient challenge invalid")
+
+def _aad(challenge):
+    # Bind ciphertext to the exact single project AND the current CI handoff.
+    # A previous encrypted response cannot be replayed in a later run.
+    target={"account":TARGET_ACCOUNT,"worker":TARGET_WORKER,
+            "secret_store":TARGET_SECRET_STORE,"challenge":challenge}
+    return AAD+b"\\n"+json.dumps(target,sort_keys=True,separators=(",",":")).encode("ascii")
 
 def guard_bindings(names):
     """Return only the missing four pre-existing Modal-sourced stage bindings."""
@@ -39,9 +59,10 @@ def _validate_source(source):
 def _b64(data):
     return base64.b64encode(data).decode("ascii")
 
-def encrypt_to_gh(source,public_der_b64):
+def encrypt_to_gh(source,public_der_b64,*,challenge):
     """Executed ONLY in Modal with the existing LIFELINE-only Secret mounted."""
     _validate_source(source)
+    _validate_challenge(challenge)
     try:
         der=base64.b64decode(public_der_b64,validate=True)
         if len(der)>1024:raise ValueError("public key too large")
@@ -50,18 +71,25 @@ def encrypt_to_gh(source,public_der_b64):
         ephemeral=os.urandom(32)
         iv=os.urandom(12)
         body=json.dumps(source,sort_keys=True,separators=(",",":")).encode()
-        ct=AESGCM(ephemeral).encrypt(iv,body,AAD)
+        ct=AESGCM(ephemeral).encrypt(iv,body,_aad(challenge))
         wrapped=public.encrypt(ephemeral,padding.OAEP(mgf=padding.MGF1(hashes.SHA256()),
             algorithm=hashes.SHA256(),label=None))
     except Exception:
         raise ValueError("ephemeral encryption refused") from None
     return {"schema":SCHEMA,"iv":_b64(iv),
-      "key":_b64(wrapped),"ciphertext_b64":_b64(ct)}
+      "key":_b64(wrapped),"ciphertext_b64":_b64(ct),
+      "challenge":challenge,"target_account":TARGET_ACCOUNT,
+      "target_worker":TARGET_WORKER,"source_secret_store":TARGET_SECRET_STORE}
 
-def decrypt_for_gh(envelope,private):
+def decrypt_for_gh(envelope,private,*,expected_challenge):
     """Executed ONLY in the trusted GitHub Actions runner; never printed."""
     try:
-        if type(envelope) is not dict or set(envelope)!={"schema","iv","key","ciphertext_b64"}:
+        _validate_challenge(expected_challenge)
+        if (type(envelope) is not dict or set(envelope)!=ENVELOPE_FIELDS or
+            not secrets.compare_digest(str(envelope.get("challenge")),expected_challenge) or
+            envelope.get("target_account")!=TARGET_ACCOUNT or
+            envelope.get("target_worker")!=TARGET_WORKER or
+            envelope.get("source_secret_store")!=TARGET_SECRET_STORE):
             raise ValueError()
         if envelope["schema"]!=SCHEMA:raise ValueError()
         def dec(name,maximum):
@@ -73,7 +101,7 @@ def decrypt_for_gh(envelope,private):
         ephemeral=private.decrypt(wrapped,padding.OAEP(mgf=padding.MGF1(hashes.SHA256()),
             algorithm=hashes.SHA256(),label=None))
         if len(ephemeral)!=32:raise ValueError()
-        source=json.loads(AESGCM(ephemeral).decrypt(iv,ct,AAD))
+        source=json.loads(AESGCM(ephemeral).decrypt(iv,ct,_aad(expected_challenge)))
         _validate_source(source)
         return source
     except Exception:
