@@ -7,7 +7,7 @@ import IndependentProof from './IndependentProof';
 
 type Capabilities={
  source:string;endpoint:string;publicTools:number;certifiedOperationTools:number;
- sample:{name:string;title:string}[];arithmeticAvailable:boolean;executionConfigured:boolean;
+ sample:{name:string;title:string}[];arithmeticAvailable:boolean;executionConfigured:boolean;credentialStored?:boolean;
  checkedAt:string;note:string;ledgerConfigured?:boolean;ledgerOperational?:boolean;runtimeRoleRestricted?:boolean;runtimeRoleChecked?:boolean;runtimeRoleOverprivileged?:boolean;ledger?:{requests:number;auditEvents:number;todayUsed:number;dailyMax:number}|null;
 };
 type Preview={
@@ -62,7 +62,19 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
      ?'PRELIMINARY AUTHORIZATION SIGNAL'
      :data.providerGateStatus==='CREDENTIAL_REJECTED'
       ?'CREDENTIAL WAS REJECTED':'AUTHORIZATION NOT YET CONFIRMED';
-   setQualificationStatus(label+' — '+String(data.note||''));
+   let diagnosis='';
+   if(data.providerGateStatus==='CREDENTIAL_REJECTED'){
+    if(data.credentialKind==='ACCOUNT_KEY')
+      diagnosis=' The configured secret is an Axiom account key, not the short-lived OAuth access token required by the public gateway. A dedicated ATLAS OAuth authorization flow is needed.';
+    else if(data.credentialKind==='OAUTH_REFRESH')
+      diagnosis=' A refresh token cannot be used directly to invoke Axiom. A legitimate OAuth refresh exchange is needed.';
+    else if(data.credentialKind==='OAUTH_ACCESS'&&data.identityVerification==='INVALID_OR_EXPIRED')
+      diagnosis=' The existing OAuth access token is invalid or expired. The issuer provides one-hour access tokens, so a renewable OAuth session is required.';
+    else if(data.credentialKind==='OAUTH_ACCESS')
+      diagnosis=' An OAuth-style token is configured, but the gateway rejected execution; entitlement or issuer/resource restrictions may be responsible.';
+    else diagnosis=' The credential is not recognizable as the published MUSITU OAuth access-token format. Check the dedicated ATLAS authorization, not your Neon login.';
+   }
+   setQualificationStatus(label+' — '+String(data.note||'')+diagnosis);
    setQualificationCode('');
   }catch(e){setQualificationError(e instanceof Error?e.message:'Unable to verify the private account connection.');}
   finally{setQualificationBusy(false);}
@@ -148,8 +160,8 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
      </article>
      <article>
        <span className="axiom-step-num">02 / AXIOM ENTITLEMENT</span>
-       <strong>{remote?.executionConfigured?'Private connection switches qualified':'Dedicated Axiom service credential required'}</strong>
-       <p>Issue an owner-authorized, revocable Axiom token with execution entitlement. Store it as sensitive <code>AXIOM_MCP_BEARER_TOKEN</code> in this isolated Vercel project. Never reuse or reveal the connected ChatGPT plugin token.</p>
+       <strong>{remote?.executionConfigured?'Provider execution configured':remote?.credentialStored?'Service credential stored · OAuth entitlement unverified':'Dedicated Axiom service credential required'}</strong>
+       <p>The gateway requires a real MUSITU OAuth access token with <code>axiom.execute</code>; ordinary account keys and expired access tokens are rejected. The issuer's access tokens last one hour, so a permanent connection requires approved OAuth renewal. Existing secrets remain private.</p>
        <a href="https://vercel.com/evansmusitu/musitu-atlas-ai-lab/settings/environment-variables" target="_blank" rel="noopener noreferrer">Open private Vercel variables →</a>
      </article>
    </div>
