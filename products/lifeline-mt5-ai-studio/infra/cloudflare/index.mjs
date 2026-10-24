@@ -1,5 +1,6 @@
 import {createRemoteJWKSet, jwtVerify} from 'jose';
 import {backendBindingReadiness} from './backend_readiness.mjs';
+import {forwardAlternative} from './alternative/gateway.mjs';
 
 // LIFELINE Cloudflare Access gateway. Broker/finance trading is forbidden on this surface.
 const TOOL_ALLOWLIST=new Set(['lifeline_status']);
@@ -100,6 +101,19 @@ export default {async fetch(request,env){
     const subject=await authenticateAccess(request,env,ownerCfg);
     if(!subject)return reply({error:'access_jwt_required'},401);
     return reply(backendBindingReadiness(env),200);
+  }
+  // Separate, card-free, no-Modal Cloudflare Service Binding stage.
+  // It is NOT enabled by installing files or by legacy Modal secret presence.
+  // Owner JWT is still verified against the exact Access issuer, audience,
+  // and independently MFA-enrolled owner subject before binding invocation.
+  if(path==='/owner/alternative/status'){
+    if(request.method!=='GET')return reply({error:'method_not_allowed'},405);
+    if(new URL(request.url).search)return reply({error:'unexpected_query'},400);
+    const ownerCfg=readOwnerConfig(env);
+    if(!ownerCfg)return reply({error:'owner_identity_not_configured'},503);
+    const subject=await authenticateAccess(request,env,ownerCfg);
+    if(!subject)return reply({error:'access_jwt_required'},401);
+    return forwardAlternative(request,env,env.AGENT_TENANT);
   }
   const cfg=readConfig(env);
   if(!cfg)return reply({error:'not_configured'},503);
