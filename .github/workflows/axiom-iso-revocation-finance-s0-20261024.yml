@@ -41,10 +41,10 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-s0.log
-          grep -Eq 'Ran 110 tests in ' /tmp/axiom-iso-s0.log
+          grep -Eq 'Ran 114 tests in ' /tmp/axiom-iso-s0.log
           grep -Eq '^OK$' /tmp/axiom-iso-s0.log
           python -m compileall -q ops/iso_trust_boundary
-          echo AXIOM_ISO_S0_110_TESTS_LOCAL_ONLY
+          echo AXIOM_ISO_S0_114_TESTS_LOCAL_ONLY
       - name: Keep B27 destructive antirollback failure reproduced
         shell: bash
         run: |
