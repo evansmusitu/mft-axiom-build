@@ -135,6 +135,30 @@ export function assertStudioNeonPromotionEvidence(e,{expectedHead,now=Date.now()
   return Object.freeze({qualified:true,run_id:e.run_id,source_head:expectedHead,
     freeze_id:e.freeze_id,gate_count:GATES.length,table_counts:Object.freeze({...a.counts})});
 }
+/** Browser approval is a signed *owner* receipt for this exact canary epoch.
+ * Structural checks only: verifySignedBrowser MUST independently authenticate
+ * the owner and cryptographically verify the signature and trust root. A
+ * boolean `true` must never satisfy this control-plane prerequisite.
+ */
+function validOwnerBrowserApproval(r,q,priorReceiptId=null){
+  if(!r||r.verified!==true||r.provider_signature_verified!==true||
+     r.owner_authenticated!==true||r.owner_role!=='owner'||
+     r.scope!=='studio-v03-neon-readonly-canary'||
+     r.source_head!==q.source_head||r.freeze_id!==q.freeze_id||
+     r.run_id!==q.run_id||!NONCE.test(r.receipt_id||'')||
+     (priorReceiptId!==null&&r.receipt_id!==priorReceiptId))return false;
+  // UTC-only timestamp format eliminates locale-dependent ambiguities.
+  const iso=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+  if(!iso.test(r.checked_at||'')||!iso.test(r.expires_at||''))return false;
+  const checked=Date.parse(r.checked_at);
+  const expires=Date.parse(r.expires_at);
+  const now=Date.now();
+  return Number.isFinite(checked)&&Number.isFinite(expires)&&
+    new Date(checked).toISOString()===r.checked_at&&
+    new Date(expires).toISOString()===r.expires_at&&checked<=expires&&
+    checked<=now+30000&&now-checked<=300000&&
+    expires-now>=15000&&expires-now<=300000;
+}
 const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVALID_'+name)};
 /** All callbacks must use authenticated, durable provider controls.
  * CAS must atomically preserve the original SQLite route as rollback target.
@@ -193,13 +217,20 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     };
     await requireLiveFence();
     await requireTargetBarrier();
+    // Owner acceptance is a prerequisite, not merely a post-CAS rollback
+    // condition. Never route customer reads to Neon before authenticated
+    // browser signoff has been independently verified for this freeze/run.
+    const ownerBefore=await verifySignedBrowser(qualified);
+    if(!validOwnerBrowserApproval(ownerBefore,qualified))
+      fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
     if(await compareAndSwapRoute('SQLITE_DO','NEON_CANARY_READONLY')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
     await requireTargetBarrier();
     const [browser,reconciled]=await Promise.all([
       verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
-    if(browser!==true||reconciled!==true)fail('STUDIO_POSTCUTOVER_PROOF_FAILED');
+    if(!validOwnerBrowserApproval(browser,qualified,ownerBefore.receipt_id)||
+       reconciled!==true)fail('STUDIO_POSTCUTOVER_PROOF_FAILED');
     await requireLiveFence();
     await requireTargetBarrier();
     if(await readRoute()!=='NEON_CANARY_READONLY')fail('STUDIO_ROUTE_READBACK_FAILED');

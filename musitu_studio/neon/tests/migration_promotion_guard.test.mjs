@@ -63,7 +63,28 @@ function adapter(p=proof(),flags={}){
   if(flags.ackLost&&to==='NEON_CANARY_READONLY')throw Error('PROVIDER_ACK_LOST');
   return true;
  },
- async verifySignedBrowser(){return !flags.browserFails},
+ async verifySignedBrowser(info){
+  if(flags.browserReturnsBoolean)return true;
+  if(flags.browserFails||flags.browserFailsAfterCanary&&route==='NEON_CANARY_READONLY')
+    return {verified:false};
+  const right={verified:true,provider_signature_verified:true,
+   owner_authenticated:true,owner_role:'owner',scope:'studio-v03-neon-readonly-canary',
+   source_head:info.source_head,freeze_id:info.freeze_id,run_id:info.run_id,
+   receipt_id:'synthetic-owner-browser-acceptance-20261024',
+   checked_at:new Date().toISOString(),expires_at:new Date(Date.now()+120000).toISOString()};
+  if(flags.browserExpired)right.expires_at=new Date(Date.now()-1000).toISOString();
+  if(flags.browserBeyondMaximum)right.expires_at=new Date(Date.now()+600000).toISOString();
+  if(flags.browserStale)right.checked_at=new Date(Date.now()-600000).toISOString();
+  if(flags.browserAmbiguousTime)right.checked_at='2026-10-24 20:55:00';
+  if(flags.browserInvertedValidity){right.checked_at=new Date(Date.now()+26000).toISOString();right.expires_at=new Date(Date.now()+16000).toISOString();}
+  if(flags.browserWrongHead)right.source_head='f'.repeat(40);
+  if(flags.browserWrongScope)right.scope='studio-v03-neon-write-cutover';
+  if(flags.browserSignatureMissing)right.provider_signature_verified=false;
+  if(flags.browserOwnerRoleMissing)right.owner_role='viewer';
+  if(flags.browserReceiptChangedAfterCanary&&route==='NEON_CANARY_READONLY')
+    right.receipt_id='synthetic-other-owner-browser-approval';
+  return right;
+ },
  async verifyReconciledTarget(){return !flags.readbackFails}};
  return {f,state:()=>({route,flips,release,reads})};
 }
@@ -102,7 +123,7 @@ test('fresh evidence epoch mismatch aborts without switching',async()=>{
  assert.equal(x.state().flips,0);
 });
 test('signed browser failed after switch: restores the intact SQLite route',async()=>{
- const x=adapter(proof(),{browserFails:true});
+ const x=adapter(proof(),{browserFailsAfterCanary:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_POSTCUTOVER_PROOF_FAILED/);
  assert.deepEqual(x.state(),{route:'SQLITE_DO',flips:2,release:1,reads:2});
 });
@@ -117,7 +138,7 @@ test('CAS applies but acknowledgement is lost: readback and rollback',async()=>{
  assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
 });
 test('failed rollback is critical, never falsely reported as safe',async()=>{
- const x=adapter(proof(),{browserFails:true,rollbackFails:true});
+ const x=adapter(proof(),{browserFailsAfterCanary:true,rollbackFails:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(x.state().route,'NEON_CANARY_READONLY');assert.equal(x.state().release,0);
 });
@@ -274,4 +295,31 @@ test('missing actual R2 content fails before any CAS even if callback claims ver
  const a=adapter(p);
  await assert.rejects(()=>guardedStudioNeonPromotion(a.f),/STUDIO_R2_CONTENT_RECEIPT_REQUIRED/);
  assert.equal(a.state().flips,0);
+});
+
+test('signed owner browser approval must exist BEFORE any canary routing',async()=>{
+ const x=adapter(proof(),{browserFails:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/);
+ assert.deepEqual(x.state(),{route:'SQLITE_DO',flips:0,release:1,reads:2});
+});
+
+test('owner acceptance must be scoped, signature-verified, and bound to exact head before routing',async()=>{
+ for(const flag of ['browserWrongHead','browserWrongScope','browserSignatureMissing','browserOwnerRoleMissing']){
+  const x=adapter(proof(),{[flag]:true});
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/);
+  assert.equal(x.state().flips,0,flag);
+ }
+});
+test('owner acceptance change during canary is a rollback incident',async()=>{
+ const x=adapter(proof(),{browserReceiptChangedAfterCanary:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_POSTCUTOVER_PROOF_FAILED/);
+ assert.equal(x.state().route,'SQLITE_DO');assert.equal(x.state().flips,2);
+});
+
+test('boolean claims, expired approvals and unverifiable browser clock never qualify',async()=>{
+ for(const flag of ['browserReturnsBoolean','browserExpired','browserBeyondMaximum','browserStale','browserAmbiguousTime','browserInvertedValidity']){
+  const x=adapter(proof(),{[flag]:true});
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/,flag);
+  assert.equal(x.state().flips,0,flag);
+ }
 });
