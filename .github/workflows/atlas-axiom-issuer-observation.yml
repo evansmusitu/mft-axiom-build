@@ -39,7 +39,7 @@ jobs:
                  !data.scopes_supported?.includes('axiom.execute')){
                 console.log('ISSUER_METADATA_CONTRACT_INCOMPATIBLE');process.exitCode=1;
               }else console.log('ISSUER_METADATA_COMPATIBLE', 'scope=axiom.execute', 'pkce=S256');
-            }else if(data.ok!==true||data.service!=='MUSITU Axiom OAuth 2.1'){
+            }else if(data.ok!==true||data.issuer!==base||data.resource!=='https://mcp.mftintelligence.com'){
               console.log('ISSUER_HEALTH_UNEXPECTED',Boolean(data.ok));process.exitCode=1;
             }else console.log('ISSUER_HEALTH_OK','read-only');
           }
