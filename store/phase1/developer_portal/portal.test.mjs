@@ -40,11 +40,11 @@ class FakeDurableContract {
   r.reviews.push(item);return {kind:'created',record:r};
  }
 }
-function harness(){
+function harness(isTokenActive=async()=>true){
  const repository=new FakeDurableContract();
  const portal=createDeveloperPortal({issuer:'https://auth.private.example.org',audience:'store-v2-internal',
    publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},now:()=>now*1000,
-   origin:'https://store-stage.mftintelligence.com',repository});
+   origin:'https://store-stage.mftintelligence.com',repository,isTokenActive});
  const call=(method,path,{jwt=token(),body,headers={}}={})=>portal(new Request(
   'https://store-stage.mftintelligence.com'+path,{method,headers:{
    ...(jwt?{authorization:'Bearer '+jwt}:{}),
@@ -154,4 +154,19 @@ test('developer cannot self-review with another valid MFA token and reviewer rol
  const response=await h.call('POST','/review/submissions/sub-00001',{jwt:anotherRole,body:note});
  assert.equal(response.status,403,'developer must never independently review own submission');
  assert.equal(h.repository.records.get('sub-00001').reviews.length,0);
+});
+
+test('revoked signed MFA token and unavailable revocation provider fail closed',async()=>{
+ let observed=null;
+ const revoked=harness(async details=>{observed=details;return false;});
+ assert.equal((await revoked.create()).status,401);
+ assert.equal(observed.tokenId,'private-token-test-0001');
+ assert.equal(observed.subject,'developer-actor-1');
+ assert.equal(revoked.repository.records.size,0);
+ const outage=harness(async()=>{throw Error('revocation source unavailable');});
+ assert.equal((await outage.create()).status,503);
+ assert.equal(outage.repository.records.size,0);
+ const absent=harness(null);
+ assert.equal((await absent.create()).status,503);
+ assert.equal(absent.repository.records.size,0);
 });

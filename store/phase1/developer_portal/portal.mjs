@@ -123,10 +123,11 @@ function trustedAuthorizer({issuer,audience,publicKeys,now}){
     Array.isArray(claims.amr)&&claims.amr.includes('mfa')&&claims.verified===true&&
     typeof claims.jti==='string'&&/^[a-zA-Z0-9_-]{12,200}$/.test(claims.jti),401);
   if(claims.role==='developer')require_(typeof claims.publisherId==='string'&&SLUG.test(claims.publisherId),401);
-  return {subject:claims.sub,role:claims.role,publisherId:claims.publisherId};
+  return {subject:claims.sub,role:claims.role,publisherId:claims.publisherId,
+   tokenId:claims.jti,expiresAt:claims.exp};
  };
 }
-export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine}={}){
+export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine,isTokenActive}={}){
  require_(repository&&['create','read','addReview'].every(k=>typeof repository[k]==='function'));
  require_(typeof origin==='string'&&origin.startsWith('https://'));
  const auth=trustedAuthorizer({issuer,audience,publicKeys,now});
@@ -151,6 +152,13 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    if(type!=='read'&&req.headers.has('origin')&&req.headers.get('origin')!==origin)
      return json(403,{ok:false,code:'origin_rejected',...denied});
    const actor=auth(req);
+   // A valid signature does not guarantee the session is still active.
+   // Mandatory trusted, up-to-date IdP/session revocation check; absent or
+   // unavailable source never authorizes intake, reads or review actions.
+   require_(typeof isTokenActive==='function',503);
+   const active=await isTokenActive({tokenId:actor.tokenId,subject:actor.subject,
+     role:actor.role,expiresAt:actor.expiresAt});
+   require_(active===true,401);
    if(type==='submit'){
      require_(actor.role==='developer',403);
      const raw=await readBounded(req),data=strictObject(raw);

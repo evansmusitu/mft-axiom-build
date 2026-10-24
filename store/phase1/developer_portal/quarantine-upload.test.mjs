@@ -33,7 +33,8 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
   async recordUpload(){dbWrites++;return {kind:failDb?'conflict':'created'};}};
  const portal=createDeveloperPortal({issuer:'https://idp.example.org',audience:'store-v2-internal',
   publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},repository:repo,
-  quarantine:missingStore?undefined:store,origin:ORIGIN,now:()=>time*1000});
+  quarantine:missingStore?undefined:store,origin:ORIGIN,now:()=>time*1000,
+  isTokenActive:async()=>true});
  async function upload({path='/developer/submissions/'+record.id+'/apk',method='PUT',token=jwt(),
    type='application/vnd.android.package-archive',bytes=body,headers={}}={}){
   const all={authorization:'Bearer '+token,'content-type':type,...headers};
