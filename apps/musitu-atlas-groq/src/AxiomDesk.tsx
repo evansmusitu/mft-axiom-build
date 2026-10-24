@@ -156,6 +156,7 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
    <div className="axiom-scope-preflight">
      <div><span className="section-overline">03 / VERIFY AUTHORIZATION WITHOUT COMPUTING</span><h3>Check the real Axiom account gate</h3></div>
      <p>This optional owner-authorized check verifies restricted Neon privileges and presents an intentionally nonexistent tool name to the Axiom OAuth gate. No registered computation is requested. An unknown-tool rejection is preliminary evidence only; it cannot certify real execution, usage charges or all permissions.</p>
+     <p><strong>Access code:</strong> use the dedicated ATLAS Axiom operator code issued for this workspace, not the frontier-model code, Neon password, or Axiom bearer token.</p>
      <div className="axiom-preflight-fields">
        <input type="password" autoComplete="off" aria-label="Private operator code for permission check" placeholder="Private operator code" value={qualificationCode} onChange={e=>setQualificationCode(e.target.value.slice(0,200))}/>
        <button type="button" disabled={qualificationBusy||!qualificationCode} onClick={checkAccountQualification}>{qualificationBusy?'Checking…':'Check account authorization (no compute)'}</button>
