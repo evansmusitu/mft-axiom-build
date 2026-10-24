@@ -9,10 +9,18 @@ VALUES ('sub-'||repeat('c',32),'test-publisher','developer-human-001',
  'structural-evidence-test-0001',repeat('a',64),'test-application',
  'org.example.app',11,repeat('d',64),10097,repeat('e',64),
  'https://example.org/privacy','https://github.com/example/app');
+-- This regression executes after the uploader-session candidate migration.
+INSERT INTO store_publisher_private.principal_enrollments(subject_id,role,publisher_id)
+ VALUES ('developer-human-001','developer','test-publisher');
+INSERT INTO store_publisher_private.portal_sessions
+ (token_id,subject_id,role,publisher_id,issuer_uri,audience,expires_unix)
+ VALUES ('structural-uploader-jti-001','developer-human-001','developer',
+ 'test-publisher','https://idp.example.org','store-v2-internal',
+ EXTRACT(EPOCH FROM clock_timestamp())::BIGINT+3600);
 INSERT INTO store_publisher_private.apk_quarantine_receipts
- (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key)
+ (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key,uploader_subject,uploader_token_id)
 VALUES ('sub-'||repeat('c',32),'test-publisher',repeat('d',64),10097,
- 'private/apk/'||repeat('e',48));
+ 'private/apk/'||repeat('e',48),'developer-human-001','structural-uploader-jti-001');
 INSERT INTO store_publisher_private.principal_enrollments(subject_id,role,publisher_id)
 VALUES ('independent-scanner-001','review_security',NULL),
        ('unapproved-app-actor-01','developer','test-publisher');

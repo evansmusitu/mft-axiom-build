@@ -85,18 +85,40 @@ export function createPostgresReviewRepository({query}={}){
   const exists=await read(id);
   return exists?{kind:'conflict'}:{kind:'missing'};
  }
- async function recordUpload({submissionId,publisherId,sha256,bytes,objectKey}){
-  if(typeof objectKey!=='string'||!/^[a-zA-Z0-9/_-]{24,256}$/.test(objectKey))
+ async function recordUpload({submissionId,publisherId,sha256,bytes,objectKey,actor}={}){
+  if(typeof objectKey!=='string'||!/^private\/apk\/[0-9a-f]{48}$/.test(objectKey))
    throw Error('invalid quarantined storage identity');
+  // The controller only gets here after signature, MFA and token-status checks.
+  // The database must independently demand the same CURRENT session inside
+  // the INSERT statement to close the TOCTOU window before durable evidence.
+  if(!actor||actor.role!=='developer'||actor.publisherId!==publisherId||
+     typeof actor.subject!=='string'||!/^[A-Za-z0-9_-]{6,120}$/.test(actor.subject)||
+     typeof actor.tokenId!=='string'||!/^[A-Za-z0-9_-]{12,200}$/.test(actor.tokenId)||
+     typeof actor.issuer!=='string'||!/^https:\/\/[^\s]{5,250}$/.test(actor.issuer)||
+     typeof actor.audience!=='string'||actor.audience.length<5||actor.audience.length>120||
+     !Number.isSafeInteger(actor.expiresAt)||actor.expiresAt<=0)
+   throw Error('verified uploader session identity required for quarantine receipt');
   const result=await execute(
    `INSERT INTO store_publisher_private.apk_quarantine_receipts
-     (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key)
-    SELECT s.submission_id,s.publisher_id,s.apk_sha256,s.apk_bytes,$5
+     (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key,
+      uploader_subject,uploader_token_id)
+    SELECT s.submission_id,s.publisher_id,s.apk_sha256,s.apk_bytes,$5,$6,$7
     FROM store_publisher_private.submissions s
+    JOIN store_publisher_private.portal_sessions t
+      ON t.token_id=$7 AND t.subject_id=$6 AND t.role='developer'
+     AND t.publisher_id=$2 AND t.issuer_uri=$8 AND t.audience=$9
+     AND t.expires_unix=$10 AND t.expires_unix>EXTRACT(EPOCH FROM clock_timestamp())
+    JOIN store_publisher_private.principal_enrollments p
+      ON p.subject_id=t.subject_id AND p.role='developer' AND p.publisher_id=$2
     WHERE s.submission_id=$1 AND s.publisher_id=$2 AND s.apk_sha256=$3
-      AND s.apk_bytes=$4
+      AND s.apk_bytes=$4 AND s.submitting_subject=$6
+      AND NOT EXISTS(SELECT 1 FROM store_publisher_private.session_revocations r
+        WHERE r.token_id=t.token_id)
+      AND NOT EXISTS(SELECT 1 FROM store_publisher_private.principal_suspensions b
+        WHERE b.subject_id=p.subject_id)
     ON CONFLICT DO NOTHING RETURNING submission_id`,
-   [submissionId,publisherId,sha256,bytes,objectKey]);
+   [submissionId,publisherId,sha256,bytes,objectKey,
+    actor.subject,actor.tokenId,actor.issuer,actor.audience,actor.expiresAt]);
   return {kind:result.rowCount===1?'created':'conflict'};
  }
  async function readQuarantineReceipt(submissionId){

@@ -9,6 +9,9 @@ on:
       - 'store/phase1/developer_portal/postgres-apk-quarantine.regression.sql'
       - 'store/phase1/developer_portal/postgres-session-status.candidate.sql'
       - 'store/phase1/developer_portal/postgres-session-status.regression.sql'
+      - 'store/phase1/developer_portal/postgres-upload-session-binding.candidate.sql'
+      - 'store/phase1/developer_portal/postgres-upload-session-binding.regression.sql'
+      - 'store/phase1/developer_portal/postgres-repository.mjs'
       - 'store/phase1/developer_portal/postgres-apk-structure.candidate.sql'
       - 'store/phase1/developer_portal/postgres-apk-structure.regression.sql'
       - '.github/workflows/musitu-store-v2-developer-review-postgres-ci.yml'
@@ -55,6 +58,10 @@ jobs:
             < store/phase1/developer_portal/postgres-session-status.candidate.sql
           docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
             < store/phase1/developer_portal/postgres-session-status.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-upload-session-binding.candidate.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-upload-session-binding.regression.sql
           docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
             < store/phase1/developer_portal/postgres-apk-structure.candidate.sql
           docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \

@@ -21,7 +21,7 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
  failSeal=false,failDb=false,missingStore=false,isTokenActive=async()=>true}={}){
  const record={id:'sub-'+'e'.repeat(32),publisherId:owner,actorId:'developer-actor-1',
   apkSha256:expectedHash,apkBytes:expectedBytes,reviews:[]};
- const objects=[];let writes=0,aborts=0,revokes=0,dbWrites=0;
+ const objects=[];let writes=0,aborts=0,revokes=0,dbWrites=0,recorded=null;
  const store={async begin(){
   writes++;
   return {async write(bytes){objects.push(Buffer.from(bytes));},
@@ -30,7 +30,7 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
  },async revoke(){revokes++;}};
  const repo={async read(id){return id===record.id?record:null;},
   async create(){throw Error('not used');},async addReview(){throw Error('not used');},
-  async recordUpload(){dbWrites++;return {kind:failDb?'conflict':'created'};}};
+  async recordUpload(arg){recorded=arg;dbWrites++;return {kind:failDb?'conflict':'created'};}};
  const portal=createDeveloperPortal({issuer:'https://idp.example.org',audience:'store-v2-internal',
   publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},repository:repo,
   quarantine:missingStore?undefined:store,origin:ORIGIN,now:()=>time*1000,
@@ -42,7 +42,7 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
   return portal(req);
  }
  return {upload,record,objects,get writes(){return writes;},get aborts(){return aborts;},
-  get revokes(){return revokes;},get dbWrites(){return dbWrites;}};
+  get revokes(){return revokes;},get dbWrites(){return dbWrites;},get recorded(){return recorded;}};
 }
 test('owner private upload quarantined only, never approved, paid, released or scanned',async()=>{
  const h=harness(),r=await h.upload();assert.equal(r.status,202);
@@ -51,6 +51,10 @@ test('owner private upload quarantined only, never approved, paid, released or s
  assert.equal(data.publisherApproved,false);assert.equal(data.entitlementGranted,false);
  assert.equal(Buffer.concat(h.objects).equals(apk),true);
  assert.equal(h.dbWrites,1);
+ assert.equal(h.recorded.actor.subject,'developer-actor-1');
+ assert.equal(h.recorded.actor.tokenId,'quarantine-test-token-0001');
+ assert.equal(h.recorded.actor.role,'developer');
+ assert.equal(h.recorded.actor.issuer,'https://idp.example.org');
 });
 test('verified but different publisher never starts storage',async()=>{
  const h=harness(),r=await h.upload({token:jwt({publisherId:'another-publisher'})});
@@ -100,11 +104,13 @@ test('SQL repository binds exact manifest in atomic INSERT, never trusts client 
   calls.push({sql,params});return {rowCount:1,rows:[{submission_id:'sub-'+'e'.repeat(32)}]};
  }});
  const x=await repo.recordUpload({submissionId:'sub-'+'e'.repeat(32),publisherId:'test-publisher',
-  sha256:sha(apk),bytes:apk.length,objectKey:'private/apk/'+('a'.repeat(32))});
+  sha256:sha(apk),bytes:apk.length,objectKey:'private/apk/'+('a'.repeat(48)),actor:{subject:'developer-actor-1',
+   tokenId:'quarantine-test-token-0001',publisherId:'test-publisher',role:'developer',
+   issuer:'https://idp.example.org',audience:'store-v2-internal',expiresAt:time+300}});
  assert.equal(x.kind,'created');assert.match(calls[0].sql,/s\.publisher_id=\$2/);
  assert.match(calls[0].sql,/s\.apk_sha256=\$3/);assert.match(calls[0].sql,/s\.apk_bytes=\$4/);
  assert.match(calls[0].sql,/ON CONFLICT DO NOTHING/);
- assert.equal(calls[0].params.length,5);
+ assert.equal(calls[0].params.length,10);
  assert.ok(!calls[0].sql.includes('test-publisher'));
 });
 
@@ -119,4 +125,35 @@ test('post-seal revocation recheck fails closed and revokes stored blob',async()
  const r=await h.upload();assert.equal(r.status,401);
  assert.equal(h.dbWrites,0);assert.equal(h.aborts,1);assert.equal(h.revokes,1);
  assert.equal(n,3);
+});
+
+test('private upload repository refuses receipt insertion without signed current session identity',async()=>{
+ const calls=[];const repo=createPostgresReviewRepository({query:async(sql,params)=>{
+  calls.push({sql,params});return {rowCount:1,rows:[{submission_id:'sub-'+'e'.repeat(32)}]};
+ }});
+ await assert.rejects(repo.recordUpload({submissionId:'sub-'+'e'.repeat(32),
+   publisherId:'test-publisher',sha256:sha(apk),bytes:apk.length,
+   objectKey:'private/apk/'+('a'.repeat(48))}),/session|actor|identity/i);
+ assert.equal(calls.length,0);
+});
+
+test('quarantined receipt must carry verified uploader subject and token ID to durable insert',async()=>{
+ const calls=[];
+ const h=harness();
+ const original=h.upload;
+ // The controller must not rely on a boolean-only preflight check once
+ // upload receipt insertion is reached; the SQL layer needs provenance.
+ const repository=createPostgresReviewRepository({query:async(sql,params)=>{
+   calls.push({sql,params});return {rowCount:1,rows:[{submission_id:'sub-'+'e'.repeat(32)}]};
+ }});
+ await repository.recordUpload({submissionId:'sub-'+'e'.repeat(32),
+  publisherId:'test-publisher',sha256:sha(apk),bytes:apk.length,
+  objectKey:'private/apk/'+('a'.repeat(48)),actor:{subject:'developer-actor-1',
+   tokenId:'quarantine-test-token-0001',publisherId:'test-publisher',role:'developer',
+   issuer:'https://idp.example.org',audience:'store-v2-internal',expiresAt:time+300}});
+ assert.match(calls[0].sql,/portal_sessions/);
+ assert.match(calls[0].sql,/session_revocations/);
+ assert.match(calls[0].sql,/principal_suspensions/);
+ assert.ok(calls[0].params.includes('quarantine-test-token-0001'));
+ assert.ok(calls[0].params.includes('developer-actor-1'));
 });

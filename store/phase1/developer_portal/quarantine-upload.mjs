@@ -52,7 +52,9 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
   if(req.signal?.aborted)refuse(408);
   if(await revalidateSession()!==true)refuse(401);
   const result=await repository.recordUpload({submissionId:submission.id,
-   publisherId:actor.publisherId,sha256:submission.apkSha256,bytes:total,objectKey:key});
+   publisherId:actor.publisherId,sha256:submission.apkSha256,bytes:total,objectKey:key,
+   actor:{subject:actor.subject,tokenId:actor.tokenId,publisherId:actor.publisherId,
+    role:actor.role,issuer:actor.issuer,audience:actor.audience,expiresAt:actor.expiresAt}});
   if(result?.kind!=='created')refuse(result?.kind==='conflict'?409:503);
   return {state:'QUARANTINED_UNSCANNED',objectStored:true};
  }catch(e){
