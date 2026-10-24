@@ -1,0 +1,67 @@
+name: LIFELINE Native Windows Offline Cross-Language Contract Test
+# Intended one-shot qualification of actual Python+Node on a disposable
+# native Windows x64 runner. No MT5 broker, Modal, Neon, real credentials or
+# paid cloud provisioning. No push-trigger on application source changes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-offline-windows-crosslang.yml'
+permissions:
+  contents: read
+jobs:
+  native-windows-offline-contract:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run real Node edge and Python FastAPI signed-bridge contract on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ($env:RUNNER_OS -ne 'Windows' -or -not [Environment]::Is64BitOperatingSystem) {
+            throw 'Requires native Windows x64'
+          }
+          python -m pip install --quiet --disable-pip-version-check 'fastapi>=0.115,<1' 'uvicorn>=0.30,<1' 'httpx>=0.28,<1'
+          if($LASTEXITCODE -ne 0) { throw 'Python dependencies failed' }
+          Push-Location products/lifeline-mt5-ai-studio/infra/cloudflare
+          $server=$null
+          try {
+            npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+            if($LASTEXITCODE -ne 0) { throw 'Node dependencies failed' }
+            python -m py_compile local_stack_server.py
+            if($LASTEXITCODE -ne 0) { throw 'Fixture syntax failed' }
+            node --check test_local_full_stack.mjs
+            if($LASTEXITCODE -ne 0) { throw 'Node integration syntax failed' }
+            $pythonExe=(Get-Command python -ErrorAction Stop).Source
+            $server=Start-Process -FilePath $pythonExe -ArgumentList 'local_stack_server.py' -PassThru -NoNewWindow
+            $ready=$false
+            for($i=0;$i -lt 45;$i++){
+              try{
+                $resp=Invoke-WebRequest -Uri 'http://127.0.0.1:19234/__offline_ready' -TimeoutSec 2
+                if($resp.StatusCode -eq 200) { $ready=$true;break }
+              }catch{}
+              Start-Sleep -Milliseconds 250
+            }
+            if(-not $ready) { throw 'Loopback-only FastAPI fixture did not become ready' }
+            node --test test_local_full_stack.mjs
+            if($LASTEXITCODE -ne 0) { throw 'Windows cross-language signed bridge acceptance failed' }
+            Write-Output 'native_windows_x64_fixture=true'
+            Write-Output 'real_node_to_python_signed_contract=true'
+            Write-Output 'actual_native_mt5_or_neon_modal_connection_tested=false'
+            Write-Output 'external_spending_or_trading_enabled=false'
+          } finally {
+            if($null -ne $server) {
+              Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+            }
+            Pop-Location
+          }
