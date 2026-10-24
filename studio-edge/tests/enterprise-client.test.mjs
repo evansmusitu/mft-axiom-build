@@ -134,3 +134,17 @@ test('signed Access token is never sent to public, capacity-canary, or unrelated
    error=>error.code==='INVALID_ENDPOINT',name);
  }
 });
+
+test('failed external identity callback never leaks signed token content or reaches network',async()=>{
+ let calls=0;
+ const api=setup(async()=>{calls++;return ok();},{
+   getToken:async()=>{throw new Error('provider failed; possible secret-token-LEAK-IN-ERROR');}
+ });
+ await assert.rejects(api.list(),error=>{
+   assert.equal(error.code,'AUTH_REQUIRED');
+   assert.equal(error.status,401);
+   assert.ok(!error.message.includes('secret-token-LEAK'));
+   return true;
+ });
+ assert.equal(calls,0);
+});
