@@ -7,6 +7,7 @@
  */
 import {createHash,createPublicKey,verify as checkSignature} from 'node:crypto';
 import {isIP} from 'node:net';
+import {intakeQuarantinedApk} from './quarantine-upload.mjs';
 
 const MAX_MANIFEST_BYTES=8192;
 const MAX_TOKEN_CHARS=8192;
@@ -125,7 +126,7 @@ function trustedAuthorizer({issuer,audience,publicKeys,now}){
   return {subject:claims.sub,role:claims.role,publisherId:claims.publisherId};
  };
 }
-export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin}={}){
+export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine}={}){
  require_(repository&&['create','read','addReview'].every(k=>typeof repository[k]==='function'));
  require_(typeof origin==='string'&&origin.startsWith('https://'));
  const auth=trustedAuthorizer({issuer,audience,publicKeys,now});
@@ -138,6 +139,8 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    else {
      let m=/^\/developer\/submissions\/(sub-(?:[0-9]{5,15}|[a-f0-9]{32}))$/.exec(url.pathname);
      if(m&&req.method==='GET'){type='read';id=m[1];}
+     m=/^\/developer\/submissions\/(sub-(?:[0-9]{5,15}|[a-f0-9]{32}))\/apk$/.exec(url.pathname);
+     if(m&&req.method==='PUT'){type='upload';id=m[1];}
      m=/^\/review\/submissions\/(sub-(?:[0-9]{5,15}|[a-f0-9]{32}))$/.exec(url.pathname);
      if(m&&req.method==='POST'){type='review';id=m[1];}
    }
@@ -161,6 +164,14 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
      require_(['created','existing'].includes(result?.kind),503);
      return json(result.kind==='created'?202:200,{ok:true,id:result.record.id,
        state:'REVIEW_REQUIRED',...denied});
+   }
+   if(type==='upload'){
+     require_(actor.role==='developer',403);
+     const stored=await repository.read(id);
+     if(!stored||stored.publisherId!==actor.publisherId)
+       return json(404,{ok:false,code:'submission_not_found',...denied});
+     const receipt=await intakeQuarantinedApk({req,submission:stored,actor,quarantine,repository});
+     return json(202,{ok:true,id,...receipt,...denied});
    }
    if(type==='read'){
      const found=await repository.read(id);

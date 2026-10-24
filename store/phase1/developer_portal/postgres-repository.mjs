@@ -17,7 +17,7 @@ export function createPostgresReviewRepository({query}={}){
  }
  async function read(id){
   const result=await execute(
-   'SELECT submission_id,publisher_id,submitting_subject,request_digest '+
+   'SELECT submission_id,publisher_id,submitting_subject,request_digest,apk_sha256,apk_bytes '+
    'FROM store_publisher_private.submissions WHERE submission_id=$1',
    [id]);
   if(result.rowCount===0)return null;
@@ -31,6 +31,7 @@ export function createPostgresReviewRepository({query}={}){
    [id]);
   if(reviews.rowCount>2)throw Error('invalid reviewer count');
   return {id,publisherId:row.publisher_id,actorId:row.submitting_subject,
+   apkSha256:row.apk_sha256,apkBytes:Number(row.apk_bytes),
    payloadDigest:row.request_digest,state:'REVIEW_REQUIRED',
    reviews:reviews.rows.map(x=>({
     subject:x.reviewer_subject,role:x.reviewer_role,decision:x.decision,
@@ -84,5 +85,19 @@ export function createPostgresReviewRepository({query}={}){
   const exists=await read(id);
   return exists?{kind:'conflict'}:{kind:'missing'};
  }
- return Object.freeze({create,read,addReview});
+ async function recordUpload({submissionId,publisherId,sha256,bytes,objectKey}){
+  if(typeof objectKey!=='string'||!/^[a-zA-Z0-9/_-]{24,256}$/.test(objectKey))
+   throw Error('invalid quarantined storage identity');
+  const result=await execute(
+   `INSERT INTO store_publisher_private.apk_quarantine_receipts
+     (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key)
+    SELECT s.submission_id,s.publisher_id,s.apk_sha256,s.apk_bytes,$5
+    FROM store_publisher_private.submissions s
+    WHERE s.submission_id=$1 AND s.publisher_id=$2 AND s.apk_sha256=$3
+      AND s.apk_bytes=$4
+    ON CONFLICT DO NOTHING RETURNING submission_id`,
+   [submissionId,publisherId,sha256,bytes,objectKey]);
+  return {kind:result.rowCount===1?'created':'conflict'};
+ }
+ return Object.freeze({create,read,addReview,recordUpload});
 }
