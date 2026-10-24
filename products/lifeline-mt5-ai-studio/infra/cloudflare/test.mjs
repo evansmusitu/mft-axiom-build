@@ -7,6 +7,7 @@ import {SignJWT,generateKeyPair,exportJWK} from 'jose';
 const E={ACCESS_ISSUER:'https://lifeline-test.cloudflareaccess.com/',ACCESS_AUD:'stage-audience',
   MODAL_ORIGIN:'https://lifeline-stage.modal.run/',MODAL_PROXY_KEY:'test-proxy-key',MODAL_PROXY_SECRET:'test-proxy-secret',
   EDGE_SHARED_SECRET:'test-edge-secret-more-than-32-characters!',
+  LIFELINE_PRIVATE_BACKEND_CUTOVER:'AUTHORIZED',
   ACCESS_OPERATOR_SUB:'cf-user-approved-123',
   AGENT_ID:'agent-A',AGENT_TENANT:'tenant-A',AGENT_HMAC_KEY:'test-agent-key-much-longer-than-32-characters'};
 const json=(body)=>JSON.stringify(body);
@@ -402,4 +403,24 @@ test('owner-authenticated MCP refuses extra envelope fields and malformed reques
     }
     assert.equal(calls,0);
   }finally{globalThis.fetch=prior;}
+});
+
+test('complete backend credentials cannot auto-activate before explicit private cutover',async()=>{
+  const allButCutover={...E};
+  delete allButCutover.LIFELINE_PRIVATE_BACKEND_CUTOVER;
+  const body={request:'next',tenant:'tenant-A'};
+  const original=globalThis.fetch;
+  let upstream=0;
+  try{
+    globalThis.fetch=async()=>{upstream++;return new Response(json({schema:'lifeline.bridge.v1',job:null}),{status:200});};
+    const r=await worker.fetch(message('/agent/pull',body,signedHeaders(body)),allButCutover);
+    assert.equal(r.status,503,'a full set of secrets must not be permission to activate routes');
+    assert.equal(upstream,0);
+    for(const bad of ['','true','approved',true,'AUTHORISED']){
+      const result=await worker.fetch(message('/agent/pull',body,signedHeaders(body)),
+         {...E,LIFELINE_PRIVATE_BACKEND_CUTOVER:bad});
+      assert.equal(result.status,503);
+    }
+    assert.equal(upstream,0);
+  }finally{globalThis.fetch=original;}
 });
