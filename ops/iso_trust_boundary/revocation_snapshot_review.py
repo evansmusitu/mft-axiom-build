@@ -99,6 +99,11 @@ class RevocationSnapshotReview:
             self._public_key=Ed25519PublicKey.from_public_bytes(keys[0])
         except ValueError:
             _hold('REVOCATION_KEY_INVALID')
+        # Expose exact immutable public pins for S0-only cross-contract checking.
+        # This is local caller-provided pin material, not external root custody.
+        self.pinned_revocation_public_key=keys[0]
+        self.pinned_operator_public_key=keys[1]
+        self.pinned_witness_public_key=keys[2]
         self.ids=ids
         self.policy_sha256=policy_sha256
         self.epochs=(root_epoch,operator_epoch,witness_epoch)
