@@ -52,7 +52,7 @@ function harness(isTokenActive=async()=>true){
    ...(body?{body:typeof body==='string'?body:JSON.stringify(body)}:{})}));
  const create=opts=>call('POST','/developer/submissions',{body:manifest,
   headers:{'idempotency-key':'test-request-idempotency-000001'},...opts});
- return {call,create,repository};
+ return {call,create,repository,portal};
 }
 test('P-256 JWT with MFA creates REVIEW_REQUIRED not authorization',async()=>{
  const h=harness(),r=await h.create(),body=await r.json();
@@ -169,4 +169,56 @@ test('revoked signed MFA token and unavailable revocation provider fail closed',
  const absent=harness(null);
  assert.equal((await absent.create()).status,503);
  assert.equal(absent.repository.records.size,0);
+});
+
+
+test('aborting stalled signed JSON submission stops uncooperative body and never creates a record',async()=>{
+ const h=harness();
+ const controller=new AbortController();let cancels=0,reads=0;
+ const req={method:'POST',url:'https://store-stage.mftintelligence.com/developer/submissions',
+  headers:new Headers({authorization:'Bearer '+token(),'content-type':'application/json',
+   'idempotency-key':'test-request-idempotency-000001'}),
+  signal:controller.signal,body:{getReader(){return {
+   read(){reads++;return new Promise(()=>{});},
+   cancel(){cancels++;return new Promise(()=>{});},releaseLock(){}
+  };}}};
+ let alarm,timeout;try{
+  alarm=setTimeout(()=>controller.abort(),20);
+  const deadline=new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('JSON request abort did not interrupt body read')),350);});
+  const response=await Promise.race([h.portal(req),deadline]);
+  assert.equal(response.status,408);
+  assert.ok(cancels>=1);assert.ok(reads>=1);
+  assert.equal(h.repository.records.size,0);
+ }finally{clearTimeout(alarm);clearTimeout(timeout);}
+});
+
+test('publisher revocation after initial MFA check cannot persist metadata submission',async()=>{
+ let checks=0;
+ const h=harness(async()=>++checks===1);
+ const r=await h.create();
+ assert.equal(r.status,401);
+ assert.equal(checks,2);
+ assert.equal(h.repository.records.size,0);
+});
+
+test('revocation between MFA check and stored GET read prevents disclosure of private record',async()=>{
+ let denyRead=false,readChecks=0;
+ const h=harness(async()=>!denyRead||++readChecks===1);
+ assert.equal((await h.create()).status,202);
+ denyRead=true;
+ const r=await h.call('GET','/developer/submissions/sub-00001');
+ assert.equal(r.status,401);
+ assert.equal(readChecks,2);
+});
+
+test('independent reviewer revocation before write prevents any private review evidence',async()=>{
+ let denyReview=false,reviewChecks=0;
+ const h=harness(async()=>!denyReview||++reviewChecks===1);
+ assert.equal((await h.create()).status,202);
+ denyReview=true;
+ const r=await h.call('POST','/review/submissions/sub-00001',{
+  jwt:token({role:'review_security',sub:'security-reviewer-02'}),body:note});
+ assert.equal(r.status,401);
+ assert.equal(reviewChecks,2);
+ assert.equal(h.repository.records.get('sub-00001').reviews.length,0);
 });

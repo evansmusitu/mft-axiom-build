@@ -79,12 +79,34 @@ async function readBounded(req){
  const len=req.headers.get('content-length');
  if(len!==null)require_(Number.isSafeInteger(Number(len))&&Number(len)<=MAX_MANIFEST_BYTES,413);
  require_(req.body?.getReader,400);
- const reader=req.body.getReader();const parts=[];let n=0;
- try{for(;;){const item=await reader.read();if(item.done)break;
+ const reader=req.body.getReader();const parts=[];let n=0,complete=false;
+ let rejectAborted;
+ const abortGate=new Promise((_,reject)=>{rejectAborted=reject;});
+ // The request may abort between reads. A catch avoids unhandled rejection
+ // while stream parsing or other validation is in progress.
+ void abortGate.catch(()=>{});
+ const onAbort=()=>{
+  try{void Promise.resolve(reader.cancel()).catch(()=>{});}catch{}
+  const e=Error('portal_denied');e.httpStatus=408;
+  rejectAborted(e);
+ };
+ req.signal?.addEventListener?.('abort',onAbort,{once:true});
+ try{
+  if(req.signal?.aborted)fail(408);
+  for(;;){
+   const item=await (req.signal?.addEventListener?
+     Promise.race([reader.read(),abortGate]):reader.read());
+   if(req.signal?.aborted)fail(408);
+   if(item.done){complete=true;break;}
    n+=item.value.length;require_(n<=MAX_MANIFEST_BYTES,413);parts.push(item.value);
   }
- }catch(e){try{await reader.cancel();}catch{}throw e;}
- finally{try{reader.releaseLock();}catch{}}
+ }finally{
+  req.signal?.removeEventListener?.('abort',onAbort);
+  // Never await a hostile input stream's cancellation promise while holding
+  // a private portal request open; this endpoint persists no partial body.
+  if(!complete)try{void Promise.resolve(reader.cancel()).catch(()=>{});}catch{}
+  try{reader.releaseLock();}catch{}
+ }
  return Buffer.concat(parts,n);
 }
 function trustedAuthorizer({issuer,audience,publicKeys,now}){
@@ -156,10 +178,12 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    // Mandatory trusted, up-to-date IdP/session revocation check; absent or
    // unavailable source never authorizes intake, reads or review actions.
    require_(typeof isTokenActive==='function',503);
-   const active=await isTokenActive({tokenId:actor.tokenId,subject:actor.subject,
+   const sessionIdentity={tokenId:actor.tokenId,subject:actor.subject,
      role:actor.role,publisherId:actor.publisherId,expiresAt:actor.expiresAt,
-     issuer:actor.issuer,audience:actor.audience});
-   require_(active===true,401);
+     issuer:actor.issuer,audience:actor.audience};
+   const revalidateSession=()=>isTokenActive(sessionIdentity);
+   const requireCurrentSession=async()=>require_((await revalidateSession())===true,401);
+   await requireCurrentSession();
    if(type==='submit'){
      require_(actor.role==='developer',403);
      const raw=await readBounded(req),data=strictObject(raw);
@@ -167,6 +191,8 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
      require_(data.publisherId===actor.publisherId,403);
      const idem=req.headers.get('idempotency-key');
      require_(typeof idem==='string'&&/^[a-zA-Z0-9_-]{16,128}$/.test(idem));
+     // A valid MFA token can be revoked during slow JSON body receipt.
+     await requireCurrentSession();
      const result=await repository.create({publisherId:actor.publisherId,actorId:actor.subject,
        data,payloadDigest:sha(raw),state:'REVIEW_REQUIRED'},idem);
      if(result?.kind==='conflict')return json(409,{ok:false,code:'submission_conflict',...denied});
@@ -180,15 +206,15 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
      if(!stored||stored.publisherId!==actor.publisherId)
        return json(404,{ok:false,code:'submission_not_found',...denied});
      const receipt=await intakeQuarantinedApk({req,submission:stored,actor,quarantine,repository,
-      revalidateSession:async()=>isTokenActive({tokenId:actor.tokenId,subject:actor.subject,
-       role:actor.role,publisherId:actor.publisherId,expiresAt:actor.expiresAt,
-       issuer:actor.issuer,audience:actor.audience})});
+      revalidateSession});
      return json(202,{ok:true,id,...receipt,...denied});
    }
    if(type==='read'){
      const found=await repository.read(id);
      if(!found || (actor.role==='developer' && found.publisherId!==actor.publisherId))
        return json(404,{ok:false,code:'submission_not_found',...denied});
+     // Recheck revocation after the private record read and before disclosure.
+     await requireCurrentSession();
      return json(200,{ok:true,id:found.id,state:'REVIEW_REQUIRED',
        reviewEvidenceCount:found.reviews.length,...denied});
    }
@@ -200,6 +226,8 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    if(!original)return json(404,{ok:false,code:'submission_not_found',...denied});
    require_(typeof original.actorId==='string'&&original.actorId.length>=6,503);
    require_(original.actorId!==actor.subject,403);
+   // No durable reviewer evidence from a token revoked during body intake.
+   await requireCurrentSession();
    const result=await repository.addReview(id,{subject:actor.subject,role:actor.role,
      decision:data.decision,evidenceSha256:data.evidenceSha256,reviewDigest:sha(raw)});
    if(result?.kind==='missing')return json(404,{ok:false,code:'submission_not_found',...denied});
