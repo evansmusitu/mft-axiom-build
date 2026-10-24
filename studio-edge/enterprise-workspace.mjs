@@ -117,5 +117,11 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     ]);
     if(result?.[0]?.meta?.changes !== 1) return fail(result?.[0]?.meta?.changes === 0 ? 'NOT_FOUND' : 'STORE_UNAVAILABLE',result?.[0]?.meta?.changes === 0 ? 404 : 503,origin);
     return reply({id:artifact,deleted:true,auditRetained:true},200,origin);
-  } catch { return fail('STORE_UNAVAILABLE',503,origin); }
+  } catch(error) {
+    // The dedicated D1 migration enforces a transaction-safe, tenant-local row cap.
+    // Map only the known SQLite abort marker; all other failures stay fail-closed.
+    if(request.method === 'PUT' && String(error?.message || '').includes('tenant_artifact_limit_exceeded'))
+      return fail('TENANT_ARTIFACT_LIMIT',409,origin);
+    return fail('STORE_UNAVAILABLE',503,origin);
+  }
 }
