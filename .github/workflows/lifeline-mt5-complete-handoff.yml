@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --quiet --disable-pip-version-check 'fastapi>=0.115,<1' 'httpx>=0.28,<1'
+          python -m pip install --quiet --disable-pip-version-check 'fastapi>=0.115,<1' 'httpx>=0.28,<1' 'cryptography>=44,<47'
           python -m unittest discover -s products/lifeline-mt5-ai-studio/windows -p 'test_*.py' -q 2>&1 | tee /tmp/lifeline-windows-tests.txt
           python -m unittest discover -s products/lifeline-mt5-ai-studio/infra/modal -p 'test_*.py' -q 2>&1 | tee /tmp/lifeline-modal-tests.txt
           (cd products/lifeline-mt5-ai-studio/infra/cloudflare && npm ci --ignore-scripts --no-audit --no-fund >/dev/null && node --test test.mjs > /tmp/lifeline-edge-tests.txt)
@@ -49,6 +49,18 @@ jobs:
         run: |
           set -euo pipefail
           python products/lifeline-mt5-ai-studio/handoff/build_portable_package.py
+      - name: Verify the frozen payload manifest and checksums before publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd out/lifeline-handoff && python3 verify_handoff.py)
+          python - <<'PY'
+          import json
+          p=json.load(open("out/lifeline-handoff/handoff/SOURCE_MANIFEST.json"))
+          print("verified_product_files="+str(p["included_first_party_product_files"]))
+          print("verified_lifeline_workflows="+str(p["included_lifeline_github_workflows"]))
+          print("verified_source_commit="+p["origin_commit_sha"])
+          PY
       - name: Upload portable package to GitHub Actions as a downloadable ZIP
         uses: actions/upload-artifact@v4
         with:

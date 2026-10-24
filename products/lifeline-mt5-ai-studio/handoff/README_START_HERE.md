@@ -1,22 +1,32 @@
-# START HERE — LIFELINE MT5 AI STUDIO COMPLETE HANDOFF
+# START HERE — LIFELINE MT5 AI STUDIO VERIFIED WHOLE-PRODUCT HANDOFF
 
-This is the **portable, clean source-and-evidence handoff** for LIFELINE MT5 AI Studio from the actual isolated GitHub branch, not a reconstructed description. The source content is under `source/` and preserves its original GitHub repository-relative paths.
+**Snapshot:** 24 October 2026; authoritative commit and GitHub run are embedded in `handoff/SOURCE_MANIFEST.json`. This artifact contains complete tracked first-party LIFELINE product source, tests, infrastructure, docs and LIFELINE GitHub workflow definitions from a **single frozen git commit**. It does not contain the rest of the MUSITU monorepo, private cloud secrets, live runtime storage or a Windows image.
 
-**2026-10-24 IMPORTANT:** Previously uploaded v1.3/v1.4 portable ZIPs are **older snapshots**, not the latest GitHub implementation. The authoritative GitHub draft PR #30 contains newer live audits, 6/10 Cloudflare binding evidence and the unresolved shared-Modal-workspace proxy-token isolation blocker. Read latest `validation/SECURE_SCOPE_GATE_20261024.md` from the actual branch first, compare source SHAs, and never overwrite it with old ZIP source.\n\n**First in a fresh conversation:** read `handoff/CURRENT_STATE_AND_NEXT_STEPS.md`, `handoff/SOURCE_MANIFEST.json`, `handoff/VALIDATION_REPORT.txt`, `handoff/SECURITY_EXCLUSIONS.md`, `SHA256SUMS.txt`, and `handoff/CONTINUATION_PROMPT.txt`. Then examine the source, tests, validation reports and workflows. The authoritative Git commit is recorded in `handoff/SOURCE_MANIFEST.json`; re-read GitHub HEAD before any write to avoid clobbering later work.
+## Read before engineering
 
-**Authority:** GitHub repo `evansmusitu/mft-axiom-build`, branch `product/lifeline-mt5-fivecloud-isolated-20261020`, draft PR #30. Protected main and other products must remain untouched. The package contains no current credentials, tokens, broker passwords, private OIDC/MFA secrets or Windows host keys. A real cloud deployment is NOT represented by this portable source package.
+1. Verify `SHA256SUMS.txt` with `python3 verify_handoff.py` (works after extracting the ZIP; Python 3.10+).
+2. Read `handoff/SOURCE_MANIFEST.json` and `handoff/VALIDATION_REPORT.txt`, then `handoff/CURRENT_STATE_AND_NEXT_STEPS.md` and `handoff/SECURITY_EXCLUSIONS.md`.
+3. Read product source `source/products/lifeline-mt5-ai-studio/README.md`, latest validation in `source/products/lifeline-mt5-ai-studio/validation/`, and relevant tests/workflows under `source/.github/workflows/`.
+4. Read `handoff/CONTINUATION_PROMPT.txt`. Compare **current live GitHub branch HEAD** to frozen manifest SHA before writing. If newer, reconcile commits, never reset or overwrite.
 
-**Never treat a new chat as authorization to bypass Cloudflare Access MFA, deploy unrestricted MCP/trading tools, rotate credentials, merge PRs or spend money.** Budget is $0. All financial order execution and unreviewed remote shell are disabled.
+## Source of truth
 
-## Quick file map
+- GitHub: `evansmusitu/mft-axiom-build`, isolated branch `product/lifeline-mt5-fivecloud-isolated-20261020`.
+- Draft PR #30: https://github.com/evansmusitu/mft-axiom-build/pull/30 — must stay **DRAFT / UNMERGED**.
+- Private Drive handoff folder: https://drive.google.com/drive/folders/1JZqELsZ7wO2IkS2UvirCI31g1faND8Vd
+- Scope is only LIFELINE, not other MUSITU products, `main`, other PRs or cloud resources.
+- Budget **US$0**; no credits, subscriptions, card verification charges, shared tokens or paid provisioning.
 
-- `source/products/lifeline-mt5-ai-studio/README.md`: project README and current operational truth.
-- `source/products/lifeline-mt5-ai-studio/windows/`: Windows MetaEditor compiler, native MCP read-only adapter, bridge/agent, tests, instructions.
-- `source/products/lifeline-mt5-ai-studio/infra/`: Cloudflare Worker/Access, private Modal service, Neon SQL, Vercel interface.
-- `source/products/lifeline-mt5-ai-studio/validation/`: chronological acceptance records v0.4–v1.2.
-- `source/.github/workflows/lifeline*.yml`: all tracked LIFELINE GitHub workflow automation.
-- `evidence/native-compiler/`: short-lived verified sample EX5/log/proof (if the 2026-10-21 GitHub artifact was retrievable at packaging time).
-- `handoff/SOURCE_MANIFEST.json`: exact pinned SHA, inclusions, exclusions and per-file hashes.
-- `SHA256SUMS.txt`: SHA-256 per included payload file.
+## Current decision-critical reality (not historical stale gates)
 
-The ZIP is a source and continuation artifact. The actual customer-facing MT5 control loop and owner LIFELINE app-specific login are not yet qualified. See next steps.
+**Owner login:** a prior real Access-app owner session was independently observed and the MFA policy is pinned. This does not certify that an owner session is active now.
+
+**Legacy Modal/Neon:** restricted Neon RLS and private synthetic signed job/receipt were earlier validated; the existing Cloudflare gateway has **6 of 10** required binding names installed, **four sensitive bindings absent**. Live Cloudflare→Modal→Neon routing remains disabled by an **independent explicit cutover flag**, regardless of credential presence. The audited Modal Starter workspace environment also hosts **13 other apps**; app-specific proxy-token isolation is not proven. Never create a broadly scoped proxy token or disable proxy authentication as a workaround.
+
+**No-Modal $0 alternative:** new `infra/cloudflare/alternative/` design implements owner Access JWT → private Cloudflare Worker service binding → D1 **synthetic-only status**. Red/green offline CI passed, but **D1 database/service binding, native private Worker and live owner path have NOT been provisioned/deployed**. Verify actual free plan, D1 quota, hard no-spend terms and private scope before any mutation.
+
+**Native MT5:** reviewed no-order EA successfully compiled to EX5 with vendor-signed native MetaEditor on disposable GitHub Windows runner. JavaScript ↔ Python signed bridge works in offline Windows and Linux acceptance, **not on permanent MT5**. No 24/7 Windows host, genuine native MCP pairing, historical-quote trading backtest or live trading.
+
+See `validation/CLOUDFLARE_NO_MODAL_ACCEPTANCE_20261024.md`, `validation/NATIVE_CROSSLANG_SECURITY_20261024.md`, `validation/SECURE_SCOPE_GATE_20261024.md`, `validation/OFFLINE_FULLSTACK_ACCEPTANCE_20261024.md` in source for exact run IDs and limitations. Some original files preserve older chronological claims; **do not prefer them over newer evidence**.
+
+Do not infer deployment from source, green mocks from real cloud acceptance, existing Cloudflare MFA config from current signed user session, or temporary GitHub runners from permanent hosting. Never expose secrets, order tools or unrestricted shells. No customer publication or paid activity is authorized.
