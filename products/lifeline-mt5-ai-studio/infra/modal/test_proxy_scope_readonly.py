@@ -10,7 +10,7 @@ STORE1="lifeline-mt5-neon-stage-unwrap-key-20261021"
 STORE2="lifeline-mt5-bridge-probe-20261021"
 
 def fake_modal(*,billed="0",metered="0.3",url="https://lifeline-a.modal.run/",
-               tokens=2,stores=None,environments=None):
+               tokens=2,stores=None,environments=None,apps=None):
     budget=SimpleNamespace(billed_cost=Decimal(billed),metered_cost=Decimal(metered))
     workspace=SimpleNamespace(
         billing=SimpleNamespace(summary=Mock(return_value=budget)),
@@ -18,12 +18,16 @@ def fake_modal(*,billed="0",metered="0.3",url="https://lifeline-a.modal.run/",
                                      create=Mock(side_effect=AssertionError("creation forbidden"))))
     objects=SimpleNamespace(list=Mock(return_value=[SimpleNamespace(name=x) for x in (
         ["default","team-private"] if environments is None else environments)]))
+    app_env=SimpleNamespace(apps=SimpleNamespace(list=Mock(return_value=[
+        SimpleNamespace(name=x) for x in ([
+            "lifeline-mt5-analytics-isolated","other-project-private-api"
+        ] if apps is None else apps)])))
     secrets=SimpleNamespace(list=Mock(return_value=[SimpleNamespace(name=x) for x in
         ([STORE1,STORE2] if stores is None else stores)]))
     function=SimpleNamespace(get_web_url=Mock(return_value=url),remote=Mock(side_effect=AssertionError("no remote")))
     function_api=SimpleNamespace(from_name=Mock(return_value=function))
     modal=SimpleNamespace(Workspace=SimpleNamespace(from_context=Mock(return_value=workspace)),
-                          Environment=SimpleNamespace(objects=objects),
+                          Environment=SimpleNamespace(objects=objects,from_context=Mock(return_value=app_env)),
                           Secret=SimpleNamespace(objects=secrets),Function=function_api)
     return modal,workspace,function
 
@@ -43,6 +47,19 @@ class ScopeReadOnlyTests(unittest.TestCase):
         modal,*_=fake_modal(environments=["default"],tokens=0)
         report=audit_provider_readonly(modal)
         self.assertFalse(report["free_starter_proxy_token_isolation_verified"])
+    def test_other_apps_sharing_lifeline_environment_forbid_proxy_token_cutover(self):
+        modal,*_=fake_modal(apps=[APP,"another-private-service"])
+        report=audit_provider_readonly(modal)
+        self.assertEqual(report["lifeline_environment_other_app_count"],1)
+        self.assertFalse(report["environment_level_proxy_scope_verified"])
+        self.assertFalse(report["private_backend_cutover_authorized"])
+        self.assertNotIn("another-private-service",str(report))
+
+    def test_missing_lifeline_app_in_context_fails_closed(self):
+        modal,*_=fake_modal(apps=["another-private-service"])
+        with self.assertRaises(RuntimeError):
+            audit_provider_readonly(modal)
+
     def test_positive_billed_cost_fails_closed(self):
         for amount in ("0.01","30","NaN","Infinity"):
             modal,*_=fake_modal(billed=amount)
