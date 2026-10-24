@@ -1,0 +1,63 @@
+name: AXIOM ISO Owner Custody Enrollment S0 - No External Authorization
+on:
+  push:
+    branches:
+      - build/axiom-iso-owner-custody-s0-20261024
+    paths:
+      - 'ops/iso_trust_boundary/custodian_enrollment.py'
+      - 'ops/iso_trust_boundary/custodian_onboarding_cli.py'
+      - 'ops/iso_trust_boundary/test/test_custodian_*.py'
+      - 'ops/iso_trust_boundary/CUSTODIAN_OWNER_ONBOARDING_S0_20261024.md'
+      - '.github/workflows/axiom-iso-owner-custody-s0-20261024.yml'
+permissions:
+  contents: read
+jobs:
+  public-only-no-authority:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref_name == 'build/axiom-iso-owner-custody-s0-20261024'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Preserve isolated scope and forbid credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 445d7e7004012d2be8a59161da914cd85558ccbe HEAD
+          git diff --name-only 445d7e7004012d2be8a59161da914cd85558ccbe HEAD | tee /tmp/iso-custody-delta.txt
+          if grep -Ev '^(ops/iso_trust_boundary/(custodian_enrollment\.py|custodian_onboarding_cli\.py|test/test_custodian_(enrollment|cli)\.py|CUSTODIAN_OWNER_ONBOARDING_S0_20261024\.md)|\.github/workflows/axiom-iso-owner-custody-s0-20261024\.yml)$' /tmp/iso-custody-delta.txt; then
+            echo FORBIDDEN_AUTHORITY_SCOPE >&2
+            exit 1
+          fi
+          test -z "${OPENHANDS_API_KEY:-}"
+          test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          echo AXIOM_CUSTODY_S0_PRIVATE_KEYS_NOT_IN_CI
+      - name: Install pinned public cryptography test runtime
+        run: python -m pip install -q --disable-pip-version-check 'cryptography==46.0.4'
+      - name: Verify owner possession-only behavior and full local ISO regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_custodian_*.py' -v 2>&1 | tee /tmp/axiom-custody-tests.log
+          grep -Eq 'Ran 21 tests in ' /tmp/axiom-custody-tests.log
+          grep -Eq '^OK$' /tmp/axiom-custody-tests.log
+          python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-all.log
+          grep -Eq 'Ran 169 tests in ' /tmp/axiom-iso-all.log
+          grep -Eq '^OK$' /tmp/axiom-iso-all.log
+          python -m compileall -q ops/iso_trust_boundary
+          echo AXIOM_CUSTODY_S0_169_LOCAL_TESTS_PASS_NOT_EXTERNAL
+      - name: Preserve historical B27 destructive rollback failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/trackb27/VERIFY_B27_LOCAL.py 2>&1 | tee /tmp/axiom-b27-counterexample.log
+          grep -Eq 'Ran 15 tests in ' /tmp/axiom-b27-counterexample.log
+          grep -Fq 'AXIOM_B27_GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED' /tmp/axiom-b27-counterexample.log
+          echo AXIOM_B27_GLOBAL_ANTIROLLBACK_STILL_FAILED
