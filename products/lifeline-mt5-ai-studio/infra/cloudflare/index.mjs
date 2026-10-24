@@ -120,6 +120,21 @@ export default {async fetch(request,env){
   if(path==='/mcp'){
     if(body.jsonrpc!=='2.0'||!METHODS.has(body.method))
       return reply({error:'operation_not_permitted'},403);
+    // Only a bounded JSON-RPC request, not an arbitrary forwarded command.
+    const id=body.id;
+    const identifierOk=(typeof id==='number'&&Number.isSafeInteger(id))||
+      (typeof id==='string'&&id.length>0&&id.length<=128&&
+        [...id].every(ch=>ch.charCodeAt(0)>=32&&ch.charCodeAt(0)<=126));
+    if(!identifierOk||Object.keys(body).some(k=>!['jsonrpc','id','method','params'].includes(k)))
+      return reply({error:'operation_not_permitted'},403);
+    if(body.method==='initialize'){
+      if(Object.hasOwn(body,'params')&&(!body.params||typeof body.params!=='object'||
+         Array.isArray(body.params)))return reply({error:'operation_not_permitted'},403);
+    }else if(body.method==='ping'||body.method==='tools/list'){
+      if(Object.hasOwn(body,'params')&&(!body.params||typeof body.params!=='object'||
+         Array.isArray(body.params)||Object.keys(body.params).length!==0))
+        return reply({error:'operation_not_permitted'},403);
+    }
     if(body.method==='tools/call'){
       const params=body.params;
       // Never accept extra tool arguments or non-object params even if an
