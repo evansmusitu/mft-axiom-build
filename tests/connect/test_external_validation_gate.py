@@ -1,4 +1,5 @@
 import copy
+import json
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -45,6 +46,44 @@ def report():
 
 
 class ExternalValidationGateTests(unittest.TestCase):
+    def test_external_gate_cli_rejects_ambiguous_duplicate_object_keys(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        original = json.dumps(report(), sort_keys=True)
+        self.assertIn('"fp": 1900', original)
+        cases = (
+            original[:-1] + ', "production_admission": false}',
+            original.replace('"fp": 1900', '"fp": 1900, "fp": 1900', 1),
+        )
+        for payload in cases:
+            with self.subTest(payload_sha=payload[-55:]):
+                with TemporaryDirectory() as directory:
+                    source = Path(directory) / 'input_evidence.json'
+                    target = Path(directory) / 'research_audit.json'
+                    source.write_text(payload, encoding='utf-8')
+                    argv = ['external_validation_gate', '--evidence', str(source),
+                            '--output', str(target)]
+                    with patch.object(sys, 'argv', argv):
+                        with self.assertRaisesRegex(ValueError, 'external_gate_duplicate_json_key'):
+                            validator.main()
+                    self.assertFalse(target.exists())
+
+    def test_external_gate_cli_rejects_nonstandard_json_nan(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        original = json.dumps(report(), sort_keys=True)
+        self.assertIn('"average_precision": 0.37', original)
+        payload = original.replace('"average_precision": 0.37',
+                                   '"average_precision": NaN', 1)
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / 'input_evidence.json'
+            target = Path(directory) / 'research_audit.json'
+            source.write_text(payload, encoding='utf-8')
+            argv = ['external_validation_gate', '--evidence', str(source),
+                    '--output', str(target)]
+            with patch.object(sys, 'argv', argv):
+                with self.assertRaisesRegex(ValueError, 'external_gate_nonstandard_json_number'):
+                    validator.main()
+            self.assertFalse(target.exists())
+
     def test_external_gate_output_race_fails_without_overwriting(self):
         import benchmarks.mining_adapter.external_validation_gate as validator
         with TemporaryDirectory() as directory:
