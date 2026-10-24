@@ -34,7 +34,7 @@ jobs:
           test -z "${AXIOM_SIGNING_PRIVATE_KEY:-}"
           test -z "${CLOUDFLARE_API_TOKEN:-}"
           git diff --name-only ea9f41d7931f380a1a729deb0b17c6a314063a8e HEAD | tee /tmp/axiom-delta-paths.txt
-          if grep -Ev '^(ops/iso_trust_boundary/(preconsumption_evidence\.py|EVIDENCE_INPUT_IMMUTABILITY_S0_20261024\.md|test/test_preconsumption_mutation\.py)|\.github/workflows/axiom-iso-evidence-mutation-s0-20261024\.yml)$' /tmp/axiom-delta-paths.txt; then
+          if grep -Ev '^(ops/iso_trust_boundary/(preconsumption_evidence\.py|EVIDENCE_INPUT_IMMUTABILITY_S0_20261024\.md|test/test_preconsumption_mutation\.py|test/test_input_mutation_matrix\.py)|\.github/workflows/axiom-iso-evidence-mutation-s0-20261024\.yml)$' /tmp/axiom-delta-paths.txt; then
             echo 'FORBIDDEN_SOURCE_CHANGE' >&2
             exit 1
           fi
@@ -48,11 +48,14 @@ jobs:
           python -m unittest ops.iso_trust_boundary.test.test_preconsumption_mutation -v 2>&1 | tee /tmp/axiom-mutation.log
           grep -Eq 'Ran 7 tests in ' /tmp/axiom-mutation.log
           grep -Eq '^OK$' /tmp/axiom-mutation.log
+          python -m unittest ops.iso_trust_boundary.test.test_input_mutation_matrix -v 2>&1 | tee /tmp/axiom-mutation-matrix.log
+          grep -Eq 'Ran 1 test in ' /tmp/axiom-mutation-matrix.log
+          grep -Eq '^OK$' /tmp/axiom-mutation-matrix.log
           python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-suite.log
-          grep -Eq 'Ran 139 tests in ' /tmp/axiom-iso-suite.log
+          grep -Eq 'Ran 140 tests in ' /tmp/axiom-iso-suite.log
           grep -Eq '^OK$' /tmp/axiom-iso-suite.log
           python -m compileall -q ops/iso_trust_boundary
-          echo AXIOM_S0_INPUT_MUTATION_REJECTED_LOCAL_139_TESTS_NOT_RELEASE
+          echo AXIOM_S0_INPUT_MUTATION_REJECTED_LOCAL_140_TESTS_NOT_RELEASE
       - name: Preserve B27 destructive global rollback failure
         shell: bash
         run: |
