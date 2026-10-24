@@ -104,6 +104,13 @@ export default {async fetch(request,env){
   const cfg=readConfig(env);
   if(!cfg)return reply({error:'not_configured'},503);
   if(path==='/healthz'&&request.method==='GET')return reply({state:'authorization_required',trading:false});
+  // MCP 2025-03-26 Streamable HTTP: this server does not offer an SSE GET
+  // stream. Only an authenticated owner receives the required HTTP 405.
+  if(path==='/mcp'&&request.method==='GET'){
+    const subject=await authenticateAccess(request,env,cfg);
+    if(!subject)return reply({error:'unauthorized'},401);
+    return new Response(null,{status:405,headers:{'allow':'POST','cache-control':'no-store'}});
+  }
   if(request.method!=='POST'||(!AGENT_ROUTES.has(path)&&!OPERATOR_ROUTES.has(path)&&path!=='/mcp'))
     return reply({error:'not_found'},404);
   const size=request.headers.get('content-length');
