@@ -1,0 +1,31 @@
+name: MUSITU Intelligence Enterprise Workspace Qualification (no deploy)
+
+on:
+  push:
+    branches:
+      - feature/musitu-enterprise-tenant-workspace-20261024
+    paths:
+      - studio-edge/**
+      - .github/workflows/musitu-enterprise-workspace-qualification.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-tenant-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check studio-edge/enterprise-workspace.mjs
+          node --check studio-edge/worker.mjs
+      - name: Complete worker and tenant adversarial tests (no network or inference)
+        run: node --test studio-edge/tests/*.test.mjs
+      - name: Migration parses in SQLite (no cloud database mutations)
+        run: python3 -c "import sqlite3; sqlite3.connect(':memory:').executescript(open('studio-edge/migrations/0001_enterprise_workspace.sql').read()); print('Migration syntax valid')"
