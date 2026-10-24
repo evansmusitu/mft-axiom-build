@@ -4,7 +4,8 @@ import {runPrivateStructuralPreflight} from './private-structure-review.mjs';
 import {createPostgresReviewRepository} from './postgres-repository.mjs';
 const sid='sub-'+'c'.repeat(32), hash='d'.repeat(64), key='private/apk/'+'e'.repeat(48);
 const record={submissionId:sid,publisherId:'test-publisher',actorId:'developer-human-001',apkSha256:hash,apkBytes:10097,storageKey:key};
-const actor={subject:'independent-scanner-001',role:'review_security',tokenId:'operator-test-session-01'};
+const actor={subject:'independent-scanner-001',role:'review_security',tokenId:'operator-test-session-01',
+ issuer:'https://idp.example.org',audience:'store-v2-internal',expiresAt:1792680000};
 const passed={status:'STRUCTURAL_PREFLIGHT_ONLY',entryCount:5,declaredExpandedBytes:10437,
  signatureVerified:false,malwareCleared:false,publicationAuthorized:false,
  publisherApproved:false,paymentAuthorized:false,entitlementGranted:false};
@@ -73,12 +74,13 @@ test('SQL receipt INSERT binds uploader digest, size, tenant and independent rev
  }});
  const x=await r.recordStructuralCheck({submissionId:sid,publisherId:record.publisherId,apkSha256:hash,
   apkBytes:record.apkBytes,storageKey:key,inspectorSubject:actor.subject,inspectorTokenId:actor.tokenId,
+  inspectorIssuer:actor.issuer,inspectorAudience:actor.audience,inspectorExpiresAt:actor.expiresAt,
   entryCount:5,expandedBytes:10437,evidenceSha256:'f'.repeat(64)});
  assert.equal(x.kind,'created');assert.match(calls[0].sql,/ON CONFLICT DO NOTHING/);
  assert.match(calls[0].sql,/q\.apk_sha256=\$3/);
  assert.match(calls[0].sql,/q\.apk_bytes=\$4/);
  assert.match(calls[0].sql,/q\.storage_key=\$5/);
- assert.equal(calls[0].params.length,10);
+ assert.equal(calls[0].params.length,13);
 });
 
 test('revoked independent reviewer during slow structural inspection never appends an audit receipt',async()=>{
@@ -96,4 +98,32 @@ test('temporary session-status outage just before committing inspection evidence
  await assert.rejects(run(f),/session registry offline/);
  assert.equal(f.t.inspections,1);
  assert.equal(f.t.writes,0);
+});
+
+
+test('structural reviewer requires cryptographically bound issuer, audience and current token expiry before private read',async()=>{
+ for(const edited of [
+  {...actor,issuer:undefined},{...actor,audience:undefined},{...actor,expiresAt:undefined},
+  {...actor,issuer:'http://idp.example.org'},{...actor,audience:''},{...actor,expiresAt:0}
+ ]){
+  const f=fixture();
+  await assert.rejects(run(f,{actor:edited}),/identity|session|issuer|audience|expir|role/i);
+  assert.equal(f.t.reads,0);assert.equal(f.t.inspections,0);assert.equal(f.t.writes,0);
+ }
+});
+
+test('structural receipt PostgreSQL admission binds exact signed token claims and consults revocations in the INSERT',async()=>{
+ const calls=[];const r=createPostgresReviewRepository({query:async(sql,params)=>{
+  calls.push({sql,params});return {rows:[{submission_id:sid}],rowCount:1};
+ }});
+ const x=await r.recordStructuralCheck({submissionId:sid,publisherId:record.publisherId,apkSha256:hash,
+  apkBytes:record.apkBytes,storageKey:key,inspectorSubject:actor.subject,inspectorTokenId:actor.tokenId,
+  inspectorIssuer:actor.issuer,inspectorAudience:actor.audience,inspectorExpiresAt:actor.expiresAt,
+  entryCount:5,expandedBytes:10437,evidenceSha256:'f'.repeat(64)});
+ assert.equal(x.kind,'created');
+ assert.match(calls[0].sql,/JOIN store_publisher_private\.portal_sessions/);
+ assert.match(calls[0].sql,/session_revocations/);
+ assert.match(calls[0].sql,/principal_suspensions/);
+ assert.equal(calls[0].params.length,13);
+ for(const value of [actor.issuer,actor.audience,actor.expiresAt])assert.ok(calls[0].params.includes(value));
 });

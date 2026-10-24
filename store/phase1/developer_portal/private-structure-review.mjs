@@ -23,11 +23,15 @@ export async function runPrivateStructuralPreflight({repository,inspector,isAuth
  if(typeof submissionId!=='string'||!ID.test(submissionId)||
     !actor||actor.role!=='review_security'||typeof actor.subject!=='string'||
     !SUBJECT.test(actor.subject)||typeof actor.tokenId!=='string'||
-    !/^[A-Za-z0-9_-]{12,200}$/.test(actor.tokenId))
+    !/^[A-Za-z0-9_-]{12,200}$/.test(actor.tokenId)||
+    typeof actor.issuer!=='string'||!/^https:\/\/[^\s]{5,250}$/.test(actor.issuer)||
+    typeof actor.audience!=='string'||actor.audience.length<5||actor.audience.length>120||
+    !Number.isSafeInteger(actor.expiresAt)||actor.expiresAt<=0)
    throw Error('independent security reviewer role required');
  // Authority is time-of-use, not a cached JWT signature or an untrusted
  // applicant-supplied reviewer role. No raw object read before this decision.
- const active=await isAuthorized({subject:actor.subject,role:actor.role,tokenId:actor.tokenId});
+ const active=await isAuthorized({subject:actor.subject,role:actor.role,tokenId:actor.tokenId,
+    issuer:actor.issuer,audience:actor.audience,expiresAt:actor.expiresAt});
  if(active!==true)throw Error('reviewer authentication or revocation check denied');
  const rec=await repository.readQuarantineReceipt(submissionId);
  if(!rec||rec.submissionId!==submissionId||!PUB.test(rec.publisherId||'')||
@@ -46,13 +50,16 @@ export async function runPrivateStructuralPreflight({repository,inspector,isAuth
  const evidence={schema:'musitu.store.private-apk-structural-preflight.v1',
    submissionId,publisherId:rec.publisherId,apkSha256:rec.apkSha256,
    apkBytes:rec.apkBytes,storageKey:rec.storageKey,
-   inspectorSubject:actor.subject,inspectorTokenId:actor.tokenId,entryCount:result.entryCount,
+   inspectorSubject:actor.subject,inspectorTokenId:actor.tokenId,
+   inspectorIssuer:actor.issuer,inspectorAudience:actor.audience,inspectorExpiresAt:actor.expiresAt,
+   entryCount:result.entryCount,
    expandedBytes:result.declaredExpandedBytes,status:'STRUCTURAL_PREFLIGHT_ONLY'};
  const evidenceSha256=createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
  // Revalidate at the evidence-commit boundary: the reviewer may be revoked
  // during a long private inspection. The SQL INSERT independently enforces
  // current enrolled-role and session status in the same DB transaction.
- if(await isAuthorized({subject:actor.subject,role:actor.role,tokenId:actor.tokenId})!==true)
+ if(await isAuthorized({subject:actor.subject,role:actor.role,tokenId:actor.tokenId,
+    issuer:actor.issuer,audience:actor.audience,expiresAt:actor.expiresAt})!==true)
   throw Error('reviewer session revoked before structural evidence commit');
  const stored=await repository.recordStructuralCheck({...evidence,evidenceSha256});
  if(stored?.kind!=='created')throw Error('structural evidence record conflict or storage failure');

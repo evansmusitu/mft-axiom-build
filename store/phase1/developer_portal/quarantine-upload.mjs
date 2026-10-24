@@ -18,16 +18,25 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
  if(!req.body?.getReader||!quarantine||typeof quarantine.begin!=='function'||
     typeof quarantine.revoke!=='function'||typeof repository.recordUpload!=='function'||
     typeof revalidateSession!=='function')refuse(503);
+ // A canceled request must not allocate storage or consume writer slots.
+ if(req.signal?.aborted)refuse(408);
  // A trusted adapter owns all private ACLs, encryption/retention and random
  // object naming. Caller-supplied path, URL or status is never accepted.
  const stream=await quarantine.begin({submissionId:submission.id,publisherId:actor.publisherId,
   expectedSha256:submission.apkSha256,expectedBytes:submission.apkBytes});
- if(!stream||!['write','seal','abort'].every(k=>typeof stream[k]==='function'))refuse(503);
- const reader=req.body.getReader();let total=0,head=Buffer.alloc(0),key=null;
+ let reader=null,total=0,head=Buffer.alloc(0),key=null;
  const digest=createHash('sha256');
  try{
+  // The writer already exists. Reader acquisition and adapter validation must
+  // occur INSIDE this cleanup boundary: a locked/invalid request stream can
+  // otherwise strand a private .part file and exhaust the upload capacity.
+  if(!stream||!['write','seal','abort'].every(k=>typeof stream[k]==='function'))refuse(503);
+  reader=req.body.getReader();
   for(;;){
-   const chunk=await reader.read();if(chunk.done)break;
+   if(req.signal?.aborted)refuse(408);
+   const chunk=await reader.read();
+   if(req.signal?.aborted)refuse(408);
+   if(chunk.done)break;
    const buf=Buffer.from(chunk.value);
    total+=buf.length;
    if(total>submission.apkBytes)refuse(413);
@@ -60,8 +69,8 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
  }catch(e){
   // Best-effort garbage collection; failed cleanup requires independent
   // private object storage lifecycle expiration. Never serve orphan objects.
-  try{await stream.abort();}catch{}
+  if(typeof stream?.abort==='function')try{await stream.abort();}catch{}
   if(key!==null)try{await quarantine.revoke(key);}catch{}
   throw e;
- }finally{try{await reader.cancel();}catch{}try{reader.releaseLock();}catch{}}
+ }finally{if(reader){try{await reader.cancel();}catch{}try{reader.releaseLock();}catch{}}}
 }

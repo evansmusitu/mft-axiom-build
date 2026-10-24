@@ -140,7 +140,8 @@ export function createPostgresReviewRepository({query}={}){
    apkSha256:x.apk_sha256,apkBytes:Number(x.apk_bytes),storageKey:x.storage_key};
  }
  async function recordStructuralCheck({submissionId,publisherId,apkSha256,apkBytes,
-  storageKey,inspectorSubject,inspectorTokenId,entryCount,expandedBytes,evidenceSha256}={}){
+  storageKey,inspectorSubject,inspectorTokenId,inspectorIssuer,inspectorAudience,
+  inspectorExpiresAt,entryCount,expandedBytes,evidenceSha256}={}){
   if(typeof submissionId!=='string'||!/^sub-[a-f0-9]{32}$/.test(submissionId)||
      typeof publisherId!=='string'||!/^[a-z][a-z0-9-]{2,63}$/.test(publisherId)||
      typeof apkSha256!=='string'||!/^[a-f0-9]{64}$/.test(apkSha256)||
@@ -148,6 +149,9 @@ export function createPostgresReviewRepository({query}={}){
      typeof storageKey!=='string'||!/^private\/apk\/[0-9a-f]{48}$/.test(storageKey)||
      typeof inspectorSubject!=='string'||!/^[A-Za-z0-9_-]{6,120}$/.test(inspectorSubject)||
      typeof inspectorTokenId!=='string'||!/^[A-Za-z0-9_-]{12,200}$/.test(inspectorTokenId)||
+     typeof inspectorIssuer!=='string'||!/^https:\/\/[^\s]{5,250}$/.test(inspectorIssuer)||
+     typeof inspectorAudience!=='string'||inspectorAudience.length<5||inspectorAudience.length>120||
+     !Number.isSafeInteger(inspectorExpiresAt)||inspectorExpiresAt<=0||
      !Number.isSafeInteger(entryCount)||entryCount<2||entryCount>4096||
      !Number.isSafeInteger(expandedBytes)||expandedBytes<0||expandedBytes>2147483648||
      typeof evidenceSha256!=='string'||!/^[a-f0-9]{64}$/.test(evidenceSha256))
@@ -155,15 +159,29 @@ export function createPostgresReviewRepository({query}={}){
   const result=await execute(
    `INSERT INTO store_publisher_private.apk_structural_checks
     (submission_id,publisher_id,apk_sha256,apk_bytes,storage_key,
-     inspector_subject,inspector_token_id,entry_count,expanded_bytes,evidence_sha256)
+     inspector_subject,inspector_token_id,inspector_issuer,inspector_audience,
+     inspector_expires_unix,entry_count,expanded_bytes,evidence_sha256)
     SELECT q.submission_id,q.publisher_id,q.apk_sha256,q.apk_bytes,q.storage_key,
-     $6,$7,$8,$9,$10 FROM store_publisher_private.apk_quarantine_receipts q
+     $6,$7,$8,$9,$10,$11,$12,$13 FROM store_publisher_private.apk_quarantine_receipts q
+    JOIN store_publisher_private.submissions s ON s.submission_id=q.submission_id
+     AND s.publisher_id=q.publisher_id AND s.submitting_subject<>$6
+    JOIN store_publisher_private.portal_sessions t ON t.token_id=$7
+     AND t.subject_id=$6 AND t.role='review_security' AND t.publisher_id IS NULL
+     AND t.issuer_uri=$8 AND t.audience=$9 AND t.expires_unix=$10
+     AND t.expires_unix>EXTRACT(EPOCH FROM clock_timestamp())
+    JOIN store_publisher_private.principal_enrollments p ON p.subject_id=t.subject_id
+     AND p.role='review_security' AND p.publisher_id IS NULL
     WHERE q.submission_id=$1 AND q.publisher_id=$2 AND q.apk_sha256=$3
      AND q.apk_bytes=$4 AND q.storage_key=$5
      AND q.disposition='QUARANTINED_UNSCANNED'
+     AND NOT EXISTS(SELECT 1 FROM store_publisher_private.session_revocations r
+       WHERE r.token_id=t.token_id)
+     AND NOT EXISTS(SELECT 1 FROM store_publisher_private.principal_suspensions b
+       WHERE b.subject_id=p.subject_id)
     ON CONFLICT DO NOTHING RETURNING submission_id`,
    [submissionId,publisherId,apkSha256,apkBytes,storageKey,
-    inspectorSubject,inspectorTokenId,entryCount,expandedBytes,evidenceSha256]);
+    inspectorSubject,inspectorTokenId,inspectorIssuer,inspectorAudience,
+    inspectorExpiresAt,entryCount,expandedBytes,evidenceSha256]);
   return {kind:result.rowCount===1?'created':'conflict'};
  }
  return Object.freeze({create,read,addReview,recordUpload,

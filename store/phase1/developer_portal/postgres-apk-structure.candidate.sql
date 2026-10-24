@@ -12,6 +12,10 @@ CREATE TABLE store_publisher_private.apk_structural_checks (
    AND storage_key ~ '^private/apk/[a-f0-9]+$'),
  inspector_subject TEXT NOT NULL CHECK (inspector_subject ~ '^[A-Za-z0-9_-]{6,120}$'),
  inspector_token_id TEXT NOT NULL CHECK (inspector_token_id ~ '^[A-Za-z0-9_-]{12,200}$'),
+ inspector_issuer TEXT NOT NULL CHECK (inspector_issuer ~ '^https://[^[:space:]]+$'
+    AND length(inspector_issuer)<=256),
+ inspector_audience TEXT NOT NULL CHECK (length(inspector_audience) BETWEEN 5 AND 120),
+ inspector_expires_unix BIGINT NOT NULL CHECK (inspector_expires_unix>0),
  entry_count INTEGER NOT NULL CHECK (entry_count BETWEEN 2 AND 4096),
  expanded_bytes BIGINT NOT NULL CHECK (expanded_bytes BETWEEN 0 AND 2147483648),
  evidence_sha256 TEXT NOT NULL CHECK (evidence_sha256 ~ '^[a-f0-9]{64}$'),
@@ -36,6 +40,9 @@ BEGIN
       ON session.token_id=NEW.inspector_token_id
      AND session.subject_id=reviewer.subject_id AND session.role='review_security'
      AND session.publisher_id IS NULL
+     AND session.issuer_uri=NEW.inspector_issuer
+     AND session.audience=NEW.inspector_audience
+     AND session.expires_unix=NEW.inspector_expires_unix
      AND session.expires_unix>EXTRACT(EPOCH FROM clock_timestamp())
    WHERE q.submission_id=NEW.submission_id
      AND q.publisher_id=NEW.publisher_id AND q.apk_sha256=NEW.apk_sha256

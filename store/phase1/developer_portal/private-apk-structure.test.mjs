@@ -172,7 +172,8 @@ test('actual private file -> manifest-bound structural review coordinator emits 
  const raw=await createQuarantinedApkPreflight({root});
  const payload=await readFile(target),sha=createHash('sha256').update(payload).digest('hex');
  const submissionId='sub-'+('e'.repeat(32));
- const actor={subject:'independent-reviewer-01',role:'review_security',tokenId:'reviewer-token-session-0001'};
+ const actor={subject:'independent-reviewer-01',role:'review_security',tokenId:'reviewer-token-session-0001',
+  issuer:'https://idp.example.org',audience:'store-v2-internal',expiresAt:1792680000};
  let count=0, evidence;
  const repository={async readQuarantineReceipt(id){assert.equal(id,submissionId);return {submissionId,
   publisherId:'first-party-test',actorId:'different-developer-01',
