@@ -15,6 +15,18 @@ from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
 
 PUBLIC_DEV_SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
 
+def _unique_evidence_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    record: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in record:
+            raise ValueError('external_gate_duplicate_json_key')
+        record[key] = value
+    return record
+
+
+def _reject_nonstandard_number(value: str) -> None:
+    raise ValueError('external_gate_nonstandard_json_number')
+
 
 def _confirm(m: Any, positives: int, total: int) -> None:
     if not isinstance(m, Mapping) or any(type(m.get(k)) is not int or m[k] < 0 for k in ('tp','tn','fp','fn')):
@@ -153,7 +165,10 @@ def main() -> None:
     args=p.parse_args()
     if args.output.exists() or args.output.resolve()==args.evidence.resolve():
         raise FileExistsError('external_gate_output_already_exists')
-    result=assess_external_evidence(json.loads(args.evidence.read_text()))
+    evidence = json.loads(args.evidence.read_text(encoding='utf-8'),
+                          object_pairs_hook=_unique_evidence_pairs,
+                          parse_constant=_reject_nonstandard_number)
+    result=assess_external_evidence(evidence)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open('x', encoding='utf-8') as out:
         out.write(json.dumps(result,sort_keys=True,indent=2)+'\n')
