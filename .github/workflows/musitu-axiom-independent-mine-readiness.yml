@@ -9,6 +9,8 @@ on:
       - 'tests/connect/test_independent_mine_readiness.py'
       - 'qualification/independent_mine_source_catalog_20261009.json'
       - 'qualification/independent_mine_source_catalog_20261018.json'
+      - 'qualification/independent_mine_source_catalog_20261025.json'
+      - 'tests/connect/test_independent_mine_source_catalog_20261025.py'
       - 'tests/connect/test_independent_mine_source_catalog_20261018.py'
       - 'docs/operations/musitu-axiom-independent-mine-qualification.md'
   workflow_dispatch:
@@ -26,10 +28,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile negative controls
-        run: python -m py_compile benchmarks/mining_adapter/independent_mine_readiness.py tests/connect/test_independent_mine_readiness.py tests/connect/test_independent_mine_source_catalog_20261018.py
+        run: python -m py_compile benchmarks/mining_adapter/independent_mine_readiness.py tests/connect/test_independent_mine_readiness.py tests/connect/test_independent_mine_source_catalog_20261018.py tests/connect/test_independent_mine_source_catalog_20261025.py
       - name: Refuse forged external-source independence, model pins, support or qualification
         run: |
-          python -m unittest tests.connect.test_independent_mine_readiness tests.connect.test_independent_mine_source_catalog_20261018 -v
+          python -m unittest tests.connect.test_independent_mine_readiness tests.connect.test_independent_mine_source_catalog_20261018 tests.connect.test_independent_mine_source_catalog_20261025 -v
       - name: Individually assess each public data lead; never admit
         run: |
           mkdir -p qualification/research_independent_mine_gap
@@ -40,6 +42,7 @@ jobs:
           catalog_specs=(
             ('qualification/independent_mine_source_catalog_20261009.json',4),
             ('qualification/independent_mine_source_catalog_20261018.json',5),
+            ('qualification/independent_mine_source_catalog_20261025.json',2),
           )
           summaries=[]
           for filename, expected_count in catalog_specs:
@@ -53,7 +56,7 @@ jobs:
                   assert audit['production_methane_prediction_qualification'] is False
                   assert audit['outstanding_requirements']
                   summaries.append(audit)
-          assert len(summaries)==9
+          assert len(summaries)==11
           report={
             'schema':'musitu.axiom.independent_mine_catalog_assessment.v1',
             'status':'BLOCKED_PENDING_EXTERNAL_MINE_EVIDENCE',

@@ -87,3 +87,38 @@ python -m benchmarks.mining_adapter.independent_mine_readiness \
 The output is a **non-admission evidence-gap report**. It never grants actual rights, model accuracy, mine safety qualification or production access. Do not place unredacted source data, identity records or customer contracts in a public repository, issue or GitHub Actions artifact.
 
 **Preserve:** PR #9 open/unmerged; sealed `main` unchanged; general Connect-to-Axiom production computation intact; experimental methane decision automation prohibited until authorized independent field and safety evidence exists.
+
+## Additional independent site source screening — 25 October 2026
+
+The earlier catalogs remain unchanged. The separate additive metadata-only
+catalog `qualification/independent_mine_source_catalog_20261025.json` records
+two further **nonadmitted** Chinese coal-mine leads from primary articles:
+
+- **Qianyingzi W3211:** The 2024 *Scientific Reports* paper reports
+  3,407,328 Chinese-mine data points and uses minute-standardized monitoring.
+  The publication says that data are available on request to the corresponding
+  author (DOI `10.1038/s41598-024-64181-7`). Native one-second raw
+  acquisition, exact 28-channel mapping, mine permission, source checksum and
+  event labels are not established. This is a permissioned outreach lead, not
+  an immediately usable test set.
+- **Xinyuan 31002:** The August 2026 *Sensors* publication
+  (DOI `10.3390/s26165305`) describes anomaly detection using field records
+  averaged to 15-second intervals, then principally evaluated at 5 minutes.
+  Its data availability statement explicitly forbids public release because
+  of confidentiality agreements. Its eight anomalous intervals and reported
+  metrics are **not** the same as MUSITU's fixed future methane-exceedance
+  labels or independently reviewed mine incidents.
+
+The candidate screener is applied to both with explicit failures for original
+byte provenance, original one-second cadence, full measured sensor coverage,
+locked prospective holdout support and independent authorization. It must
+never reinterpret paper-described anomaly metrics as predictive model
+performance, fabricate sampling, request confidential raw data without rights,
+or alter the frozen four-fold evaluation. **Zero newly qualified sources.**
+The GitHub workflow screens all 11 records across the dated catalogs and
+archives only nonidentifying metadata gap evidence.
+
+Primary references:
+- https://www.nature.com/articles/s41598-024-64181-7
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC13517353/
+
