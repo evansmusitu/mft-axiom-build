@@ -45,6 +45,16 @@ establish supported workload policy with security review, run isolated canary,
 verify old clients' responses, retain rollback and validate live behavior.
 Passing branch CI does **not** authorize a production update.
 
+**Follow-up precision rejection:** Accumulating costs can still lose money
+when a very small positive cost is added to an extremely large spend, even
+without the earlier epsilon allowance. The planner now rejects a branch
+with HTTP 400 `PLAN_COST_PRECISION_UNSAFE` if a cumulative IEEE-754
+addition cannot reversibly account for both original costs. An affected
+request receives **no purported exact plan**. This includes some legitimate
+fractional-decimal input combinations: a separately reviewed decimal or
+integer-minor-unit cost contract is still required before customer use.
+This feature-branch refusal does not change the existing deployed Worker.
+
 **Additional feature-branch numeric correctness hardening:** The branch planner
 now enforces a strict nonnegative budget without granting an arbitrary
 1e-12 overspend allowance. It also considers nonzero micro-scale risk

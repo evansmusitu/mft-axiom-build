@@ -385,3 +385,30 @@ test('planner matches exhaustive integer-budget oracle in 45 deterministic cases
     assert.equal(plan.spend,minSpend,'nonminimum tie-spend at '+trial);
   }
 });
+
+
+test('planner fails closed when cumulative cost loses a positive financial amount', async () => {
+  const mod=await worker();
+  const rows=[
+    {hazard:'Small exact spend',exposure:1,severity:1,likelihood:1,cost:1,benefit:1},
+    {hazard:'Large exact spend',exposure:1,severity:2,likelihood:1,cost:10000000000000000,benefit:1},
+  ];
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget:10000000000000000}),
+  }),env);
+  assert.equal(response.status,400);
+  assert.deepEqual(await response.json(),{ok:false,error:'PLAN_COST_PRECISION_UNSAFE'});
+});
+
+test('planner refuses ambiguous floating-point cumulative costs instead of falsely certifying exact currency', async () => {
+  const mod=await worker();
+  const rows=[
+    {hazard:'Decimal A',exposure:1,severity:2,likelihood:1,cost:0.1,benefit:1},
+    {hazard:'Decimal B',exposure:1,severity:1,likelihood:1,cost:0.2,benefit:1},
+  ];
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget:0.5}),
+  }),env);
+  assert.equal(response.status,400);
+  assert.deepEqual(await response.json(),{ok:false,error:'PLAN_COST_PRECISION_UNSAFE'});
+});

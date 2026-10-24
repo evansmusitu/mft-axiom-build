@@ -244,6 +244,14 @@ function optimizeInterventions(rows, budget) {
       selected: state.selected,
     });
     const nextSpend = state.spend + item.cost;
+    // Reject cumulative costs that cannot be added reversibly as IEEE-754
+    // values. Otherwise a positive cost can disappear next to a large spend
+    // or a decimal rounding anomaly can silently misstate exact feasibility.
+    if (item.cost > 0 && Number.isFinite(nextSpend) &&
+        (nextSpend - state.spend !== item.cost ||
+         nextSpend - item.cost !== state.spend)) {
+      throw new Error('PLAN_COST_PRECISION_UNSAFE');
+    }
     // A budget is a hard ceiling; epsilon must never authorize overspending.
     if (nextSpend <= budget) {
       stack.push({
