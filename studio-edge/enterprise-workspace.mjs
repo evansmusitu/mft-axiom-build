@@ -2,11 +2,16 @@
 // externally verified Cloudflare Access identity and dedicated D1 binding.
 const ID = /^[A-Za-z0-9_-]{8,64}$/;
 const B64 = /^[A-Za-z0-9_-]+$/;
+const STRONG_ETAG = /^"[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}"$/;
 const SITE = 'https://evansmusitu.github.io';
 const encoded = value => JSON.stringify(value);
-function reply(data, status = 200, origin = '') {
+function reply(data, status = 200, origin = '', revision = null) {
   const headers = {'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','vary':'Origin'};
-  if (origin === SITE) headers['access-control-allow-origin'] = SITE;
+  if (origin === SITE) {
+    headers['access-control-allow-origin'] = SITE;
+    headers['access-control-expose-headers'] = 'ETag';
+  }
+  if (revision !== null) headers.etag = '"' + revision + '"';
   return new Response(encoded(data),{status,headers});
 }
 function fail(code, status, origin) {return reply({code,error:'Enterprise workspace request denied.'},status,origin);}
@@ -69,7 +74,8 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     if(origin !== SITE)return fail('ORIGIN_DENIED',403,origin);
     return new Response(null,{status:204,headers:{'access-control-allow-origin':SITE,
       'access-control-allow-methods':'GET,PUT,DELETE,OPTIONS',
-      'access-control-allow-headers':'content-type,cf-access-jwt-assertion',
+      'access-control-allow-headers':'content-type,cf-access-jwt-assertion,if-match,if-none-match',
+      'access-control-expose-headers':'ETag',
       'access-control-max-age':'300','vary':'Origin'}});
   }
   if (!env?.WORKSPACE_DB?.prepare || !validTeam(env.ACCESS_TEAM_DOMAIN) || !env.ACCESS_AUDIENCE) return fail('NOT_CONFIGURED',503,origin);
@@ -91,31 +97,55 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
       .bind(tenant,subject,'active').first();
     if(!member || !['owner','editor','viewer'].includes(member.role))return fail('NOT_FOUND',404,origin);
     if(request.method!=='GET' && member.role==='viewer')return fail('FORBIDDEN',403,origin);
+    // A version precondition is mandatory on every mutation, including DELETE.
+    // The SQL predicate below enforces it atomically, not in a JS read/compare race.
+    const ifMatch=request.headers.get('if-match');
+    const ifNone=request.headers.get('if-none-match');
+    if(request.method!=='GET' && !ifMatch && !ifNone)
+      return fail('PRECONDITION_REQUIRED',428,origin);
+    if(request.method!=='GET' &&
+       ((ifMatch && ifNone) ||
+        (ifMatch && !STRONG_ETAG.test(ifMatch)) ||
+        (ifNone && (request.method!=='PUT' || ifNone!=='*'))))
+      return fail('INVALID_PRECONDITION',400,origin);
     if(request.method==='GET') {
       // Authorize in the same SQLite statement as the read, blocking lookup/revocation races.
-      const row=await env.WORKSPACE_DB.prepare("SELECT a.iv, a.ciphertext, a.version FROM tenant_artifacts AS a JOIN tenant_memberships AS m ON m.tenant_id = a.tenant_id AND m.subject = ? AND m.status = 'active' AND m.role IN ('owner','editor','viewer') WHERE a.tenant_id = ? AND a.artifact_id = ?")
+      const row=await env.WORKSPACE_DB.prepare("SELECT a.iv, a.ciphertext, a.version, a.revision FROM tenant_artifacts AS a JOIN tenant_memberships AS m ON m.tenant_id = a.tenant_id AND m.subject = ? AND m.status = 'active' AND m.role IN ('owner','editor','viewer') WHERE a.tenant_id = ? AND a.artifact_id = ?")
         .bind(subject,tenant,artifact).first();
-      return row?reply({id:artifact,envelope:{iv:row.iv,ciphertext:row.ciphertext,version:row.version}},200,origin):fail('NOT_FOUND',404,origin);
+      return row?reply({id:artifact,envelope:{iv:row.iv,ciphertext:row.ciphertext,version:row.version}},200,origin,row.revision):fail('NOT_FOUND',404,origin);
     }
     if(request.method==='PUT') {
       let envelope;
       try {envelope=await limitedJson(request);}catch{return fail('BAD_ENVELOPE',400,origin);}
       try { if(!validEnvelope(envelope))return fail('BAD_ENVELOPE',400,origin); }
       catch { return fail('BAD_ENVELOPE',400,origin); }
-      // D1 batch runs statements transactionally. Recheck membership at SQL execution
-      // time; SQLite changes() gates the audit event on an actual ciphertext mutation.
+      const revision=crypto.randomUUID();
+      const creating=ifNone==='*';
+      const statement=creating
+        ? env.WORKSPACE_DB.prepare("INSERT INTO tenant_artifacts (tenant_id, artifact_id, iv, ciphertext, version, updated_at, revision) SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor')) ON CONFLICT(tenant_id, artifact_id) DO NOTHING").bind(tenant,artifact,envelope.iv,envelope.ciphertext,1,now,revision,tenant,subject)
+        : env.WORKSPACE_DB.prepare("UPDATE tenant_artifacts SET iv = ?, ciphertext = ?, version = ?, updated_at = ?, revision = ? WHERE tenant_id = ? AND artifact_id = ? AND revision = ? AND EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor'))").bind(envelope.iv,envelope.ciphertext,1,now,revision,tenant,artifact,ifMatch.slice(1,-1),tenant,subject);
       const result=await env.WORKSPACE_DB.batch([
-        env.WORKSPACE_DB.prepare("INSERT INTO tenant_artifacts (tenant_id, artifact_id, iv, ciphertext, version, updated_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor')) ON CONFLICT(tenant_id, artifact_id) DO UPDATE SET iv=excluded.iv, ciphertext=excluded.ciphertext, version=excluded.version, updated_at=excluded.updated_at").bind(tenant,artifact,envelope.iv,envelope.ciphertext,1,now,tenant,subject),
+        statement,
         env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) SELECT ?, ?, ?, ?, ? WHERE changes() > 0').bind(tenant,artifact,subject,'put',now)
       ]);
-      if(result?.[0]?.meta?.changes !== 1) return fail(result?.[0]?.meta?.changes === 0 ? 'NOT_FOUND' : 'STORE_UNAVAILABLE',result?.[0]?.meta?.changes === 0 ? 404 : 503,origin);
-      return reply({id:artifact,stored:true,encryptedOpaque:true},200,origin);
+      if(result?.[0]?.meta?.changes === 0) {
+        const fresh=await env.WORKSPACE_DB.prepare('SELECT role FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = ?').bind(tenant,subject,'active').first();
+        const allowed=fresh && ['owner','editor'].includes(fresh.role);
+        return fail(allowed?'PRECONDITION_FAILED':'NOT_FOUND',allowed?412:404,origin);
+      }
+      if(result?.[0]?.meta?.changes !== 1) return fail('STORE_UNAVAILABLE',503,origin);
+      return reply({id:artifact,stored:true,encryptedOpaque:true},200,origin,revision);
     }
     const result=await env.WORKSPACE_DB.batch([
-      env.WORKSPACE_DB.prepare("DELETE FROM tenant_artifacts WHERE tenant_id = ? AND artifact_id = ? AND EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor'))").bind(tenant,artifact,tenant,subject),
+      env.WORKSPACE_DB.prepare("DELETE FROM tenant_artifacts WHERE tenant_id = ? AND artifact_id = ? AND revision = ? AND EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor'))").bind(tenant,artifact,ifMatch.slice(1,-1),tenant,subject),
       env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) SELECT ?, ?, ?, ?, ? WHERE changes() > 0').bind(tenant,artifact,subject,'delete',now)
     ]);
-    if(result?.[0]?.meta?.changes !== 1) return fail(result?.[0]?.meta?.changes === 0 ? 'NOT_FOUND' : 'STORE_UNAVAILABLE',result?.[0]?.meta?.changes === 0 ? 404 : 503,origin);
+    if(result?.[0]?.meta?.changes === 0) {
+      const fresh=await env.WORKSPACE_DB.prepare('SELECT role FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = ?').bind(tenant,subject,'active').first();
+      const allowed=fresh && ['owner','editor'].includes(fresh.role);
+      return fail(allowed?'PRECONDITION_FAILED':'NOT_FOUND',allowed?412:404,origin);
+    }
+    if(result?.[0]?.meta?.changes !== 1) return fail('STORE_UNAVAILABLE',503,origin);
     return reply({id:artifact,deleted:true,auditRetained:true},200,origin);
   } catch(error) {
     // The dedicated D1 migration enforces a transaction-safe, tenant-local row cap.
