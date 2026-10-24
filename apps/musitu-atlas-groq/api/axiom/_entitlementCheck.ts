@@ -8,7 +8,7 @@ const PROBE_NAME='__atlas_permission_probe_NOT_A_REAL_TOOL_v1__';
 function kindOf(token:string):AxiomPreflight['credentialKind']{
  if(token.startsWith('musitu_oauth_at_'))return 'OAUTH_ACCESS';
  if(token.startsWith('musitu_oauth_rt_'))return 'OAUTH_REFRESH';
- if(token.startsWith('musitu_axiom_'))return 'ACCOUNT_KEY';
+ if(token.startsWith('musitu_axiom_'))return 'NON_OAUTH_MUSITU_PREFIX';
  return 'OTHER';
 }
 async function inspectOAuthAccess(token:string):Promise<AxiomPreflight['identityVerification']>{
@@ -31,7 +31,7 @@ async function inspectOAuthAccess(token:string):Promise<AxiomPreflight['identity
 export type AxiomPreflight={
  databaseRestricted:boolean;providerResponded:boolean;
  providerGateStatus:'CREDENTIAL_REJECTED'|'UNKNOWN_TOOL_AFTER_GATE'|'INCONCLUSIVE';
- credentialKind:'OAUTH_ACCESS'|'OAUTH_REFRESH'|'ACCOUNT_KEY'|'OTHER';
+ credentialKind:'OAUTH_ACCESS'|'OAUTH_REFRESH'|'NON_OAUTH_MUSITU_PREFIX'|'OTHER';
  identityVerification:'INVALID_OR_EXPIRED'|'IDENTITY_VALID_NOT_EXECUTION_VERIFIED'|'IDENTITY_SCOPE_MISSING'|'NOT_CHECKED';
  operationExecuted:false;providerComputeUnitsClaimed:0;
  readyForApprovedArithmeticTest:boolean;
