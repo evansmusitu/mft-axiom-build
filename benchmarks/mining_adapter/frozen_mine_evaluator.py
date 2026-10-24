@@ -35,6 +35,9 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
         raise ValueError('frozen_external_preflight_not_research_only')
     spec = MethaneBacktestSpec()
     source_sha = _sha256_file(source)
+    manifest_sha = preflight['manifest_sha256']
+    if _sha256_file(manifest_path) != manifest_sha:
+        raise ValueError('frozen_external_manifest_changed')
     if source_sha != preflight['source_sha256']:
         raise ValueError('frozen_external_source_changed')
     state = {'source_rows': 0, 'discontinuities': 0, 'first_time': None,
@@ -80,6 +83,13 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
             or len(labels) != preflight['eligible_examples']):
         raise ValueError('frozen_external_source_changed')
     if not labels: raise ValueError('frozen_external_no_examples')
+    if _sha256_file(manifest_path) != manifest_sha:
+        raise ValueError('frozen_external_manifest_changed')
+    if (_sha256_file(Path(bundle_dir) / 'manifest.json') != bundle.manifest_sha256
+            or _sha256_file(Path(bundle_dir) / 'model.txt') != bundle.manifest['model_sha256']
+            or (Path(bundle_dir) / 'manifest.sha256').read_text(encoding='ascii').strip()
+                != bundle.manifest_sha256):
+        raise ValueError('frozen_external_bundle_changed')
     window_proxy_audit = window_audit.finalize()
     model_metrics = binary_metrics(labels, predictions)
     baseline_metrics = binary_metrics(labels, baseline)
@@ -129,7 +139,8 @@ def main() -> None:
     report=evaluate_external_mine(source=args.source,manifest_path=args.manifest,
                                   bundle_dir=args.bundle,expected_manifest_sha256=args.expected_manifest_sha256)
     args.output.parent.mkdir(parents=True,exist_ok=True)
-    args.output.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+    with args.output.open('x', encoding='utf-8') as out:
+        out.write(json.dumps(report,indent=2,sort_keys=True)+'\n')
     print(json.dumps({'status':report['status'],'eligible_examples':report['eligible_examples'],
                       'independent_validation':False,'production_admission':False},sort_keys=True))
 
