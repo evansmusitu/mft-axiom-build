@@ -24,6 +24,14 @@ def audit_provider_readonly(modal_sdk):
         environments=list(modal_sdk.Environment.objects.list())
         if not environments:
             raise ValueError("environment inventory missing")
+        # Scope a token to the LIFELINE endpoint's actual environment; never
+        # assume that one environment contains one app or that tokens are RBAC.
+        current_env=modal_sdk.Environment.from_context()
+        app_handles=list(current_env.apps.list())
+        app_names=[getattr(app,"name",None) for app in app_handles]
+        if EXPECTED_APP not in app_names:
+            raise ValueError("LIFELINE app not found in the audited environment")
+        other_app_count=sum(name!=EXPECTED_APP for name in app_names)
         names={x.name for x in modal_sdk.Secret.objects.list(max_objects=100)}
         if not EXPECTED_STORES.issubset(names):
             raise ValueError("named LIFELINE secret stores not found")
@@ -47,6 +55,7 @@ def audit_provider_readonly(modal_sdk):
         "existing_private_endpoint_qualified":True,
         "lifeline_named_secret_stores_present":True,
         "workspace_environment_count":len(environments),
+        "lifeline_environment_other_app_count":other_app_count,
         "existing_proxy_token_count":len(tokens),
         "workspace_billed_zero_at_check":True,
         "metered_below_preflight_guard":True,
