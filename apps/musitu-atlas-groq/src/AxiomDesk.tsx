@@ -8,7 +8,7 @@ import IndependentProof from './IndependentProof';
 type Capabilities={
  source:string;endpoint:string;publicTools:number;certifiedOperationTools:number;
  sample:{name:string;title:string}[];arithmeticAvailable:boolean;executionConfigured:boolean;credentialStored?:boolean;
- checkedAt:string;note:string;ledgerConfigured?:boolean;ledgerOperational?:boolean;runtimeRoleRestricted?:boolean;runtimeRoleChecked?:boolean;runtimeRoleOverprivileged?:boolean;oauthConfigured?:boolean;oauthSession?:{configured:boolean;connected:boolean;status:string;expiresAt?:string|null;approvedScope?:boolean;accessTokenFresh?:boolean;renewalRequired?:boolean};ledger?:{requests:number;auditEvents:number;todayUsed:number;dailyMax:number}|null;
+ checkedAt:string;note:string;ledgerConfigured?:boolean;ledgerOperational?:boolean;issuerDiscovery?:{reachable:boolean;pkce:boolean;executionScope:boolean;registration:boolean;reason:string};runtimeRoleRestricted?:boolean;runtimeRoleChecked?:boolean;runtimeRoleOverprivileged?:boolean;oauthConfigured?:boolean;oauthSession?:{configured:boolean;connected:boolean;status:string;expiresAt?:string|null;approvedScope?:boolean;accessTokenFresh?:boolean;renewalRequired?:boolean};ledger?:{requests:number;auditEvents:number;todayUsed:number;dailyMax:number}|null;
 };
 type Preview={
  previewVersion:string;operation:string;args:{expression:string};digest:string;
@@ -182,6 +182,12 @@ export default function AxiomDesk({openMissions}:{openMissions:()=>void}){
    <div className="axiom-scope-preflight">
      <div><span className="section-overline">OWNER ACCOUNT LINK / RENEWABLE OAUTH</span><h3>{remote?.oauthSession?.connected?'Axiom account session linked':'Connect your real Axiom account securely'}</h3></div>
      <p>The MUSITU OAuth issuer receives your account key directly. ATLAS uses an authorization code with PKCE, encrypts resulting server-side tokens, and can renew access without keeping a one-hour static bearer. Neither your account key nor raw tokens are displayed in the website. Connection requires the Cloudflare owner to explicitly enable the exact ATLAS callback first.</p>
+     <p className="axiom-issuer-readiness">
+       <strong>Live OAuth issuer:</strong> {remote?.issuerDiscovery?.reachable&&remote.issuerDiscovery.pkce&&remote.issuerDiscovery.executionScope&&remote.issuerDiscovery.registration
+        ?'ONLINE · PKCE S256 and axiom.execute supported'
+        :remote?.issuerDiscovery?'Issuer discovery unavailable or incomplete':'Checking issuer metadata…'}
+       {' · '}<strong>ATLAS website client:</strong> {remote?.oauthConfigured?'Configured':'Not yet authorized'}
+     </p>
      <p><strong>Current state:</strong> {remote?.oauthConfigured?(remote?.oauthSession?.connected?(remote.oauthSession.renewalRequired?'Owner session linked; access token expired or near expiry. An issuer refresh is required before use. Account execution remains locked.':'Owner session linked with a fresh access token. Account execution remains separately approval-gated.'):'Ready for owner authorization on official MUSITU website.'):'OAuth callback/client configuration is still locked pending provider-side approval.'}</p>
      <div className="axiom-preflight-fields">
        <button type="button" disabled={!remote?.oauthConfigured||oauthBusy||!qualificationCode} onClick={startAccountOAuth}>{oauthBusy?'Opening MUSITU sign-in…':'Connect Axiom OAuth account'}</button>
