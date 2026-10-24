@@ -3,7 +3,7 @@ import {backendBindingReadiness} from './backend_readiness.mjs';
 
 // LIFELINE Cloudflare Access gateway. Broker/finance trading is forbidden on this surface.
 const TOOL_ALLOWLIST=new Set(['lifeline_status']);
-const METHODS=new Set(['initialize','ping','tools/list','tools/call']);
+const METHODS=new Set(['initialize','ping','tools/list','tools/call','notifications/initialized']);
 const AGENT_ROUTES=new Set(['/agent/pull','/agent/receipt']);
 const OPERATOR_ROUTES=new Set(['/operator/probe','/operator/status']);
 const encoder=new TextEncoder();
@@ -123,13 +123,24 @@ export default {async fetch(request,env){
   if(path==='/mcp'){
     if(body.jsonrpc!=='2.0'||!METHODS.has(body.method))
       return reply({error:'operation_not_permitted'},403);
-    // Only a bounded JSON-RPC request, not an arbitrary forwarded command.
-    const id=body.id;
-    const identifierOk=(typeof id==='number'&&Number.isSafeInteger(id))||
-      (typeof id==='string'&&id.length>0&&id.length<=128&&
-        [...id].every(ch=>ch.charCodeAt(0)>=32&&ch.charCodeAt(0)<=126));
-    if(!identifierOk||Object.keys(body).some(k=>!['jsonrpc','id','method','params'].includes(k)))
-      return reply({error:'operation_not_permitted'},403);
+    // Legacy MCP lifecycle uses a notification with NO JSON-RPC id.
+    // Deny any other notification or extra fields before touching Modal.
+    const initialized=(body.method==='notifications/initialized');
+    if(initialized){
+      if(Object.hasOwn(body,'id')||
+         Object.keys(body).some(k=>!['jsonrpc','method','params'].includes(k))||
+         (Object.hasOwn(body,'params')&&(!body.params||
+           typeof body.params!=='object'||Array.isArray(body.params)||
+           Object.keys(body.params).length!==0)))
+        return reply({error:'operation_not_permitted'},403);
+    }else{
+      const id=body.id;
+      const identifierOk=(typeof id==='number'&&Number.isSafeInteger(id))||
+        (typeof id==='string'&&id.length>0&&id.length<=128&&
+          [...id].every(ch=>ch.charCodeAt(0)>=32&&ch.charCodeAt(0)<=126));
+      if(!identifierOk||Object.keys(body).some(k=>!['jsonrpc','id','method','params'].includes(k)))
+        return reply({error:'operation_not_permitted'},403);
+    }
     if(body.method==='initialize'){
       if(Object.hasOwn(body,'params')&&(!body.params||typeof body.params!=='object'||
          Array.isArray(body.params)))return reply({error:'operation_not_permitted'},403);
@@ -165,6 +176,25 @@ export default {async fetch(request,env){
   if(response.status>=300&&response.status<400)return reply({error:'unexpected_redirect'},502);
   // Never proxy Modal's error bodies: internal diagnostics could disclose secrets.
   if(response.status>=400)return reply({error:'private_runtime_rejected'},502);
+  // The only accepted legacy MCP notification is acknowledged by HTTP 202
+  // with ZERO bytes, not a JSON-RPC response. No other backend response passes.
+  if(path==='/mcp'&&body.method==='notifications/initialized'){
+    if(response.status!==202||(
+      response.headers.has('content-length')&&response.headers.get('content-length')!=='0'
+    ))return reply({error:'invalid_private_backend_response'},502);
+    if(response.body){
+      const reader=response.body.getReader();
+      try{
+        const first=await reader.read();
+        if(!first.done){
+          await reader.cancel().catch(()=>{});
+          return reply({error:'invalid_private_backend_response'},502);
+        }
+      }catch{return reply({error:'private_runtime_unavailable'},502);}
+      finally{reader.releaseLock();}
+    }
+    return new Response(null,{status:202,headers:{'cache-control':'no-store'}});
+  }
   const mime=response.headers.get('content-type')||'';
   if(!/^application\/json(?:\s*;|\s*$)/i.test(mime.trim()))
     return reply({error:'invalid_private_backend_response'},502);

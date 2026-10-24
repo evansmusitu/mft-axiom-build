@@ -14,7 +14,7 @@ import time
 import uuid
 from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 WINDOWS=Path(__file__).resolve().parents[2]/'windows'
 if str(WINDOWS) not in sys.path:sys.path.insert(0,str(WINDOWS))
@@ -130,6 +130,11 @@ def mount_readonly_mcp(api:FastAPI, edge_secret:str):
         if not isinstance(obj,dict) or obj.get('jsonrpc')!='2.0':
             raise HTTPException(400,'invalid MCP JSON-RPC envelope')
         method=obj.get('method')
+        if method=='notifications/initialized':
+            if ('id' in obj or set(obj)-{'jsonrpc','method','params'} or
+                obj.get('params',{})!={}):
+                raise HTTPException(400,'invalid MCP lifecycle notification')
+            return Response(status_code=202)
         rpc_id=obj.get('id')
         valid_id=(type(rpc_id) is int and abs(rpc_id)<=9007199254740991) or (
             type(rpc_id) is str and 1<=len(rpc_id)<=128 and
