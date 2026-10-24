@@ -11,6 +11,18 @@ function proof(){
  const r={schema:'musitu.studio.v03.neon.ledger-attestation.v2',verified:true,complete:true,freeze_id:'freeze-20261022-synthetic',counts,table_hmac};
  return {source_head:sha,run_id:'synthetic-proof-20261022',checked_at:now(),freeze_id:r.freeze_id,
  source_receipt:copy(r),target_receipt:copy(r),
+ // These values are synthetic fixtures; production requires *independent*
+ // signature/provider verification by verifyProviderReceipts before canary CAS.
+ r2_content_receipt:{schema:'musitu.studio.v03.r2-content-receipt.v1',complete:true,
+  verified:true,freeze_id:r.freeze_id,objects_verified:3,bytes_verified:3400,
+  assets_table_hmac:hex,content_hmac:'c'.repeat(64),provider_verified:false,
+  customer_bytes_logged:false,cutover_authorized:false},
+ r2_provider_attestation:{schema:'musitu.studio.v03.r2-provider-attestation.v1',
+  provider:'cloudflare-r2',receipt_id:'synthetic-r2-provider-proof-20261024',
+  provider_receipt_verified:true,verified:true,read_only:true,
+  versions_pinned:true,source_freeze_bound:true,source_head:sha,
+  freeze_id:r.freeze_id,objects_verified:3,bytes_verified:3400,
+  bucket_id_sha256:'e'.repeat(64),content_hmac:'c'.repeat(64),checked_at:now()},
  gates:STUDIO_NEON_REQUIRED_GATES.map(name=>({name,provider:'unit-fixture',
  receipt_id:'synthetic-'+name,checked_at:now(),verified:true,provider_receipt_verified:true})),
  cloudflare_database_of_record:'SQLITE_DO',neon_project_is_synthetic_proof:false,
@@ -56,8 +68,8 @@ function adapter(p=proof(),flags={}){
  return {f,state:()=>({route,flips,release,reads})};
 }
 const bad=(e,regex)=>assert.throws(()=>assertStudioNeonPromotionEvidence(e,{expectedHead:sha}),regex);
-test('fifteen required gates and five exact HMAC tables',()=>{
- const e=proof();assert.equal(assertStudioNeonPromotionEvidence(e,{expectedHead:sha}).gate_count,15);
+test('sixteen required gates and five exact HMAC tables',()=>{
+ const e=proof();assert.equal(assertStudioNeonPromotionEvidence(e,{expectedHead:sha}).gate_count,16);
  const m=proof();m.gates.pop();bad(m,/STUDIO_MISSING_PROVIDER_GATES/);
  const r=proof();r.target_receipt.counts.audit_events=0;bad(r,/STUDIO_SOURCE_TARGET_MISMATCH_AUDIT_EVENTS/);
  const h=proof();h.target_receipt.table_hmac.assets='c'.repeat(64);bad(h,/STUDIO_SOURCE_TARGET_MISMATCH_ASSETS/);
@@ -146,6 +158,13 @@ test('real reconciliation receipt schema produces matching independent attestati
  const hmacKey=new Uint8Array(32).fill(44);
  const r=attestStudioLedgerSnapshot(input,{integrityKey:hmacKey});
  const e=proof();e.source_receipt=r;e.target_receipt=structuredClone(r);e.freeze_id=r.freeze_id;
+ e.r2_content_receipt.freeze_id=r.freeze_id;
+ e.r2_content_receipt.objects_verified=0;
+ e.r2_content_receipt.bytes_verified=0;
+ e.r2_content_receipt.assets_table_hmac=r.table_hmac.assets;
+ e.r2_provider_attestation.freeze_id=r.freeze_id;
+ e.r2_provider_attestation.objects_verified=0;
+ e.r2_provider_attestation.bytes_verified=0;
  assert.equal(assertStudioNeonPromotionEvidence(e,{expectedHead:sha}).qualified,true);
  e.target_receipt.table_hmac.projects='c'.repeat(64);
  bad(e,/STUDIO_SOURCE_TARGET_MISMATCH_PROJECTS/);
@@ -212,4 +231,47 @@ test('stuck canary return preserves the migration lease for manual recovery',asy
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CRITICAL_ROLLBACK_FAILED|STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(x.state().route,'NEON_CANARY_READONLY');
  assert.equal(x.state().release,0);
+});
+
+// A metadata-only check that each object *reference* exists is insufficient:
+// production canary must be bound to independently verified R2 content bytes.
+test('metadata-only R2 references can never qualify a production read-only canary',()=>{
+ const x=proof(); delete x.r2_content_receipt;
+ bad(x,/STUDIO_R2_CONTENT_RECEIPT_REQUIRED/);
+ const y=proof(); delete y.r2_provider_attestation;
+ bad(y,/STUDIO_R2_PROVIDER_ATTESTATION_REQUIRED/);
+});
+test('R2 content proof must cover all frozen asset references and their HMAC',()=>{
+ const less=proof();less.r2_content_receipt.objects_verified=2;
+ bad(less,/STUDIO_R2_CONTENT_RECEIPT_INVALID/);
+ const h=proof();h.r2_content_receipt.assets_table_hmac='d'.repeat(64);
+ bad(h,/STUDIO_R2_CONTENT_RECEIPT_ASSETS_MISMATCH/);
+ const freeze=proof();freeze.r2_content_receipt.freeze_id='another-freeze-id';
+ bad(freeze,/STUDIO_R2_CONTENT_RECEIPT_FREEZE_MISMATCH/);
+ const b=proof();b.r2_content_receipt.bytes_verified=0;
+ bad(b,/STUDIO_R2_CONTENT_RECEIPT_INVALID/);
+});
+test('offline R2 proof never impersonates live provider receipt',()=>{
+ const x=proof();x.r2_content_receipt.provider_verified=true;
+ bad(x,/STUDIO_R2_CONTENT_RECEIPT_INVALID/);
+ const y=proof();y.r2_provider_attestation.versions_pinned=false;
+ bad(y,/STUDIO_R2_PROVIDER_ATTESTATION_INVALID/);
+ const z=proof();z.r2_provider_attestation.source_freeze_bound=false;
+ bad(z,/STUDIO_R2_PROVIDER_ATTESTATION_INVALID/);
+});
+test('provider attestation must pin content HMAC, freeze and exact source revision',()=>{
+ const h=proof();h.r2_provider_attestation.content_hmac='f'.repeat(64);
+ bad(h,/STUDIO_R2_PROVIDER_ATTESTATION_CONTENT_MISMATCH/);
+ const f=proof();f.r2_provider_attestation.freeze_id='wrong-frozen-source';
+ bad(f,/STUDIO_R2_PROVIDER_ATTESTATION_FREEZE_MISMATCH/);
+ const x=proof();x.r2_provider_attestation.source_head='b'.repeat(40);
+ bad(x,/STUDIO_R2_PROVIDER_ATTESTATION_SOURCE_HEAD_MISMATCH/);
+ const stale=proof();stale.r2_provider_attestation.checked_at='2026-01-01T00:00:00Z';
+ bad(stale,/STUDIO_R2_PROVIDER_ATTESTATION_STALE/);
+});
+test('missing actual R2 content fails before any CAS even if callback claims verified',async()=>{
+ const p=proof();delete p.r2_content_receipt;
+ const a=adapter(p);
+ await assert.rejects(()=>guardedStudioNeonPromotion(a.f),/STUDIO_R2_CONTENT_RECEIPT_REQUIRED/);
+ assert.equal(a.state().flips,0);
 });
