@@ -1,0 +1,92 @@
+name: LIFELINE Bind Verified Nonsecret Stage Agent Identifiers Using Existing GitHub Cloudflare Token
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: [.github/workflows/lifeline-mt5-safe-stage-identity-bindings.yml]
+permissions: {contents: read}
+jobs:
+  verify-and-bind-staging-identifiers-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify exact owner-only Cloudflare stage, no backend cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py >/dev/null
+          python - <<'PY'
+          import json
+          d=json.load(open('lifeline-backend-cutover-readiness.json'))
+          if (d['worker_secret_bindings_present']!=4 or
+              set(d['worker_required_binding_names_missing'])!={'MODAL_PROXY_KEY','MODAL_PROXY_SECRET',
+                'EDGE_SHARED_SECRET','AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY'} or
+              not d['owner_only_independent_mfa_policy'] or d['backend_cutover_allowed']):
+              raise SystemExit('refuse unexpected Cloudflare stage state')
+          PY
+      - name: Copy ONLY source-pinned nonsecret staging identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast,json,os,urllib.request
+          from pathlib import Path
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          APP='71c315f0-3cfa-4217-98f1-e31d9ec8a44b'
+          HOST='lifeline-mt5-stage.mftintelligence.com'
+          WORKER='lifeline-mt5-edge-isolated'
+          SRC=Path('products/lifeline-mt5-ai-studio/infra/modal/accept_bridge.py')
+          vals={}
+          for node in ast.parse(SRC.read_text()).body:
+              if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
+                  if node.targets[0].id in ('ID','TENANT'):
+                      vals[node.targets[0].id]=ast.literal_eval(node.value)
+          if vals!={'ID':'lifeline-stage-20261021','TENANT':'test_tenant_A'}:
+              raise SystemExit('stage identity sources no longer pinned')
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          if len(token)<20:raise SystemExit('Cloudflare secret unavailable')
+          base='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          def call(path,method='GET',data=None):
+              if not path.startswith('/'):raise RuntimeError('invalid API path')
+              h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+              if data is not None:h['Content-Type']='application/json'
+              req=urllib.request.Request(base+path,headers=h,method=method,
+                data=json.dumps(data).encode() if data is not None else None)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      result=json.load(r)
+                  if not result.get('success'):raise RuntimeError('provider error')
+                  return result.get('result')
+              except Exception:
+                  raise RuntimeError('Cloudflare LIFELINE stage operation failed') from None
+          if call('')['id']!=ACCOUNT:raise SystemExit('Cloudflare account drift')
+          app=call('/access/apps/'+APP)
+          if app.get('id')!=APP or app.get('domain')!=HOST:raise SystemExit('Access app drift')
+          ps=call('/access/apps/'+APP+'/policies?per_page=20')
+          if (not isinstance(ps,list) or len(ps)!=1 or ps[0].get('decision')!='allow' or
+              (ps[0].get('mfa_config') or {}).get('mfa_disabled') is not False or
+              (ps[0].get('mfa_config') or {}).get('session_duration')!='0m'):
+              raise SystemExit('MFA drift')
+          endpoint='/workers/scripts/'+WORKER+'/secrets'
+          current={x['name'] for x in call(endpoint) if isinstance(x,dict) and 'name' in x}
+          must={'ACCESS_ISSUER','ACCESS_AUD','ACCESS_OPERATOR_SUB','MODAL_ORIGIN'}
+          if current!=must:raise SystemExit('unexpected binding state; no changes')
+          mapping={'AGENT_ID':vals['ID'],'AGENT_TENANT':vals['TENANT']}
+          for name in ('AGENT_ID','AGENT_TENANT'):
+              call(endpoint,'PUT',{'name':name,'text':mapping[name],'type':'secret_text'})
+          names={x['name'] for x in call(endpoint) if isinstance(x,dict) and 'name' in x}
+          if names!=must|set(mapping):raise SystemExit('unexpected binding readback')
+          print(json.dumps({'schema':'lifeline.source_pinned_identifiers.v1',
+            'provider_secret_from_github':True,'owner_only_mfa_preserved':True,
+            'stage_agent_identifiers_from_authoritative_source':True,
+            'stage_identifiers_may_not_prove_live_modal_secret_values':True,
+            'worker_bindings_present':len(names),
+            'worker_bindings_missing':['MODAL_PROXY_KEY','MODAL_PROXY_SECRET','AGENT_HMAC_KEY','EDGE_SHARED_SECRET'],
+            'sensitive_secret_values_read':False,
+            'new_modal_proxy_token':False,'backend_enabled':False,'trading_enabled':False},sort_keys=True))
+          PY
