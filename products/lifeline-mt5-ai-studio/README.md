@@ -4,6 +4,14 @@
 
 Repository: [evansmusitu/mft-axiom-build](https://github.com/evansmusitu/mft-axiom-build), branch `product/lifeline-mt5-fivecloud-isolated-20261020`, [draft PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30). Protected `main` is out of scope. Budget **$0**; no paid provision, uncontrolled compute, public launch, broker orders, real customer data or arbitrary shell.
 
+## $0 no-Modal alternative — source complete, Cloudflare D1 stage NOT deployed
+
+With the owner's explicit decision **not to create a new Modal workspace** and confirmation of **no Windows host**, LIFELINE now has a distinct Cloudflare-native research alternative: enrolled owner Access JWT → private Worker Service Binding → D1 synthetic status store, with temporary GitHub Windows 2022 execution only on manually initiated, SHA256-reviewed builds. This avoids creating a potentially workspace-wide Modal proxy token.
+
+[Alternative source, setup and limitations](infra/cloudflare/alternative/README.md) · [Red/green acceptance](validation/CLOUDFLARE_NO_MODAL_ACCEPTANCE_20261024.md).
+
+At latest commit, the owner-only `GET /owner/alternative/status` code is **not deployed**: it deliberately returns an unavailable status until actual D1, a private no-public-route Worker, separate stage HMAC bindings and explicit cutover have been independently verified. The offline checks use actual WebCrypto and SQLite SQL; **they are not evidence of a live Cloudflare D1 database**. Existing Neon and Modal secret stores remain unchanged. A GitHub Windows runner remains ephemeral, never an always-on desktop or native local MCP host. Trading is disabled and PR stays draft.
+
 ## Verified, evidence-backed progress
 
 | Surface | Real verification and limitation |
