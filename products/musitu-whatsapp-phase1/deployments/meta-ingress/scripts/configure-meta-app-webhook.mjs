@@ -1,11 +1,11 @@
 import {randomUUID} from 'node:crypto';
+import {validateReceiverCallback,assertExpectedReceiverSubscription} from './receiver-callback-guard.mjs';
 const APP='1096094346481018',OBJECT='whatsapp_business_account';
-// Exact previously verified callback only. This permits a reviewed receiver
-// redeployment for additive schema compatibility, never arbitrary replacement.
-const PREVIOUS='https://musitu-whatsapp-meta-receiver-20261015-5e92j7yrd-evansmusitu.vercel.app/api/meta/webhook';
+// The operator must freshly verify and explicitly supply the predecessor.
+// Never bootstrap an empty subscription or overwrite an unexpected callback.
+const PREVIOUS=validateReceiverCallback(process.argv[3]);
 const secret=process.env.META_APP_SECRET,verify=process.env.META_VERIFY_TOKEN;
-const target=new URL(process.argv[2]||'https://invalid.invalid');
-if(target.protocol!=='https:'||!/^musitu-whatsapp-meta-receiver-20261015-[a-z0-9]+-evansmusitu\.vercel\.app$/.test(target.hostname)||target.pathname!=='/api/meta/webhook'||target.search||target.hash||target.username||target.password||target.port)throw Error('ISOLATED_CALLBACK_REQUIRED');
+const target=new URL(validateReceiverCallback(process.argv[2]));
 if(!/^[a-fA-F0-9]{32}$/.test(secret||'')||!(/^[A-Za-z0-9_-]{32,256}$/).test(verify||''))throw Error('META_APP_CONFIGURATION_REQUIRED');
 const redact=text=>String(text||'').split(secret).join('[REDACTED]').split(verify).join('[REDACTED]').slice(0,1000);
 async function bounded(response){const reader=response.body.getReader();let size=0;const parts=[];try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>16384)throw Error('PROVIDER_BODY_TOO_LARGE');parts.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}return Buffer.concat(parts).toString('utf8');}
@@ -22,11 +22,9 @@ try{
  const ready=await fetch(preflight,{redirect:'error',signal:AbortSignal.timeout(10000)});
  if(ready.status!==200||await bounded(ready)!==challenge)throw Error('CALLBACK_PREFLIGHT_REJECTED');
  const before=await graph('GET');if(!Array.isArray(before.data))throw Error('META_SUBSCRIPTION_STATE_REQUIRED');
- const existing=before.data.filter(x=>x.object===OBJECT);
- if(existing.length>1||existing.some(x=>x.callback_url!==target.href&&x.callback_url!==PREVIOUS))throw Error('UNEXPECTED_EXISTING_APP_CALLBACK');
- if(existing.some(x=>x.callback_url!==target.href&&(!Array.isArray(x.fields)||x.fields.some(f=>(typeof f==='string'?f:f?.name)!=='messages'))))throw Error('UNEXPECTED_EXISTING_APP_CALLBACK');
+ const replacementRequired=assertExpectedReceiverSubscription({subscriptions:before.data,target:target.href,expectedPrevious:PREVIOUS});
  let changed=false;
- if(existing.length===0||existing[0].callback_url!==target.href){
+ if(replacementRequired){
   const body=new URLSearchParams({object:OBJECT,callback_url:target.href,verify_token:verify,fields:'messages'}).toString();
   const saved=await graph('POST',body);if(saved.success!==true)throw Error('META_SUBSCRIPTION_SUCCESS_REQUIRED');changed=true;
  }
