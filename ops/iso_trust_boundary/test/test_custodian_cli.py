@@ -67,6 +67,39 @@ class CustodianCLITests(unittest.TestCase):
         self.assertIs(x['execution_allowed'],False)
         self.assertIs(x['provider_dispatch_allowed'],False)
 
+    def valid_public_pair(self):
+        import hashlib
+        issued=self.run_cli('issue',*self.common)
+        self.assertEqual(issued.returncode,0,issued.stderr)
+        challenge=json.loads(issued.stdout)
+        data=challenge_signing_bytes(challenge)
+        proof={'schema':'musitu.axiom.custody-possession-proof.v1',
+               'challenge_sha256':hashlib.sha256(data).hexdigest(),
+               'operator_signature_hex':self.operator.sign(data).hex()}
+        return challenge,proof
+
+    def test_reject_duplicate_keys_in_otherwise_valid_challenge(self):
+        challenge,proof=self.valid_public_pair()
+        with tempfile.TemporaryDirectory() as d:
+            ch=Path(d)/'challenge.json';sig=Path(d)/'proof.json'
+            canonical=json.dumps(challenge)
+            ch.write_text(canonical[:-1]+',"schema":"'+challenge['schema']+'"}')
+            sig.write_text(json.dumps(proof))
+            p=self.run_cli('inspect',*self.common,'--challenge',str(ch),'--proof',str(sig))
+        self.assertNotEqual(p.returncode,0)
+        self.assertEqual(p.stdout,'')
+        self.assertIn('HOLD',p.stderr)
+
+    def test_reject_symlink_to_otherwise_valid_public_challenge(self):
+        challenge,proof=self.valid_public_pair()
+        with tempfile.TemporaryDirectory() as d:
+            actual=Path(d)/'actual.json'; link=Path(d)/'external.json'; sig=Path(d)/'proof.json'
+            actual.write_text(json.dumps(challenge));link.symlink_to(actual);sig.write_text(json.dumps(proof))
+            p=self.run_cli('inspect',*self.common,'--challenge',str(link),'--proof',str(sig))
+        self.assertNotEqual(p.returncode,0)
+        self.assertEqual(p.stdout,'')
+        self.assertIn('HOLD',p.stderr)
+
     def test_inspect_rejects_invalid_proof_without_stdout_success(self):
         p=self.run_cli('inspect',*self.common,'--challenge','/missing/challenge.json','--proof','/missing/proof.json')
         self.assertNotEqual(p.returncode,0)

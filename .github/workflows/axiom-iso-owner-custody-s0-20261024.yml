@@ -46,13 +46,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_custodian_*.py' -v 2>&1 | tee /tmp/axiom-custody-tests.log
-          grep -Eq 'Ran 21 tests in ' /tmp/axiom-custody-tests.log
+          grep -Eq 'Ran 23 tests in ' /tmp/axiom-custody-tests.log
           grep -Eq '^OK$' /tmp/axiom-custody-tests.log
           python -m unittest discover -s ops/iso_trust_boundary/test -p 'test_*.py' -v 2>&1 | tee /tmp/axiom-iso-all.log
-          grep -Eq 'Ran 169 tests in ' /tmp/axiom-iso-all.log
+          grep -Eq 'Ran 171 tests in ' /tmp/axiom-iso-all.log
           grep -Eq '^OK$' /tmp/axiom-iso-all.log
           python -m compileall -q ops/iso_trust_boundary
-          echo AXIOM_CUSTODY_S0_169_LOCAL_TESTS_PASS_NOT_EXTERNAL
+          echo AXIOM_CUSTODY_S0_171_LOCAL_TESTS_PASS_NOT_EXTERNAL
       - name: Preserve historical B27 destructive rollback failure
         shell: bash
         run: |

@@ -36,7 +36,7 @@ python -m ops.iso_trust_boundary.custodian_onboarding_cli issue \
   --policy-sha256 <FROZEN_POLICY_SHA256>
 ```
 
-The custodian signs exactly `b'MUSITU-AXIOM-S0-CUSTODIAN-POSSESSION-V1\\x00' +` ASCII canonical JSON of the challenge (sort_keys=True, separators=(',',':'), ensure_ascii=True) using the operator *private key outside AXIOM*. Proof JSON contains exactly:
+The custodian signs exactly `b'MUSITU-AXIOM-S0-CUSTODIAN-POSSESSION-V1\x00' +` ASCII canonical JSON of the challenge (sort_keys=True, separators=(',',':'), ensure_ascii=True) using the operator *private key outside AXIOM*. Proof JSON contains exactly:
 
 ```json
 {"schema":"musitu.axiom.custody-possession-proof.v1","challenge_sha256":"<64_lowercase_hex>","operator_signature_hex":"<128_lowercase_hex>"}
@@ -53,7 +53,7 @@ python -m ops.iso_trust_boundary.custodian_onboarding_cli inspect \
   --challenge challenge.json --proof operator-proof.json
 ```
 
-`issue` produces an unanchored challenge with a 300-second window; `inspect` reads only local public JSON files and always reports `BLOCKED_EXTERNAL_AUTHORITY_NOT_PROVEN` even after a valid signature. It does not record globally durable nonce consumption. Replaying a valid proof on a restored isolated runner can validate again; this is **not** single-use admission and must remain a documented failure.
+`issue` produces an unanchored challenge with a 300-second window; `inspect` rejects duplicate JSON fields, symbolic-link file paths and malformed proof inputs; it reads only local public JSON files and always reports `BLOCKED_EXTERNAL_AUTHORITY_NOT_PROVEN` even after a valid signature. It does not record globally durable nonce consumption. Replaying a valid proof on a restored isolated runner can validate again; this is **not** single-use admission and must remain a documented failure.
 
 ## Exactly what is verified by this phase
 

@@ -18,12 +18,19 @@ from .custodian_enrollment import (
 def _read_public_json(path):
     p=Path(path)
     # Never read arbitrary large files or any credential/vault artifacts.
-    if not p.is_file() or p.stat().st_size>8192:
+    if p.is_symlink() or not p.is_file() or p.stat().st_size>8192:
         raise CustodianEnrollmentHold('AXIOM_CUSTODY_S0_HOLD:NO_PUBLIC_JSON_EVIDENCE')
     try:
         raw=p.read_text(encoding='utf-8')
-        result=json.loads(raw)
-    except (OSError,UnicodeError,ValueError):
+        def unique_pairs(pairs):
+            output={}
+            for key,value in pairs:
+                if key in output:
+                    raise ValueError('DUPLICATE_JSON_FIELD')
+                output[key]=value
+            return output
+        result=json.loads(raw,object_pairs_hook=unique_pairs)
+    except (OSError,UnicodeError,ValueError,RecursionError):
         raise CustodianEnrollmentHold('AXIOM_CUSTODY_S0_HOLD:INVALID_PUBLIC_JSON') from None
     if type(result) is not dict:
         raise CustodianEnrollmentHold('AXIOM_CUSTODY_S0_HOLD:INVALID_PUBLIC_JSON')
