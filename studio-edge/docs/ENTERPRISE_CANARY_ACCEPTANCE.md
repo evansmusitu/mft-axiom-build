@@ -2,10 +2,10 @@
 **State: DEVELOPMENT ONLY / NO DEPLOYMENT APPROVED**
 
 ## Immutable product boundaries
-- Existing website: \`evansmusitu/evansmusitu.github.io\` main at **13492fd3befd12af761d49399d6c6ed30d63ee2b** (verified before this engineering cycle; reverify before release).
-- Original backend handoff: \`feature/musitu-multidoc-evidence-20261020\` at **6147ceed65dcc4d7594913db16408669423738c3**; not a merge target for other products.
-- All new enterprise code is isolated on \`feature/musitu-enterprise-tenant-workspace-20261024\`, draft PR **#34** targeting only the original multidoc branch.
-- Production Worker \`musitu-intelligence-edge-20261019\` and the pre-existing capacity canary must not be changed by enterprise qualification. The pinned Wrangler Git blobs are automatically checked in \`enterprise_release_boundary.py\`.
+- Existing website: `evansmusitu/evansmusitu.github.io` main at **13492fd3befd12af761d49399d6c6ed30d63ee2b** (verified before this engineering cycle; reverify before release).
+- Original backend handoff: `feature/musitu-multidoc-evidence-20261020` at **6147ceed65dcc4d7594913db16408669423738c3**; not a merge target for other products.
+- All new enterprise code is isolated on `feature/musitu-enterprise-tenant-workspace-20261024`, draft PR **#34** targeting only the original multidoc branch.
+- Production Worker `musitu-intelligence-edge-20261019` and the pre-existing capacity canary must not be changed by enterprise qualification. The pinned Wrangler Git blobs are automatically checked in `enterprise_release_boundary.py`.
 - The existing five browser-local encrypted slots are separate cryptographic/storage products; **never auto-upload, overwrite, migrate, import or decrypt their saved ciphertext** in enterprise code.
 
 ## Verified in isolated GitHub Actions (not a live canary)
@@ -30,7 +30,7 @@
 3. **Encryption lifecycle**: approve key derivation/provisioning, recovery, passphrase quality, identity-to-key binding, key rotation and lost-key policy. Non-extractable CryptoKey validation alone is insufficient. No plaintext server-side encryption/recovery promises.
 4. **Privacy acceptance**: decide consent, data controller/processor responsibilities, account and tenant deletion, audit retention period, portability semantics, cross-border transfers, complaints, breach notification, backup/deletion propagation, incident response and legal review. No invented retention windows.
 5. **Capacity/abuse acceptance**: provision dedicated read/auth request throttles and aggregate account/cloud cost controls; verify Worker request limits and D1 storage quotas. SQL write-rate controls alone do not protect signing-key endpoint, unauthenticated probes or AI spending.
-6. **Private canary qualification**: deploy only to a newly named hostname after explicit authorization, apply migrations \`0001\` through \`0004\` to the **new database**, seed disposable tenants through a reviewed admin process, verify signed GET/PUT/DELETE, 2-tenant isolation, 50/51 row cap, 20/21 mutation cap, stale ETags, key mismatch, token expiry, membership/session revocation, CORS, rollback and audit/export/deletion. Use no real customer records.
+6. **Private canary qualification**: deploy only to a newly named hostname after explicit authorization, apply migrations `0001` through `0004` to the **new database**, seed disposable tenants through a reviewed admin process, verify signed GET/PUT/DELETE, 2-tenant isolation, 50/51 row cap, 20/21 mutation cap, stale ETags, key mismatch, token expiry, membership/session revocation, CORS, rollback and audit/export/deletion. Use no real customer records.
 7. **Operations and approval**: publish rollback steps, owners and recovery custodians, secret/key custody, budget caps and security/privacy acceptance evidence. Production promotion remains blocked until each gate is signed and independently validated.
 
 ## Fail-closed go/no-go
