@@ -36,7 +36,7 @@ test('tampering and invalid encodings fail closed',async()=>{
   {...original,iv:'evil'},
   {...original,ciphertext:original.ciphertext.slice(0,-1)+'!'},
   {...original,ciphertext:''},
-  {...original,iv:original.iv.replace(/.$/,'-')},
+  {...original,iv:(original.iv[0]==='A'?'B':'A')+original.iv.slice(1)},
   {...original,other:'secret'},
   {ciphertext:original.ciphertext,version:1}
  ]){
