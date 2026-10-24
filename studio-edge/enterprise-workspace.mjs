@@ -92,8 +92,9 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
     if(!member || !['owner','editor','viewer'].includes(member.role))return fail('NOT_FOUND',404,origin);
     if(request.method!=='GET' && member.role==='viewer')return fail('FORBIDDEN',403,origin);
     if(request.method==='GET') {
-      const row=await env.WORKSPACE_DB.prepare('SELECT iv, ciphertext, version FROM tenant_artifacts WHERE tenant_id = ? AND artifact_id = ?')
-        .bind(tenant,artifact).first();
+      // Authorize in the same SQLite statement as the read, blocking lookup/revocation races.
+      const row=await env.WORKSPACE_DB.prepare("SELECT a.iv, a.ciphertext, a.version FROM tenant_artifacts AS a JOIN tenant_memberships AS m ON m.tenant_id = a.tenant_id AND m.subject = ? AND m.status = 'active' AND m.role IN ('owner','editor','viewer') WHERE a.tenant_id = ? AND a.artifact_id = ?")
+        .bind(subject,tenant,artifact).first();
       return row?reply({id:artifact,envelope:{iv:row.iv,ciphertext:row.ciphertext,version:row.version}},200,origin):fail('NOT_FOUND',404,origin);
     }
     if(request.method==='PUT') {
@@ -101,16 +102,20 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
       try {envelope=await limitedJson(request);}catch{return fail('BAD_ENVELOPE',400,origin);}
       try { if(!validEnvelope(envelope))return fail('BAD_ENVELOPE',400,origin); }
       catch { return fail('BAD_ENVELOPE',400,origin); }
-      await env.WORKSPACE_DB.batch([
-        env.WORKSPACE_DB.prepare('INSERT INTO tenant_artifacts (tenant_id, artifact_id, iv, ciphertext, version, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(tenant_id, artifact_id) DO UPDATE SET iv=excluded.iv, ciphertext=excluded.ciphertext, version=excluded.version, updated_at=excluded.updated_at').bind(tenant,artifact,envelope.iv,envelope.ciphertext,1,now),
-        env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) VALUES (?, ?, ?, ?, ?)').bind(tenant,artifact,subject,'put',now)
+      // D1 batch runs statements transactionally. Recheck membership at SQL execution
+      // time; SQLite changes() gates the audit event on an actual ciphertext mutation.
+      const result=await env.WORKSPACE_DB.batch([
+        env.WORKSPACE_DB.prepare("INSERT INTO tenant_artifacts (tenant_id, artifact_id, iv, ciphertext, version, updated_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor')) ON CONFLICT(tenant_id, artifact_id) DO UPDATE SET iv=excluded.iv, ciphertext=excluded.ciphertext, version=excluded.version, updated_at=excluded.updated_at").bind(tenant,artifact,envelope.iv,envelope.ciphertext,1,now,tenant,subject),
+        env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) SELECT ?, ?, ?, ?, ? WHERE changes() > 0').bind(tenant,artifact,subject,'put',now)
       ]);
+      if(result?.[0]?.meta?.changes !== 1) return fail(result?.[0]?.meta?.changes === 0 ? 'NOT_FOUND' : 'STORE_UNAVAILABLE',result?.[0]?.meta?.changes === 0 ? 404 : 503,origin);
       return reply({id:artifact,stored:true,encryptedOpaque:true},200,origin);
     }
-    await env.WORKSPACE_DB.batch([
-      env.WORKSPACE_DB.prepare('DELETE FROM tenant_artifacts WHERE tenant_id = ? AND artifact_id = ?').bind(tenant,artifact),
-      env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) VALUES (?, ?, ?, ?, ?)').bind(tenant,artifact,subject,'delete',now)
+    const result=await env.WORKSPACE_DB.batch([
+      env.WORKSPACE_DB.prepare("DELETE FROM tenant_artifacts WHERE tenant_id = ? AND artifact_id = ? AND EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = 'active' AND role IN ('owner','editor'))").bind(tenant,artifact,tenant,subject),
+      env.WORKSPACE_DB.prepare('INSERT INTO tenant_audit (tenant_id, artifact_id, subject, event, at) SELECT ?, ?, ?, ?, ? WHERE changes() > 0').bind(tenant,artifact,subject,'delete',now)
     ]);
+    if(result?.[0]?.meta?.changes !== 1) return fail(result?.[0]?.meta?.changes === 0 ? 'NOT_FOUND' : 'STORE_UNAVAILABLE',result?.[0]?.meta?.changes === 0 ? 404 : 503,origin);
     return reply({id:artifact,deleted:true,auditRetained:true},200,origin);
   } catch { return fail('STORE_UNAVAILABLE',503,origin); }
 }
