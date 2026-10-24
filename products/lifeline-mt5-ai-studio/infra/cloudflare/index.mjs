@@ -145,7 +145,43 @@ export default {async fetch(request,env){
   try{response=await fetch(cfg.modal+path,{method:'POST',redirect:'manual',headers,body:raw});}
   catch{return reply({error:'private_runtime_unavailable'},502);}
   if(response.status>=300&&response.status<400)return reply({error:'unexpected_redirect'},502);
-  const output=await response.text();
-  if(encoder.encode(output).length>131072)return reply({error:'oversized_backend_result'},502);
+  // Never proxy Modal's error bodies: internal diagnostics could disclose secrets.
+  if(response.status>=400)return reply({error:'private_runtime_rejected'},502);
+  const mime=response.headers.get('content-type')||'';
+  if(!/^application\/json(?:\s*;|\s*$)/i.test(mime.trim()))
+    return reply({error:'invalid_private_backend_response'},502);
+  // Fail before streaming if Modal has already declared an excessive body size.
+  const declared=response.headers.get('content-length');
+  if(declared!==null&&(!/^\d+$/.test(declared)||Number(declared)>131072))
+    return reply({error:'oversized_backend_result'},502);
+  if(!response.body)return reply({error:'invalid_private_backend_response'},502);
+  const reader=response.body.getReader();
+  let bytes=0;
+  const chunks=[];
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      bytes+=value.byteLength;
+      if(bytes>131072){
+        void reader.cancel().catch(()=>{});
+        return reply({error:'oversized_backend_result'},502);
+      }
+      chunks.push(value);
+    }
+  }catch{
+    return reply({error:'private_runtime_unavailable'},502);
+  }finally{
+    reader.releaseLock();
+  }
+  const merged=new Uint8Array(bytes);
+  let offset=0;
+  for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
+  let output,parsed;
+  try{
+    output=new TextDecoder('utf-8',{fatal:true}).decode(merged);
+    parsed=JSON.parse(output);
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('invalid shape');
+  }catch{return reply({error:'invalid_private_backend_response'},502);}
   return new Response(output,{status:response.status,headers:{'content-type':'application/json','cache-control':'no-store'}});
 }};
