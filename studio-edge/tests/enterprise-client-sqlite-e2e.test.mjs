@@ -44,7 +44,7 @@ class SQLiteD1{
     this.db.prepare('INSERT INTO tenant_memberships VALUES (?,?,?,?)').run(TB,'bob_signed_subject','owner','active');
   }
   prepare(sql){
-    return {bind:(...args)=>({
+    return {bind:(...args)=>({sql,args,
       first:async()=>this.db.prepare(sql).get(...args)||null,
       all:async()=>({results:this.db.prepare(sql).all(...args)})
     })};
