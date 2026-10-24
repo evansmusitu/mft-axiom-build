@@ -9,7 +9,7 @@
  */
 import {randomBytes} from 'node:crypto';
 import {constants as c} from 'node:fs';
-import {open,realpath,lstat,readFile,unlink,readdir,rename} from 'node:fs/promises';
+import {open,realpath,lstat,unlink,readdir,rename} from 'node:fs/promises';
 import {isAbsolute,resolve,join} from 'node:path';
 
 const PREFIX='private/apk/';
@@ -49,6 +49,7 @@ export async function createPrivateFilesystemQuarantine({root,maxBytes=DEFAULT_M
   throw Error('invalid private uploader concurrency limit');
  await verifyRoot(root);
  let openWriters=0;
+ const activeParts=new Set();
  async function begin({expectedBytes}={}){
   await verifyRoot(root);
   if(!Number.isSafeInteger(expectedBytes)||expectedBytes<4||expectedBytes>maxBytes)
@@ -58,12 +59,12 @@ export async function createPrivateFilesystemQuarantine({root,maxBytes=DEFAULT_M
   const sealedPath=join(root,token+'.apk');
   const key=PREFIX+token;
   if(openWriters>=maxOpenWriters)throw Error('private uploader at capacity');
-  openWriters++;
+  openWriters++;activeParts.add(token);
   let h;
   try{h=await open(pending,c.O_WRONLY|c.O_CREAT|c.O_EXCL|c.O_NOFOLLOW,0o600);}
-  catch(e){openWriters--;throw e;}
+  catch(e){activeParts.delete(token);openWriters--;throw e;}
   let released=false;
-  const release=()=>{if(!released){released=true;openWriters--;}};
+  const release=()=>{if(!released){released=true;activeParts.delete(token);openWriters--;}};
   let bytes=0,state='open';
   return {
    async write(chunk){
@@ -121,10 +122,18 @@ export async function createPrivateFilesystemQuarantine({root,maxBytes=DEFAULT_M
   await verifyRoot(root);
   const token=tokenFromKey(key);
   const file=join(root,token+'.apk');
-  const st=await lstat(file);
-  if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)!==0||st.size>Math.min(maxBytes,16*1024*1024))
-   throw Error('unsafe private quarantine object');
-  return readFile(file);
+  // Open the inode itself with O_NOFOLLOW before checking its metadata.
+  // A pathname lstat followed by readFile can follow a swapped symlink;
+  // linked inodes are also not admissible as isolated private objects.
+  const h=await open(file,c.O_RDONLY|c.O_NOFOLLOW);
+  try{
+   const st=await h.stat();
+   if(!st.isFile()||st.nlink!==1||(st.mode&0o077)!==0||
+      (typeof process.getuid==='function'&&st.uid!==process.getuid())||
+      st.size>Math.min(maxBytes,16*1024*1024))
+    throw Error('unsafe private quarantine object');
+   return await h.readFile();
+  }finally{await h.close();}
  }
  async function pruneAbandonedParts({olderThanMs=24*60*60*1000,now=Date.now()}={}){
   await verifyRoot(root);
@@ -133,6 +142,8 @@ export async function createPrivateFilesystemQuarantine({root,maxBytes=DEFAULT_M
   let deleted=0;
   for(const file of await readdir(root)){
    if(!/^[0-9a-f]{48}\.part$/.test(file))continue;
+   // Do not reap this process's still-active uploads, even after a clock jump.
+   if(activeParts.has(file.slice(0,48)))continue;
    const full=join(root,file),st=await lstat(full);
    if(!st.isFile()||st.isSymbolicLink())continue;
    if(now-st.mtimeMs<olderThanMs)continue;

@@ -6,7 +6,8 @@
  */
 import {createHash,timingSafeEqual} from 'node:crypto';
 const SHA=/^[a-f0-9]{64}$/;
-const OBJECT_KEY=/^[a-zA-Z0-9/_-]{24,256}$/;
+// Only single-purpose opaque private APK quarantine objects are admissible.
+const OBJECT_KEY=/^private\/apk\/[a-f0-9]{48}$/;
 export async function intakeQuarantinedApk({req,submission,actor,quarantine,repository,revalidateSession}){
  const refuse=(status)=>{const e=Error('quarantine_denied');e.httpStatus=status;throw e;};
  if(!submission||submission.publisherId!==actor.publisherId)refuse(404);
@@ -25,6 +26,27 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
  const stream=await quarantine.begin({submissionId:submission.id,publisherId:actor.publisherId,
   expectedSha256:submission.apkSha256,expectedBytes:submission.apkBytes});
  let reader=null,total=0,head=Buffer.alloc(0),key=null;
+ let readerCancellation=null;
+ const cancelReader=()=>{
+  if(!reader)return Promise.resolve();
+  if(!readerCancellation){
+   try{readerCancellation=Promise.resolve(reader.cancel()).catch(()=>{});}
+   catch{readerCancellation=Promise.resolve();}
+  }
+  return readerCancellation;
+ };
+ // An already-running reader.read() may wait forever on a malicious or failed
+ // client stream. Stop the locked reader promptly when the request is aborted.
+ let rejectAbortedRead;
+ const abortGate=new Promise((_,reject)=>{rejectAbortedRead=reject;});
+ // An abort may arrive between reads (e.g. during storage writes); attach a
+ // handler now so the gate cannot become an unhandled rejection in that case.
+ void abortGate.catch(()=>{});
+ const onAbort=()=>{
+  void cancelReader();
+  const error=Error('quarantine_denied');error.httpStatus=408;
+  rejectAbortedRead(error);
+ };
  const digest=createHash('sha256');
  try{
   // The writer already exists. Reader acquisition and adapter validation must
@@ -32,9 +54,12 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
   // otherwise strand a private .part file and exhaust the upload capacity.
   if(!stream||!['write','seal','abort'].every(k=>typeof stream[k]==='function'))refuse(503);
   reader=req.body.getReader();
+  req.signal?.addEventListener?.('abort',onAbort,{once:true});
+  if(req.signal?.aborted)refuse(408);
   for(;;){
    if(req.signal?.aborted)refuse(408);
-   const chunk=await reader.read();
+   const chunk=await (req.signal?.addEventListener?
+    Promise.race([reader.read(),abortGate]):reader.read());
    if(req.signal?.aborted)refuse(408);
    if(chunk.done)break;
    const buf=Buffer.from(chunk.value);
@@ -72,5 +97,11 @@ export async function intakeQuarantinedApk({req,submission,actor,quarantine,repo
   if(typeof stream?.abort==='function')try{await stream.abort();}catch{}
   if(key!==null)try{await quarantine.revoke(key);}catch{}
   throw e;
- }finally{if(reader){try{await reader.cancel();}catch{}try{reader.releaseLock();}catch{}}}
+ }finally{
+  req.signal?.removeEventListener?.('abort',onAbort);
+  if(reader){
+   // Cleanup must never await an uncooperative stream's cancel() promise.
+   void cancelReader();try{reader.releaseLock();}catch{}
+  }
+ }
 }

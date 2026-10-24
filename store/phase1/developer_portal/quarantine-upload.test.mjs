@@ -18,14 +18,15 @@ function jwt(patch={}){
  return signed+'.'+sign('sha256',Buffer.from(signed),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 }
 function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expectedBytes=apk.length,
- failSeal=false,failDb=false,missingStore=false,isTokenActive=async()=>true}={}){
+ failSeal=false,failDb=false,missingStore=false,isTokenActive=async()=>true,
+ sealKey='private/apk/'+'a'.repeat(48)}={}){
  const record={id:'sub-'+'e'.repeat(32),publisherId:owner,actorId:'developer-actor-1',
   apkSha256:expectedHash,apkBytes:expectedBytes,reviews:[]};
  const objects=[];let writes=0,aborts=0,revokes=0,dbWrites=0,recorded=null;
  const store={async begin(){
   writes++;
   return {async write(bytes){objects.push(Buffer.from(bytes));},
-   async seal(){if(failSeal)throw Error('seal_failure');return 'private/apk/'+('a'.repeat(32));},
+   async seal(){if(failSeal)throw Error('seal_failure');return sealKey;},
    async abort(){aborts++;}};
  },async revoke(){revokes++;}};
  const repo={async read(id){return id===record.id?record:null;},
@@ -156,4 +157,14 @@ test('quarantined receipt must carry verified uploader subject and token ID to d
  assert.match(calls[0].sql,/principal_suspensions/);
  assert.ok(calls[0].params.includes('quarantine-test-token-0001'));
  assert.ok(calls[0].params.includes('developer-actor-1'));
+});
+
+
+test('private quarantine controller rejects a sealed public-looking storage key before DB receipt',async()=>{
+ const h=harness({sealKey:'public/apk/'+'a'.repeat(48)});
+ const r=await h.upload();
+ assert.equal(r.status,503);
+ assert.equal(h.dbWrites,0);
+ assert.equal(h.aborts,1);
+ assert.equal(h.revokes,1);
 });

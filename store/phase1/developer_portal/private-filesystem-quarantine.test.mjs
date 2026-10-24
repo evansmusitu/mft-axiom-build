@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,chmod,readFile,writeFile,symlink,readdir,lstat,rm} from 'node:fs/promises';
+import {mkdtemp,chmod,readFile,writeFile,symlink,link,unlink,readdir,lstat,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash,generateKeyPairSync,sign} from 'node:crypto';
@@ -134,4 +134,31 @@ test('single-host bounded active writers reject parallel capacity exhaustion',as
  const retry=await q.begin({expectedBytes:apk.length});
  await retry.abort();
  assert.deepEqual(await readdir(root),[]);
+}));
+
+test('orphan reaper never deletes an active writer even if the wall clock makes it appear stale',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const writer=await q.begin({expectedBytes:apk.length});
+ await writer.write(apk.subarray(0,8));
+ const abandoned='9'.repeat(48)+'.part';
+ await writeFile(join(root,abandoned),Buffer.from('orphan'));
+ const removed=await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3_600_000});
+ assert.equal(removed,1,'remove only true abandoned parts');
+ await writer.write(apk.subarray(8));
+ const key=await writer.seal();
+ assert.deepEqual(await q.inspectForPrivateTests(key),apk);
+ assert.deepEqual(await readdir(root),[key.slice('private/apk/'.length)+'.apk']);
+ await q.revoke(key);
+}));
+
+
+test('private inspection refuses hard-linked sealed APKs rather than reading a substituted inode',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const stream=await q.begin({expectedBytes:apk.length});
+ await stream.write(apk);const key=await stream.seal();
+ const sealed=join(root,key.slice('private/apk/'.length)+'.apk');
+ const alternate=join(root,'unexpected-hardlink');
+ await link(sealed,alternate);
+ try{await assert.rejects(q.inspectForPrivateTests(key),/unsafe private quarantine object|hard.link/);}
+ finally{await unlink(alternate);await q.revoke(key);}
 }));

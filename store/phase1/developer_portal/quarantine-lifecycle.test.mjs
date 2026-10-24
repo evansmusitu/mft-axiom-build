@@ -70,3 +70,48 @@ test('actual 0700 quarantine root has zero orphaned private files when body read
   assert.equal(f.stats.dbWritten,0);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('stalled request body is interrupted by abort signal and its private 0700 writer is cleaned',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'musitu-upload-stalled-'));
+ const controller=new AbortController();
+ let readerCancelled=0, wrote=0;
+ const req={headers:new Headers({'content-type':'application/vnd.android.package-archive'}),signal:controller.signal,
+  body:{getReader(){return {
+   async read(){wrote++;if(wrote===1)return {done:false,value:Buffer.from([80,75,3,4])};
+    return new Promise(resolve=>{this.unblock=()=>resolve({done:true});});},
+   async cancel(){readerCancelled++;this.unblock?.();},releaseLock(){}};}}};
+ const quarantine=await createPrivateFilesystemQuarantine({root});
+ const f=fixture();f.req=req;f.quarantine=quarantine;
+ let tm;
+ try{
+  tm=setTimeout(()=>controller.abort(),20);
+  const hungTimeout=new Promise((_,reject)=>setTimeout(()=>reject(Error('cancellation failed to unblock stalled request body')),350));
+  await assert.rejects(Promise.race([intake(f),hungTimeout]),e=>e.httpStatus===408);
+  assert.equal(readerCancelled,1);
+  assert.deepEqual(await readdir(root),[]);
+  assert.equal(f.stats.dbWritten,0);
+ }finally{clearTimeout(tm);await rm(root,{recursive:true,force:true});}
+});
+
+test('abort denies stalled hostile reader even when its cancel promise never settles',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'musitu-upload-uncooperative-'));
+ const controller=new AbortController();
+ let cancels=0,reads=0,dbWrites=0;
+ const req={headers:new Headers({'content-type':'application/vnd.android.package-archive'}),signal:controller.signal,
+  body:{getReader(){return {
+   read(){reads++;if(reads===1)return Promise.resolve({done:false,value:Buffer.from([80,75,3,4])});
+    return new Promise(()=>{});},
+   cancel(){cancels++;return new Promise(()=>{});},releaseLock(){} };}}};
+ let timer,timeout;
+ try{
+  const q=await createPrivateFilesystemQuarantine({root});
+  const pending=intakeQuarantinedApk({req,submission:manifest,actor:identity,quarantine:q,
+   repository:{async recordUpload(){dbWrites++;return {kind:'created'};}},revalidateSession:async()=>true});
+  timer=setTimeout(()=>controller.abort(),20);
+  const deadline=new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('abort could not stop uncooperative reader')),350);});
+  await assert.rejects(Promise.race([pending,deadline]),e=>e.httpStatus===408);
+  assert.ok(cancels>=1);
+  assert.equal(dbWrites,0);
+  assert.deepEqual(await readdir(root),[]);
+ }finally{clearTimeout(timer);clearTimeout(timeout);await rm(root,{recursive:true,force:true});}
+});
