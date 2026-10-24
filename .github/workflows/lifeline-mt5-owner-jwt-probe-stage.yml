@@ -41,7 +41,8 @@ jobs:
           cd products/lifeline-mt5-ai-studio/infra/cloudflare
           npm ci --ignore-scripts --no-audit --no-fund
           node --check index.mjs
-          node --test test.mjs
+          node --check backend_readiness.mjs
+          node --test test.mjs test_readiness.mjs
       - name: Deploy only preexisting isolated Worker, backend still unconfigured
         shell: bash
         run: |
