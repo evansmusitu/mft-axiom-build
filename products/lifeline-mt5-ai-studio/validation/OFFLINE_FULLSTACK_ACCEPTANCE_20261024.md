@@ -53,3 +53,13 @@ Reference: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/mai
 - This is a narrow legacy MCP protocol fix; it is **not evidence of full MCP certification, owner login on the live bridge, or live Modal/Neon cutover**.
 
 Strict $0 scope preserved: no Cloudflare production deployment, no Modal remote functions, no broker/trading, no Windows server, no private credential changes and no release.
+
+
+## Legacy Streamable HTTP GET without SSE — strict authenticated HTTP 405
+
+The MCP **2025-03-26** Streamable HTTP specification requires servers that do not offer a GET SSE stream to return HTTP **405 Method Not Allowed**. LIFELINE deliberately does not provide SSE streaming. Previously the Cloudflare edge gave 404, which does not meet the legacy transport requirement.
+
+- **RED:** [edge and cross-language CI #40091851919](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091851919) and [#40091851899](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091851899) reproduced HTTP 404 instead of authenticated 405.
+- **GREEN:** [signed bridge #40091912823](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091912823) **25/25 edge tests**, Windows and Ubuntu agent tests successful; [offline cross-language #40091912705](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091912705) **1/1 integration scenario PASS**. [Five-Cloud CI #40091912665](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091912665), [owner-readiness #40091912688](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091912688), [Axiom reasoning #40091916000](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091916000), and [brand guard #40091916144](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40091916144) also succeeded.
+- Only after the **existing owner JWT and explicit private cutover gate**, a GET to `/mcp` returns **405 with Allow: POST and an empty response**. Unauthenticated GET remains **401**. No upstream Modal request occurs.
+- This change remains **source-only**, not a deployment. It does not approve or enable any Cloudflare→Modal production cutover, and it does not purport to certify the full MCP protocol.
