@@ -28,15 +28,33 @@ class FakeDB {
   constructor(){this.members=new Map();this.items=new Map();this.audit=[];this.failBatch=false;}
   prepare(query){return {bind:(...v)=>({query,v,first:async()=>{
     if(query.startsWith('SELECT role'))return this.members.get(v[0]+'|'+v[1]) ?? null;
-    if(query.startsWith('SELECT iv'))return this.items.get(v[0]+'|'+v[1]) ?? null;
+    if(query.startsWith('SELECT a.iv')){
+      const member=this.members.get(v[1]+'|'+v[0]);
+      return member && ['owner','editor','viewer'].includes(member.role) && member.status!=='revoked'
+        ? this.items.get(v[1]+'|'+v[2]) ?? null : null;
+    }
     throw Error('unexpected SQL');
   }})};}
-  async batch(stmts){if(this.failBatch)throw Error('DB offline');for(const {query,v} of stmts){
-    if(query.startsWith('INSERT INTO tenant_artifacts'))this.items.set(v[0]+'|'+v[1],{iv:v[2],ciphertext:v[3],version:v[4]});
-    else if(query.startsWith('DELETE FROM tenant_artifacts'))this.items.delete(v[0]+'|'+v[1]);
-    else if(query.startsWith('INSERT INTO tenant_audit'))this.audit.push(v);
-    else throw Error('unexpected SQL');
-  }}
+  async batch(stmts){
+    if(this.failBatch)throw Error('DB offline');
+    const results=[];let changes=0;
+    for(const {query,v} of stmts){
+      if(query.startsWith('INSERT INTO tenant_artifacts')){
+        const member=this.members.get(v[6]+'|'+v[7]);
+        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked' ? 1 : 0;
+        if(changes)this.items.set(v[0]+'|'+v[1],{iv:v[2],ciphertext:v[3],version:v[4]});
+      }else if(query.startsWith('DELETE FROM tenant_artifacts')){
+        const member=this.members.get(v[2]+'|'+v[3]);
+        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked'
+          && this.items.delete(v[0]+'|'+v[1]) ? 1 : 0;
+      }else if(query.startsWith('INSERT INTO tenant_audit')){
+        if(changes)this.audit.push(v);
+        changes=changes?1:0;
+      }else throw Error('unexpected SQL');
+      results.push({meta:{changes}});
+    }
+    return results;
+  }
 }
 function setup() {const db=new FakeDB();db.members.set(TA+'|subject-owner',{role:'owner'});db.members.set(TB+'|subject-other',{role:'viewer'});
 return {env:{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},db};}
