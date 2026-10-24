@@ -110,16 +110,18 @@ def create_local_app(store:SQLiteQueue,keys:dict[str,bytes],tenants:dict[str,str
         candidates=[ident for ident,tenant in tenants.items() if tenant==subject]
         if len(candidates)!=1:raise HTTPException(403,'agent not paired')
         return {'schema':'lifeline.bridge.v1','jobs':store.summary(subject,candidates[0]),'trade_execution':False}
-    return mount_readonly_mcp(api,edge_secret)
+    return mount_readonly_mcp(api,edge_secret,frozenset(tenants.values()))
 
 # Read-only MCP status: one surface, zero investment execution tools.
-def mount_readonly_mcp(api:FastAPI, edge_secret:str):
+def mount_readonly_mcp(api:FastAPI, edge_secret:str, allowed_subjects:frozenset[str]):
     @api.post('/mcp')
     async def mcp(request:Request):
         # Caller MUST arrive via Modal proxy-auth and the Cloudflare Worker.
         require_headers={'x-lifeline-edge-secret','x-lifeline-subject'}
         if not require_headers.issubset(request.headers) or not secrets.compare_digest(request.headers.get('x-lifeline-edge-secret',''),edge_secret):
             raise HTTPException(401,'private edge required')
+        if request.headers.get('x-lifeline-subject','') not in allowed_subjects:
+            raise HTTPException(403,'unrecognized private staging tenant')
         # Even though Modal proxy authentication is mandatory, reject malformed or
         # overlarge RPC bodies before parsing.  The status tool accepts NO arguments;
         # it must not become a generic pass-through when the private bridge is enabled.
