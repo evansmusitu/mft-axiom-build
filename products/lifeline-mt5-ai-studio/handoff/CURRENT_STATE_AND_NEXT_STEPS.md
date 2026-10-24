@@ -2,7 +2,7 @@
 
 **Snapshot date:** 2026-10-22; source SHA is generated into `SOURCE_MANIFEST.json` by the release job. This document is the operating handoff, not evidence of actions after the source SHA.
 
-## Authority, isolation and finances
+> **POST-HANDOFF UPDATE — 2026-10-24:** This file is an original 2026-10-22 package snapshot and intentionally preserves its historical assertions. The real GitHub isolated branch has advanced. New owner-positive Access evidence, Cloudflare **6/10** bindings and **4 sensitive missing** verified at [fresh read-only audit](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40076927002). A new security study proved Modal's audited shared environment has **13 other live apps and 44 token metadata records**; per-app proxy token isolation **not verified**, so backend cutover is blocked. The run-specific encrypted handoff policy is tested, not executed live. Read [2026-10-24 risk and verification note](../validation/SECURE_SCOPE_GATE_20261024.md) and latest [draft PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30) **before** continuing. Never treat this older ZIP/README as the current operational state.\n\n## Authority, isolation and finances
 
 - Repository: https://github.com/evansmusitu/mft-axiom-build
 - Isolated branch: `product/lifeline-mt5-fivecloud-isolated-20261020`

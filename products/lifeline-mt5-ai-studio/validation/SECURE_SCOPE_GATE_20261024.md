@@ -33,7 +33,7 @@ The isolated Modal→GitHub→Cloudflare encryption policy now binds any future 
 
 ## Acceptance/gates, not inferred from mocks
 
-- **6/10** Cloudflare Worker secret/binding names available at last separate live audit; **4 missing**: `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, `MODAL_PROXY_SECRET`. The exact count has not been rechecked by this specific scoped-token audit; do not treat previous count as new live proof.
+- **6/10** Cloudflare Worker secret/binding names verified AGAIN by the read-only [provider re-run 40076927002](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40076927002) (latest job SUCCESS); **4 missing**: `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, `MODAL_PROXY_SECRET`. The proxy-scope audit and this fresh Cloudflare binding audit are separate read-only checks; neither proves the backend connected.
 - Encrypted **source-only** policy tested; **no actual Modal secret handoff** took place.
 - No verified Cloudflare→Modal→Neon owner-authenticated private request yet.
 - Real Windows MetaEditor compiles previously verified on ephemeral runner; no persistent Windows host and no real local native MCP pairing.

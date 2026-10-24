@@ -1,4 +1,15 @@
-# LIFELINE MT5 AI Studio — Owner-Access JWT Proof Stage v1.2
+# LIFELINE MT5 AI Studio — Private Owner-Only Research Stage (2026-10-24)
+
+
+## Authoritative 2026-10-24 continuation
+
+- **Owner Access and MFA:** The earlier v1.2 lack-of-login statements below are historical, not current. The owner subsequently reported a valid owner-verification JSON response, with separate Cloudflare provider audit confirming one LIFELINE app-specific allow and active owner session: [evidence](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39666881641). No raw owner JWT was captured or shared.
+- **Cloudflare Worker:** A fresh read-only exact-account audit [re-run 40076927002](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40076927002) confirmed **6/10 bindings**, **4 missing**. Owner-only `GET /owner/readiness` remains diagnostic, not an active backend.
+- **Modal workspace isolation:** Independent live [scope audit 40079161052](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40079161052) verified **one environment containing 13 other live apps** and **44 proxy token metadata records**. With no verified per-app proxy scoping on the free tier, introducing a new token into this shared workspace is **blocked**. It does not mean an existing token was compromised.
+- **Security upgrade:** Run-specific challenge and exact-source/target bound encrypted handoff has passed [12/12 offline tests](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40078698001), without any live credential transfer. See [complete security acceptance and pending gates](validation/SECURE_SCOPE_GATE_20261024.md).
+- **Money and release:** $0 billed at the recent Modal audit, but no guaranteed future-free usage; no spending, public release, backend cutover, live trades, recurring Windows host or real native MCP pairing. Protected main, other MUSITU apps and draft PR #30 stay unchanged.
+
+> Prior v1.2 statements below are archived implementation history; use the section above and the named latest audits for current status.
 
 ## Current GitHub Secrets connection status — 2026-10-24
 
