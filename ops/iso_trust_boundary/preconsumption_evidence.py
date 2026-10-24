@@ -76,10 +76,45 @@ class S0PreconsumptionReviewer:
         self.revocation_verifier=revocation_verifier
         self.checkpoint_verifier=checkpoint_verifier
         self.financial_reviewer=financial_reviewer
+        self._original_pinned_verifier_config=self._pinned_verifier_config()
+
+    def _pinned_verifier_config(self):
+        # Immutable local snapshot of what each S0 sub-verifier is configured
+        # to trust. Callback-controlled clocks are NOT operator authority.
+        # This detects post-construction pin/allowlist swaps; it cannot
+        # authenticate pin provenance or defend a compromised Python process.
+        try:
+            receipt=self.receipt_verifier
+            revocation=self.revocation_verifier
+            checkpoint=self.checkpoint_verifier
+            finance=self.financial_reviewer
+            return (
+                id(receipt),id(revocation),id(checkpoint),id(finance),
+                receipt.pinned_operator_id,receipt.pinned_policy_sha256,
+                receipt.pinned_key_epoch,receipt.pinned_public_key,
+                receipt._verifier.public_bytes_raw(),
+                revocation.ids,revocation.epochs,revocation.policy_sha256,
+                revocation.pinned_revocation_public_key,
+                revocation.pinned_operator_public_key,
+                revocation.pinned_witness_public_key,
+                revocation._public_key.public_bytes_raw(),
+                checkpoint.operator_id,checkpoint.witness_id,
+                checkpoint.operator_epoch,checkpoint.witness_epoch,
+                checkpoint.policy_sha256,checkpoint.operator_key.public_bytes_raw(),
+                checkpoint.witness_key.public_bytes_raw(),
+                finance.pinned_policy_sha256,finance.local_tool_allowlist,
+            )
+        except Exception:
+            _hold('PINNED_VERIFIER_CONFIG_DRIFT')
+
+    def _require_pins_unchanged(self):
+        if self._pinned_verifier_config()!=self._original_pinned_verifier_config:
+            _hold('PINNED_VERIFIER_CONFIG_DRIFT')
 
     def review(self, *,operation,financial,expected,expected_agent_id,
                receipt,receipt_signature_b64,revocation_anchor,
                revocation_envelope,checkpoint_anchor,checkpoint_envelope):
+        self._require_pins_unchanged()
         # Validation is deliberately ordered so malformed or costly requests
         # cannot cause a witness reservation attempt or any provider call.
         if (type(expected_agent_id) is not str or
@@ -132,6 +167,7 @@ class S0PreconsumptionReviewer:
             _hold('UNEXPECTED_UPSTREAM_AUTHORIZATION')
         if _fingerprint_inputs(all_inputs)!=entry_fingerprint:
             _hold('INPUT_MUTATED_AFTER_REVIEW')
+        self._require_pins_unchanged()
         # Even individually authentic signatures cannot form one coherent proof
         # if their signed half-open validity intervals share no instant. These
         # checks do NOT establish a common trusted wall clock or external time.
