@@ -40,13 +40,20 @@ class FakeDB {
     const results=[];let changes=0;
     for(const {query,v} of stmts){
       if(query.startsWith('INSERT INTO tenant_artifacts')){
-        const member=this.members.get(v[6]+'|'+v[7]);
-        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked' ? 1 : 0;
-        if(changes)this.items.set(v[0]+'|'+v[1],{iv:v[2],ciphertext:v[3],version:v[4]});
+        const member=this.members.get(v[7]+'|'+v[8]);
+        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked' &&
+          !this.items.has(v[0]+'|'+v[1]) ? 1 : 0;
+        if(changes)this.items.set(v[0]+'|'+v[1],{iv:v[2],ciphertext:v[3],version:v[4],revision:v[6]});
+      }else if(query.startsWith('UPDATE tenant_artifacts')){
+        const member=this.members.get(v[8]+'|'+v[9]);const original=this.items.get(v[5]+'|'+v[6]);
+        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked' &&
+          original?.revision===v[7] ? 1 : 0;
+        if(changes)this.items.set(v[5]+'|'+v[6],{iv:v[0],ciphertext:v[1],version:v[2],revision:v[4]});
       }else if(query.startsWith('DELETE FROM tenant_artifacts')){
-        const member=this.members.get(v[2]+'|'+v[3]);
-        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked'
-          && this.items.delete(v[0]+'|'+v[1]) ? 1 : 0;
+        const member=this.members.get(v[3]+'|'+v[4]);
+        const original=this.items.get(v[0]+'|'+v[1]);
+        changes=member && ['owner','editor'].includes(member.role) && member.status!=='revoked' &&
+          original?.revision===v[2] && this.items.delete(v[0]+'|'+v[1]) ? 1 : 0;
       }else if(query.startsWith('INSERT INTO tenant_audit')){
         if(changes)this.audit.push(v);
         changes=changes?1:0;
@@ -61,7 +68,8 @@ return {env:{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},db};}
 async function call(env,method,tenant=TA,id=ID, token='',body=null,origin=ORIGIN){
   const headers={'cf-access-jwt-assertion':token};
   if(origin!==null)headers.origin=origin;
-  if(body!==null)headers['content-type']='application/json';
+  if(body!==null){headers['content-type']='application/json';headers['if-none-match']='*';}
+  if(method==='DELETE')headers['if-match']='"'+(env?.WORKSPACE_DB?.items?.get(tenant+'|'+id)?.revision||'00000000-0000-4000-8000-000000000001')+'"';
   const req=new Request('https://example.test/api/enterprise/tenants/'+tenant+'/artifacts?id='+id,
     {method,headers,body:body===null?undefined:JSON.stringify(body)});
   return handleEnterpriseWorkspace(req,env,{fetchJwks,now:CLOCK});
