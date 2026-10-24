@@ -230,4 +230,18 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(response.json()['error']['code'],-32602)
 
+
+    def test_mcp_legacy_initialized_notification_has_202_empty_reply(self):
+        body={'jsonrpc':'2.0','method':'notifications/initialized'}
+        denied=self.tc.post('/mcp',json=body)
+        self.assertEqual(denied.status_code,401)
+        accepted=self.tc.post('/mcp',json=body,headers=self.edge_headers)
+        self.assertEqual(accepted.status_code,202)
+        self.assertEqual(accepted.content,b'')
+        for bad in ({**body,'id':2},{**body,'params':{'unsafe':True}},
+                    {**body,'unexpected':'shell'},{**body,'params':[]}):
+            with self.subTest(body=bad):
+                response=self.tc.post('/mcp',json=bad,headers=self.edge_headers)
+                self.assertEqual(response.status_code,400)
+
 if __name__=='__main__':unittest.main()

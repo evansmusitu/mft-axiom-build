@@ -424,3 +424,40 @@ test('complete backend credentials cannot auto-activate before explicit private 
     assert.equal(upstream,0);
   }finally{globalThis.fetch=original;}
 });
+
+test('legacy MCP initialized notification is allowed only for pinned owner, with 202 empty body',async()=>{
+  const {publicKey,privateKey}=await generateKeyPair('RS256');
+  const jwk=await exportJWK(publicKey);jwk.kid='kid-initialized';jwk.use='sig';jwk.alg='RS256';
+  const jwt=await new SignJWT({sub:E.ACCESS_OPERATOR_SUB})
+    .setProtectedHeader({alg:'RS256',kid:'kid-initialized'})
+    .setIssuer(E.ACCESS_ISSUER.slice(0,-1)).setAudience(E.ACCESS_AUD)
+    .setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const previous=globalThis.fetch;let routed=0;
+  try{
+    globalThis.fetch=async(url,opts)=>{
+      if(String(url).includes('/cdn-cgi/access/certs'))
+        return new Response(JSON.stringify({keys:[jwk]}),
+          {headers:{'content-type':'application/json'}});
+      routed++;
+      assert.equal(url,'https://lifeline-stage.modal.run/mcp');
+      assert.equal(opts.headers['x-lifeline-subject'],E.AGENT_TENANT);
+      assert.deepEqual(JSON.parse(opts.body),{jsonrpc:'2.0',method:'notifications/initialized'});
+      return new Response(null,{status:202});
+    };
+    const event={jsonrpc:'2.0',method:'notifications/initialized'};
+    assert.equal((await worker.fetch(message('/mcp',event),E)).status,401);
+    const authenticated=await worker.fetch(message('/mcp',event,{'cf-access-jwt-assertion':jwt}),E);
+    assert.equal(authenticated.status,202);
+    assert.equal(await authenticated.text(),'');
+    const h={'cf-access-jwt-assertion':jwt};
+    const invalid=[
+      {...event,id:7},
+      {...event,params:{trade:true}},
+      {...event,unexpected:'shell'},
+      {...event,params:[]},
+    ];
+    for(const malformed of invalid)
+      assert.equal((await worker.fetch(message('/mcp',malformed,h),E)).status,403);
+    assert.equal(routed,1);
+  }finally{globalThis.fetch=previous;}
+});

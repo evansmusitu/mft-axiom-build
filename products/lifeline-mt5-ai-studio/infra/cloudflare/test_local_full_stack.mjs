@@ -109,6 +109,11 @@ test('full signed owner → edge → local Modal contract → queue → agent re
     const list=await call('/mcp',{jsonrpc:'2.0',id:2,method:'tools/list',params:{}},owner);
     assert.equal(list.status,200);
     assert.deepEqual(list.body.result.tools.map(x=>x.name),['lifeline_status']);
+
+    const initialized=await worker.fetch(post('/mcp',
+      {jsonrpc:'2.0',method:'notifications/initialized'},owner),E);
+    assert.equal(initialized.status,202,'legacy client initialization requires HTTP 202');
+    assert.equal(await initialized.text(),'');
     const task=await call('/operator/probe',{operation:'probe'},owner);
     assert.equal(task.status,200);
     assert.equal(task.body.state,'PENDING');
