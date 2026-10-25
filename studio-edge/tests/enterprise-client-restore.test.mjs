@@ -83,3 +83,25 @@ test('server-side occupied artifact conflict stops without retries or overwrites
   error=>error.status===412&&error.code==='PRECONDITION_FAILED');
  assert.equal(calls,1);
 });
+
+
+test('restore sends the exact envelope authenticated before awaiting the external token callback',async()=>{
+ const bundle=await pack();const pristine=JSON.stringify(bundle.artifacts[0].envelope);
+ let calls=0,tokens=0;
+ const client=api(async(url,init)=>{
+  calls++;
+  assert.equal(new URL(url).searchParams.get('id'),ID1);
+  assert.equal(init.body,pristine,'mutable backup changed after authenticated inspection');
+  return new Response(JSON.stringify({id:ID1,stored:true,encryptedOpaque:true}),{
+   status:200,headers:{'content-type':'application/json',etag:ETag}
+  });
+ },async()=>{
+  tokens++;
+  bundle.artifacts[0].envelope.ciphertext='malicious_modified_ciphertext';
+  return 'mock-valid-access-jwt';
+ });
+ const created=await client.restoreEncryptedArtifact({bundle,id:ID1,acknowledgeCreateOnly:true});
+ assert.equal(created.created,true);
+ assert.equal(tokens,1);
+ assert.equal(calls,1);
+});
