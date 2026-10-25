@@ -39,5 +39,6 @@ for cfg in PINNED_BLOBS:
     content=(ROOT/cfg).read_text()
     assert "WORKSPACE_DB" not in content and "ACCESS_TEAM_DOMAIN" not in content
     assert "ACCESS_AUDIENCE" not in content
+    assert "WORKSPACE_AUTH_RATE" not in content and "WORKSPACE_READ_RATE" not in content
 
 print("PASS: pinned production/capacity bindings, no-deploy CI, no browser SDK import, opt-in workspace remains inactive")
