@@ -49,4 +49,37 @@ with open(os.environ['MOCK_LOG'],'a') as out:
             self.assertNotEqual(proc.returncode,0)
             self.assertEqual(calls,[])
 
+
+    def test_invalid_thread_budget_rejected_without_starting_paid_or_local_jobs(self):
+        for value in ('0','9','999','4;echoBAD','-1'):
+            with self.subTest(threads=value),tempfile.TemporaryDirectory() as temp:
+                env=self.make_env(temp);env['BLENDER_THREADS']=value
+                proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                    capture_output=True,text=True,timeout=8)
+                log=pathlib.Path(env['MOCK_LOG'])
+                self.assertNotEqual(proc.returncode,0)
+                self.assertFalse(log.exists(),'no local renderer may run with invalid quota')
+
+    def test_custom_output_folder_keeps_final_video_beside_blend_and_respects_thread_cap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home=pathlib.Path(temp)/'owner outputs'
+            out=str(home/'Awakened.blend')
+            proc,calls=self.run_entry(temp,'preview',out,str(home/'frames'))
+            self.assertEqual(proc.returncode,0,proc.stderr)
+            self.assertEqual(len(calls),3)
+            final=calls[-1]['args'][-1]
+            self.assertEqual(final,str(home/'GOD_MODE_AWAKENING_2099_preview.mp4'))
+            self.assertIn('4',calls[0]['args'])
+
+    def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
+        import ast
+        tree=ast.parse(BUILDER.read_text())
+        vals={}
+        for node in tree.body:
+            if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
+                if node.targets[0].id in ('FPS','FRAME_END'):
+                    vals[node.targets[0].id]=ast.literal_eval(node.value)
+        self.assertEqual(vals,{'FPS':30,'FRAME_END':360})
+        self.assertEqual(vals['FRAME_END']/vals['FPS'],12)
+
 if __name__=='__main__':unittest.main()
