@@ -59,6 +59,13 @@ class IndependentHoldoutReplayTests(unittest.TestCase):
                 sum(item['baseline'][k] for k in ('tp','tn','fp','fn')), 3)
             self.assertFalse(item['positive_windows_are_independent_events'])
             self.assertFalse(item['production_admission'])
+            proxy=item['window_proxy_audit']
+            self.assertEqual(proxy['window_count'],3)
+            self.assertEqual(proxy['positive_label_windows'],item['positive_future_label_windows'])
+            self.assertEqual(proxy['false_alert_windows'],item['model']['fp'])
+            self.assertFalse(proxy['overlap_groups_are_unique_incidents'])
+            self.assertFalse(proxy['false_alert_streaks_are_operational_alarm_events'])
+            self.assertFalse(proxy['trace_digest_proves_source_authenticity'])
         for field in ('independent_validation','production_admission',
                       'production_methane_prediction_qualified',
                       'original_four_fold_gate_satisfied',
@@ -84,6 +91,8 @@ class IndependentHoldoutReplayTests(unittest.TestCase):
         self.assertEqual(fold['model']['tp']+fold['model']['fn'],
                          fold['positive_future_label_windows'])
         self.assertFalse(fold['positive_support_threshold_met'])
+        self.assertGreaterEqual(fold['window_proxy_audit']['positive_window_overlap_groups'],1)
+        self.assertFalse(fold['window_proxy_audit']['overlap_groups_are_unique_incidents'])
         self.assertIs(result['production_admission'],False)
 
     def test_incomplete_fold_grid_fails_closed_without_partial_performance(self):
