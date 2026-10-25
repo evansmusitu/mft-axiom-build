@@ -55,4 +55,30 @@ class ReadOnlyPreflightTests(unittest.TestCase):
         r=preflight(malformed)
         self.assertEqual(r["d1_list_read_status"],"unverified")
         self.assertIsNone(r["d1_database_count"])
+    def test_no_free_numeric_slot_with_eleven_databases(self):
+        get,_=self.factory()
+        def full(path):
+            code,body=get(path)
+            if path.endswith("?per_page=100"):
+                body={**body,"result":[{"name":"secret-other-project-"+str(i)} for i in range(11)],
+                    "result_info":{"total_count":11,"count":11}}
+            return code,body
+        r=preflight(full)
+        self.assertEqual(r["d1_database_count"],11)
+        self.assertFalse(r["free_d1_numeric_slot_available"])
+        self.assertFalse(r["provisioning_authorized"])
+        self.assertNotIn("secret-other-project",str(r))
+    def test_existing_candidate_name_reported_without_database_id(self):
+        get,_=self.factory()
+        def candidate(path):
+            code,body=get(path)
+            if path.endswith("?per_page=100"):
+                body={**body,"result":[{"name":"lifeline-mt5-d1-isolated","uuid":"DO_NOT_DISCLOSE"}],
+                    "result_info":{"total_count":1,"count":1}}
+            return code,body
+        r=preflight(candidate)
+        self.assertTrue(r["candidate_db_name_exists"])
+        self.assertFalse(r["provisioning_authorized"])
+        self.assertNotIn("DO_NOT_DISCLOSE",str(r))
+
 if __name__=="__main__":unittest.main()

@@ -21,7 +21,7 @@ def preflight(get):
         raise ProviderReadError("account_not_verified") from None
     if not _status(code,body) or type(body.get("result")) is not dict or body["result"].get("id")!=ACCOUNT:
         raise ProviderReadError("account_not_verified")
-    d1_status="unverified";count=None
+    d1_status="unverified";count=None;candidate=False
     try:
         code,body=get(BASE+"/d1/database?per_page=100")
         if code in (401,403):d1_status="permission_denied"
@@ -30,7 +30,9 @@ def preflight(get):
             if (type(data) is list and type(info) is dict and type(info.get("total_count")) is int
                 and type(info.get("count")) is int and info["count"]==len(data)
                 and info["total_count"]>=len(data)):
-                if info["total_count"]==len(data):d1_status="authorized";count=len(data)
+                if info["total_count"]==len(data):
+                    d1_status="authorized";count=len(data)
+                    candidate=any(type(x) is dict and x.get("name")=="lifeline-mt5-d1-isolated" for x in data)
                 else:d1_status="partial_page"
     except Exception:
         d1_status="unverified"
@@ -45,7 +47,9 @@ def preflight(get):
     return {
         "schema":"lifeline.cloudflare_d1_readonly_eligibility.v1",
         "exact_account_verified":True,"d1_list_read_status":d1_status,
-        "d1_database_count":count,"account_subscription_read_status":subscriptions,
+        "d1_database_count":count,"candidate_db_name_exists":candidate,
+        "free_d1_numeric_slot_available":count is not None and count<10,
+        "account_subscription_read_status":subscriptions,
         "workers_free_plan_verified":False,"hard_zero_dollar_spending_cap_verified":False,
         "provisioning_authorized":False,"d1_or_worker_created":False,
         "credentials_logged":False,"mutation_performed":False,
