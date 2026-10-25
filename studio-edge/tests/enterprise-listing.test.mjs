@@ -38,7 +38,7 @@ class D1{
 async function listing(db,subject=ALICE,query=''){
  const request=new Request('https://test.invalid/api/enterprise/tenants/'+(subject===BOB?TB:TA)+'/artifacts'+(query?'?'+query:''),{
   headers:{origin:'https://evansmusitu.github.io','cf-access-jwt-assertion':subject}});
- return handleEnterpriseWorkspace(request,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},{fetchJwks,now:T});
+ return handleEnterpriseWorkspace(request,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},{fetchJwks,now:T});
 }
 test('authorized listing is bounded, sorted, cursor-paginated without exposing ciphertext or crossing tenants',async()=>{
  const db=new D1();try{
@@ -80,7 +80,7 @@ test('revoked identity or wrong-tenant identity cannot discover metadata',async(
   assert.equal(denied.status,404);
   const foreign=await handleEnterpriseWorkspace(new Request('https://test.invalid/api/enterprise/tenants/'+TB+'/artifacts?limit=2',{
    headers:{origin:'https://evansmusitu.github.io','cf-access-jwt-assertion':ALICE}
-  }),{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},{fetchJwks,now:T});
+  }),{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},{fetchJwks,now:T});
   assert.equal(foreign.status,404);
  }finally{db.close();}
 });
