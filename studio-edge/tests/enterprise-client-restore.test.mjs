@@ -48,7 +48,7 @@ test('restoration uses only authenticated ciphertext and If-None-Match star, nev
   assert.equal(init.credentials,'omit');
   assert.deepEqual(JSON.parse(init.body),b.artifacts[1].envelope);
   assert.ok(!init.body.includes('Private backup item'));
-  return new Response(JSON.stringify({id:ID2,stored:true}),{status:200,headers:{'content-type':'application/json','etag':ETag}});
+  return new Response(JSON.stringify({id:ID2,stored:true,encryptedOpaque:true}),{status:200,headers:{'content-type':'application/json','etag':ETag}});
  });
  const result=await client.restoreEncryptedArtifact({bundle:b,id:ID2,acknowledgeCreateOnly:true});
  assert.deepEqual(result,{id:ID2,etag:ETag,created:true});
