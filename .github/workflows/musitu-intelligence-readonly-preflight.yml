@@ -1,0 +1,37 @@
+name: MUSITU Intelligence Public Website and Edge Readonly Preflight
+
+on:
+  push:
+    branches: [feature/musitu-enterprise-tenant-workspace-20261024]
+    paths:
+      - .github/workflows/musitu-intelligence-readonly-preflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-live-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch public website (GET only; no deployment)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 1 --max-time 20 -o /tmp/site.html https://evansmusitu.github.io/
+          grep -q 'id="ai-studio"' /tmp/site.html
+          grep -q 'assets/musitu-edge-chat.js' /tmp/site.html
+          echo 'Public website HTML and AI app anchors: PASS'
+      - name: Fetch existing production Worker metadata (GET only; no inference)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 1 --max-time 20 -o /tmp/edge.json https://musitu-intelligence-edge-20261019.mft-education-nexus-93f395f5.workers.dev/api/health
+          node -e "const f=require('fs');const x=JSON.parse(f.readFileSync('/tmp/edge.json','utf8'));if(x.service!=='MUSITU Intelligence Edge'||x.status!=='ok'||x.actualInferenceRequiredToVerifyCapacity!==true)process.exit(2);console.log('Worker metadata reachable; this does not establish inference or runtime code provenance')"
+      - name: Fetch existing capacity canary metadata (GET only; no deployment)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 1 --max-time 20 -o /tmp/canary.json https://musitu-intelligence-edge-capacity-canary-20261019.mft-education-nexus-93f395f5.workers.dev/api/health
+          node -e "const f=require('fs');const x=JSON.parse(f.readFileSync('/tmp/canary.json','utf8'));if(x.service!=='MUSITU Intelligence Edge'||x.status!=='ok')process.exit(2);console.log('Existing canary metadata reachable; new enterprise code not deployed')"
