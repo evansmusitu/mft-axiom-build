@@ -215,3 +215,22 @@ test('authenticated encrypted GET consumes tenant/subject read budget before D1'
  assert.equal(down.status,503);
  assert.equal(lookup,0);
 });
+
+
+test('denied Access probe consumes zero JWKS requests, including a correctly signed JWT',async()=>{
+ const {env,db}=setup();
+ let certs=0,sqlReads=0,probes=0;
+ const original=db.prepare.bind(db);
+ db.prepare=(...args)=>{sqlReads++;return original(...args);};
+ env.WORKSPACE_AUTH_RATE={limit:async()=>{probes++;return {success:false};}};
+ const valid=await sign();
+ const req=new Request('https://example.test/api/enterprise/tenants/'+TA+'/artifacts?id='+ID,{
+   headers:{origin:ORIGIN,'cf-access-jwt-assertion':valid}
+ });
+ const response=await handleEnterpriseWorkspace(req,env,{now:CLOCK,fetchJwks:async()=>{
+   certs++;throw Error('fetch must not occur when rate denied');
+ }});
+ assert.equal(response.status,429);
+ assert.equal((await response.json()).code,'AUTH_RATE_LIMIT');
+ assert.equal(probes,1);assert.equal(certs,0);assert.equal(sqlReads,0);
+});
