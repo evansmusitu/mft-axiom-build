@@ -25,16 +25,30 @@ if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" ]]; then
   echo 'God Mode destination already exists; refusing overwrite' >&2; exit 3
 fi
 mkdir -p "$(dirname "$OUT")" "$OUTPUT_DIR"
-# mkdir is an atomic filesystem exclusion primitive. No provider, credentials,
-# network service, GPU quota, or paid process is involved. A second launcher
-# targeting the same frame directory fails before starting Blender. Never
-# steal or erase a stale lock: an operator must inspect partial outputs first.
-RENDER_LOCK="$OUTPUT_DIR/.musitu_2099_render.lock"
-if ! mkdir -- "$RENDER_LOCK" 2>/dev/null; then
-  echo 'God Mode frame directory is locked by another or interrupted render' >&2; exit 3
+# Directory locks are atomic on the local filesystem. A frame-only lock is
+# insufficient: two jobs with different frame folders may still overwrite one
+# .blend or encode to the same MP4. Acquire all three resources in a fixed
+# global order and release ONLY our own locks (never steal stale locks).
+HELD_RENDER_LOCKS=()
+cleanup_render_locks() {
+  local i
+  for ((i=${#HELD_RENDER_LOCKS[@]}-1; i>=0; i--)); do
+    rmdir -- "${HELD_RENDER_LOCKS[$i]}" || true
+  done
+}
+trap cleanup_render_locks EXIT
+for RENDER_LOCK in "$OUT.musitu_2099.lock" "$VIDEO.musitu_2099.lock" "$OUTPUT_DIR/.musitu_2099_render.lock"; do
+  if ! mkdir -- "$RENDER_LOCK" 2>/dev/null; then
+    echo 'God Mode scene, video or frame destination is locked by another or interrupted render' >&2
+    exit 3
+  fi
+  HELD_RENDER_LOCKS+=("$RENDER_LOCK")
+done
+# Recheck after taking all locks; another non-cooperating process may have
+# created the scene or MP4 between the initial check and lock acquisition.
+if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" ]]; then
+  echo 'God Mode destination appeared after locking; refusing overwrite' >&2; exit 3
 fi
-cleanup_render_lock() { rmdir -- "$RENDER_LOCK" || true; }
-trap cleanup_render_lock EXIT
 shopt -s nullglob
 existing_frames=("$OUTPUT_DIR"/frame_*.png)
 if (( ${#existing_frames[@]} )); then

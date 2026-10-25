@@ -58,6 +58,27 @@ test('reader failures are masked without leaking provider errors',async()=>{
  await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
   readObject:async()=>async function*(){yield Buffer.alloc(5);throw Error('secret-api-key')}()})),/STUDIO_R2_READ_FAILED/);
 });
+test('provider errors that imitate STUDIO_R2 codes never leak credentials',async()=>{
+ const forged='STUDIO_R2_PRIVATE_PROVIDER_TOKEN_DONOTLEAK';
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  readObject:async()=> (async function*(){throw Error(forged)})()
+ })),error=>{
+  assert.equal(error.message,'STUDIO_R2_READ_FAILED');
+  assert.ok(!error.message.includes('PRIVATE_PROVIDER_TOKEN'));
+  return true;
+ });
+});
+test('adversarial iterable getters are masked as read failures',async()=>{
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  readObject:async()=> ({
+   get [Symbol.iterator](){throw Error('private_key_do_not_log')},
+   get [Symbol.asyncIterator](){throw Error('private_key_do_not_log')}
+  })
+ })),error=>{
+  assert.equal(error.message,'STUDIO_R2_READ_FAILED');
+  return true;
+ });
+});
 test('HMAC is freeze-bound even for identical R2 bytes',async()=>{
  const a=fixture(),b=fixture();b.freeze_id='different-synthetic-freeze';
  const x=await verifyStudioR2ObjectBytes(a,options());

@@ -6,7 +6,10 @@
 import {createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {normalizeStudioLedgerSnapshot,attestStudioLedgerSnapshot} from './ledger_reconcile.mjs';
 
-const fail=code=>{throw Error(code)};
+// Private error type distinguishes OUR checked failures from untrusted provider
+// exceptions, even when the provider deliberately mimics STUDIO_R2_ codes.
+class StudioR2Failure extends Error {}
+const fail=code=>{throw new StudioR2Failure(code)};
 const DEFAULT_BUDGET=128_000_000; // 128 MB; larger runs require an explicit budget.
 const HARD_BUDGET=1_000_000_000_000;
 // CPU and iterator-exhaustion guardrails independent of the byte budget.
@@ -54,12 +57,14 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
     catch {fail('STUDIO_R2_READ_FAILED')}
     if(stream==null)fail('STUDIO_R2_OBJECT_UNAVAILABLE');
     const iterator=stream instanceof Uint8Array?[stream]:stream;
-    if(typeof iterator?.[Symbol.iterator]!=='function'&&
-       typeof iterator?.[Symbol.asyncIterator]!=='function')
-      fail('STUDIO_R2_STREAM_REQUIRED');
     let size=0, objectChunks=0;
     const hasher=createHash('sha256');
     try{
+      // Iterator getters, asyncIterator methods and iterator.next() are all
+      // untrusted provider code: their exceptions must never expose secrets.
+      if(typeof iterator?.[Symbol.iterator]!=='function'&&
+         typeof iterator?.[Symbol.asyncIterator]!=='function')
+        fail('STUDIO_R2_STREAM_REQUIRED');
       for await(const chunk of iterator){
         if(!(chunk instanceof Uint8Array))fail('STUDIO_R2_INVALID_CHUNK');
         if(chunk.byteLength===0)fail('STUDIO_R2_EMPTY_CHUNK');
@@ -72,8 +77,7 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
         hasher.update(chunk);
       }
     }catch(error){
-      if(typeof error?.message==='string'&&error.message.startsWith('STUDIO_R2_'))
-        throw error;
+      if(error instanceof StudioR2Failure)throw error;
       fail('STUDIO_R2_READ_FAILED');
     }
     if(size!==asset.bytes)fail('STUDIO_R2_CONTENT_SIZE_MISMATCH');

@@ -184,6 +184,47 @@ if os.path.basename(sys.argv[0])=='ffprobe':
                 if first.poll() is None:
                     first.kill();first.communicate()
 
+    def test_distinct_frame_directories_cannot_race_on_same_scene_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_BLENDER_SLEEP']='0.45'
+            scene=str(pathlib.Path(temp)/'valuable_scene.blend')
+            first=subprocess.Popen(['bash',str(ENTRY),'preview',scene,
+                str(pathlib.Path(temp)/'frames_a')],cwd=temp,env=env,
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            try:
+                time.sleep(.15)
+                second=subprocess.run(['bash',str(ENTRY),'preview',scene,
+                    str(pathlib.Path(temp)/'frames_b')],cwd=temp,env=env,
+                    capture_output=True,text=True,timeout=15)
+                self.assertNotEqual(second.returncode,0,'parallel launch may not clobber the same .blend')
+                self.assertIn('lock',second.stderr.lower())
+                _,stderr=first.communicate(timeout=20)
+                self.assertEqual(first.returncode,0,stderr)
+                self.assertFalse(pathlib.Path(scene+'.musitu_2099.lock').exists())
+            finally:
+                if first.poll() is None:first.kill();first.communicate()
+
+    def test_distinct_scene_paths_cannot_race_on_same_video_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_BLENDER_SLEEP']='0.45'
+            first=subprocess.Popen(['bash',str(ENTRY),'preview',
+                str(pathlib.Path(temp)/'first.blend'),str(pathlib.Path(temp)/'frames_a')],
+                cwd=temp,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            try:
+                time.sleep(.15)
+                second=subprocess.run(['bash',str(ENTRY),'preview',
+                    str(pathlib.Path(temp)/'second.blend'),str(pathlib.Path(temp)/'frames_b')],
+                    cwd=temp,env=env,capture_output=True,text=True,timeout=15)
+                self.assertNotEqual(second.returncode,0,'parallel launch may not race to encode one MP4')
+                self.assertIn('lock',second.stderr.lower())
+                _,stderr=first.communicate(timeout=20)
+                self.assertEqual(first.returncode,0,stderr)
+                video=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4'
+                self.assertTrue(video.is_file())
+                self.assertFalse(pathlib.Path(str(video)+'.musitu_2099.lock').exists())
+            finally:
+                if first.poll() is None:first.kill();first.communicate()
+
     def test_stale_render_lock_never_allows_blender_and_is_not_removed(self):
         with tempfile.TemporaryDirectory() as temp:
             env=self.make_env(temp)
@@ -196,6 +237,40 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             self.assertTrue(lock.is_dir(),'never delete an existing operator lock')
             self.assertFalse(pathlib.Path(env['MOCK_LOG']).exists(),
                 'the Blender process must never start under a foreign lock')
+
+    def test_foreign_scene_and_video_locks_are_never_removed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            output=pathlib.Path(temp)/'scene.blend'
+            video=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4'
+            for target in (output,video):
+                with self.subTest(resource=target.name):
+                    foreign=pathlib.Path(str(target)+'.musitu_2099.lock')
+                    foreign.mkdir()
+                    result=subprocess.run(['bash',str(ENTRY),'preview',str(output),
+                        str(pathlib.Path(temp)/'frames')],cwd=temp,env=env,
+                        capture_output=True,text=True,timeout=12)
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('lock',result.stderr.lower())
+                    self.assertTrue(foreign.is_dir())
+                    self.assertFalse(pathlib.Path(env['MOCK_LOG']).exists())
+                    foreign.rmdir()
+
+    def test_failed_render_cleans_only_its_own_scene_video_and_frame_locks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_FRAME_POLICY']='missing'
+            output=pathlib.Path(temp)/'scene.blend'
+            video=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4'
+            frames=pathlib.Path(temp)/'frames'
+            result=subprocess.run(['bash',str(ENTRY),'preview',str(output),str(frames)],
+                cwd=temp,env=env,capture_output=True,text=True,timeout=15)
+            self.assertNotEqual(result.returncode,0)
+            for lock in (pathlib.Path(str(output)+'.musitu_2099.lock'),
+                         pathlib.Path(str(video)+'.musitu_2099.lock'),
+                         frames/'.musitu_2099_render.lock'):
+                self.assertFalse(lock.exists(),f'only newly held lock can be removed: {lock}')
+            self.assertTrue((frames/'frame_0001.png').is_file(),
+                            'never erase the partial output after a failed render')
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast
