@@ -26,6 +26,7 @@ function require_(condition,code=400){if(!condition)fail(code);}
 function json(status,payload){return new Response(JSON.stringify(payload),{status,headers:{
  'content-type':'application/json; charset=utf-8','cache-control':'private, no-store',
  'x-content-type-options':'nosniff','x-frame-options':'DENY',
+ ...(status===429?{'retry-after':'60'}:{}),
  'content-security-policy':"default-src 'none'; frame-ancestors 'none'"}});}
 const denied=Object.freeze({publisherApproved:false,publicationAuthorized:false,
  paymentAuthorized:false,payoutAuthorized:false,entitlementGranted:false});
@@ -145,11 +146,12 @@ function trustedAuthorizer({issuer,audience,publicKeys,now}){
     Array.isArray(claims.amr)&&claims.amr.includes('mfa')&&claims.verified===true&&
     typeof claims.jti==='string'&&/^[a-zA-Z0-9_-]{12,200}$/.test(claims.jti),401);
   if(claims.role==='developer')require_(typeof claims.publisherId==='string'&&SLUG.test(claims.publisherId),401);
+  else require_(!Object.hasOwn(claims,'publisherId'),401); // global reviewers have NO applicant tenancy
   return {subject:claims.sub,role:claims.role,publisherId:claims.publisherId,
    tokenId:claims.jti,expiresAt:claims.exp,issuer:claims.iss,audience:claims.aud};
  };
 }
-export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine,isTokenActive}={}){
+export function createDeveloperPortal({issuer,audience,publicKeys,repository,now=Date.now,origin,quarantine,isTokenActive,takeRatePermit}={}){
  require_(repository&&['create','read','addReview'].every(k=>typeof repository[k]==='function'));
  require_(typeof origin==='string'&&origin.startsWith('https://'));
  const auth=trustedAuthorizer({issuer,audience,publicKeys,now});
@@ -184,6 +186,14 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    const revalidateSession=()=>isTokenActive(sessionIdentity);
    const requireCurrentSession=async()=>require_((await revalidateSession())===true,401);
    await requireCurrentSession();
+   // A genuine signed and currently authorized session STILL needs a durable
+   // server-side quota. Absence, missing leases or backend outage never bypass
+   // the rate gate; no in-memory or applicant-selected permit is accepted.
+   require_(typeof takeRatePermit==='function',503);
+   const permitted=await takeRatePermit({issuer:actor.issuer,subject:actor.subject,
+     role:actor.role,publisherId:actor.publisherId,route:type,tokenId:actor.tokenId,
+     audience:actor.audience,expiresAt:actor.expiresAt});
+   require_(permitted===true,429);
    if(type==='submit'){
      require_(actor.role==='developer',403);
      const raw=await readBounded(req),data=strictObject(raw);
@@ -236,7 +246,7 @@ export function createDeveloperPortal({issuer,audience,publicKeys,repository,now
    return json(202,{ok:true,id,state:'REVIEW_REQUIRED',reviewEvidenceCount:result.record.reviews.length,...denied});
   }catch(e){const code=e.httpStatus||503;
    return json(code,{ok:false,code:code===401?'authentication_required':code===403?'forbidden':
-     code===400?'invalid_request':code===413?'request_too_large':code===415?'unsupported_media_type':'portal_unavailable',...denied});
+     code===400?'invalid_request':code===429?'rate_limited':code===413?'request_too_large':code===415?'unsupported_media_type':'portal_unavailable',...denied});
   }
  };
 }

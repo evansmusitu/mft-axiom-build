@@ -105,7 +105,7 @@ test('full MFA-signed portal -> real private adapter -> receipt denies replay an
  const portal=createDeveloperPortal({issuer:'https://issuer.example.org',
   audience:'store-v2-internal',publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},
   origin:'https://store-stage.example.org',repository,quarantine:q,now:()=>t*1000,
-  isTokenActive:async()=>active});
+  isTokenActive:async()=>active,takeRatePermit:async()=>true});
  function call(publisherId='owner-tenant'){
   return portal(new Request('https://store-stage.example.org/developer/submissions/'+submission.id+'/apk',{
    method:'PUT',headers:{authorization:'Bearer '+jwt(publisherId),

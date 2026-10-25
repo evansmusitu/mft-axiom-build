@@ -27,9 +27,10 @@ jobs:
           node --check store/phase1/developer_portal/quarantine-upload.mjs
           node --check store/phase1/developer_portal/private-filesystem-quarantine.mjs
           node --check store/phase1/developer_portal/postgres-session-status.mjs
+          node --check store/phase1/developer_portal/postgres-rate-gate.mjs
           node --check store/phase1/developer_portal/private-apk-structure.mjs
           node --check store/phase1/developer_portal/private-structure-review.mjs
-          node --test store/phase1/developer_portal/portal.test.mjs store/phase1/developer_portal/postgres-repository.test.mjs store/phase1/developer_portal/quarantine-upload.test.mjs store/phase1/developer_portal/quarantine-lifecycle.test.mjs store/phase1/developer_portal/private-filesystem-quarantine.test.mjs store/phase1/developer_portal/postgres-session-status.test.mjs store/phase1/developer_portal/private-apk-structure.test.mjs store/phase1/developer_portal/private-structure-review.test.mjs
+          node --test store/phase1/developer_portal/portal.test.mjs store/phase1/developer_portal/postgres-repository.test.mjs store/phase1/developer_portal/quarantine-upload.test.mjs store/phase1/developer_portal/quarantine-lifecycle.test.mjs store/phase1/developer_portal/private-filesystem-quarantine.test.mjs store/phase1/developer_portal/postgres-session-status.test.mjs store/phase1/developer_portal/private-apk-structure.test.mjs store/phase1/developer_portal/private-structure-review.test.mjs store/phase1/developer_portal/postgres-rate-gate.test.mjs store/phase1/developer_portal/portal-rate-gate.test.mjs
           echo MUSITU_STORE_V2_PORTAL_TESTS=PASS
       - name: Qualify fail-closed no-payment and no-public-release contract
         run: |

@@ -12,7 +12,7 @@ const apk=Buffer.concat([Buffer.from([80,75,3,4]),Buffer.alloc(124,0x4a)]);
 function jwt(patch={}){
  const h=b64({alg:'ES256',typ:'JWT',kid:'pinned'});
  const p=b64({iss:'https://idp.example.org',aud:'store-v2-internal',sub:'developer-actor-1',
-  role:'developer',publisherId:'test-publisher',amr:['mfa'],auth_time:time-10,
+  role:'developer',...(patch.role&&patch.role!=='developer'?{}:{publisherId:'test-publisher'}),amr:['mfa'],auth_time:time-10,
   iat:time-20,nbf:time-20,exp:time+300,jti:'quarantine-test-token-0001',verified:true,...patch});
  const signed=h+'.'+p;
  return signed+'.'+sign('sha256',Buffer.from(signed),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
@@ -35,7 +35,7 @@ function harness({owner='test-publisher',body=apk,expectedHash=sha(apk),expected
  const portal=createDeveloperPortal({issuer:'https://idp.example.org',audience:'store-v2-internal',
   publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},repository:repo,
   quarantine:missingStore?undefined:store,origin:ORIGIN,now:()=>time*1000,
-  isTokenActive});
+  isTokenActive,takeRatePermit:async()=>true});
  async function upload({path='/developer/submissions/'+record.id+'/apk',method='PUT',token=jwt(),
    type='application/vnd.android.package-archive',bytes=body,headers={}}={}){
   const all={authorization:'Bearer '+token,'content-type':type,...headers};

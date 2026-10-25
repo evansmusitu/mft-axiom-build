@@ -71,7 +71,7 @@ test('real portal bearer verifier cannot bypass exact private SQL session author
   async create(){throw Error('unexpected create');},async addReview(){throw Error('unexpected review');}};
  const portal=createDeveloperPortal({issuer:'https://auth.example.org',audience:'store-v2-internal',
   publicKeys:{'controlled-test-key':pair.publicKey.export({type:'spki',format:'pem'})},
-  now:()=>seconds*1000,origin:'https://private.example.org',repository,isTokenActive:status});
+  now:()=>seconds*1000,origin:'https://private.example.org',repository,isTokenActive:status,takeRatePermit:async()=>true});
  const request=(claims={})=>portal(new Request('https://private.example.org/developer/submissions/'+id,
   {headers:{authorization:'Bearer '+jwt(claims)},method:'GET'}));
  assert.equal((await request()).status,200);

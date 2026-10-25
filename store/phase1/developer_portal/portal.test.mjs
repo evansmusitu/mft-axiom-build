@@ -11,7 +11,7 @@ function token(overrides={}){
  const {key=privateKey,alg='ES256',kid='pinned',...claims}=overrides;
  const h=b64({alg,typ:'JWT',kid});
  const p=b64({iss:'https://auth.private.example.org',aud:'store-v2-internal',sub:'developer-actor-1',
-  role:'developer',publisherId:'approved-test-account',amr:['pwd','mfa'],
+  role:'developer',...(claims.role&&claims.role!=='developer'?{}:{publisherId:'approved-test-account'}),amr:['pwd','mfa'],
   auth_time:now-10,iat:now-20,nbf:now-20,exp:now+300,
   jti:'private-token-test-0001',verified:true,...claims});
  const part=h+'.'+p;
@@ -44,7 +44,7 @@ function harness(isTokenActive=async()=>true){
  const repository=new FakeDurableContract();
  const portal=createDeveloperPortal({issuer:'https://auth.private.example.org',audience:'store-v2-internal',
    publicKeys:{pinned:publicKey.export({format:'pem',type:'spki'})},now:()=>now*1000,
-   origin:'https://store-stage.mftintelligence.com',repository,isTokenActive});
+   origin:'https://store-stage.mftintelligence.com',repository,isTokenActive,takeRatePermit:async()=>true});
  const call=(method,path,{jwt=token(),body,headers={}}={})=>portal(new Request(
   'https://store-stage.mftintelligence.com'+path,{method,headers:{
    ...(jwt?{authorization:'Bearer '+jwt}:{}),
