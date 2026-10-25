@@ -54,5 +54,21 @@ class OfflineCIContract(unittest.TestCase):
         self.assertIn('Pure offline Edge identity-independent and client submission tests',source)
         self.assertNotIn('remote_r2_modal_real.mjs',source)
 
+
+    def test_supply_chain_actions_are_immutable_and_checkout_token_not_persisted(self):
+        import re
+        source=CI.read_text()
+        pins={
+            'actions/checkout':'11bd71901bbe5b1630ceea73d27597364c9af683',
+            'actions/setup-node':'49933ea5288caeca8642d1e84afbd3f7d6820020',
+            'actions/setup-python':'a26af69be951a213d495a4c3e4e4022e16d87065',
+        }
+        for action,sha in pins.items():
+            self.assertIn(f'uses: {action}@{sha}',source)
+        self.assertIn('persist-credentials: false',source)
+        uses=re.findall(r'(?m)^\s*-\s*uses:\s*([^\s#]+)',source)
+        self.assertEqual(len(uses),3)
+        self.assertTrue(all(re.fullmatch(r'[^@\s]+@[0-9a-f]{40}',use) for use in uses))
+
 if __name__=='__main__':
     unittest.main()
