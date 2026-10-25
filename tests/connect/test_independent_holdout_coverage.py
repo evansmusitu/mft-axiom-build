@@ -175,13 +175,18 @@ class HoldoutCoverageTests(unittest.TestCase):
                     self.seal.write_bytes(original_seal)
                 yield row
 
-        with (patch.object(auditor,'verify_holdout_seal',
-                           side_effect=swap_after_successful_seal_verification),
-              patch.object(auditor,'_stream_source',
-                           side_effect=restore_during_source_stream)):
-            with self.assertRaisesRegex(ValueError,
-                                        'holdout_coverage_seal_changed_after_verification'):
-                self.audit()
+        try:
+            with (patch.object(auditor,'verify_holdout_seal',
+                               side_effect=swap_after_successful_seal_verification),
+                  patch.object(auditor,'_stream_source',
+                               side_effect=restore_during_source_stream)):
+                with self.assertRaisesRegex(
+                        ValueError, 'holdout_coverage_seal_changed_after_verification'):
+                    self.audit()
+        finally:
+            # A correct fail-closed implementation rejects before opening
+            # the source stream, so its old restore-on-scan hook never runs.
+            self.seal.write_bytes(original_seal)
         self.assertEqual(self.seal.read_bytes(),original_seal)
 
     def test_cli_writes_once_and_never_overwrites_evidence(self):
