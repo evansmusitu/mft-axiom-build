@@ -64,7 +64,7 @@ class FakeDB {
   }
 }
 function setup() {const db=new FakeDB();db.members.set(TA+'|subject-owner',{role:'owner'});db.members.set(TB+'|subject-other',{role:'viewer'});
-return {env:{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},db};}
+return {env:{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},db};}
 async function call(env,method,tenant=TA,id=ID, token='',body=null,origin=ORIGIN){
   const headers={'cf-access-jwt-assertion':token};
   if(origin!==null)headers.origin=origin;
@@ -85,7 +85,7 @@ test('RS256 identity checks signature, issuer, audience, time, asymmetric alg',a
 });
 test('fails closed without dedicated tenant database and Access configuration',async()=>{
  const token=await sign();
- for(const env of [{},{WORKSPACE_DB:new FakeDB()},{WORKSPACE_DB:new FakeDB(),ACCESS_TEAM_DOMAIN:'https://attacker.test',ACCESS_AUDIENCE:AUD}]) {
+ for(const env of [{},{WORKSPACE_DB:new FakeDB()},{WORKSPACE_DB:new FakeDB(),ACCESS_TEAM_DOMAIN:'https://attacker.test',ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}}]) {
   const r=await call(env,'GET',TA,ID,token);assert.equal(r.status,503);assert.equal((await r.json()).code,'NOT_CONFIGURED');
  }
 });
@@ -178,7 +178,7 @@ test('enterprise rate controls fail closed before signing-key lookups or D1 acce
  let dbAccess=0, authCalls=0;
  const original=setupObj.db.prepare.bind(setupObj.db);
  setupObj.db.prepare=(...args)=>{dbAccess++;return original(...args);};
- const noLimiter={...setupObj.env};
+ const noLimiter={WORKSPACE_DB:setupObj.db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD};
  const missing=await call(noLimiter,'GET',TA,ID,token);
  assert.equal(missing.status,503);
  assert.equal((await missing.json()).code,'RATE_CONTROL_UNAVAILABLE');
