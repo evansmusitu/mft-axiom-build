@@ -36,8 +36,7 @@ export id db tenant_hash
 export -f actor_hash
 # Avoid a natural one-minute rollover within the stress window: an expected
 # quota refresh at the boundary is correct production behavior, not a bypass.
-second="$(docker exec "$id" psql -U storepilot -d "$db" -Atqc
-  'SELECT (floor(EXTRACT(EPOCH FROM clock_timestamp()))::BIGINT % 60)')"
+second="$(docker exec "$id" psql -U storepilot -d "$db" -Atqc 'SELECT (floor(EXTRACT(EPOCH FROM clock_timestamp()))::BIGINT % 60)')"
 [[ "$second" =~ ^[0-9]+$ ]]
 if (( second > 35 ));then sleep "$((62-second))";fi
 # 36 independent actual psql connections, up to 16 in parallel. They all hit
