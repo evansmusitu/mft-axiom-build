@@ -35,7 +35,7 @@ class CustomerAccountingAuditTests(unittest.TestCase):
                     ('tenant_alpha','2026-10-22T12:01:00.000Z'),
                     ('tenant_beta',STAMP)),1):
                 con.execute('INSERT INTO connect_customer_usage_events(tenant_id,credential_id,request_id,scope,utc_day,observed_at) VALUES(?,?,?,?,?,?)',
-                            (tenant,'cred_'+tenant,f'synthetic-request-{i}',
+                            (tenant,'cred_'+tenant,f'00000000-0000-4000-8000-{i:012d}',
                              'mining.plan','2026-10-22',at))
 
     def audit(self):
@@ -121,12 +121,47 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         with sqlite3.connect(self.db) as con:
             con.execute("UPDATE connect_customer_usage_events "
                         "SET observed_at='2026-10-22T12:00:00Z' "
-                        "WHERE request_id='synthetic-request-1'")
+                        "WHERE request_id='00000000-0000-4000-8000-000000000001'")
         report=self.audit()
         self.assertEqual(report['daily_counter_mismatches'],0)
         self.assertEqual(report['minute_counter_mismatches'],0)
         self.assertGreater(report['malformed_event_timestamps_or_scopes'],0)
         self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+
+    def test_reconciliation_catches_forged_nonuuid_request_id_even_if_counters_balance(self):
+        # Quota counters cannot prove that a particular request ID was ever
+        # minted by the server, but invalid UUID syntax proves a broken
+        # admission event contract. This should not pass accounting audit.
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE connect_customer_usage_events "
+                        "SET request_id='customer-forged-request' "
+                        "WHERE tenant_id='tenant_alpha' "
+                        "AND request_id='00000000-0000-4000-8000-000000000001'")
+        result=self.audit()
+        self.assertEqual(result['usage_events_examined'],3)
+        self.assertEqual(result['daily_counter_mismatches'],0)
+        self.assertEqual(result['minute_counter_mismatches'],0)
+        self.assertEqual(result['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+        self.assertEqual(result['malformed_request_ids'],1)
+        self.assertFalse(result['customer_beta_admission'])
+
+    def test_lookalike_uuid_of_wrong_version_or_variant_fails_accounting_audit(self):
+        for invalid in ('00000000-0000-1000-8000-000000000001',
+                        '00000000-0000-4000-7000-000000000001',
+                        '00000000-0000-4000-8000-00000000000g'):
+            with self.subTest(identifier=invalid), sqlite3.connect(self.db) as con:
+                con.execute("UPDATE connect_customer_usage_events SET request_id=? "
+                            "WHERE tenant_id='tenant_alpha' AND "
+                            "request_id='00000000-0000-4000-8000-000000000001'",
+                            (invalid,))
+                result=self.audit()
+                self.assertEqual(result['status'],
+                                 'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+                self.assertEqual(result['malformed_request_ids'],1)
+                con.execute("UPDATE connect_customer_usage_events "
+                            "SET request_id='00000000-0000-4000-8000-000000000001' "
+                            "WHERE tenant_id='tenant_alpha' AND request_id=?",
+                            (invalid,))
 
     def test_cli_success_creates_only_deidentified_summary_then_refuses_overwrite(self):
         module=importlib.import_module('qualification.audit_connect_customer_registry')
