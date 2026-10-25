@@ -56,6 +56,7 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         credentials = {
             row[0]: row[1] for row in conn.execute(
                 'SELECT credential_id,tenant_id FROM connect_customer_credentials')}
+        orphaned_credentials = sum(t not in tenants for t in credentials.values())
         expected_day: Counter[tuple[str, str]] = Counter()
         expected_minute: Counter[tuple[str, str]] = Counter()
         used = 0
@@ -84,12 +85,19 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         actual_minute = {
             (tenant,minute): count for tenant,minute,count in conn.execute(
                 'SELECT tenant_id,utc_minute,used FROM connect_customer_minute_usage')}
+        # Presence matters: a zero-valued orphan quota row must not
+        # compare equal to an entirely absent event-derived bucket.
         day_mismatch = sum(
-            actual_day.get(key) != expected_day.get(key, 0)
+            key not in actual_day or key not in expected_day
+            or actual_day[key] != expected_day[key]
             for key in expected_day.keys() | actual_day.keys())
         minute_mismatch = sum(
-            actual_minute.get(key) != expected_minute.get(key, 0)
+            key not in actual_minute or key not in expected_minute
+            or actual_minute[key] != expected_minute[key]
             for key in expected_minute.keys() | actual_minute.keys())
+        orphaned_quota_rows = (
+            sum(key[0] not in tenants for key in actual_day)
+            + sum(key[0] not in tenants for key in actual_minute))
         # Compare both reconstructed event counts and stored counters
         # against the tenant's limits in this same snapshot. An operator
         # may legitimately have reduced limits after past admissions; such
@@ -111,7 +119,8 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
 
     good = not any((day_mismatch, minute_mismatch,
                     malformed, inconsistent_credential, malformed_request_ids,
-                    daily_limit_exceedances, minute_limit_exceedances))
+                    daily_limit_exceedances, minute_limit_exceedances,
+                    orphaned_credentials, orphaned_quota_rows))
     return {
         'schema': 'musitu.connect.customer_accounting_audit.v1',
         'status': ('OFFLINE_ACCOUNTING_CONSISTENT_NOT_ADMITTED'
@@ -128,6 +137,8 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         'daily_quota_limit_exceedances': daily_limit_exceedances,
         'minute_quota_limit_exceedances': minute_limit_exceedances,
         'credential_tenant_mismatches': inconsistent_credential,
+        'orphaned_credentials': orphaned_credentials,
+        'orphaned_quota_rows': orphaned_quota_rows,
         'event_and_quota_consistency': good,
         'hosted_d1_qualified': False,
         'production_admission': False,

@@ -346,3 +346,20 @@ incrementing counters. This is test-driven with failing pre-fix Node
 SQLite evidence and separately exercised in isolated local Cloudflare
 D1. Normal `00`–`23` UTC hour representations continue to work.
 Remote D1 remains unqualified and customer admission blocked.
+
+### Unused-orphan credentials and zero-valued quota integrity
+
+The offline registry audit now scans **all** stored credentials for tenant
+referential integrity, including credentials that have never admitted an
+attempt. It also checks that every persisted daily/minute quota-row key
+actually exists in the reconstructed event-derived key set; treating a
+missing counter as zero was previously indistinguishable from an unexplained
+persisted zero counter. It reports aggregate `orphaned_credentials` and
+`orphaned_quota_rows` without exposing tenant IDs, credential IDs or
+request IDs. Both fail closed, with no attempted database repair or schema
+migration. Adversarial tests insert orphan rows with SQLite foreign-key
+enforcement disabled to model a corrupted/imported local file.
+
+This only verifies a read-only local database snapshot; it does not prove
+historical auth decisions, hosted D1 atomicity, customer identity, billing
+or production beta eligibility.
