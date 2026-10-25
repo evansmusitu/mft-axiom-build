@@ -48,6 +48,28 @@ const reserve = (db, token, scope, i, nowMs=TIME) => reserveConnectCustomerReque
 });
 const count = (db, tenant) => db.prepare('SELECT COUNT(*) AS n FROM connect_customer_usage_events WHERE tenant_id=?').bind(tenant).first();
 
+test('Cloudflare local D1: UUID-v4 event trigger accepts canonical IDs and rejects forged direct writes', {timeout:30000}, async()=>{
+  let db;
+  try {
+    db=await createIsolatedD1();
+    const sql='INSERT INTO connect_customer_usage_events '+
+      '(tenant_id,credential_id,request_id,scope,utc_day,observed_at) '+
+      'VALUES(?,?,?,?,?,?)';
+    const valid=db.prepare(sql).bind('tenant_alpha','cred_alpha',
+      uid(777),'mining.plan',DAY,'2026-10-22T12:34:00.000Z');
+    let inserted;
+    try { inserted=await valid.run(); }
+    catch(e){ assert.fail('D1 canonical UUID insertion failed: '+String(e?.message)); }
+    assert.equal(inserted.success,true);
+    const invalid=db.prepare(sql).bind('tenant_alpha','cred_alpha',
+      'not-uuid','mining.plan',DAY,'2026-10-22T12:34:00.000Z');
+    await assert.rejects(invalid.run(),/CUSTOMER_EVENT_REQUEST_ID_INVALID/);
+    assert.equal((await count(db,'tenant_alpha')).n,1);
+  } finally {
+    if (mf) await mf.dispose();
+  }
+});
+
 test('Cloudflare local workerd D1: schema, atomic quota, principals and revoked reads', {timeout:30000}, async () => {
   let db;
   try {
