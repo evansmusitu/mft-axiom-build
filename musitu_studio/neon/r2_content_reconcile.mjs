@@ -82,6 +82,9 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
       try {stream=await readObject({...asset,signal:controller.signal});}
       catch {if(controller.signal.aborted)fail(deadlineCode);
         fail('STUDIO_R2_READ_FAILED')}
+      // A reader that ignores cooperative AbortSignal can resolve only after
+      // Promise.race has already rejected. Never consume its late stream.
+      if(controller.signal.aborted)fail(deadlineCode);
       if(stream==null)fail('STUDIO_R2_OBJECT_UNAVAILABLE');
       const iterator=stream instanceof Uint8Array?[stream]:stream;
       let size=0, objectChunks=0;
@@ -93,6 +96,9 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
            typeof iterator?.[Symbol.asyncIterator]!=='function')
           fail('STUDIO_R2_STREAM_REQUIRED');
         for await(const chunk of iterator){
+          // A delayed next() can resume after the timeout won the race.
+          // Throwing here invokes AsyncIteratorClose via for-await.
+          if(controller.signal.aborted)fail(deadlineCode);
           if(!(chunk instanceof Uint8Array))fail('STUDIO_R2_INVALID_CHUNK');
           if(chunk.byteLength===0)fail('STUDIO_R2_EMPTY_CHUNK');
           if(++objectChunks>maxChunksPerObject)fail('STUDIO_R2_CHUNK_LIMIT_EXCEEDED');
@@ -108,6 +114,7 @@ export async function verifyStudioR2ObjectBytes(sourceSnapshot,{readObject,integ
         if(error instanceof StudioR2Failure)throw error;
         fail('STUDIO_R2_READ_FAILED');
       }
+      if(controller.signal.aborted)fail(deadlineCode);
       if(size!==asset.bytes)fail('STUDIO_R2_CONTENT_SIZE_MISMATCH');
       const actual=hasher.digest();
       if(!timingSafeEqual(actual,Buffer.from(asset.sha256,'hex')))

@@ -572,3 +572,33 @@ for(const kind of ['signed R2 key','independent provider receipt']){
   assert.equal(x.state().flips,2,'revocation must trigger fenced rollback');
  });
 }
+
+// RED: provider verifiers are untrusted and may throw secret-bearing exceptions.
+// Their message must not appear in canary-facing errors, even during rollback.
+for(const gate of ['provider receipts','signed R2 version']){
+ test(`${gate} callback exceptions are sanitized before canary routing`,async()=>{
+  const x=adapter();
+  const name=gate==='provider receipts'?'verifyProviderReceipts':'verifySignedR2VersionEvidence';
+  x.f[name]=async()=>{throw Error('PRIVATE_PROVIDER_SECRET_SHOULD_NOT_LEAK')};
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),error=>{
+   assert.equal(error.message,gate==='provider receipts'?
+     'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED':
+     'STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+   return true;
+  });
+  assert.equal(x.state().flips,0);
+ });
+}
+test('provider verifier exception after CAS triggers sanitized rollback',async()=>{
+ const x=adapter();const valid=x.f.verifyProviderReceipts;
+ x.f.verifyProviderReceipts=async e=>{
+  if(x.state().route==='NEON_CANARY_READONLY')throw Error('CLOUDFLARE_PRIVATE_AUTH_TOKEN');
+  return valid(e);
+ };
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),error=>{
+  assert.equal(error.message,'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+  return true;
+ });
+ assert.equal(x.state().flips,2);
+ assert.equal(x.state().route,'SQLITE_DO');
+});

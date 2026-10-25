@@ -166,6 +166,13 @@ function validOwnerBrowserApproval(r,q,priorReceiptId=null){
     expires-now>=15000&&expires-now<=300000;
 }
 const need=(fn,name)=>{if(typeof fn!=='function')fail('STUDIO_CONTROL_PLANE_INVALID_'+name)};
+// Suppress sensitive diagnostics from independent provider callback failures.
+// Do not treat a thrown exception as proof, and never expose its message.
+const checkedProvider=async(fn,evidence,code)=>{
+  let verified=false;
+  try{verified=await fn(evidence)}catch{fail(code)}
+  if(verified!==true)fail(code);
+};
 /** All callbacks must use authenticated, durable provider controls.
  * CAS must atomically preserve the original SQLite route as rollback target.
  * No cloud provider is contacted by this source-only module itself.
@@ -201,20 +208,16 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     if(await readRoute()!=='SQLITE_DO')fail('STUDIO_SOURCE_NOT_ACTIVE');
     const first=await readEvidence();
     const qualified=assertStudioNeonPromotionEvidence(first,{expectedHead});
-    if(await verifyProviderReceipts(first)!==true)
-      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    await checkedProvider(verifyProviderReceipts,first,'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
     // An independent, signed pinned-version proof is mandatory and cannot be
     // implicitly delegated to a generic provider receipt boolean. Callers
     // should use createStudioR2ProviderReceiptVerifier with a pinned owner
     // public key and independently authenticated R2 version provenance.
-    if(await verifySignedR2VersionEvidence(first)!==true)
-      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    await checkedProvider(verifySignedR2VersionEvidence,first,'STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     const second=await readEvidence();
     assertStudioNeonPromotionEvidence(second,{expectedHead});
-    if(await verifyProviderReceipts(second)!==true)
-      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
-    if(await verifySignedR2VersionEvidence(second)!==true)
-      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    await checkedProvider(verifyProviderReceipts,second,'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    await checkedProvider(verifySignedR2VersionEvidence,second,'STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     if(second.run_id!==qualified.run_id||second.freeze_id!==qualified.freeze_id)
       fail('STUDIO_EVIDENCE_EPOCH_CHANGED');
     // A stable run ID alone is insufficient: identical counts can conceal
@@ -284,10 +287,8 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // Signer/owner registries, provider provenance and private transport may
     // be revoked independently of the narrower pinned-version callback.
     // Require all independent receipts to remain valid immediately before CAS.
-    if(await verifyProviderReceipts(second)!==true)
-      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
-    if(await verifySignedR2VersionEvidence(second)!==true)
-      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    await checkedProvider(verifyProviderReceipts,second,'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    await checkedProvider(verifySignedR2VersionEvidence,second,'STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     // Provider callbacks may perform remote HMAC/R2 checks. They can take long
     // enough to expire the evidence or lose the SQLite and Neon write fences.
     // Recheck after their LAST await, immediately before touching route state.
@@ -321,10 +322,8 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // Provider trust is revocable. Do not present a successful canary after
     // signer/key or independent R2 authority was revoked during the CAS.
     // A failure enters the existing fenced SQLite rollback path.
-    if(await verifyProviderReceipts(second)!==true)
-      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
-    if(await verifySignedR2VersionEvidence(second)!==true)
-      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
+    await checkedProvider(verifyProviderReceipts,second,'STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    await checkedProvider(verifySignedR2VersionEvidence,second,'STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     const [browser,reconciled]=await Promise.all([
       verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
     if(!validOwnerBrowserApproval(browser,qualified,ownerBefore.receipt_id)||

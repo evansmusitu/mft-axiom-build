@@ -1,12 +1,6 @@
 name: "GOD MODE 2099 — Isolated Blender Cycles Scene Qualification"
 on:
-  push:
-    branches:
-      - experiments/studio-enterprise-v03-sqlite-do-20261018
-    paths:
-      - creative/god_mode_2099/**
-      - .github/workflows/god-mode-2099-blender-qualification.yml
-  workflow_dispatch:
+  workflow_dispatch: {}
 permissions:
   contents: read
 concurrency:
@@ -18,7 +12,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout isolated Studio branch only
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Install distro Blender — no paid render providers or tokens
@@ -43,7 +37,7 @@ jobs:
           done
       - name: Preserve editable scene and rendered proof only
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: god-mode-2099-genuine-blender-cycles-five-shot-proof
           path: ${{ runner.temp }}/2099/

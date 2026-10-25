@@ -197,3 +197,40 @@ test('cooperatively aborted provider never substitutes sensitive error message',
  });
  assert.equal(signalSeen.aborted,true);
 });
+
+// RED: A provider may ignore AbortSignal and deliver data after the verifier
+// has already timed out. It must not consume a late stream or continue reading
+// next() chunks after deadline, even though the source Promise cannot be killed.
+test('late readObject resolution never starts consuming a stream after timeout',async()=>{
+ let consumed=0,started=0;
+ const p=verifyStudioR2ObjectBytes(fixture(),options({maxReadMillis:12,
+  readObject:async a=>{
+   await new Promise(done=>setTimeout(done,55));
+   return {async *[Symbol.asyncIterator](){started++;consumed++;yield payload[a.filename]}};
+  }
+ }));
+ await assert.rejects(p,/STUDIO_R2_READ_TIMEOUT/);
+ await new Promise(done=>setTimeout(done,95));
+ assert.equal(started,0,'a stream arriving after the abort must never be consumed');
+ assert.equal(consumed,0);
+});
+test('late streaming chunk aborts iteration without requesting another chunk',async()=>{
+ let nextCalls=0,closed=0;
+ const p=verifyStudioR2ObjectBytes(fixture(),options({maxReadMillis:12,
+  readObject:async a=>({[Symbol.asyncIterator](){
+   return {
+    async next(){
+     nextCalls++;
+     if(nextCalls===1){await new Promise(done=>setTimeout(done,55));
+       return {value:payload[a.filename],done:false};}
+     return {done:true};
+    },
+    async return(){closed++;return {done:true}}
+   }
+  }})
+ }));
+ await assert.rejects(p,/STUDIO_R2_READ_TIMEOUT/);
+ await new Promise(done=>setTimeout(done,95));
+ assert.equal(nextCalls,1,'never ask for more bytes after cancellation');
+ assert.equal(closed,1,'early-exit must close the iterator');
+});

@@ -1,11 +1,6 @@
 name: "GOD MODE 2099 — Full 360-frame Genuine Cycles Preview"
 on:
-  push:
-    branches:
-      - experiments/studio-enterprise-v03-sqlite-do-20261018
-    paths:
-      - .github/workflows/god-mode-2099-full-cycles-preview.yml
-  workflow_dispatch:
+  workflow_dispatch: {}
 permissions:
   contents: read
 concurrency:
@@ -16,7 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Install free standard-runner Blender and FFmpeg (no paid render providers)
@@ -41,7 +36,7 @@ jobs:
           echo GOD_MODE_2099_FULL_CYCLES_360_PREVIEW=PASS
       - name: Upload bounded video and editable scene — no giant frame artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: god-mode-2099-full-360frame-cycles-preview-and-blend
           path: |
