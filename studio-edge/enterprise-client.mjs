@@ -131,7 +131,7 @@ export function createTenantWorkspaceClient(options) {
       bundle.kind!=='musitu-enterprise-encrypted-export' ||
       bundle.version!==1 || bundle.tenantId!==tenantId ||
       !Array.isArray(bundle.artifacts) ||
-      bundle.artifacts.length<1 || bundle.artifacts.length>50)
+      bundle.artifacts.length>50)
      fail('INVALID_BACKUP');
    const ids=[],validatedArtifacts=[];
    for(const item of bundle.artifacts){
