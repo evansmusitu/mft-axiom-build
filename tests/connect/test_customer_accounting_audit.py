@@ -103,6 +103,49 @@ class CustomerAccountingAuditTests(unittest.TestCase):
                 module.main()
         self.assertEqual(dest.read_text(),'previous independently retained evidence')
 
+    def test_reassigned_credential_is_detected_even_if_quota_counts_match(self):
+        # Existing usage references a credential that an unsafe operator has
+        # since pointed at the wrong tenant. Historical attribution matters.
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE connect_customer_credentials SET tenant_id='tenant_beta' "
+                        "WHERE credential_id='cred_tenant_alpha'")
+        report=self.audit()
+        self.assertEqual(report['daily_counter_mismatches'],0)
+        self.assertEqual(report['minute_counter_mismatches'],0)
+        self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+        self.assertGreater(report['credential_tenant_mismatches'],0)
+
+    def test_tampered_event_time_is_detected_even_when_minute_key_is_unchanged(self):
+        # The admission trigger runs on INSERT; later direct UPDATEs are an
+        # adversarial offline corruption case that cannot be trusted.
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE connect_customer_usage_events "
+                        "SET observed_at='2026-10-22T12:00:00Z' "
+                        "WHERE request_id='synthetic-request-1'")
+        report=self.audit()
+        self.assertEqual(report['daily_counter_mismatches'],0)
+        self.assertEqual(report['minute_counter_mismatches'],0)
+        self.assertGreater(report['malformed_event_timestamps_or_scopes'],0)
+        self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+
+    def test_cli_success_creates_only_deidentified_summary_then_refuses_overwrite(self):
+        module=importlib.import_module('qualification.audit_connect_customer_registry')
+        target=self.root/'reconciliation.json'
+        argv=['audit_connect_customer_registry','--database',str(self.db),
+              '--output',str(target)]
+        with patch.object(sys,'argv',argv):
+            module.main()
+        raw=target.read_text(encoding='utf-8')
+        self.assertIn('OFFLINE_ACCOUNTING_CONSISTENT_NOT_ADMITTED',raw)
+        self.assertNotIn('tenant_alpha',raw)
+        self.assertNotIn('cred_tenant',raw)
+        self.assertNotIn('synthetic-request',raw)
+        with patch.object(sys,'argv',argv):
+            with self.assertRaises(FileExistsError):
+                module.main()
+        self.assertEqual(target.read_text(encoding='utf-8'),raw)
+
+
 
 if __name__=='__main__':
     unittest.main()
