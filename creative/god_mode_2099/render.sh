@@ -55,6 +55,11 @@ if (( ${#existing_frames[@]} )); then
   echo 'God Mode frame directory contains previous frames; use an empty directory' >&2; exit 3
 fi
 "$BLENDER" -b -t "$THREADS" --python "$BUILDER" -- --mode "$MODE" --output "$OUT"
+# Blender process exit 0 is not proof that it saved the editable scene.
+# Never render frames or encode a video from a missing or linked .blend.
+if [[ -L "$OUT" || ! -f "$OUT" || ! -s "$OUT" ]]; then
+  echo 'God Mode editable scene missing, empty or symlinked after builder' >&2; exit 4
+fi
 "$BLENDER" -b "$OUT" -t "$THREADS" -o "$OUTPUT_DIR/frame_####" -F PNG -a
 # Fail closed if Blender exited successfully but did not create EVERY 30 FPS
 # frame. FFmpeg's image sequence decoder can otherwise encode a shorter video
@@ -65,8 +70,8 @@ if (( ${#frames[@]} != 360 )); then
 fi
 for ((n=1; n<=360; n++)); do
   printf -v frame '%s/frame_%04d.png' "$OUTPUT_DIR" "$n"
-  if [[ ! -s "$frame" ]]; then
-    echo "God Mode frame missing or empty: frame $n" >&2; exit 4
+  if [[ -L "$frame" || ! -f "$frame" || ! -s "$frame" ]]; then
+    echo "God Mode frame missing, symlinked or empty: frame $n" >&2; exit 4
   fi
 done
 # No silent overwrite of an earlier video, including on a concurrent launch.

@@ -53,9 +53,15 @@ def restore() -> None:
         return
     with tempfile.NamedTemporaryFile(mode='wb',dir=target.parent,prefix='.studio-lock-',delete=False) as f:
         f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
         tmp=Path(f.name)
     try:
-        os.replace(tmp,target)
+        # os.replace() would overwrite a valuable lockfile or a symlink
+        # created by another process after the earlier exists() check.
+        # Hard-link the fully written temporary inode into place atomically.
+        # On EEXIST leave the independently created destination untouched.
+        os.link(tmp,target)
     finally:
         if tmp.exists():tmp.unlink()
     print('STUDIO_EDGE_LOCK_RECONSTRUCTED_AND_VERIFIED',EXPECTED_SHA256)

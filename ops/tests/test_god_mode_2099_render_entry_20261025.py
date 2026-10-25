@@ -15,12 +15,22 @@ import os,sys,json,pathlib
 if os.path.basename(sys.argv[0]).startswith('blender') and os.environ.get('MOCK_BLENDER_SLEEP'):
  import time
  time.sleep(float(os.environ['MOCK_BLENDER_SLEEP']))
+if '--python' in sys.argv and os.environ.get('MOCK_SCENE_POLICY')!='missing':
+ args=sys.argv
+ out=pathlib.Path(args[args.index('--output')+1])
+ if os.environ.get('MOCK_SCENE_POLICY')=='symlink':
+  out.symlink_to(os.environ['MOCK_SCENE_SYMLINK_TARGET'])
+ else:out.write_bytes(b'offline-synthetic-blend-model')
 if '-a' in sys.argv:
  args=sys.argv
  prefix=args[args.index('-o')+1].replace('####','{number:04d}')+'.png'
  omit=180 if os.environ.get('MOCK_FRAME_POLICY')=='missing' else None
  for n in range(1,361):
-  if n!=omit:pathlib.Path(prefix.format(number=n)).write_bytes(b'fakepng')
+  if n!=omit:
+   frame=pathlib.Path(prefix.format(number=n))
+   if n==180 and os.environ.get('MOCK_FRAME_POLICY')=='symlink':
+    frame.symlink_to(os.environ['MOCK_FRAME_SYMLINK_TARGET'])
+   else:frame.write_bytes(b'fakepng')
 if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY')!='missing':
  pathlib.Path(sys.argv[-1]).write_bytes(b'fake-mp4')
 with open(os.environ['MOCK_LOG'],'a') as out:
@@ -279,6 +289,48 @@ if os.path.basename(sys.argv[0])=='ffprobe':
                 self.assertFalse(lock.exists(),f'only newly held lock can be removed: {lock}')
             self.assertTrue((frames/'frame_0001.png').is_file(),
                             'never erase the partial output after a failed render')
+
+    def test_blender_success_without_editable_scene_does_not_render_video(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            env['MOCK_SCENE_POLICY']='missing'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=15)
+            log=pathlib.Path(env['MOCK_LOG'])
+            calls=[json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
+            self.assertNotEqual(proc.returncode,0)
+            self.assertIn('scene',proc.stderr.lower())
+            self.assertEqual(len(calls),1,'do not start animation or encoding without a saved .blend')
+
+    def test_symlinked_editable_scene_cannot_qualify_video_render(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            target=pathlib.Path(temp)/'unrelated-original-scene.blend'
+            target.write_bytes(b'private-original-unrelated-model')
+            env['MOCK_SCENE_POLICY']='symlink'
+            env['MOCK_SCENE_SYMLINK_TARGET']=str(target)
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=15)
+            self.assertNotEqual(proc.returncode,0)
+            self.assertIn('scene',proc.stderr.lower())
+            logs=pathlib.Path(env['MOCK_LOG']).read_text().splitlines()
+            self.assertEqual(len(logs),1)
+            self.assertEqual(target.read_bytes(),b'private-original-unrelated-model')
+
+    def test_renderer_symlink_frame_is_never_passed_to_video_encoder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            secret=pathlib.Path(temp)/'never-encode-this-external-file.txt'
+            secret.write_bytes(b'protected-unrelated-local-bytes')
+            env['MOCK_FRAME_POLICY']='symlink'
+            env['MOCK_FRAME_SYMLINK_TARGET']=str(secret)
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=15)
+            calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
+            self.assertNotEqual(proc.returncode,0)
+            self.assertIn('frame',proc.stderr.lower())
+            self.assertEqual(len(calls),2,'must reject symlink frame before FFmpeg')
+            self.assertEqual(secret.read_bytes(),b'protected-unrelated-local-bytes')
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast
