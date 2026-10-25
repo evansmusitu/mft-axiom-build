@@ -8,9 +8,15 @@ export default {async fetch(request,env){
   const u=new URL(request.url);
   if(u.pathname!==STATUS||u.search||u.hash)return json({error:'not_found'},404);
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
+  // DATABASE mode retains durable nonce replay rejection. A distinct, strictly
+  // read-only, explicitly selected STATELESS mode is permitted if no D1 exists.
+  // Status-only duplicate requests are harmless but NOT replay-protected.
+  const stateless=env?.LIFELINE_ALT_MODE==='STATELESS_READONLY';
   if(!env||typeof env.SERVICE_HMAC_KEY!=='string'||env.SERVICE_HMAC_KEY.length<32||
      typeof env.STAGE_TENANT!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(env.STAGE_TENANT)||
-     !env.DB||typeof env.DB.prepare!=='function')
+     (env.LIFELINE_ALT_MODE!==undefined&&!stateless)||
+     (stateless&&env.DB!==undefined)||
+     (!stateless&&(!env.DB||typeof env.DB.prepare!=='function')))
     return json({error:'stage_not_configured'},503);
   if(request.headers.get('content-type')!=='application/json')return json({error:'unauthorized'},401);
   const stamp=request.headers.get('x-lifeline-stage-time')||'';
@@ -29,6 +35,14 @@ export default {async fetch(request,env){
     const expected=await serviceHmac(env.SERVICE_HMAC_KEY,STATUS,stamp,nonce,tenant,body);
     if(!safeEqual(sig,expected))return json({error:'unauthorized'},401);
   }catch{return json({error:'unauthorized'},401);}
+  if(stateless){
+    // No jobs, storage, side effects, agent polling, or cross-provider calls.
+    // This is a constant code-level capability report, NOT observed queue state.
+    return json({schema:'lifeline.cloudflare_alt_stateless.v1',
+      status_origin:'static_source_only',jobs:null,job_counts_available:false,
+      d1_connected:false,trading_enabled:false,native_windows_connected:false,
+      modal_connected:false,neon_connected:false});
+  }
   // Store the request nonce BEFORE any other action. Unique primary key is an
   // atomic replay guard. D1 Free enforces quotas rather than billing overages.
   try{

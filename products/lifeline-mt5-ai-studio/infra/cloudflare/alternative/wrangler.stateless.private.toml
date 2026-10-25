@@ -1,0 +1,15 @@
+# SOURCE ONLY — not deployed. No hostname, workers.dev or preview.
+# No D1, R2, Neon, Modal, broker or paid compute. No public HTTP ingress.
+# Account plan/cost safeguards MUST be independently verified before deployment.
+name = "lifeline-mt5-status-private-isolated"
+main = "private_worker.mjs"
+compatibility_date = "2026-10-25"
+account_id = "93f395f5121954671f92fffa453d6b61"
+workers_dev = false
+preview_urls = false
+# No routes. No database bindings.
+# Provision SERVICE_HMAC_KEY as a new worker secret and STAGE_TENANT exactly.
+# Set LIFELINE_ALT_MODE=STATELESS_READONLY ONLY on this private worker.
+# Bind as LIFELINE_ALT_SERVICE from the pinned owner Access gateway and set
+# that gateway LIFELINE_ALT_MODE=STATELESS_READONLY. Its explicit separate
+# LIFELINE_ALT_CUTOVER flag remains absent until live acceptance is approved.

@@ -16,3 +16,14 @@ test('undelivered Cloudflare Worker has no public ingress, DB or charged resourc
     'nothing gets bound or publicly routed before resource preflight');
   assert.equal(lines.some(x=>/^route\s*=|^routes\s*=|^database_id\s*=/.test(x)),false);
 });
+
+
+test('stateless candidate has no public ingress, D1 or billable resource in source config',()=>{
+  const cfg=readFileSync(join(here,'wrangler.stateless.private.toml'),'utf8');
+  const lines=cfg.split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+  assert.ok(lines.includes('workers_dev = false'));
+  assert.ok(lines.includes('preview_urls = false'));
+  assert.ok(lines.includes('name = "lifeline-mt5-status-private-isolated"'));
+  assert.ok(lines.includes('account_id = "93f395f5121954671f92fffa453d6b61"'));
+  assert.equal(lines.some(s=>/^\[\[?|^routes?\s*=|^database_id\s*=/.test(s)),false);
+});

@@ -21,6 +21,8 @@ export async function forwardAlternative(request,env,authenticatedTenant){
   // Explicit authorization beyond mere secret presence protects against
   // accidentally activating an unreviewed route after provisioning.
   if(env?.LIFELINE_ALT_CUTOVER!=='OFFLINE_STAGE_AUTHORIZED'||
+     (env.LIFELINE_ALT_MODE!==undefined&&
+      env.LIFELINE_ALT_MODE!=='STATELESS_READONLY')||
      !env.LIFELINE_ALT_SERVICE||typeof env.LIFELINE_ALT_SERVICE.fetch!=='function'||
      typeof env.LIFELINE_ALT_KEY!=='string'||env.LIFELINE_ALT_KEY.length<32||
      typeof env.AGENT_TENANT!=='string'||authenticatedTenant!==env.AGENT_TENANT)
@@ -38,6 +40,21 @@ export async function forwardAlternative(request,env,authenticatedTenant){
     const raw=await result.text();
     if(raw.length>4096)throw Error('oversized');
     const body=JSON.parse(raw);
+    if(env.LIFELINE_ALT_MODE==='STATELESS_READONLY'){
+      const keys=['d1_connected','job_counts_available','jobs','modal_connected',
+        'native_windows_connected','neon_connected','schema','status_origin','trading_enabled'];
+      if(!body||Object.keys(body).sort().join(',')!==keys.join(',')||
+         body.schema!=='lifeline.cloudflare_alt_stateless.v1'||
+         body.status_origin!=='static_source_only'||body.jobs!==null||
+         body.job_counts_available!==false||body.d1_connected!==false||
+         body.trading_enabled!==false||body.native_windows_connected!==false||
+         body.modal_connected!==false||body.neon_connected!==false)
+        throw Error('untrusted_stateless_response');
+      return json({schema:'lifeline.cloudflare_alt_stateless.v1',
+        status_origin:'static_source_only',jobs:null,job_counts_available:false,
+        d1_connected:false,trading_enabled:false,native_windows_connected:false,
+        modal_connected:false,neon_connected:false});
+    }
     if(body?.schema!=='lifeline.cloudflare_alt_status.v1'||
        body?.trading_enabled!==false||body?.native_windows_connected!==false||
        body?.modal_connected!==false||body?.neon_connected!==false||
