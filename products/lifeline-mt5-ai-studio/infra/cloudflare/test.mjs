@@ -582,3 +582,28 @@ test('real owner Access JWT gates the no-Modal Service Binding status independen
     assert.equal(remote,0);
   }finally{globalThis.fetch=prev;}
 });
+
+
+test('legacy gateway limits streamed agent requests before invoking Modal',async()=>{
+  const original=globalThis.fetch;
+  let calls=0,produced=0,cancelled=false;
+  const huge=new ReadableStream({
+    pull(controller){
+      produced++;
+      controller.enqueue(new Uint8Array(2048).fill(65));
+      if(produced>=200)controller.close();
+    },
+    cancel(){cancelled=true;}
+  });
+  try{
+    globalThis.fetch=async()=>{calls++;throw Error('must never forward oversized body');};
+    const req=new Request('https://lifeline.example/agent/pull',{
+      method:'POST',duplex:'half',headers:{'content-type':'application/json'},body:huge
+    });
+    const response=await worker.fetch(req,E);
+    assert.equal(response.status,413);
+    assert.equal(calls,0);
+    assert.equal(cancelled,true);
+    assert.ok(produced<100);
+  }finally{globalThis.fetch=original;}
+});

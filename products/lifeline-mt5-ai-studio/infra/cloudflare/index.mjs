@@ -1,6 +1,7 @@
 import {createRemoteJWKSet, jwtVerify} from 'jose';
 import {backendBindingReadiness} from './backend_readiness.mjs';
 import {forwardAlternative} from './alternative/gateway.mjs';
+import {readBoundedUtf8} from './bounded_body.mjs';
 
 // LIFELINE Cloudflare Access gateway. Broker/finance trading is forbidden on this surface.
 const TOOL_ALLOWLIST=new Set(['lifeline_status']);
@@ -127,12 +128,17 @@ export default {async fetch(request,env){
   }
   if(request.method!=='POST'||(!AGENT_ROUTES.has(path)&&!OPERATOR_ROUTES.has(path)&&path!=='/mcp'))
     return reply({error:'not_found'},404);
-  const size=request.headers.get('content-length');
-  if(size&&Number(size)>65536)return reply({error:'oversized'},413);
-  let raw,body;
+  // Legacy owner/agent routes remain disabled until private cutover. Once
+  // enabled, however, do not buffer an attacker-controlled stream via .text().
+  const incoming=await readBoundedUtf8(request);
+  if(incoming.status==='oversized')return reply({error:'oversized'},413);
+  if(incoming.status!=='ok')return reply({error:'invalid_json'},400);
+  let body;
+  const raw=incoming.text;
   try{
-    raw=await request.text();if(encoder.encode(raw).length>65536)return reply({error:'oversized'},413);
-    body=JSON.parse(raw);if(!body||Array.isArray(body)||typeof body!=='object')return reply({error:'invalid_json'},400);
+    body=JSON.parse(raw);
+    if(!body||Array.isArray(body)||typeof body!=='object')
+      return reply({error:'invalid_json'},400);
   }catch{return reply({error:'invalid_json'},400);}
   let subject=null;
   if(AGENT_ROUTES.has(path)){
