@@ -161,13 +161,28 @@ export function createTenantWorkspaceClient(options) {
      if(!Number.isInteger(limit)||limit<1||limit>10)fail('INVALID_PAGE_SIZE');
      if(after!==null)validateId(after);
      const result=await send('GET',{after,limit});
-     if(!Array.isArray(result.data?.items)||
-        result.data.items.length>limit||
-        !(result.data.nextAfter===null || (typeof result.data.nextAfter==='string'&&ID.test(result.data.nextAfter)))||
-        !result.data.items.every(it=>it&&ID.test(it.id)&&typeof it.revision==='string'&&
-          Number.isSafeInteger(it.updatedAt)&&Object.keys(it).sort().join(',')==='id,revision,updatedAt'))
+     const payload=result.data;
+     if(!payload || typeof payload!=='object' || Array.isArray(payload) ||
+        Object.keys(payload).sort().join(',')!=='items,nextAfter' ||
+        !Array.isArray(payload.items) || payload.items.length>limit ||
+        !(payload.nextAfter===null ||
+          (typeof payload.nextAfter==='string'&&ID.test(payload.nextAfter))))
        fail('INVALID_RESPONSE');
-     return result.data;
+     let previous=after;
+     for(const item of payload.items) {
+       if(!item || typeof item!=='object' || Array.isArray(item) ||
+          Object.keys(item).sort().join(',')!=='id,revision,updatedAt' ||
+          typeof item.id!=='string'||!ID.test(item.id) ||
+          (previous!==null && item.id<=previous) ||
+          typeof item.revision!=='string'||!ETAG.test('"'+item.revision+'"') ||
+          !Number.isSafeInteger(item.updatedAt)||item.updatedAt<0)
+         fail('INVALID_RESPONSE');
+       previous=item.id;
+     }
+     if(payload.nextAfter!==null &&
+        (!payload.items.length || payload.nextAfter!==previous))
+       fail('INVALID_RESPONSE');
+     return {items:payload.items,nextAfter:payload.nextAfter};
    },
    async exportEncryptedBundle() {
      // Explicit caller-initiated operation: NEVER auto-upload, decrypt to a
