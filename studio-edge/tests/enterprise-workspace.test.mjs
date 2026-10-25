@@ -170,3 +170,48 @@ test('noncanonical base64url ciphertext encodings are refused even when decoded 
   assert.equal(response.status,400);
   assert.equal(db.items.size,0);assert.equal(db.audit.length,0);
 });
+
+
+test('enterprise rate controls fail closed before signing-key lookups or D1 access',async()=>{
+ const token=await sign();
+ const setupObj=setup();
+ let dbAccess=0, authCalls=0;
+ const original=setupObj.db.prepare.bind(setupObj.db);
+ setupObj.db.prepare=(...args)=>{dbAccess++;return original(...args);};
+ const noLimiter={...setupObj.env};
+ const missing=await call(noLimiter,'GET',TA,ID,token);
+ assert.equal(missing.status,503);
+ assert.equal((await missing.json()).code,'RATE_CONTROL_UNAVAILABLE');
+ assert.equal(dbAccess,0);
+
+ const denied={...setupObj.env,WORKSPACE_AUTH_RATE:{limit:async ({key})=>{
+   authCalls++;assert.equal(key,'enterprise-auth-probes');return {success:false};}},
+   WORKSPACE_READ_RATE:{limit:async()=>({success:true})}};
+ const blocked=await call(denied,'GET',TA,ID,token);
+ assert.equal(blocked.status,429);
+ assert.equal((await blocked.json()).code,'AUTH_RATE_LIMIT');
+ assert.equal(authCalls,1);assert.equal(dbAccess,0);
+
+ const down={...denied,WORKSPACE_AUTH_RATE:{limit:async()=>{throw Error('rate backend unavailable');}}};
+ assert.equal((await call(down,'GET',TA,ID,token)).status,503);
+ assert.equal(dbAccess,0);
+});
+test('authenticated encrypted GET consumes tenant/subject read budget before D1',async()=>{
+ const {env,db}=setup();
+ let lookup=0,auth=0,read=0;
+ const original=db.prepare.bind(db);
+ db.prepare=(...args)=>{lookup++;return original(...args);};
+ env.WORKSPACE_AUTH_RATE={limit:async()=>{auth++;return {success:true};}};
+ env.WORKSPACE_READ_RATE={limit:async ({key})=>{
+   read++;assert.match(key,/^[a-f0-9]{32}$/);return {success:false};}};
+ const token=await sign();
+ const blocked=await call(env,'GET',TA,ID,token);
+ assert.equal(blocked.status,429);
+ assert.equal((await blocked.json()).code,'READ_RATE_LIMIT');
+ assert.equal(auth,1);assert.equal(read,1);assert.equal(lookup,0);
+
+ env.WORKSPACE_READ_RATE={limit:async()=>{throw Error('no rate response');}};
+ const down=await call(env,'GET',TA,ID,token);
+ assert.equal(down.status,503);
+ assert.equal(lookup,0);
+});
