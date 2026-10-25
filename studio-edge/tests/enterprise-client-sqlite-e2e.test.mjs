@@ -186,7 +186,7 @@ test('portable export traverses encrypted multi-page inventory without new audit
     assert.equal(result.artifacts.length,12);
     assert.deepEqual(result.artifacts.map(x=>x.id),ids);
     assert.equal(h.db.count('tenant_audit'),0);
-    assert.equal(h.requests.filter(r=>new URL(r.url).searchParams.has('limit')).length,2);
+    assert.equal(h.requests.filter(r=>new URL(r.url).searchParams.has('limit')).length,4);
     assert.ok(!JSON.stringify(result).includes('Private historical'));
   }finally{h.db.close();}
 });
