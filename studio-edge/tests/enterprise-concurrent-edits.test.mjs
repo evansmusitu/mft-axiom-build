@@ -27,7 +27,7 @@ async function call(db,method='GET',tenant=TA,headers={},body){
  const req=new Request('https://test.invalid/api/enterprise/tenants/'+tenant+'/artifacts?id='+ITEM,{
   method,headers:{'origin':'https://evansmusitu.github.io','cf-access-jwt-assertion':token,...headers},
   body:body===undefined?undefined:JSON.stringify(body)});
- return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},{fetchJwks,now:NOW});
+ return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},{fetchJwks,now:NOW});
 }
 const put=(db,tenant,value,etag)=>call(db,'PUT',tenant,{'content-type':'application/json',...(etag===null?{}:etag==='*'?{'if-none-match':'*'}:{'if-match':etag})},encrypted(value));
 const del=(db,tenant,etag)=>call(db,'DELETE',tenant,etag?{'if-match':etag}:{});
@@ -69,7 +69,7 @@ test('versions are tenant-scoped and same artifact ID cannot cross-overwrite',as
 test('conditional headers are allowed by CORS and malformed ETags rejected',async()=>{
  const db=new D1();try{
   const origin='https://evansmusitu.github.io';
-  const preflight=await handleEnterpriseWorkspace(new Request('https://test.invalid/api/enterprise/tenants/'+TA+'/artifacts?id='+ITEM,{method:'OPTIONS',headers:{origin}}),{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD});
+  const preflight=await handleEnterpriseWorkspace(new Request('https://test.invalid/api/enterprise/tenants/'+TA+'/artifacts?id='+ITEM,{method:'OPTIONS',headers:{origin}}),{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}});
   assert.equal(preflight.status,204);
   assert.match(preflight.headers.get('access-control-allow-headers'),/if-match/);
   assert.match(preflight.headers.get('access-control-expose-headers'),/etag/i);
