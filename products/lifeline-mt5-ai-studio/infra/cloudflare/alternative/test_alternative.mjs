@@ -92,3 +92,57 @@ test('service failure, missing database and spoofed read results never report co
   assert.equal(out.status,502);
   assert.equal(JSON.stringify(out.json).includes('NEVER_DISCLOSE'),false);
 });
+
+
+test('D1-exhausted account can offer signed stateless nontrading status without fictitious queue counts',async()=>{
+  const s=stage();
+  const statelessEnv={STAGE_TENANT:TENANT,SERVICE_HMAC_KEY:KEY,
+    LIFELINE_ALT_MODE:'STATELESS_READONLY'};
+  let calls=0;
+  const opts={...s.gateway,LIFELINE_ALT_MODE:'STATELESS_READONLY',
+    LIFELINE_ALT_SERVICE:{fetch(req){calls++;return privateWorker.fetch(req,statelessEnv);}}};
+  const response=await statusJson(await forwardAlternative(new Request(url),opts,TENANT));
+  assert.equal(response.status,200);
+  assert.deepEqual(response.json,{
+    schema:'lifeline.cloudflare_alt_stateless.v1',
+    status_origin:'static_source_only',
+    jobs:null,job_counts_available:false,
+    d1_connected:false,trading_enabled:false,
+    native_windows_connected:false,modal_connected:false,neon_connected:false
+  });
+  assert.equal(calls,1);
+  assert.equal(s.getCalls(),0,'never contact original D1-backed fixture');
+});
+
+test('stateless alternative rejects missing explicit mode, wrong HMAC and unauthenticated requests',async()=>{
+  const env={STAGE_TENANT:TENANT,SERVICE_HMAC_KEY:KEY,LIFELINE_ALT_MODE:'STATELESS_READONLY'};
+  const unsigned=new Request('https://lifeline-service.invalid/stage/status',{
+    method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+  assert.equal((await privateWorker.fetch(unsigned,env)).status,401);
+  const mismatched=await signInternalRequest({path:'/stage/status',body:'{}',tenant:TENANT,
+    key:'WRONG_FAKE_OFFLINE_KEY_LONG_ENOUGH_TO_VALIDATE'});
+  assert.equal((await privateWorker.fetch(mismatched,env)).status,401);
+  const signed=await signInternalRequest({path:'/stage/status',body:'{}',tenant:TENANT,key:KEY});
+  const missing={...env};delete missing.LIFELINE_ALT_MODE;
+  assert.equal((await privateWorker.fetch(signed.clone(),missing)).status,503);
+  const valid=await privateWorker.fetch(signed.clone(),env);
+  assert.equal(valid.status,200);
+  // An idempotent status-only response cannot claim durable nonce replay prevention.
+  assert.equal((await privateWorker.fetch(signed.clone(),env)).status,200);
+});
+
+test('stateless gateway refuses downstream simulated DB or connected-asset claims',async()=>{
+  const forged={
+    schema:'lifeline.cloudflare_alt_stateless.v1',status_origin:'static_source_only',
+    jobs:null,job_counts_available:false,d1_connected:true,trading_enabled:false,
+    native_windows_connected:false,modal_connected:false,neon_connected:false,
+    cloudflare_secret:'DO_NOT_DISCLOSE'
+  };
+  const s=stage();
+  const gateway={...s.gateway,LIFELINE_ALT_MODE:'STATELESS_READONLY',
+    LIFELINE_ALT_SERVICE:{fetch:async()=>new Response(JSON.stringify(forged),
+      {status:200,headers:{'content-type':'application/json'}})}};
+  const result=await forwardAlternative(new Request(url),gateway,TENANT);
+  assert.equal(result.status,502);
+  assert.equal((await result.text()).includes('DO_NOT_DISCLOSE'),false);
+});
