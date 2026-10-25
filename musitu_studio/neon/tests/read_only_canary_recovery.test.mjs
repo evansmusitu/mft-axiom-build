@@ -208,3 +208,30 @@ test('an approval expiring during async final fencing must not authorize the CAS
   assert.equal(leaseChecks,2);assert.equal(f.state().flips,0);
  } finally {Date.now=actualNow;}
 });
+
+// Red-first: an acknowledged CAS is not final evidence that the original
+// SQLite authority and owner consent remain valid after route restoration.
+test('postreturn source authority revocation refuses to report successful recovery',async()=>{
+ const f=adapter();const orig=f.opts.verifySQLiteAuthority;let checks=0;
+ f.opts.verifySQLiteAuthority=async(...args)=>{
+  const r=await orig(...args);checks++;
+  return f.state().route==='SQLITE_DO'?{...r,customer_writes_to_neon:true}:r;
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_RECOVERY_SOURCE_AUTHORITY_UNVERIFIED/);
+ assert.equal(f.state().route,'SQLITE_DO');
+ assert.equal(f.state().released,1);
+ assert.ok(checks>=3);
+});
+test('postreturn owner approval revocation refuses success despite SQLite route',async()=>{
+ const f=adapter();const orig=f.opts.verifyOwnerRecoveryApproval;let checks=0;
+ f.opts.verifyOwnerRecoveryApproval=async(...args)=>{
+  const r=await orig(...args);checks++;
+  return f.state().route==='SQLITE_DO'?{...r,verified:false}:r;
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_RECOVERY_OWNER_APPROVAL_INVALID/);
+ assert.equal(f.state().route,'SQLITE_DO');
+ assert.equal(f.state().released,1);
+ assert.ok(checks>=3);
+});

@@ -26,7 +26,15 @@ if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY
 with open(os.environ['MOCK_LOG'],'a') as out:
  out.write(json.dumps({'program':os.path.basename(sys.argv[0]),'args':sys.argv[1:]})+'\\n')
 if os.path.basename(sys.argv[0])=='ffprobe':
- if 'stream=nb_read_frames' in ' '.join(sys.argv):
+ if '-of json' in ' '.join(sys.argv):
+  stream={'codec_name':os.environ.get('MOCK_PROBE_CODEC','h264'),
+          'width':int(os.environ.get('MOCK_PROBE_WIDTH','360')),
+          'height':int(os.environ.get('MOCK_PROBE_HEIGHT','640')),
+          'pix_fmt':os.environ.get('MOCK_PROBE_PIXEL','yuv420p'),
+          'r_frame_rate':os.environ.get('MOCK_PROBE_FPS','30/1'),
+          'avg_frame_rate':os.environ.get('MOCK_PROBE_AVG_FPS','30/1')}
+  print(json.dumps({'streams':[stream]}))
+ elif 'stream=nb_read_frames' in ' '.join(sys.argv):
   sys.stdout.write(os.environ.get('MOCK_PROBE_FRAMES','360')+'\\n')
  else:
   sys.stdout.write(os.environ.get('MOCK_PROBE_DURATION','12.000000')+'\\n')
@@ -52,7 +60,7 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             frames=str(pathlib.Path(temp)/'frames for Android')
             proc,calls=self.run_entry(temp,'preview',out,frames)
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),5)
+            self.assertEqual(len(calls),6)
             first=calls[0]['args'];self.assertIn('--python',first)
             self.assertEqual(first[first.index('--python')+1],str(BUILDER))
             self.assertEqual(first[first.index('--output')+1],out)
@@ -83,7 +91,7 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             out=str(home/'Awakened.blend')
             proc,calls=self.run_entry(temp,'preview',out,str(home/'frames'))
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),5)
+            self.assertEqual(len(calls),6)
             final=calls[2]['args'][-1]
             self.assertEqual(calls[-1]['program'],'ffprobe')
             self.assertEqual(final,str(home/'GOD_MODE_AWAKENING_2099_preview.mp4'))
@@ -282,5 +290,48 @@ if os.path.basename(sys.argv[0])=='ffprobe':
                     vals[node.targets[0].id]=ast.literal_eval(node.value)
         self.assertEqual(vals,{'FPS':30,'FRAME_END':360})
         self.assertEqual(vals['FRAME_END']/vals['FPS'],12)
+
+# Red-first regression cases: 360 decoded frames over 12.00 seconds can still
+# be wrong-resolution, wrong-codec, or wrong-frame-rate media.
+class GodModeEncodedStreamContractTests(unittest.TestCase):
+    make_env=GodModeRenderEntryTests.make_env
+    def test_wrong_codec_is_not_a_qualified_2099_movie(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_CODEC']='hevc'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=25)
+            self.assertNotEqual(proc.returncode,0,'only the declared H.264 output qualifies')
+            self.assertIn('codec',proc.stderr.lower())
+    def test_wrong_dimensions_do_not_qualify(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_WIDTH']='128'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=25)
+            self.assertNotEqual(proc.returncode,0,'vertical preview must be 360x640')
+            self.assertIn('codec',proc.stderr.lower())
+    def test_wrong_video_fps_does_not_qualify(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_FPS']='25/1'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=25)
+            self.assertNotEqual(proc.returncode,0,'360 frames must be encoded at 30fps')
+            self.assertIn('codec',proc.stderr.lower())
+
+class GodModeDeliveryFrameRateTests(unittest.TestCase):
+    make_env=GodModeRenderEntryTests.make_env
+    def test_average_frame_rate_is_not_allowed_to_disagree_with_declared_30fps(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_AVG_FPS']='25/1'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=25)
+            self.assertEqual(proc.returncode,8)
+            self.assertIn('codec',proc.stderr.lower())
+    def test_final_mode_is_checked_against_1080_by_1920_not_preview_dimensions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_WIDTH']='1080'
+            env['MOCK_PROBE_HEIGHT']='1920'
+            proc=subprocess.run(['bash',str(ENTRY),'final'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=25)
+            self.assertEqual(proc.returncode,0,proc.stderr)
 
 if __name__=='__main__':unittest.main()

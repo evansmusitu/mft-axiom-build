@@ -124,3 +124,76 @@ test('impossible aggregate chunk quota rejects before any protected provider rea
  })),/STUDIO_R2_TOTAL_CHUNK_LIMIT_EXCEEDED/);
  assert.equal(calls,0);
 });
+
+// A malicious or unavailable R2 provider can hold a readObject callback or
+// streaming iterator open indefinitely without exceeding any byte/chunk cap.
+// A bounded deadline and cooperative abort signal are mandatory.
+test('stalled readObject callback times out and aborts provider signal',async()=>{
+ let receivedSignal;
+ const start=Date.now();
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxReadMillis:25,
+  readObject:async asset=>{
+   receivedSignal=asset.signal;
+   await new Promise(resolve=>setTimeout(resolve,120));
+   return [payload[asset.filename]];
+  }
+ })),/STUDIO_R2_READ_TIMEOUT/);
+ assert.ok(Date.now()-start<105,'must not wait for the stalled callback to finish');
+ assert.equal(receivedSignal?.aborted,true);
+});
+test('stalled asynchronous chunk stream times out without trusting provider error text',async()=>{
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxReadMillis:30,
+  readObject:async asset=>(async function*(){
+   await new Promise(resolve=>setTimeout(resolve,120));
+   yield payload[asset.filename];
+  })()
+ })),/STUDIO_R2_READ_TIMEOUT/);
+});
+test('invalid per-object time budget blocks R2 reader before any call',async()=>{
+ let calls=0;
+ for(const maxReadMillis of [0,-1,NaN,Infinity,3.2,'10',300001]){
+  await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+   maxReadMillis,readObject:async()=>{calls++;return[]}
+  })),/STUDIO_R2_INVALID_READ_DEADLINE/);
+ }
+ assert.equal(calls,0);
+});
+
+test('aggregate R2 reconciliation deadline prevents many slow-but-valid reads',async()=>{
+ let calls=0;
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxReadMillis:250,maxTotalReadMillis:70,
+  readObject:async asset=>{
+   calls++;await new Promise(resolve=>setTimeout(resolve,43));
+   return [payload[asset.filename]];
+  }
+ })),/STUDIO_R2_TOTAL_READ_TIMEOUT/);
+ assert.ok(calls>=1&&calls<=2,'must stop before scanning all objects');
+});
+test('invalid aggregate R2 deadline is rejected before any provider read',async()=>{
+ let calls=0;
+ for(const maxTotalReadMillis of [0,-3,NaN,Infinity,0.5,'3000',600001]){
+  await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+   maxTotalReadMillis,readObject:async()=>{calls++;return[]}
+  })),/STUDIO_R2_INVALID_TOTAL_READ_DEADLINE/);
+ }
+ assert.equal(calls,0);
+});
+
+test('cooperatively aborted provider never substitutes sensitive error message',async()=>{
+ let signalSeen;
+ await assert.rejects(()=>verifyStudioR2ObjectBytes(fixture(),options({
+  maxReadMillis:20,
+  readObject:async asset=>new Promise((_,reject)=>{
+   signalSeen=asset.signal;
+   asset.signal.addEventListener('abort',()=>reject(Error('LIVE_R2_ACCESS_SECRET_NOT_FOR_LOG')),{once:true});
+  })
+ })),error=>{
+  assert.equal(error.message,'STUDIO_R2_READ_TIMEOUT');
+  assert.ok(!error.message.includes('SECRET'));
+  return true;
+ });
+ assert.equal(signalSeen.aborted,true);
+});

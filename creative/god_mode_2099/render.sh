@@ -95,3 +95,34 @@ VIDEO_FRAMES="$(ffprobe -v error -select_streams v -count_frames \
 if [[ "$VIDEO_FRAMES" != '360' ]]; then
   echo 'God Mode encoded video must contain exactly 360 frames' >&2; exit 7
 fi
+
+# Duration and frame count alone do not validate delivery format. Fail closed
+# if FFprobe discovers a non-H264 codec, wrong vertical resolution, non-30fps
+# output, or an incompatible pixel layout. The probe is read-only; this does
+# not contact cloud render providers or consume paid GPU credits.
+if ! command -v python3 >/dev/null; then
+  echo 'God Mode codec verification requires python3' >&2; exit 8
+fi
+MEDIA_STREAM_JSON="$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=codec_name,width,height,pix_fmt,r_frame_rate,avg_frame_rate \
+  -of json "$VIDEO")" || {
+  echo 'God Mode codec and dimensions probe failed' >&2; exit 8;
+}
+if ! printf '%s' "$MEDIA_STREAM_JSON" | python3 -c '
+import json,sys
+try:
+ d=json.load(sys.stdin)
+ v=d["streams"]
+ assert isinstance(v,list) and len(v)==1
+ s=v[0]
+ w,h=(360,640) if sys.argv[1]=="preview" else (1080,1920)
+ assert s["codec_name"]=="h264" and s["pix_fmt"]=="yuv420p"
+ assert type(s["width"]) is int and s["width"]==w
+ assert type(s["height"]) is int and s["height"]==h
+ assert s["r_frame_rate"]=="30/1" and s["avg_frame_rate"]=="30/1"
+except (ValueError,TypeError,KeyError,AssertionError,IndexError):
+ sys.exit(1)
+' "$MODE"; then
+  echo 'God Mode codec, 30fps or vertical dimensions do not match declared preset' >&2
+  exit 8
+fi

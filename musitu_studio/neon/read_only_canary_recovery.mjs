@@ -119,6 +119,21 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
     fail('STUDIO_RECOVERY_RETURN_CAS_FAILED');
   }
   if(await readRoute()!=='SQLITE_DO')fail('STUDIO_RECOVERY_ROUTE_READBACK_FAILED');
+  if(route==='NEON_CANARY_READONLY'){
+   // The route CAS is asynchronous: provider authority or signed consent
+   // can be revoked while its response is in flight. A successful route
+   // readback proves routing, not that the recovery was still authorized.
+   const ownerAfter=await verifyOwnerRecoveryApproval(epoch);
+   signedApproval(ownerAfter,epoch,Date.now());
+   if(ownerAfter.receipt_id!==ownerApproval.receipt_id)
+    fail('STUDIO_RECOVERY_OWNER_APPROVAL_CHANGED');
+   const sourceAfter=await verifySQLiteAuthority(epoch);
+   authority(sourceAfter,epoch,Date.now());
+   if(sourceAfter.receipt_id!==sourceApproval.receipt_id)
+    fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_CHANGED');
+   if(await readRoute()!=='SQLITE_DO')
+    fail('STUDIO_RECOVERY_POSTRETURN_ROUTE_CHANGED');
+  }
   return Object.freeze({route:'SQLITE_DO',readonly_canary_active:false,
    customer_writes_to_neon:false,production_migration_authorized:false,
    recovered:route==='NEON_CANARY_READONLY',run_id:epoch.run_id});
