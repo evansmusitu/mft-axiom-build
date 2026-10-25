@@ -172,3 +172,26 @@ test('SDK fails closed on untrusted metadata order, pagination cursor, revision 
  const allowed=setup(async()=>ok({items:[goodA,goodB],nextAfter:'artifact_entry_002'}));
  assert.deepEqual((await allowed.list({limit:2})).items,[goodA,goodB]);
 });
+
+
+test('mutation success claims require matching document ID and real stored/deleted acknowledgement',async()=>{
+ for(const body of [
+   {id:'artifact_other_123',stored:true,encryptedOpaque:true},
+   {id:ID,stored:false,encryptedOpaque:true},
+   {id:ID,stored:true,encryptedOpaque:false},
+   {id:ID,deleted:true},
+   {id:ID,stored:true}
+ ]){
+   const client=setup(async()=>ok(body));
+   await assert.rejects(client.create({id:ID,text:'encrypted claim test'}),e=>e.code==='INVALID_RESPONSE',JSON.stringify(body));
+   await assert.rejects(client.replace({id:ID,text:'encrypted claim test',etag:ETag}),e=>e.code==='INVALID_RESPONSE',JSON.stringify(body));
+ }
+ for(const body of [{id:'artifact_other_123',deleted:true},{id:ID,deleted:false},{deleted:true}]){
+   const client=setup(async()=>ok(body));
+   await assert.rejects(client.delete({id:ID,etag:ETag}),e=>e.code==='INVALID_RESPONSE');
+ }
+});
+test('conditional replace must return fresh ETag, not pretend old revision was saved',async()=>{
+ const api=setup(async()=>ok({id:ID,stored:true,encryptedOpaque:true},ETag));
+ await assert.rejects(api.replace({id:ID,text:'new encrypted text',etag:ETag}),e=>e.code==='INVALID_RESPONSE');
+});
