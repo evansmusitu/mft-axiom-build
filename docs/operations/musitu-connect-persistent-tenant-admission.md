@@ -314,9 +314,8 @@ Hosted D1 and production customer beta remain unqualified.
 ### Defense-in-depth UUID-v4 admission check (offline D1-compatible schema)
 
 The preliminary SQLite/D1 admission trigger now independently rejects
-noncanonical request identifiers through a strict `GLOB` pattern for
-lowercase 36-character UUID-v4 formatting, including version and variant
-bits. This protects against direct SQL writes that bypass the client-facing
+noncanonical request identifiers through explicit position/length/version/variant guards and a short
+negative-hex `GLOB`, enforcing lowercase 36-character UUID-v4 formatting. This protects against direct SQL writes that bypass the client-facing
 Node module. Failures raise `CUSTOMER_EVENT_REQUEST_ID_INVALID`
 **before** quota counters or event history can be modified. Synthetic
 local D1-compatible tests cover wrong version, wrong variant, uppercase,
@@ -324,3 +323,13 @@ malformed length and nonhex values, and verify zero accounting side effects;
 a valid UUID-v4 remains accepted. The change is strictly feature-branch
 schema only. It does not migrate a customer database, establish hosted D1
 semantics, admit beta customers, or change production workers.
+
+### Local D1 GLOB complexity regression
+
+A full 36-character positional SQLite `GLOB` unexpectedly exceeded the
+underlying local Cloudflare D1 engine's complexity threshold, rejecting even
+valid server-issued UUIDs. The direct workerd D1 regression now tests
+successful canonical insertion **and** invalid direct UUID insertion, and the
+trigger uses constant-length field checks plus a short negative-hex GLOB
+instead. The SQL-level protection is only accepted when Node SQLite and
+local workerd D1 both pass. Remote hosted D1 remains unverified.

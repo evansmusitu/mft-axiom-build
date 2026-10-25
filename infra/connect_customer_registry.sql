@@ -50,11 +50,20 @@ CREATE TABLE IF NOT EXISTS connect_customer_usage_events (
 CREATE TRIGGER IF NOT EXISTS connect_customer_before_admission
 BEFORE INSERT ON connect_customer_usage_events
 BEGIN
-  -- Mirror server-issued crypto.randomUUID version, variant and lowercase
-  -- formatting. A direct D1/SQLite insert cannot bypass UUID validation
+  -- Mirror crypto.randomUUID field positions, variant and lowercase hex.
+  -- Small GLOB avoids workerd SQLite's "pattern too complex" limit.
+  -- A direct D1/SQLite insert cannot bypass UUID validation
   -- and allocate a quota unit under an ambiguous request identifier.
   SELECT RAISE(ABORT, 'CUSTOMER_EVENT_REQUEST_ID_INVALID') WHERE
-    NEW.request_id NOT GLOB '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-4[0-9a-f][0-9a-f][0-9a-f]-[89ab][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]';
+    length(NEW.request_id) != 36
+    OR substr(NEW.request_id, 9, 1) != '-'
+    OR substr(NEW.request_id, 14, 1) != '-'
+    OR substr(NEW.request_id, 19, 1) != '-'
+    OR substr(NEW.request_id, 24, 1) != '-'
+    OR substr(NEW.request_id, 15, 1) != '4'
+    OR substr(NEW.request_id, 20, 1) NOT IN ('8','9','a','b')
+    OR length(replace(NEW.request_id, '-', '')) != 32
+    OR replace(NEW.request_id, '-', '') GLOB '*[^0-9a-f]*';
   -- A mislabeled day must never evade the per-day or per-minute counters.
   -- JS Date.toISOString() emits exactly three fractional-second digits.
   SELECT RAISE(ABORT, 'CUSTOMER_EVENT_TIME_INVALID') WHERE
