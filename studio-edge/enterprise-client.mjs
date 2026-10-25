@@ -113,7 +113,50 @@ export function createTenantWorkspaceClient(options) {
    if(!ETAG.test(tag||''))fail('INVALID_RESPONSE');
    return tag;
  }
+ async function inspectBundle(bundle) {
+   // This is an offline, authenticated inspection. No token, fetch, local
+   // storage, downloads, or public browser-slot migration are permitted here.
+   if(!bundle || typeof bundle!=='object' || Array.isArray(bundle) ||
+      Object.keys(bundle).sort().join(',')!=='artifacts,kind,tenantId,version' ||
+      bundle.kind!=='musitu-enterprise-encrypted-export' ||
+      bundle.version!==1 || bundle.tenantId!==tenantId ||
+      !Array.isArray(bundle.artifacts) ||
+      bundle.artifacts.length<1 || bundle.artifacts.length>50)
+     fail('INVALID_BACKUP');
+   const ids=[];
+   for(const item of bundle.artifacts){
+     if(!item || typeof item!=='object' || Array.isArray(item) ||
+        Object.keys(item).sort().join(',')!=='envelope,etag,id' ||
+        typeof item.id!=='string' || !ID.test(item.id) ||
+        typeof item.etag!=='string' || !ETAG.test(item.etag) ||
+        (ids.length && item.id<=ids[ids.length-1]))
+       fail('INVALID_BACKUP');
+     // Authenticate ciphertext and tenant/artifact AAD with the supplied
+     // non-extractable key. Plaintext is discarded; it is not returned.
+     try{await decryptTenantText(item.envelope,key,tenantId,item.id);}
+     catch{fail('INVALID_BACKUP');}
+     ids.push(item.id);
+   }
+   return {tenantId,count:ids.length,ids};
+ }
  return Object.freeze({
+   async inspectEncryptedBundle(bundle) {
+     return inspectBundle(bundle);
+   },
+   async restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly=false}={}) {
+     if(acknowledgeCreateOnly!==true)fail('RESTORE_APPROVAL_REQUIRED');
+     validateId(id);
+     const inspected=await inspectBundle(bundle);
+     if(!inspected.ids.includes(id))fail('INVALID_RESTORE_SELECTION');
+     // Restore ONE explicitly chosen ciphertext. Do not re-encrypt, migrate,
+     // silently overwrite, auto-retry, or import the whole bundle. Each upload
+     // counts toward the server-enforced rolling 20-mutations/minute budget.
+     const selected=bundle.artifacts.find(item=>item.id===id);
+     const result=await send('PUT',{id},selected.envelope,null,true);
+     if(result.data?.id!==id || result.data.stored!==true)
+       fail('INVALID_RESPONSE');
+     return {id,etag:successfulTag(result.etag),created:true};
+   },
    async list({after=null,limit=10}={}) {
      if(!Number.isInteger(limit)||limit<1||limit>10)fail('INVALID_PAGE_SIZE');
      if(after!==null)validateId(after);
