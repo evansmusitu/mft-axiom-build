@@ -60,6 +60,35 @@ class GodModeReleaseReceiptTests(unittest.TestCase):
             self.assertNotEqual(result.returncode,0)
             self.assertEqual(receipt.read_bytes(),old)
 
+    def test_receipt_cannot_be_relocated_even_if_sha256_files_still_match(self):
+        with tempfile.TemporaryDirectory() as temp:
+            scene,video,receipt=self.fixtures(temp)
+            other=pathlib.Path(temp)/'other';other.mkdir()
+            moved=other/receipt.name
+            receipt.replace(moved)
+            rejected=self.verify(scene,video,moved)
+            self.assertNotEqual(rejected.returncode,0,
+                'checksum alone is not proof that release receipt belongs to this delivery')
+            self.assertIn('STUDIO_2099_RECEIPT_DIRECTORY_INVALID',rejected.stderr)
+
+    def test_receipt_must_keep_exact_video_derived_filename(self):
+        with tempfile.TemporaryDirectory() as temp:
+            scene,video,receipt=self.fixtures(temp)
+            forged=receipt.with_name('owner-approved-movie.json')
+            receipt.replace(forged)
+            rejected=self.verify(scene,video,forged)
+            self.assertNotEqual(rejected.returncode,0)
+            self.assertIn('STUDIO_2099_RECEIPT_NAME_INVALID',rejected.stderr)
+
+    def test_symlinked_parent_directory_must_not_alias_another_media_delivery(self):
+        with tempfile.TemporaryDirectory() as temp:
+            scene,video,receipt=self.fixtures(temp)
+            alias=pathlib.Path(temp)/'alias';alias.symlink_to(pathlib.Path(temp),target_is_directory=True)
+            rejected=self.verify(alias/scene.name,alias/video.name,alias/receipt.name)
+            self.assertNotEqual(rejected.returncode,0,
+                'all apparent filenames can match even when the parent is an alias')
+            self.assertIn('STUDIO_2099_RECEIPT_SYMLINK_REJECTED',rejected.stderr)
+
     def test_release_receipt_does_not_claim_external_provider_or_owner_proof(self):
         with tempfile.TemporaryDirectory() as temp:
             _,_,receipt=self.fixtures(temp)

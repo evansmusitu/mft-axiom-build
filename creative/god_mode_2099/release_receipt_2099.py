@@ -34,11 +34,17 @@ def no_duplicate_json_keys(pairs):
     return result
 
 
+def reject_symlink_path(path: pathlib.Path) -> None:
+    """Reject a linked path *component*, not merely a linked leaf filename."""
+    p = pathlib.Path(path)
+    if '..' in p.parts or any(component.is_symlink() for component in (p, *p.parents)):
+        raise ValueError('STUDIO_2099_RECEIPT_SYMLINK_REJECTED')
+
+
 def verified_file(path: pathlib.Path) -> dict:
     """Stream SHA-256 through a bounded memory buffer, disallowing symlinks."""
     p = pathlib.Path(path)
-    if p.is_symlink():
-        raise ValueError('STUDIO_2099_RECEIPT_SYMLINK_REJECTED')
+    reject_symlink_path(p)
     try:
         fd = os.open(p, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) |
                      getattr(os, 'O_CLOEXEC', 0))
@@ -65,7 +71,9 @@ def verified_file(path: pathlib.Path) -> dict:
 def emit(mode: str, scene: pathlib.Path, video: pathlib.Path, receipt: pathlib.Path) -> dict:
     if mode not in EXPECTED:
         raise ValueError('STUDIO_2099_RECEIPT_PRESET_INVALID')
-    if receipt.is_symlink() or receipt.exists():
+    for file in (scene, video, receipt):
+        reject_symlink_path(file)
+    if receipt.exists():
         raise ValueError('STUDIO_2099_RECEIPT_EXISTS')
     if receipt.parent != video.parent:
         raise ValueError('STUDIO_2099_RECEIPT_DIRECTORY_INVALID')
@@ -99,7 +107,13 @@ def emit(mode: str, scene: pathlib.Path, video: pathlib.Path, receipt: pathlib.P
 
 
 def verify(receipt: pathlib.Path, scene: pathlib.Path, video: pathlib.Path) -> bool:
-    if receipt.is_symlink() or not receipt.is_file() or receipt.stat().st_size > 4096:
+    for file in (receipt, scene, video):
+        reject_symlink_path(file)
+    if receipt.parent != video.parent:
+        raise ValueError('STUDIO_2099_RECEIPT_DIRECTORY_INVALID')
+    if receipt.name != video.name + '.verified.json':
+        raise ValueError('STUDIO_2099_RECEIPT_NAME_INVALID')
+    if not receipt.is_file() or receipt.stat().st_size > 4096:
         raise ValueError('STUDIO_2099_RECEIPT_INVALID')
     try:
         record = json.loads(receipt.read_text(encoding='utf8'), object_pairs_hook=no_duplicate_json_keys)
