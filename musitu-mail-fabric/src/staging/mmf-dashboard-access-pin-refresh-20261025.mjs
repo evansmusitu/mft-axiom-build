@@ -54,6 +54,15 @@ export function describeSnapshotDrift(left,right){
  return {sections,paths,sameUnorderedArrays};
 }
 
+// Cloudflare decrements this zone cache-development countdown between GETs.
+// It is unrelated to the custom-domain Worker, Access, MFA, bindings, or source.
+// Preserve full equality for every other returned field.
+export function concurrencySnapshot(value){
+ const copy=structuredClone(value);
+ if(Array.isArray(copy.zones))for(const zone of copy.zones)if(zone&&typeof zone==='object')delete zone.development_mode;
+ return copy;
+}
+
 export function assertProtection(s){
  const email=s.policies?.[0]?.include?.[0]?.email?.email;
  const mfa=a=>a?.mfa_config?.mfa_disabled===false&&
@@ -181,17 +190,20 @@ export async function refreshDashboard({token,accountId,sourceSha,loadSource,fet
   Object.assign(proof,plan.summary);proof.exactBaselineVerified=true;proof.freshPublicCertificatesVerified=true;
   // Re-read immediately before mutation. Concurrent source/config changes stop the write.
   const [again,sourceAgain]=await Promise.all([snapshot(),api(target+'/content/v2')]);
-  if(!isDeepStrictEqual(before,again)||!isDeepStrictEqual(remote,sourceAgain)){
-   proof.concurrentDrift=describeSnapshotDrift(before,again);
+  const stableBefore=concurrencySnapshot(before),stableAgain=concurrencySnapshot(again);
+  if(!isDeepStrictEqual(stableBefore,stableAgain)||!isDeepStrictEqual(remote,sourceAgain)){
+   proof.concurrentDrift=describeSnapshotDrift(stableBefore,stableAgain);
    proof.concurrentSourceChanges=moduleNames.filter(p=>remote.get(p)!==sourceAgain.get(p));
    fail('MMF_CONCURRENT_DRIFT_BEFORE_WRITE');
   }
+  if(!isDeepStrictEqual(before,again))proof.ignoredTransientDrift=describeSnapshotDrift(before,again);
   const form=new FormData();form.set('metadata',new Blob([JSON.stringify({main_module:moduleNames[0]})],{type:'application/json'}));
   for(const [name,source] of plan.desired)form.set(name,new Blob([source],{type:'application/javascript+module'}),name);
   if((await api(target+'/content','PUT',form))?.id!==worker)fail('MMF_CONTENT_WRITE_UNACKNOWLEDGED');
   const [after,sourceAfter]=await Promise.all([snapshot(),api(target+'/content/v2')]);
   assertProtection(after);
-  proof.settingsAndPoliciesUnchanged=isDeepStrictEqual(before,after);
+  proof.settingsAndPoliciesUnchanged=isDeepStrictEqual(concurrencySnapshot(before),concurrencySnapshot(after));
+  if(!isDeepStrictEqual(before,after))proof.postDeployIgnoredTransientDrift=describeSnapshotDrift(before,after);
   proof.exactDeployedModulesVerified=isDeepStrictEqual(plan.desired,sourceAfter);
   if(!proof.settingsAndPoliciesUnchanged||!proof.exactDeployedModulesVerified)fail('MMF_POST_DEPLOY_DRIFT');
   // No request to the browser-blocked application: this verifies management-plane

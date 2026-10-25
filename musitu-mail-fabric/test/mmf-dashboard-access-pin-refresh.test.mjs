@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash,X509Certificate} from 'node:crypto';
-import {moduleNames,assertProtection,verifiedPublicPins,planRefresh,refreshDashboard,describeSnapshotDrift} from '../src/staging/mmf-dashboard-access-pin-refresh-20261025.mjs';
+import {moduleNames,assertProtection,verifiedPublicPins,planRefresh,refreshDashboard,describeSnapshotDrift,concurrencySnapshot} from '../src/staging/mmf-dashboard-access-pin-refresh-20261025.mjs';
 
 const directory=mkdtempSync(join(tmpdir(),'mmf-pin-fixture-'));
 after(()=>rmSync(directory,{recursive:true,force:true}));
@@ -80,7 +80,7 @@ test('sole administrator, MFA, six bindings and isolated route assertions fail c
  ]){const s=snapshot();change(s);assert.throws(()=>assertProtection(s));}
 });
 
-function fakeCloud({driftBefore=false,denyWrite=false,driftAfter=false,badCertificate=false}={}){
+function fakeCloud({driftBefore=false,transientCountdown=false,denyWrite=false,driftAfter=false,badCertificate=false}={}){
  let remote=source(),phase=0;
  const calls=[];
  const prefix='accounts/'+account+'/',access=prefix+'access/',target=prefix+'workers/scripts/'+worker;
@@ -114,6 +114,7 @@ function fakeCloud({driftBefore=false,denyWrite=false,driftAfter=false,badCertif
   const name=Object.keys(paths).find(k=>paths[k]===path);assert.ok(name,'only approved management endpoints');
   const s=snapshot();
   if(driftBefore&&phase===2)s.settings.logpush=true;
+  if(transientCountdown)s.zones[0].development_mode=200-phase;
   if(driftAfter&&phase===3)s.settings.logpush=true;
   return Response.json({success:true,result:s[name]});
  };
@@ -138,6 +139,17 @@ test('concurrent settings drift and invalid public certificate prevent all Cloud
   assert.equal(cloud.calls.filter(c=>c.method==='PUT').length,0);
   if(options.driftBefore)assert.deepEqual(proof.concurrentDrift,{sections:['settings'],paths:['settings.logpush'],sameUnorderedArrays:[]});
  }
+});
+test('only Cloudflare zone development-mode countdown is ignored between guarded reads',async()=>{
+ const cloud=fakeCloud({transientCountdown:true}),proof=await invoke(cloud);
+ assert.equal(proof.gate,'MMF_DASHBOARD_PINS_REFRESHED_BROWSER_ACCEPTANCE_PENDING');
+ assert.deepEqual(proof.ignoredTransientDrift,{sections:['zones'],paths:['zones.0.development_mode'],sameUnorderedArrays:[]});
+ assert.deepEqual(proof.postDeployIgnoredTransientDrift,{sections:['zones'],paths:['zones.0.development_mode'],sameUnorderedArrays:[]});
+ assert.equal(proof.cloudflareMutations,1);
+ const left={zones:[{id:'same-zone',development_mode:99,status:'active'}],settings:{logpush:false}};
+ const right={zones:[{id:'same-zone',development_mode:98,status:'active'}],settings:{logpush:false}};
+ assert.deepEqual(concurrencySnapshot(left),concurrencySnapshot(right));
+ right.zones[0].status='pending';assert.notDeepEqual(concurrencySnapshot(left),concurrencySnapshot(right));
 });
 test('drift diagnostics distinguish array ordering and reveal field paths without values',()=>{
  const left={domains:[{id:'private-first',name:'secret-a'},{id:'private-second',name:'secret-b'}],settings:{token:'old-secret'}};

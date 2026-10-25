@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh-dashboard-pins:
-    if: github.event.before == 'eb5039d38246c7654b19f75600866e97c6e0ecc7'
+    if: github.event.before == 'b5c81eb187a88cd43d098c1d24c54d5c82ba78bd'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
-          test "$(git rev-parse HEAD^)" = 'eb5039d38246c7654b19f75600866e97c6e0ecc7'
+          test "$(git rev-parse HEAD^)" = 'b5c81eb187a88cd43d098c1d24c54d5c82ba78bd'
           node --input-type=module <<'NODE'
           import {execFileSync} from 'node:child_process';
           import {isDeepStrictEqual} from 'node:util';
