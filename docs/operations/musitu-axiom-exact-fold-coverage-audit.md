@@ -102,3 +102,18 @@ truth, on-call response, independent rights or safety certification may be
 inferred from these summaries. Tests demonstrate the accounting on generated
 synthetic sensor pulses, while the model, score threshold, source rights and
 production admission remain unchanged.
+
+### Seal verification-to-parsing integrity hardening
+
+The exact-fold replay pins the original **seal file bytes** before the
+separate chronology/coverage audit and checks that identical bytes are
+still present after that audit, after standalone protocol verification,
+and at the moment the scoring fold definition is parsed. This prevents a
+competing source writer from substituting alternate feature-time grids
+between successful seal verification and replay while still reporting the
+old protocol SHA. A byte-different but semantically identical JSON seal
+also fails closed. Synthetic adversarial CI tests reproduce both
+substituted fold boundaries and a whitespace-only seal mutation.
+
+This remains a local integrity proof, **not** a verified outside
+timestamp or proof that preregistration actually preceded label access.

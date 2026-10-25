@@ -9,6 +9,7 @@ incident ground truth, or when a private seal was first published.
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 from datetime import datetime
 from math import isfinite
 import json
@@ -62,6 +63,10 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
     if len({p.resolve() for p in inputs}) != len(inputs):
         raise ValueError('holdout_replay_inputs_must_be_distinct')
 
+    # Capture the original seal before any verification/scoring. A caller
+    # may swap a seal between the coverage verifier and replay parser:
+    # a subsequent SHA of only the replacement cannot pin original folds.
+    verified_seal_bytes_sha256 = _sha256_file(seal_path)
     # Exact chrono coverage is prerequisite, not a substituted performance
     # result. It scans and SHA-rechecks every source row and the pinned mapping.
     coverage = inspect_fold_coverage(
@@ -70,9 +75,14 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
     if coverage['complete_fold_grids'] != 4:
         raise ValueError('holdout_replay_grid_incomplete')
 
+    if _sha256_file(seal_path) != verified_seal_bytes_sha256:
+        raise ValueError('holdout_replay_seal_changed_after_verification')
     verify_holdout_seal(
         seal_path=seal_path, expected_protocol_sha256=expected_protocol_sha256)
-    seal = _load_unique_json(seal_path.read_text(encoding='utf-8'))
+    seal_bytes = seal_path.read_bytes()
+    if sha256(seal_bytes).hexdigest() != verified_seal_bytes_sha256:
+        raise ValueError('holdout_replay_seal_changed_after_verification')
+    seal = _load_unique_json(seal_bytes)
     protocol = seal['protocol']
     bundle = load_frozen_bundle(
         bundle_dir, expected_manifest_sha256=FROZEN_MANIFEST_SHA)
