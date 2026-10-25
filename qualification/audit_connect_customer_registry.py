@@ -18,6 +18,9 @@ from typing import Any
 
 STAMP = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\Z')
 SCOPE = {'mining.plan', 'mining.risk'}
+# A committed attempt ID is minted exclusively by the customer admission
+# runtime. Non-UUID or wrong-version identifiers are never trusted evidence.
+UUID_V4 = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\Z'.replace('\\\\Z','\\Z'))
 
 
 def _valid_utc_event(day: str, when: str) -> bool:
@@ -55,14 +58,17 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         used = 0
         malformed = 0
         inconsistent_credential = 0
+        malformed_request_ids = 0
         for tenant, credential, request, scope, day, timestamp in conn.execute(
                 'SELECT tenant_id,credential_id,request_id,scope,utc_day,observed_at '
                 'FROM connect_customer_usage_events'):
             used += 1
+            if not isinstance(request, str) or UUID_V4.fullmatch(request) is None:
+                malformed_request_ids += 1
             if tenant not in tenants or credentials.get(credential) != tenant:
                 inconsistent_credential += 1
             if (not _valid_utc_event(day,timestamp)
-                    or scope not in SCOPE or not isinstance(request,str) or not request):
+                    or scope not in SCOPE):
                 malformed += 1
             if isinstance(day,str):
                 expected_day[(tenant, day)] += 1
@@ -86,7 +92,7 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         conn.close()
 
     good = not any((day_mismatch, minute_mismatch,
-                    malformed, inconsistent_credential))
+                    malformed, inconsistent_credential, malformed_request_ids))
     return {
         'schema': 'musitu.connect.customer_accounting_audit.v1',
         'status': ('OFFLINE_ACCOUNTING_CONSISTENT_NOT_ADMITTED'
@@ -99,6 +105,7 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         'daily_counter_mismatches': day_mismatch,
         'minute_counter_mismatches': minute_mismatch,
         'malformed_event_timestamps_or_scopes': malformed,
+        'malformed_request_ids': malformed_request_ids,
         'credential_tenant_mismatches': inconsistent_credential,
         'event_and_quota_consistency': good,
         'hosted_d1_qualified': False,

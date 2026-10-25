@@ -279,3 +279,18 @@ writes. This is a stronger offline transactionality negative control than
 calling `Promise.all()` twice on one SQLite handle, but is still **not**
 Cloudflare hosted D1 regional concurrency, HTTP load balancing, or production
 customer admission.
+
+### Persisted attempt-ID integrity — 25 October 2026
+
+The offline read-only reconciliation now validates that every recorded
+attempt contains the server admission contract's lowercase **UUID-v4**
+identifier, including its version and variant bits. A malicious or
+incorrectly attributed request ID can otherwise leave all daily/minute
+counters balanced while breaking the promise that admission allocated the
+attempt identifier. Reports emit only the count of malformed IDs, never
+any actual token, request or tenant identifier. Corrupted persisted
+events return `OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED`.
+Synthetic adversarial regression tests cover non-UUID text, wrong UUID
+version, wrong variant and nonhex characters. This check cannot
+authenticate UUID origin or prove billing, customer rights or hosted D1
+atomicity. Customer beta admission remains blocked.
