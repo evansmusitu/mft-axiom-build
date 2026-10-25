@@ -69,7 +69,10 @@ BEGIN
   SELECT RAISE(ABORT, 'CUSTOMER_EVENT_TIME_INVALID') WHERE
     strftime('%Y-%m-%dT%H:%M:%fZ', NEW.observed_at) IS NULL
     OR strftime('%Y-%m-%dT%H:%M:%fZ', NEW.observed_at) != NEW.observed_at
-    OR substr(NEW.observed_at,1,10) != NEW.utc_day;
+    OR substr(NEW.observed_at,1,10) != NEW.utc_day
+    -- SQLite may allow the 24:00 alias of next-day midnight while retaining
+    -- the preceding UTC day text, mischarging its day/minute quota.
+    OR substr(NEW.observed_at,12,2) = '24';
   SELECT RAISE(ABORT, 'CUSTOMER_AUTH_REVOKED') WHERE NOT EXISTS (
     SELECT 1 FROM connect_customer_credentials c
     JOIN connect_customer_tenants t ON t.tenant_id = c.tenant_id

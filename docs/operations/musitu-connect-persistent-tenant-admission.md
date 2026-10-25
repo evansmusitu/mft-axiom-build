@@ -333,3 +333,16 @@ successful canonical insertion **and** invalid direct UUID insertion, and the
 trigger uses constant-length field checks plus a short negative-hex GLOB
 instead. The SQL-level protection is only accepted when Node SQLite and
 local workerd D1 both pass. Remote hosted D1 remains unverified.
+
+### UTC 24:00 boundary rejection (offline SQL/D1)
+
+SQLite accepts the noncanonical `24:00:00.000Z` representation and can
+normalize its instant to **the following calendar day**, even if
+`strftime` round-trips its original text. That could attribute a
+per-minute/day quota to the preceding UTC day. The feature-branch
+SQLite/D1 admission trigger now rejects hour `24` explicitly as
+`CUSTOMER_EVENT_TIME_INVALID`, without recording a usage event or
+incrementing counters. This is test-driven with failing pre-fix Node
+SQLite evidence and separately exercised in isolated local Cloudflare
+D1. Normal `00`–`23` UTC hour representations continue to work.
+Remote D1 remains unqualified and customer admission blocked.
