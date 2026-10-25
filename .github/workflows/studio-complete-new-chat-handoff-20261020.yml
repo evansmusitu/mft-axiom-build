@@ -1,27 +1,7 @@
 name: MUSITU Studio — Complete Verified New-Chat Transfer 2026-10-20
+# Provider reads and longer handoffs require a deliberate owner-initiated run.
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths:
-      - '.github/workflows/studio-complete-new-chat-handoff-20261020.yml'
-      - 'ops/studio_build_new_chat_handoff_20261020.py'
-      - 'ops/studio_snapshot_provider_readonly_20261020.py'
-      - 'docs/STUDIO_NEW_CHAT_ZERO_LOSS_HANDOFF_20261020.md'
-      - 'musitu_studio/neon/**'
-      - 'musitu_studio/edge/public_v03/**'
-      - 'musitu_studio/edge/tests/v03_scene_preview.test.mjs'
-      - 'musitu_studio/edge/tests/v03_glb_export.test.mjs'
-      - 'musitu_studio/edge/tests/v03_glb_animation.test.mjs'
-      - 'ops/tests/test_studio_complete_handoff_scope_20261023.py'
-      - 'ops/studio_build_new_chat_handoff_20261020.py'
-      - 'creative/god_mode_2099/**'
-      - '.github/workflows/god-mode-2099-*'
-      - 'docs/STUDIO_OFFLINE_GLB_EXPORT_AND_PROVIDER_NO_GO_20261022.md'
-      - 'docs/STUDIO_V03_BROWSER_SCENE_WORKBENCH_20261022.md'
-      - 'ops/studio_v03_export_offline_keyframe_editor_20261022.py'
-      - 'ops/tests/test_studio_offline_keyframe_export_20261022.py'
-      - 'docs/STUDIO_V03_KEYFRAME_WORKBENCH_20261022.md'
-      - 'docs/STUDIO_NEW_CHAT_TRANSFER_BRIEF_20261021.md'
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-complete-new-chat-transfer-20261020
@@ -31,13 +11,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 1
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Validate expected isolation and source syntax
@@ -58,9 +39,11 @@ jobs:
           node --check musitu_studio/edge/public_v03/scene-preview.mjs
           node --check musitu_studio/edge/public_v03/glb-export.mjs
           test -f musitu_studio/edge/tests/v03_scene_preview.test.mjs
-      - name: Install test dependencies, save exact resolved lockfile in handoff
+      - name: Verify and reconstruct pinned offline Edge dependency lock
+        run: python ops/studio_v03_restore_edge_lockfile.py
+      - name: Install exact checked-in Edge dependencies without postinstall scripts
         working-directory: musitu_studio/edge
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Execute complete Studio edge test suite including V0.2/V0.3
         working-directory: musitu_studio/edge
         run: npm test
@@ -72,7 +55,7 @@ jobs:
           python -m unittest discover -s ops/tests -p test_studio_complete_handoff_scope_20261023.py
           python ops/studio_v03_export_offline_keyframe_editor_20261022.py --output "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
           test -s "$RUNNER_TEMP/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR
           path: ${{ runner.temp }}/MUSITU_STUDIO_V03_OFFLINE_KEYFRAME_ANIMATION_EDITOR.html
@@ -132,14 +115,14 @@ jobs:
           assert (root/'PRODUCT_SOURCE/.github/workflows/studio-complete-new-chat-handoff-20261020.yml').is_file()
           print('STUDIO_DIRECT_DRIVE_ARCHIVE_CONTENT=PASS',len(names),'files')
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021_DIRECT
           path: DIRECT_DRIVE_ZIP_CONTENT/
           retention-days: 45
           include-hidden-files: true
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MUSITU_STUDIO_ENTERPRISE_COMPLETE_HANDOFF_20261021
           path: |

@@ -8,6 +8,7 @@ on:
       - 'creative/god_mode_2099/**'
       - 'musitu_studio/edge/src/**'
       - 'ops/studio_v03_*.py'
+      - 'ops/verified_edge_lock_parts/**'
       - 'ops/tests/test_god_mode_2099_*.py'
       - 'musitu_studio/edge/public_v03/**'
       - 'musitu_studio/edge/tests/v03_glb_*.test.mjs'

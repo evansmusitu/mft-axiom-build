@@ -1,12 +1,7 @@
 name: MUSITU Studio V0.3 — Provider-Bound No-Go Release Qualification Readonly
+# Provider reads and longer handoffs require a deliberate owner-initiated run.
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths:
-      - ops/studio_v03_release_readonly_gate_20261022.py
-      - ops/tests/test_studio_v03_release_readonly_gate_20261022.py
-      - musitu_studio/neon/migration_promotion_guard.mjs
-      - .github/workflows/studio-v03-release-readonly-qualification-20261022.yml
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-release-qualification-only
@@ -20,8 +15,10 @@ jobs:
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       STUDIO_NO_GO_REPORT_PATH: STUDIO_RELEASE_GATE_READONLY_20261022.json
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with: {python-version: '3.13'}
       - name: Fail-closed parser/privacy unit tests
         run: python -m unittest discover -s ops/tests -p 'test_studio_v03_release_readonly_gate_20261022.py' -v
@@ -38,7 +35,7 @@ jobs:
           assert p['source_head']==__import__('os').environ['GITHUB_SHA']
           print('STUDIO_SAFE_READONLY_NO_GO_RECEIPT=PASS')
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: musitu-studio-v03-release-gate-readonly-20261022
