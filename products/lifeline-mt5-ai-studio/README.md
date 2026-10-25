@@ -1,3 +1,9 @@
+### 25 October 2026 — D1-free signed stateless status source implemented (NOT DEPLOYED)
+
+The 11 existing Cloudflare D1 databases exceed the documented Workers Free numeric allowance (10). Instead of provisioning or repurposing shared databases, LIFELINE implemented an isolated **no-database, signed status-only** mode in existing `infra/cloudflare/alternative/{private_worker.mjs,gateway.mjs}` plus `wrangler.stateless.private.toml`. It requires existing owner Access JWT, independent explicit cutover, matching stateless mode, pinned tenant and HMAC. It deliberately reports `jobs:null`, no database/Windows/Modal/Neon connectivity, and no trading. It cannot execute jobs. Stateless mode has *no durable nonce replay prevention*, so only the idempotent status response is permitted. No Cloudflare Worker or binding has been deployed, and no Free-plan entitlement/hard $0 cap has been proven.
+
+[RED CI #40170287999](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40170287999) reproduced missing behavior; [GREEN #40170435002](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40170435002) completed 10/10 tests. Details: `validation/CLOUDFLARE_STATELESS_ACCEPTANCE_20261025.md`.
+
 # LIFELINE MT5 AI Studio — Isolated owner-only development
 
 **Operational status, 25 October 2026:**
