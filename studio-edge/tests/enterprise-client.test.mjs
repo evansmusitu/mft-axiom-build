@@ -75,9 +75,9 @@ test('list requests bounded metadata pages without IDs in route path',async()=>{
   const q=new URL(url);seen.push({path:q.pathname,after:q.searchParams.get('after'),limit:q.searchParams.get('limit'),method:init.method});
   return ok({items:[{id:ID,revision:ETag.slice(1,-1),updatedAt:1800000000}],nextAfter:null});
  });
- const data=await api.list({limit:3,after:'artifact_prev_001'});
+ const data=await api.list({limit:3,after:'artifact_entry_000'});
  assert.equal(data.items.length,1);
- assert.deepEqual(seen,[{path:'/api/enterprise/tenants/'+TENANT+'/artifacts',after:'artifact_prev_001',limit:'3',method:'GET'}]);
+ assert.deepEqual(seen,[{path:'/api/enterprise/tenants/'+TENANT+'/artifacts',after:'artifact_entry_000',limit:'3',method:'GET'}]);
  await assert.rejects(api.list({limit:11}));
 });
 test('refuses unsafe endpoints, invalid IDs/versions, or missing identity without network',async()=>{
