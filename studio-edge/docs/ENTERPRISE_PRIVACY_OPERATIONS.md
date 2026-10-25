@@ -100,3 +100,13 @@ backup deletion/retention; DSAR authentication/export/complaint operations;
 audit maintenance authorization; transfer geography and legal basis; billing
 and capacity; incident response; reviewer/custodian acceptance; tested rollback.
 No one should connect paying customers or production data before those gates.
+
+## Tenant-wide erasure — reviewed operator-only prototype (NOT LIVE)
+
+A separate, **unwired** `enterprise-tenant-erasure.mjs` utility models erasure of a *single verified tenant* from the dedicated enterprise D1 database. It is **not** a customer-facing endpoint, not scheduled, not wired into the Worker, not a DSAR approval, and not independently authorized to operate on any cloud database.
+
+The caller must supply a validated tenant ID, an independently verified matching tenant ID, a non-secret authorization reference, explicit assertion that legal hold has been reviewed and cleared, the typed confirmation `ERASE <tenant_id>`, and `execute:true`. Omitting `execute:true` returns a dry-run result and issues no D1 queries. Explicit execution uses a single transactional D1 batch: delete this tenant's audit rows and delete its tenant record, cascading scoped memberships and encrypted artifacts. Missing tenant IDs and incomplete transaction results fail closed. Real SQLite tests exercise cross-tenant separation and rollback if the tenant delete fails after audit deletion.
+
+**Important:** Caller-provided approvals are declarations, not identity verification or legal judgment. These fields must come from an independently authorized operator in a verified maintenance environment, NEVER directly from customer HTTP parameters. The D1 object must be the separately approved enterprise database. The utility cannot erase Cloudflare backups, exported bundles, cached ciphertext, unrelated browser-local slots, third-party processors, provider logs or already downloaded customer files. A complete deletion request requires a separately reviewed retention/backup/key policy, authenticated data-subject request and evidence of all affected storage locations.
+
+The code is intended for isolated test data and must **not** be invoked against real tenant data before owner/privacy/custodian acceptance of erasure procedure and legal-hold responsibilities.
