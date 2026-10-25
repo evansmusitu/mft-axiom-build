@@ -143,10 +143,31 @@ export async function handleEnterpriseWorkspace(request, env, {fetchJwks=fetch,n
       (rawLimit!==null && !/^(?:[1-9]|10)$/.test(rawLimit))))
     return fail('INVALID_QUERY',400,origin);
   const pageSize=rawLimit===null?10:Number(rawLimit);
+  // Required dedicated Cloudflare rate bindings. Fail closed before any
+  // upstream JWKS fetch or tenant D1 read if capacity guard is unavailable.
+  // Cloudflare Rate Limiting may be location-scoped, NOT a worldwide cap.
+  if(typeof env.WORKSPACE_AUTH_RATE?.limit!=='function' ||
+     typeof env.WORKSPACE_READ_RATE?.limit!=='function')
+    return fail('RATE_CONTROL_UNAVAILABLE',503,origin);
+  try{
+    const probe=await env.WORKSPACE_AUTH_RATE.limit({key:'enterprise-auth-probes'});
+    if(probe?.success!==true)return fail('AUTH_RATE_LIMIT',429,origin);
+  }catch{return fail('RATE_CONTROL_UNAVAILABLE',503,origin);}
   let subject;
   try {subject = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'),{
     teamDomain:env.ACCESS_TEAM_DOMAIN,audience:env.ACCESS_AUDIENCE,fetchJwks,now});}
   catch {return fail('AUTH_REQUIRED',401,origin);}
+  if(request.method==='GET'){
+    try{
+      // Only a short pseudonymous hash enters the rate limiter, never a JWT.
+      const digest=await crypto.subtle.digest('SHA-256',
+        new TextEncoder().encode(JSON.stringify([tenant,subject])));
+      const readKey=Array.from(new Uint8Array(digest).slice(0,16),
+        b=>b.toString(16).padStart(2,'0')).join('');
+      const allowed=await env.WORKSPACE_READ_RATE.limit({key:readKey});
+      if(allowed?.success!==true)return fail('READ_RATE_LIMIT',429,origin);
+    }catch{return fail('RATE_CONTROL_UNAVAILABLE',503,origin);}
+  }
   try {
     const member=await env.WORKSPACE_DB.prepare('SELECT role FROM tenant_memberships WHERE tenant_id = ? AND subject = ? AND status = ?')
       .bind(tenant,subject,'active').first();
