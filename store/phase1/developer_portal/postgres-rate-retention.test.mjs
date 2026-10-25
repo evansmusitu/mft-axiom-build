@@ -39,3 +39,15 @@ test('no web handler, endpoint or mutable clock parameters exist on maintenance 
  assert.equal(typeof prune,'function');
  assert.equal(Object.keys(prune).length,0);
 });
+
+test('operator-only retention function is inside the same atomic schema transaction',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('./postgres-rate-gate.candidate.sql',import.meta.url),'utf8');
+ const commitPos=source.lastIndexOf('\nCOMMIT;');
+ const retentionPos=source.indexOf('CREATE FUNCTION store_publisher_private.prune_portal_rate_windows(');
+ assert.ok(retentionPos>0 && commitPos>retentionPos,
+   'table and maintenance function must be installed atomically, not in separate transactions');
+ assert.match(source.trimEnd(),/\bCOMMIT;$/,
+   'no independent DDL may execute after the committing schema transaction');
+ assert.equal((source.match(/^COMMIT;$/gm)||[]).length,1);
+});

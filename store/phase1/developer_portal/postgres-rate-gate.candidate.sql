@@ -96,8 +96,6 @@ END $rate$;
 REVOKE ALL ON store_publisher_private.portal_rate_windows FROM PUBLIC;
 REVOKE ALL ON FUNCTION store_publisher_private.claim_portal_rate_permit(
  TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,BIGINT,TEXT,TEXT,TEXT) FROM PUBLIC;
-COMMIT;
-
 -- Operator-only bounded retention: a separate manual/approved maintenance job
 -- may prune no more than 1000 *expired* one-minute counters in each transaction.
 -- Calculate the cutoff using the PostgreSQL server clock, not an HTTP request,
@@ -132,3 +130,4 @@ BEGIN
  RETURN v_removed;
 END $retention$;
 REVOKE ALL ON FUNCTION store_publisher_private.prune_portal_rate_windows(INTEGER) FROM PUBLIC;
+COMMIT;
