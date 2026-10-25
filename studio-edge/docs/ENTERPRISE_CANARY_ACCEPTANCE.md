@@ -24,6 +24,7 @@
 | Explicit portable encrypted bundle | End-to-end SQLite and crypto test; checks ciphertext/revisions and final inventory | Not an atomic point-in-time export; does not automatically save or erase cloud data |
 | Explicit same-tenant create-only backup restore | Offline AES-GCM validation, user acknowledgment, isolated signed JWT/D1 tests | One artifact per action, requires original key; no automated bulk restore or key recovery |
 | Strict client mutation/catalog response contract | Adversarial fake HTTP and real SQLite tests | Does not attest live Worker or Cloudflare responses |
+| Operator-only transactional tenant erasure | Real SQLite whole-tenant A/B removal, rollback and legal-hold input validation | No live erasure, independent authorization, backup erasure or privacy approval |
 | Manual bounded audit retention | Real SQLite tenant-scoped 30-day boundary, 100-row maximum, dry-run/explicit execution and cross-tenant denial tests | Proposed policy only; no scheduled job, DSAR acceptance or cloud operation |
 | No-deploy qualification | Workflow only runs local tests, checks pinned production/canary configs | Cannot attest remote Cloudflare state |
 
