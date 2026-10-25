@@ -2,6 +2,29 @@
  * No Modal credentials, GitHub PAT, Windows host, broker access, or public queue.
  */
 import {serviceHmac,json} from './protocol.mjs';
+// Never .text() an untrusted Service Binding response before checking its size.
+// Bound bytes (not UTF-16 characters) and cancel the stream on overflow.
+async function readBoundedStageJson(response){
+  if(!response.body)throw Error('empty_stage_response');
+  const reader=response.body.getReader();
+  const chunks=[];
+  let size=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(!(value instanceof Uint8Array)||size+value.byteLength>4096){
+        await reader.cancel();
+        throw Error('oversized_stage_response');
+      }
+      chunks.push(value);size+=value.byteLength;
+    }
+  }finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);
+  let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+}
 export async function signInternalRequest({path,body,tenant,key,stamp,nonce}){
   if(path!=='/stage/status'||body!=='{}'||typeof tenant!=='string'||
       !/^[A-Za-z0-9_-]{1,100}$/.test(tenant))throw Error('untrusted_scope');
@@ -37,9 +60,7 @@ export async function forwardAlternative(request,env,authenticatedTenant){
     result=await env.LIFELINE_ALT_SERVICE.fetch(signed);
     if(result.status!==200||!(result.headers.get('content-type')||'').startsWith('application/json'))
       throw Error('invalid_stage_response');
-    const raw=await result.text();
-    if(raw.length>4096)throw Error('oversized');
-    const body=JSON.parse(raw);
+    const body=await readBoundedStageJson(result);
     if(env.LIFELINE_ALT_MODE==='STATELESS_READONLY'){
       const keys=['d1_connected','job_counts_available','jobs','modal_connected',
         'native_windows_connected','neon_connected','schema','status_origin','trading_enabled'];

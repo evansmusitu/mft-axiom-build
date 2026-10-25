@@ -4,6 +4,33 @@
  */
 import {serviceHmac,safeEqual,json} from './protocol.mjs';
 const STATUS='/stage/status';
+// Only the literal two-byte JSON object is valid. Request.text() buffers the
+// entire stream before rejecting it, allowing a hostile/misrouted binding
+// request to consume unnecessary Worker memory and CPU. Bound it while reading.
+async function readExactStatusBody(request){
+  const len=request.headers.get('content-length');
+  if(len!==null&&len!=='2')return false;
+  if(!request.body)return false;
+  const reader=request.body.getReader();
+  let length=0,first,second;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(!(value instanceof Uint8Array)||length+value.byteLength>2){
+        await reader.cancel();
+        return false;
+      }
+      for(const byte of value){
+        if(length===0)first=byte;
+        else second=byte;
+        length++;
+      }
+    }
+    return length===2&&first===123&&second===125; // ASCII "{}"
+  }catch{return false;}
+  finally{reader.releaseLock();}
+}
 export default {async fetch(request,env){
   const u=new URL(request.url);
   if(u.pathname!==STATUS||u.search||u.hash)return json({error:'not_found'},404);
@@ -28,9 +55,8 @@ export default {async fetch(request,env){
      !/^[a-f0-9]{32}$/.test(nonce)||tenant!==env.STAGE_TENANT||
      !/^[a-f0-9]{64}$/.test(sig))
     return json({error:'unauthorized'},401);
-  let body;
-  try{body=await request.text();}catch{return json({error:'unauthorized'},401);}
-  if(body!=='{}')return json({error:'unauthorized'},401);
+  if(!await readExactStatusBody(request))return json({error:'unauthorized'},401);
+  const body='{}';
   try{
     const expected=await serviceHmac(env.SERVICE_HMAC_KEY,STATUS,stamp,nonce,tenant,body);
     if(!safeEqual(sig,expected))return json({error:'unauthorized'},401);

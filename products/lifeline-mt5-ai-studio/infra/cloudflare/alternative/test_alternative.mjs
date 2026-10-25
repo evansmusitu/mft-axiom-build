@@ -146,3 +146,47 @@ test('stateless gateway refuses downstream simulated DB or connected-asset claim
   assert.equal(result.status,502);
   assert.equal((await result.text()).includes('DO_NOT_DISCLOSE'),false);
 });
+
+// Regression: service-bindings may be misconfigured or receive an authenticated
+// replay with a hostile streamed body. Never buffer arbitrary bytes in memory.
+test('private Worker cancels oversized streamed status bodies immediately',async()=>{
+  const env={STAGE_TENANT:TENANT,SERVICE_HMAC_KEY:KEY,
+    LIFELINE_ALT_MODE:'STATELESS_READONLY'};
+  const legit=await signInternalRequest({path:'/stage/status',body:'{}',tenant:TENANT,key:KEY});
+  let cancelled=false,produced=0;
+  const input=new ReadableStream({
+    pull(controller){
+      produced++;
+      controller.enqueue(new Uint8Array(256).fill(120));
+      if(produced===100)controller.close();
+    },
+    cancel(){cancelled=true;}
+  });
+  const req=new Request(legit.url,{method:'POST',duplex:'half',
+    headers:legit.headers,body:input});
+  const response=await privateWorker.fetch(req,env);
+  assert.equal(response.status,401);
+  assert.equal(cancelled,true,'a rejected oversized stream must be cancelled early');
+  assert.ok(produced<100,'worker must not exhaust attacker controlled stream');
+});
+
+// Responses from a misbound internal service must be size-bounded *before*
+// allocating/decoding; a post-hoc string-length check is insufficient.
+test('gateway cancels oversized private service response without reading it all',async()=>{
+  const s=stage();
+  let cancelled=false,produced=0;
+  const stream=new ReadableStream({
+    pull(controller){
+      produced++;controller.enqueue(new Uint8Array(1024).fill(97));
+      if(produced===100)controller.close();
+    },
+    cancel(){cancelled=true;}
+  });
+  const gateway={...s.gateway,LIFELINE_ALT_MODE:'STATELESS_READONLY',
+    LIFELINE_ALT_SERVICE:{fetch:async()=>new Response(stream,{
+      headers:{'content-type':'application/json'}})}};
+  const result=await forwardAlternative(new Request(url),gateway,TENANT);
+  assert.equal(result.status,502);
+  assert.equal(cancelled,true,'oversized upstream response must be cancelled');
+  assert.ok(produced<100,'gateway must not buffer entire upstream response');
+});
