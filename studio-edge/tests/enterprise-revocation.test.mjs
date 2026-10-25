@@ -57,7 +57,7 @@ async function request(db,method='GET'){
   }
   const req=new Request('https://test.invalid/api/enterprise/tenants/'+TENANT+'/artifacts?id='+ITEM,{
     method,headers,body:method==='PUT'?JSON.stringify(envelope):undefined});
-  return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},{fetchJwks:jwks,now:NOW});
+  return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},{fetchJwks:jwks,now:NOW});
 }
 const seed=db=>db.sql.prepare('INSERT INTO tenant_artifacts (tenant_id,artifact_id,iv,ciphertext,version,updated_at) VALUES (?,?,?,?,?,?)').run(TENANT,ITEM,envelope.iv,envelope.ciphertext,1,NOW);
 const revoke=db=>db.prepare('UPDATE tenant_memberships SET status=? WHERE tenant_id=? AND subject=?').run('revoked',TENANT,'account_A_123');
@@ -118,7 +118,7 @@ test('rolling mutation budget blocks 21st valid encrypted write and preserves re
     const req=new Request('https://test.invalid/api/enterprise/tenants/'+TENANT+'/artifacts?id='+ITEM,{
       method:'PUT',headers:{origin:'https://evansmusitu.github.io','cf-access-jwt-assertion':token,
         'content-type':'application/json','if-match':current},body:JSON.stringify(envelope)});
-    return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD},
+    return handleEnterpriseWorkspace(req,{WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}},
       {fetchJwks:jwks,now:NOW});
   };
   for(let i=1;i<20;i++){
