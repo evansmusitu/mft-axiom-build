@@ -24,7 +24,7 @@
 | Explicit portable encrypted bundle | End-to-end SQLite and crypto test; checks ciphertext/revisions and final inventory | Not an atomic point-in-time export; does not automatically save or erase cloud data |
 | Explicit same-tenant create-only backup restore | Offline AES-GCM validation, user acknowledgment, isolated signed JWT/D1 tests | One artifact per action, requires original key; no automated bulk restore or key recovery |
 | Strict client mutation/catalog response contract | Adversarial fake HTTP and real SQLite tests | Does not attest live Worker or Cloudflare responses |
-| Manual bounded audit retention | Real SQLite 30-day boundary, 100-row maximum, dry-run/explicit execution tests | Proposed policy only; no scheduled job, DSAR acceptance or cloud operation |
+| Manual bounded audit retention | Real SQLite tenant-scoped 30-day boundary, 100-row maximum, dry-run/explicit execution and cross-tenant denial tests | Proposed policy only; no scheduled job, DSAR acceptance or cloud operation |
 | No-deploy qualification | Workflow only runs local tests, checks pinned production/canary configs | Cannot attest remote Cloudflare state |
 
 ## Hard gates before creating an isolated private canary
@@ -45,4 +45,4 @@ The browser SDK and export module are prototypes. The old public website does no
 ## Recovery and privacy evidence added in continuation
 - The opt-in client refuses malformed backup bundles, wrong tenant or key, unauthorized auto-restoration and writes to occupied IDs. An external token callback cannot mutate the already-validated ciphertext upload. Full encrypted backup validation occurs before any authentication callback or network traffic.
 - Export now does a final inventory revision comparison to catch most concurrent edits and insertions, but there is **no atomic multi-document snapshot**. Restore/backup usability and key custody require private canary acceptance.
-- The isolated audit-retention helper cannot be imported into the Worker under the qualification boundary check. The proposed 30-day retention is **not an approved legal retention policy**; controller/reviewer signoff remains a NO-GO gate. See [ENTERPRISE_PRIVACY_OPERATIONS.md](ENTERPRISE_PRIVACY_OPERATIONS.md).
+- The isolated audit-retention helper requires an explicit authorized tenant ID (no global purge) and cannot be imported into the Worker under the qualification boundary check. The proposed 30-day retention is **not an approved legal retention policy**; controller/reviewer signoff remains a NO-GO gate. See [ENTERPRISE_PRIVACY_OPERATIONS.md](ENTERPRISE_PRIVACY_OPERATIONS.md).
