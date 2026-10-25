@@ -36,6 +36,14 @@ jobs:
         run: node --test musitu_studio/neon/tests/*.test.mjs
       - name: Pure GLB / high angular speed / editor preview tests
         run: node --test musitu_studio/edge/tests/v03_glb_*.test.mjs musitu_studio/edge/tests/v03_scene_preview.test.mjs
+      - name: Pure offline Edge identity-independent and client submission tests
+        run: >-
+          node --test
+          musitu_studio/edge/tests/session.test.mjs
+          musitu_studio/edge/tests/validation.test.mjs
+          musitu_studio/edge/tests/v03_do_adapter.test.mjs
+          musitu_studio/edge/tests/v03_scene_import_submission.test.mjs
+          musitu_studio/edge/tests/v03_pitr_cron_diagnostic.test.mjs
       - name: Python Studio release recovery and offline security tests
         run: python -m unittest discover -s ops/tests -p 'test_studio_*.py' -v
       - name: Offline God Mode 2099 portable launcher mocks — no Blender GPU

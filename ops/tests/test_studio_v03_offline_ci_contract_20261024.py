@@ -44,5 +44,15 @@ class OfflineCIContract(unittest.TestCase):
         self.assertIn("python -m unittest discover -s ops/tests -p 'test_god_mode_2099_*.py' -v",source)
         self.assertIn("'musitu_studio/edge/src/**'",source)
 
+
+    def test_local_only_edge_security_subset_explicitly_qualified(self):
+        source=CI.read_text()
+        for name in ('session.test.mjs','validation.test.mjs',
+                     'v03_do_adapter.test.mjs','v03_scene_import_submission.test.mjs',
+                     'v03_pitr_cron_diagnostic.test.mjs'):
+            self.assertIn('musitu_studio/edge/tests/'+name,source)
+        self.assertIn('Pure offline Edge identity-independent and client submission tests',source)
+        self.assertNotIn('remote_r2_modal_real.mjs',source)
+
 if __name__=='__main__':
     unittest.main()

@@ -17,3 +17,7 @@ Before fixes: four new recovery tests failed because owner revocation, SQLite au
 ## Non-authorizations
 
 No Studio V0.2, production SQLite Durable Object, R2 customer objects, Cloudflare Access, production routing, Axiom main, Neon networking, real Blender render, or paid Modal providers were changed or exercised. SQLite stays authoritative, and all production migration gates remain NO-GO.
+
+## Additional pure Edge qualification (25 October 2026)
+
+Five intentionally local-only Edge test modules—`session`, strict `validation`, in-memory SQLite Durable Object adapter, import/submission idempotency, and simulated PITR cron diagnostics—passed **41/41 tests** on Node 22 without requiring `jose` or any provider connection. The offline-only GitHub Actions workflow now includes these exact modules, in addition to Neon, GLB/editor and Python/God Mode. It does **not** run the `remote_r2_modal_real` provider module or make external requests, and does not substitute for the unverified complete hosted Edge suite. A regression contract first failed before these workflow steps were added.
