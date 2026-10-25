@@ -117,3 +117,20 @@ substituted fold boundaries and a whitespace-only seal mutation.
 
 This remains a local integrity proof, **not** a verified outside
 timestamp or proof that preregistration actually preceded label access.
+
+### Exact-fold coverage verifier-to-parser seal-byte binding
+
+The dedicated read-only `independent_holdout_coverage.py` auditor now
+captures the bytes it parses after successful protocol verification and
+compares their SHA-256 to the **original seal bytes before** using the
+declared fold boundaries. An adversarial regression temporarily replaces
+the first fold's feature-time grid, restores the original seal during the
+subsequent telemetry scan, and demonstrates that checking only the final
+file hash previously allowed the wrong grid to be counted under the
+original protocol pin. The corrected parser fails closed as
+`holdout_coverage_seal_changed_after_verification`.
+
+The isolated CI workflow now triggers for and executes both the exact
+fold-coverage tests and the published frozen native-model replay tests.
+These are synthetic research integrity checks, not evidence of another
+operating mine, real event support or predictive production admission.

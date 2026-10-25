@@ -17,7 +17,7 @@ from typing import Any
 from benchmarks.mining_adapter.external_source_preflight import (
     _read_manifest, _parsed_time, _sha256_file, _stream_source,
 )
-from benchmarks.mining_adapter.independent_holdout_protocol import verify_holdout_seal
+from benchmarks.mining_adapter.independent_holdout_protocol import verify_holdout_seal, _load_unique_json
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec, build_windowed_prediction_examples
 
 
@@ -31,7 +31,13 @@ def inspect_fold_coverage(*, source: Path, manifest_path: Path, mapping_path: Pa
         raise ValueError('holdout_coverage_inputs_must_be_distinct')
     initial_seal_sha = _sha256_file(seal_path)
     verify_holdout_seal(seal_path=seal_path, expected_protocol_sha256=expected_protocol_sha256)
-    seal = json.loads(seal_path.read_bytes())
+    # Do not separately verify the seal and then trust different bytes:
+    # an attacker with local file access could temporarily swap valid-looking
+    # fold definitions during parsing and restore the original by final SHA.
+    sealed_bytes = seal_path.read_bytes()
+    if not hmac.compare_digest(sha256(sealed_bytes).hexdigest(), initial_seal_sha):
+        raise ValueError('holdout_coverage_seal_changed_after_verification')
+    seal = _load_unique_json(sealed_bytes)
     protocol = seal['protocol']
     manifest, manifest_sha = _read_manifest(manifest_path)
     source_sha = _sha256_file(source)
