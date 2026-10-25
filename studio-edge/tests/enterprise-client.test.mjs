@@ -44,12 +44,14 @@ test('read decrypts ONLY for correct tenant/object and supports revisioned updat
   const q=new URL(url);const h=new Headers(init.headers);
   commands.push({method:init.method,id:q.searchParams.get('id'),ifMatch:h.get('if-match')});
   if(init.method==='GET')return ok({id:ID,envelope});
-  return init.method==='DELETE'?ok({id:ID,deleted:true}):ok({id:ID,stored:true});
+  return init.method==='DELETE'
+    ? ok({id:ID,deleted:true,auditRetained:true})
+    : ok({id:ID,stored:true,encryptedOpaque:true},'"00000000-0000-4000-8000-000000000003"');
  });
  const read=await api.get({id:ID});
  assert.equal(read.text,'sealed text');assert.equal(read.etag,ETag);
  const updated=await api.replace({id:ID,text:'updated sealed text',etag:ETag});
- assert.equal(updated.etag,ETag);
+ assert.equal(updated.etag,'"00000000-0000-4000-8000-000000000003"');
  const removed=await api.delete({id:ID,etag:ETag});
  assert.equal(removed.deleted,true);
  assert.deepEqual(commands,[
