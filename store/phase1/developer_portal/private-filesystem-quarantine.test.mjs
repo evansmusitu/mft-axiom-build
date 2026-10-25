@@ -72,7 +72,7 @@ test('reaper deletes only stale incomplete .part files, not sealed files',async(
  const stream=await q.begin({expectedBytes:apk.length});
  await stream.write(apk);const key=await stream.seal();
  const prefix='a'.repeat(48);
- await writeFile(join(root,prefix+'.part'),Buffer.from('ab'));
+ await writeFile(join(root,prefix+'.part'),Buffer.from('ab'),{mode:0o600});
  await writeFile(join(root,'operator-note.txt'),Buffer.from('keep'));
  const removed=await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3600_000});
  assert.equal(removed,1);
@@ -141,7 +141,7 @@ test('orphan reaper never deletes an active writer even if the wall clock makes 
  const writer=await q.begin({expectedBytes:apk.length});
  await writer.write(apk.subarray(0,8));
  const abandoned='9'.repeat(48)+'.part';
- await writeFile(join(root,abandoned),Buffer.from('orphan'));
+ await writeFile(join(root,abandoned),Buffer.from('orphan'),{mode:0o600});
  const removed=await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3_600_000});
  assert.equal(removed,1,'remove only true abandoned parts');
  await writer.write(apk.subarray(8));
@@ -161,4 +161,35 @@ test('private inspection refuses hard-linked sealed APKs rather than reading a s
  await link(sealed,alternate);
  try{await assert.rejects(q.inspectForPrivateTests(key),/unsafe private quarantine object|hard.link/);}
  finally{await unlink(alternate);await q.revoke(key);}
+}));
+
+
+test('private orphan cleanup is bounded and rejects invalid operator batch controls',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const names=Array.from({length:9},(_,i)=>i.toString(16).padStart(48,'0')+'.part');
+ for(const name of names)await writeFile(join(root,name),Buffer.from('stale'),{mode:0o600});
+ for(const maxDeletes of [0,-1,1.2,101,'100',null,Infinity])
+  await assert.rejects(q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3600000,maxDeletes}),/batch|limit|cleanup/i);
+ assert.equal((await readdir(root)).length,9);
+ const first=await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3600000,maxDeletes:3});
+ assert.equal(first,3,'bounded operator batch may never remove more than requested');
+ assert.equal((await readdir(root)).length,6);
+ assert.equal(await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3600000,maxDeletes:100}),6);
+ assert.deepEqual(await readdir(root),[]);
+}));
+
+test('orphan cleanup does not follow symlinks or delete multi-linked or nonprivate candidate inodes',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const make=n=>join(root,n.toString(16).padStart(48,'0')+'.part');
+ const outside=join(root,'unrelated-private-note');
+ await writeFile(outside,'protected');
+ await symlink(outside,make(1));
+ await writeFile(make(2),'linked',{mode:0o600});
+ await link(make(2),join(root,'alternate-hardlink'));
+ await writeFile(make(3),'too permissive',{mode:0o644});
+ await writeFile(make(4),'safe stale object',{mode:0o600});
+ assert.equal(await q.pruneAbandonedParts({olderThanMs:60_000,now:Date.now()+3600000}),1);
+ for(const name of [make(1),make(2),make(3),outside])assert.ok(await lstat(name));
+ assert.deepEqual(await readFile(outside,'utf8'),'protected');
+ assert.deepEqual((await readdir(root)).filter(x=>x.endsWith('.part')).length,3);
 }));

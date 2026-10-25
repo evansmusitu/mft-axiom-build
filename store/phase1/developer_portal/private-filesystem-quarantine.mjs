@@ -9,7 +9,7 @@
  */
 import {randomBytes} from 'node:crypto';
 import {constants as c} from 'node:fs';
-import {open,realpath,lstat,unlink,readdir,rename} from 'node:fs/promises';
+import {open,opendir,realpath,lstat,unlink,rename} from 'node:fs/promises';
 import {isAbsolute,resolve,join} from 'node:path';
 
 const PREFIX='private/apk/';
@@ -135,20 +135,53 @@ export async function createPrivateFilesystemQuarantine({root,maxBytes=DEFAULT_M
    return await h.readFile();
   }finally{await h.close();}
  }
- async function pruneAbandonedParts({olderThanMs=24*60*60*1000,now=Date.now()}={}){
+ // Operator-only single-host abandoned-part cleanup; not a cron/web route.
+ // Bound each cleanup invocation and walk via a directory iterator rather than
+ // loading an attacker-inflated directory into process memory.
+ async function pruneAbandonedParts({olderThanMs=24*60*60*1000,now=Date.now(),maxDeletes=100}={}){
   await verifyRoot(root);
-  if(!Number.isSafeInteger(olderThanMs)||olderThanMs<60_000||!Number.isFinite(now))
-   throw Error('unsafe private cleanup threshold');
+  if(!Number.isSafeInteger(olderThanMs)||olderThanMs<60_000||
+     !Number.isSafeInteger(now)||now<0||
+     !Number.isSafeInteger(maxDeletes)||maxDeletes<1||maxDeletes>100)
+   throw Error('unsafe private cleanup batch or threshold');
   let deleted=0;
-  for(const file of await readdir(root)){
-   if(!/^[0-9a-f]{48}\.part$/.test(file))continue;
-   // Do not reap this process's still-active uploads, even after a clock jump.
-   if(activeParts.has(file.slice(0,48)))continue;
-   const full=join(root,file),st=await lstat(full);
-   if(!st.isFile()||st.isSymbolicLink())continue;
-   if(now-st.mtimeMs<olderThanMs)continue;
-   await unlink(full);deleted++;
-  }
+  const dir=await opendir(root);
+  try{
+   for await(const entry of dir){
+    if(deleted>=maxDeletes)break;
+    const name=entry.name;
+    if(!/^[0-9a-f]{48}\.part$/.test(name)||!entry.isFile())continue;
+    // In-process leases protect live uploads. This adapter is not a
+    // cross-host/multi-worker shared storage lease manager.
+    if(activeParts.has(name.slice(0,48)))continue;
+    const full=join(root,name);
+    let first;
+    try{first=await lstat(full);}catch(e){if(e.code==='ENOENT')continue;throw e;}
+    if(!first.isFile()||first.isSymbolicLink()||first.nlink!==1||
+       (first.mode&0o077)!==0||
+       (typeof process.getuid==='function'&&first.uid!==process.getuid())||
+       now-first.mtimeMs<olderThanMs)continue;
+    let h;
+    try{h=await open(full,c.O_RDONLY|c.O_NOFOLLOW|c.O_NONBLOCK);}
+    catch(e){if(e.code==='ENOENT'||e.code==='ELOOP')continue;throw e;}
+    try{
+     const st=await h.stat();
+     if(!st.isFile()||st.nlink!==1||st.dev!==first.dev||st.ino!==first.ino||
+        (st.mode&0o077)!==0||
+        (typeof process.getuid==='function'&&st.uid!==process.getuid())||
+        now-st.mtimeMs<olderThanMs)continue;
+    }finally{await h.close();}
+    // Reconfirm the path and private root before removal; a privileged
+    // concurrent local writer still requires a separate OS lease for safety.
+    await verifyRoot(root);
+    let last;
+    try{last=await lstat(full);}catch(e){if(e.code==='ENOENT')continue;throw e;}
+    if(!last.isFile()||last.isSymbolicLink()||last.nlink!==1||
+       last.dev!==first.dev||last.ino!==first.ino||last.mtimeMs!==first.mtimeMs||
+       (last.mode&0o077)!==0||activeParts.has(name.slice(0,48)))continue;
+    try{await unlink(full);deleted++;}catch(e){if(e.code!=='ENOENT')throw e;}
+   }
+  }finally{await dir.close().catch(e=>{if(e.code!=='ERR_DIR_CLOSED')throw e;});}
   return deleted;
  }
  return Object.freeze({begin,revoke,inspectForPrivateTests,pruneAbandonedParts});
