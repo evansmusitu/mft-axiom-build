@@ -16,6 +16,7 @@ on:
       - 'store/phase1/developer_portal/postgres-apk-structure.regression.sql'
       - 'store/phase1/developer_portal/postgres-rate-gate.candidate.sql'
       - 'store/phase1/developer_portal/postgres-rate-gate.regression.sql'
+      - '.github/scripts/musitu-store-v2-rate-concurrency.sh'
       - '.github/workflows/musitu-store-v2-developer-review-postgres-ci.yml'
   workflow_dispatch:
 permissions: {contents: read}
@@ -80,3 +81,6 @@ jobs:
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.submissions')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.review_notes')" = 0
           echo MUSITU_STORE_V2_PUBLISHER_REVIEW_POSTGRES_DENIALS=PASS
+      - name: Prove concurrent per-actor and publisher quotas in disposable PostgreSQL
+        shell: bash
+        run: bash .github/scripts/musitu-store-v2-rate-concurrency.sh
