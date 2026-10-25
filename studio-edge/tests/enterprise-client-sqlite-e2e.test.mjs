@@ -213,3 +213,48 @@ test('browser and Worker agree on supported 8000-byte plaintext budget',async()=
     assert.equal((await api.get({id:ITEM})).text,content);
   }finally{h.db.close();}
 });
+
+
+test('explicit encrypted backup restoration uses real signed handler, preserves opaque ciphertext and rotates revision',async()=>{
+  const h=makeHarness();try{
+    const k=await key(),jwt=await tokenFor('alice_signed_subject');
+    const api=client(h,TA,k,async()=>jwt);
+    const id='artifact_saved_0001',text='Recovery-safe signed tenant evidence 𝄞';
+    const first=await api.create({id,text});
+    const bundle=await api.exportEncryptedBundle();
+    const inspect=await api.inspectEncryptedBundle(bundle);
+    assert.deepEqual(inspect,{tenantId:TA,count:1,ids:[id]});
+    await assert.rejects(api.restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly:true}),
+      e=>e.status===412&&e.code==='PRECONDITION_FAILED');
+    await api.delete({id,etag:first.etag});
+    const auditBefore=h.db.count('tenant_audit');
+    const restored=await api.restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly:true});
+    assert.equal(restored.created,true);
+    assert.notEqual(restored.etag,first.etag);
+    assert.equal((await api.get({id})).text,text);
+    const saved=h.db.db.prepare('SELECT ciphertext,iv,revision FROM tenant_artifacts WHERE tenant_id=? AND artifact_id=?').get(TA,id);
+    assert.equal(saved.ciphertext,bundle.artifacts[0].envelope.ciphertext);
+    assert.equal(saved.iv,bundle.artifacts[0].envelope.iv);
+    assert.equal(h.db.count('tenant_audit'),auditBefore+1);
+    assert.ok(!h.requests.some(req=>req.url.includes(text)));
+  }finally{h.db.close();}
+});
+
+test('offline restore cannot bring tenant A ciphertext to tenant B or use wrong local key',async()=>{
+  const h=makeHarness();try{
+    const aliceJwt=await tokenFor('alice_signed_subject'),bobJwt=await tokenFor('bob_signed_subject');
+    const ownerKey=await key();
+    const alice=client(h,TA,ownerKey,async()=>aliceJwt);
+    const id='artifact_saved_0002';
+    await alice.create({id,text:'Nontransferable signed tenant secret'});
+    const bundle=await alice.exportEncryptedBundle();
+    const bob=client(h,TB,ownerKey,async()=>bobJwt);
+    const otherKey=client(h,TA,await key(),async()=>aliceJwt);
+    const requestCount=h.requests.length,auditCount=h.db.count('tenant_audit');
+    await assert.rejects(bob.restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly:true}));
+    await assert.rejects(otherKey.restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly:true}));
+    assert.equal(h.requests.length,requestCount);
+    assert.equal(h.db.count('tenant_audit'),auditCount);
+    assert.equal(h.db.count('tenant_artifacts'),1);
+  }finally{h.db.close();}
+});
