@@ -148,3 +148,27 @@ test('failed external identity callback never leaks signed token content or reac
  });
  assert.equal(calls,0);
 });
+
+
+test('SDK fails closed on untrusted metadata order, pagination cursor, revision and unexpected fields',async()=>{
+ const goodA={id:'artifact_entry_001',revision:ETag.slice(1,-1),updatedAt:1800000000};
+ const goodB={id:'artifact_entry_002',revision:ETag.slice(1,-1),updatedAt:1800000001};
+ const cases=[
+  {items:[{...goodA,revision:'untrusted'}],nextAfter:null},
+  {items:[goodB,goodA],nextAfter:null},
+  {items:[goodA,goodA],nextAfter:null},
+  {items:[goodA],nextAfter:'artifact_entry_999'},
+  {items:[],nextAfter:'artifact_entry_001'},
+  {items:[{...goodA,ciphertext:'unexpected-secret'}],nextAfter:null},
+  {items:[goodA],nextAfter:null,payload:'untrusted'},
+  {items:[{...goodA,updatedAt:-1}],nextAfter:null}
+ ];
+ for(const body of cases){
+  const sdk=setup(async()=>ok(body));
+  await assert.rejects(sdk.list({limit:2}),error=>error.code==='INVALID_RESPONSE',JSON.stringify(body));
+ }
+ const sdk=setup(async()=>ok({items:[goodA],nextAfter:null}));
+ await assert.rejects(sdk.list({after:'artifact_entry_001',limit:2}),error=>error.code==='INVALID_RESPONSE');
+ const allowed=setup(async()=>ok({items:[goodA,goodB],nextAfter:'artifact_entry_002'}));
+ assert.deepEqual((await allowed.list({limit:2})).items,[goodA,goodB]);
+});
