@@ -11,7 +11,15 @@ class GodModeRenderEntryTests(unittest.TestCase):
         tools = pathlib.Path(temp) / 'mock tools';tools.mkdir()
         # Only record argv; never load Blender or invoke a real video encoder.
         mock = '''#!/usr/bin/env python3
-import os,sys,json
+import os,sys,json,pathlib
+if '-a' in sys.argv:
+ args=sys.argv
+ prefix=args[args.index('-o')+1].replace('####','{number:04d}')+'.png'
+ omit=180 if os.environ.get('MOCK_FRAME_POLICY')=='missing' else None
+ for n in range(1,361):
+  if n!=omit:pathlib.Path(prefix.format(number=n)).write_bytes(b'fakepng')
+if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY')!='missing':
+ pathlib.Path(sys.argv[-1]).write_bytes(b'fake-mp4')
 with open(os.environ['MOCK_LOG'],'a') as out:
  out.write(json.dumps({'program':os.path.basename(sys.argv[0]),'args':sys.argv[1:]})+'\\n')
 '''
@@ -70,6 +78,42 @@ with open(os.environ['MOCK_LOG'],'a') as out:
             final=calls[-1]['args'][-1]
             self.assertEqual(final,str(home/'GOD_MODE_AWAKENING_2099_preview.mp4'))
             self.assertIn('4',calls[0]['args'])
+
+    def test_missing_frame_rejects_video_before_ffmpeg(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_FRAME_POLICY']='missing'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=8)
+            calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
+            self.assertNotEqual(proc.returncode,0)
+            self.assertEqual(len(calls),2,'must never encode a partial 12-second video')
+            self.assertIn('frame',proc.stderr.lower())
+
+    def test_existing_video_refused_before_any_expensive_blender_calls(self):
+        with tempfile.TemporaryDirectory() as temp:
+            video=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4'
+            video.write_bytes(b'previous finished production video')
+            proc,calls=self.run_entry(temp,'preview')
+            self.assertNotEqual(proc.returncode,0)
+            self.assertEqual(calls,[])
+            self.assertEqual(video.read_bytes(),b'previous finished production video')
+
+    def test_existing_blend_refused_before_any_expensive_blender_calls(self):
+        with tempfile.TemporaryDirectory() as temp:
+            blend=pathlib.Path(temp)/'already.blend';blend.write_bytes(b'valuable model')
+            proc,calls=self.run_entry(temp,'preview',str(blend))
+            self.assertNotEqual(proc.returncode,0)
+            self.assertEqual(calls,[])
+            self.assertEqual(blend.read_bytes(),b'valuable model')
+
+    def test_silent_encoder_success_without_written_video_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_VIDEO_POLICY']='missing'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=8)
+            calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
+            self.assertNotEqual(proc.returncode,0,'renderer must prove final MP4 materialized')
+            self.assertEqual(len(calls),3)
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast

@@ -31,7 +31,9 @@ function adapter(flags={}){
   async verifySQLiteAuthority(){return flags.authority??{
    verified:true,provider_receipt_verified:true,database_of_record:'SQLITE_DO',
    access_unchanged:true,r2_untouched:true,customer_writes_to_neon:false,
-   source_head:head,freeze_id:freeze,expires_at:inTime(120000)}}};
+   source_head:head,freeze_id:freeze,run_id:run,
+   receipt_id:'sqlite-authority-current-run-20261025',checked_at:inTime(-30000),
+   expires_at:inTime(120000)}}};
  return{opts,state:()=>({route,flips,released,held})};
 }
 test('readonly canary emergency recovery performs only fenced Neon-to-SQLite CAS',async()=>{
@@ -141,4 +143,28 @@ test('route changing between initial read and guarded CAS cannot reuse stale sta
  f.opts.readRoute=async()=>{if(++n===2)return 'SQLITE_DO';return original();};
  await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(f.state().flips,0);assert.equal(f.state().released,0);
+});
+
+test('source authority proof for another run cannot authorize this recovery',async()=>{
+ const f=adapter();const base=await f.opts.verifySQLiteAuthority();
+ f.opts.verifySQLiteAuthority=async()=>({...base,run_id:'other-canary-run-20261025'});
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(f.state().flips,0);
+});
+test('expired source authority readback cannot authorize this recovery',async()=>{
+ const f=adapter();const base=await f.opts.verifySQLiteAuthority();
+ f.opts.verifySQLiteAuthority=async()=>({...base,checked_at:inTime(-600000)});
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(f.state().flips,0);
+});
+test('different owner receipt mid-flight cannot replace the previously approved consent',async()=>{
+ const f=adapter();let checks=0;const orig=f.opts.verifyOwnerRecoveryApproval;
+ f.opts.verifyOwnerRecoveryApproval=async()=>{
+  const r=await orig();return ++checks===1?r:{...r,receipt_id:'different-owner-receipt-20261025'};
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(f.state().flips,0);
 });

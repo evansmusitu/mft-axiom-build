@@ -46,7 +46,12 @@ function authority(r,epoch,now){
     r.database_of_record!=='SQLITE_DO'||r.access_unchanged!==true||
     r.r2_untouched!==true||r.customer_writes_to_neon!==false||
     r.freeze_id!==epoch.freeze_id||r.source_head!==epoch.source_head||
+    r.run_id!==epoch.run_id||!ID.test(r.receipt_id||'')||
     !freshUntil(r.expires_at,now))fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_UNVERIFIED');
+ const checked=stamp(r.checked_at);
+ if(!Number.isFinite(checked)||checked>now+30000||now-checked>300000||
+    checked>stamp(r.expires_at))
+  fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_STALE');
 }
 /** The only possible route write is NEON_CANARY_READONLY -> SQLITE_DO.
  * Failing to prove SQLite routing retains the recovery lease for manual action.
@@ -69,7 +74,8 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
   const route=await readRoute();
   if(route!=='SQLITE_DO'&&route!=='NEON_CANARY_READONLY')
    fail('STUDIO_RECOVERY_ROUTE_UNKNOWN');
-  signedApproval(await verifyOwnerRecoveryApproval(epoch),epoch,Date.now());
+  const ownerApproval=await verifyOwnerRecoveryApproval(epoch);
+  signedApproval(ownerApproval,epoch,Date.now());
   authority(await verifySQLiteAuthority(epoch),epoch,Date.now());
   if(await lease.assertHeld(lease.fencing_token)!==true)
    fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
@@ -86,7 +92,12 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
     fail('STUDIO_RECOVERY_INCIDENT_CHANGED');
    if(await readRoute()!=='NEON_CANARY_READONLY')
     fail('STUDIO_RECOVERY_ROUTE_CHANGED');
-   signedApproval(await verifyOwnerRecoveryApproval(epoch),epoch,Date.now());
+   const ownerRechecked=await verifyOwnerRecoveryApproval(epoch);
+   signedApproval(ownerRechecked,epoch,Date.now());
+   // A different signed approval is a different authorization attempt. It
+   // cannot silently replace the receipt reviewed at lease acquisition.
+   if(ownerRechecked.receipt_id!==ownerApproval.receipt_id)
+    fail('STUDIO_RECOVERY_OWNER_APPROVAL_CHANGED');
    authority(await verifySQLiteAuthority(epoch),epoch,Date.now());
    if(await lease.assertHeld(lease.fencing_token)!==true)
     fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
