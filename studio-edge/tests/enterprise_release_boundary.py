@@ -33,8 +33,8 @@ for expression in [
     assert not re.search(expression,workflow,re.IGNORECASE), f"Unsafe job authority in enterprise workflow: {expression}"
 
 worker=(ROOT/"studio-edge/worker.mjs").read_text()
-for module in ["client-encrypted-artifact.mjs","enterprise-client.mjs"]:
-    assert module not in worker,f"Browser-only client unexpectedly loaded by Worker: {module}"
+for module in ["client-encrypted-artifact.mjs","enterprise-client.mjs","enterprise-audit-retention.mjs"]:
+    assert module not in worker,f"Private-only module unexpectedly loaded by Worker: {module}"
 for cfg in PINNED_BLOBS:
     content=(ROOT/cfg).read_text()
     assert "WORKSPACE_DB" not in content and "ACCESS_TEAM_DOMAIN" not in content
