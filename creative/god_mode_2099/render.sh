@@ -19,9 +19,10 @@ if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null || ! comman
   echo 'ffmpeg, ffprobe and awk required before expensive Blender rendering' >&2; exit 2
 fi
 VIDEO="$(dirname "$OUT")/GOD_MODE_AWAKENING_2099_${MODE}.mp4"
+RECEIPT="$VIDEO.verified.json"
 # Previous output may be a valuable 2099 scene or a completed MP4. Refuse
 # destructive re-renders before starting CPU/GPU work; choose fresh paths.
-if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" ]]; then
+if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" || -e "$RECEIPT" || -L "$RECEIPT" ]]; then
   echo 'God Mode destination already exists; refusing overwrite' >&2; exit 3
 fi
 mkdir -p "$(dirname "$OUT")" "$OUTPUT_DIR"
@@ -46,7 +47,7 @@ for RENDER_LOCK in "$OUT.musitu_2099.lock" "$VIDEO.musitu_2099.lock" "$OUTPUT_DI
 done
 # Recheck after taking all locks; another non-cooperating process may have
 # created the scene or MP4 between the initial check and lock acquisition.
-if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" ]]; then
+if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" || -e "$RECEIPT" || -L "$RECEIPT" ]]; then
   echo 'God Mode destination appeared after locking; refusing overwrite' >&2; exit 3
 fi
 shopt -s nullglob
@@ -74,6 +75,11 @@ for ((n=1; n<=360; n++)); do
     echo "God Mode frame missing, symlinked or empty: frame $n" >&2; exit 4
   fi
 done
+# Check every PNG's declared raster dimensions and IHDR CRC BEFORE encoding.
+# Header-only, bounded and offline; FFmpeg subsequently decodes full images.
+if ! python3 "$SCRIPT_DIR/verify_png_frames.py" "$MODE" "$OUTPUT_DIR"; then
+  echo 'God Mode PNG header or dimension validation failed' >&2; exit 4
+fi
 # No silent overwrite of an earlier video, including on a concurrent launch.
 ffmpeg -hide_banner -n -framerate 30 -i "$OUTPUT_DIR/frame_%04d.png" -c:v libx264 -pix_fmt yuv420p -crf 17 -preset slow -movflags +faststart "$VIDEO"
 
@@ -130,4 +136,10 @@ except (ValueError,TypeError,KeyError,AssertionError,IndexError):
 ' "$MODE"; then
   echo 'God Mode codec, 30fps or vertical dimensions do not match declared preset' >&2
   exit 8
+fi
+
+# Publish a local, unsigned checksum receipt only AFTER full external FFprobe checks.
+# Atomic hard-link installation: existing owner receipts are never overwritten.
+if ! python3 "$SCRIPT_DIR/release_receipt_2099.py" emit "$MODE" "$OUT" "$VIDEO" "$RECEIPT"; then
+  echo 'God Mode local release integrity receipt failed' >&2; exit 9
 fi

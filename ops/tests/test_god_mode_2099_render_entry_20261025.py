@@ -11,7 +11,7 @@ class GodModeRenderEntryTests(unittest.TestCase):
         tools = pathlib.Path(temp) / 'mock tools';tools.mkdir()
         # Only record argv; never load Blender or invoke a real video encoder.
         mock = '''#!/usr/bin/env python3
-import os,sys,json,pathlib
+import os,sys,json,pathlib,struct,zlib
 if os.path.basename(sys.argv[0]).startswith('blender') and os.environ.get('MOCK_BLENDER_SLEEP'):
  import time
  time.sleep(float(os.environ['MOCK_BLENDER_SLEEP']))
@@ -30,7 +30,14 @@ if '-a' in sys.argv:
    frame=pathlib.Path(prefix.format(number=n))
    if n==180 and os.environ.get('MOCK_FRAME_POLICY')=='symlink':
     frame.symlink_to(os.environ['MOCK_FRAME_SYMLINK_TARGET'])
-   else:frame.write_bytes(b'fakepng')
+   else:
+    width,height=(1080,1920) if os.environ.get('MOCK_PRESET')=='final' else (360,640)
+    if n==180 and os.environ.get('MOCK_FRAME_POLICY')=='wrong-size': width+=1
+    body=struct.pack('>IIBBBBB',width,height,8,2,0,0,0)
+    ihdr=b'IHDR'+body
+    data=b'\\x89PNG\\r\\n\\x1a\\n'+struct.pack('>I',13)+ihdr+struct.pack('>I',zlib.crc32(ihdr))
+    if n==180 and os.environ.get('MOCK_FRAME_POLICY')=='invalid-header':data=b'not-an-image'
+    frame.write_bytes(data)
 if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY')!='missing':
  pathlib.Path(sys.argv[-1]).write_bytes(b'fake-mp4')
 with open(os.environ['MOCK_LOG'],'a') as out:
@@ -78,6 +85,41 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             self.assertIn('30',calls[2]['args'])
             self.assertTrue(pathlib.Path(out).parent.is_dir())
             self.assertTrue(pathlib.Path(frames).is_dir())
+    def test_verified_movie_writes_non_overwriting_local_sha256_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            scene=pathlib.Path(temp)/'Scene.blend'
+            frames=pathlib.Path(temp)/'frames'
+            env=self.make_env(temp)
+            run=subprocess.run(['bash',str(ENTRY),'preview',str(scene),str(frames)],
+                               cwd=temp,env=env,capture_output=True,text=True,timeout=12)
+            self.assertEqual(run.returncode,0,run.stderr)
+            video=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4'
+            receipt=pathlib.Path(str(video)+'.verified.json')
+            self.assertTrue(receipt.is_file(),'successful render must provide verifiable SHA-256 release receipt')
+            data=json.loads(receipt.read_text())
+            self.assertEqual(data['schema'],'musitu.studio.v03.godmode-local-release.v1')
+            self.assertFalse(data['provider_verified'])
+            self.assertEqual(data['scene']['file_name'],'Scene.blend')
+            self.assertEqual(data['video']['file_name'],video.name)
+            self.assertEqual(data['declared_frame_count'],360)
+            validator=ROOT/'creative/god_mode_2099/release_receipt_2099.py'
+            verify=subprocess.run(['python3',str(validator),'verify',str(receipt),str(scene),str(video)],
+                                  cwd=temp,capture_output=True,text=True,timeout=8)
+            self.assertEqual(verify.returncode,0,verify.stderr)
+            video.write_bytes(b'modified-movie')
+            tampered=subprocess.run(['python3',str(validator),'verify',str(receipt),str(scene),str(video)],
+                                  cwd=temp,capture_output=True,text=True,timeout=8)
+            self.assertNotEqual(tampered.returncode,0,'mutated movie must not match the receipt')
+
+    def test_existing_receipt_never_triggers_blender_or_gets_overwritten(self):
+        with tempfile.TemporaryDirectory() as temp:
+            prior=pathlib.Path(temp)/'GOD_MODE_AWAKENING_2099_preview.mp4.verified.json'
+            prior.write_bytes(b'previous-owner-proof')
+            result,calls=self.run_entry(temp,'preview')
+            self.assertNotEqual(result.returncode,0)
+            self.assertEqual(calls,[])
+            self.assertEqual(prior.read_bytes(),b'previous-owner-proof')
+
     def test_invalid_mode_fails_without_starting_any_renderer(self):
         with tempfile.TemporaryDirectory() as temp:
             proc,calls=self.run_entry(temp,'production-deploy')
@@ -116,6 +158,26 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             self.assertNotEqual(proc.returncode,0)
             self.assertEqual(len(calls),2,'must never encode a partial 12-second video')
             self.assertIn('frame',proc.stderr.lower())
+
+    def test_invalid_png_header_never_reaches_encoder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_FRAME_POLICY']='invalid-header'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=10)
+            calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
+            self.assertNotEqual(proc.returncode,0,'non-PNG image must fail before video encoding')
+            self.assertIn('PNG',proc.stderr)
+            self.assertEqual(len(calls),2,'FFmpeg must never see a corrupt PNG header')
+
+    def test_wrong_frame_resolution_never_reaches_encoder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_FRAME_POLICY']='wrong-size'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=10)
+            calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
+            self.assertNotEqual(proc.returncode,0,'wrong PNG dimensions must fail before expensive FFmpeg')
+            self.assertIn('dimension',proc.stderr.lower())
+            self.assertEqual(len(calls),2)
 
     def test_existing_video_refused_before_any_expensive_blender_calls(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -382,6 +444,7 @@ class GodModeDeliveryFrameRateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             env=self.make_env(temp);env['MOCK_PROBE_WIDTH']='1080'
             env['MOCK_PROBE_HEIGHT']='1920'
+            env['MOCK_PRESET']='final'
             proc=subprocess.run(['bash',str(ENTRY),'final'],cwd=temp,env=env,
                                 capture_output=True,text=True,timeout=25)
             self.assertEqual(proc.returncode,0,proc.stderr)
