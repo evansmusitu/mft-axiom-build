@@ -118,6 +118,48 @@ class IndependentHoldoutReplayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'frozen_model_sha256_mismatch'):
                 self.replay(bundle_dir=bundle)
 
+    def test_verified_seal_changed_before_replay_parse_is_rejected(self):
+        module=self.module()
+        original=module.verify_holdout_seal
+        case=self.fixture
+
+        def swap_after_verification(*args, **kwargs):
+            result=original(*args, **kwargs)
+            # The earlier fold-coverage scan used original sealed bytes.
+            # Even syntactically harmless changes after verification must
+            # not become the new unpinned evidence read by the replay.
+            case.seal.write_bytes(case.seal.read_bytes()+b' ')
+            return result
+
+        with patch.object(module,'verify_holdout_seal',
+                          side_effect=swap_after_verification):
+            with self.assertRaisesRegex(
+                    ValueError, 'holdout_replay_seal_changed_after_verification'):
+                self.replay()
+
+    def test_swapped_fold_grids_cannot_claim_original_protocol_digest(self):
+        module=self.module()
+        original=module.verify_holdout_seal
+        case=self.fixture
+
+        def substitute_another_protocol(*args, **kwargs):
+            result=original(*args, **kwargs)
+            raw=json.loads(case.seal.read_text(encoding='utf-8'))
+            # Exactly three 30-second features still exist on this shifted
+            # fold. Coverage counts alone would not prove their identity.
+            raw['protocol']['folds'][0]['first_feature_time']=(
+                case.rows[750]['event_time'])
+            raw['protocol']['folds'][0]['last_feature_time']=(
+                case.rows[810]['event_time'])
+            case.seal.write_text(json.dumps(raw),encoding='utf-8')
+            return result
+
+        with patch.object(module,'verify_holdout_seal',
+                          side_effect=substitute_another_protocol):
+            with self.assertRaisesRegex(
+                    ValueError, 'holdout_replay_seal_changed_after_verification'):
+                self.replay()
+
     def test_exclusive_output_and_no_input_overwrite(self):
         module=self.module()
         case=self.fixture
