@@ -1,8 +1,6 @@
 name: MUSITU Studio V0.3 — Hosted PITR Private Progress Readonly (HTTP Detail)
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: [.github/workflows/studio-v03-pitr-private-progress-readonly-20261021.yml]
+  workflow_dispatch: {}
 permissions: {contents: read}
 jobs:
   read-isolated-provider-receipt:

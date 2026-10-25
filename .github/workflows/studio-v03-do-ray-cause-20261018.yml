@@ -1,8 +1,6 @@
 name: MUSITU Studio V0.3 — Exact Security Events Ray Cause
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: ['.github/workflows/studio-v03-do-ray-cause-20261018.yml']
+  workflow_dispatch: {}
 permissions: {contents: read}
 jobs:
   read-only:

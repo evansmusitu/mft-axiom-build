@@ -6,6 +6,11 @@
 const HEAD=/^[0-9a-f]{40}$/i, ID=/^[a-zA-Z0-9-]{16,128}$/;
 const CANON=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const fail=code=>{throw Error(code)};
+// Provider adapters are untrusted and may throw credential-bearing errors.
+// Never propagate their raw messages, including ones spoofing Studio codes.
+const provider=async(cb,code,...args)=>{
+ try{return await cb(...args)}catch{fail(code)}
+};
 const stamp=value=>{
  if(typeof value!=='string'||!CANON.test(value))return NaN;
  const ms=Date.parse(value);
@@ -65,20 +70,20 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
  for(const [name,cb] of Object.entries({readIncident,exclusiveRecoveryLease,
    readRoute,compareAndSwapRoute,verifyOwnerRecoveryApproval,verifySQLiteAuthority}))
    if(typeof cb!=='function')fail('STUDIO_RECOVERY_CALLBACK_REQUIRED_'+name);
- const lease=await exclusiveRecoveryLease();
+ const lease=await provider(exclusiveRecoveryLease,'STUDIO_RECOVERY_LEASE_CALLBACK_FAILED');
  if(lease?.acquired!==true||typeof lease.release!=='function'||
     typeof lease.assertHeld!=='function'||!ID.test(lease.fencing_token||''))
     fail('STUDIO_RECOVERY_EXCLUSIVE_FENCED_LEASE_REQUIRED');
  try{
-  const epoch=incident(await readIncident(),expectedHead,Date.now());
-  const route=await readRoute();
+  const epoch=incident(await provider(readIncident,'STUDIO_RECOVERY_INCIDENT_READ_FAILED'),expectedHead,Date.now());
+  const route=await provider(readRoute,'STUDIO_RECOVERY_ROUTE_READ_FAILED');
   if(route!=='SQLITE_DO'&&route!=='NEON_CANARY_READONLY')
    fail('STUDIO_RECOVERY_ROUTE_UNKNOWN');
-  const ownerApproval=await verifyOwnerRecoveryApproval(epoch);
+  const ownerApproval=await provider(verifyOwnerRecoveryApproval,'STUDIO_RECOVERY_OWNER_VERIFIER_FAILED',epoch);
   signedApproval(ownerApproval,epoch,Date.now());
-  const sourceApproval=await verifySQLiteAuthority(epoch);
+  const sourceApproval=await provider(verifySQLiteAuthority,'STUDIO_RECOVERY_SOURCE_VERIFIER_FAILED',epoch);
   authority(sourceApproval,epoch,Date.now());
-  if(await lease.assertHeld(lease.fencing_token)!==true)
+  if(await provider(lease.assertHeld,'STUDIO_RECOVERY_LEASE_PROBE_FAILED',lease.fencing_token)!==true)
    fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
   if(route==='NEON_CANARY_READONLY'){
    // The owner/provider checks above can be delayed by incident infrastructure.
@@ -87,23 +92,23 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
    // deliberately does not treat the initial positive callback as a permanent
    // authorization and closes stale-approval, stale-source and route-ABA
    // opportunities during the pre-CAS provider round trips.
-   const latest=incident(await readIncident(),expectedHead,Date.now());
+   const latest=incident(await provider(readIncident,'STUDIO_RECOVERY_INCIDENT_READ_FAILED'),expectedHead,Date.now());
    if(latest.run_id!==epoch.run_id||latest.freeze_id!==epoch.freeze_id||
       latest.started_at!==epoch.started_at)
     fail('STUDIO_RECOVERY_INCIDENT_CHANGED');
-   if(await readRoute()!=='NEON_CANARY_READONLY')
+   if(await provider(readRoute,'STUDIO_RECOVERY_ROUTE_READ_FAILED')!=='NEON_CANARY_READONLY')
     fail('STUDIO_RECOVERY_ROUTE_CHANGED');
-   const ownerRechecked=await verifyOwnerRecoveryApproval(epoch);
+   const ownerRechecked=await provider(verifyOwnerRecoveryApproval,'STUDIO_RECOVERY_OWNER_VERIFIER_FAILED',epoch);
    signedApproval(ownerRechecked,epoch,Date.now());
    // A different signed approval is a different authorization attempt. It
    // cannot silently replace the receipt reviewed at lease acquisition.
    if(ownerRechecked.receipt_id!==ownerApproval.receipt_id)
     fail('STUDIO_RECOVERY_OWNER_APPROVAL_CHANGED');
-   const sourceRechecked=await verifySQLiteAuthority(epoch);
+   const sourceRechecked=await provider(verifySQLiteAuthority,'STUDIO_RECOVERY_SOURCE_VERIFIER_FAILED',epoch);
    authority(sourceRechecked,epoch,Date.now());
    if(sourceRechecked.receipt_id!==sourceApproval.receipt_id)
     fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_CHANGED');
-   if(await lease.assertHeld(lease.fencing_token)!==true)
+   if(await provider(lease.assertHeld,'STUDIO_RECOVERY_LEASE_PROBE_FAILED',lease.fencing_token)!==true)
     fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
    // An asynchronous fencing callback may itself outlive the remaining
    // owner/source receipt validity; never carry expired claims into a CAS.
@@ -111,27 +116,27 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
    authority(sourceRechecked,epoch,Date.now());
    // No connection to Neon or SQLite customer data is required. A durable
    // operator-supplied CAS must check the lease token and exact route epoch.
-   if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO',
+   if(await provider(compareAndSwapRoute,'STUDIO_RECOVERY_RETURN_CAS_CALLBACK_FAILED','NEON_CANARY_READONLY','SQLITE_DO',
        {fencing_token:lease.fencing_token,run_id:epoch.run_id,
         source_head:epoch.source_head,freeze_id:epoch.freeze_id,
         owner_approval_receipt_id:ownerRechecked.receipt_id,
         sqlite_authority_receipt_id:sourceRechecked.receipt_id})!==true)
     fail('STUDIO_RECOVERY_RETURN_CAS_FAILED');
   }
-  if(await readRoute()!=='SQLITE_DO')fail('STUDIO_RECOVERY_ROUTE_READBACK_FAILED');
+  if(await provider(readRoute,'STUDIO_RECOVERY_ROUTE_READ_FAILED')!=='SQLITE_DO')fail('STUDIO_RECOVERY_ROUTE_READBACK_FAILED');
   if(route==='NEON_CANARY_READONLY'){
    // The route CAS is asynchronous: provider authority or signed consent
    // can be revoked while its response is in flight. A successful route
    // readback proves routing, not that the recovery was still authorized.
-   const ownerAfter=await verifyOwnerRecoveryApproval(epoch);
+   const ownerAfter=await provider(verifyOwnerRecoveryApproval,'STUDIO_RECOVERY_OWNER_VERIFIER_FAILED',epoch);
    signedApproval(ownerAfter,epoch,Date.now());
    if(ownerAfter.receipt_id!==ownerApproval.receipt_id)
     fail('STUDIO_RECOVERY_OWNER_APPROVAL_CHANGED');
-   const sourceAfter=await verifySQLiteAuthority(epoch);
+   const sourceAfter=await provider(verifySQLiteAuthority,'STUDIO_RECOVERY_SOURCE_VERIFIER_FAILED',epoch);
    authority(sourceAfter,epoch,Date.now());
    if(sourceAfter.receipt_id!==sourceApproval.receipt_id)
     fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_CHANGED');
-   if(await readRoute()!=='SQLITE_DO')
+   if(await provider(readRoute,'STUDIO_RECOVERY_ROUTE_READ_FAILED')!=='SQLITE_DO')
     fail('STUDIO_RECOVERY_POSTRETURN_ROUTE_CHANGED');
   }
   return Object.freeze({route:'SQLITE_DO',readonly_canary_active:false,

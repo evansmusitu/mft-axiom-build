@@ -81,7 +81,7 @@ test('CAS denial or unknown route retains durable recovery lease for manual inci
 });
 test('lost CAS acknowledgement safely readbacks SQLite, then reports incident',async()=>{
  const f=adapter({casAckLost:true});
- await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/ack-lost/);
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),/STUDIO_RECOVERY_RETURN_CAS_CALLBACK_FAILED/);
  assert.equal(f.state().route,'SQLITE_DO');assert.equal(f.state().released,1);
 });
 test('SQLite safe but lease release failed is not reported as recovery success',async()=>{
@@ -234,4 +234,43 @@ test('postreturn owner approval revocation refuses success despite SQLite route'
  assert.equal(f.state().route,'SQLITE_DO');
  assert.equal(f.state().released,1);
  assert.ok(checks>=3);
+});
+
+
+// Provider exceptions are untrusted even if their message resembles internal
+// recovery error codes. Do not disclose URLs, bearer tokens or customer IDs.
+test('untrusted recovery callback messages never escape the safe SQLite route',async()=>{
+ for(const callback of ['exclusiveRecoveryLease','readIncident','readRoute',
+                         'verifyOwnerRecoveryApproval','verifySQLiteAuthority']){
+  const f=adapter({initialRoute:'SQLITE_DO'});
+  f.opts[callback]=async()=>{throw Error('SENSITIVE_LIVE_PROVIDER_TOKEN_20261025')};
+  await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),e=>{
+   assert.equal(e.message.includes('SENSITIVE_LIVE_PROVIDER_TOKEN'),false,callback);
+   assert.match(e.message,/^STUDIO_/);
+   return true;
+  });
+  assert.equal(f.state().flips,0,callback);
+ }
+});
+test('lost CAS acknowledgment is sanitized while returning SQLite safely',async()=>{
+ const f=adapter({casAckLost:true});
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),e=>{
+  assert.equal(e.message,'STUDIO_RECOVERY_RETURN_CAS_CALLBACK_FAILED');
+  assert.equal(e.message.includes('ack-lost'),false);
+  return true;
+ });
+ assert.equal(f.state().route,'SQLITE_DO');
+ assert.equal(f.state().released,1);
+});
+test('postreturn verifier exception never leaks provider details',async()=>{
+ const f=adapter();const read=f.opts.verifySQLiteAuthority;
+ f.opts.verifySQLiteAuthority=async(...args)=>{
+  if(f.state().route==='SQLITE_DO')throw Error('SECRET_R2_EXTERNAL_CREDENTIAL');
+  return read(...args);
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),e=>{
+  assert.equal(e.message,'STUDIO_RECOVERY_SOURCE_VERIFIER_FAILED');return true;
+ });
+ assert.equal(f.state().route,'SQLITE_DO');
+ assert.equal(f.state().released,1);
 });

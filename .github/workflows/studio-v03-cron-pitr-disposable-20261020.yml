@@ -1,10 +1,6 @@
 name: MUSITU Studio V0.3 - Hosted Disposable Cron PITR Qualification
 on:
-  push:
-    branches:
-      - experiments/studio-enterprise-v03-sqlite-do-20261018
-    paths:
-      - .github/workflows/studio-v03-cron-pitr-disposable-20261020.yml
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-disposable-cron-pitr-only

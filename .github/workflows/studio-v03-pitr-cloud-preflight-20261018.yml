@@ -1,8 +1,6 @@
 name: MUSITU Studio V03 — Disposable PITR Cloud Capability Read-only Preflight
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: ['.github/workflows/studio-v03-pitr-cloud-preflight-20261018.yml']
+  workflow_dispatch: {}
 permissions: {contents: read}
 jobs:
   read-only:

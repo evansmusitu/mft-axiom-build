@@ -1,8 +1,6 @@
 name: MUSITU Studio V0.3 — Dispatch Audit Integrity Guarded Release
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: ['.github/workflows/studio-v03-dispatch-audit-integrity-release-20261019.yml']
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-dispatch-audit-integrity-release

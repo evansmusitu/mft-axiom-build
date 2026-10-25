@@ -1,10 +1,6 @@
 name: MUSITU Studio V0.3 — Owner Verified Guarded Activation
 on:
-  push:
-    branches:
-      - experiments/studio-enterprise-v03-sqlite-do-20261018
-    paths:
-      - .github/workflows/studio-v03-owner-fingerprint-guarded-activation.yml
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-manual-safe-release

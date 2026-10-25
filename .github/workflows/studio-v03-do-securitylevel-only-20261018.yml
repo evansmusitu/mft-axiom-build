@@ -1,8 +1,6 @@
 name: MUSITU Studio V0.3 — Host-only SecurityLevel Unblock
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: ['.github/workflows/studio-v03-do-securitylevel-only-20261018.yml']
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-exact-host-securitylevel-only

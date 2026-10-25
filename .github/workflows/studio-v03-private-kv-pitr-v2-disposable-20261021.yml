@@ -1,8 +1,6 @@
 name: MUSITU Studio V0.3 — One-shot Disposable Hosted PITR V2
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths: [.github/workflows/studio-v03-private-kv-pitr-v2-disposable-20261021.yml]
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-one-shot-private-pitr-v2

@@ -1,9 +1,6 @@
 name: MUSITU Studio V0.3 — Deploy Isolated Unrouted SQLite Worker
 on:
-  push:
-    branches: [experiments/studio-enterprise-v03-sqlite-do-20261018]
-    paths:
-      - '.github/workflows/studio-v03-do-private-deploy-20261018.yml'
+  workflow_dispatch: {}
 permissions: {contents: read}
 concurrency:
   group: musitu-studio-v03-first-private-sqlite-deploy
