@@ -258,3 +258,51 @@ test('offline restore cannot bring tenant A ciphertext to tenant B or use wrong 
     assert.equal(h.db.count('tenant_artifacts'),1);
   }finally{h.db.close();}
 });
+
+
+test('export detects edits to earlier objects after they were read, before the export completes',async()=>{
+  const h=makeHarness();try{
+    const cryptoKey=await key(),jwt=await tokenFor('alice_signed_subject');
+    const a=client(h,TA,cryptoKey,async()=>jwt);
+    const firstId='artifact_entry_001',secondId='artifact_entry_002';
+    await a.create({id:firstId,text:'first report from signed editor'});
+    await a.create({id:secondId,text:'second report from signed editor'});
+    let injected=false;
+    const fetcher=async(url,options)=>{
+      const response=await h.fetcher(url,options);
+      const u=new URL(url);
+      if(!injected&&options.method==='GET'&&u.searchParams.get('id')===secondId){
+        injected=true;
+        h.db.db.prepare('UPDATE tenant_artifacts SET revision=? WHERE tenant_id=? AND artifact_id=?')
+          .run(crypto.randomUUID(),TA,firstId);
+      }
+      return response;
+    };
+    const exporter=createTenantWorkspaceClient({baseUrl:BASE,tenantId:TA,key:cryptoKey,getToken:async()=>jwt,fetcher});
+    await assert.rejects(exporter.exportEncryptedBundle(),e=>e.code==='EXPORT_CONFLICT');
+    assert.equal(injected,true);
+  }finally{h.db.close();}
+});
+test('export notices a new artifact inserted after initial listing but before completion',async()=>{
+  const h=makeHarness();try{
+    const cryptoKey=await key(),jwt=await tokenFor('alice_signed_subject');
+    const a=client(h,TA,cryptoKey,async()=>jwt),firstId='artifact_entry_001',secondId='artifact_entry_002';
+    await a.create({id:firstId,text:'first signed report'});
+    let injected=false;
+    const fetcher=async(url,options)=>{
+      const response=await h.fetcher(url,options);
+      const u=new URL(url);
+      if(!injected&&options.method==='GET'&&u.searchParams.get('id')===firstId){
+        injected=true;
+        const {encryptTenantText}=await import('../client-encrypted-artifact.mjs');
+        const envelope=await encryptTenantText('late addition',cryptoKey,TA,secondId);
+        h.db.db.prepare('INSERT INTO tenant_artifacts(tenant_id,artifact_id,iv,ciphertext,version,updated_at,revision) VALUES (?,?,?,?,?,?,?)')
+          .run(TA,secondId,envelope.iv,envelope.ciphertext,1,clock,crypto.randomUUID());
+      }
+      return response;
+    };
+    const exporter=createTenantWorkspaceClient({baseUrl:BASE,tenantId:TA,key:cryptoKey,getToken:async()=>jwt,fetcher});
+    await assert.rejects(exporter.exportEncryptedBundle(),e=>e.code==='EXPORT_CONFLICT');
+    assert.equal(injected,true);
+  }finally{h.db.close();}
+});
