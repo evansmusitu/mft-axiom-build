@@ -113,6 +113,16 @@ export function createTenantWorkspaceClient(options) {
    if(!ETAG.test(tag||''))fail('INVALID_RESPONSE');
    return tag;
  }
+ function assertStored(result,id,previousEtag=null) {
+   const data=result.data;
+   if(!data || typeof data!=='object' || Array.isArray(data) ||
+      Object.keys(data).sort().join(',')!=='encryptedOpaque,id,stored' ||
+      data.id!==id || data.stored!==true || data.encryptedOpaque!==true)
+     fail('INVALID_RESPONSE');
+   const tag=successfulTag(result.etag);
+   if(previousEtag!==null && tag===previousEtag)fail('INVALID_RESPONSE');
+   return tag;
+ }
  async function inspectBundle(bundle) {
    // This is an offline, authenticated inspection. No token, fetch, local
    // storage, downloads, or public browser-slot migration are permitted here.
@@ -153,9 +163,7 @@ export function createTenantWorkspaceClient(options) {
      // counts toward the server-enforced rolling 20-mutations/minute budget.
      const selected=bundle.artifacts.find(item=>item.id===id);
      const result=await send('PUT',{id},selected.envelope,null,true);
-     if(result.data?.id!==id || result.data.stored!==true)
-       fail('INVALID_RESPONSE');
-     return {id,etag:successfulTag(result.etag),created:true};
+     return {id,etag:assertStored(result,id),created:true};
    },
    async list({after=null,limit=10}={}) {
      if(!Number.isInteger(limit)||limit<1||limit>10)fail('INVALID_PAGE_SIZE');
@@ -240,18 +248,22 @@ export function createTenantWorkspaceClient(options) {
      validateId(id);
      const envelope=await encryptTenantText(text,key,tenantId,id);
      const result=await send('PUT',{id},envelope,null,true);
-     return {etag:successfulTag(result.etag)};
+     return {etag:assertStored(result,id)};
    },
    async replace({id,text,etag}={}) {
      validateId(id);validateEtag(etag);
      const envelope=await encryptTenantText(text,key,tenantId,id);
      const result=await send('PUT',{id},envelope,etag,false);
-     return {etag:successfulTag(result.etag)};
+     return {etag:assertStored(result,id,etag)};
    },
    async delete({id,etag}={}) {
      validateId(id);validateEtag(etag);
      const result=await send('DELETE',{id},null,etag,false);
-     if(result.data?.deleted!==true)fail('INVALID_RESPONSE');
+     if(!result.data || typeof result.data!=='object' ||
+        Object.keys(result.data).sort().join(',')!=='auditRetained,deleted,id' ||
+        result.data.id!==id || result.data.deleted!==true ||
+        result.data.auditRetained!==true)
+       fail('INVALID_RESPONSE');
      return {deleted:true};
    }
  });
