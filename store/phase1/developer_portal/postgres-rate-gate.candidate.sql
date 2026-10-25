@@ -97,3 +97,38 @@ REVOKE ALL ON store_publisher_private.portal_rate_windows FROM PUBLIC;
 REVOKE ALL ON FUNCTION store_publisher_private.claim_portal_rate_permit(
  TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,BIGINT,TEXT,TEXT,TEXT) FROM PUBLIC;
 COMMIT;
+
+-- Operator-only bounded retention: a separate manual/approved maintenance job
+-- may prune no more than 1000 *expired* one-minute counters in each transaction.
+-- Calculate the cutoff using the PostgreSQL server clock, not an HTTP request,
+-- JWT, maintainer workstation time, or untrusted timestamp argument. Preserve
+-- both the current bucket and the immediately previous minute, even if another
+-- DB connection is still completing an upload that began near a minute rollover.
+-- No caller receives rights by virtue of installing this function.
+CREATE FUNCTION store_publisher_private.prune_portal_rate_windows(p_batch_size INTEGER)
+ RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path=pg_catalog,store_publisher_private AS $retention$
+DECLARE
+ v_safe_before BIGINT;
+ v_removed INTEGER;
+BEGIN
+ IF p_batch_size IS NULL OR p_batch_size<1 OR p_batch_size>1000 THEN
+   RAISE EXCEPTION 'invalid bounded retention batch size' USING ERRCODE='22023';
+ END IF;
+ v_safe_before=floor(EXTRACT(EPOCH FROM clock_timestamp()) / 60)::BIGINT-2;
+ WITH expired AS (
+   SELECT scope_digest,route,minute_bucket
+   FROM store_publisher_private.portal_rate_windows
+   WHERE minute_bucket<v_safe_before
+   ORDER BY minute_bucket,scope_digest,route
+   LIMIT p_batch_size
+   FOR UPDATE SKIP LOCKED
+ ), deleted AS (
+   DELETE FROM store_publisher_private.portal_rate_windows AS r USING expired AS x
+   WHERE r.scope_digest=x.scope_digest AND r.route=x.route
+     AND r.minute_bucket=x.minute_bucket
+   RETURNING r.scope_digest
+ ) SELECT count(*)::INTEGER INTO v_removed FROM deleted;
+ RETURN v_removed;
+END $retention$;
+REVOKE ALL ON FUNCTION store_publisher_private.prune_portal_rate_windows(INTEGER) FROM PUBLIC;

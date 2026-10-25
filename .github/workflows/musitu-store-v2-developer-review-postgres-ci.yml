@@ -16,6 +16,7 @@ on:
       - 'store/phase1/developer_portal/postgres-apk-structure.regression.sql'
       - 'store/phase1/developer_portal/postgres-rate-gate.candidate.sql'
       - 'store/phase1/developer_portal/postgres-rate-gate.regression.sql'
+      - 'store/phase1/developer_portal/postgres-rate-retention.regression.sql'
       - '.github/scripts/musitu-store-v2-rate-concurrency.sh'
       - '.github/workflows/musitu-store-v2-developer-review-postgres-ci.yml'
   workflow_dispatch:
@@ -73,6 +74,8 @@ jobs:
             < store/phase1/developer_portal/postgres-rate-gate.candidate.sql
           docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
             < store/phase1/developer_portal/postgres-rate-gate.regression.sql
+          docker exec -i "$id" psql -U storepilot -d storepilot -v ON_ERROR_STOP=1 \
+            < store/phase1/developer_portal/postgres-rate-retention.regression.sql
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.portal_rate_windows')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.apk_structural_checks')" = 0
           test "$(docker exec "$id" psql -U storepilot -d storepilot -Atc 'SELECT count(*) FROM store_publisher_private.portal_sessions')" = 0
