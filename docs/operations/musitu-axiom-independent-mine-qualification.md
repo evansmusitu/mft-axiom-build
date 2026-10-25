@@ -136,3 +136,7 @@ authenticity. Tests construct adversarial synthetic JSON and confirm no
 research report is published following a duplicate, source mutation, or
 output collision.
 
+
+## 2026 publication alias negative control
+
+The July 2026 *Sensors* article [Interpretable Event-Driven Multisensor Risk-Evolution Analysis for Methane Early Warning](https://www.mdpi.com/1424-8220/26/13/4126) explicitly uses the existing public Mendeley Methane record `yd7vw4c5mk/1`. It is **not** newly collected independent mine data, despite describing 1-second underground measurements and reporting recent model results. A third metadata-only candidate records both the new publication DOI `10.3390/s26134126` and the reused source DOI. The suitability screener must return `REUSED_OR_ALIASED_DEVELOPMENT_SOURCE` even though the native cadence matches 1 second. This guards against laundering old development observations through a newly published paper. No telemetry, independent field evidence, or mine rights were newly obtained. All 12 research catalog candidates remain nonadmitted.

@@ -42,7 +42,7 @@ jobs:
           catalog_specs=(
             ('qualification/independent_mine_source_catalog_20261009.json',4),
             ('qualification/independent_mine_source_catalog_20261018.json',5),
-            ('qualification/independent_mine_source_catalog_20261025.json',2),
+            ('qualification/independent_mine_source_catalog_20261025.json',3),
           )
           summaries=[]
           for filename, expected_count in catalog_specs:
@@ -56,7 +56,7 @@ jobs:
                   assert audit['production_methane_prediction_qualification'] is False
                   assert audit['outstanding_requirements']
                   summaries.append(audit)
-          assert len(summaries)==11
+          assert len(summaries)==12
           report={
             'schema':'musitu.axiom.independent_mine_catalog_assessment.v1',
             'status':'BLOCKED_PENDING_EXTERNAL_MINE_EVIDENCE',

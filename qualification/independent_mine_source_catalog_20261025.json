@@ -3,7 +3,7 @@
   "assessed_on": "2026-10-25",
   "purpose": "Additional independent-site leads from public primary articles. Source data and rights not obtained; no methane model evaluation or independent validation.",
   "source_access_qualification": "PUBLIC_ARTICLE_METADATA_ONLY_NO_RAW_SOURCE",
-  "record_count": 2,
+  "record_count": 3,
   "sources": [
     {
       "schema": "musitu.axiom.independent_mine_candidate.v1",
@@ -38,6 +38,28 @@
       "evidence_category": "CONFIDENTIAL_FIELD_RECORDS_15_SECOND_AVERAGES_NOT_SAFETY_HOLDOUT",
       "source_description": "The paper describes a separately studied Xinyuan mine 31002 working face, methane/ventilation/equipment monitoring and eight annotated precursor-related abnormal intervals. Monitoring inputs were averaged into 15-second intervals and the principal comparison used 5-minute intervals. The publication explicitly states that field data are not publicly available under mine confidentiality agreements. No original 1 Hz/28-channel canonical stream or permission was acquired; precursor anomaly detection is not the frozen 3–6-minute methane exceedance task.",
       "source_access_status": "CONFIDENTIAL_PUBLISHER_EXPLICITLY_UNAVAILABLE_PUBLICLY",
+      "original_source_bytes_obtained": false,
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "site_identity_independently_authenticated": false,
+      "independently_measured_canonical_sensors": [],
+      "real_mine_independent_validation": false
+    },
+    {
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "candidate_id": "sensors-2026-event-driven-polish-development-reuse",
+      "source_publication": "Interpretable Event-Driven Multisensor Risk-Evolution Analysis for Methane Early Warning (Sensors 2026)",
+      "source_url": "https://www.mdpi.com/1424-8220/26/13/4126",
+      "source_lineage_identifiers": [
+        "doi:10.3390/s26134126",
+        "doi:10.17632/yd7vw4c5mk.1",
+        "openml:42701"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 1,
+      "evidence_category": "PUBLICATION_REUSES_KNOWN_POLISH_DEVELOPMENT_SOURCE_NOT_EXTERNAL_INDEPENDENT_MINE",
+      "source_description": "The 2026 Sensors publication explicitly says its one-second underground-coal-mine dataset is the Mendeley Methane dataset 10.17632/yd7vw4c5mk.1, which is the 2014 Polish development/training source for the frozen MUSITU methane model. Later publication dates, model architectures, new metrics and dataset links do not make the same original sensor stream an independent mine or a prospective holdout. Original third-party source bytes and new mine rights were not obtained.",
+      "source_access_status": "PUBLISHED_MENDELEY_DEVELOPMENT_DATA_REUSE_NOT_ELIGIBLE",
       "original_source_bytes_obtained": false,
       "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
       "source_permission_status": "NOT_AUTHENTICATED",
