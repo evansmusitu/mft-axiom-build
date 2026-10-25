@@ -29,3 +29,46 @@ Evidence publication hardening: the direct external-source preflight CLI now cre
 The report intentionally omits site identity, source timestamps, sensor readings, rights records, and reviewer identifiers. A source or mapping SHA-256 proves byte equality, **not** a mine's independent identity, unit/calibration equivalence, authentic permission or physical methane events. The positive future-label windows are not distinct physical incidents, and count thresholds are **not** performance, recall, precision, or F2 results. A coverage success **never** changes `independent_validation=false`, `production_admission=false` or `production_methane_prediction_qualified=false`.
 
 Synthetic-only unit tests: `python -m unittest tests.connect.test_independent_holdout_coverage -v`. This is one preparatory technical check. Independent authorization, verified real 28-channel one-second telemetry and mine event annotations, sealed pre-label provenance, frozen model evaluation on an eligible holdout and independent operational safety review remain outstanding. Keep PR #9 unmerged and preserve the known measured-methane warning at ≥1.0.
+
+
+## New exact-preregistered-fold frozen replay — 25 October 2026 (research only)
+
+The additional `benchmarks/mining_adapter/independent_holdout_replay.py` consumes:
+original canonical source bytes; strict source manifest; pinned lossless-mapping
+evidence file; SHA-pinned, unmodified four-fold preregistration seal; and the
+**published frozen native LightGBM research model**. Before inference, it runs
+the existing exact four-fold chronological grid audit. Missing source seconds,
+an incomplete fold, a changed mapping/source/seal, an unpinned model, or altered
+model bytes fail closed. A second chronological pass scores the native model
+on **only the fixed, predeclared feature-time grids**, with fixed hard-warning
+and score thresholds and no fitting, parameter selection or recalibration.
+It writes deidentified per-fold TP/FP/TN/FN, recall, precision, F2, average
+precision, support and hard-warning baseline; never exports source rows or
+the operator/site identity. The predeclared four-fold support/performance
+thresholds are labeled *descriptive research checks*, not admission.
+
+The model is not automatically certified even if every descriptive threshold
+were met. **Production admission, mine independence, rights, sensor
+equivalence, independent incident verification and pre-test publication
+timestamp verification all remain false.** Synthetic CI uses only a generated
+28-channel mine-like stream and a verified pinned public research artifact,
+not a separate operating mine.
+
+An authorized reviewer with a private source may run:
+
+```bash
+python -m benchmarks.mining_adapter.independent_holdout_replay \
+  --source /private/canonical.ndjson \
+  --manifest /private/source_manifest.json \
+  --mapping /private/verified_lossless_mapping.json \
+  --seal /private/sha_seal.json \
+  --expected-protocol-sha256 '<externally pinned SHA-256>' \
+  --bundle /private/trusted-frozen-bundle \
+  --output /private/new-fold-replay-report.json
+```
+
+Do not commit private mine streams, credentials, nonidentifying hashes that
+are nevertheless commercially sensitive, mapping topology, or field reports
+to the public repository. The isolated workflow
+`.github/workflows/musitu-axiom-independent-holdout-replay.yml` runs only
+synthetic replay negative controls.
