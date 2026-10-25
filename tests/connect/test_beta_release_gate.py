@@ -59,6 +59,14 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertIs(record['offline_customer_request_workerd_evidence']['customer_admission_authorized'], False)
         self.assertEqual(record['offline_customer_request_body_scope'],
                          'RAW_JSON_BYTE_AND_DUPLICATE_KEY_GUARDS_NO_AUTH_OR_SEMANTIC_VALIDATION')
+        self.assertEqual(record['offline_customer_accounting_reconciliation'],
+                         'SYNTHETIC_READ_ONLY_SQLITE_COUNTER_PARITY_HOSTED_D1_NOT_EXECUTED')
+        accounting = record['offline_customer_accounting_evidence']
+        self.assertEqual(accounting['synthetic_accounting_tests'], 8)
+        self.assertIs(accounting['read_only_file_reconciliation'], True)
+        for forbidden in ('real_customer_data_used','hosted_d1_qualified',
+                          'customer_admission_authorized','production_worker_updated'):
+            self.assertIs(accounting[forbidden], False)
         self.assertEqual(record['offline_sqlite_d1_customer_admission'],
                          'SQLITE_LOCAL_CONTRACT_TESTED_D1_NOT_DEPLOYED')
         self.assertEqual(record['offline_minute_quota_and_utc_event_integrity'],
