@@ -201,6 +201,35 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
         self.assertFalse(report['hosted_d1_qualified'])
 
+    def test_unused_orphan_credential_blocks_registry_consistency(self):
+        with sqlite3.connect(self.db) as con:
+            con.execute('PRAGMA foreign_keys=OFF')
+            con.execute('INSERT INTO connect_customer_credentials '
+                        '(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) '
+                        'VALUES(?,?,?,?,?,?,?)',
+                        ('unused_orphan','no_such_tenant',sha256(b'orphan').hexdigest(),
+                         'active','2030-01-01T00:00:00Z',1,0))
+        result=self.audit()
+        self.assertEqual(result['daily_counter_mismatches'],0)
+        self.assertEqual(result['minute_counter_mismatches'],0)
+        self.assertEqual(result['orphaned_credentials'],1)
+        self.assertEqual(result['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+
+    def test_zero_usage_orphan_counter_rows_do_not_count_as_consistency(self):
+        with sqlite3.connect(self.db) as con:
+            con.execute('PRAGMA foreign_keys=OFF')
+            con.execute('INSERT INTO connect_customer_daily_usage '
+                        '(tenant_id,utc_day,used) VALUES(?,?,?)',
+                        ('no_such_tenant','2026-10-22',0))
+            con.execute('INSERT INTO connect_customer_minute_usage '
+                        '(tenant_id,utc_minute,used) VALUES(?,?,?)',
+                        ('no_such_tenant','2026-10-22T12:00',0))
+        result=self.audit()
+        self.assertGreater(result['daily_counter_mismatches'],0)
+        self.assertGreater(result['minute_counter_mismatches'],0)
+        self.assertEqual(result['orphaned_quota_rows'],2)
+        self.assertEqual(result['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+
     def test_cli_success_creates_only_deidentified_summary_then_refuses_overwrite(self):
         module=importlib.import_module('qualification.audit_connect_customer_registry')
         target=self.root/'reconciliation.json'
