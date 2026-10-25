@@ -227,8 +227,38 @@ export function createTenantWorkspaceClient(options) {
          await decryptTenantText(found.data.envelope,key,tenantId,item.id);
          artifacts.push({id:item.id,etag:currentTag,envelope:found.data.envelope});
        }
-       if(page.nextAfter===null)
+       if(page.nextAfter===null) {
+         // A document can be modified after its individual GET. Re-read
+         // the bounded metadata inventory and compare every revision and ID
+         // before returning. This is best-effort drift detection, NOT an
+         // atomic database snapshot or a guarantee about later changes.
+         let cursor=null,index=0,complete=false;
+         for(let scan=0;scan<6;scan++){
+           const current=(await send('GET',{after:cursor,limit:10})).data;
+           if(!current||!Array.isArray(current.items)||current.items.length>10||
+              !(current.nextAfter===null||
+                (typeof current.nextAfter==='string'&&ID.test(current.nextAfter))))
+             fail('EXPORT_CONFLICT');
+           for(const item of current.items){
+             const old=artifacts[index++];
+             if(!old || !item || item.id!==old.id ||
+                item.revision!==old.etag.slice(1,-1) ||
+                (cursor!==null&&item.id<=cursor))
+               fail('EXPORT_CONFLICT');
+           }
+           if(current.nextAfter===null){
+             if(index!==artifacts.length)fail('EXPORT_CONFLICT');
+             complete=true;break;
+           }
+           if(!current.items.length ||
+              current.nextAfter!==current.items[current.items.length-1].id ||
+              (cursor!==null&&current.nextAfter<=cursor))
+             fail('EXPORT_CONFLICT');
+           cursor=current.nextAfter;
+         }
+         if(!complete)fail('EXPORT_CONFLICT');
          return {kind:'musitu-enterprise-encrypted-export',version:1,tenantId,artifacts};
+       }
        if(!page.items.length || page.nextAfter!==page.items[page.items.length-1].id ||
           seen.has(page.nextAfter)===false)
          fail('EXPORT_CONFLICT');
