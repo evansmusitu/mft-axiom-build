@@ -193,3 +193,33 @@ test('orphan cleanup does not follow symlinks or delete multi-linked or nonpriva
  assert.deepEqual(await readFile(outside,'utf8'),'protected');
  assert.deepEqual((await readdir(root)).filter(x=>x.endsWith('.part')).length,3);
 }));
+
+
+test('private sealing cannot overwrite a preexisting random-key APK and abort preserves its bytes',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const stream=await q.begin({expectedBytes:apk.length});
+ await stream.write(apk);
+ const pending=(await readdir(root)).find(n=>n.endsWith('.part'));
+ const target=join(root,pending.slice(0,-5)+'.apk');
+ await writeFile(target,Buffer.from('unrelated sealed file'),{mode:0o600});
+ await assert.rejects(stream.seal(),/exists|collision|unsafe|EEXIST/i);
+ await stream.abort();
+ assert.deepEqual(await readFile(target),Buffer.from('unrelated sealed file'));
+ assert.deepEqual(await readdir(root),[pending.slice(0,-5)+'.apk']);
+}));
+
+test('private sealing refuses pending inode replacement and prevents hardlinked object admission',async()=>fixture(async root=>{
+ const q=await createPrivateFilesystemQuarantine({root});
+ const stream=await q.begin({expectedBytes:apk.length});
+ await stream.write(apk);
+ const pending=join(root,(await readdir(root)).find(n=>n.endsWith('.part')));
+ const backup=join(root,'outside-note');await writeFile(backup,'never seal', {mode:0o600});
+ await unlink(pending);await symlink(backup,pending);
+ await assert.rejects(stream.seal(),/unsafe|inode|symlink|mismatch/i);
+ await stream.abort();assert.deepEqual(await readFile(backup,'utf8'),'never seal');
+ const other=await q.begin({expectedBytes:apk.length});await other.write(apk);
+ const partial=join(root,(await readdir(root)).find(n=>n.endsWith('.part')));
+ const duplicate=join(root,'existing-hardlink');await link(partial,duplicate);
+ await assert.rejects(other.seal(),/unsafe|hardlink|inode|mismatch/i);
+ await other.abort();assert.deepEqual(await readFile(duplicate),apk);
+}));
