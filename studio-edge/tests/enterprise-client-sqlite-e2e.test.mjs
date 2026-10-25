@@ -60,7 +60,7 @@ class SQLiteD1{
   close(){this.db.close();}
 }
 const makeHarness=()=>{
-  const db=new SQLiteD1(),env={WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD};
+  const db=new SQLiteD1(),env={WORKSPACE_DB:db,ACCESS_TEAM_DOMAIN:TEAM,ACCESS_AUDIENCE:AUD,WORKSPACE_AUTH_RATE:{limit:async()=>({success:true})},WORKSPACE_READ_RATE:{limit:async()=>({success:true})}};
   const requests=[];
   async function fetcher(url,options){
     const headers=new Headers(options.headers);headers.set('origin',ORIGIN);
