@@ -65,3 +65,16 @@ paid Modal/GPU resources or production billing controls were modified. Real
 provider-signed receipts, hard spending stops, true frozen source, hosted
 restoration, authorized Android owner approval and hosted exact-commit CI remain
 prerequisites. SQLite continues as the database of record.
+
+## Follow-up real MP4 duration guard (same source-only session)
+
+A nonempty MP4 can still be incomplete or contain a shortened film. A new
+offline test first failed because the launcher treated a mocked **11.5-second**
+movie as complete. The launcher now verifies `ffprobe` and `awk` availability
+before starting an expensive render, calls `ffprobe` on the produced file,
+and requires a parseable duration between **11.99 and 12.01 seconds**.
+A failed probe, missing executable, malformed duration, or short movie prevents
+success. Mocked `ffprobe` is used only in tests, and the duration guard is not
+an assertion that a real 4K Cycles render has yet been completed. The expanded
+God Mode mock suite is **10/10**, bringing the total five offline suites to
+**298 tests**.

@@ -22,9 +22,12 @@ if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY
  pathlib.Path(sys.argv[-1]).write_bytes(b'fake-mp4')
 with open(os.environ['MOCK_LOG'],'a') as out:
  out.write(json.dumps({'program':os.path.basename(sys.argv[0]),'args':sys.argv[1:]})+'\\n')
+if os.path.basename(sys.argv[0])=='ffprobe':
+ sys.stdout.write(os.environ.get('MOCK_PROBE_DURATION','12.000000')+'\\n')
 '''
         blend=tools/'blender fake';blend.write_text(mock);blend.chmod(0o755)
         ffmpeg=tools/'ffmpeg';ffmpeg.write_text(mock);ffmpeg.chmod(0o755)
+        ffprobe=tools/'ffprobe';ffprobe.write_text(mock);ffprobe.chmod(0o755)
         env=os.environ.copy();env['BLENDER']=str(blend)
         env['MOCK_LOG']=str(pathlib.Path(temp)/'calls.jsonl')
         env['PATH']=str(tools)+os.pathsep+env.get('PATH','')
@@ -43,7 +46,7 @@ with open(os.environ['MOCK_LOG'],'a') as out:
             frames=str(pathlib.Path(temp)/'frames for Android')
             proc,calls=self.run_entry(temp,'preview',out,frames)
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),3)
+            self.assertEqual(len(calls),4)
             first=calls[0]['args'];self.assertIn('--python',first)
             self.assertEqual(first[first.index('--python')+1],str(BUILDER))
             self.assertEqual(first[first.index('--output')+1],out)
@@ -74,8 +77,9 @@ with open(os.environ['MOCK_LOG'],'a') as out:
             out=str(home/'Awakened.blend')
             proc,calls=self.run_entry(temp,'preview',out,str(home/'frames'))
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),3)
-            final=calls[-1]['args'][-1]
+            self.assertEqual(len(calls),4)
+            final=calls[2]['args'][-1]
+            self.assertEqual(calls[-1]['program'],'ffprobe')
             self.assertEqual(final,str(home/'GOD_MODE_AWAKENING_2099_preview.mp4'))
             self.assertIn('4',calls[0]['args'])
 
@@ -114,6 +118,14 @@ with open(os.environ['MOCK_LOG'],'a') as out:
             calls=[json.loads(x) for x in pathlib.Path(env['MOCK_LOG']).read_text().splitlines()]
             self.assertNotEqual(proc.returncode,0,'renderer must prove final MP4 materialized')
             self.assertEqual(len(calls),3)
+
+    def test_video_with_wrong_duration_cannot_be_declared_complete(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_DURATION']='11.500000'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=8)
+            self.assertNotEqual(proc.returncode,0,'a short video is not a 12-second render')
+            self.assertIn('duration',proc.stderr.lower())
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast

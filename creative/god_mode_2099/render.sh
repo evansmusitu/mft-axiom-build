@@ -14,6 +14,10 @@ OUT="${2:-$PWD/GOD_MODE_AWAKENING_2099.blend}"
 OUTPUT_DIR="${3:-$PWD/rendered_frames}"
 if [[ "$MODE" != final && "$MODE" != preview ]]; then echo 'choose preview or final' >&2; exit 2; fi
 if (( $# > 3 )); then echo 'expected MODE [BLEND_PATH] [FRAME_DIRECTORY]' >&2; exit 2; fi
+# Check media-probe availability before expensive Blender CPU work.
+if ! command -v ffprobe >/dev/null || ! command -v awk >/dev/null; then
+  echo 'ffprobe and awk required to verify the final movie duration' >&2; exit 2
+fi
 VIDEO="$(dirname "$OUT")/GOD_MODE_AWAKENING_2099_${MODE}.mp4"
 # Previous output may be a valuable 2099 scene or a completed MP4. Refuse
 # destructive re-renders before starting CPU/GPU work; choose fresh paths.
@@ -46,4 +50,13 @@ ffmpeg -hide_banner -n -framerate 30 -i "$OUTPUT_DIR/frame_%04d.png" -c:v libx26
 
 if [[ ! -s "$VIDEO" ]]; then
   echo 'God Mode encoder returned without a non-empty MP4' >&2; exit 5
+fi
+# A nonempty file can still contain the wrong number of frames or invalid
+# media. Require an independently inspected, exact 12-second MP4 container.
+DURATION="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$VIDEO")" || {
+  echo 'God Mode duration probe failed' >&2; exit 6;
+}
+if [[ ! "$DURATION" =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+   ! LC_ALL=C awk -v duration="$DURATION" 'BEGIN {exit !(duration >= 11.99 && duration <= 12.01)}'; then
+  echo 'God Mode encoded video duration must be 12 seconds' >&2; exit 6
 fi
