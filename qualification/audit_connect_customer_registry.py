@@ -47,9 +47,12 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
     try:
         conn.execute('PRAGMA query_only=ON')
         conn.execute('BEGIN')
-        tenants = {
-            row[0] for row in conn.execute(
-                'SELECT tenant_id FROM connect_customer_tenants')}
+        tenant_limits = {
+            tenant: (daily_limit, minute_limit)
+            for tenant, daily_limit, minute_limit in conn.execute(
+                'SELECT tenant_id,daily_limit,minute_limit '
+                'FROM connect_customer_tenants')}
+        tenants = set(tenant_limits)
         credentials = {
             row[0]: row[1] for row in conn.execute(
                 'SELECT credential_id,tenant_id FROM connect_customer_credentials')}
@@ -87,12 +90,28 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         minute_mismatch = sum(
             actual_minute.get(key) != expected_minute.get(key, 0)
             for key in expected_minute.keys() | actual_minute.keys())
+        # Compare both reconstructed event counts and stored counters
+        # against the tenant's limits in this same snapshot. An operator
+        # may legitimately have reduced limits after past admissions; such
+        # snapshots are marked policy-inconsistent, not retroactive proof
+        # that a prior admission exceeded its then-effective limit.
+        daily_limit_exceedances = sum(
+            max(expected_day.get(key, 0), actual_day.get(key, 0)) >
+            tenant_limits[key[0]][0]
+            for key in expected_day.keys() | actual_day.keys()
+            if key[0] in tenant_limits)
+        minute_limit_exceedances = sum(
+            max(expected_minute.get(key, 0), actual_minute.get(key, 0)) >
+            tenant_limits[key[0]][1]
+            for key in expected_minute.keys() | actual_minute.keys()
+            if key[0] in tenant_limits)
         conn.commit()
     finally:
         conn.close()
 
     good = not any((day_mismatch, minute_mismatch,
-                    malformed, inconsistent_credential, malformed_request_ids))
+                    malformed, inconsistent_credential, malformed_request_ids,
+                    daily_limit_exceedances, minute_limit_exceedances))
     return {
         'schema': 'musitu.connect.customer_accounting_audit.v1',
         'status': ('OFFLINE_ACCOUNTING_CONSISTENT_NOT_ADMITTED'
@@ -106,6 +125,8 @@ def audit_customer_registry(database: Path) -> dict[str, Any]:
         'minute_counter_mismatches': minute_mismatch,
         'malformed_event_timestamps_or_scopes': malformed,
         'malformed_request_ids': malformed_request_ids,
+        'daily_quota_limit_exceedances': daily_limit_exceedances,
+        'minute_quota_limit_exceedances': minute_limit_exceedances,
         'credential_tenant_mismatches': inconsistent_credential,
         'event_and_quota_consistency': good,
         'hosted_d1_qualified': False,

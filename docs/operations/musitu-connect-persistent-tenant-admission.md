@@ -294,3 +294,19 @@ Synthetic adversarial regression tests cover non-UUID text, wrong UUID
 version, wrong variant and nonhex characters. This check cannot
 authenticate UUID origin or prove billing, customer rights or hosted D1
 atomicity. Customer beta admission remains blocked.
+
+### Snapshot quota-limit consistency — 25 October 2026
+
+The offline read-only auditor checks **both** independently reconstructed
+usage-event totals and stored daily/minute counters against each tenant's
+currently configured per-day and per-minute quota limit in the same SQLite
+snapshot. Correctly balanced counters that exceed either limit are now
+reported as `daily_quota_limit_exceedances` and/or
+`minute_quota_limit_exceedances`, fail
+`OFFLINE_ACCOUNTING_CONSISTENT_NOT_ADMITTED`, and never authorize an actual
+customer. Tests simulate a formerly allowed usage event followed by a
+lowered limit; they prove that equal counters alone cannot satisfy present
+policy. These summaries must **not** be interpreted as proof of historic
+overcharging or admission misconduct: limits can change legitimately, and
+there is no independently verified historical configuration record.
+Hosted D1 and production customer beta remain unqualified.
