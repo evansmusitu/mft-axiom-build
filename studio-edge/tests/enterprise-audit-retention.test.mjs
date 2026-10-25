@@ -61,3 +61,21 @@ test('helper fails closed if database cannot confirm exact count',async()=>{
  await assert.rejects(pruneTenantAudit(broken,{now:NOW,execute:true}),/STORE_UNAVAILABLE/);
  await assert.rejects(pruneTenantAudit({}, {now:NOW,execute:true}));
 });
+
+
+test('audit retention cannot operate without explicitly scoped tenant authorization',async()=>{
+ const h=fixture();try{
+  await assert.rejects(pruneTenantAudit(h.db,{now:NOW,execute:true}),/INVALID_RETENTION_PARAMETERS/);
+  await assert.rejects(pruneTenantAudit(h.db,{now:NOW,tenantId:'../cross_tenant',execute:true}),/INVALID_RETENTION_PARAMETERS/);
+  assert.equal(h.sql.prepare('SELECT count(*) AS n FROM tenant_audit').get().n,6);
+ }finally{h.close();}
+});
+test('tenant-specific audit purge never deletes an expired event belonging to another tenant',async()=>{
+ const h=fixture();try{
+  const result=await pruneTenantAudit(h.db,{now:NOW,tenantId:'tenant_alpha001',retentionDays:30,batchSize:5,execute:true});
+  assert.equal(result.deleted,2);
+  assert.deepEqual(h.sql.prepare('SELECT artifact_id FROM tenant_audit WHERE tenant_id=? ORDER BY at').all('tenant_bravo002').map(x=>x.artifact_id),
+   ['artifact_old_002','artifact_edge_001','artifact_new_002']);
+  assert.equal(h.sql.prepare('SELECT count(*) AS n FROM tenant_audit WHERE tenant_id=?').get('tenant_alpha001').n,1);
+ }finally{h.close();}
+});
