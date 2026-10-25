@@ -72,3 +72,17 @@ are nevertheless commercially sensitive, mapping topology, or field reports
 to the public repository. The isolated workflow
 `.github/workflows/musitu-axiom-independent-holdout-replay.yml` runs only
 synthetic replay negative controls.
+
+### Synthetic research evidence artifact (25 October 2026)
+
+The isolated GitHub workflow additionally emits and archives a **non-admitting,
+deidentified aggregate JSON report** after running the pinned native frozen
+model against generated synthetic sensor telemetry. The archive contains
+only per-fold confusion matrices, skill/support aggregates and SHA pins,
+not sensor rows, operator identity, original rights contracts, credential
+values or customer telemetry. It has explicit
+`evaluation_kind=GENERATED_SYNTHETIC_CONTRACT_ONLY`,
+`actual_operating_mine_source_used=false` and
+`production_admission=false`. The published GitHub Actions artifact proves
+that the scoring path executed reproducibly, **not** that the frozen model
+performs adequately at an independent operating mine or is safe to deploy.

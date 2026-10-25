@@ -41,3 +41,52 @@ jobs:
           echo 'MODEL_RETRAINED=FALSE'
           echo 'FROZEN_THRESHOLD_UPDATED=FALSE'
           echo 'PRODUCTION_METHANE_ADMISSION=BLOCKED'
+      - name: Export deidentified synthetic-only exact-fold report
+        env:
+          AXIOM_FROZEN_REAL_BUNDLE_DIR: /tmp/musitu-exact-fold-frozen-model
+        run: |
+          mkdir -p qualification/research_exact_fold_synthetic
+          python - <<'PY'
+          from pathlib import Path
+          import json, os
+          from benchmarks.mining_adapter.independent_holdout_replay import evaluate_exact_holdout_folds
+          from tests.connect.test_independent_holdout_coverage import HoldoutCoverageTests
+          fixture=HoldoutCoverageTests('test_exact_grids_do_not_certify_model_or_rights')
+          fixture.setUp()
+          try:
+              report=evaluate_exact_holdout_folds(
+                  source=fixture.source, manifest_path=fixture.manifest,
+                  mapping_path=fixture.mapping, seal_path=fixture.seal,
+                  expected_protocol_sha256=fixture.pin,
+                  bundle_dir=Path(os.environ['AXIOM_FROZEN_REAL_BUNDLE_DIR']))
+              assert report['complete_fold_grids']==4
+              assert report['model_predictions_evaluated'] is True
+              assert all(f['test_examples']==3 for f in report['folds'])
+              assert report['production_admission'] is False
+              assert report['independent_validation'] is False
+              assert report['original_four_fold_gate_satisfied'] is False
+              assert report['model_retrained'] is False
+              assert report['threshold_recalibrated'] is False
+              report['evaluation_kind']='GENERATED_SYNTHETIC_CONTRACT_ONLY'
+              report['actual_operating_mine_source_used']=False
+              report['source_owner_rights_verified']=False
+              output=Path('qualification/research_exact_fold_synthetic/synthetic_exact_fold_metrics.json')
+              with output.open('x', encoding='utf-8') as out:
+                  out.write(json.dumps(report,indent=2,sort_keys=True,allow_nan=False)+'\n')
+              raw=output.read_text(encoding='utf-8')
+              assert 'site_id' not in raw and 'rights_basis' not in raw
+              assert 'synthetic-test-only' not in raw
+              print('SYNTHETIC_FOUR_FOLD_NATIVE_REPLAY=PASS')
+              print('REAL_EXTERNAL_MINE_EVIDENCE=FALSE')
+              print('PRODUCTION_METHANE_ADMISSION=BLOCKED')
+          finally:
+              fixture.doCleanups()
+          PY
+          sha256sum qualification/research_exact_fold_synthetic/synthetic_exact_fold_metrics.json
+      - name: Archive only non-admitting synthetic research aggregates
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-exact-fold-synthetic-research-metrics
+          path: qualification/research_exact_fold_synthetic/synthetic_exact_fold_metrics.json
+          retention-days: 90
+          if-no-files-found: error
