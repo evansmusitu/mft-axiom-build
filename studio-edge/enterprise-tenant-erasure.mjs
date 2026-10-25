@@ -21,7 +21,8 @@ export async function eraseTenantWorkspace(db, {
      typeof execute!=='boolean')
     error('ERASURE_NOT_AUTHORIZED');
   const scope='dedicated-enterprise-d1-only';
-  if(!execute) return {executed:false,tenantId,deleted:{audit:0,tenant:0},scope};
+  if(!execute) return {executed:false,tenantId,
+    deleted:{audit:0,artifacts:0,memberships:0,tenant:0},scope};
   try{
     // Check exact tenant before considering any audited deletion.
     // A second exists check in the same transaction prevents cleanup of orphan
@@ -29,19 +30,24 @@ export async function eraseTenantWorkspace(db, {
     const found=await db.prepare('SELECT tenant_id FROM tenants WHERE tenant_id = ?')
       .bind(tenantId).first();
     if(!found)error('ERASURE_TARGET_NOT_FOUND');
+    const alive=' AND EXISTS (SELECT 1 FROM tenants WHERE tenant_id = ?)';
     const result=await db.batch([
-      db.prepare(
-        'DELETE FROM tenant_audit WHERE tenant_id = ? AND EXISTS (SELECT 1 FROM tenants WHERE tenant_id = ?)'
-      ).bind(tenantId,tenantId),
-      // FK cascade removes tenant memberships and encrypted artifacts.
+      db.prepare('DELETE FROM tenant_audit WHERE tenant_id = ?'+alive).bind(tenantId,tenantId),
+      db.prepare('DELETE FROM tenant_artifacts WHERE tenant_id = ?'+alive).bind(tenantId,tenantId),
+      db.prepare('DELETE FROM tenant_memberships WHERE tenant_id = ?'+alive).bind(tenantId,tenantId),
+      // Explicit scoped child deletion is essential. FK cascading may be
+      // disabled in an unexpectedly configured database or test connection.
       db.prepare('DELETE FROM tenants WHERE tenant_id = ?').bind(tenantId)
     ]);
-    if(!Array.isArray(result)||result.length!==2 ||
-       !Number.isSafeInteger(result[0]?.meta?.changes) ||
-       result[0].meta.changes<0 || result[1]?.meta?.changes!==1)
+    const changes=Array.isArray(result)&&result.length===4
+      ? result.map(entry=>entry?.meta?.changes):[];
+    if(changes.length!==4 ||
+       changes.some(value=>!Number.isSafeInteger(value)||value<0) ||
+       changes[3]!==1)
       error('ERASURE_STORE_UNAVAILABLE');
     return {executed:true,tenantId,
-      deleted:{audit:result[0].meta.changes,tenant:1},scope};
+      deleted:{audit:changes[0],artifacts:changes[1],
+        memberships:changes[2],tenant:1},scope};
   }catch(ex){
     if(ex?.message==='ERASURE_TARGET_NOT_FOUND')throw ex;
     error('ERASURE_STORE_UNAVAILABLE');
