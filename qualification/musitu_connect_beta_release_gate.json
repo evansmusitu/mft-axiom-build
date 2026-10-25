@@ -135,9 +135,9 @@
   },
   "offline_customer_accounting_reconciliation": "SYNTHETIC_READ_ONLY_SQLITE_COUNTER_PARITY_HOSTED_D1_NOT_EXECUTED",
   "offline_customer_accounting_evidence": {
-    "source_commit": "0b63dd91031ed70b2da5f9b54dc63844b7f8b477",
-    "workflow_run_id": 40163879511,
-    "synthetic_accounting_tests": 10,
+    "source_commit": "0b1094669c0fca7f30d9c9f6ee2c32f64c66efe3",
+    "workflow_run_id": 40165571878,
+    "synthetic_accounting_tests": 12,
     "verified_on": "2026-10-25",
     "read_only_file_reconciliation": true,
     "real_customer_data_used": false,
@@ -146,9 +146,23 @@
     "production_worker_updated": false,
     "request_id_integrity": "LOWERCASE_UUID_V4_PERSISTED_ATTEMPT_NEGATIVE_TESTED",
     "request_id_integrity_red_workflow_run": 40163764377,
-    "request_id_integrity_green_workflow_run": 40163879511,
+    "request_id_integrity_green_workflow_run": 40165571878,
     "invalid_request_id_variants_tested": 4,
     "real_external_customer_request_ids_verified": false,
-    "production_admission_authorized": false
+    "production_admission_authorized": false,
+    "current_tenant_daily_minute_limit_snapshot_enforced": true,
+    "current_limit_exceedance_is_historical_violation_proven": false
+  },
+  "offline_customer_d1_sql_guard": "SYNTHETIC_NODE_AND_LOCAL_WORKERD_UUIDV4_UTC24_REJECTED_NOT_REMOTE_D1",
+  "offline_customer_d1_sql_guard_evidence": {
+    "source_commit": "0b1094669c0fca7f30d9c9f6ee2c32f64c66efe3",
+    "node_and_local_d1_workflow_run": 40165571808,
+    "local_d1_fixture_only": true,
+    "uuid_v4_direct_sql_guards": true,
+    "utc_24_hour_alias_rejected": true,
+    "hosted_d1_qualified": false,
+    "production_migration_executed": false,
+    "actual_customer_requests_executed": 0,
+    "customer_admission_authorized": false
   }
 }

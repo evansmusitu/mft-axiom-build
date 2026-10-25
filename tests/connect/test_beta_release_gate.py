@@ -62,7 +62,20 @@ class ConnectBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(record['offline_customer_accounting_reconciliation'],
                          'SYNTHETIC_READ_ONLY_SQLITE_COUNTER_PARITY_HOSTED_D1_NOT_EXECUTED')
         accounting = record['offline_customer_accounting_evidence']
-        self.assertEqual(accounting['synthetic_accounting_tests'], 10)
+        self.assertEqual(accounting['synthetic_accounting_tests'], 12)
+        self.assertIs(accounting['current_tenant_daily_minute_limit_snapshot_enforced'],True)
+        self.assertIs(accounting['current_limit_exceedance_is_historical_violation_proven'],False)
+        self.assertIs(accounting['production_admission_authorized'],False)
+        self.assertEqual(record['offline_customer_d1_sql_guard'],
+                         'SYNTHETIC_NODE_AND_LOCAL_WORKERD_UUIDV4_UTC24_REJECTED_NOT_REMOTE_D1')
+        sqlguard=record['offline_customer_d1_sql_guard_evidence']
+        self.assertIs(sqlguard['uuid_v4_direct_sql_guards'],True)
+        self.assertIs(sqlguard['utc_24_hour_alias_rejected'],True)
+        self.assertIs(sqlguard['local_d1_fixture_only'],True)
+        self.assertEqual(sqlguard['actual_customer_requests_executed'],0)
+        for blocker in ('hosted_d1_qualified','production_migration_executed',
+                        'customer_admission_authorized'):
+            self.assertIs(sqlguard[blocker],False)
         self.assertEqual(accounting['request_id_integrity'],
                          'LOWERCASE_UUID_V4_PERSISTED_ATTEMPT_NEGATIVE_TESTED')
         self.assertEqual(accounting['request_id_integrity_green_workflow_run'],40163879511)
