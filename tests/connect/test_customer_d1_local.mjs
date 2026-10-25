@@ -48,6 +48,22 @@ const reserve = (db, token, scope, i, nowMs=TIME) => reserveConnectCustomerReque
 });
 const count = (db, tenant) => db.prepare('SELECT COUNT(*) AS n FROM connect_customer_usage_events WHERE tenant_id=?').bind(tenant).first();
 
+test('Cloudflare local D1: 24:00 cannot charge the preceding UTC day', {timeout:30000},async()=>{
+  let db;
+  try {
+    db=await createIsolatedD1();
+    const sql='INSERT INTO connect_customer_usage_events '+
+      '(tenant_id,credential_id,request_id,scope,utc_day,observed_at) '+
+      'VALUES(?,?,?,?,?,?)';
+    const attempted=db.prepare(sql).bind('tenant_alpha','cred_alpha',
+      uid(992),'mining.plan','2026-10-22','2026-10-22T24:00:00.000Z');
+    await assert.rejects(attempted.run(),/CUSTOMER_EVENT_TIME_INVALID/);
+    assert.equal((await count(db,'tenant_alpha')).n,0);
+  } finally {
+    if (mf) await mf.dispose();
+  }
+});
+
 test('Cloudflare local D1: UUID-v4 event trigger accepts canonical IDs and rejects forged direct writes', {timeout:30000}, async()=>{
   let db;
   try {

@@ -212,6 +212,19 @@ test('database trigger independently rejects forged UUID-v4 events without consu
   assert.equal(f.sql.prepare('SELECT SUM(used) AS n FROM connect_customer_daily_usage').get().n,1);
 });
 
+test('SQL rejects 24:00 time that otherwise consumes the wrong UTC day quota',()=>{
+  const f=fixture();
+  const stmt=f.sql.prepare('INSERT INTO connect_customer_usage_events '+
+    '(tenant_id,credential_id,request_id,scope,utc_day,observed_at) '+
+    'VALUES(?,?,?,?,?,?)');
+  assert.throws(()=>stmt.run('tenant_alpha','cred_alpha',
+    '99999999-9999-4999-8999-999999999999','mining.plan',
+    '2026-10-22','2026-10-22T24:00:00.000Z'),/CUSTOMER_EVENT_TIME_INVALID/);
+  assert.equal(rows(f.sql,'tenant_alpha').length,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_daily_usage').get().n,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_minute_usage').get().n,0);
+});
+
 test('SQL enforces UTC day and timestamp coherence before quota updates',async()=>{
   const f=fixture();
   const statement=f.sql.prepare(`INSERT INTO connect_customer_usage_events
