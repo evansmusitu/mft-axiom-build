@@ -151,6 +151,39 @@ class HoldoutCoverageTests(unittest.TestCase):
                                   mapping_path=self.mapping, seal_path=self.seal,
                                   expected_protocol_sha256='a'*64)
 
+    def test_transient_changed_seal_fold_grid_is_not_accepted_after_restore(self):
+        from unittest.mock import patch
+        import benchmarks.mining_adapter.independent_holdout_coverage as auditor
+
+        original_seal=self.seal.read_bytes()
+        original_verify=auditor.verify_holdout_seal
+        original_stream=auditor._stream_source
+
+        def swap_after_successful_seal_verification(*args, **kwargs):
+            verified=original_verify(*args, **kwargs)
+            counterfeit=json.loads(original_seal)
+            counterfeit['protocol']['folds'][0]['first_feature_time']=stamp(750)
+            counterfeit['protocol']['folds'][0]['last_feature_time']=stamp(810)
+            # Do not update the protocol digest: it still describes the
+            # original grid, not the substituted scoring interval.
+            self.seal.write_text(json.dumps(counterfeit),encoding='utf-8')
+            return verified
+
+        def restore_during_source_stream(path,state):
+            for i,row in enumerate(original_stream(path,state)):
+                if i==20:
+                    self.seal.write_bytes(original_seal)
+                yield row
+
+        with (patch.object(auditor,'verify_holdout_seal',
+                           side_effect=swap_after_successful_seal_verification),
+              patch.object(auditor,'_stream_source',
+                           side_effect=restore_during_source_stream)):
+            with self.assertRaisesRegex(ValueError,
+                                        'holdout_coverage_seal_changed_after_verification'):
+                self.audit()
+        self.assertEqual(self.seal.read_bytes(),original_seal)
+
     def test_cli_writes_once_and_never_overwrites_evidence(self):
         output = self.draft.parent / 'private-safe-report.json'
         cmd = [sys.executable, '-m', 'benchmarks.mining_adapter.independent_holdout_coverage',
