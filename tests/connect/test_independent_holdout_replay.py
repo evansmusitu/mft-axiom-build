@@ -126,6 +126,74 @@ class IndependentHoldoutReplayTests(unittest.TestCase):
                 module.main()
         self.assertEqual(target.read_text(),marker)
 
+    def test_source_manifest_changed_during_second_pass_rejected(self):
+        module=self.module()
+        original=module._stream_source
+        case=self.fixture
+
+        def mutate_manifest(source,state):
+            for number,row in enumerate(original(source,state)):
+                if number==1200:
+                    case.manifest.write_bytes(case.manifest.read_bytes()+b' ')
+                yield row
+
+        with patch.object(module,'_stream_source',side_effect=mutate_manifest):
+            with self.assertRaisesRegex(ValueError,'holdout_replay_inputs_changed'):
+                self.replay()
+
+    def test_invalid_model_scores_do_not_generate_a_research_report(self):
+        from types import SimpleNamespace
+        module=self.module()
+        real_load=module.load_frozen_bundle
+        def broken_predictor(*args,**kwargs):
+            bundle=real_load(*args,**kwargs)
+            return SimpleNamespace(
+                manifest=bundle.manifest,
+                manifest_sha256=bundle.manifest_sha256,
+                predict=lambda examples:[float('nan')]*len(examples))
+        with patch.object(module,'load_frozen_bundle',side_effect=broken_predictor):
+            with self.assertRaisesRegex(
+                    ValueError,'holdout_replay_score_nonfinite_or_out_of_range'):
+                self.replay()
+
+    def test_successful_cli_emits_one_deidentified_immutable_research_report(self):
+        module=self.module()
+        case=self.fixture
+        target=case.source.parent/'research_only_four_fold_metrics.json'
+        argv=['independent_holdout_replay',
+              '--source',str(case.source),'--manifest',str(case.manifest),
+              '--mapping',str(case.mapping),'--seal',str(case.seal),
+              '--bundle',str(BUNDLE),'--expected-protocol-sha256',case.pin,
+              '--output',str(target)]
+        with patch.object(sys,'argv',argv):
+            module.main()
+        output=target.read_text(encoding='utf-8')
+        result=json.loads(output)
+        self.assertEqual(len(result['folds']),4)
+        self.assertTrue(result['model_predictions_evaluated'])
+        self.assertFalse(result['production_admission'])
+        for private in ('synthetic-test-only', 'synthetic-private-fixture',
+                        'source_owner_rights_reference', 'site_id',
+                        'rights_basis', 'provenance_reference'):
+            self.assertNotIn(private,output)
+        with patch.object(sys,'argv',argv):
+            with self.assertRaisesRegex(FileExistsError,'holdout_replay_output_exists_or_input'):
+                module.main()
+        self.assertEqual(target.read_text(encoding='utf-8'),output)
+
+    def test_average_precision_ties_are_not_resolved_by_label_order(self):
+        module=self.module()
+        for scores,truth,want in [
+            ([0.8,0.8,0.2],[True,False,False],0.5),
+            ([0.8,0.8,0.2],[False,True,False],0.5),
+            ([0.8,0.8,0.2],[True,True,False],1.0),
+        ]:
+            with self.subTest(scores=scores,truth=truth):
+                self.assertAlmostEqual(module._average_precision(scores,truth),want)
+        self.assertIsNone(module._average_precision([0,0],[False,False]))
+        self.assertIsNone(module._average_precision([1,1],[True,True]))
+
+
 
 if __name__=='__main__':
     unittest.main()
