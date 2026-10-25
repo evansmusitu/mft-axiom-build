@@ -35,6 +35,25 @@ const fail=code=>{throw Error(code)};
 const fingerprint=key=>createHash('sha256').update(key.export({type:'spki',format:'der'})).digest('hex');
 const digest=text=>createHash('sha256').update(text).digest('hex');
 
+// Field paths and ordering booleans only: never emit private configuration values.
+export function describeSnapshotDrift(left,right){
+ const paths=[];
+ const walk=(a,b,path)=>{
+  if(isDeepStrictEqual(a,b)||paths.length>=40)return;
+  if(a&&b&&typeof a==='object'&&typeof b==='object'){
+   for(const key of new Set([...Object.keys(a),...Object.keys(b)])){
+    if(!/^[A-Za-z0-9_-]{1,80}$/.test(key))continue;
+    walk(a[key],b[key],path?path+'.'+key:key);
+   }
+  }else paths.push(path);
+ };
+ walk(left,right,'');
+ const sections=Object.keys(left).filter(k=>!isDeepStrictEqual(left[k],right[k]));
+ const sameUnorderedArrays=sections.filter(k=>Array.isArray(left[k])&&Array.isArray(right[k])&&
+  isDeepStrictEqual(left[k].map(v=>JSON.stringify(v)).sort(),right[k].map(v=>JSON.stringify(v)).sort()));
+ return {sections,paths,sameUnorderedArrays};
+}
+
 export function assertProtection(s){
  const email=s.policies?.[0]?.include?.[0]?.email?.email;
  const mfa=a=>a?.mfa_config?.mfa_disabled===false&&
@@ -162,7 +181,11 @@ export async function refreshDashboard({token,accountId,sourceSha,loadSource,fet
   Object.assign(proof,plan.summary);proof.exactBaselineVerified=true;proof.freshPublicCertificatesVerified=true;
   // Re-read immediately before mutation. Concurrent source/config changes stop the write.
   const [again,sourceAgain]=await Promise.all([snapshot(),api(target+'/content/v2')]);
-  if(!isDeepStrictEqual(before,again)||!isDeepStrictEqual(remote,sourceAgain))fail('MMF_CONCURRENT_DRIFT_BEFORE_WRITE');
+  if(!isDeepStrictEqual(before,again)||!isDeepStrictEqual(remote,sourceAgain)){
+   proof.concurrentDrift=describeSnapshotDrift(before,again);
+   proof.concurrentSourceChanges=moduleNames.filter(p=>remote.get(p)!==sourceAgain.get(p));
+   fail('MMF_CONCURRENT_DRIFT_BEFORE_WRITE');
+  }
   const form=new FormData();form.set('metadata',new Blob([JSON.stringify({main_module:moduleNames[0]})],{type:'application/json'}));
   for(const [name,source] of plan.desired)form.set(name,new Blob([source],{type:'application/javascript+module'}),name);
   if((await api(target+'/content','PUT',form))?.id!==worker)fail('MMF_CONTENT_WRITE_UNACKNOWLEDGED');

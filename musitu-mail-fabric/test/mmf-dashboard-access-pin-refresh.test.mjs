@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash,X509Certificate} from 'node:crypto';
-import {moduleNames,assertProtection,verifiedPublicPins,planRefresh,refreshDashboard} from '../src/staging/mmf-dashboard-access-pin-refresh-20261025.mjs';
+import {moduleNames,assertProtection,verifiedPublicPins,planRefresh,refreshDashboard,describeSnapshotDrift} from '../src/staging/mmf-dashboard-access-pin-refresh-20261025.mjs';
 
 const directory=mkdtempSync(join(tmpdir(),'mmf-pin-fixture-'));
 after(()=>rmSync(directory,{recursive:true,force:true}));
@@ -136,7 +136,15 @@ test('concurrent settings drift and invalid public certificate prevent all Cloud
   const cloud=fakeCloud(options),proof=await invoke(cloud);
   assert.equal(proof.cloudflareMutations,0);assert.equal(proof.gate,'MMF_ACCESS_PIN_REFRESH_STOPPED_BEFORE_WRITE');
   assert.equal(cloud.calls.filter(c=>c.method==='PUT').length,0);
+  if(options.driftBefore)assert.deepEqual(proof.concurrentDrift,{sections:['settings'],paths:['settings.logpush'],sameUnorderedArrays:[]});
  }
+});
+test('drift diagnostics distinguish array ordering and reveal field paths without values',()=>{
+ const left={domains:[{id:'private-first',name:'secret-a'},{id:'private-second',name:'secret-b'}],settings:{token:'old-secret'}};
+ const right={domains:[...left.domains].reverse(),settings:{token:'new-secret'}};
+ const result=describeSnapshotDrift(left,right);
+ assert.deepEqual(result.sections,['domains','settings']);assert.deepEqual(result.sameUnorderedArrays,['domains']);
+ assert.ok(result.paths.includes('settings.token'));assert.doesNotMatch(JSON.stringify(result),/private-first|secret-a|old-secret|new-secret/);
 });
 test('write rejection and post-write drift are explicit failures without retries or alternate writes',async()=>{
  for(const options of [{denyWrite:true},{driftAfter:true}]){
