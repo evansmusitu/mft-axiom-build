@@ -59,7 +59,7 @@ test('erasure requires verified matching tenant, authorization reference, legal 
       {tenantId:TA,verifiedTenantId:null}
    ];
    for(const alteration of bad){
-     await assert.rejects(eraseTenantWorkspace(db,{...acceptance,...alteration,execute:true}),/ERASURE_NOT_AUTHORIZED/);
+     await assert.rejects(eraseTenantWorkspace(db,{...acceptance,execute:true,...alteration}),/ERASURE_NOT_AUTHORIZED/);
    }
    assert.deepEqual(db.snapshot(TA),[1,1,1,1]);
    assert.deepEqual(db.snapshot(TB),[1,1,1,1]);
