@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/musitu-axiom-independent-holdout-replay.yml'
       - 'benchmarks/mining_adapter/independent_holdout_replay.py'
+      - 'benchmarks/mining_adapter/independent_holdout_coverage.py'
+      - 'tests/connect/test_independent_holdout_coverage.py'
       - 'tests/connect/test_independent_holdout_replay.py'
       - 'docs/operations/musitu-axiom-exact-fold-coverage-audit.md'
   workflow_dispatch:
@@ -35,7 +37,7 @@ jobs:
         env:
           AXIOM_FROZEN_REAL_BUNDLE_DIR: /tmp/musitu-exact-fold-frozen-model
         run: |
-          python -m unittest tests.connect.test_independent_holdout_replay -v
+          python -m unittest tests.connect.test_independent_holdout_coverage tests.connect.test_independent_holdout_replay -v
           echo 'REAL_EXTERNAL_MINE_DATA_USED=FALSE'
           echo 'INDEPENDENT_MINE_VALIDATION=NOT_DEMONSTRATED'
           echo 'MODEL_RETRAINED=FALSE'
