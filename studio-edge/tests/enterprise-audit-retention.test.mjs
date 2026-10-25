@@ -31,11 +31,11 @@ function fixture(){
 test('retention helper is inert until explicit execute=true, and validates legal window',async()=>{
  const h=fixture();try{
   const before=h.sql.prepare('SELECT count(*) n FROM tenant_audit').get().n;
-  const dry=await pruneTenantAudit(h.db,{now:NOW,retentionDays:30,batchSize:2});
+  const dry=await pruneTenantAudit(h.db,{now:NOW,tenantId:'tenant_alpha001',retentionDays:30,batchSize:2});
   assert.deepEqual(dry,{executed:false,deleted:0,retentionDays:30,batchSize:2});
   assert.equal(h.sql.prepare('SELECT count(*) n FROM tenant_audit').get().n,before);
-  for(const opts of [{now:NOW,execute:true,retentionDays:0},{now:NOW,execute:true,batchSize:0},
-   {now:NOW,execute:true,batchSize:1000},{now:-1,execute:true},{execute:true}]){
+  for(const opts of [{now:NOW,tenantId:'tenant_alpha001',execute:true,retentionDays:0},{now:NOW,tenantId:'tenant_alpha001',execute:true,batchSize:0},
+   {now:NOW,tenantId:'tenant_alpha001',execute:true,batchSize:1000},{now:-1,tenantId:'tenant_alpha001',execute:true},{execute:true}]){
    await assert.rejects(pruneTenantAudit(h.db,opts));
   }
   assert.equal(h.sql.prepare('SELECT count(*) n FROM tenant_audit').get().n,before);
@@ -43,13 +43,13 @@ test('retention helper is inert until explicit execute=true, and validates legal
 });
 test('bounded cleanup removes only expired audit rows, oldest first, never ciphertext',async()=>{
  const h=fixture();try{
-  const first=await pruneTenantAudit(h.db,{now:NOW,retentionDays:30,batchSize:2,execute:true});
+  const first=await pruneTenantAudit(h.db,{now:NOW,tenantId:'tenant_alpha001',retentionDays:30,batchSize:2,execute:true});
   assert.deepEqual(first,{executed:true,deleted:2,retentionDays:30,batchSize:2});
   let remaining=h.sql.prepare('SELECT artifact_id FROM tenant_audit ORDER BY at,id').all().map(x=>x.artifact_id);
-  assert.deepEqual(remaining,['artifact_old_003','artifact_edge_001','artifact_new_001','artifact_new_002']);
-  const second=await pruneTenantAudit(h.db,{now:NOW,retentionDays:30,batchSize:2,execute:true});
+  assert.deepEqual(remaining,['artifact_old_002','artifact_edge_001','artifact_new_001','artifact_new_002']);
+  const second=await pruneTenantAudit(h.db,{now:NOW,tenantId:'tenant_bravo002',retentionDays:30,batchSize:2,execute:true});
   assert.equal(second.deleted,1);
-  const third=await pruneTenantAudit(h.db,{now:NOW,retentionDays:30,batchSize:2,execute:true});
+  const third=await pruneTenantAudit(h.db,{now:NOW,tenantId:'tenant_alpha001',retentionDays:30,batchSize:2,execute:true});
   assert.equal(third.deleted,0);
   remaining=h.sql.prepare('SELECT artifact_id FROM tenant_audit ORDER BY at,id').all().map(x=>x.artifact_id);
   assert.deepEqual(remaining,['artifact_edge_001','artifact_new_001','artifact_new_002']);
@@ -58,8 +58,8 @@ test('bounded cleanup removes only expired audit rows, oldest first, never ciphe
 });
 test('helper fails closed if database cannot confirm exact count',async()=>{
  const broken={prepare:()=>({bind:()=>({run:async()=>({})})})};
- await assert.rejects(pruneTenantAudit(broken,{now:NOW,execute:true}),/STORE_UNAVAILABLE/);
- await assert.rejects(pruneTenantAudit({}, {now:NOW,execute:true}));
+ await assert.rejects(pruneTenantAudit(broken,{now:NOW,tenantId:'tenant_alpha001',execute:true}),/STORE_UNAVAILABLE/);
+ await assert.rejects(pruneTenantAudit({}, {now:NOW,tenantId:'tenant_alpha001',execute:true}));
 });
 
 
