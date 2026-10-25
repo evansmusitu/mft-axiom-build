@@ -44,7 +44,7 @@ test('default preview never touches or enumerates tenant data, even with complet
  const db=new D1();try{
    const before=db.snapshot(TA),b=db.snapshot(TB);
    const summary=await eraseTenantWorkspace(db,acceptance);
-   assert.deepEqual(summary,{executed:false,tenantId:TA,deleted:{audit:0,tenant:0},scope:'dedicated-enterprise-d1-only'});
+   assert.deepEqual(summary,{executed:false,tenantId:TA,deleted:{audit:0,artifacts:0,memberships:0,tenant:0},scope:'dedicated-enterprise-d1-only'});
    assert.deepEqual(db.snapshot(TA),before);assert.deepEqual(db.snapshot(TB),b);
    assert.equal(db.batchCalls,0);
  }finally{db.close();}
@@ -69,7 +69,7 @@ test('erasure requires verified matching tenant, authorization reference, legal 
 test('approved single-tenant erasure removes identity, ciphertext and audit atomically without touching tenant B',async()=>{
  const db=new D1();try{
    const result=await eraseTenantWorkspace(db,{...acceptance,execute:true});
-   assert.deepEqual(result,{executed:true,tenantId:TA,deleted:{audit:1,tenant:1},scope:'dedicated-enterprise-d1-only'});
+   assert.deepEqual(result,{executed:true,tenantId:TA,deleted:{audit:1,artifacts:1,memberships:1,tenant:1},scope:'dedicated-enterprise-d1-only'});
    assert.deepEqual(db.snapshot(TA),[0,0,0,0]);
    assert.deepEqual(db.snapshot(TB),[1,1,1,1]);
    assert.equal(db.batchCalls,1);
