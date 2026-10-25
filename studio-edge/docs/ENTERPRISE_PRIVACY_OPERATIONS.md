@@ -64,7 +64,7 @@ never be logged. Encryption does **not** anonymize access/usage metadata.
   The server neither checks nor automatically deletes browser-local slots,
   exported backups or external copies.
 - \`enterprise-audit-retention.mjs\` is an independent, unimported operator
-  helper that only deletes expired **audit metadata** in bounded batches.
+  helper that only deletes a **single explicitly selected tenant's expired audit metadata** in bounded batches.
   There is **no HTTP route, cron, binding, automatic invocation or deployed
   retention operation**. \`execute:true\` is mandatory.
 - Its **proposed 30-day** audit retention default and maximum 100-row batch
@@ -81,12 +81,12 @@ only from an approved maintenance context:
 \`\`\`js
 import {pruneTenantAudit} from './enterprise-audit-retention.mjs';
 const now = Math.floor(Date.now()/1000);
-const preview = await pruneTenantAudit(authorizedDedicatedD1,{now,retentionDays:30,batchSize:50});
+const preview = await pruneTenantAudit(authorizedDedicatedD1,{now,tenantId:authorizedTenantId,retentionDays:30,batchSize:50});
 // After documented authorization only:
-const result = await pruneTenantAudit(authorizedDedicatedD1,{now,retentionDays:30,batchSize:50,execute:true});
+const result = await pruneTenantAudit(authorizedDedicatedD1,{now,tenantId:authorizedTenantId,retentionDays:30,batchSize:50,execute:true});
 \`\`\`
 
-The preview merely confirms configuration; it does **not** enumerate eligible
+The required `authorizedTenantId` must be a verified opaque tenant identifier from an independently approved administrative context, **not** from a customer-controlled API parameter. Missing/malformed IDs fail closed; this utility does not allow a global or cross-tenant purge. The preview merely confirms configuration; it does **not** enumerate eligible
 rows or make a legal-hold determination. \`deleted\` is a count, not proof
 that all expired rows have been removed. A reviewed operator must continue
 bounded batches as necessary; no automatic job currently exists.
