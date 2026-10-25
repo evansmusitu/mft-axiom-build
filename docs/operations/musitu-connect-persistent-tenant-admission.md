@@ -310,3 +310,17 @@ policy. These summaries must **not** be interpreted as proof of historic
 overcharging or admission misconduct: limits can change legitimately, and
 there is no independently verified historical configuration record.
 Hosted D1 and production customer beta remain unqualified.
+
+### Defense-in-depth UUID-v4 admission check (offline D1-compatible schema)
+
+The preliminary SQLite/D1 admission trigger now independently rejects
+noncanonical request identifiers through a strict `GLOB` pattern for
+lowercase 36-character UUID-v4 formatting, including version and variant
+bits. This protects against direct SQL writes that bypass the client-facing
+Node module. Failures raise `CUSTOMER_EVENT_REQUEST_ID_INVALID`
+**before** quota counters or event history can be modified. Synthetic
+local D1-compatible tests cover wrong version, wrong variant, uppercase,
+malformed length and nonhex values, and verify zero accounting side effects;
+a valid UUID-v4 remains accepted. The change is strictly feature-branch
+schema only. It does not migrate a customer database, establish hosted D1
+semantics, admit beta customers, or change production workers.
