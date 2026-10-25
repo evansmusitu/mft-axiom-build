@@ -86,3 +86,19 @@ values or customer telemetry. It has explicit
 `production_admission=false`. The published GitHub Actions artifact proves
 that the scoring path executed reproducibly, **not** that the frozen model
 performs adequately at an independent operating mine or is safe to deploy.
+
+### Per-fold overlap-proxy evidence (research only)
+
+Each scored chronological fold now separately runs the existing
+`EventProxyAudit` over its *fixed future label windows* and frozen augmented
+warning decisions. The aggregate report includes each fold's overlap-linked
+positive-window group count, detected/missed proxy groups, false-alert window
+count, consecutive false-alert prediction streaks and SHA-256 replay trace.
+The counters are cross-checked against the fold's confusion matrix.
+
+**Overlapping windows are not independently corroborated methane incidents;
+false-alert streaks are not confirmed operator alarms.** No physical-event
+truth, on-call response, independent rights or safety certification may be
+inferred from these summaries. Tests demonstrate the accounting on generated
+synthetic sensor pulses, while the model, score threshold, source rights and
+production admission remain unchanged.

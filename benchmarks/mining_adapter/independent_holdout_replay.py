@@ -26,6 +26,7 @@ from benchmarks.mining_adapter.methane_backtest import (
     MethaneBacktestSpec, build_windowed_prediction_examples,
 )
 from benchmarks.mining_adapter.methane_prediction import binary_metrics
+from benchmarks.mining_adapter.external_event_proxy_audit import EventProxyAudit
 
 
 def _average_precision(scores: list[float], labels: list[bool]) -> float | None:
@@ -98,6 +99,7 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
         folds.append({
             'number': i+1, 'first': first, 'last': last,
             'labels': [], 'alerts': [], 'baseline': [], 'scores': [],
+            'window_proxy_audit': EventProxyAudit(),
         })
 
     state = {'source_rows': 0, 'discontinuities': 0, 'first_time': None,
@@ -120,6 +122,11 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
             f['alerts'].append(bool(alert))
             f['baseline'].append(bool(hard))
             f['scores'].append(score)
+            f['window_proxy_audit'].observe(
+                feature_time=item.feature_time,
+                label_window_end=item.label_window_end,
+                label=bool(item.label), hard_observed=bool(hard),
+                predicted_alert=bool(alert))
         batch.clear()
 
     position = 0
@@ -160,6 +167,13 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
         model = binary_metrics(labels, alerts)
         hard = binary_metrics(labels, baseline)
         ap = _average_precision(fold['scores'], labels)
+        proxy = fold['window_proxy_audit'].finalize()
+        if (proxy['window_count'] != len(labels)
+                or proxy['positive_label_windows'] != sum(labels)
+                or proxy['false_alert_windows'] != model['fp']
+                or proxy['hard_observed_warning_windows'] !=
+                hard['tp'] + hard['fp']):
+            raise ValueError('holdout_replay_proxy_confusion_mismatch')
         prevalence = sum(labels) / len(labels)
         model['average_precision'] = ap
         model['prevalence'] = prevalence
@@ -176,6 +190,7 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
             'positive_support_threshold_met': support,
             'research_thresholds_met_descriptive_only': descriptive,
             'model': model, 'baseline': hard,
+            'window_proxy_audit': proxy,
             'hard_observed_warning_suppressed': False,
             'positive_windows_are_independent_events': False,
             'production_admission': False,
@@ -199,6 +214,8 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
         'required_supported_folds': spec.required_passing_folds,
         'folds': summaries,
         'model_predictions_evaluated': True,
+        'window_overlap_groups_are_independent_physical_incidents': False,
+        'prediction_streaks_are_operational_alarm_events': False,
         'source_rows': coverage['source_rows'],
         'source_timestamp_discontinuities': coverage['source_timestamp_discontinuities'],
         'model_retrained': False,
