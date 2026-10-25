@@ -1,5 +1,11 @@
 # LIFELINE $0 no-Modal Cloudflare Service Binding + D1 candidate
 
+### 25 October 2026 — REAL D1 provider capacity gate (do not provision)
+
+An authenticated, strictly GET-only Cloudflare account audit [run 40162809028](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40162809028) returned **11 existing D1 databases**. The proposed isolated name `lifeline-mt5-d1-isolated` was **not present**, and names/IDs from other projects were not logged. The documented Workers Free numeric limit is **10 databases per account** (https://developers.cloudflare.com/d1/platform/limits/). Account subscriptions were readable, but **Workers Free entitlement and an effective zero-dollar spending cap remain UNVERIFIED**. Consequently **no new database may be provisioned under the $0 constraint**. The existing 11 databases belong to the shared account; do NOT repurpose or delete one. Existing source-only alternative remains UNDEPLOYED and does not provide a live D1-backed service.
+
+The new `infra/cloudflare/alternative/provider_preflight.py` and `test_provider_preflight.py` implement read-only, exact-account, sanitized provider checks. **8 tests passed**; all existing LIFELINE signed bridge, Five-Cloud, Cloudflare alternative, AXIOM and brand CI passed at code commit `daaa4a71ed9d39915d47438b5a8a9d25e624fc67`. The confirmed numeric quota block is separate from unverified Workers plan and hard no-spend controls. Next investigate a truly stateless private Worker/non-D1 alternative under verified Workers Free entitlement or obtain owner-approved existing dedicated infrastructure; no paid services or new resources without explicit approval.
+
 **Status 24 Oct 2026:** Source implemented and offline tested only. **NOT provisioned, NOT deployed, NOT live end-to-end, NOT a native Windows host.** Exact repository: `evansmusitu/mft-axiom-build`; isolated branch `product/lifeline-mt5-fivecloud-isolated-20261020`, draft PR #30; protected main unchanged.
 
 ## Why this replaces the blocked Modal proxy boundary

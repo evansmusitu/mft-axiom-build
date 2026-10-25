@@ -1,6 +1,14 @@
 # LIFELINE MT5 AI Studio — Isolated owner-only development
 
-**Operational status, 24 October 2026:** private research and engineering stage. **NOT an operating public MT5 trading system, not a connected Cloudflare→Modal backend, and not a permanently hosted Windows agent.** Do not advertise live customer execution or results.
+**Operational status, 25 October 2026:**
+
+### 25 October 2026 — REAL D1 provider capacity gate (do not provision)
+
+An authenticated, strictly GET-only Cloudflare account audit [run 40162809028](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40162809028) returned **11 existing D1 databases**. The proposed isolated name `lifeline-mt5-d1-isolated` was **not present**, and names/IDs from other projects were not logged. The documented Workers Free numeric limit is **10 databases per account** (https://developers.cloudflare.com/d1/platform/limits/). Account subscriptions were readable, but **Workers Free entitlement and an effective zero-dollar spending cap remain UNVERIFIED**. Consequently **no new database may be provisioned under the $0 constraint**. The existing 11 databases belong to the shared account; do NOT repurpose or delete one. Existing source-only alternative remains UNDEPLOYED and does not provide a live D1-backed service.
+
+The new `infra/cloudflare/alternative/provider_preflight.py` and `test_provider_preflight.py` implement read-only, exact-account, sanitized provider checks. **8 tests passed**; all existing LIFELINE signed bridge, Five-Cloud, Cloudflare alternative, AXIOM and brand CI passed at code commit `daaa4a71ed9d39915d47438b5a8a9d25e624fc67`. The confirmed numeric quota block is separate from unverified Workers plan and hard no-spend controls. Next investigate a truly stateless private Worker/non-D1 alternative under verified Workers Free entitlement or obtain owner-approved existing dedicated infrastructure; no paid services or new resources without explicit approval.
+
+**Previous status, 24 October 2026:** private research and engineering stage. **NOT an operating public MT5 trading system, not a connected Cloudflare→Modal backend, and not a permanently hosted Windows agent.** Do not advertise live customer execution or results.
 
 Repository: [evansmusitu/mft-axiom-build](https://github.com/evansmusitu/mft-axiom-build), branch `product/lifeline-mt5-fivecloud-isolated-20261020`, [draft PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30). Protected `main` is out of scope. Budget **$0**; no paid provision, uncontrolled compute, public launch, broker orders, real customer data or arbitrary shell.
 
