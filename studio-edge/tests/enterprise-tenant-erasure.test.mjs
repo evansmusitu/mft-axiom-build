@@ -96,3 +96,16 @@ test('unverified D1 object or non-atomic batch results fail closed',async()=>{
  const notDb={prepare:()=>({}),batch:async()=>[{meta:{changes:1}}]};
  await assert.rejects(eraseTenantWorkspace(notDb,{...acceptance,execute:true}),/ERASURE_STORE_UNAVAILABLE/);
 });
+
+
+test('tenant erasure removes child records even when foreign-key cascading is unavailable',async()=>{
+ const db=new D1();try{
+   db.sql.exec('PRAGMA foreign_keys=OFF');
+   assert.equal(db.sql.prepare('PRAGMA foreign_keys').get().foreign_keys,0);
+   const result=await eraseTenantWorkspace(db,{...acceptance,execute:true});
+   assert.equal(result.executed,true);
+   assert.deepEqual(db.snapshot(TA),[0,0,0,0],
+     'operator must not silently strand encrypted ciphertext or Access memberships');
+   assert.deepEqual(db.snapshot(TB),[1,1,1,1]);
+ }finally{db.close();}
+});
