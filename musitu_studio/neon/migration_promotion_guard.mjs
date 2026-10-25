@@ -221,6 +221,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // modified data, billing controls or provider attestation drift.
     if(JSON.stringify(first)!==JSON.stringify(second))
       fail('STUDIO_EVIDENCE_CHANGED_DURING_PROMOTION');
+    let lastLiveFenceExpires=NaN,lastTargetBarrierExpires=NaN;
     // A signed snapshot from a past instant cannot demonstrate that the DO
     // write fence remains held NOW; require an authenticated live probe.
     const requireLiveFence=async()=>{
@@ -231,6 +232,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
          !Number.isFinite(expires)||expires-Date.now()<15000||
          expires-Date.now()>300000)
         fail('STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED');
+      lastLiveFenceExpires=expires;
     };
     // This is only a READ-ONLY canary. A database swap before a target write
     // barrier would lose new Neon writes if a later check rolls back to SQLite.
@@ -243,6 +245,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
          !Number.isFinite(expires)||expires-Date.now()<15000||
          expires-Date.now()>300000)
         fail('STUDIO_TARGET_WRITE_BARRIER_REQUIRED');
+      lastTargetBarrierExpires=expires;
     };
     await requireLiveFence();
     await requireTargetBarrier();
@@ -302,10 +305,26 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     assertStudioNeonPromotionEvidence(second,{expectedHead});
     if(!validOwnerBrowserApproval(ownerBefore,qualified))
       fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
+    // A slow final fencing-lease callback is another asynchronous interval:
+    // provider write barriers that were fresh before the await might expire
+    // while it runs. Never begin the route CAS with an obsolete lease proof.
+    if(!Number.isFinite(lastLiveFenceExpires)||
+       lastLiveFenceExpires-Date.now()<15000)
+      fail('STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED');
+    if(!Number.isFinite(lastTargetBarrierExpires)||
+       lastTargetBarrierExpires-Date.now()<15000)
+      fail('STUDIO_TARGET_WRITE_BARRIER_REQUIRED');
     if(await fencedCas('SQLITE_DO','NEON_CANARY_READONLY')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
     await requireTargetBarrier();
+    // Provider trust is revocable. Do not present a successful canary after
+    // signer/key or independent R2 authority was revoked during the CAS.
+    // A failure enters the existing fenced SQLite rollback path.
+    if(await verifyProviderReceipts(second)!==true)
+      fail('STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED');
+    if(await verifySignedR2VersionEvidence(second)!==true)
+      fail('STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED');
     const [browser,reconciled]=await Promise.all([
       verifySignedBrowser(qualified),verifyReconciledTarget(qualified)]);
     if(!validOwnerBrowserApproval(browser,qualified,ownerBefore.receipt_id)||

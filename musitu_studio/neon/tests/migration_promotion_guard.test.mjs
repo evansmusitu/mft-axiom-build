@@ -528,3 +528,47 @@ test('owner consent expires during final async lease proof before routing',async
   assert.equal(x.state().flips,0);
  }finally{Date.now=actualNow;}
 });
+
+// A provider lease check can be delayed by the network. An otherwise valid
+// fence receipt may expire while the final lease probe is outstanding.
+for(const kind of ['source','target']){
+ test(`${kind} fence expires during final lease assertion: never route to Neon`,async()=>{
+  const x=adapter();
+  const expires_at=new Date(Date.now()+15300).toISOString();
+  const original=kind==='source'?'verifyCurrentSourceFreeze':'verifyTargetWriteBarrier';
+  const probe=x.f[original];
+  x.f[original]=async info=>({...await probe(info),expires_at});
+  const originalLease=x.f.exclusiveLease;
+  x.f.exclusiveLease=async()=>{
+   const lease=await originalLease(); const verify=lease.assertHeld;
+   lease.assertHeld=async token=>{
+    await new Promise(resolve=>setTimeout(resolve,450));
+    return verify(token);
+   };
+   return lease;
+  };
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),
+   /STUDIO_SOURCE_FREEZE_LIVE_PROBE_FAILED|STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
+  assert.equal(x.state().flips,0);
+  assert.equal(x.state().route,'SQLITE_DO');
+ });
+}
+
+for(const kind of ['signed R2 key','independent provider receipt']){
+ test(`${kind} revoked after route CAS: immediately return to SQLite`,async()=>{
+  const x=adapter();
+  if(kind==='signed R2 key'){
+   const verified=x.f.verifySignedR2VersionEvidence;
+   x.f.verifySignedR2VersionEvidence=async info=>
+     x.state().route==='NEON_CANARY_READONLY'?false:verified(info);
+  }else{
+   const verified=x.f.verifyProviderReceipts;
+   x.f.verifyProviderReceipts=async info=>
+     x.state().route==='NEON_CANARY_READONLY'?false:verified(info);
+  }
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),
+    /STUDIO_R2_SIGNED_VERSION_PROOF_REQUIRED|STUDIO_PROVIDER_RECEIPTS_NOT_INDEPENDENTLY_VERIFIED/);
+  assert.equal(x.state().route,'SQLITE_DO');
+  assert.equal(x.state().flips,2,'revocation must trigger fenced rollback');
+ });
+}

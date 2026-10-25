@@ -1,6 +1,6 @@
 """Offline-only God Mode CLI routing contract; never invokes actual Blender/FFmpeg."""
 from __future__ import annotations
-import json, os, pathlib, subprocess, tempfile, unittest
+import json, os, pathlib, subprocess, tempfile, unittest, time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ENTRY = ROOT / 'creative' / 'god_mode_2099' / 'render.sh'
@@ -12,6 +12,9 @@ class GodModeRenderEntryTests(unittest.TestCase):
         # Only record argv; never load Blender or invoke a real video encoder.
         mock = '''#!/usr/bin/env python3
 import os,sys,json,pathlib
+if os.path.basename(sys.argv[0]).startswith('blender') and os.environ.get('MOCK_BLENDER_SLEEP'):
+ import time
+ time.sleep(float(os.environ['MOCK_BLENDER_SLEEP']))
 if '-a' in sys.argv:
  args=sys.argv
  prefix=args[args.index('-o')+1].replace('####','{number:04d}')+'.png'
@@ -153,6 +156,46 @@ if os.path.basename(sys.argv[0])=='ffprobe':
                                   capture_output=True,text=True,timeout=8)
             self.assertEqual(result.returncode,7)
             self.assertIn('exactly 360 frames',result.stderr)
+
+    def test_running_render_exclusively_reserves_frame_directory_before_blender(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            env['MOCK_BLENDER_SLEEP']='0.5'
+            out=str(pathlib.Path(temp)/'first.blend')
+            frames=str(pathlib.Path(temp)/'shared_frames')
+            first=subprocess.Popen(['bash',str(ENTRY),'preview',out,frames],
+                cwd=temp,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            try:
+                lock=pathlib.Path(frames)/'.musitu_2099_render.lock'
+                deadline=time.monotonic()+3
+                while not lock.exists() and time.monotonic()<deadline:
+                    if first.poll() is not None:break
+                    time.sleep(0.015)
+                self.assertTrue(lock.is_dir(),'the first Blender invocation must hold the atomic lock')
+                second=subprocess.run(['bash',str(ENTRY),'preview',
+                    str(pathlib.Path(temp)/'second.blend'),frames],cwd=temp,env=env,
+                    capture_output=True,text=True,timeout=20)
+                self.assertNotEqual(second.returncode,0)
+                self.assertIn('lock',second.stderr.lower())
+                stdout,stderr=first.communicate(timeout=45)
+                self.assertEqual(first.returncode,0,stderr)
+                self.assertFalse(lock.exists(),'successful render releases its own lock')
+            finally:
+                if first.poll() is None:
+                    first.kill();first.communicate()
+
+    def test_stale_render_lock_never_allows_blender_and_is_not_removed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp)
+            frames=pathlib.Path(temp)/'frames'; frames.mkdir()
+            lock=frames/'.musitu_2099_render.lock';lock.mkdir()
+            proc=subprocess.run(['bash',str(ENTRY),'preview',
+                str(pathlib.Path(temp)/'render.blend'),str(frames)],cwd=temp,env=env,
+                capture_output=True,text=True,timeout=8)
+            self.assertNotEqual(proc.returncode,0)
+            self.assertTrue(lock.is_dir(),'never delete an existing operator lock')
+            self.assertFalse(pathlib.Path(env['MOCK_LOG']).exists(),
+                'the Blender process must never start under a foreign lock')
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast

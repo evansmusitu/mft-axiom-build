@@ -15,8 +15,8 @@ OUTPUT_DIR="${3:-$PWD/rendered_frames}"
 if [[ "$MODE" != final && "$MODE" != preview ]]; then echo 'choose preview or final' >&2; exit 2; fi
 if (( $# > 3 )); then echo 'expected MODE [BLEND_PATH] [FRAME_DIRECTORY]' >&2; exit 2; fi
 # Check media-probe availability before expensive Blender CPU work.
-if ! command -v ffprobe >/dev/null || ! command -v awk >/dev/null; then
-  echo 'ffprobe and awk required to verify the final movie duration' >&2; exit 2
+if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null || ! command -v awk >/dev/null; then
+  echo 'ffmpeg, ffprobe and awk required before expensive Blender rendering' >&2; exit 2
 fi
 VIDEO="$(dirname "$OUT")/GOD_MODE_AWAKENING_2099_${MODE}.mp4"
 # Previous output may be a valuable 2099 scene or a completed MP4. Refuse
@@ -25,6 +25,16 @@ if [[ -e "$OUT" || -L "$OUT" || -e "$VIDEO" || -L "$VIDEO" ]]; then
   echo 'God Mode destination already exists; refusing overwrite' >&2; exit 3
 fi
 mkdir -p "$(dirname "$OUT")" "$OUTPUT_DIR"
+# mkdir is an atomic filesystem exclusion primitive. No provider, credentials,
+# network service, GPU quota, or paid process is involved. A second launcher
+# targeting the same frame directory fails before starting Blender. Never
+# steal or erase a stale lock: an operator must inspect partial outputs first.
+RENDER_LOCK="$OUTPUT_DIR/.musitu_2099_render.lock"
+if ! mkdir -- "$RENDER_LOCK" 2>/dev/null; then
+  echo 'God Mode frame directory is locked by another or interrupted render' >&2; exit 3
+fi
+cleanup_render_lock() { rmdir -- "$RENDER_LOCK" || true; }
+trap cleanup_render_lock EXIT
 shopt -s nullglob
 existing_frames=("$OUTPUT_DIR"/frame_*.png)
 if (( ${#existing_frames[@]} )); then
