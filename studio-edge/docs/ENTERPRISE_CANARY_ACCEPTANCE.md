@@ -19,6 +19,7 @@
 | 50 stored artifacts per tenant | SQLite DB trigger + 50/51 tests | Stored row count only |
 | 20 successful writes per tenant per rolling 60 seconds | SQL audit trigger + rollback tests | Not GET/CPU/identity/network/AI cost rate cap |
 | Bound metadata listing, max 10/page | Keyset SQL + adversarial tests | No guarantee of stable snapshot across pages |
+| Offline key derivation/re-derivation | PBKDF2 descriptor, non-exportable CryptoKey, cross-tenant/wrong-passphrase tests | No user-facing enrollment, key escrow, password quality/recovery acceptance or live lifecycle |
 | Browser-side AES-256-GCM, 96-bit nonce, tenant/object AAD | WebCrypto Node tests | Caller-supplied, non-extractable encryption key; recovery unavailable |
 | Manual opt-in SDK with token provider, timeout, bounded JSON | Positive and negative Node tests | No production sign-in UI, no automatic token persistence |
 | Explicit portable encrypted bundle | End-to-end SQLite and crypto test; checks ciphertext/revisions and final inventory | Not an atomic point-in-time export; does not automatically save or erase cloud data |
