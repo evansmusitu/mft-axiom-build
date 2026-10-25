@@ -133,7 +133,7 @@ export function createTenantWorkspaceClient(options) {
       !Array.isArray(bundle.artifacts) ||
       bundle.artifacts.length<1 || bundle.artifacts.length>50)
      fail('INVALID_BACKUP');
-   const ids=[];
+   const ids=[],validatedArtifacts=[];
    for(const item of bundle.artifacts){
      if(!item || typeof item!=='object' || Array.isArray(item) ||
         Object.keys(item).sort().join(',')!=='envelope,etag,id' ||
@@ -141,27 +141,37 @@ export function createTenantWorkspaceClient(options) {
         typeof item.etag!=='string' || !ETAG.test(item.etag) ||
         (ids.length && item.id<=ids[ids.length-1]))
        fail('INVALID_BACKUP');
+     const id=item.id;
+     // Snapshot primitive ciphertext fields BEFORE the first await. External
+     // getToken callbacks and page code must not change bytes after approval.
+     const encrypted=item.envelope;
+     const envelope=encrypted&&typeof encrypted==='object'
+       ? {version:encrypted.version,iv:encrypted.iv,ciphertext:encrypted.ciphertext} : null;
+     if(!encrypted || Object.keys(encrypted).sort().join(',')!=='ciphertext,iv,version')
+       fail('INVALID_BACKUP');
      // Authenticate ciphertext and tenant/artifact AAD with the supplied
      // non-extractable key. Plaintext is discarded; it is not returned.
-     try{await decryptTenantText(item.envelope,key,tenantId,item.id);}
+     try{await decryptTenantText(envelope,key,tenantId,id);}
      catch{fail('INVALID_BACKUP');}
-     ids.push(item.id);
+     ids.push(id);
+     validatedArtifacts.push({id,envelope});
    }
-   return {tenantId,count:ids.length,ids};
+   return {tenantId,count:ids.length,ids,validatedArtifacts};
  }
  return Object.freeze({
    async inspectEncryptedBundle(bundle) {
-     return inspectBundle(bundle);
+     const {tenantId:boundTenant,count,ids}=await inspectBundle(bundle);
+     return {tenantId:boundTenant,count,ids};
    },
    async restoreEncryptedArtifact({bundle,id,acknowledgeCreateOnly=false}={}) {
      if(acknowledgeCreateOnly!==true)fail('RESTORE_APPROVAL_REQUIRED');
      validateId(id);
      const inspected=await inspectBundle(bundle);
      if(!inspected.ids.includes(id))fail('INVALID_RESTORE_SELECTION');
-     // Restore ONE explicitly chosen ciphertext. Do not re-encrypt, migrate,
-     // silently overwrite, auto-retry, or import the whole bundle. Each upload
-     // counts toward the server-enforced rolling 20-mutations/minute budget.
-     const selected=bundle.artifacts.find(item=>item.id===id);
+     // Restore ONE explicitly chosen and pre-authenticated ciphertext snapshot.
+     // Neither UI changes nor asynchronous token callbacks may replace it.
+     // Never auto-retry, migrate local slots, or bulk-upload a full bundle.
+     const selected=inspected.validatedArtifacts.find(item=>item.id===id);
      const result=await send('PUT',{id},selected.envelope,null,true);
      return {id,etag:assertStored(result,id),created:true};
    },
