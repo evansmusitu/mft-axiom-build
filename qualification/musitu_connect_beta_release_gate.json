@@ -146,12 +146,13 @@
     "production_worker_updated": false,
     "request_id_integrity": "LOWERCASE_UUID_V4_PERSISTED_ATTEMPT_NEGATIVE_TESTED",
     "request_id_integrity_red_workflow_run": 40163764377,
-    "request_id_integrity_green_workflow_run": 40165571878,
+    "request_id_integrity_green_workflow_run": 40163879511,
     "invalid_request_id_variants_tested": 4,
     "real_external_customer_request_ids_verified": false,
     "production_admission_authorized": false,
     "current_tenant_daily_minute_limit_snapshot_enforced": true,
-    "current_limit_exceedance_is_historical_violation_proven": false
+    "current_limit_exceedance_is_historical_violation_proven": false,
+    "current_quota_limit_green_workflow_run": 40165571878
   },
   "offline_customer_d1_sql_guard": "SYNTHETIC_NODE_AND_LOCAL_WORKERD_UUIDV4_UTC24_REJECTED_NOT_REMOTE_D1",
   "offline_customer_d1_sql_guard_evidence": {
