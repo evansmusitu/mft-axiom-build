@@ -185,6 +185,33 @@ test('tenant-scoped minute quota refuses burst while accepting the next UTC minu
   assert.equal(rows(f.sql,'tenant_beta').length,0);
 });
 
+test('database trigger independently rejects forged UUID-v4 events without consuming quotas',()=>{
+  const f=fixture();
+  const direct=f.sql.prepare('INSERT INTO connect_customer_usage_events '+
+    '(tenant_id,credential_id,request_id,scope,utc_day,observed_at) '+
+    'VALUES(?,?,?,?,?,?)');
+  const forged=[
+    'not-uuid',
+    'aaaaaaaa-aaaa-1aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-aaaa-4aaa-7aaa-aaaaaaaaaaaa',
+    'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaag',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa',
+  ];
+  for (const value of forged) {
+    assert.throws(()=>direct.run('tenant_alpha','cred_alpha',value,
+      'mining.plan',DAY,'2026-10-22T12:00:00.000Z'),/CUSTOMER_EVENT_REQUEST_ID_INVALID/);
+  }
+  assert.equal(rows(f.sql,'tenant_alpha').length,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_daily_usage').get().n,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_minute_usage').get().n,0);
+  direct.run('tenant_alpha','cred_alpha',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','mining.plan',
+    DAY,'2026-10-22T12:00:00.000Z');
+  assert.equal(rows(f.sql,'tenant_alpha').length,1);
+  assert.equal(f.sql.prepare('SELECT SUM(used) AS n FROM connect_customer_daily_usage').get().n,1);
+});
+
 test('SQL enforces UTC day and timestamp coherence before quota updates',async()=>{
   const f=fixture();
   const statement=f.sql.prepare(`INSERT INTO connect_customer_usage_events
