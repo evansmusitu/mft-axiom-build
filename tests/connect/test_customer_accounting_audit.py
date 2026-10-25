@@ -166,6 +166,41 @@ class CustomerAccountingAuditTests(unittest.TestCase):
                             "WHERE tenant_id='tenant_alpha' AND request_id=?",
                             (invalid,))
 
+    def test_daily_quota_cannot_appear_consistent_after_limit_was_reduced(self):
+        # A snapshot with counters exactly equal to the underlying events
+        # must still fail its CURRENT configured policy when usage > limit.
+        # This cannot prove what the limit used to be at admission time.
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE connect_customer_tenants SET daily_limit=1 "
+                        "WHERE tenant_id='tenant_alpha'")
+        report=self.audit()
+        self.assertEqual(report['daily_counter_mismatches'],0)
+        self.assertEqual(report['minute_counter_mismatches'],0)
+        self.assertEqual(report['daily_quota_limit_exceedances'],1)
+        self.assertEqual(report['minute_quota_limit_exceedances'],0)
+        self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+        self.assertIs(report['customer_beta_admission'],False)
+
+    def test_minute_quota_cannot_appear_consistent_after_limit_was_reduced(self):
+        with sqlite3.connect(self.db) as con:
+            con.execute(
+                "INSERT INTO connect_customer_usage_events "
+                "(tenant_id,credential_id,request_id,scope,utc_day,observed_at) "
+                "VALUES(?,?,?,?,?,?)",
+                ('tenant_beta','cred_tenant_beta',
+                 '00000000-0000-4000-8000-000000000004',
+                 'mining.risk','2026-10-22',STAMP))
+            con.execute("UPDATE connect_customer_tenants SET minute_limit=1 "
+                        "WHERE tenant_id='tenant_beta'")
+        report=self.audit()
+        self.assertEqual(report['usage_events_examined'],4)
+        self.assertEqual(report['daily_counter_mismatches'],0)
+        self.assertEqual(report['minute_counter_mismatches'],0)
+        self.assertEqual(report['daily_quota_limit_exceedances'],0)
+        self.assertEqual(report['minute_quota_limit_exceedances'],1)
+        self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
+        self.assertFalse(report['hosted_d1_qualified'])
+
     def test_cli_success_creates_only_deidentified_summary_then_refuses_overwrite(self):
         module=importlib.import_module('qualification.audit_connect_customer_registry')
         target=self.root/'reconciliation.json'
