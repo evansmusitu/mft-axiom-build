@@ -228,3 +228,41 @@ OpenAI plugin submission is authorized by this feature branch.
 Production Connect-to-Axiom general-purpose calculation remains enabled
 under its **earlier separate authorization**. Independently unqualified
 production methane prediction stays blocked.
+
+
+## Offline customer quota reconciliation — 25 October 2026
+
+`qualification/audit_connect_customer_registry.py` is a **read-only local
+SQLite/D1-compatible accounting reconciliation**, not a hosted D1
+qualification or launch. It opens a local database in SQLite
+`mode=ro`, enables `query_only`, reads a single transactionally consistent
+snapshot, and independently counts admitted-attempt events by tenant/UTC
+day and tenant/UTC minute. It compares event-derived counts with the
+separate persisted daily and minute quota counter tables, checks that
+historical event credentials still reference their original tenant, and
+checks timestamp canonicality and scope. Inconsistent counters, orphaned
+credential-to-tenant references or malformed events produce
+`OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED`.
+
+The output contains **only aggregate counts and mismatch totals**; it
+cannot contain customer tokens, tenant identities, request IDs, site
+details or raw customer request bodies. Missing or invalid SQLite
+files fail without producing a success record. The output is
+exclusively created and never overwrites another audit. The fixture
+runs two fictional tenants, verifies three recorded attempts, and
+deliberately corrupts daily and minute counters to prove detection.
+
+Example with an approved disposable, nonproduction SQLite copy:
+
+```bash
+python -m qualification.audit_connect_customer_registry \
+  --database /private/approved-synthetic.sqlite \
+  --output /private/new-accounting-audit.json
+```
+
+**Scope limitation:** SQLite snapshot consistency does not prove Cloudflare
+hosted D1 cross-region atomicity, customer billing, real credential
+issuance, offboarding, operational security, production tenancy or
+data-use authorization. Existing general-purpose Connect-to-Axiom
+production computation is unchanged. New customer beta admission stays
+blocked pending independent staging and human operational evidence.
