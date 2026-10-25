@@ -168,3 +168,43 @@ test('different owner receipt mid-flight cannot replace the previously approved 
    /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
  assert.equal(f.state().flips,0);
 });
+
+test('independent source authority receipt cannot be silently replaced before CAS',async()=>{
+ const f=adapter();const original=f.opts.verifySQLiteAuthority;let checked=0;
+ f.opts.verifySQLiteAuthority=async (...args)=>{
+  const r=await original(...args);
+  return ++checked===1?r:{...r,receipt_id:'different-sqlite-proof-20261025'};
+ };
+ await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+  /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(checked,2);assert.equal(f.state().flips,0);
+});
+
+test('recovery CAS must bind both signed receipt identifiers',async()=>{
+ const f=adapter();const original=f.opts.compareAndSwapRoute;
+ f.opts.compareAndSwapRoute=async(from,to,claims)=>{
+  assert.equal(claims.owner_approval_receipt_id,'owner-incident-acceptance-20261025');
+  assert.equal(claims.sqlite_authority_receipt_id,'sqlite-authority-current-run-20261025');
+  return original(from,to,claims);
+ };
+ const r=await guardedStudioCanaryEmergencyReturn(f.opts);
+ assert.equal(r.recovered,true);
+});
+
+test('an approval expiring during async final fencing must not authorize the CAS',async()=>{
+ const f=adapter();const original=f.opts.exclusiveRecoveryLease;let leaseChecks=0;
+ const actualNow=Date.now;
+ f.opts.exclusiveRecoveryLease=async()=>{
+  const lease=await original();const check=lease.assertHeld;
+  lease.assertHeld=async (...args)=>{
+   const held=await check(...args);if(++leaseChecks===2)Date.now=()=>actualNow()+210000;
+   return held;
+  };
+  return lease;
+ };
+ try {
+  await assert.rejects(()=>guardedStudioCanaryEmergencyReturn(f.opts),
+   /STUDIO_CRITICAL_RECOVERY_ROUTE_UNVERIFIED_LEASE_HELD/);
+  assert.equal(leaseChecks,2);assert.equal(f.state().flips,0);
+ } finally {Date.now=actualNow;}
+});

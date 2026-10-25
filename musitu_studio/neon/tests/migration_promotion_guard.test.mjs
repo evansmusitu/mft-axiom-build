@@ -38,7 +38,9 @@ function adapter(p=proof(),flags={},nonceRegistry=new Set()){
  let nonceClaims=0,providerCalls=0;
  const f={expectedHead:sha,
  async exclusiveLease(){if(held||flags.leaseHeld)return {acquired:false};
- held=true;return {acquired:true,release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
+ held=true;return {acquired:true,fencing_token:'canary-fence-20261025-00001',
+  assertHeld:async()=>flags.fencingLost!==true,
+  release:async()=>{held=false;release++;if(flags.releaseFails)throw Error('SIMULATED_RELEASE_LOST')}}},
  async readRoute(){return route},
  async readEvidence(){reads++;if(flags.changedDigestSameEpoch&&reads===2){let x=copy(p);x.target_receipt.table_hmac.jobs='d'.repeat(64);x.source_receipt.table_hmac.jobs='d'.repeat(64);return x}if(flags.changedEpoch&&reads===2){let x=copy(p);x.run_id='different-evidence-id-20261022';return x}return copy(p)},
  async verifyProviderReceipts(){providerCalls++;
@@ -470,4 +472,59 @@ test('Neon target write barrier lost during final provider verification blocks r
  const x=adapter(proof(),{targetLostDuringFinalProvider:true});
  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_TARGET_WRITE_BARRIER_REQUIRED/);
  assert.equal(x.state().flips,0);
+});
+
+test('read-only Neon canary requires a token-fenced lease, not a bare acquired boolean',async()=>{
+ const x=adapter();const original=x.f.exclusiveLease;
+ x.f.exclusiveLease=async()=>{const lease=await original();delete lease.assertHeld;return lease;};
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_FENCED_LEASE_REQUIRED/);
+ assert.equal(x.state().flips,0);
+});
+
+test('stale canary lease fails closed before any SQLITE-to-Neon CAS',async()=>{
+ const x=adapter(proof(),{fencingLost:true});
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_CANARY_LEASE_FENCING_LOST/);
+ assert.equal(x.state().flips,0);
+});
+
+test('both canary and rollback CAS bind the frozen run, owner receipt and durable lease token',async()=>{
+ const x=adapter();let calls=0;
+ const old=x.f.compareAndSwapRoute;
+ x.f.compareAndSwapRoute=async(from,to,context)=>{
+  assert.equal(context?.fencing_token,'canary-fence-20261025-00001');
+  assert.equal(context?.source_head,sha);
+  assert.equal(context?.run_id,'synthetic-proof-20261022');
+  assert.equal(context?.freeze_id,'freeze-20261022-synthetic');
+  assert.equal(context?.owner_receipt_id,'synthetic-owner-browser-acceptance-20261024');
+  assert.equal(context?.r2_receipt_id,'synthetic-r2-provider-proof-20261024');
+  assert.equal(context?.nonce,'synthetic-r2-provider-proof-20261024:synthetic-proof-20261022');
+  calls++;
+  return old(from,to,context);
+ };
+ const r=await guardedStudioNeonPromotion(x.f);
+ assert.equal(r.canary,true);assert.equal(calls,2);
+});
+
+test('unowned canary appearing before authorization never receives a blind rollback CAS',async()=>{
+ const x=adapter(proof(),{unverified:true});let reads=0,casCalls=0;
+ x.f.readRoute=async()=>++reads===1?'SQLITE_DO':'NEON_CANARY_READONLY';
+ x.f.compareAndSwapRoute=async()=>{casCalls++;return true;};
+ await assert.rejects(()=>guardedStudioNeonPromotion(x.f),
+  /STUDIO_CRITICAL_ROUTE_UNVERIFIED_LEASE_HELD/);
+ assert.equal(casCalls,0,'no rollback without the owner-bound canary epoch');
+ assert.equal(x.state().release,0);
+});
+
+test('owner consent expires during final async lease proof before routing',async()=>{
+ const x=adapter();const actualNow=Date.now;
+ const originalLease=x.f.exclusiveLease;
+ x.f.exclusiveLease=async()=>{
+  const lease=await originalLease();
+  lease.assertHeld=async()=>{Date.now=()=>actualNow()+200000;return true;};
+  return lease;
+ };
+ try{
+  await assert.rejects(()=>guardedStudioNeonPromotion(x.f),/STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED/);
+  assert.equal(x.state().flips,0);
+ }finally{Date.now=actualNow;}
 });

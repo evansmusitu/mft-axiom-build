@@ -23,7 +23,10 @@ if os.path.basename(sys.argv[0])=='ffmpeg' and os.environ.get('MOCK_VIDEO_POLICY
 with open(os.environ['MOCK_LOG'],'a') as out:
  out.write(json.dumps({'program':os.path.basename(sys.argv[0]),'args':sys.argv[1:]})+'\\n')
 if os.path.basename(sys.argv[0])=='ffprobe':
- sys.stdout.write(os.environ.get('MOCK_PROBE_DURATION','12.000000')+'\\n')
+ if 'stream=nb_read_frames' in ' '.join(sys.argv):
+  sys.stdout.write(os.environ.get('MOCK_PROBE_FRAMES','360')+'\\n')
+ else:
+  sys.stdout.write(os.environ.get('MOCK_PROBE_DURATION','12.000000')+'\\n')
 '''
         blend=tools/'blender fake';blend.write_text(mock);blend.chmod(0o755)
         ffmpeg=tools/'ffmpeg';ffmpeg.write_text(mock);ffmpeg.chmod(0o755)
@@ -46,7 +49,7 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             frames=str(pathlib.Path(temp)/'frames for Android')
             proc,calls=self.run_entry(temp,'preview',out,frames)
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),4)
+            self.assertEqual(len(calls),5)
             first=calls[0]['args'];self.assertIn('--python',first)
             self.assertEqual(first[first.index('--python')+1],str(BUILDER))
             self.assertEqual(first[first.index('--output')+1],out)
@@ -77,7 +80,7 @@ if os.path.basename(sys.argv[0])=='ffprobe':
             out=str(home/'Awakened.blend')
             proc,calls=self.run_entry(temp,'preview',out,str(home/'frames'))
             self.assertEqual(proc.returncode,0,proc.stderr)
-            self.assertEqual(len(calls),4)
+            self.assertEqual(len(calls),5)
             final=calls[2]['args'][-1]
             self.assertEqual(calls[-1]['program'],'ffprobe')
             self.assertEqual(final,str(home/'GOD_MODE_AWAKENING_2099_preview.mp4'))
@@ -126,6 +129,30 @@ if os.path.basename(sys.argv[0])=='ffprobe':
                                 capture_output=True,text=True,timeout=8)
             self.assertNotEqual(proc.returncode,0,'a short video is not a 12-second render')
             self.assertIn('duration',proc.stderr.lower())
+
+    def test_exact_duration_with_missing_encoded_video_frame_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_FRAMES']='359'
+            proc=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                capture_output=True,text=True,timeout=8)
+            self.assertNotEqual(proc.returncode,0,'360 source images do not prove 360 encoded frames')
+            self.assertIn('frame',proc.stderr.lower())
+
+    def test_missing_encoded_video_stream_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_FRAMES']='N/A'
+            result=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                  capture_output=True,text=True,timeout=8)
+            self.assertEqual(result.returncode,7)
+            self.assertIn('exactly 360 frames',result.stderr)
+
+    def test_extra_encoded_video_stream_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=self.make_env(temp);env['MOCK_PROBE_FRAMES']='360\n360'
+            result=subprocess.run(['bash',str(ENTRY),'preview'],cwd=temp,env=env,
+                                  capture_output=True,text=True,timeout=8)
+            self.assertEqual(result.returncode,7)
+            self.assertIn('exactly 360 frames',result.stderr)
 
     def test_declared_scene_duration_is_exactly_12_seconds_without_real_renderer(self):
         import ast

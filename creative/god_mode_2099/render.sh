@@ -60,3 +60,14 @@ if [[ ! "$DURATION" =~ ^[0-9]+([.][0-9]+)?$ ]] ||
    ! LC_ALL=C awk -v duration="$DURATION" 'BEGIN {exit !(duration >= 11.99 && duration <= 12.01)}'; then
   echo 'God Mode encoded video duration must be 12 seconds' >&2; exit 6
 fi
+# Container duration alone does not prove that the encoder preserved the full
+# 360-frame sequence; count decoded video frames independently, not audio or
+# metadata duration. Absent/N/A/multiple video streams fail closed.
+VIDEO_FRAMES="$(ffprobe -v error -select_streams v -count_frames \
+  -show_entries stream=nb_read_frames \
+  -of default=noprint_wrappers=1:nokey=1 "$VIDEO")" || {
+  echo 'God Mode video frame probe failed' >&2; exit 7;
+}
+if [[ "$VIDEO_FRAMES" != '360' ]]; then
+  echo 'God Mode encoded video must contain exactly 360 frames' >&2; exit 7
+fi

@@ -1,0 +1,17 @@
+# Studio V0.3 — run-bound canary CAS, owner/source recovery receipts, encoded movie frames
+
+25 October 2026. **Isolated source branch only. Production migration: NO-GO. Paid rendering: NOT AUTHORIZED.**
+
+## Changes after the verified 417825ab handoff
+
+1. **Emergency return to SQLite (source-only `read_only_canary_recovery.mjs`).** The initial and final independently authenticated SQLite-authority receipts must carry the *same* exact `receipt_id`. That identifier and the unchanged owner approval `receipt_id` are now sent to the fenced route CAS, along with the freeze ID, canary run and source HEAD. Approval and authority expiration are checked again **after** the final asynchronous lease-fence acknowledgement, preventing an apparently valid proof from expiring while the backend is checking the lease.
+2. **Neon read-only canary (source-only `migration_promotion_guard.mjs`).** The operation lease must have a bounded opaque fencing token and an `assertHeld` callback. Before the SQLite-to-read-only-Neon CAS, the guard verifies the fence, re-evaluates the complete attestation and the previously signed owner approval, and supplies an immutable CAS context containing the reserved nonce, source HEAD, freeze, run, owner receipt, R2 provider receipt and fencing token. The return and failure-recovery CAS operations receive the same context. A spurious Neon route discovered when no epoch was reserved must *not* receive a blind rollback; it becomes an explicit manual-recovery incident with the lease retained. These are adapter contracts: the real provider CAS must atomically compare the route, durable lease fence, exact run, nonce, and owner/source trust state.
+3. **God Mode 2099 local movie (`creative/god_mode_2099/render.sh`).** In addition to requiring 360 nonempty source PNGs and an encoded duration within 11.99–12.01 seconds, `ffprobe -count_frames` checks the *encoded video stream itself* has precisely 360 readable frames. A missing video stream, extra video streams, `N/A` count, short movie or sparse frame sequence fails closed. The launcher still refuses output overwrite and caps local Blender threads. FFmpeg/ffprobe inspect local output only, with **no Modal or billed execution**.
+
+## Test evidence and remaining limits
+
+All new behavior was established with failing tests against the previous source, then passing focused suites. The recovery test cases cover substituted authority receipt, CAS proof binding, and approval expiry during asynchronous final fencing. Canary tests cover absent/stale fencing, mandatory CAS context, unrelated rollback without an epoch, and approval expiry during the fence. Movie tests cover a 12-second but 359-frame MP4, no video stream and multiple video streams.
+
+The local test log and exact commit are recorded in this handoff's evidence files. A synthetic fixture, boolean provider flag, or self-signed operator key is **not** independent Cloudflare R2, SQLite DO or owner attestation. The real durable atomic route CAS, issuer trust roots, nonce store, immutable R2 generations, hosted GitHub Actions, private Neon transport, owner acceptance, hosted rollback, and spending hard stops remain externally unproven and are release blockers. No production switch, privileged database query, protected customer R2 fetch, security-policy modification, or paid render was attempted.
+
+The full God Mode film has **not been rendered** in this runner: Blender is unavailable. FFmpeg probe checks can be tested against a tiny synthetic video, which does not prove scene quality or Blender integration.

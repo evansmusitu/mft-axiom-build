@@ -183,6 +183,19 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
   const lease=await exclusiveLease();
   if(!lease||typeof lease.release!=='function'||lease.acquired!==true)
     fail('STUDIO_EXCLUSIVE_LEASE_REQUIRED');
+  if(!NONCE.test(lease.fencing_token||'')||typeof lease.assertHeld!=='function')
+    fail('STUDIO_FENCED_LEASE_REQUIRED');
+  // All route CAS operations, including a recovery after lost acknowledgement,
+  // are tied to the same durable, owner-authorized canary epoch.
+  let casContext=null;
+  const fencedCas=(from,to)=>{
+    if(!casContext)fail('STUDIO_CANARY_CAS_EPOCH_NOT_RESERVED');
+    return compareAndSwapRoute(from,to,casContext);
+  };
+  const assertLease=async()=>{
+    if(await lease.assertHeld(lease.fencing_token)!==true)
+      fail('STUDIO_CANARY_LEASE_FENCING_LOST');
+  };
   let switched=false,rollbackError=null;
   try{
     if(await readRoute()!=='SQLITE_DO')fail('STUDIO_SOURCE_NOT_ACTIVE');
@@ -254,6 +267,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     if(!reserved||reserved.durable!==true||reserved.unique!==true||
        Object.keys(reservationRequest).some(k=>reserved[k]!==reservationRequest[k]))
       fail('STUDIO_ATTESTATION_NONCE_NOT_DURABLY_RESERVED');
+    casContext=Object.freeze({...reservationRequest,fencing_token:lease.fencing_token});
     // Consent and durable nonce operations may take enough time for a freeze,
     // target write barrier or signer registry state to become stale. Recheck
     // all three immediately before routing. A consumed nonce is never reused,
@@ -282,7 +296,13 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // never silently substitute a different owner approval post-reservation.
     if(!validOwnerBrowserApproval(ownerBefore,qualified))
       fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
-    if(await compareAndSwapRoute('SQLITE_DO','NEON_CANARY_READONLY')!==true)
+    await assertLease();
+    // Even the final remote fencing check is asynchronous. Reject evidence
+    // and owner consent that expired while waiting for its acknowledgement.
+    assertStudioNeonPromotionEvidence(second,{expectedHead});
+    if(!validOwnerBrowserApproval(ownerBefore,qualified))
+      fail('STUDIO_OWNER_BROWSER_APPROVAL_REQUIRED');
+    if(await fencedCas('SQLITE_DO','NEON_CANARY_READONLY')!==true)
       fail('STUDIO_NEON_ROUTE_CAS_REJECTED');
     switched=true;
     await requireTargetBarrier();
@@ -296,7 +316,8 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     // Both short TTL write barriers will eventually expire. Never leave
     // customer routing on a canary protected only by expiring barriers:
     // restore SQLite BEFORE the lease is released, even on successful proof.
-    if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')!==true||
+    await assertLease();
+    if(await fencedCas('NEON_CANARY_READONLY','SQLITE_DO')!==true||
        await readRoute()!=='SQLITE_DO')
       fail('STUDIO_CRITICAL_CANARY_RETURN_FAILED');
     switched=false;
@@ -309,7 +330,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
     catch{rollbackError=Error('STUDIO_ROUTE_READBACK_UNAVAILABLE')}
     if(observed==='NEON_CANARY_READONLY'){
       try{
-        if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')!==true||
+        if(await fencedCas('NEON_CANARY_READONLY','SQLITE_DO')!==true||
           await readRoute()!=='SQLITE_DO')throw Error('STUDIO_ROLLBACK_READBACK_FAILED');
       }catch(e){rollbackError=e}
     }else if(observed!=='SQLITE_DO')rollbackError=Error('STUDIO_ROUTE_UNKNOWN_AFTER_FAILURE');
@@ -333,7 +354,7 @@ export async function guardedStudioNeonPromotion({expectedHead,readEvidence,
       try{route=await readRoute()}catch{}
       if(route==='NEON_CANARY_READONLY'){
         let safe=false;
-        try{safe=await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO')===true&&
+        try{safe=await fencedCas('NEON_CANARY_READONLY','SQLITE_DO')===true&&
           await readRoute()==='SQLITE_DO'}catch{}
         if(!safe)fail('STUDIO_CRITICAL_LEASE_RELEASE_FAILED_ROLLBACK_UNVERIFIED');
         fail('STUDIO_LEASE_RELEASE_FAILED_AND_NEON_ROLLED_BACK');

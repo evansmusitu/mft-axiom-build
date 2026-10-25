@@ -76,7 +76,8 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
    fail('STUDIO_RECOVERY_ROUTE_UNKNOWN');
   const ownerApproval=await verifyOwnerRecoveryApproval(epoch);
   signedApproval(ownerApproval,epoch,Date.now());
-  authority(await verifySQLiteAuthority(epoch),epoch,Date.now());
+  const sourceApproval=await verifySQLiteAuthority(epoch);
+  authority(sourceApproval,epoch,Date.now());
   if(await lease.assertHeld(lease.fencing_token)!==true)
    fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
   if(route==='NEON_CANARY_READONLY'){
@@ -98,14 +99,23 @@ export async function guardedStudioCanaryEmergencyReturn({expectedHead,
    // cannot silently replace the receipt reviewed at lease acquisition.
    if(ownerRechecked.receipt_id!==ownerApproval.receipt_id)
     fail('STUDIO_RECOVERY_OWNER_APPROVAL_CHANGED');
-   authority(await verifySQLiteAuthority(epoch),epoch,Date.now());
+   const sourceRechecked=await verifySQLiteAuthority(epoch);
+   authority(sourceRechecked,epoch,Date.now());
+   if(sourceRechecked.receipt_id!==sourceApproval.receipt_id)
+    fail('STUDIO_RECOVERY_SOURCE_AUTHORITY_CHANGED');
    if(await lease.assertHeld(lease.fencing_token)!==true)
     fail('STUDIO_RECOVERY_LEASE_FENCING_LOST');
+   // An asynchronous fencing callback may itself outlive the remaining
+   // owner/source receipt validity; never carry expired claims into a CAS.
+   signedApproval(ownerRechecked,epoch,Date.now());
+   authority(sourceRechecked,epoch,Date.now());
    // No connection to Neon or SQLite customer data is required. A durable
    // operator-supplied CAS must check the lease token and exact route epoch.
    if(await compareAndSwapRoute('NEON_CANARY_READONLY','SQLITE_DO',
        {fencing_token:lease.fencing_token,run_id:epoch.run_id,
-        source_head:epoch.source_head,freeze_id:epoch.freeze_id})!==true)
+        source_head:epoch.source_head,freeze_id:epoch.freeze_id,
+        owner_approval_receipt_id:ownerRechecked.receipt_id,
+        sqlite_authority_receipt_id:sourceRechecked.receipt_id})!==true)
     fail('STUDIO_RECOVERY_RETURN_CAS_FAILED');
   }
   if(await readRoute()!=='SQLITE_DO')fail('STUDIO_RECOVERY_ROUTE_READBACK_FAILED');
