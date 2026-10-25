@@ -194,6 +194,23 @@ class IndependentHoldoutReplayTests(unittest.TestCase):
         self.assertIsNone(module._average_precision([1,1],[True,True]))
 
 
+    def test_observed_hard_warning_cannot_be_suppressed_by_frozen_predictor(self):
+        case=self.fixture
+        # Insert a REAL measured-threshold crossing inside the synthetic
+        # fold's feature grid; future outcomes remain a separate label.
+        case.rows[720]['MM263']=1.2
+        case.write_source()
+        case.protocol['canonical_source_sha256']=case.source_sha
+        case.seal_protocol()
+        result=self.replay()
+        fold=result['folds'][0]
+        self.assertGreaterEqual(fold['baseline']['tp']+fold['baseline']['fp'],1)
+        self.assertGreaterEqual(fold['model']['tp']+fold['model']['fp'],
+                                fold['baseline']['tp']+fold['baseline']['fp'])
+        self.assertIs(fold['hard_observed_warning_suppressed'],False)
+        self.assertIs(result['production_admission'],False)
+
+
 
 if __name__=='__main__':
     unittest.main()
