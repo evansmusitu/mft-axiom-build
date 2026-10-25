@@ -154,6 +154,9 @@ class CustomerAccountingAuditTests(unittest.TestCase):
                             "WHERE tenant_id='tenant_alpha' AND "
                             "request_id='00000000-0000-4000-8000-000000000001'",
                             (invalid,))
+                # A separate read-only connection can only inspect the
+                # *committed* snapshot, not this writer's uncommitted edit.
+                con.commit()
                 result=self.audit()
                 self.assertEqual(result['status'],
                                  'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')

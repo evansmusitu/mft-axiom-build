@@ -20,7 +20,7 @@ STAMP = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\Z')
 SCOPE = {'mining.plan', 'mining.risk'}
 # A committed attempt ID is minted exclusively by the customer admission
 # runtime. Non-UUID or wrong-version identifiers are never trusted evidence.
-UUID_V4 = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\Z'.replace('\\\\Z','\\Z'))
+UUID_V4 = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z')
 
 
 def _valid_utc_event(day: str, when: str) -> bool:
