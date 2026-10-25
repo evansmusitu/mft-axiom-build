@@ -128,7 +128,10 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
         while position < len(folds) and item.feature_time > folds[position]['last']:
             position += 1
         if position >= len(folds):
-            break
+            # Complete the entire source scan, including the unused tail.
+            # Otherwise provenance and row-count checks would cover only
+            # the prefix ending at the fourth declared evaluation fold.
+            continue
         fold = folds[position]
         if fold['first'] <= item.feature_time <= fold['last']:
             if list(item.features) != feature_names:
@@ -142,7 +145,7 @@ def evaluate_exact_holdout_folds(*, source: Path, manifest_path: Path,
     # while reading metadata. The seal SHA alone is not an external timestamp.
     if ([_sha256_file(p) for p in inputs] != source_digests
             or [_sha256_file(p) for p in model_files] != initial_model_bytes
-            or state['source_rows'] < coverage['source_rows'] - 360):
+            or state['source_rows'] != coverage['source_rows']):
         raise ValueError('holdout_replay_inputs_changed')
 
     summaries = []
