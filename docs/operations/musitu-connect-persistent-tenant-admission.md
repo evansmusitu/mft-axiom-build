@@ -266,3 +266,16 @@ issuance, offboarding, operational security, production tenancy or
 data-use authorization. Existing general-purpose Connect-to-Axiom
 production computation is unchanged. New customer beta admission stays
 blocked pending independent staging and human operational evidence.
+
+### Independent local SQLite handles (25 October 2026)
+
+An extra adversarial reference regression opens **two separate on-disk SQLite
+connections** to one disposable synthetic two-tenant registry and submits
+same-tenant quota reservations through each D1-style binding. A one-attempt
+tenant quota must allow only one reservation across both handles; the
+second request receives an HTTP-equivalent 429, and both connections must
+observe the same one-event/one-minute/one-day counters without cross-tenant
+writes. This is a stronger offline transactionality negative control than
+calling `Promise.all()` twice on one SQLite handle, but is still **not**
+Cloudflare hosted D1 regional concurrency, HTTP load balancing, or production
+customer admission.

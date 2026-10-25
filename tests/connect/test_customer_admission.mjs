@@ -227,3 +227,38 @@ test('admission capability cannot read a different database with the same tenant
     unrelated.sql.close();
   }
 });
+
+
+test('two separate on-disk SQLite handles cannot jointly exceed one tenant quota',async()=>{
+  const folder=mkdtempSync(join(tmpdir(),'musitu-connect-cross-handle-'));
+  let first=null,second=null;
+  try{
+    const dbPath=join(folder,'shared-synthetic-registry.sqlite');
+    const origin=fixture({alphaLimit:1,alphaMinuteLimit:1,filePath:dbPath});
+    first=origin.sql;
+    second=new DatabaseSync(dbPath);
+    second.exec('PRAGMA foreign_keys=ON');
+    // A distinct SQLite connection, not the same in-memory database handle.
+    const replicaBinding={prepare(statement){return {bind(...values){return {async first(){
+      return second.prepare(statement).get(...values)??null;
+    }}}}}};
+    const alternate={...origin.env,CONNECT_CUSTOMER_DB:replicaBinding};
+    const checks=await Promise.all([
+      admit(origin.env,t1,'mining.plan','c1111111-1111-4111-8111-111111111111'),
+      admit(alternate,t1,'mining.plan','c2222222-2222-4222-8222-222222222222'),
+    ]);
+    assert.equal(checks.filter(x=>x.ok).length,1);
+    assert.equal(checks.filter(x=>x.status===429).length,1);
+    assert.equal(rows(first,'tenant_alpha').length,1);
+    assert.equal(rows(second,'tenant_alpha').length,1);
+    assert.equal(first.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=? AND utc_day=?')
+      .get('tenant_alpha',DAY).used,1);
+    assert.equal(second.prepare('SELECT used FROM connect_customer_minute_usage WHERE tenant_id=?')
+      .get('tenant_alpha').used,1);
+    assert.equal(rows(first,'tenant_beta').length,0);
+  }finally{
+    if(first)first.close();
+    if(second)second.close();
+    rmSync(folder,{recursive:true,force:true});
+  }
+});
