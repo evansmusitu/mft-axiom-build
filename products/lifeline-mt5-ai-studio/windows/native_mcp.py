@@ -162,9 +162,30 @@ class NativeMCP:
             "capabilities": {},
             "clientInfo": {"name": "lifeline-native-research", "version": "0.5.0"},
         })
+        if result.get("protocolVersion") != MCP_VERSION:
+            raise NativeMCPError("native MCP protocol version incompatible")
+        # MCP Streamable HTTP handshake: after initialize's response, clients
+        # MUST notify the server before issuing tools/list or tools/call.
+        # Notifications carry NO JSON-RPC id and expect an empty 2xx response.
+        notice = json.dumps({"jsonrpc":"2.0", "method":"notifications/initialized"},
+                            separators=(",", ":")).encode("utf-8")
+        headers = {
+            "Authorization": "Bearer " + self.config.token,
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": MCP_VERSION,
+        }
+        if self.session:
+            headers["Mcp-Session-Id"] = self.session
+        try:
+            reply = self.transport(self.config.endpoint, notice, headers)
+        except Exception as exc:
+            raise NativeMCPError("native MCP initialized notification rejected") from None
+        if not isinstance(reply, tuple) or len(reply) != 3 or reply[0] != b"":
+            raise NativeMCPError("native MCP initialized notification rejected")
         self.initialized = True
         return {"server": self.config.server,
-                "protocolVersion": result.get("protocolVersion"),
+                "protocolVersion": result["protocolVersion"],
                 "serverInfo": result.get("serverInfo")}
 
     def list_safe_tools(self) -> list[dict]:
