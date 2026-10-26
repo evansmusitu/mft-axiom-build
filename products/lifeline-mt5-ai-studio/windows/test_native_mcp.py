@@ -14,12 +14,16 @@ class NativeMock:
         self.methods = []
         self.urls = []
         self.headers = []
+        self.raws = []
 
     def __call__(self, url, raw, headers):
         data = json.loads(raw)
         self.methods.append(data["method"])
         self.urls.append(url)
         self.headers.append(headers)
+        self.raws.append(raw)
+        if data["method"] == "notifications/initialized":
+            return b"", "application/json", "session-ok"
         result = {}
         if data["method"] == "initialize":
             result = {"protocolVersion":"2025-03-26","serverInfo":{"name":"metaeditor","version":"latest"}}
@@ -54,7 +58,44 @@ class Tests(unittest.TestCase):
         self.assertEqual(fake.urls[0],"http://127.0.0.1:22345/mcp")
         self.assertEqual(fake.headers[0]["Authorization"],"Bearer "+TOKEN)
         cli.list_safe_tools()
+        self.assertEqual(fake.headers[2]["Mcp-Session-Id"],"session-ok")
+
+    def test_initialize_emits_required_initialized_notification_before_tools(self):
+        client,fake=self.client()
+        client.initialize()
+        client.list_safe_tools()
+        self.assertEqual(fake.methods[:3], ["initialize", "notifications/initialized", "tools/list"])
+        notification=json.loads(fake.raws[1])
+        self.assertNotIn("id", notification)
+        self.assertEqual(notification["jsonrpc"],"2.0")
         self.assertEqual(fake.headers[1]["Mcp-Session-Id"],"session-ok")
+
+    def test_initialize_rejects_incompatible_protocol_version(self):
+        class Incompatible(NativeMock):
+            def __call__(self,url,raw,headers):
+                data=json.loads(raw)
+                if data["method"]=="initialize":
+                    return json.dumps({"jsonrpc":"2.0","id":data["id"],"result":{
+                        "protocolVersion":"2024-11-05","serverInfo":{"name":"old"}}}).encode(),"application/json",None
+                raise AssertionError("must not send initialized notification after incompatible version")
+        client=NativeMCP(NativeConfig("terminal",TOKEN),Incompatible())
+        with self.assertRaisesRegex(NativeMCPError,"protocol version"):
+            client.initialize()
+        self.assertFalse(client.initialized)
+
+    def test_initialize_fails_closed_when_notification_rejected(self):
+        class RejectNotification(NativeMock):
+            def __call__(self,url,raw,headers):
+                data=json.loads(raw)
+                if data["method"]=="notifications/initialized":
+                    return b'{"error":"must never accept body"}',"application/json",None
+                return super().__call__(url,raw,headers)
+        client=NativeMCP(NativeConfig("terminal",TOKEN),RejectNotification())
+        with self.assertRaisesRegex(NativeMCPError,"initialized notification"):
+            client.initialize()
+        self.assertFalse(client.initialized)
+        with self.assertRaisesRegex(NativeMCPError,"initialize required"):
+            client.list_safe_tools()
 
     def test_mcp_tool_discovery_filtered(self):
         cli,fake=self.client()
@@ -71,7 +112,7 @@ class Tests(unittest.TestCase):
                      "get_chart_ticks_history","get_chart_history"):
             with self.subTest(name=name),self.assertRaises(NativeMCPError):
                 cli.call_readonly(name,{})
-        self.assertEqual(fake.methods, ["initialize"])
+        self.assertEqual(fake.methods, ["initialize", "notifications/initialized"])
 
     def test_allowed_readonly_tool_call(self):
         cli,fake=self.client()
