@@ -5,12 +5,14 @@ admission gate, a deployment, a credentialed check, or a methane predictor test.
 """
 import argparse
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 HEALTH_URL = 'https://mcp.mftintelligence.com/health'
 MAX_BYTES = 8192
+PUBLIC_NUMERIC_VERSION = re.compile(r'(?:[0-9]{1,4}\.){2}[0-9]{1,4}')
 EXPECTED = (
     ('ok', True),
     ('server_version', '4.0.0'),
@@ -43,6 +45,12 @@ def assess_response(status, body):
         # Python equality allows 1 == True; require type identity for booleans.
         if type(actual) is not type(expected) or actual != expected:
             report['failed_checks'].append(field + '_mismatch' if field != 'ok' else 'health_ok_mismatch')
+    # A public version hint is safe only if every other health/auth flag passes.
+    # Do not echo any server value while a different security check has failed.
+    observed = value.get('server_version')
+    if (report['failed_checks'] == ['server_version_mismatch']
+            and type(observed) is str and PUBLIC_NUMERIC_VERSION.fullmatch(observed)):
+        report['observed_server_version'] = observed
     report['ready'] = not report['failed_checks']
     return report
 

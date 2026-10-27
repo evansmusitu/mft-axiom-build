@@ -1,6 +1,7 @@
 """Public read-only MCP v4 health: report missing contracts without raw response data."""
 import json
 import unittest
+from pathlib import Path
 from qualification.diagnose_axiom_public_health import assess_response
 
 
@@ -42,6 +43,27 @@ class AxiomPublicHealthDiagnostics(unittest.TestCase):
             'submission_safe_commerce_profile_mismatch', 'oauth_enforced_mismatch'])
         self.assertNotIn('NEVER_EXPOSE_RAW_DATA', json.dumps(result))
         self.assertNotIn('5.1.0', json.dumps(result))
+
+    def test_public_semver_only_is_reported_when_health_version_drifts(self):
+        """Permit only a bounded public numeric version; never echo raw data."""
+        valid = {
+            'ok': True, 'server_version': '4.1.7',
+            'submission_safe_commerce_profile': True, 'oauth_enforced': True,
+        }
+        result = assess_response(200, json.dumps(valid).encode())
+        self.assertFalse(result['ready'])
+        self.assertEqual(result['failed_checks'], ['server_version_mismatch'])
+        self.assertEqual(result.get('observed_server_version'), '4.1.7')
+        workflow = (Path(__file__).resolve().parents[2] /
+                    '.github/workflows/axiom-public-health-diagnostics.yml')
+        self.assertIn('observed_server_version', workflow.read_text(encoding='utf-8'))
+        for untrusted in ('v4.1.7', '<script>secret</script>', '9' * 80 + '.1.1',
+                          '4.0.0\\nPRIVATE_TOKEN', 4, None):
+            with self.subTest(input=repr(untrusted)):
+                invalid = dict(valid, server_version=untrusted)
+                report = assess_response(200, json.dumps(invalid).encode())
+                self.assertNotIn('observed_server_version', report)
+                self.assertNotIn(str(untrusted), json.dumps(report))
 
     def test_http_error_is_not_confused_with_healthy_json(self):
         result = assess_response(503, b'{"ok": true}')
