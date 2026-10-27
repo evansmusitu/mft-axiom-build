@@ -8,6 +8,9 @@ from copy import deepcopy
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,6 +117,44 @@ class CommercialGaReleaseTests(unittest.TestCase):
         record = self._test_only_all_qualified_record()
         record['release']['new_customer_registration_open'] = False
         self.assertEqual(audit(record)[2], 'READY_EVIDENCE_BUT_INCONSISTENT_PROMOTION')
+
+    def test_release_parser_rejects_ambiguous_or_nonfinite_ga_json(self):
+        """One release file must have one unambiguous, bounded interpretation."""
+        from qualification.validate_commercial_ga import main
+        original = GA.read_text(encoding='utf-8')
+        target = '"commercial_ga_enabled": false,'
+        self.assertEqual(original.count(target), 1)
+        duplicate = original.replace(
+            target,
+            '"commercial_ga_enabled": true,\\n    "commercial_ga_enabled": false,'.replace('\\n', '\n'),
+            1,
+        )
+        cases = [('duplicate_nested_release_key', duplicate)]
+        for token in ('NaN', 'Infinity', '-Infinity', '1e999'):
+            altered = original.replace(
+                '"owner_authorization": {',
+                '"untrusted_extraneous_numeric": ' + token + ',\\n  "owner_authorization": {'.replace('\\n', '\n'),
+                1,
+            )
+            cases.append(('nonfinite_' + token, altered))
+        cases.append(('oversized_valid_json', original + (' ' * 70000)))
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / 'ga-release.json'
+            for label, payload in cases:
+                with self.subTest(case=label):
+                    candidate.write_text(payload, encoding='utf-8')
+                    out = StringIO()
+                    with patch('qualification.validate_commercial_ga.RECORD_PATH', candidate), \
+                            patch.object(sys, 'argv', ['validate_commercial_ga.py', '--audit']), \
+                            redirect_stdout(out):
+                        result = main()
+                    self.assertEqual(result, 1, label + ': ' + out.getvalue())
+                    self.assertIn('RELEASE_RECORD_UNREADABLE', out.getvalue())
+            candidate.write_text(original, encoding='utf-8')
+            with patch('qualification.validate_commercial_ga.RECORD_PATH', candidate), \
+                    patch.object(sys, 'argv', ['validate_commercial_ga.py', '--audit']), \
+                    redirect_stdout(StringIO()):
+                self.assertEqual(main(), 0, 'the existing blocked GA record remains valid')
 
     def test_release_validator_audits_blocked_state_and_refuses_ga_promotion(self):
         audit = subprocess.run([sys.executable, 'qualification/validate_commercial_ga.py', '--audit'],
