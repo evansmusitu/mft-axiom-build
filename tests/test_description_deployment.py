@@ -102,6 +102,27 @@ class DescriptionDeploymentTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "only replace"):
             client.cf("/content", "POST", body=b"{}")
 
+    def test_legacy_read_fallback_is_read_only_and_cached(self):
+        client = object.__new__(DEPLOY.Client)
+        calls = []
+        def cf(suffix, method="GET", headers=None, body=None):
+            calls.append((suffix, method))
+            if suffix == "/content/v2":
+                raise DEPLOY.CloudflareError(403, suffix, [10000])
+            return {"Content-Type": "application/javascript", "CF-WORKER-MAIN-MODULE-PART": "index.mjs"}, BASELINE
+        client.cf = cf
+        self.assertEqual(client.module(), ("index.mjs", BASELINE))
+        self.assertEqual(client.module(), ("index.mjs", BASELINE))
+        self.assertEqual(calls, [("/content/v2", "GET"), ("", "GET"), ("", "GET")])
+
+    def test_cloudflare_errors_expose_codes_without_response_data(self):
+        client = object.__new__(DEPLOY.Client)
+        client.admin = {}
+        client.request = lambda *args, **kwargs: (403, {}, b'{"errors":[{"code":10000,"message":"private diagnostic text"}]}')
+        with self.assertRaisesRegex(DEPLOY.CloudflareError, "10000") as captured:
+            client.cf("/content/v2")
+        self.assertNotIn("private diagnostic text", str(captured.exception))
+
     def test_source_drift_stops_without_a_write(self):
         FakeClient.initial = b"different operator source"
         report = self.run_main("Live source does not match")

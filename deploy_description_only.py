@@ -83,6 +83,12 @@ def validate_tool_change(before, after):
     return 104
 
 
+class CloudflareError(RuntimeError):
+    def __init__(self, status, suffix, codes):
+        self.status = status
+        super().__init__(f"Cloudflare {suffix} returned HTTP {status}; error codes {codes}")
+
+
 class Client:
     def __init__(self):
         self.admin = {"X-Auth-Email": os.environ["CLOUDFLARE_EMAIL"], "X-Auth-Key": os.environ["CLOUDFLARE_GLOBAL_API_KEY"], "User-Agent": "MUSITU-Axiom-Approved-Description-Deploy/1.0"}
@@ -103,11 +109,25 @@ class Client:
             raise RuntimeError("This job may only replace the one approved Worker's code content")
         status, response_headers, response_body = self.request(CF_ROOT + SCRIPT_PATH + suffix, method, {**self.admin, **(headers or {})}, body)
         if not 200 <= status < 300:
-            raise RuntimeError(f"Cloudflare {method} {suffix} returned HTTP {status}")
+            try:
+                codes = [item.get("code") for item in json.loads(response_body).get("errors", []) if isinstance(item.get("code"), int)]
+            except (ValueError, AttributeError, TypeError):
+                codes = []
+            raise CloudflareError(status, suffix, codes)
         return response_headers, response_body
 
     def module(self):
-        return parse_module(*self.cf("/content/v2"))
+        suffix = getattr(self, "_content_read_suffix", "/content/v2")
+        try:
+            result = self.cf(suffix)
+        except CloudflareError as error:
+            if suffix != "/content/v2" or error.status not in {403, 404}:
+                raise
+            # The documented legacy script-download API reads the same Worker with the same credentials.
+            result = self.cf("")
+            suffix = ""
+        self._content_read_suffix = suffix
+        return parse_module(*result)
 
     def settings(self):
         _, body = self.cf("/settings")
@@ -143,11 +163,18 @@ def main():
     evidence_dir = Path("deployment-evidence")
     evidence_dir.mkdir(exist_ok=True)
     report = {"status": "PREFLIGHT", "worker": WORKER, "approved_sha256": CANDIDATE_SHA, "baseline_sha256": BASELINE_SHA, "writes_permitted": ["PUT worker content only"], "github_commit": os.environ.get("GITHUB_SHA"), "rollback": "not_needed"}
+    (evidence_dir / "deployment-result.json").write_text(json.dumps(report, indent=2) + "\n")
     candidate = Path("candidate/mcp/musitu_axiom_plugin_gate_v4.mjs").read_bytes()
     if sha(candidate) != CANDIDATE_SHA:
         raise RuntimeError("Candidate digest differs from the user-approved source")
     client = Client()
-    module_name, original = client.module()
+    try:
+        module_name, original = client.module()
+    except CloudflareError as error:
+        report.update(status="PREFLIGHT_SOURCE_READ_REJECTED", error=str(error))
+        (evidence_dir / "deployment-result.json").write_text(json.dumps(report, indent=2) + "\n")
+        print(json.dumps(report, sort_keys=True))
+        raise
     current_sha = sha(original)
     report["observed_source_sha256"] = current_sha
     if current_sha not in {BASELINE_SHA, CANDIDATE_SHA}:
