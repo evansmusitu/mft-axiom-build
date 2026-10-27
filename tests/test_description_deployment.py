@@ -66,6 +66,8 @@ class DescriptionDeploymentTests(unittest.TestCase):
             root = Path(directory)
             (root / "candidate/mcp").mkdir(parents=True)
             (root / "candidate/mcp/musitu_axiom_plugin_gate_v4.mjs").write_bytes(CANDIDATE)
+            (root / "baseline/mcp").mkdir(parents=True)
+            (root / "baseline/mcp/musitu_axiom_plugin_gate_v4.mjs").write_bytes(BASELINE)
             real_old = Path.cwd()
             try:
                 os.chdir(root)
