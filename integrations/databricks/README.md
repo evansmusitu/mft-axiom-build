@@ -57,3 +57,17 @@ The GitHub workflow:
 No Databricks jobs, clusters, SQL warehouses, notebooks, or MLflow evaluations are executed; the `RUN_MLFLOW_EVALUATION` flag stays false. No production Axiom operations are called.
 
 **Evidence:** review the one-time tagged GitHub Actions run; only a successful verified import marker constitutes proof. The new write is strictly limited to notebook metadata/source in the authenticated user's home.
+
+
+## Spark scale benchmark (synthetic)
+
+- Source: `notebooks/02_musitu_axiom_spark_scale.py`.
+- Two deterministic Spark workloads: 100,000 and 1,000,000 rows.
+- Exactly every 17th row is deliberately corrupted; zero false positives and false negatives are required.
+- Includes Decimal versus binary float drift control and an attempt at logging performance and accuracy to Databricks MLflow.
+- The separate import is non-overwriting and does not start compute.
+- The execution is a one-time Databricks serverless Jobs API run, triggered only by commit tag `[databricks-spark-run]`, with no persistent cluster, no retries, and a 1500-second timeout.
+- No actual Axiom production requests or customer data are made.
+- The workflow refuses unsupported or mismatched notebook output even when Databricks reports the job itself as successful.
+
+Follow actual job logs for IDs, timings and real MLflow outcome; no performance numbers are assumed in advance.
