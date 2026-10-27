@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, localcontext
 import hashlib
 import io
+import json
 import re
 
 MAX_BYTES=1024*1024
@@ -85,6 +86,9 @@ def parse_history(csv_bytes: bytes, symbol: str, timeframe: str, claimed_source:
             'source_class':'UNVERIFIED_OWNER_SUPPLIED_CSV','broker_verified':False,
             'live_feed_verified':False,'bars':bars}
     dataset['parsed_sha256']=_bars_digest(dataset)
+    # Detect accidental in-memory relabeling of the research dataset as well
+    # as bar edits; this is not a signature or broker-origin attestation.
+    dataset['import_binding_sha256']=_metadata_binding(dataset)
     return dataset
 
 
@@ -99,12 +103,28 @@ def _bars_digest(dataset: dict) -> str:
     return hashlib.sha256(normalized.encode('ascii')).hexdigest()
 
 
+def _metadata_binding(dataset: dict) -> str:
+    """Unkeyed parser-output fingerprint, never a proof of trusted broker origin."""
+    keys=('schema','symbol','timeframe','claimed_source','source_class',
+          'sha256','parsed_sha256','broker_verified','live_feed_verified')
+    try:
+        values={key:dataset[key] for key in keys}
+        values['bar_count']=len(dataset['bars'])
+        raw=json.dumps(values,sort_keys=True,separators=(',',':'),ensure_ascii=True)
+    except (KeyError,TypeError,ValueError) as exc:
+        raise ResearchError('invalid imported metadata') from exc
+    return hashlib.sha256(raw.encode('ascii')).hexdigest()
+
+
 def _check_dataset(dataset: dict) -> None:
     if not isinstance(dataset,dict) or dataset.get('schema')!='lifeline.owner_csv.v1' \
-            or dataset.get('broker_verified') is not False or not dataset.get('bars'):
+            or dataset.get('broker_verified') is not False or dataset.get('live_feed_verified') is not False \
+            or dataset.get('source_class')!='UNVERIFIED_OWNER_SUPPLIED_CSV' or not dataset.get('bars'):
         raise ResearchError('unqualified dataset')
     if dataset.get('parsed_sha256') != _bars_digest(dataset):
         raise ResearchError('parsed market data changed after import')
+    if dataset.get('import_binding_sha256') != _metadata_binding(dataset):
+        raise ResearchError('import metadata changed after parsing')
 
 
 def assess_freshness(dataset: dict, now: datetime | None=None, max_age_sec: int=90) -> dict:

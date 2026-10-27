@@ -58,6 +58,24 @@ class ResearchPipelineTests(unittest.TestCase):
         with self.assertRaises(ResearchError):walk_forward(ds,[(3,8)])
         with self.assertRaises(ResearchError):assess_freshness(ds,ds['bars'][-1]['time'])
 
+    def test_import_metadata_cannot_be_altered_after_parsing(self):
+        # Previous integrity check covered bars only. An altered symbol or SHA
+        # could make the offline research report attribute a result to fake data.
+        mutations=(
+            ("symbol","XAUUSD"),
+            ("timeframe","H4"),
+            ("claimed_source","trusted_broker"),
+            ("sha256","0"*64),
+            ("source_class","BROKER_VERIFIED"),
+            ("live_feed_verified",True),
+        )
+        for key,replacement in mutations:
+            with self.subTest(key=key):
+                ds=self.load()
+                ds[key]=replacement
+                with self.assertRaises(ResearchError):walk_forward(ds,[(3,8)])
+                with self.assertRaises(ResearchError):assess_freshness(ds,ds['bars'][-1]['time'])
+
     def test_quote_snapshot_freshness_does_not_claim_broker_connection(self):
         ds=self.load()
         t=ds['bars'][-1]['time']

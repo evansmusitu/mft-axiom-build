@@ -6,7 +6,7 @@ from __future__ import annotations
 import json,os,urllib.error,urllib.request
 ACCOUNT="93f395f5121954671f92fffa453d6b61"
 BASE="/accounts/"+ACCOUNT
-ALLOWED=frozenset({BASE,BASE+"/d1/database?per_page=100",BASE+"/subscriptions"})
+ALLOWED=frozenset({BASE,BASE+"/d1/database?per_page=100",BASE+"/subscriptions",BASE+"/workers/scripts"})
 
 class ProviderReadError(Exception):
     pass
@@ -44,7 +44,27 @@ def preflight(get):
             subscriptions="authorized"
     except Exception:
         subscriptions="unverified"
+    # GET-only inventory: this endpoint reports currently visible script names,
+    # not an exhaustive quota certificate or evidence that a matching name is ours.
+    worker_status="unverified";worker_count=None;candidate_worker=None
+    try:
+        code,body=get(BASE+"/workers/scripts")
+        if code in (401,403):
+            worker_status="permission_denied"
+        elif _status(code,body) and type(body.get("result")) is list:
+            workers=body["result"]
+            if all(type(x) is dict and type(x.get("id")) is str for x in workers):
+                worker_status="authorized_snapshot"
+                worker_count=len(workers)
+                candidate_worker=any(
+                    w["id"]=="lifeline-mt5-status-private-isolated" for w in workers)
+    except Exception:
+        worker_status="unverified"
     return {
+        "workers_script_list_read_status":worker_status,
+        "workers_script_count_observed":worker_count,
+        "stateless_worker_name_observed":candidate_worker,
+        "workers_script_quota_available_verified":False,
         "schema":"lifeline.cloudflare_d1_readonly_eligibility.v1",
         "exact_account_verified":True,"d1_list_read_status":d1_status,
         "d1_database_count":count,"candidate_db_name_exists":candidate,

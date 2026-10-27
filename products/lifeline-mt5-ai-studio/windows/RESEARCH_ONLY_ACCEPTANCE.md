@@ -19,3 +19,7 @@ For genuine **live** chart monitoring, a current authenticated owner terminal or
 For genuine **24/7** uptime, a donated or existing owner-controlled Windows x64 system must remain running, and separately collected uninterrupted monitoring evidence must be reviewed. GitHub's temporary Windows CI runners and a one-off host readiness check do **not** meet this requirement.
 
 Public customer registration and order execution remain **DISABLED**, and the private D1-free Cloudflare worker remains **UNDEPLOYED** pending exact-account free entitlement and spend-gate verification.
+
+### 27 October source-integrity refinement
+
+The parser also computes an **unkeyed metadata binding hash** across its import labels, symbol, timeframe, original-byte SHA-256, parsed-bars digest and non-live provenance flags. This detects accidental in-memory changes to these fields after parsing and before analysis; it is **not a signature, not a tamper-proof ledger and not broker-history authentication**. An actor able to modify the data and recompute its unkeyed hash could forge it. No source should use the hash to set `broker_verified` or `live_feed_verified` to true.

@@ -11,14 +11,15 @@ class ReadOnlyPreflightTests(unittest.TestCase):
           BASE+"/d1/database?per_page=100": (200,{**ok([{"name":"DO_NOT_DISCLOSE-private-db","uuid":"DO_NOT_DISCLOSE-id"}]),
               "result_info":{"total_count":1,"count":1}}) if d1 else (403,{"message":"DO_NOT_DISCLOSE"}),
           BASE+"/subscriptions":(200,ok([{"id":"DO_NOT_DISCLOSE-id","price":5 if paid else 0,
-              "rate_plan":{"id":"free","public_name":"Free Website Zone","scope":"zone"}}]))
+              "rate_plan":{"id":"free","public_name":"Free Website Zone","scope":"zone"}}])),
+          BASE+"/workers/scripts":(200,ok([{"id":"unrelated-secret-worker","other_data":"DO_NOT_DISCLOSE"}]))
         }
         def get(path):seen.append(path);return answers[path]
         return get,seen
     def test_exact_account_readonly_and_redacted(self):
         get,calls=self.factory()
         r=preflight(get)
-        self.assertEqual(calls,[BASE,BASE+"/d1/database?per_page=100",BASE+"/subscriptions"])
+        self.assertEqual(calls,[BASE,BASE+"/d1/database?per_page=100",BASE+"/subscriptions",BASE+"/workers/scripts"])
         self.assertTrue(r["exact_account_verified"])
         self.assertEqual(r["d1_list_read_status"],"authorized")
         self.assertEqual(r["d1_database_count"],1)
@@ -80,5 +81,57 @@ class ReadOnlyPreflightTests(unittest.TestCase):
         self.assertTrue(r["candidate_db_name_exists"])
         self.assertFalse(r["provisioning_authorized"])
         self.assertNotIn("DO_NOT_DISCLOSE",str(r))
+
+    def test_worker_list_observability_never_infers_free_plan(self):
+        get,calls=self.factory()
+        report=preflight(get)
+        self.assertEqual(report["workers_script_list_read_status"],"authorized_snapshot")
+        self.assertEqual(report["workers_script_count_observed"],1)
+        self.assertIs(report["stateless_worker_name_observed"],False)
+        self.assertIs(report["workers_free_plan_verified"],False)
+        self.assertIs(report["provisioning_authorized"],False)
+        self.assertNotIn("unrelated-secret-worker",json.dumps(report))
+        self.assertEqual(calls[-1],BASE+"/workers/scripts")
+
+    def test_target_worker_name_collision_detected_without_metadata(self):
+        get,_=self.factory()
+        def collided(path):
+            if path==BASE+"/workers/scripts":
+                return 200,ok([{"id":"lifeline-mt5-status-private-isolated", "content":"secret-worker-body"}])
+            return get(path)
+        report=preflight(collided)
+        self.assertTrue(report["stateless_worker_name_observed"])
+        self.assertFalse(report["provisioning_authorized"])
+        self.assertNotIn("secret-worker-body",json.dumps(report))
+
+    def test_worker_permission_denied_not_zero_scripts(self):
+        get,_=self.factory()
+        def denied(path):
+            if path==BASE+"/workers/scripts":return 403,{"message":"secret"}
+            return get(path)
+        report=preflight(denied)
+        self.assertEqual(report["workers_script_list_read_status"],"permission_denied")
+        self.assertIsNone(report["workers_script_count_observed"])
+        self.assertIsNone(report["stateless_worker_name_observed"])
+
+    def test_malformed_worker_script_result_is_not_trusted(self):
+        get,_=self.factory()
+        def malformed(path):
+            if path==BASE+"/workers/scripts":return 200,ok({"id":"bad"})
+            return get(path)
+        report=preflight(malformed)
+        self.assertEqual(report["workers_script_list_read_status"],"unverified")
+        self.assertIsNone(report["workers_script_count_observed"])
+        self.assertFalse(report["workers_free_plan_verified"])
+
+    def test_worker_error_leaves_d1_evidence_intact(self):
+        get,_=self.factory()
+        def crashes(path):
+            if path==BASE+"/workers/scripts":raise RuntimeError("API token secret message")
+            return get(path)
+        report=preflight(crashes)
+        self.assertEqual(report["d1_database_count"],1)
+        self.assertEqual(report["workers_script_list_read_status"],"unverified")
+        self.assertNotIn("secret message",json.dumps(report))
 
 if __name__=="__main__":unittest.main()
