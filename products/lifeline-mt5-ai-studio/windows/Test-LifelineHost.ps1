@@ -19,6 +19,7 @@ $ErrorActionPreference='Stop'
 $report=[ordered]@{
  schema='lifeline.windows.host_readiness.v1'
  acquired_persistent_host=$false
+ verified_24x7_uptime=$false
  windows_x64=$false
  user_mode_non_system=$false
  python_available=$false
@@ -84,7 +85,10 @@ try {
    $report.agent_pairing_configured -and $report.edge_https_configured -and
    $report.user_mode_non_system
  )
- $report.acquired_persistent_host=$report.ready_for_research_agent
+ # One-time local readiness, even when true, is NOT evidence of 24/7 uptime.
+ # Persistent host acquisition and multi-day uptime need independent evidence.
+ $report.acquired_persistent_host=$false
+ $report.verified_24x7_uptime=$false
 } finally {
  New-Item -ItemType Directory -Path $ResultDir -Force | Out-Null
  $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $ResultDir 'host-readiness.json') -Encoding utf8
