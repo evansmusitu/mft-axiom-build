@@ -1,0 +1,45 @@
+name: MUSITU Axiom public health diagnostic (read-only, non-enabling)
+on:
+  push:
+    branches: ['main']
+    paths:
+      - '.github/workflows/axiom-public-health-diagnostics.yml'
+      - 'qualification/diagnose_axiom_public_health.py'
+      - 'tests/connect/test_axiom_public_health_diagnostics.py'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '.github/workflows/axiom-public-health-diagnostics.yml'
+      - 'qualification/diagnose_axiom_public_health.py'
+      - 'tests/connect/test_axiom_public_health_diagnostics.py'
+permissions:
+  contents: read
+jobs:
+  public-health-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate strict contract and redacted output
+        run: python -m unittest discover -s tests/connect -p test_axiom_public_health_diagnostics.py -v
+      - name: GET public health endpoint without credentials or state changes
+        run: python qualification/diagnose_axiom_public_health.py --output mcp-public-health-diagnostic.json
+      - name: Report factual health readiness without promoting any release
+        run: |
+          python - <<'PY'
+          import json, os
+          report = json.load(open('mcp-public-health-diagnostic.json'))
+          value = 'PUBLIC_HEALTH_MATCHES_EXPECTED' if report['ready'] else 'PUBLIC_HEALTH_DRIFT_OR_UNREACHABLE'
+          print('MUSITU_AX_PROMOTION=NOT_GRANTED', value, report['failed_checks'])
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('Public Axiom MCP health diagnostic (read-only, NOT a release qualification): '+value+'\n')
+              out.write('Failed field checks: '+', '.join(report['failed_checks'])+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-public-health-diagnostic
+          path: mcp-public-health-diagnostic.json
+          if-no-files-found: error
