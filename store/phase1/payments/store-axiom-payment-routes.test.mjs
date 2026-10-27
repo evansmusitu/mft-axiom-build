@@ -56,7 +56,7 @@ function fixture(pollBody=signedStatus(),opts={}){
     return new Response(pollBody,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
   },newReference:()=>checkoutReference});
   const env={STORE_CALLBACKS_CERTIFIED:'true',STORE_CHECKOUT_ENABLED:'false',STORE_FIRST_PARTY_ONLY:'true',
-    STORE_PAYNOW_INTEGRATION_KEY:merchantKey,STORE_DB:fakeDb(),...opts};
+    STORE_PAYNOW_ID:'27721',STORE_PAYNOW_MODE:'testing',STORE_PAYNOW_INTEGRATION_KEY:merchantKey,STORE_DB:fakeDb(),...opts};
   return {app,env,calls};
 }
 const webhook=(body=signedStatus())=>new Request('https://payments.mftintelligence.com/store/billing/webhooks/paynow',{
@@ -222,4 +222,14 @@ test('authenticated status rejects expired, missing, malformed and revoked custo
   env.STORE_DB.data.authToken.status='revoked';
   assert.equal((await app.fetch(status(),env)).status,401);
   assert.equal(calls.length,0);
+});
+
+test('Store V2 webhook rejects borrowed FMI and unverified live-mode merchant IDs before DB access',async()=>{
+ for(const override of [{STORE_PAYNOW_ID:'26343'},{STORE_PAYNOW_MODE:'live'},{STORE_PAYNOW_MODE:undefined}]){
+  const {app,env,calls}=fixture(signedStatus(),override);
+  const response=await app.fetch(webhook(),env);
+  assert.equal(response.status,503);
+  assert.equal(calls.length,0);
+  assert.equal(env.STORE_DB.log.length,0);
+ }
 });

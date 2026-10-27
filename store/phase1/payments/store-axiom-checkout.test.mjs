@@ -12,7 +12,7 @@ function fakeDb(){
    return {bind(...values){const entry={sql,values};return {async first(){log.push(entry);if(sql.includes('store_customer_tokens'))return authToken;if(sql.includes('store_products'))return products.get(values[0])??null;return null},async run(){log.push(entry);return {success:true,meta:{changes:1}}}}}};
  }};
 }
-function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_CALLBACKS_CERTIFIED:'true',STORE_PAYNOW_ID:'12345',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
+function fakeEnv(overrides={}){return {STORE_CHECKOUT_ENABLED:'true',STORE_FIRST_PARTY_ONLY:'true',STORE_CALLBACKS_CERTIFIED:'true',STORE_PAYNOW_ID:'27721',STORE_PAYNOW_MODE:'testing',STORE_PAYNOW_INTEGRATION_KEY:key,STORE_DB:fakeDb(),...overrides};}
 const statusUrl='https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-444444444444';
 const browser='https://www.paynow.co.zw/Payment/ConfirmPayment/1234';
 function responseBody({status='Ok',browserurl=browser,pollurl=statusUrl,invalidHash=false}={}){
@@ -36,11 +36,11 @@ test('Store checkout copies Axiom server-priced authenticated D1 intent and sign
  assert.equal(out.publisher_payout_authorized,false);assert.equal(calls.length,1);
  assert.equal(calls[0].url,'https://www.paynow.co.zw/interface/initiatetransaction');
  const params=new URLSearchParams(calls[0].init.body);
- assert.equal(params.get('id'),'12345');assert.equal(params.get('amount'),'4.25');
+ assert.equal(params.get('id'),'27721');assert.equal(params.get('amount'),'4.25');
  assert.equal(params.get('reference'),'STORE-ABCDEF0123456789');
  assert.equal(params.get('resulturl'),'https://payments.mftintelligence.com/store/billing/webhooks/paynow');
  assert.equal(params.get('returnurl'),'https://payments.mftintelligence.com/store/billing/return?reference=STORE-ABCDEF0123456789');
- assert.equal(params.get('hash'),hash(['12345','STORE-ABCDEF0123456789','4.25','MUSITU Store MUSITU_OWNED_APP','https://payments.mftintelligence.com/store/billing/return?reference=STORE-ABCDEF0123456789','https://payments.mftintelligence.com/store/billing/webhooks/paynow','Message']));
+ assert.equal(params.get('hash'),hash(['27721','STORE-ABCDEF0123456789','4.25','MUSITU Store MUSITU_OWNED_APP','https://payments.mftintelligence.com/store/billing/return?reference=STORE-ABCDEF0123456789','https://payments.mftintelligence.com/store/billing/webhooks/paynow','Message']));
  assert.ok(env.STORE_DB.log.some(x=>x.sql.includes('INSERT INTO store_checkout_intents')));
  assert.ok(env.STORE_DB.log.every(x=>!x.sql.includes('billing_subscriptions')));
 });
@@ -242,5 +242,15 @@ test('signed provider initiation URL must be valid for subsequent Paynow callbac
   const response=await app.fetch(req(),fakeEnv());
   assert.equal(response.status,502,'cannot expose unsupported signed provider poll URL '+pollurl);
   assert.equal(calls.length,1);
+ }
+});
+
+test('Store V2 test payment requires its own confirmed Paynow ID 27721 and test-mode lock',async()=>{
+ for(const override of [{STORE_PAYNOW_ID:'26343'},{STORE_PAYNOW_ID:'12345'},{STORE_PAYNOW_MODE:'live'},{STORE_PAYNOW_MODE:undefined}]){
+  const {app,calls}=worker();const env=fakeEnv(override);
+  const response=await app.fetch(req(),env);
+  assert.equal(response.status,503);
+  assert.equal(calls.length,0,'unapproved merchant authority must never reach Paynow');
+  assert.equal(env.STORE_DB.log.length,0,'no intent may be stored with wrong Paynow authority');
  }
 });

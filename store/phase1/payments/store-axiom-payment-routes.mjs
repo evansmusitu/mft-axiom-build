@@ -107,6 +107,7 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   if(!webhook&&!status)return null;
   if(u.origin!==ROOT)return reply(404,{ok:false,error:'route_origin_rejected'});
   if(env?.STORE_CALLBACKS_CERTIFIED!=='true'||!env.STORE_DB||
+     env.STORE_PAYNOW_ID!=='27721'||env.STORE_PAYNOW_MODE!=='testing'||
      typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<16)
    return reply(503,{ok:false,error:'store_callbacks_not_configured'});
   const db=env.STORE_DB;
