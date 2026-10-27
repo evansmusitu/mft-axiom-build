@@ -1,4 +1,4 @@
-name: Axiom dedicated OpenAI reviewer access
+name: Axiom dedicated OpenAI reviewer access v2
 
 on:
   push:
