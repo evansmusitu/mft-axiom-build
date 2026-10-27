@@ -19,6 +19,7 @@ RECORD_PATH = ROOT / 'qualification/musitu_connect_commercial_ga_release.json'
 SCHEMA = 'musitu.connect.commercial_ga_release.v1'
 BLOCKED = 'BLOCKED_PENDING_INDEPENDENT_COMMERCIAL_EVIDENCE'
 READY = 'QUALIFIED_AND_SEPARATELY_RELEASED'
+MAX_RELEASE_RECORD_BYTES = 65536
 EXPECTED = frozenset({
     'hosted_isolated_cloudflare_d1_staging_concurrency',
     'hosted_customer_tenant_isolation_and_request_attribution',
@@ -34,6 +35,31 @@ EXPECTED = frozenset({
     'customer_support_and_service_level_readiness',
     'public_connect_mcp_and_domain_review',
 })
+
+
+
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('DUPLICATE_RELEASE_JSON_KEY')
+        result[key] = value
+    return result
+
+
+def _reject_nonstandard_number(_value):
+    raise ValueError('NONSTANDARD_RELEASE_JSON_NUMBER')
+
+
+def load_release_record(path):
+    """Strict bounded release-document reader; never normalizes ambiguous JSON."""
+    with path.open('rb') as stream:
+        raw = stream.read(MAX_RELEASE_RECORD_BYTES + 1)
+    if not raw or len(raw) > MAX_RELEASE_RECORD_BYTES:
+        raise ValueError('INVALID_RELEASE_RECORD_SIZE')
+    return json.loads(raw.decode('utf-8', errors='strict'),
+                      object_pairs_hook=_unique_object,
+                      parse_constant=_reject_nonstandard_number)
 
 
 def _verified_release_attestation(record):
@@ -125,7 +151,7 @@ def main():
     mode.add_argument('--enforce-ready', action='store_true')
     args = parser.parse_args()
     try:
-        valid, ready, reason = audit(json.loads(RECORD_PATH.read_text(encoding='utf-8')))
+        valid, ready, reason = audit(load_release_record(RECORD_PATH))
     except (OSError, ValueError):
         valid, ready, reason = False, False, 'RELEASE_RECORD_UNREADABLE'
     if not valid:

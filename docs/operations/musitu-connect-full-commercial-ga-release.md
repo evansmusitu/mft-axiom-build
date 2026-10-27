@@ -19,6 +19,12 @@ python qualification/validate_commercial_ga.py --audit
 python qualification/validate_commercial_ga.py --enforce-ready
 ```
 
+The release document reader is strict: JSON must be at most 64 KiB, have no
+repeated keys at any nesting level, and contain no nonstandard NaN or Infinity
+numeric values. Malformed records fail both audit and enforce-ready modes with
+an abbreviated error code, never printed customer evidence or secrets. This
+prevents ambiguous documentary promotion through parser key precedence.
+
 Audit mode succeeds for a *consistent blocked state*. Enforce-ready fails while
 any required evidence or a separate release promotion is missing; neither mode
 is an infrastructure deployment. Even a green documentary gate does **not**

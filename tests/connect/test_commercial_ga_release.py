@@ -7,6 +7,9 @@ from unittest.mock import patch
 from copy import deepcopy
 import subprocess
 import sys
+import io
+import tempfile
+from contextlib import redirect_stdout
 import unittest
 from pathlib import Path
 
@@ -114,6 +117,42 @@ class CommercialGaReleaseTests(unittest.TestCase):
         record = self._test_only_all_qualified_record()
         record['release']['new_customer_registration_open'] = False
         self.assertEqual(audit(record)[2], 'READY_EVIDENCE_BUT_INCONSISTENT_PROMOTION')
+
+    def _audit_raw_json(self, raw):
+        from qualification import validate_commercial_ga as validator
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'release.json'
+            path.write_bytes(raw)
+            output = io.StringIO()
+            with patch.object(validator, 'RECORD_PATH', path), \
+                 patch.object(sys, 'argv', ['ga-validator', '--audit']), \
+                 redirect_stdout(output):
+                code = validator.main()
+        return code, output.getvalue()
+
+    def test_nested_duplicate_release_flags_are_not_silently_overridden(self):
+        # A human could review one of two contradictory flags in the same JSON;
+        # standard json.loads would silently retain the last one.
+        raw = GA.read_text(encoding='utf-8')
+        anchor = '"commercial_ga_enabled": false'
+        self.assertEqual(raw.count(anchor), 1)
+        raw = raw.replace(anchor, '"commercial_ga_enabled": true, "commercial_ga_enabled": false')
+        code, output = self._audit_raw_json(raw.encode('utf-8'))
+        self.assertNotEqual(code, 0, output)
+        self.assertIn('MUSITU_COMMERCIAL_GA_AUDIT=FAIL', output)
+
+    def test_nonstandard_json_numeric_constant_cannot_hide_in_release_record(self):
+        raw = GA.read_text(encoding='utf-8')
+        raw = raw.replace('"recorded_date_utc":', '"unexpected_numeric": NaN, "recorded_date_utc":')
+        code, output = self._audit_raw_json(raw.encode('utf-8'))
+        self.assertNotEqual(code, 0, output)
+        self.assertIn('MUSITU_COMMERCIAL_GA_AUDIT=FAIL', output)
+
+    def test_oversize_documentary_release_record_is_rejected_before_parsing(self):
+        raw = GA.read_bytes() + b' ' * 70000
+        code, output = self._audit_raw_json(raw)
+        self.assertNotEqual(code, 0, output)
+        self.assertIn('MUSITU_COMMERCIAL_GA_AUDIT=FAIL', output)
 
     def test_release_validator_audits_blocked_state_and_refuses_ga_promotion(self):
         audit = subprocess.run([sys.executable, 'qualification/validate_commercial_ga.py', '--audit'],
