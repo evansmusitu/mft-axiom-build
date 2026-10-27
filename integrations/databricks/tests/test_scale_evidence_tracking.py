@@ -46,7 +46,7 @@ class TrackingTests(unittest.TestCase):
             if path.endswith("/runs/update"): return {}
             if path.endswith("/runs/get"):
                 return {"run":{"info":{"run_id":"d"*32,"status":"FINISHED"},"data":{
-                    "metrics":[{"key":m["key"],"value":m["value"]} for m in next(x for x in written if x[1].endswith("/log-batch"))[2]["metrics"]
+                    "metrics":[{"key":m["key"],"value":m["value"]} for m in next(x for x in written if x[1].endswith("/log-batch"))[2]["metrics"]]
                 }}}
             raise AssertionError(path)
         result=persist_scale_evidence(jobs,mlflow)
