@@ -68,13 +68,13 @@ class ScaleRunTests(unittest.TestCase):
 
     def test_output_verification_detects_two_sizes(self):
         results=[{"rows":n,"planted_anomalies":((n-1)//17)+1,"detected_anomalies":((n-1)//17)+1,"false_negatives":0,"false_positives":0,"elapsed_seconds":1.25,"throughput_rows_per_sec":n/1.25} for n in (100_000,1_000_000)]
-        payload=json.dumps({"results":results,"decimal_control_passed":True,"floating_point_drift_detected":True,"axiom_production_called":False,"evidence_sha256":"a"*64,"mlflow_status":"RECORDED","mlflow_run_id":"d"*32})
+        result_payload=json.dumps({"results":results,"decimal_control_passed":True,"floating_point_drift_detected":True,"axiom_production_called":False,"evidence_sha256":"a"*64,"mlflow_status":"RECORDED","mlflow_run_id":"d"*32})
         def api(method,path,payload=None,params=None):
             if path.endswith("/Me"): return {"userName":"test@example.com"}
             if path.endswith("/get-status"): return {"object_type":"NOTEBOOK","language":"PYTHON","object_id":99}
             if path.endswith("/submit"): return {"run_id":300}
             if path.endswith("/runs/get"): return {"state":{"life_cycle_state":"TERMINATED","result_state":"SUCCESS"},"tasks":[{"run_id":301}]}
-            if path.endswith("/get-output"): return {"notebook_output":{"result":payload}}
+            if path.endswith("/get-output"): return {"notebook_output":{"result":result_payload}}
             raise AssertionError(path)
         rid,verified=execute_scale(api,sleep=lambda _:None,max_polls=2)
         self.assertEqual(rid,300)
