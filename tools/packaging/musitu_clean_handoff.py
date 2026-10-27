@@ -25,6 +25,8 @@ EVIDENCE = (
     ("PUBLIC_SYNTHETIC_REPLAY", "37906916355", "musitu-axiom-pinned-native-model-synthetic-smoke"),
     ("PUBLIC_SYNTHETIC_PROXY_AUDIT", "37938799538", "musitu-axiom-research-window-proxy-synthetic-audit"),
     ("INDEPENDENT_DATA_GAP_AUDIT", "37978735182", "musitu-axiom-independent-mine-source-gap-report"),
+    ("LATEST_INDEPENDENT_MINE_CATALOG_GAP_12_SOURCES", "40162625422", "musitu-axiom-independent-mine-source-gap-report"),
+    ("FOUR_FOLD_FROZEN_SYNTHETIC_REPLAY", "40162694759", "musitu-axiom-exact-fold-synthetic-research-metrics"),
 )
 
 
@@ -98,7 +100,7 @@ def main() -> None:
             or live_main != main_sha):
         raise RuntimeError("HANDOFF_UNSAFE_LIVE_GITHUB_STATE")
 
-    stage = Path(os.environ["RUNNER_TEMP"]) / "musitu-clean-whole-product-20261024"
+    stage = Path(os.environ["RUNNER_TEMP"]) / "musitu-clean-whole-product-20261027"
     stage.mkdir(parents=True, exist_ok=False)
     hand = stage / "HANDOFF"
     hand.mkdir()
@@ -110,9 +112,9 @@ def main() -> None:
         "REFERENCE_PREVIOUSLY_SEALED_MAIN": snapshot(HISTORIC_SEAL, stage / "REFERENCE_PREVIOUSLY_SEALED_MAIN"),
     }
     (hand / "ACTIVE_FEATURE_RECENT_COMMITS.txt").write_text(
-        shell("git", "log", "-n", "25", "--format=%h %cs %s", "HEAD") + "\n")
+        shell("git", "log", "-n", "240", "--format=%H %cs %s", "HEAD") + "\n")
     (hand / "MAIN_RECENT_COMMITS.txt").write_text(
-        shell("git", "log", "-n", "25", "--format=%h %cs %s", "origin/main") + "\n")
+        shell("git", "log", "-n", "80", "--format=%H %cs %s", "origin/main") + "\n")
     (hand / "BRANCH_DIVERGENCE.txt").write_text(
         subprocess.check_output(("git", "diff", "--stat", "origin/main...HEAD"), text=True)
         + "\nmain-only / feature-only commits: "
@@ -152,7 +154,7 @@ def main() -> None:
         raise RuntimeError("CUSTOMER_BETA_GATE_UNEXPECTEDLY_OPEN")
 
     state = {
-        "schema": "musitu.whole_product.chat_handoff.v2026_10_18",
+        "schema": "musitu.whole_product.chat_handoff.v2026_10_27",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "repository": REPO,
         "active_feature_branch": FEATURE,
@@ -171,6 +173,21 @@ def main() -> None:
         "launch_gate_source": "PRODUCT_ACTIVE_FEATURE_BRANCH/qualification/musitu_connect_beta_release_gate.json",
         "chat_shift_procedure": "verify_checksums_read_handoff_compare_live_refs_then_engineer_on_feature",
         "model_sha256": MODEL_SHA, "model_manifest_sha256": MANIFEST_SHA,
+        "model_features": 54,
+        "frozen_score_threshold": 0.022545819099925965,
+        "hard_measured_warning_threshold": 1.0,
+        "history_seconds": 600,
+        "label_horizon_seconds": [180, 360],
+        "stride_seconds": 30,
+        "independent_holdout_fold_count": 4,
+        "minimum_supported_folds_for_potential_future_qualification": 3,
+        "minimum_future_positive_windows_per_supported_fold": 500,
+        "required_recall": 0.90,
+        "required_precision": 0.10,
+        "required_f2_gain_fraction": 0.05,
+        "catalog_candidates_screened": 12,
+        "qualified_external_mines": 0,
+        "hand_off_must_verify_live_ci_again": True,
         "evidence": evidence_log,
         "github_checks_observed_at_export": head_runs,
         "production_connect_axiom_compute": "PREVIOUSLY_AUTHORIZED_AND_RECORDED_ENABLED_RECHECK_LIVE",
@@ -185,7 +202,7 @@ def main() -> None:
 
     read_first = f"""# MUSITU Connect + MUSITU Axiom — FULL PRODUCT HANDOFF
 
-Date: 2026-10-24
+Date: 2026-10-27
 Repository: {REPO}
 Active feature branch: {FEATURE}
 Active source commit: {head}
@@ -247,6 +264,27 @@ Handoff rules:
 - The authoritative next action is to compare LIVE GitHub state and evidence,
   rather than assuming either this ZIP or an earlier chat remains current.
 """
+    read_first += """
+CURRENT CONTINUATION UPDATE — 27 OCTOBER 2026
+- This handoff replaces the earlier 18/24 October source snapshots, never
+  assumes chat transcripts contain newer or more authoritative code.
+- Current 12 public site/data candidates are METADATA-ONLY; zero admitted.
+  A July 2026 paper reusing the Polish development source cannot be
+  accepted as independent field data merely because its publication is new.
+- SHA-pinned native LightGBM may be scored across 4 prospective sealed
+  chronological folds. Synthetic CI scores each fold; metric thresholds are
+  descriptive only. Preregistration publication time and actual independent
+  field evidence remain unverified, as do mine rights and incident ground truth.
+- Offline tenant accounting now checks persisted UUID-v4 IDs, complete quota
+  parity and current limits; feature-branch D1-like SQL guards UUID-v4 and
+  noncanonical UTC hour 24. Node SQLite and LOCAL Miniflare/workerd checks
+  are not remote hosted D1 qualification.
+- The published native model and its original 54 feature schema, score
+  threshold, 600-second past-only history and label horizon are frozen.
+- Customer billing, beta admission, hosted D1 migration, operational incident
+  paging, legal/contract release, PR #9 merge and public Plugin listing remain
+  BLOCKED without separate human approval and independent evidence.
+"""
     (hand / "00_READ_FIRST.md").write_text(read_first)
 
     continuation = f"""# Exact next-chat execution context
@@ -300,12 +338,56 @@ ENTERPRISE LAUNCH CONTINUATION (24 October 2026):
   is still blocked by absent qualified real underground mine evidence.
 - No ChatGPT Connect publication or customer billing is authorized.
 """
+    continuation += f"""
+## Newer engineering and evidence — 27 October 2026
+
+Feature tip embedded in this archive: {head}
+Main embedded in this archive: {main_sha}
+Historic sealed main: {HISTORIC_SEAL}
+
+AUTHORITATIVE: the complete tracked feature tree is included at
+PRODUCT_ACTIVE_FEATURE_BRANCH. Do not use a stale local tree or any
+older ChatGPT reply over these SHA-pinned git objects. GitHub head may move
+again after this export, so verify live refs and reconcile any delta first.
+
+Engineering completed and preserved:
+- Four sealed holdout fold grids independently scanned for full coverage;
+  SHA-pinned public native LightGBM research inference per fold; per-fold
+  confusion matrix, baseline, F2, AP, precision/recall and EventProxyAudit
+  false-alert and overlapping positive-window accounting.
+- Defensive exact seal-byte verify-to-parse matching; complete-source replay
+  digest and count checks; synthetic fixture evidence only. NO independent
+  physical mine validation or predictive mine safety certification.
+- 12 public candidate records screened; 0 independently qualified. Source
+  rights, physical sensor equivalence, genuine 1Hz x 28 channels, separate
+  positive event labels and mine authorizations still missing.
+- Connect tenant prototype: atomic D1-compatible attempt counters,
+  credentials/scopes, anti-replay UUID-v4 attempts, UTC midnight rejection,
+  two-tenant offline quota parity, per-minute and per-day current limit
+  consistency checks and fail-closed tamper detection.
+- Miniflare/workerd LOCAL D1 tests demonstrate SQL trigger compatibility
+  for UUID-v4 and UTC hour 24 rejection; hosted real D1 and genuine
+  enterprise acceptance have NOT been performed.
+- Source includes all GitHub workflows, operational evidence and failing
+  historical regression details; rerun CI before making release claims.
+
+NEXT PRIORITY:
+1. Verify ZIP SHA-256 file inventory and all 3 source trees.
+2. Inspect live GitHub refs and PR #9, compare pinned tip to live tip.
+3. Restore all source from PRODUCT_ACTIVE_FEATURE_BRANCH or checkout exact
+   live feature SHA; preserve main and production.
+4. Do material feature-branch-only test-first engineering and CI checks.
+5. Do not assert beta, safety or model production qualification based only
+   on synthetic data or offline CI. Procure REAL permissions and independent
+   operating mine evidence only with separate explicit approval.
+6. Report exact commits, workflow run conclusions and remaining blockers.
+"""
     (hand / "CONTINUATION.md").write_text(continuation)
 
     fresh_command = (
         "Continue MUSITU Connect and MUSITU Axiom from the NEW complete clean "
         "whole-product handoff ZIP saved in my connected Google Drive. "
-        "Use the matching 2026-10-24 handoff ZIP, extract it and FIRST read "
+        "Use the matching 2026-10-27 handoff ZIP, extract it and FIRST read "
         "HANDOFF/00_READ_FIRST.md, HANDOFF/STATE.json, "
         "HANDOFF/CONTINUATION.md and verify HANDOFF/CHECKSUMS.json with "
         "python HANDOFF/VERIFY_PACKAGE.py. "
