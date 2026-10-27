@@ -66,3 +66,16 @@ BEGIN SELECT RAISE(ABORT,'Store Paynow observation cannot be updated'); END;
 CREATE TRIGGER IF NOT EXISTS store_paynow_observation_no_delete
 BEFORE DELETE ON store_paynow_status_observations
 BEGIN SELECT RAISE(ABORT,'Store Paynow observation cannot be deleted'); END;
+
+-- The inverse claim must be rejected too. A late Paid/Refunded review cannot
+-- appropriate a Paynow reference already observed on a different Store order.
+-- This remains necessary even if the existing review table has a UNIQUE index
+-- on Paynow reference: it knows nothing about this separate observation table.
+CREATE TRIGGER IF NOT EXISTS store_paynow_observation_no_reverse_review_claim
+BEFORE INSERT ON store_checkout_reviews
+FOR EACH ROW WHEN EXISTS (
+ SELECT 1 FROM store_paynow_status_observations AS previous
+ WHERE previous.paynow_reference=NEW.paynow_reference
+   AND previous.reference!=NEW.reference
+)
+BEGIN SELECT RAISE(ABORT,'Store Paynow review conflicts with observed order identity'); END;

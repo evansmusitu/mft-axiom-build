@@ -98,6 +98,17 @@ class ObservationsTest(unittest.TestCase):
         self.observe(event_id='evt-003',status='Disputed',cb='c'*64,polled='d'*64)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],2)
 
+    def test_observation_provider_identity_cannot_be_claimed_by_later_review_for_another_order(self):
+        # The inverse order also matters: an immutable observation on order A
+        # must bar a later signed-review row on order B from taking its Paynow ref.
+        self.observe(event_id='evt-reverse-claim',reference=REF1,
+                     provider_reference='PAYNOW-ABC-123',poll=POLL1)
+        for verb in ('INSERT', 'INSERT OR REPLACE', 'INSERT OR IGNORE'):
+            with self.subTest(verb=verb), self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute(f"{verb} INTO store_checkout_reviews(reference,paynow_reference,review_status,callback_digest,poll_digest,reviewed_at) VALUES (?,'PAYNOW-ABC-123','review_required',?,?,'2026-10-27T21:00:00Z')",(REF2,'c'*64,'d'*64))
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_checkout_reviews').fetchone()[0],0)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],1)
+
     def test_paid_and_refunded_not_accepted_as_audit_only_observation(self):
         for value in ['Paid','Refunded','Unknown','']:
             with self.subTest(value=value),self.assertRaises(sqlite3.IntegrityError):
