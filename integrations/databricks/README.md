@@ -6,20 +6,32 @@
 
 https://dbc-3179c56f-a6c7.cloud.databricks.com
 
-## Set up Databricks workspace PAT in GitHub, without posting it to ChatGPT
+## Repository-level secret setup and one-time identity probe
 
-1. In **your Databricks workspace**, open user menu > **Settings** > **Developer** > **Access tokens** > **Manage** > **Generate new token**. Choose a short expiration and the minimum scope allowing a read-only `/api/2.0/preview/scim/v2/Me` identity check. Use a dedicated service principal if available; do not generate broad administrative access.
-2. In **GitHub**, open https://github.com/evansmusitu/mft-axiom-build/settings/environments and create the environment **`databricks-pilot`**. Restrict it to the `pilot/axiom-databricks-pat-20261027` branch and add required reviewer approval where available.
-3. Under that environment's **Environment secrets**, add a secret named **`DATABRICKS_TOKEN`** with the Databricks PAT as its **value**. Never share the value in chat, source files or workflow logs. It is a Databricks token, **not a GitHub token**.
-4. In GitHub repository **Settings > Secrets and variables > Actions > Variables**, create **`MUSITU_DATABRICKS_APPROVE_PROBE`** and set it to **`YES`** only when the environment protection and token are ready.
-5. Make a fresh commit on the isolated branch touching the pilot workflow or `integrations/databricks/` files to trigger the probe. The job uses the named environment and only a **GET** to the identity endpoint. Do not merge to main for this pilot.
+The owner placed `DATABRICKS_TOKEN` in GitHub repository **Settings > Secrets and variables > Actions > Repository secrets**. It can be used by authorized Actions jobs in this repository. **No credential value is stored in Git or shown to ChatGPT.**
+
+- Repository secrets page: https://github.com/evansmusitu/mft-axiom-build/settings/secrets/actions
+- Branch: `pilot/axiom-databricks-pat-20261027`
+- Secret name: `DATABRICKS_TOKEN`
+- Databricks workspace: https://dbc-3179c56f-a6c7.cloud.databricks.com
+- Token type required: workspace-scoped Databricks PAT, not account-administration API token.
+
+**Trigger policy:** The workflow's `workspace-auth-only` job is enabled ONLY on the isolated branch and ONLY for a push whose HEAD commit message includes `[databricks-auth-check]`. This is an intentional one-time probe. Ordinary pushes trigger the offline synthetic checks but never request the token.
+
+The job sends one read-only HTTPS GET to `/api/2.0/preview/scim/v2/Me`; the response body and token are not printed or stored. A 200 response emits `MUSITU_DATABRICKS_WORKSPACE_PAT_AUTH_PASS`. A 401/403 (or other response) fails the probe with only a status code.
+
+The job **does not** create/start Databricks compute, run a notebook, change billing, read other users' data, or deploy Axiom. Never print, paste, or commit the token.
+
+## View run and logs
+
+- [GitHub Actions](https://github.com/evansmusitu/mft-axiom-build/actions)
+- [Pilot workflow on branch](https://github.com/evansmusitu/mft-axiom-build/blob/pilot/axiom-databricks-pat-20261027/.github/workflows/axiom-databricks-pat-probe.yml)
 
 ## Expected outcomes
 
-- Without the approval variable, only the synthetic offline verification step runs.
-- With the variable and secret, `workspace-auth-only` can report `MUSITU_DATABRICKS_WORKSPACE_PAT_AUTH_PASS` after an authenticated read-only check.
-- The token is not printed; the API response body is discarded.
-- No Databricks jobs, clusters, SQL warehouses, billing modifications, notebook execution, orders or production Axiom endpoints are called.
+- `offline-synthetic` prints `MUSITU_DATABRICKS_OFFLINE_CHECK_PASS`.
+- If the specifically tagged commit runs and token is present, `workspace-auth-only` prints `MUSITU_DATABRICKS_WORKSPACE_PAT_AUTH_PASS` only on HTTP 200.
+- No claim of Databricks authentication success is valid until the Actions job status and log are actually read.
 
 ## Caveats
 
