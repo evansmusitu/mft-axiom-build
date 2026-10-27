@@ -21,7 +21,7 @@ jobs:
           def get(url):
               with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=45) as r:return dict(r.headers),r.read()
           _,b=get(root)
-          names=[x['id'] for x in json.loads(b)['result'] if 'axiom' in x.get('id','') and ('auth' in x.get('id','') or 'oauth' in x.get('id',''))]
+          names=[x['id'] for x in json.loads(b)['result'] if x.get('id')=='musitu-axiom-oauth']
           out=[]
           for name in names:
               hh,raw=get(root+'/'+name)
@@ -36,6 +36,7 @@ jobs:
               part=src[pos:end if end>=0 else pos+10000] if pos>=0 else ''
               errors=re.findall(r'errorPage\("([^"]{1,180})"\)',part)
               item={'script':name,'source_sha256':hashlib.sha256(raw).hexdigest(),'authorizePost_present':bool(part),'function_calls':sorted(set(re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\(',part))),'form_field_names':sorted(set(re.findall(r'f\.get\("([^"]+)"\)',part))),'error_texts':errors,'returns_redirect':('302' in part),'has_html_200':('html(200' in part),'new_response_codes':re.findall(r'status\s*:\s*(\d{3})',part),'all_form_fields':sorted(set(re.findall(r'name=["\']([A-Za-z_][A-Za-z_0-9]*)["\']',src)))}
+              item['callback_helpers']=[line for line in src.splitlines() if line.startswith('function callbackResponse(') or line.startswith('function completionPage(')]
               out.append(item)
           print(json.dumps({'mutation_performed':False,'oauth_contracts':out},sort_keys=True))
           PY
