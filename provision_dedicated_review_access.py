@@ -1,10 +1,23 @@
 import base64, datetime, hashlib, http.cookiejar, json, os, pathlib, re, secrets, subprocess, urllib.error, urllib.parse, urllib.request
+from html.parser import HTMLParser
+class OAuthPage(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True);self.fields={};self.urls=[]
+    def handle_starttag(self,tag,attrs):
+        a=dict(attrs)
+        if tag=='input' and a.get('type')=='hidden' and a.get('name'):self.fields[a['name']]=a.get('value','')
+        if tag in ('a','form'):
+            u=a.get('href') or a.get('action')
+            if u:self.urls.append(u)
+        if tag=='meta' and a.get('http-equiv','').lower()=='refresh':
+            value=a.get('content','');match=re.search(r'url=(.*)',value,re.I)
+            if match:self.urls.append(match.group(1).strip().strip('\"\''))
 CF_BASE='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4/query'
 MCP='https://mcp.mftintelligence.com/mcp'
 AUTH='https://auth.mftintelligence.com'
-CUSTOMER='openai_reviewer_20261027_private_v2'
-KEY_ID='openai_reviewer_key_20261027_private_v2'
-EMAIL='openai-review-20261027-v2@invalid.example'
+CUSTOMER='openai_reviewer_20261027_private_v3'
+KEY_ID='openai_reviewer_key_20261027_private_v3'
+EMAIL='openai-review-20261027-v3@invalid.example'
 UNIT_LIMIT=1000
 OUTPUT=pathlib.Path('reviewer-access-evidence')
 PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAmzMTaZWwhS6lKmq4/vlF\nKjmLbNU76ACViOztfy11mXmfMQBVbbr8cAJiS+dKOYFuRqB8ss1sFFsxF2CYYko/\niyWPDjGBRlcPVBJ4xmxZGPJxdlwtcxGxVFTzUdqsRn0gpSmvrfDpmTT30XxU1m0u\nqKLpSyAAZzSd55oAM6XbZUJllqSJxHumwz9LwZ/o8lODmLhivM4Q15aXFaH7hxmJ\nNeEXTumQPjsUIsl51pCeza1ORWzaTzx87BgZ4ef026pPC52e6YgTBhAzXOtlyUAT\noz37oyGb4jfjvlzAKSr5FZ7aoXeN0pvdOihTiIbSa4JtOQkFXs1Pio3ubj2bPw1e\nB/GZ0CEZcqZZHBcNOJqY42IiPkUFblpSmvT3jScUqGtAvD1SyVKBuuCLb60oXVq1\nW8o1J4ctBiAZOGJJb6Yb1TbIi/EE4oSajaLgLUHO32oyInldGLiTqHgkrWZpKILM\nPrNgNEzMXL+TExQ9wQDkdNfEfKmllpMNB5+nvKneU6EDXM0OKurgxU01nsBcwsjx\ntcPIjZMGcPjbSzHLB/8WwwyeF4etN2Xoze6cyc7tSuYHVCNbNTHRajIo0fWW4bYz\nvQ0XgOFNaoxp1T2tU1H/U10cpv72jIv3L4crhVZc3QLXNX2L3vkVwHnzKhqItlB/\nLeXuMWZhwRO2p1UFYWbZohECAwEAAQ==\n-----END PUBLIC KEY-----"
@@ -81,11 +94,17 @@ def main():
         query=urllib.parse.urlencode({'response_type':'code','client_id':client,'redirect_uri':redirect,'resource':resource,'scope':'axiom.execute','code_challenge':challenge,'code_challenge_method':'S256','state':state})
         c,h,b=http(AUTH+'/oauth/authorize?'+query)
         if c!=200:raise RuntimeError('OAuth consent page rejected HTTP '+str(c))
-        flow=re.search(rb'name="flow_id" value="([^"]+)"',b)
-        if not flow:raise RuntimeError('OAuth consent contract differs')
-        c,h,b=http(AUTH+'/oauth/authorize',urllib.parse.urlencode({'flow_id':flow.group(1).decode(),'musitu_account_key':account_key}).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
-        if c!=302:raise RuntimeError('Dedicated reviewer OAuth authentication rejected HTTP '+str(c))
+        consent=OAuthPage();consent.feed(b.decode('utf-8','strict'))
+        if not consent.fields.get('flow_id'):raise RuntimeError('OAuth consent contract differs')
+        consent.fields['musitu_account_key']=account_key
+        c,h,b=http(AUTH+'/oauth/authorize',urllib.parse.urlencode(consent.fields).encode(),{'Content-Type':'application/x-www-form-urlencoded','Accept':'text/html'})
+        if c not in (200,302):raise RuntimeError('Dedicated reviewer OAuth authentication rejected HTTP '+str(c))
         location=h.get('Location') or h.get('location') or ''
+        if c==200:
+            completed=OAuthPage();completed.feed(b.decode('utf-8','strict'))
+            callbacks=[u for u in completed.urls if urllib.parse.urlparse(u).scheme=='https' and urllib.parse.urlparse(u).netloc=='chatgpt.com' and urllib.parse.urlparse(u).path=='/connector_platform_oauth_redirect' and urllib.parse.parse_qs(urllib.parse.urlparse(u).query).get('state')==[state] and urllib.parse.parse_qs(urllib.parse.urlparse(u).query).get('code')]
+            if not callbacks or len(set(callbacks))!=1:raise RuntimeError('OAuth consent did not return a valid ChatGPT callback')
+            location=callbacks[0]
         target=urllib.parse.urlparse(location)
         q=urllib.parse.parse_qs(target.query)
         if target.scheme!='https' or target.netloc!='chatgpt.com' or target.path!='/connector_platform_oauth_redirect' or q.get('state')!=[state] or len(q.get('code',[]))!=1:raise RuntimeError('OAuth callback or state mismatch')
