@@ -1,4 +1,10 @@
-# Approved Axiom OpenAI EWMA display-title correction
+# Approved Axiom OpenAI EWMA naming correction
+
+The title-only deployment succeeded in run 40571922853, but the fresh OpenAI rescan still flagged the unchanged action name `ewma_forecast`. The user's request to complete the remaining review items now proceeds with the narrow public action correction to `ewma_smoothing`. Existing authenticated `ewma_forecast` calls and legacy `tool:ewma_forecast` fetches remain supported. The new public name forwards to the same original core action and `timeseries.ewma` operation; arguments, authentication, metering, output pruning, titles and other tool metadata remain unchanged.
+
+The current exact-message trigger is `Deploy approved Axiom EWMA action name 20261027`; it runs `deploy_ewma_name_only.py`. Its baseline live SHA-256 is `180d7c32754e656309616836fb564438a5c4a9843759e8838c333dd99c43ad30`; its reference candidate is `f101e0af1dadb52424733a3ecd276d7ab8baa850ba1edf127950087a22504593`. The patch changes three exact source seams, with complete reversal verification. It retains the content-only write, source/settings guards and rollback protections from the prior deployment. A gateway/core contract check verifies canonical and legacy lookup, both authenticated call paths, exact input forwarding, unauthenticated denial and response pruning. A further eight deployment checks cover drift, ambiguous responses, rollback and metadata preservation. No Worker configuration, credentials, ledger or other service is changed.
+
+## Prior completed title correction
 
 The user requested completion of the remaining review items on 27 October 2026, after the exact display-title correction had been proposed. This authorizes the prepared change from `Ewma Forecast` to `Exponentially Weighted Moving Average`. The action name `ewma_forecast`, its operation mapping, all descriptions, schemas, safety annotations, scopes and behavior remain unchanged.
 
