@@ -9,6 +9,7 @@
 function compileStoreSql(source,values){
  if(typeof source!=='string'||source.length>4096||
    /;|--|\/\*|\*\//.test(source)||
+   /\b(?:JOIN|UNION|INTERSECT|EXCEPT)\b/i.test(source)||
    !/^\s*(SELECT|INSERT|UPDATE)\b/i.test(source)||
    /\b(?:billing_subscriptions|usage_buckets|axiom_customers)\b/i.test(source))
    throw Error('store_neon_sql_statement_not_allowed');
