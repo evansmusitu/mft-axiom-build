@@ -28,6 +28,18 @@ prototype without replacing the separately authorized production Worker.
   The SQL trigger also rejects `observed_at` values that are not canonical
   UTC timestamps or that disagree with `utc_day`, preventing mislabeled
   accounting events from bypassing either quota.
+- The nonproduction schema now also rejects ordinary `UPDATE` or `DELETE`
+  statements against existing `connect_customer_usage_events` via two
+  independent `BEFORE` triggers. Usage attempts are append-only under normal
+  registry DML, so neither a changed request attribution nor event deletion
+  can silently desynchronize already-reserved per-day/per-minute counters.
+  This is **not** cryptographic tamper resistance: an authorized schema owner
+  can drop triggers. The offline read-only reconciliation tests deliberately
+  simulate privileged tampering after dropping them, then require detection.
+  It does **not** define a GDPR/privacy retention or erasure policy; those
+  operations require separately approved, audited migration design before
+  any hosted D1/customer deployment. Local SQLite and workerd qualification
+  cannot establish remote hosted D1 semantics.
 - `readConnectCustomerUsage({db, principal, utcDay, nowMs})` reads only the
   admitted, server-derived, frozen principal's tenant. Forged principal
   objects are denied, and the credential is checked again against the store

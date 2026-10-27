@@ -102,3 +102,21 @@ BEGIN
   VALUES (NEW.tenant_id, substr(NEW.observed_at,1,16), 1)
   ON CONFLICT(tenant_id,utc_minute) DO UPDATE SET used = used + 1;
 END;
+
+-- Usage events are append-only within the ordinary customer DB access path.
+-- An UPDATE or DELETE can sever the signed-in tenant/request attribution from
+-- already-charged daily and minute counters without reversing those counters.
+-- No retention/erasure policy or privileged reconciliation operation is
+-- authorized by this research-only draft; a future reviewed migration must
+-- implement those separately instead of silently erasing usage evidence.
+CREATE TRIGGER IF NOT EXISTS connect_customer_event_no_update
+BEFORE UPDATE ON connect_customer_usage_events
+BEGIN
+  SELECT RAISE(ABORT, 'CUSTOMER_USAGE_EVENT_IMMUTABLE');
+END;
+
+CREATE TRIGGER IF NOT EXISTS connect_customer_event_no_delete
+BEFORE DELETE ON connect_customer_usage_events
+BEGIN
+  SELECT RAISE(ABORT, 'CUSTOMER_USAGE_EVENT_IMMUTABLE');
+END;

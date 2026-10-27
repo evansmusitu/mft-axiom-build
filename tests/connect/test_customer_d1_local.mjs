@@ -30,7 +30,7 @@ async function createIsolatedD1() {
   // into one line; do not break on the semicolons inside SQL triggers.
   const ddl = SCHEMA.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n').trim();
   const statements = ddl.split(/\n(?=CREATE (?:TABLE|TRIGGER)\b)/g);
-  assert.equal(statements.length, 7, 'expected five tables and two triggers');
+  assert.equal(statements.length, 9, 'expected five tables and four triggers');
   await db.exec(statements.map(sql => sql.replace(/\s+/g, ' ').trim()).join('\n'));
   await db.prepare('INSERT INTO connect_customer_tenants(tenant_id,status,daily_limit,minute_limit) VALUES(?,?,?,?)')
     .bind('tenant_alpha','active',3,2).run();
@@ -62,6 +62,22 @@ test('Cloudflare local D1: 24:00 cannot charge the preceding UTC day', {timeout:
   } finally {
     if (mf) await mf.dispose();
   }
+});
+
+test('Cloudflare local D1: persisted tenant usage events reject UPDATE and DELETE', {timeout:30000}, async()=>{
+  let db;
+  try {
+    db=await createIsolatedD1();
+    assert.equal((await reserve(db,TOKEN_A,'mining.plan',993)).ok,true);
+    await assert.rejects(db.prepare('UPDATE connect_customer_usage_events SET observed_at=? WHERE tenant_id=?')
+      .bind('2026-10-22T12:35:00.000Z','tenant_alpha').run(),/CUSTOMER_USAGE_EVENT_IMMUTABLE/);
+    await assert.rejects(db.prepare('DELETE FROM connect_customer_usage_events WHERE tenant_id=?')
+      .bind('tenant_alpha').run(),/CUSTOMER_USAGE_EVENT_IMMUTABLE/);
+    assert.equal((await count(db,'tenant_alpha')).n,1);
+    assert.equal((await db.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=?')
+      .bind('tenant_alpha').first()).used,1);
+    assert.equal((await reserve(db,TOKEN_B,'mining.risk',994)).ok,true);
+  }finally{if(mf) await mf.dispose();}
 });
 
 test('Cloudflare local D1: UUID-v4 event trigger accepts canonical IDs and rejects forged direct writes', {timeout:30000}, async()=>{

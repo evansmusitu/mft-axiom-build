@@ -212,6 +212,25 @@ test('database trigger independently rejects forged UUID-v4 events without consu
   assert.equal(f.sql.prepare('SELECT SUM(used) AS n FROM connect_customer_daily_usage').get().n,1);
 });
 
+test('tenant usage events are append-only under normal registry DML',async()=>{
+  const f=fixture();
+  try {
+    assert.equal((await admit(f.env)).ok,true);
+    const eventBefore=rows(f.sql,'tenant_alpha');
+    const dailyBefore=f.sql.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=? AND utc_day=?')
+      .get('tenant_alpha',DAY).used;
+    assert.throws(()=>f.sql.prepare('UPDATE connect_customer_usage_events SET observed_at=? WHERE tenant_id=?')
+      .run('2026-10-22T13:00:00.000Z','tenant_alpha'),/CUSTOMER_USAGE_EVENT_IMMUTABLE/);
+    assert.throws(()=>f.sql.prepare('DELETE FROM connect_customer_usage_events WHERE tenant_id=?')
+      .run('tenant_alpha'),/CUSTOMER_USAGE_EVENT_IMMUTABLE/);
+    assert.deepEqual(rows(f.sql,'tenant_alpha'),eventBefore);
+    assert.equal(f.sql.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=? AND utc_day=?')
+      .get('tenant_alpha',DAY).used,dailyBefore);
+    assert.equal((await admit(f.env,t2,'mining.risk',uuid)).ok,true,
+      'another tenant can still append independently');
+  }finally{f.sql.close();}
+});
+
 test('SQL rejects 24:00 time that otherwise consumes the wrong UTC day quota',()=>{
   const f=fixture();
   const stmt=f.sql.prepare('INSERT INTO connect_customer_usage_events '+

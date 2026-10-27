@@ -38,6 +38,14 @@ class CustomerAccountingAuditTests(unittest.TestCase):
                             (tenant,'cred_'+tenant,f'00000000-0000-4000-8000-{i:012d}',
                              'mining.plan','2026-10-22',at))
 
+    def simulate_privileged_event_corruption(self):
+        # These forensic tests intentionally model an actor with schema-owner
+        # privileges who can DROP protective triggers. Ordinary registry DML
+        # must instead fail on event UPDATE/DELETE in the separate Node/D1 tests.
+        with sqlite3.connect(self.db) as con:
+            con.execute('DROP TRIGGER connect_customer_event_no_update')
+            con.execute('DROP TRIGGER connect_customer_event_no_delete')
+
     def audit(self):
         try:
             module=importlib.import_module('qualification.audit_connect_customer_registry')
@@ -82,6 +90,7 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         self.assertGreater(report['minute_counter_mismatches'],0)
 
     def test_zero_usage_with_orphan_counter_is_not_accepted(self):
+        self.simulate_privileged_event_corruption()
         with sqlite3.connect(self.db) as con:
             con.execute("DELETE FROM connect_customer_usage_events")
         report=self.audit()
@@ -116,6 +125,7 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         self.assertGreater(report['credential_tenant_mismatches'],0)
 
     def test_tampered_event_time_is_detected_even_when_minute_key_is_unchanged(self):
+        self.simulate_privileged_event_corruption()
         # The admission trigger runs on INSERT; later direct UPDATEs are an
         # adversarial offline corruption case that cannot be trusted.
         with sqlite3.connect(self.db) as con:
@@ -129,6 +139,7 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         self.assertEqual(report['status'],'OFFLINE_ACCOUNTING_INCONSISTENT_NOT_ADMITTED')
 
     def test_reconciliation_catches_forged_nonuuid_request_id_even_if_counters_balance(self):
+        self.simulate_privileged_event_corruption()
         # Quota counters cannot prove that a particular request ID was ever
         # minted by the server, but invalid UUID syntax proves a broken
         # admission event contract. This should not pass accounting audit.
@@ -146,6 +157,7 @@ class CustomerAccountingAuditTests(unittest.TestCase):
         self.assertFalse(result['customer_beta_admission'])
 
     def test_lookalike_uuid_of_wrong_version_or_variant_fails_accounting_audit(self):
+        self.simulate_privileged_event_corruption()
         for invalid in ('00000000-0000-1000-8000-000000000001',
                         '00000000-0000-4000-7000-000000000001',
                         '00000000-0000-4000-8000-00000000000g'):
