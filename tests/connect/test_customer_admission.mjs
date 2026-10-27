@@ -231,6 +231,30 @@ test('tenant usage events are append-only under normal registry DML',async()=>{
   }finally{f.sql.close();}
 });
 
+test('SQL rejects REPLACE/IGNORE of an existing event without counter mutation', async()=>{
+  const f=fixture({alphaLimit:5});
+  try {
+    const insert='INSERT INTO connect_customer_usage_events VALUES(?,?,?,?,?,?)';
+    const fields=['tenant_alpha','cred_alpha',uuid,'mining.plan',DAY,'2026-10-22T12:00:00.000Z'];
+    f.sql.prepare(insert).run(...fields);
+    const before=rows(f.sql,'tenant_alpha');
+    for (const observedAt of ['2026-10-22T12:00:00.000Z','2026-10-22T12:01:00.000Z']) {
+      assert.throws(()=>f.sql.prepare('INSERT OR REPLACE INTO connect_customer_usage_events VALUES(?,?,?,?,?,?)')
+        .run(...fields.slice(0,-1),observedAt),/CUSTOMER_EVENT_DUPLICATE_REQUEST_ID/);
+      assert.deepEqual(rows(f.sql,'tenant_alpha'),before);
+    }
+    assert.throws(()=>f.sql.prepare('INSERT OR IGNORE INTO connect_customer_usage_events VALUES(?,?,?,?,?,?)')
+      .run(...fields),/CUSTOMER_EVENT_DUPLICATE_REQUEST_ID/);
+    assert.equal(f.sql.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=?')
+      .get('tenant_alpha').used,1);
+    assert.equal(f.sql.prepare('SELECT used FROM connect_customer_minute_usage WHERE tenant_id=?')
+      .get('tenant_alpha').used,1);
+    assert.equal((await admit(f.env,t1,'mining.plan',uuid)).status,409);
+    assert.equal((await admit(f.env,t2,'mining.risk',uuid)).ok,true);
+    assert.equal(rows(f.sql,'tenant_beta').length,1);
+  } finally { f.sql.close(); }
+});
+
 test('SQL rejects 24:00 time that otherwise consumes the wrong UTC day quota',()=>{
   const f=fixture();
   const stmt=f.sql.prepare('INSERT INTO connect_customer_usage_events '+

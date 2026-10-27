@@ -64,6 +64,25 @@ test('Cloudflare local D1: 24:00 cannot charge the preceding UTC day', {timeout:
   }
 });
 
+test('Cloudflare local D1: REPLACE and IGNORE cannot re-charge an existing request', {timeout:30000}, async()=>{
+  let db;
+  try {
+    db=await createIsolatedD1();
+    const fields=['tenant_alpha','cred_alpha',uid(993),'mining.plan',DAY,'2026-10-22T12:34:00.000Z'];
+    await db.prepare('INSERT INTO connect_customer_usage_events VALUES(?,?,?,?,?,?)').bind(...fields).run();
+    for (const method of ['INSERT OR REPLACE','INSERT OR IGNORE']) {
+      await assert.rejects(db.prepare(method+' INTO connect_customer_usage_events VALUES(?,?,?,?,?,?)')
+        .bind(...fields).run(),/CUSTOMER_EVENT_DUPLICATE_REQUEST_ID/);
+    }
+    assert.equal((await count(db,'tenant_alpha')).n,1);
+    assert.equal((await db.prepare('SELECT used FROM connect_customer_daily_usage WHERE tenant_id=?')
+      .bind('tenant_alpha').first()).used,1);
+    assert.equal((await db.prepare('SELECT used FROM connect_customer_minute_usage WHERE tenant_id=?')
+      .bind('tenant_alpha').first()).used,1);
+    assert.equal((await reserve(db,TOKEN_A,'mining.plan',993)).status,409);
+  } finally {if(mf) await mf.dispose();}
+});
+
 test('Cloudflare local D1: persisted tenant usage events reject UPDATE and DELETE', {timeout:30000}, async()=>{
   let db;
   try {

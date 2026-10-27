@@ -84,7 +84,8 @@ export async function reserveConnectCustomerRequest({authorization, scope, env,
     if (detail.includes('CUSTOMER_MINUTE_QUOTA_EXCEEDED')) return failure(429,'CUSTOMER_MINUTE_QUOTA_EXCEEDED');
     if (detail.includes('CUSTOMER_QUOTA_EXCEEDED')) return failure(429,'CUSTOMER_QUOTA_EXCEEDED');
     if (detail.includes('CUSTOMER_AUTH_REVOKED')) return unauthorized();
-    if (detail.includes('UNIQUE constraint failed: connect_customer_usage_events.tenant_id, connect_customer_usage_events.request_id')) {
+    if (detail.includes('CUSTOMER_EVENT_DUPLICATE_REQUEST_ID') ||
+        detail.includes('UNIQUE constraint failed: connect_customer_usage_events.tenant_id, connect_customer_usage_events.request_id')) {
       return failure(409,'REQUEST_ID_CONFLICT');
     }
     return unavailable();
