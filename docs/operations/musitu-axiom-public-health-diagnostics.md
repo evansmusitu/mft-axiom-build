@@ -12,6 +12,12 @@ It verifies status 200 and the precise four-field v4 contract (`ok=true`,
 `oauth_enforced=true`). The report contains only fixed field-failure codes;
 it cannot copy unknown JSON fields, credentials or arbitrary response bodies.
 Responses over 8 KiB, transport errors and non-object JSON fail closed.
+For a mismatched server version only, the report may include an
+`observed_server_version` value exclusively when the public value consists of
+three dot-separated decimal components, each 1–4 digits (for example
+`4.1.7`). Non-numeric strings, free-form text and excessive lengths are not
+echoed. This public-version hint helps investigate drift without relaxing
+the v4.0.0 requirement or exposing arbitrary server response text.
 
 Run locally or in the dedicated non-enabling GitHub Actions workflow:
 
