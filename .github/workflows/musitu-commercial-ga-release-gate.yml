@@ -1,0 +1,42 @@
+name: MUSITU Commercial GA release contract (non-enabling)
+on:
+  push:
+    branches: ['main']
+    paths:
+      - 'qualification/musitu_connect_commercial_ga_release.json'
+      - 'qualification/validate_commercial_ga.py'
+      - 'tests/connect/test_commercial_ga_release.py'
+      - '.github/workflows/musitu-commercial-ga-release-gate.yml'
+      - '.github/workflows/musitu-connect.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/musitu_connect_commercial_ga_release.json'
+      - 'qualification/validate_commercial_ga.py'
+      - 'tests/connect/test_commercial_ga_release.py'
+      - '.github/workflows/musitu-commercial-ga-release-gate.yml'
+      - '.github/workflows/musitu-connect.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ga-documentary-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test customer GA policy without credentials
+        run: python -m unittest discover -s tests/connect -p test_commercial_ga_release.py -v
+      - name: Audit GA record, not production authorization
+        run: python qualification/validate_commercial_ga.py --audit
+      - name: Demonstrate public release remains explicitly blocked
+        run: |
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpectedly release-qualified in a non-enabling CI environment' >&2
+            exit 1
+          fi
+          echo 'GA_ENFORCEMENT=BLOCKED_WITHOUT_EXTERNAL_RELEASE_APPROVAL'
