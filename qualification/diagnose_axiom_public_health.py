@@ -45,9 +45,12 @@ def assess_response(status, body):
         # Python equality allows 1 == True; require type identity for booleans.
         if type(actual) is not type(expected) or actual != expected:
             report['failed_checks'].append(field + '_mismatch' if field != 'ok' else 'health_ok_mismatch')
-            if (field == 'server_version' and type(actual) is str
-                    and PUBLIC_NUMERIC_VERSION.fullmatch(actual)):
-                report['observed_server_version'] = actual
+    # A public version hint is safe only if every other health/auth flag passes.
+    # Do not echo any server value while a different security check has failed.
+    observed = value.get('server_version')
+    if (report['failed_checks'] == ['server_version_mismatch']
+            and type(observed) is str and PUBLIC_NUMERIC_VERSION.fullmatch(observed)):
+        report['observed_server_version'] = observed
     report['ready'] = not report['failed_checks']
     return report
 
