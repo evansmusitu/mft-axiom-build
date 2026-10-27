@@ -109,6 +109,29 @@ class ObservationsTest(unittest.TestCase):
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_checkout_reviews').fetchone()[0],0)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],1)
 
+    def test_one_store_order_cannot_change_provider_reference_across_observations(self):
+        self.observe(event_id='evt-original', provider_reference='PAYNOW-ABC-123')
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.observe(event_id='evt-different', provider_reference='PAYNOW-OTHER-REF',
+                         cb='c'*64, polled='d'*64, status='Disputed')
+        self.assertEqual(self.db.execute(
+            'SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0], 1)
+
+    def test_review_cannot_rebind_same_store_order_to_different_provider_reference(self):
+        self.observe(event_id='evt-original', provider_reference='PAYNOW-ABC-123')
+        for verb in ('INSERT', 'INSERT OR REPLACE', 'INSERT OR IGNORE'):
+            with self.subTest(verb=verb), self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute(f"{verb} INTO store_checkout_reviews(reference,paynow_reference,review_status,callback_digest,poll_digest,reviewed_at) VALUES (?,'PAYNOW-OTHER-REF','review_required',?,?,'2026-10-27T21:00:00Z')",(REF1,'c'*64,'d'*64))
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_checkout_reviews').fetchone()[0],0)
+
+    def test_later_observation_cannot_rebind_existing_review_to_different_provider_reference(self):
+        self.db.execute("INSERT INTO store_checkout_reviews(reference,paynow_reference,review_status,callback_digest,poll_digest,reviewed_at) VALUES (?,'PAYNOW-ABC-123','review_required',?,?,'2026-10-27T21:00:00Z')",(REF1,D1,D2))
+        self.db.execute("UPDATE store_checkout_intents SET status='review_required' WHERE reference=?",(REF1,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.observe(event_id='evt-conflict', provider_reference='PAYNOW-OTHER-REF',
+                         cb='c'*64, polled='d'*64,status='Disputed')
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],0)
+
     def test_paid_and_refunded_not_accepted_as_audit_only_observation(self):
         for value in ['Paid','Refunded','Unknown','']:
             with self.subTest(value=value),self.assertRaises(sqlite3.IntegrityError):

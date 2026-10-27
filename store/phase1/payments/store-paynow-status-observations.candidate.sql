@@ -75,7 +75,24 @@ CREATE TRIGGER IF NOT EXISTS store_paynow_observation_no_reverse_review_claim
 BEFORE INSERT ON store_checkout_reviews
 FOR EACH ROW WHEN EXISTS (
  SELECT 1 FROM store_paynow_status_observations AS previous
- WHERE previous.paynow_reference=NEW.paynow_reference
-   AND previous.reference!=NEW.reference
+ WHERE (previous.paynow_reference=NEW.paynow_reference AND previous.reference!=NEW.reference)
+    OR (previous.reference=NEW.reference AND previous.paynow_reference!=NEW.paynow_reference)
 )
 BEGIN SELECT RAISE(ABORT,'Store Paynow review conflicts with observed order identity'); END;
+
+-- One Store order must not be rebound to multiple Paynow provider references,
+-- regardless of whether the existing evidence is another observation or the
+-- original immutable Paid/Refunded review. These triggers protect forensic
+-- consistency; they do not independently authenticate provider signatures.
+CREATE TRIGGER IF NOT EXISTS store_paynow_observation_single_provider_per_order
+BEFORE INSERT ON store_paynow_status_observations
+FOR EACH ROW WHEN EXISTS (
+ SELECT 1 FROM store_paynow_status_observations AS previous
+ WHERE previous.reference=NEW.reference
+   AND previous.paynow_reference!=NEW.paynow_reference
+) OR EXISTS (
+ SELECT 1 FROM store_checkout_reviews AS previous
+ WHERE previous.reference=NEW.reference
+   AND previous.paynow_reference!=NEW.paynow_reference
+)
+BEGIN SELECT RAISE(ABORT,'Store order already bound to a different Paynow reference'); END;
