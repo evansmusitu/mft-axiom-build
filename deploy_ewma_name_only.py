@@ -11,18 +11,18 @@ import time
 from deploy_description_only import Client, HIDDEN, canonical, sha
 
 LIVE_SHA = "180d7c32754e656309616836fb564438a5c4a9843759e8838c333dd99c43ad30"
-REFERENCE_SHA = "f101e0af1dadb52424733a3ecd276d7ab8baa850ba1edf127950087a22504593"
+REFERENCE_SHA = "08851e22fee94ba5814bc30fe4a3e8958e82fb423baf506bd2923490cf70e46a"
 TITLE = "Exponentially Weighted Moving Average"
-SEAMS = [(b'if(name==="ewma_forecast")x.title="Exponentially Weighted Moving Average";', b'if(name==="ewma_forecast"){x.name="ewma_smoothing";x.title="Exponentially Weighted Moving Average";}'), (b'const name=raw.slice(5);if(HIDDEN.has(name))', b'const requestedName=raw.slice(5);const name=requestedName==="ewma_forecast"?"ewma_smoothing":requestedName;if(HIDDEN.has(name))'), (b'return forwardCall(req,c,raw,id)}const h=new Headers(req.headers);', b'const forwardedRaw=name==="ewma_smoothing"?JSON.stringify({...m,params:{...m.params,name:"ewma_forecast"}}):raw;return forwardCall(req,c,forwardedRaw,id)}const h=new Headers(req.headers);')]
+SEAMS = [(b'if(name==="ewma_forecast")x.title="Exponentially Weighted Moving Average";', b'if(name==="ewma_forecast"){x.name="ewma_smoothing";x.title="Exponentially Weighted Moving Average";}'), (b'async function publicFetch(c,id,args){', b'async function publicFetch(c,id,args){if(args?.id==="tool:ewma_forecast")args={...args,id:"tool:ewma_smoothing"};'), (b'async function forwardCall(req,c,raw,id){', b'async function forwardCall(req,c,raw,id){const message=JSON.parse(raw);if(message?.method==="tools/call"&&message?.params?.name==="ewma_smoothing")raw=JSON.stringify({...message,params:{...message.params,name:"ewma_forecast"}});')]
 OLD, NEW = SEAMS[0]
 ACTION = "ewma_smoothing"
 
 def candidate_for_module(current):
     def apply(source, reverse=False):
         pairs = [(new, old) for old, new in reversed(SEAMS)] if reverse else SEAMS
-        for old, new in pairs:
+        for index, (old, new) in enumerate(pairs):
             if source.count(old) != 1:
-                raise RuntimeError("Exact EWMA compatibility seam was not found")
+                raise RuntimeError(f"Exact EWMA compatibility seam {index} occurred {source.count(old)} times")
             source = source.replace(old, new, 1)
         return source
     if sha(current) == LIVE_SHA:
