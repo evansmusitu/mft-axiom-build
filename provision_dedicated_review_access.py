@@ -2,9 +2,9 @@ import base64, datetime, hashlib, http.cookiejar, json, os, pathlib, re, secrets
 CF_BASE='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4/query'
 MCP='https://mcp.mftintelligence.com/mcp'
 AUTH='https://auth.mftintelligence.com'
-CUSTOMER='openai_reviewer_20261027_private'
-KEY_ID='openai_reviewer_key_20261027_private'
-EMAIL='openai-review-20261027@invalid.example'
+CUSTOMER='openai_reviewer_20261027_private_v2'
+KEY_ID='openai_reviewer_key_20261027_private_v2'
+EMAIL='openai-review-20261027-v2@invalid.example'
 UNIT_LIMIT=1000
 OUTPUT=pathlib.Path('reviewer-access-evidence')
 PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAmzMTaZWwhS6lKmq4/vlF\nKjmLbNU76ACViOztfy11mXmfMQBVbbr8cAJiS+dKOYFuRqB8ss1sFFsxF2CYYko/\niyWPDjGBRlcPVBJ4xmxZGPJxdlwtcxGxVFTzUdqsRn0gpSmvrfDpmTT30XxU1m0u\nqKLpSyAAZzSd55oAM6XbZUJllqSJxHumwz9LwZ/o8lODmLhivM4Q15aXFaH7hxmJ\nNeEXTumQPjsUIsl51pCeza1ORWzaTzx87BgZ4ef026pPC52e6YgTBhAzXOtlyUAT\noz37oyGb4jfjvlzAKSr5FZ7aoXeN0pvdOihTiIbSa4JtOQkFXs1Pio3ubj2bPw1e\nB/GZ0CEZcqZZHBcNOJqY42IiPkUFblpSmvT3jScUqGtAvD1SyVKBuuCLb60oXVq1\nW8o1J4ctBiAZOGJJb6Yb1TbIi/EE4oSajaLgLUHO32oyInldGLiTqHgkrWZpKILM\nPrNgNEzMXL+TExQ9wQDkdNfEfKmllpMNB5+nvKneU6EDXM0OKurgxU01nsBcwsjx\ntcPIjZMGcPjbSzHLB/8WwwyeF4etN2Xoze6cyc7tSuYHVCNbNTHRajIo0fWW4bYz\nvQ0XgOFNaoxp1T2tU1H/U10cpv72jIv3L4crhVZc3QLXNX2L3vkVwHnzKhqItlB/\nLeXuMWZhwRO2p1UFYWbZohECAwEAAQ==\n-----END PUBLIC KEY-----"
@@ -51,6 +51,10 @@ def main():
     # Never reuse, update, or read an unrelated account.
     existing=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1 OR email=?3)+(SELECT count(*) FROM api_keys WHERE id=?2) AS n',[CUSTOMER,KEY_ID,EMAIL])
     if int(existing[0]['n'])!=0:raise RuntimeError('Dedicated reviewer identity already exists; no mutation performed')
+    c,_,metadata_raw=http('https://mcp.mftintelligence.com/.well-known/oauth-protected-resource')
+    if c!=200:raise RuntimeError('Protected-resource discovery rejected HTTP '+str(c))
+    resource=json.loads(metadata_raw).get('resource')
+    if not isinstance(resource,str) or urllib.parse.urlparse(resource).scheme!='https' or urllib.parse.urlparse(resource).netloc!='mcp.mftintelligence.com':raise RuntimeError('Unexpected OAuth resource identifier')
     account_key='musitu_axiom_review_'+secrets.token_urlsafe(42)
     print('::add-mask::'+account_key)
     key_hash=hashlib.sha256(account_key.encode()).hexdigest()
@@ -74,7 +78,7 @@ def main():
         verifier=secrets.token_urlsafe(48)
         challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
         state=secrets.token_urlsafe(24)
-        query=urllib.parse.urlencode({'response_type':'code','client_id':client,'redirect_uri':redirect,'resource':MCP,'scope':'axiom.execute','code_challenge':challenge,'code_challenge_method':'S256','state':state})
+        query=urllib.parse.urlencode({'response_type':'code','client_id':client,'redirect_uri':redirect,'resource':resource,'scope':'axiom.execute','code_challenge':challenge,'code_challenge_method':'S256','state':state})
         c,h,b=http(AUTH+'/oauth/authorize?'+query)
         if c!=200:raise RuntimeError('OAuth consent page rejected HTTP '+str(c))
         flow=re.search(rb'name="flow_id" value="([^"]+)"',b)
@@ -85,7 +89,7 @@ def main():
         target=urllib.parse.urlparse(location)
         q=urllib.parse.parse_qs(target.query)
         if target.scheme!='https' or target.netloc!='chatgpt.com' or target.path!='/connector_platform_oauth_redirect' or q.get('state')!=[state] or len(q.get('code',[]))!=1:raise RuntimeError('OAuth callback or state mismatch')
-        c,_,b=http(AUTH+'/oauth/token',urllib.parse.urlencode({'grant_type':'authorization_code','client_id':client,'redirect_uri':redirect,'resource':MCP,'code':q['code'][0],'code_verifier':verifier}).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
+        c,_,b=http(AUTH+'/oauth/token',urllib.parse.urlencode({'grant_type':'authorization_code','client_id':client,'redirect_uri':redirect,'resource':resource,'code':q['code'][0],'code_verifier':verifier}).encode(),{'Content-Type':'application/x-www-form-urlencoded'})
         if c!=200:raise RuntimeError('PKCE token exchange rejected HTTP '+str(c))
         token=json.loads(b);access=token['access_token'];refresh=token['refresh_token']
         print('::add-mask::'+access);print('::add-mask::'+refresh)
