@@ -31,6 +31,7 @@ jobs:
           output="$(python3 integrations/databricks/notebooks/01_musitu_axiom_selfcontained.py)"
           grep -q '^MUSITU_AXIOM_DATABRICKS_SYNTHETIC_4_OF_4_PASS$' <<< "$output"
           grep -q '^MLFLOW_EVALUATION_SKIPPED:' <<< "$output"
+          (cd integrations/databricks && python3 -m unittest discover -s tests -v)
           printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
 
   workspace-auth-only:
@@ -70,3 +71,33 @@ jobs:
             403) echo '::error::PAT lacks required permission or scope (HTTP 403)' ; exit 1 ;;
             *) echo "::error::Workspace read-only identity probe returned HTTP ${status}" ; exit 1 ;;
           esac
+
+  workspace-notebook-import:
+    name: One-time no-compute import of synthetic pilot notebook
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-notebook-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Refuse missing PAT secret
+        shell: bash
+        run: |
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Repository secret DATABRICKS_TOKEN missing'
+            exit 1
+          fi
+      - name: Import private synthetic notebook, then verify workspace object
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_import.py
