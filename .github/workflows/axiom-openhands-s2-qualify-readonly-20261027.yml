@@ -1,0 +1,58 @@
+# REVIEW CANDIDATE ONLY — NOT INSTALLED, NOT AUTHORIZED TO PUSH.
+# Does NOT dispatch OpenHands agents or models; exact isolated-branch trigger only.
+name: AXIOM OpenHands S2 Cloud API read-only qualification NOT RELEASE
+on:
+  push:
+    branches:
+      - build/axiom-openhands-s2-readonly-20261027
+    paths:
+      - .github/workflows/axiom-openhands-s2-qualify-readonly-20261027.yml
+      - ops/openhands_qualification/cloud_s2_diagnostic_v2.py
+      - ops/openhands_qualification/test/test_cloud_s2_diagnostic_v2.py
+permissions:
+  contents: read
+jobs:
+  safety-offline:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-openhands-s2-readonly-20261027' && github.event_name == 'push' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Offline negative tests, no real tokens
+        run: python3 -m unittest discover -s ops/openhands_qualification/test -p 'test_cloud_s2_diagnostic_v2.py' -v
+  s2-provider-readonly:
+    needs: safety-offline
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-openhands-s2-readonly-20261027' && github.event_name == 'push' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+      AXIOM_S2_CREDENTIAL_KIND: cloud_api_key
+      AXIOM_S2_OPT_IN: READONLY_PROBE_ONLY
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Single Cloud V1 GET; no model inference, no repository mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, sys
+          cmd = [sys.executable, 'ops/openhands_qualification/cloud_s2_diagnostic_v2.py']
+          try:
+              p = subprocess.run(cmd, capture_output=True, text=True, timeout=25, check=False)
+              result = json.loads(p.stdout)
+              status = result.get('status') if type(result) is dict else None
+          except (ValueError, TypeError, subprocess.TimeoutExpired):
+              status = 'BLOCKED_DIAGNOSTIC_UNREADABLE'
+          allowed = status == 'CLOUD_V1_READONLY_AUTH_CONFIRMED_REPO_NOT_CHECKED'
+          print('AXIOM_OPENHANDS_S2_STATUS=' + (status if isinstance(status,str) and len(status)<128 and status.replace('_','').isalnum() else 'BLOCKED_UNCLASSIFIED'))
+          print('AXIOM_OPENHANDS_S2_CLOUD_READONLY=' + ('PASS' if allowed else 'BLOCKED'))
+          print('AXIOM_OPENHANDS_S3_REPO_MUTATION=NOT_AUTHORIZED')
+          print('AXIOM_OPENHANDS_B27=FAILED_IN_SYNTHETIC_ATTACK')
+          print('AXIOM_OPENHANDS_RELEASE=NOT_CERTIFIED')
+          sys.exit(0 if allowed and p.returncode == 0 else 1)
+          PY
