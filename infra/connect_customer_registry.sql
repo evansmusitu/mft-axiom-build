@@ -64,6 +64,13 @@ BEGIN
     OR substr(NEW.request_id, 20, 1) NOT IN ('8','9','a','b')
     OR length(replace(NEW.request_id, '-', '')) != 32
     OR replace(NEW.request_id, '-', '') GLOB '*[^0-9a-f]*';
+  -- A REPLACE conflict can delete a prior row without firing DELETE triggers
+  -- when SQLite recursive_triggers is off, while charging its counters twice.
+  -- Explicitly reject duplicate tenant/request keys *before* conflict handling.
+  SELECT RAISE(ABORT, 'CUSTOMER_EVENT_DUPLICATE_REQUEST_ID') WHERE EXISTS (
+    SELECT 1 FROM connect_customer_usage_events e
+    WHERE e.tenant_id=NEW.tenant_id AND e.request_id=NEW.request_id
+  );
   -- A mislabeled day must never evade the per-day or per-minute counters.
   -- JS Date.toISOString() emits exactly three fractional-second digits.
   SELECT RAISE(ABORT, 'CUSTOMER_EVENT_TIME_INVALID') WHERE
