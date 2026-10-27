@@ -1,10 +1,20 @@
-# Approved Axiom OpenAI description deployment
+# Approved Axiom OpenAI EWMA display-title correction
+
+The user requested completion of the remaining review items on 27 October 2026, after the exact display-title correction had been proposed. This authorizes the prepared change from `Ewma Forecast` to `Exponentially Weighted Moving Average`. The action name `ewma_forecast`, its operation mapping, all descriptions, schemas, safety annotations, scopes and behavior remain unchanged.
+
+The current workflow runs only for the exact message `Deploy approved Axiom EWMA title 20261027`. It invokes `deploy_ewma_title_only.py`, with the previously tested content-only Cloudflare client. The live source must match SHA-256 `4396cfd20d63f781b914eae260bca1e1fb033bf2ba4a879b3fb6e4a0d8463042`, or the mechanically verifiable already-patched equivalent. Only one exact source seam is changed, and reversing it must recover the original bytes. The prepared reference candidate has SHA-256 `4a2e37c1b2e162dfa878c46333fb582b4c3aa977e467a8ca9326b89cf1a3536e`.
+
+Fresh source and settings are checked immediately before writing. Readback, unchanged settings/resource metadata, all 108 tool definitions except the one title, search/fetch propagation, OAuth enforcement and hidden-commerce denial must pass. A failed verification rolls back only this job's exact candidate, never another operator's code. No additional live wrapper code is exported. The workflow runs the existing 20 checks, the public title comparison, and eight title-deployment safety checks.
+
+The description-only deployment below is historical and completed successfully in run 40526638623. Do not rerun its original deployment command. OpenAI review notices, private reviewer access, actual prompt routing and the walkthrough requirement remain separate from this title correction.
+
+## Prior completed description correction
 
 This isolated branch is an execution package, not an integration branch and not a whole-product release. It must not be merged into main. Its intentionally small tree contains only the approved candidate, pinned baseline collaborators, tests, and the one deployment workflow; unrelated historical workflows cannot run on this branch.
 
 The user explicitly approved deploying the prepared description-only fix on 27 October 2026. The frozen candidate SHA-256 is `0567a2849ce6a2cfe9798d79984efb1f1cf375f0af5915781083029b95e5d56f`; the approved baseline SHA-256 is `eaaa24b56d58c71cc5afba8d88e7773e9e399b77a7d73b5c5bef0bee624b50ae` from repository commit `8662e6f496477347ea14b4fe6936c495d3606bd5`.
 
-Only a push to this exact branch with commit message `Deploy approved Axiom tool descriptions 20261027` runs the deploy job. It uses the existing repository Cloudflare secrets without exposing them, and permits only the content-only PUT for the existing `musitu-axiom-mcp` Worker. It does not create a Worker, alter bindings, secrets, routes, OAuth ledgers or accounts, or deploy a core or authentication worker.
+The prior description job ran on this exact branch with commit message `Deploy approved Axiom tool descriptions 20261027`. It used existing repository Cloudflare secrets without exposing them, and permitted only the content-only PUT for the existing `musitu-axiom-mcp` Worker. It did not create a Worker, alter bindings, secrets, routes, OAuth ledgers or accounts, or deploy a core or authentication worker.
 
 Source drift stops the job before any write. The previous source is retained when it matches the pinned baseline. Readback must match the approved candidate. All 108 public tool definitions must remain identical except descriptions, settings and protected-resource metadata must match their prior values, hidden commerce and unauthenticated execution must remain denied, and the reviewer's time-series search phrase must work. A verification failure rolls back only if the live source is still this job's exact candidate.
 

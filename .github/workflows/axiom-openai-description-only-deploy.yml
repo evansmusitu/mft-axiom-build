@@ -1,4 +1,4 @@
-name: Axiom approved OpenAI description-only deployment
+name: Axiom approved OpenAI EWMA title correction
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/openai/axiom-descriptions-20261027' && github.event.head_commit.message == 'Deploy approved Axiom tool descriptions 20261027'
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/openai/axiom-descriptions-20261027' && github.event.head_commit.message == 'Deploy approved Axiom EWMA title 20261027'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -24,15 +24,18 @@ jobs:
           node --check candidate/mcp/musitu_axiom_plugin_gate_v4.mjs
           node --test tests/public-tool-descriptions.test.mjs
           python3 -m unittest discover -s tests -p 'test_description_deployment.py' -v
-      - name: Deploy only the approved gate content and verify readback
+          node --check ewma-title-candidate/musitu_axiom_plugin_gate_v4.mjs
+          node verify_ewma_title_candidate.mjs
+          python3 -m unittest discover -s tests -p 'test_ewma_title_deployment.py' -v
+      - name: Deploy only the approved EWMA display title and verify readback
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: python3 deploy_description_only.py
+        run: python3 deploy_ewma_title_only.py
       - name: Retain deployment evidence and the guarded rollback plan
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: axiom-openai-description-only-deployment-20261027
-          path: deployment-evidence/
+          name: axiom-openai-ewma-title-deployment-20261027
+          path: title-deployment-evidence/
           retention-days: 30
           if-no-files-found: warn
