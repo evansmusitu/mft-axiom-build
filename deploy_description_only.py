@@ -179,7 +179,11 @@ def main():
     current_sha = sha(original)
     report["observed_source_sha256"] = current_sha
     if current_sha not in {BASELINE_SHA, CANDIDATE_SHA}:
+        baseline = Path("baseline/mcp/musitu_axiom_plugin_gate_v4.mjs").read_bytes()
+        description_function = next(line for line in baseline.splitlines() if line.startswith(b"function publicDescription(t)"))
+        report["source_diagnostics"] = {"module_name": module_name, "source_bytes": len(original), "source_lines": len(original.splitlines()), "baseline_occurrences": original.count(baseline), "approved_description_function_occurrences": original.count(description_function), "has_known_version_header": original.startswith(b'const VERSION="4.0.0";'), "looks_like_json": original.lstrip().startswith((b"{", b"[")), "has_module_export": b"export default" in original}
         (evidence_dir / "deployment-result.json").write_text(json.dumps({**report, "status": "STOPPED_SOURCE_DRIFT"}, indent=2) + "\n")
+        print(json.dumps(report, sort_keys=True))
         raise RuntimeError("Live source does not match the approved baseline or candidate; no write performed")
     settings_before = client.settings()
     settings_hash = sha(canonical(settings_before))
