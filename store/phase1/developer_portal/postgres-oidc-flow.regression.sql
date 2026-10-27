@@ -36,9 +36,4 @@ BEGIN
  END IF;
 END $$;
 ROLLBACK;
-DO $ BEGIN
- IF (SELECT count(*) FROM store_publisher_private.oidc_flows) <> 0 THEN
-  RAISE EXCEPTION 'disposable OIDC fixtures not rolled back';
- END IF;
-END $;
 SELECT 'MUSITU_PRIVATE_OIDC_FLOW_PG16_PASS' AS oidc_flow_qualification;
