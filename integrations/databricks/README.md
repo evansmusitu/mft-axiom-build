@@ -40,3 +40,20 @@ Databricks PATs are workspace-scoped, **not** account-admin API credentials. If 
 Even a successful GET does **not** qualify Axiom production security. B27 anti-rollback is still recorded as `FAILED_IN_SYNTHETIC_ATTACK`. Before live Databricks compute, verify trial expiry, remaining credit balance, workload eligibility and safety limits.
 
 No secret values are present in this branch. GitHub Actions secrets are configured by their owner through GitHub's secure UI.
+
+## Notebook import record
+
+A one-time notebook import is wired to the tag `[databricks-notebook-import]` in the HEAD commit message. It is limited to the private folder:
+
+`/Users/<authenticated Databricks user>/MUSITU_AXIOM_PRIVATE_PILOT_20261027/01_musitu_axiom_selfcontained`
+
+The GitHub workflow:
+1. Runs the synthetic tests and five mocked API safety tests.
+2. Calls Databricks workspace SCIM `Me` to resolve the current user. Does not print identity.
+3. Checks if the notebook already exists. Stops if it does.
+4. Calls workspace `mkdirs` and `import` with `SOURCE`, `PYTHON`, `overwrite: false`.
+5. Confirms with a workspace `get-status` response of `NOTEBOOK` and `PYTHON`.
+
+No Databricks jobs, clusters, SQL warehouses, notebooks, or MLflow evaluations are executed; the `RUN_MLFLOW_EVALUATION` flag stays false. No production Axiom operations are called.
+
+**Evidence:** review the one-time tagged GitHub Actions run; only a successful verified import marker constitutes proof. The new write is strictly limited to notebook metadata/source in the authenticated user's home.
