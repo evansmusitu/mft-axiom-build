@@ -1,0 +1,298 @@
+[
+  {
+    "tool": "axiom_algebra_expand",
+    "operation": "algebra.expand"
+  },
+  {
+    "tool": "axiom_algebra_factor",
+    "operation": "algebra.factor"
+  },
+  {
+    "tool": "axiom_algebra_polynomial_roots",
+    "operation": "algebra.polynomial_roots"
+  },
+  {
+    "tool": "axiom_algebra_simplify",
+    "operation": "algebra.simplify"
+  },
+  {
+    "tool": "axiom_algebra_solve",
+    "operation": "algebra.solve"
+  },
+  {
+    "tool": "axiom_arithmetic_evaluate",
+    "operation": "arithmetic.evaluate"
+  },
+  {
+    "tool": "axiom_calculus_diff",
+    "operation": "calculus.diff"
+  },
+  {
+    "tool": "axiom_calculus_integrate",
+    "operation": "calculus.integrate"
+  },
+  {
+    "tool": "axiom_calculus_limit",
+    "operation": "calculus.limit"
+  },
+  {
+    "tool": "axiom_calculus_product",
+    "operation": "calculus.product"
+  },
+  {
+    "tool": "axiom_calculus_series",
+    "operation": "calculus.series"
+  },
+  {
+    "tool": "axiom_calculus_sum",
+    "operation": "calculus.sum"
+  },
+  {
+    "tool": "axiom_combinatorics_binomial",
+    "operation": "combinatorics.binomial"
+  },
+  {
+    "tool": "axiom_combinatorics_factorial",
+    "operation": "combinatorics.factorial"
+  },
+  {
+    "tool": "axiom_finance_beta",
+    "operation": "finance.beta"
+  },
+  {
+    "tool": "axiom_finance_black_scholes",
+    "operation": "finance.black_scholes"
+  },
+  {
+    "tool": "axiom_finance_bond_price",
+    "operation": "finance.bond_price"
+  },
+  {
+    "tool": "axiom_finance_bond_yield",
+    "operation": "finance.bond_yield"
+  },
+  {
+    "tool": "axiom_finance_compound",
+    "operation": "finance.compound"
+  },
+  {
+    "tool": "axiom_finance_cvar_historical",
+    "operation": "finance.cvar_historical"
+  },
+  {
+    "tool": "axiom_finance_drawdown",
+    "operation": "finance.drawdown"
+  },
+  {
+    "tool": "axiom_finance_duration",
+    "operation": "finance.duration"
+  },
+  {
+    "tool": "axiom_finance_greeks",
+    "operation": "finance.greeks"
+  },
+  {
+    "tool": "axiom_finance_implied_vol",
+    "operation": "finance.implied_vol"
+  },
+  {
+    "tool": "axiom_finance_monte_carlo_gbm",
+    "operation": "finance.monte_carlo_gbm"
+  },
+  {
+    "tool": "axiom_finance_npv",
+    "operation": "finance.npv"
+  },
+  {
+    "tool": "axiom_finance_portfolio_metrics",
+    "operation": "finance.portfolio_metrics"
+  },
+  {
+    "tool": "axiom_finance_returns",
+    "operation": "finance.returns"
+  },
+  {
+    "tool": "axiom_finance_var_historical",
+    "operation": "finance.var_historical"
+  },
+  {
+    "tool": "axiom_finance_var_parametric",
+    "operation": "finance.var_parametric"
+  },
+  {
+    "tool": "axiom_geometry_area_circle",
+    "operation": "geometry.area_circle"
+  },
+  {
+    "tool": "axiom_geometry_distance",
+    "operation": "geometry.distance"
+  },
+  {
+    "tool": "axiom_geometry_volume_sphere",
+    "operation": "geometry.volume_sphere"
+  },
+  {
+    "tool": "axiom_knowledge_constant",
+    "operation": "knowledge.constant"
+  },
+  {
+    "tool": "axiom_knowledge_element",
+    "operation": "knowledge.element"
+  },
+  {
+    "tool": "axiom_linear_det",
+    "operation": "linear.det"
+  },
+  {
+    "tool": "axiom_linear_eigen",
+    "operation": "linear.eigen"
+  },
+  {
+    "tool": "axiom_linear_inv",
+    "operation": "linear.inv"
+  },
+  {
+    "tool": "axiom_linear_solve",
+    "operation": "linear.solve"
+  },
+  {
+    "tool": "axiom_numbertheory_factorint",
+    "operation": "numbertheory.factorint"
+  },
+  {
+    "tool": "axiom_numbertheory_gcd",
+    "operation": "numbertheory.gcd"
+  },
+  {
+    "tool": "axiom_numbertheory_isprime",
+    "operation": "numbertheory.isprime"
+  },
+  {
+    "tool": "axiom_numbertheory_lcm",
+    "operation": "numbertheory.lcm"
+  },
+  {
+    "tool": "axiom_numeric_integrate",
+    "operation": "numeric.integrate"
+  },
+  {
+    "tool": "axiom_numeric_interpolate",
+    "operation": "numeric.interpolate"
+  },
+  {
+    "tool": "axiom_numeric_least_squares",
+    "operation": "numeric.least_squares"
+  },
+  {
+    "tool": "axiom_numeric_ode",
+    "operation": "numeric.ode"
+  },
+  {
+    "tool": "axiom_numeric_optimize_scalar",
+    "operation": "numeric.optimize_scalar"
+  },
+  {
+    "tool": "axiom_numeric_root",
+    "operation": "numeric.root"
+  },
+  {
+    "tool": "axiom_optimization_linear_program",
+    "operation": "optimization.linear_program"
+  },
+  {
+    "tool": "axiom_optimization_quadratic",
+    "operation": "optimization.quadratic"
+  },
+  {
+    "tool": "axiom_probability_binomial_pmf",
+    "operation": "probability.binomial_pmf"
+  },
+  {
+    "tool": "axiom_probability_chi2_cdf",
+    "operation": "probability.chi2_cdf"
+  },
+  {
+    "tool": "axiom_probability_exponential_cdf",
+    "operation": "probability.exponential_cdf"
+  },
+  {
+    "tool": "axiom_probability_normal_cdf",
+    "operation": "probability.normal_cdf"
+  },
+  {
+    "tool": "axiom_probability_normal_ppf",
+    "operation": "probability.normal_ppf"
+  },
+  {
+    "tool": "axiom_probability_poisson_pmf",
+    "operation": "probability.poisson_pmf"
+  },
+  {
+    "tool": "axiom_statistics_correlation",
+    "operation": "statistics.correlation"
+  },
+  {
+    "tool": "axiom_statistics_covariance",
+    "operation": "statistics.covariance"
+  },
+  {
+    "tool": "axiom_statistics_describe",
+    "operation": "statistics.describe"
+  },
+  {
+    "tool": "axiom_statistics_normal_fit",
+    "operation": "statistics.normal_fit"
+  },
+  {
+    "tool": "axiom_statistics_quantile",
+    "operation": "statistics.quantile"
+  },
+  {
+    "tool": "axiom_statistics_regression",
+    "operation": "statistics.regression"
+  },
+  {
+    "tool": "axiom_statistics_ttest_ind",
+    "operation": "statistics.ttest_ind"
+  },
+  {
+    "tool": "axiom_statistics_zscore",
+    "operation": "statistics.zscore"
+  },
+  {
+    "tool": "axiom_timeseries_ewma",
+    "operation": "timeseries.ewma"
+  },
+  {
+    "tool": "axiom_timeseries_moving_average",
+    "operation": "timeseries.moving_average"
+  },
+  {
+    "tool": "axiom_timeseries_rolling_volatility",
+    "operation": "timeseries.rolling_volatility"
+  },
+  {
+    "tool": "axiom_transforms_fft",
+    "operation": "transforms.fft"
+  },
+  {
+    "tool": "axiom_transforms_ifft",
+    "operation": "transforms.ifft"
+  },
+  {
+    "tool": "axiom_units_convert",
+    "operation": "units.convert"
+  },
+  {
+    "tool": "axiom_verified_interval_eval",
+    "operation": "verified.interval_eval"
+  },
+  {
+    "tool": "axiom_verify_crosscheck",
+    "operation": "verify.crosscheck"
+  },
+  {
+    "tool": "axiom_verify_evaluate",
+    "operation": "verify.evaluate"
+  }
+]
