@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -24,6 +25,7 @@ CF_ROOT = "https://api.cloudflare.com/client/v4"
 SCRIPT_PATH = f"/accounts/{ACCOUNT}/workers/scripts/{WORKER}"
 BASELINE_SHA = "eaaa24b56d58c71cc5afba8d88e7773e9e399b77a7d73b5c5bef0bee624b50ae"
 CANDIDATE_SHA = "0567a2849ce6a2cfe9798d79984efb1f1cf375f0af5915781083029b95e5d56f"
+PRESERVED_MODULE_SHA = "48c87d308255a2c91fa4280ab007e743b8621174a8f9c10f7b25315895e054de"
 HIDDEN = {"musitu_axiom_plans", "musitu_axiom_recommend_plan", "musitu_axiom_start_checkout", "musitu_axiom_checkout_status"}
 
 
@@ -81,6 +83,38 @@ def validate_tool_change(before, after):
     if HIDDEN & {t["name"] for t in after}:
         raise RuntimeError("Hidden commerce tools became visible")
     return 104
+
+
+def candidate_for_current_module(current: bytes, baseline: bytes, approved: bytes):
+    """Adapt only the approved function/map to the exact observed live module.
+
+    The current module has additional code. That code is never reconstructed,
+    returned in logs, or replaced by an older repository version.
+    """
+    if sha(baseline) != BASELINE_SHA or sha(approved) != CANDIDATE_SHA:
+        raise RuntimeError("Pinned source integrity failed")
+    if sha(current) == BASELINE_SHA:
+        return approved, True, "approved_baseline"
+    if sha(current) == CANDIDATE_SHA:
+        return approved, False, "already_deployed"
+    old_function = next(line for line in baseline.splitlines() if line.startswith(b"function publicDescription(t)"))
+    new_function = next(line for line in approved.splitlines() if line.startswith(b"function publicDescription(t)"))
+    map_start = approved.index(b"const OPERATION_DESCRIPTIONS=Object.freeze(")
+    map_end = approved.index(b"\nconst HIDDEN", map_start)
+    prefix = approved[map_start:map_end] + b"\n"
+    if sha(current) == PRESERVED_MODULE_SHA:
+        if current.count(old_function) != 1 or b"OPERATION_DESCRIPTIONS" in current:
+            raise RuntimeError("Approved description seam does not match exactly")
+        candidate = prefix + current.replace(old_function, new_function)
+        restored = candidate[len(prefix):].replace(new_function, old_function)
+        if restored != current:
+            raise RuntimeError("Source adaptation changed bytes outside the approved seam")
+        return candidate, True, "exact_function_change_preserving_current_module"
+    if current.startswith(prefix) and current.count(new_function) == 1:
+        restored = current[len(prefix):].replace(new_function, old_function)
+        if sha(restored) == PRESERVED_MODULE_SHA:
+            return current, False, "already_deployed_on_preserved_module"
+    raise RuntimeError("Live source does not match the approved baseline or exact observed module; no write performed")
 
 
 class CloudflareError(RuntimeError):
@@ -178,13 +212,20 @@ def main():
         raise
     current_sha = sha(original)
     report["observed_source_sha256"] = current_sha
-    if current_sha not in {BASELINE_SHA, CANDIDATE_SHA}:
-        baseline = Path("baseline/mcp/musitu_axiom_plugin_gate_v4.mjs").read_bytes()
+    baseline = Path("baseline/mcp/musitu_axiom_plugin_gate_v4.mjs").read_bytes()
+    try:
+        candidate, needs_write, adaptation = candidate_for_current_module(original, baseline, candidate)
+    except RuntimeError:
         description_function = next(line for line in baseline.splitlines() if line.startswith(b"function publicDescription(t)"))
         report["source_diagnostics"] = {"module_name": module_name, "source_bytes": len(original), "source_lines": len(original.splitlines()), "baseline_occurrences": original.count(baseline), "approved_description_function_occurrences": original.count(description_function), "has_known_version_header": original.startswith(b'const VERSION="4.0.0";'), "looks_like_json": original.lstrip().startswith((b"{", b"[")), "has_module_export": b"export default" in original}
         (evidence_dir / "deployment-result.json").write_text(json.dumps({**report, "status": "STOPPED_SOURCE_DRIFT"}, indent=2) + "\n")
         print(json.dumps(report, sort_keys=True))
-        raise RuntimeError("Live source does not match the approved baseline or candidate; no write performed")
+        raise
+    effective_sha = sha(candidate)
+    report.update(effective_candidate_sha256=effective_sha, source_adaptation=adaptation)
+    syntax = subprocess.run(["node", "--check", "--input-type=module"], input=candidate, capture_output=True)
+    if syntax.returncode != 0:
+        raise RuntimeError("Effective candidate syntax check failed; no write performed")
     settings_before = client.settings()
     settings_hash = sha(canonical(settings_before))
     report["settings_sha256_before"] = settings_hash
@@ -196,14 +237,21 @@ def main():
     if len(before) != 108 or HIDDEN & {t["name"] for t in before}:
         raise RuntimeError("Live public tool set precondition failed")
     (evidence_dir / "tools-before.json").write_text(json.dumps(before, indent=2) + "\n")
-    if current_sha == BASELINE_SHA:
-        (evidence_dir / "rollback-source.mjs").write_bytes(original)
+    if needs_write:
+        # Keep current bytes in memory for in-job rollback. Store only known public patch
+        # material in artifacts; the additional live module code is not exported.
+        if current_sha == BASELINE_SHA:
+            (evidence_dir / "rollback-source.mjs").write_bytes(original)
+        else:
+            old_function = next(line for line in baseline.splitlines() if line.startswith(b"function publicDescription(t)"))
+            new_function = next(line for line in candidate.splitlines() if line.startswith(b"function publicDescription(t)"))
+            (evidence_dir / "rollback-recipe.json").write_text(json.dumps({"original_sha256": current_sha, "effective_candidate_sha256": effective_sha, "method": "remove the approved leading OPERATION_DESCRIPTIONS map and replace only the approved publicDescription function; verify original hash before upload", "original_description_function": old_function.decode(), "replacement_description_function": new_function.decode()}, indent=2) + "\n")
         report["rollback_source_sha256"] = sha(original)
     try:
-        if current_sha == BASELINE_SHA:
+        if needs_write:
             # Re-read immediately before the only write, under the shared MCP deployment concurrency group.
             current_name, current_source = client.module()
-            if current_name != module_name or sha(current_source) != BASELINE_SHA:
+            if current_name != module_name or sha(current_source) != current_sha:
                 raise RuntimeError("Source moved during preflight; no write performed")
             report["status"] = "CONTENT_WRITE_STARTED"
             (evidence_dir / "deployment-result.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -213,13 +261,13 @@ def main():
             except Exception:
                 # A write timeout is not proof of failure; inspect once before deciding on rollback.
                 _, readback = client.module()
-                if sha(readback) != CANDIDATE_SHA:
+                if sha(readback) != effective_sha:
                     raise
                 report["write_response"] = "uncertain_but_candidate_read_back"
         else:
             report["write_response"] = "already_deployed_no_write"
         readback_name, readback = client.module()
-        if readback_name != module_name or sha(readback) != CANDIDATE_SHA:
+        if readback_name != module_name or sha(readback) != effective_sha:
             raise RuntimeError("Candidate source readback did not match")
         after = None
         for attempt in range(5):
@@ -256,14 +304,14 @@ def main():
         report["status"] = "VERIFICATION_FAILED"
         report["failure_type"] = type(error).__name__
         # Roll back only our exact approved code, never another operator's changed source.
-        if current_sha == BASELINE_SHA:
+        if needs_write:
             try:
                 now_name, now_source = client.module()
-                if now_name == module_name and sha(now_source) == CANDIDATE_SHA:
+                if now_name == module_name and sha(now_source) == effective_sha:
                     client.put(module_name, original)
                     _, restored = client.module()
-                    report["rollback"] = "verified" if sha(restored) == BASELINE_SHA else "readback_mismatch"
-                elif sha(now_source) == BASELINE_SHA:
+                    report["rollback"] = "verified" if sha(restored) == current_sha else "readback_mismatch"
+                elif sha(now_source) == current_sha:
                     report["rollback"] = "baseline_already_present"
                 else:
                     report["rollback"] = "stopped_source_drift"

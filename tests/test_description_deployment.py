@@ -138,6 +138,31 @@ class DescriptionDeploymentTests(unittest.TestCase):
         self.assertEqual(report["status"], "STOPPED_SOURCE_DRIFT")
         self.assertEqual(FakeClient.instance.writes, [])
 
+    def test_exact_approved_function_adapts_without_overwriting_other_code(self):
+        current = b"// existing module prelude\n" + BASELINE + b"\n// existing module suffix\n"
+        with patch.object(DEPLOY, "PRESERVED_MODULE_SHA", DEPLOY.sha(current)):
+            candidate, write, adaptation = DEPLOY.candidate_for_current_module(current, BASELINE, CANDIDATE)
+        old_function = next(line for line in BASELINE.splitlines() if line.startswith(b"function publicDescription(t)"))
+        new_function = next(line for line in CANDIDATE.splitlines() if line.startswith(b"function publicDescription(t)"))
+        prefix_length = candidate.index(b"// existing module prelude\n")
+        self.assertEqual(candidate[prefix_length:].replace(new_function, old_function), current)
+        self.assertTrue(write)
+        self.assertEqual(adaptation, "exact_function_change_preserving_current_module")
+
+    def test_same_function_on_an_unrecognized_module_is_rejected(self):
+        current = b"// unrecognized source\n" + BASELINE
+        with self.assertRaisesRegex(RuntimeError, "Live source does not match"):
+            DEPLOY.candidate_for_current_module(current, BASELINE, CANDIDATE)
+
+    def test_preserved_module_adaptation_is_idempotent(self):
+        current = b"// known current module\n" + BASELINE
+        with patch.object(DEPLOY, "PRESERVED_MODULE_SHA", DEPLOY.sha(current)):
+            candidate, _, _ = DEPLOY.candidate_for_current_module(current, BASELINE, CANDIDATE)
+            repeated, write, adaptation = DEPLOY.candidate_for_current_module(candidate, BASELINE, CANDIDATE)
+        self.assertEqual(repeated, candidate)
+        self.assertFalse(write)
+        self.assertEqual(adaptation, "already_deployed_on_preserved_module")
+
     def test_verified_deployment_writes_once_and_keeps_backup(self):
         report = self.run_main()
         self.assertEqual(report["status"], "DEPLOYED_VERIFIED")
