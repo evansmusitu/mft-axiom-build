@@ -222,3 +222,9 @@ test('independent reviewer revocation before write prevents any private review e
  assert.equal(reviewChecks,2);
  assert.equal(h.repository.records.get('sub-00001').reviews.length,0);
 });
+
+// This private IdP PKCE proof is included by the existing isolated
+// developer-portal GitHub CI test command, without changing protected workflows.
+import './oidc-pkce-gate.test.mjs';
+// Exact-origin server-side code exchange regression: synthetic provider only.
+import './oidc-token-exchange.test.mjs';
