@@ -85,7 +85,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest -v store/phase1/payments/test_store_paynow_status_observations.py
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_status_observations.py store/phase1/payments/test_store_paynow_observation_writer_sql.py
           echo MUSITU_STORE_V2_PAYNOW_OBSERVATION_CANDIDATE_DISPOSABLE_SQLITE=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash

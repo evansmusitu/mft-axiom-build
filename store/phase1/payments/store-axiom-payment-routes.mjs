@@ -176,8 +176,41 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   // on the same explicit final paid/refunded state.
   if(p.status!==v.status)
    return reply(409,{ok:false,error:'provider_payment_state_conflict'});
-  if(p.status!=='Paid'&&p.status!=='Refunded')
-   return reply(202,{ok:true,processed:false,payment_status:'pending',reason:'provider_status_not_final'});
+  if(p.status!=='Paid'&&p.status!=='Refunded'){
+   // An opt-in private candidate ledger may preserve matching signed callback
+   // and independent provider-poll observations. It never changes order status.
+   // Until its migration/adapter have been independently admitted, default is
+   // disabled and the current pending semantics remain unchanged.
+   if(env.STORE_PAYNOW_OBSERVATIONS_ENABLED!=='true')
+    return reply(202,{ok:true,processed:false,payment_status:'pending',reason:'provider_status_not_final'});
+   const eventId='evt-'+(await sha([
+    p.reference,p.paynowreference,callback.digest,polled.digest
+   ].join('\n'),'SHA-256')).toLowerCase();
+   let prior;
+   try{
+    prior=await db.prepare('SELECT event_id,reference,paynow_reference,provider_status,callback_digest,poll_digest FROM store_paynow_status_observations WHERE event_id=?1 LIMIT 1').bind(eventId).first();
+   }catch{return reply(503,{ok:false,error:'store_observation_ledger_unavailable'});}
+   if(prior){
+    if(prior.reference!==p.reference||prior.paynow_reference!==p.paynowreference||
+       prior.provider_status!==p.status||prior.callback_digest!==callback.digest||
+       prior.poll_digest!==polled.digest)
+     return reply(409,{ok:false,error:'store_observation_identity_conflict'});
+    return reply(202,{ok:true,processed:false,idempotent:true,
+     observation_recorded:true,payment_status:'pending'});
+   }
+   try{
+    // Single SQLite/D1 statement is atomic; pending-order compare-and-set and
+    // immutable provider reference triggers protect against concurrent changes.
+    const insert=await db.prepare(
+     "INSERT INTO store_paynow_status_observations(event_id,reference,paynow_reference,provider_status,amount_cents,currency,poll_url,callback_digest,poll_digest,observed_at) SELECT ?1,?2,?3,?4,?5,'USD',?6,?7,?8,?9 WHERE EXISTS (SELECT 1 FROM store_checkout_intents WHERE reference=?2 AND status='pending' AND poll_url=?6 AND amount_cents=?5 AND currency='USD')"
+    ).bind(eventId,p.reference,p.paynowreference,p.status,intent.amount_cents,
+     p.pollurl,callback.digest,polled.digest,new Date().toISOString()).run();
+    if(insert?.success!==true||insert?.meta?.changes!==1)
+     return reply(409,{ok:false,error:'store_observation_not_atomically_committed'});
+   }catch{return reply(503,{ok:false,error:'store_observation_persistence_failed'});}
+   return reply(202,{ok:true,processed:false,observation_recorded:true,
+    payment_status:'pending',reason:'provider_status_requires_manual_resolution'});
+  }
   const review=p.status==='Paid'?'review_required':'refund_review_required';
   try{
    const at=new Date().toISOString();
