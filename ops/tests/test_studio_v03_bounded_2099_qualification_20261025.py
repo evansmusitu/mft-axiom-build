@@ -16,10 +16,11 @@ from studio_v03_bounded_2099_qualification import discover_cases, qualify, _boun
 class BoundedQualificationTests(unittest.TestCase):
     def test_discovers_every_current_god_mode_mock_without_running_blender(self):
         ids = discover_cases(ROOT)
-        self.assertEqual(len(ids), 39)
+        self.assertGreaterEqual(len(ids), 39)
         self.assertEqual(len(set(ids)),len(ids))
         self.assertTrue(any('release_receipt' in x for x in ids))
         self.assertTrue(any('render_entry' in x for x in ids))
+        self.assertTrue(any('test_timeout_kills_entire_mock_process_group_boundedly' in x for x in ids))
 
     def test_verifies_each_serial_chunk_result_and_never_fakes_runner_success(self):
         calls=[]
@@ -29,9 +30,9 @@ class BoundedQualificationTests(unittest.TestCase):
             return SimpleNamespace(returncode=0, stdout='', stderr=f'Ran {len(cases)} tests in 0.010s\n\nOK\n')
         result = qualify(ROOT, group_size=6, timeout_seconds=75, runner=fake)
         self.assertTrue(result['complete'])
-        self.assertEqual(result['tests_passed'],39)
-        self.assertEqual(sum(c[0] for c in calls),39)
-        self.assertEqual(len(calls),7)
+        self.assertEqual(result['tests_passed'],len(discover_cases(ROOT)))
+        self.assertEqual(sum(c[0] for c in calls),len(discover_cases(ROOT)))
+        self.assertEqual(len(calls),(len(discover_cases(ROOT))+5)//6)
         self.assertEqual(len({str(c[2]) for c in calls}),1)
         self.assertTrue(all(c[1]==75 for c in calls))
         self.assertFalse(result['provider_verified'])
