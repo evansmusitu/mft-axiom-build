@@ -81,6 +81,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v store/phase1/payments/test_store_staging_source_preflight.py
+      - name: Qualify optional immutable Paynow observation ledger against disposable SQLite only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_status_observations.py
+          echo MUSITU_STORE_V2_PAYNOW_OBSERVATION_CANDIDATE_DISPOSABLE_SQLITE=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
