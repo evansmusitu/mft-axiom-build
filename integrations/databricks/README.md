@@ -71,3 +71,12 @@ No Databricks jobs, clusters, SQL warehouses, notebooks, or MLflow evaluations a
 - The workflow refuses unsupported or mismatched notebook output even when Databricks reports the job itself as successful.
 
 Follow actual job logs for IDs, timings and real MLflow outcome; no performance numbers are assumed in advance.
+
+
+## Spark import verification
+
+- Import Actions run: https://github.com/evansmusitu/mft-axiom-build/actions/runs/40580272222
+- Notebook object ID: `2647766540148248`
+- SHA-256 of imported SOURCE request: `8d913f06a08e8f2eee4e41f7d7ff91601447928302930200d62520cc95d80830`
+- Source path: `/Users/<authenticated Databricks user>/MUSITU_AXIOM_PRIVATE_PILOT_20261027/02_musitu_axiom_spark_scale`
+- Next action is one serverless synthetic benchmark. No enterprise Axiom authentication or production connection is permitted.
