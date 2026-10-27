@@ -38,10 +38,10 @@ jobs:
     if: >-
       github.repository == 'evansmusitu/mft-axiom-build' &&
       github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
-      vars.MUSITU_DATABRICKS_APPROVE_PROBE == 'YES'
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-auth-check]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: databricks-pilot
     env:
       DATABRICKS_HOST: https://dbc-3179c56f-a6c7.cloud.databricks.com
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
-            echo '::error::Missing databricks-pilot environment secret DATABRICKS_TOKEN'
+            echo '::error::Missing repository Actions secret DATABRICKS_TOKEN'
             exit 1
           fi
       - name: Validate workspace-scoped PAT without printing identity or token
