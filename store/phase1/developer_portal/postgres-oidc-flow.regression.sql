@@ -36,6 +36,9 @@ BEGIN
  END IF;
 END $$;
 ROLLBACK;
-SELECT CASE WHEN count(*)=0 THEN 'MUSITU_PRIVATE_OIDC_FLOW_PG16_PASS'
- ELSE (1/0)::text END AS oidc_flow_qualification
-FROM store_publisher_private.oidc_flows;
+DO $ BEGIN
+ IF (SELECT count(*) FROM store_publisher_private.oidc_flows) <> 0 THEN
+  RAISE EXCEPTION 'disposable OIDC fixtures not rolled back';
+ END IF;
+END $;
+SELECT 'MUSITU_PRIVATE_OIDC_FLOW_PG16_PASS' AS oidc_flow_qualification;
