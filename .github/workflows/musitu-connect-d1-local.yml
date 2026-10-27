@@ -2,7 +2,7 @@ name: MUSITU Connect local D1 runtime contract (non-admission)
 
 on:
   push:
-    branches: ['feat/musitu-connect-frontier']
+    branches: ['main', 'feat/musitu-connect-frontier']
     paths:
       - '.github/workflows/musitu-connect-d1-local.yml'
       - 'infra/connect_customer_registry.sql'
@@ -10,6 +10,7 @@ on:
       - 'connect/customer_provisioning.mjs'
       - 'tests/connect/test_customer_provisioning.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
+      - 'tests/connect/test_mainline_d1_ci.py'
       - 'connect/customer_payload.mjs'
       - 'tests/connect/test_customer_payload_workerd.mjs'
       - 'tests/connect/test_customer_admission.mjs'
@@ -24,6 +25,7 @@ on:
       - 'connect/customer_provisioning.mjs'
       - 'tests/connect/test_customer_provisioning.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
+      - 'tests/connect/test_mainline_d1_ci.py'
       - 'connect/customer_payload.mjs'
       - 'tests/connect/test_customer_payload_workerd.mjs'
   workflow_dispatch:
@@ -50,6 +52,8 @@ jobs:
           node-version: '24'
       - name: Install exact stable Miniflare; no Cloudflare account or credentials
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0
+      - name: Verify offline mainline CI contract
+        run: python -m unittest discover -s tests/connect -p test_mainline_d1_ci.py -v
       - name: Node SQLite reference contract
         run: node --test tests/connect/test_customer_admission.mjs
       - name: Local workerd D1 contract (not remote D1)
