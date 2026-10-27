@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+const expected={"video_sha256":"e86d25e667cc279f8823e70d4d7c7fb378da4e02aeb3a0f3a9e2b53154833a22","source_sha256":"c080aa2035fa45d668e4070b35cac12caff60da6d8b19db93b9f913f499e67af","video_bytes":1372231,"source_bytes":1831262,"asset_path":"/review/c7314d6d94510b5174f53db8/walkthrough.mp4","worker_name":"musitu-axiom-review-video-20261027-c7314d"};
+const source=Array.from({length:6},(_,i)=>readFileSync('review-video/source_'+String(i).padStart(2,'0')+'.txt','utf8')).join('');
+assert.equal(Buffer.byteLength(source),expected.source_bytes);assert.equal(createHash('sha256').update(source).digest('hex'),expected.source_sha256);
+writeFileSync('review-video/asset.mjs',source);const {default:worker}=await import('./asset.mjs');
+const request=(path,options={})=>new Request('https://example.invalid'+path,options);
+const full=await worker.fetch(request(expected.asset_path));assert.equal(full.status,200);const bytes=Buffer.from(await full.arrayBuffer());assert.equal(bytes.length,expected.video_bytes);assert.equal(createHash('sha256').update(bytes).digest('hex'),expected.video_sha256);
+const head=await worker.fetch(request(expected.asset_path,{method:'HEAD'}));assert.equal(head.status,200);assert.equal((await head.arrayBuffer()).byteLength,0);assert.equal(head.headers.get('content-length'),String(expected.video_bytes));
+const range=await worker.fetch(request(expected.asset_path,{headers:{Range:'bytes=0-1023'}}));assert.equal(range.status,206);assert.deepEqual(Buffer.from(await range.arrayBuffer()),bytes.subarray(0,1024));
+const suffix=await worker.fetch(request(expected.asset_path,{headers:{Range:'bytes=-100'}}));assert.equal(suffix.status,206);assert.deepEqual(Buffer.from(await suffix.arrayBuffer()),bytes.subarray(-100));
+assert.equal((await worker.fetch(request(expected.asset_path,{headers:{Range:'bytes=99999999-'}}))).status,416);
+assert.equal((await worker.fetch(request(expected.asset_path,{method:'POST'}))).status,405);
+assert.equal((await worker.fetch(request('/'))).status,404);
+console.log(JSON.stringify({gate:'REVIEW_VIDEO_HTTP_AND_BYTE_CONTRACT_PASS',checks:7,video_bytes:bytes.length,video_sha256:expected.video_sha256}));
