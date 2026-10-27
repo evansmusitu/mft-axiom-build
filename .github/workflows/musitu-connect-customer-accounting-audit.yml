@@ -1,0 +1,29 @@
+name: MUSITU Connect offline tenant accounting reconciliation (non-admission)
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-customer-accounting-audit.yml'
+      - 'qualification/audit_connect_customer_registry.py'
+      - 'tests/connect/test_customer_accounting_audit.py'
+      - 'infra/connect_customer_registry.sql'
+      - 'docs/operations/musitu-connect-persistent-tenant-admission.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-synthetic-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reconcile synthetic two-tenant events and quotas without writes
+        run: |
+          python -m unittest tests.connect.test_customer_accounting_audit -v
+          echo 'HOSTED_D1_RECONCILIATION=NOT_EXECUTED'
+          echo 'REAL_CUSTOMER_DATA_USED=FALSE'
+          echo 'CONNECT_BETA_ADMISSION=BLOCKED'
+          echo 'PRODUCTION_MUTATION=FALSE'

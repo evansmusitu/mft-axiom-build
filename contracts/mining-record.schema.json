@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musitu.com/connect/schemas/mining-record/v1",
+  "title": "MUSITU Connect Mining Record v1",
+  "type": "object",
+  "required": [
+    "hazard",
+    "exposure",
+    "severity",
+    "likelihood",
+    "cost",
+    "benefit"
+  ],
+  "properties": {
+    "hazard": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exposure": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "severity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "likelihood": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "cost": {
+      "type": "number",
+      "minimum": 0
+    },
+    "benefit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Fraction of this hazard baseline risk removed when the intervention is selected."
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "latitude": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
+    },
+    "longitude": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "latitude"
+        ]
+      },
+      "then": {
+        "required": [
+          "longitude"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "longitude"
+        ]
+      },
+      "then": {
+        "required": [
+          "latitude"
+        ]
+      }
+    }
+  ]
+}

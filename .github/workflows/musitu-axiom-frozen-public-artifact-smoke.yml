@@ -1,0 +1,98 @@
+name: MUSITU Axiom pinned frozen artifact end-to-end research smoke
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-frozen-public-artifact-smoke.yml'
+      - 'benchmarks/mining_adapter/frozen_public_artifact_smoke.py'
+      - 'tests/connect/test_frozen_public_artifact_smoke.py'
+      - 'benchmarks/mining_adapter/FROZEN_PUBLIC_ARTIFACT_SMOKE_README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  pinned-native-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install only pinned inference dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            lightgbm==4.6.0 scikit-learn==1.9.1 pandas==2.3.3
+      - name: Download exact prior published real-source research model
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/musitu-axiom-frozen-bundle
+          gh run download 37882474024 --repo "${{ github.repository }}" \
+            --name musitu-axiom-native-frozen-lightgbm-research \
+            --dir /tmp/musitu-axiom-frozen-bundle
+      - name: Fail closed against mutated weights or untrusted manifest
+        run: |
+          printf '%s  %s\n' \
+            'f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf' \
+            '/tmp/musitu-axiom-frozen-bundle/manifest.json' \
+            '3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab030eb' \
+            '/tmp/musitu-axiom-frozen-bundle/model.txt' | sha256sum --check
+          python - <<'PY'
+          from pathlib import Path
+          from benchmarks.mining_adapter.frozen_model_bundle import load_frozen_bundle
+          p=Path('/tmp/musitu-axiom-frozen-bundle')
+          digest='f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf'
+          model=load_frozen_bundle(p,expected_manifest_sha256=digest)
+          assert model.manifest['source_sha256']=='28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+          assert model.manifest['production_admission'] is False
+          assert model.manifest['independent_validation'] is False
+          assert model.manifest['research_only'] is True
+          assert model.manifest['feature_order_sha256']=='05802f815e8c14957e7ba79433ca58e5f4cdc2bf5d495828d49d18526f056df7'
+          print('FROZEN_NATIVE_MODEL_SUPPLY_CHAIN_PIN=PASS')
+          PY
+      - name: Replay actual published model on generated non-mine telemetry
+        env:
+          AXIOM_FROZEN_REAL_BUNDLE_DIR: /tmp/musitu-axiom-frozen-bundle
+        run: |
+          python -m py_compile benchmarks/mining_adapter/frozen_public_artifact_smoke.py tests/connect/test_frozen_public_artifact_smoke.py
+          python -m unittest tests.connect.test_frozen_public_artifact_smoke -v
+          mkdir -p qualification/axiom_frozen_public_artifact_smoke
+          python -m benchmarks.mining_adapter.frozen_public_artifact_smoke \
+            --bundle "$AXIOM_FROZEN_REAL_BUNDLE_DIR" \
+            --output qualification/axiom_frozen_public_artifact_smoke/synthetic_replay.json
+      - name: Verify evidence cannot claim mine validation or production
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('qualification/axiom_frozen_public_artifact_smoke/synthetic_replay.json')
+          r=json.loads(p.read_text())
+          assert r['schema']=='musitu.axiom.frozen_artifact_synthetic_smoke.v1'
+          assert r['evaluation_kind']=='SYNTHETIC_CONTRACT_SMOKE_ONLY'
+          assert r['model_manifest_sha256']=='f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf'
+          assert r['model_retrained'] is False
+          assert r['threshold_recalibrated'] is False
+          assert r['hard_warning_preserved'] is True
+          assert r['observed_hard_warnings'] > 0
+          assert r['positive_label_examples'] > 0
+          assert r['independent_validation'] is False
+          assert r['mine_safety_certification'] is False
+          assert r['production_admission'] is False
+          assert r['audit']['admission_gate'] == 'NOT_AUTHORIZED'
+          print('FROZEN_MODEL_SYNTHETIC_REPLAY=PASS')
+          print('INDEPENDENT_SITE_VALIDATION=NOT_DEMONSTRATED')
+          print('PRODUCTION_AXIOM_INTEGRATION=BLOCKED')
+          PY
+          sha256sum qualification/axiom_frozen_public_artifact_smoke/*.json
+      - name: Archive deidentified synthetic-only replay evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-pinned-native-model-synthetic-smoke
+          path: qualification/axiom_frozen_public_artifact_smoke/*.json
+          retention-days: 90
+          if-no-files-found: error

@@ -1,0 +1,53 @@
+name: MUSITU complete clean whole-product handoff export
+
+on:
+  push:
+    branches:
+      - feat/musitu-connect-frontier
+    paths:
+      - .github/workflows/musitu-whole-product-continuation-export.yml
+      - tools/packaging/musitu_clean_handoff.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+jobs:
+  archive-authoritative-tracked-snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - name: Checkout whole repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build SHA-verified, clean, no-secrets transfer package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python -c 'import ast,pathlib; ast.parse(pathlib.Path("tools/packaging/musitu_clean_handoff.py").read_text())'
+          PYTHONDONTWRITEBYTECODE=1 python -B tools/packaging/musitu_clean_handoff.py
+      - name: Archive all 3 source trees and sealed public research evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261027
+          path: ${{ runner.temp }}/musitu-clean-whole-product-20261027/
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
+      - name: Assert transfer boundary remains research-only
+        run: |
+          echo "COMPLETE_TRACKED_REPOSITORY_SNAPSHOT=TRUE"
+          echo "BOTH_LIVE_BRANCHES_AND_PREVIOUS_SEAL=ARCHIVED"
+          echo "PRODUCTION_COMPUTE_BRIDGE=PREVIOUSLY_AUTHORIZED_REVERIFY_LIVE"
+          echo "INDEPENDENT_MINE_METHANE_VALIDATION=NOT_DEMONSTRATED"
+          echo "PRODUCTION_METHANE_PREDICTION=NOT_AUTHORIZED"
+          echo "NO_DEPLOYMENT_OR_PR_MERGE=TRUE"

@@ -1,0 +1,37 @@
+name: MUSITU Axiom external mine data preflight contract
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-external-source-preflight.yml'
+      - 'benchmarks/mining_adapter/external_source_preflight.py'
+      - 'benchmarks/mining_adapter/EXTERNAL_SOURCE_PREFLIGHT_README.md'
+      - 'tests/connect/test_external_source_preflight.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-intake-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check source and syntax
+        run: |
+          python -m py_compile benchmarks/mining_adapter/external_source_preflight.py tests/connect/test_external_source_preflight.py
+      - name: Verify synthetic input integrity and explicit no-admission behavior
+        run: |
+          python -m unittest tests.connect.test_external_source_preflight -v
+      - name: Mark what was and was not validated
+        run: |
+          echo 'EXTERNAL_MINE_DATA_USED=FALSE'
+          echo 'INDEPENDENT_MINE_PROVENANCE_VERIFIED=FALSE'
+          echo 'REAL_MINE_MODEL_EVALUATION_EXECUTED=FALSE'
+          echo 'PREDICTIVE_MINE_SAFETY_QUALIFICATION=BLOCKED'
+          echo 'PRODUCTION_AXIOM_INTEGRATION=BLOCKED'
