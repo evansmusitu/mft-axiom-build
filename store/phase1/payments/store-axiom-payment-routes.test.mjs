@@ -233,3 +233,30 @@ test('Store V2 webhook rejects borrowed FMI and unverified live-mode merchant ID
   assert.equal(env.STORE_DB.log.length,0);
  }
 });
+
+
+test('non-final provider states never create fabricated refund reviews',async()=>{
+ for(const providerState of ['Created','Sent','Delivered','Awaiting Delivery','Cancelled','Disputed']){
+  const {app,env,calls}=fixture(signedStatus({status:providerState}));
+  const response=await app.fetch(webhook(signedStatus({status:providerState})),env);
+  const out=await response.json();
+  assert.equal(response.status,202,providerState);
+  assert.equal(out.processed,false,providerState);
+  assert.equal(out.payment_status,'pending',providerState);
+  assert.equal(out.entitlement_granted,false);
+  assert.equal(calls.length,1,'must independently poll Paynow');
+  assert.equal(env.STORE_DB.data.intent.status,'pending',providerState);
+  assert.equal(env.STORE_DB.data.review,null,providerState);
+  assert.equal(env.STORE_DB.log.filter(x=>/INSERT INTO store_checkout_reviews/.test(x.sql)).length,0);
+ }
+});
+test('contradictory paid and refunded provider states require manual resolution and never create reviews',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Refunded'}));
+ const response=await app.fetch(webhook(signedStatus({status:'Paid'})),env);
+ const out=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(calls.length,1);
+});

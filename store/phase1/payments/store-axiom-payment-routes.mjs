@@ -171,7 +171,14 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   if(v.reference!==p.reference||v.amount!==p.amount||v.pollurl!==p.pollurl||
      v.paynowreference!==p.paynowreference)
    return reply(409,{ok:false,error:'provider_transaction_conflict'});
-  const review=(p.status==='Paid'&&v.status==='Paid')?'review_required':'refund_review_required';
+  // Non-final statuses and disagreements are not refund evidence. Never
+  // advance the immutable Store intent until both verified sources agree
+  // on the same explicit final paid/refunded state.
+  if(p.status!==v.status)
+   return reply(409,{ok:false,error:'provider_payment_state_conflict'});
+  if(p.status!=='Paid'&&p.status!=='Refunded')
+   return reply(202,{ok:true,processed:false,payment_status:'pending',reason:'provider_status_not_final'});
+  const review=p.status==='Paid'?'review_required':'refund_review_required';
   try{
    const at=new Date().toISOString();
    const committed=await db.batch([
