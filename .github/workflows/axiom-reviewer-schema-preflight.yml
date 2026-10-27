@@ -1,0 +1,36 @@
+name: Axiom reviewer access schema preflight
+
+on:
+  push:
+    branches: [openai/axiom-review-access-20261027]
+    paths: ['.github/workflows/axiom-reviewer-schema-preflight.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read account and key schema without reading credentials or customer records
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token: raise SystemExit('Scoped Cloudflare token unavailable; no action taken')
+          base='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4/query'
+          out={'schema':'musitu.axiom.reviewer.schema_preflight.v1','mutation_performed':False,'customer_records_read':False,'credential_values_read':False,'tables':{}}
+          for table in ['customers','api_keys','usage_buckets']:
+              req=urllib.request.Request(base,method='POST',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},data=json.dumps({'sql':'PRAGMA table_info('+table+');'}).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as resp: result=json.load(resp)
+              except urllib.error.HTTPError as e:
+                  raise SystemExit('Read-only D1 schema request rejected: HTTP '+str(e.code))
+              if not result.get('success') or not all(x.get('success') for x in result.get('result',[])): raise SystemExit('D1 schema read unsuccessful')
+              out['tables'][table]=[{'name':x['name'],'type':x['type'],'notnull':x['notnull'],'pk':x['pk']} for r in result['result'] for x in r.get('results',[])]
+          if not out['tables']['customers'] or not out['tables']['api_keys']:raise SystemExit('Required identity tables absent')
+          print(json.dumps(out,sort_keys=True))
+          PY
