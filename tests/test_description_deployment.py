@@ -86,6 +86,13 @@ class DescriptionDeploymentTests(unittest.TestCase):
         self.assertNotIn(b'"bindings"', body)
         self.assertNotIn(b'"compatibility_date"', body)
 
+    def test_only_the_documented_scoped_token_is_used(self):
+        with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "test-only-scoped-token", "CLOUDFLARE_EMAIL": "unused", "CLOUDFLARE_GLOBAL_API_KEY": "unused"}, clear=True):
+            client = DEPLOY.Client()
+        self.assertEqual(client.admin["Authorization"], "Bearer test-only-scoped-token")
+        self.assertNotIn("X-Auth-Email", client.admin)
+        self.assertNotIn("X-Auth-Key", client.admin)
+
     def test_multiple_modules_are_rejected(self):
         content_type, body = DEPLOY.multipart("index.mjs", CANDIDATE)
         boundary = content_type.split("boundary=")[1].encode()

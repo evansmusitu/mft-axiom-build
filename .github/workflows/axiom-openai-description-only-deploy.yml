@@ -26,8 +26,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_description_deployment.py' -v
       - name: Deploy only the approved gate content and verify readback
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: python3 deploy_description_only.py
       - name: Retain deployment evidence and verified rollback source
         if: always()

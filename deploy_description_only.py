@@ -91,9 +91,10 @@ class CloudflareError(RuntimeError):
 
 class Client:
     def __init__(self):
-        self.admin = {"X-Auth-Email": os.environ["CLOUDFLARE_EMAIL"], "X-Auth-Key": os.environ["CLOUDFLARE_GLOBAL_API_KEY"], "User-Agent": "MUSITU-Axiom-Approved-Description-Deploy/1.0"}
-        if not all(self.admin.values()):
-            raise RuntimeError("Required repository secret is unavailable")
+        token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+        if not token:
+            raise RuntimeError("The documented scoped Cloudflare token is unavailable")
+        self.admin = {"Authorization": "Bearer " + token, "User-Agent": "MUSITU-Axiom-Approved-Description-Deploy/1.0"}
 
     @staticmethod
     def request(url, method="GET", headers=None, body=None):
