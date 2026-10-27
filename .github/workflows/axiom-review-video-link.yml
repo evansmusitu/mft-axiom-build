@@ -1,0 +1,29 @@
+name: Axiom static reviewer recording link
+on:
+  push:
+    branches: [openai/axiom-review-access-20261027]
+    paths: ['.github/workflows/axiom-review-video-link.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-static-review-video-20261027
+  cancel-in-progress: false
+jobs:
+  publish-recording:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original recording bytes and seven HTTP behavior checks
+        run: node review-video/verify.mjs
+      - name: Make the recording available on a separate unlisted static endpoint
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 review-video/deploy.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axiom-review-video-link-20261027
+          path: review-video/link-evidence.json
+          retention-days: 30
+          if-no-files-found: warn
