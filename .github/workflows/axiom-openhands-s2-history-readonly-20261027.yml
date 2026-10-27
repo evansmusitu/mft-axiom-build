@@ -1,0 +1,47 @@
+# S2-only one-time authenticated history check; no model or agent actions
+name: AXIOM OpenHands S2 historical repository reference (not certification)
+on:
+  push:
+    branches: [build/axiom-openhands-s2-readonly-20261027]
+    paths:
+      - .github/workflows/axiom-openhands-s2-history-readonly-20261027.yml
+      - ops/openhands_qualification/cloud_history_v3.py
+      - ops/openhands_qualification/test/test_cloud_history_v3.py
+permissions:
+  contents: read
+jobs:
+  s2-history:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-openhands-s2-readonly-20261027' && github.event_name == 'push' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run adversarial local tests
+        run: python3 -m unittest discover -s ops/openhands_qualification/test -p 'test_cloud_history_v3.py' -v
+      - name: Read one bounded OpenHands Cloud history page, no inference
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+          AXIOM_S2_OPT_IN: READONLY_PROBE_ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, sys
+          result = subprocess.run([sys.executable, 'ops/openhands_qualification/cloud_history_v3.py'], capture_output=True, text=True, timeout=25, check=False)
+          try:
+              payload = json.loads(result.stdout)
+              status = payload['status']
+              assert isinstance(status, str) and status.isascii() and status.replace('_','').isalnum() and len(status) < 110
+          except (ValueError, KeyError, AssertionError, TypeError):
+              status = 'BLOCKED_UNREADABLE_RESULT'
+              payload = {}
+          print('AXIOM_OPENHANDS_S2_HISTORY_STATUS=' + status)
+          print('AXIOM_OPENHANDS_S2_HISTORICAL_TARGET_OBSERVED=' + str(min(20, payload.get('historical_exact_repo_matches', 0))) if type(payload.get('historical_exact_repo_matches', 0)) is int else 'AXIOM_OPENHANDS_S2_HISTORICAL_TARGET_OBSERVED=INVALID')
+          print('AXIOM_OPENHANDS_REPO_ACCESS_CURRENT=NOT_PROVEN')
+          print('AXIOM_OPENHANDS_ZERO_COST_GATE=NOT_PROVEN')
+          print('AXIOM_OPENHANDS_B27=FAILED_IN_SYNTHETIC_ATTACK')
+          print('AXIOM_OPENHANDS_RELEASE=NOT_CERTIFIED')
+          if result.returncode != 0 or status.startswith('BLOCKED_'): sys.exit(1)
+          PY
