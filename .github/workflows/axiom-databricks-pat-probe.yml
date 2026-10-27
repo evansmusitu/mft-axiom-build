@@ -1,0 +1,72 @@
+name: MUSITU Databricks PAT workspace identity probe
+
+on:
+  push:
+    branches:
+      - pilot/axiom-databricks-pat-20261027
+    paths:
+      - '.github/workflows/axiom-databricks-pat-probe.yml'
+      - 'integrations/databricks/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-databricks-pat-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-synthetic:
+    name: Offline mathematical verification (no Databricks use)
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify synthetic notebook and fail-closed defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(python3 integrations/databricks/notebooks/01_musitu_axiom_selfcontained.py)"
+          grep -q '^MUSITU_AXIOM_DATABRICKS_SYNTHETIC_4_OF_4_PASS$' <<< "$output"
+          grep -q '^MLFLOW_EVALUATION_SKIPPED:' <<< "$output"
+          printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
+
+  workspace-auth-only:
+    name: Auth-only workspace probe (GET request, zero compute)
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      vars.MUSITU_DATABRICKS_APPROVE_PROBE == 'YES'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: databricks-pilot
+    env:
+      DATABRICKS_HOST: https://dbc-3179c56f-a6c7.cloud.databricks.com
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - name: Confirm secret was configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Missing databricks-pilot environment secret DATABRICKS_TOKEN'
+            exit 1
+          fi
+      - name: Validate workspace-scoped PAT without printing identity or token
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          status="$(curl --proto '=https' --tlsv1.2 --silent --show-error \
+            --max-time 25 --retry 0 --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${DATABRICKS_TOKEN}" \
+            --header 'Accept: application/json' \
+            "${DATABRICKS_HOST}/api/2.0/preview/scim/v2/Me")"
+          case "$status" in
+            200) echo 'MUSITU_DATABRICKS_WORKSPACE_PAT_AUTH_PASS; no compute or data writes' ;;
+            401) echo '::error::PAT was rejected by the workspace (HTTP 401)' ; exit 1 ;;
+            403) echo '::error::PAT lacks required permission or scope (HTTP 403)' ; exit 1 ;;
+            *) echo "::error::Workspace read-only identity probe returned HTTP ${status}" ; exit 1 ;;
+          esac
