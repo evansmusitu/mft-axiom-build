@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import os
 import json
+import math
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,7 @@ RECORD_PATH = ROOT / 'qualification/musitu_connect_commercial_ga_release.json'
 SCHEMA = 'musitu.connect.commercial_ga_release.v1'
 BLOCKED = 'BLOCKED_PENDING_INDEPENDENT_COMMERCIAL_EVIDENCE'
 READY = 'QUALIFIED_AND_SEPARATELY_RELEASED'
+MAX_RELEASE_RECORD_BYTES = 65_536
 EXPECTED = frozenset({
     'hosted_isolated_cloudflare_d1_staging_concurrency',
     'hosted_customer_tenant_isolation_and_request_attribution',
@@ -34,6 +36,46 @@ EXPECTED = frozenset({
     'customer_support_and_service_level_readiness',
     'public_connect_mcp_and_domain_review',
 })
+
+
+def _unique_json_object(pairs):
+    """Reject ambiguous JSON keys at *any* nesting depth, including approval."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('DUPLICATE_RELEASE_JSON_KEY')
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_constant(_token):
+    raise ValueError('NON_FINITE_RELEASE_NUMBER')
+
+
+def _finite_json_float(token):
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError('NON_FINITE_RELEASE_NUMBER')
+    return value
+
+
+def load_release_record(path=None):
+    """Read one bounded strict UTF-8 JSON document; never log original values.
+
+    The original canonical HMAC contract is unchanged. The caller still needs
+    independent evidence and a separately held production approval key.
+    """
+    source = RECORD_PATH if path is None else path
+    with source.open('rb') as file:
+        raw = file.read(MAX_RELEASE_RECORD_BYTES + 1)
+    if not raw or len(raw) > MAX_RELEASE_RECORD_BYTES:
+        raise ValueError('INVALID_RELEASE_RECORD_SIZE')
+    return json.loads(
+        raw.decode('utf-8', errors='strict'),
+        object_pairs_hook=_unique_json_object,
+        parse_constant=_reject_nonfinite_constant,
+        parse_float=_finite_json_float,
+    )
 
 
 def _verified_release_attestation(record):
@@ -125,8 +167,8 @@ def main():
     mode.add_argument('--enforce-ready', action='store_true')
     args = parser.parse_args()
     try:
-        valid, ready, reason = audit(json.loads(RECORD_PATH.read_text(encoding='utf-8')))
-    except (OSError, ValueError):
+        valid, ready, reason = audit(load_release_record())
+    except (OSError, ValueError, RecursionError):
         valid, ready, reason = False, False, 'RELEASE_RECORD_UNREADABLE'
     if not valid:
         print('MUSITU_COMMERCIAL_GA_AUDIT=FAIL '+reason)

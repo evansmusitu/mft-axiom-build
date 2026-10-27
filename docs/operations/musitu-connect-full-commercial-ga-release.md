@@ -34,6 +34,17 @@ incident paging; production security, legal/privacy/DPA, commercial support
 readiness; and a domain/MCP release review. No pilot or beta customer validation
 is required by this **GA-specific** policy.
 
+## Release-file parser integrity
+
+Before evaluating any release evidence or approval signature, the non-enabling
+GA validator reads at most 65,536 bytes of strict UTF-8 JSON and rejects
+duplicate keys (including nested release flags), `NaN`, `Infinity`,
+`-Infinity`, finite-number overflow such as `1e999`, oversized records
+and unreadable JSON. Invalid records fail closed in audit and enforcement
+modes. This prevents multiple interpretations of one approval document and
+unbounded parsing; it **does not** establish the authenticity of the external
+evidence and does not authorize customer admission.
+
 ## Release authorization integrity
 
 The GA register is auditable documentary data, **not a production release
