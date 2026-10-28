@@ -46,6 +46,23 @@ jobs:
         run: python qualification/validate_production_admission.py
       - name: Verify existing production runtime guard
         run: python qualification/verify_live_production_runtime.py
+      - name: Observe public Axiom MCP health without credentials or promotion
+        run: |
+          python -m unittest tests.connect.test_axiom_public_health_diagnostics -v
+          python qualification/diagnose_axiom_public_health.py --output axiom-public-health-observation.json
+          python - <<'PY'
+          import json
+          result=json.load(open('axiom-public-health-observation.json',encoding='utf-8'))
+          print('PUBLIC_AX_HEALTH_READY='+str(result['ready']))
+          print('PUBLIC_AX_HEALTH_FAILURE_FIELDS='+','.join(result['failed_checks']))
+          print('PUBLIC_AX_HEALTH_NOT_A_RELEASE_GATE=true')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-axiom-public-health-observation
+          path: axiom-public-health-observation.json
+          if-no-files-found: error
       - name: Reconfirm separate commercial GA release remains disabled
         run: |
           python qualification/validate_commercial_ga.py --audit
