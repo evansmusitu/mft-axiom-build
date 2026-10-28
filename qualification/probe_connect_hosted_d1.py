@@ -140,7 +140,8 @@ def run_probe(config, transport=None):
     meta = result.get('meta')
     if (result.get('success') is not True or not isinstance(meta, dict)
             or type(meta.get('changes')) is not int or meta['changes'] != 0
-            or type(meta.get('rows_written')) is not int or meta['rows_written'] != 0):
+            or type(meta.get('rows_written')) is not int or meta['rows_written'] != 0
+            or ('changed_db' in meta and meta['changed_db'] is not False)):
         raise ProbeError('REMOTE_QUERY_NOT_PROVEN_READ_ONLY')
     rows = result.get('results')
     if not isinstance(rows, list) or len(rows) > 64:
