@@ -33,3 +33,22 @@
 - This newer 30-case independent oracle suite: https://github.com/evansmusitu/mft-axiom-build/actions/runs/40642895875
 
 Next: Track verified actual results in Databricks MLflow by read-only Jobs run evidence and MLflow Tracking REST API. Then plan a real live Axiom MCP integration only after permitted identity and per-operation server-side allowlists are verified.
+
+
+## Independently verified Databricks MLflow record
+
+- Attestation Actions run: https://github.com/evansmusitu/mft-axiom-build/actions/runs/40643353902
+- Actions job: `122666415067` — **success**
+- Verification marker: `MUSITU_AXIOM_30_CASE_REAL_DATABRICKS_MLFLOW_VERIFIED`
+- MLflow experiment ID: `4363380164437717`
+- MLflow run ID: `c2e5ee6b872c42099496623219857379`
+- Original Databricks Jobs run ID, independently re-read before MLflow writes: `645552668907468`
+- Persisted and read-back metrics:
+  - `total_cases=30.0`
+  - `passed_cases=30.0`
+  - `failed_cases=0.0`
+  - `max_absolute_error=1.4779288903810084e-12`
+  - `npv_cases=10.0`; `option_cases=10.0`; `var_cases=10.0`
+- Full GitHub offline suite at attestation: **41/41 passing tests**.
+- No Databricks compute started by the tracking job; MLflow uses existing authenticated Databricks Tracking API.
+- **No billing balance or trial USD consumption was verified through the workspace-only PAT.**
