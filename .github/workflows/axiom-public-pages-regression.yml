@@ -1,0 +1,30 @@
+name: MUSITU Axiom public legal/support reachability (read-only, non-enabling)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/diagnose_axiom_public_pages.py'
+      - 'tests/connect/test_axiom_public_pages.py'
+      - '.github/workflows/axiom-public-pages-regression.yml'
+permissions:
+  contents: read
+jobs:
+  public-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate sanitized public page diagnostics
+        run: python -m unittest tests.connect.test_axiom_public_pages -v
+      - name: Read public privacy, terms, documentation and support endpoints
+        run: python qualification/diagnose_axiom_public_pages.py --output axiom-public-pages-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: axiom-public-pages-readonly-evidence
+          path: axiom-public-pages-evidence.json
+          if-no-files-found: error
