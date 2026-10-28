@@ -1,0 +1,25 @@
+name: MUSITU Axiom source readback reconciliation (offline, non-enabling)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/verify_axiom_public_source_readback.py'
+      - 'tests/connect/test_axiom_source_readback.py'
+      - '.github/workflows/axiom-source-readback-regression.yml'
+permissions:
+  contents: read
+jobs:
+  offline-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source capture reconciliation always remains non-enabling
+        run: python -m unittest tests.connect.test_axiom_source_readback -v
+      - name: Recheck unrelated existing public-health diagnostics
+        run: python -m unittest tests.connect.test_axiom_public_health_diagnostics -v
