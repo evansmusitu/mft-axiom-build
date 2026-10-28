@@ -1,0 +1,20 @@
+name: Restore public Axiom support page access
+on:
+  push:
+    branches: [openai/reviewer-fixes-20261028]
+    paths: [.github/workflows/axiom-public-support-fix-20261028.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-public-support-reviewer-fix
+  cancel-in-progress: false
+jobs:
+  restore-public-support:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply narrowly scoped support read exception
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 ops/fix_axiom_public_support_access.py --apply
