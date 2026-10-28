@@ -1,0 +1,30 @@
+name: MUSITU Axiom public MCP tools list only (non-enabling)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/diagnose_axiom_public_catalog.py'
+      - 'tests/connect/test_axiom_public_catalog.py'
+      - '.github/workflows/axiom-public-catalog-readonly.yml'
+permissions:
+  contents: read
+jobs:
+  public-discovery-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test no-credential catalog-only boundary
+        run: python -m unittest tests.connect.test_axiom_public_catalog -v
+      - name: Observe fixed public MCP JSON-RPC tools/list
+        run: python qualification/diagnose_axiom_public_catalog.py --output public-catalog-observation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-public-tools-readonly-observation
+          path: public-catalog-observation.json
+          if-no-files-found: error
