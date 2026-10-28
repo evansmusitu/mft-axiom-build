@@ -65,6 +65,30 @@ class AxiomPublicHealthDiagnostics(unittest.TestCase):
                 self.assertNotIn('observed_server_version', report)
                 self.assertNotIn(str(untrusted), json.dumps(report))
 
+    def test_exact_hex_build_hint_only_on_isolated_public_version_drift(self):
+        """A public build hash is useful only when bounded and other checks pass."""
+        good = {'ok': True, 'server_version': '4.0.2',
+                'submission_safe_commerce_profile': True, 'oauth_enforced': True,
+                'core': {'build_id': 'a' * 40, 'private_token': 'NEVER_ECHO'}}
+        report = assess_response(200, json.dumps(good).encode())
+        self.assertEqual(report['failed_checks'], ['server_version_mismatch'])
+        self.assertEqual(report.get('observed_core_build_id'), 'a' * 40)
+        self.assertNotIn('NEVER_ECHO', json.dumps(report))
+        wf = (Path(__file__).resolve().parents[2] /
+              '.github/workflows/axiom-health-provenance-regression.yml')
+        self.assertIn('observed_core_build_id', wf.read_text())
+        for junk in ('secret:abc', 'a' * 39, 'a' * 41, 'z' * 40, '',
+                     'ab\\nSECRET', None, True):
+            with self.subTest(value=repr(junk)):
+                body = dict(good, core={'build_id': junk})
+                report = assess_response(200, json.dumps(body).encode())
+                self.assertNotIn('observed_core_build_id', report)
+        for extra_failure in ({'oauth_enforced': False}, {'ok': False},
+                              {'submission_safe_commerce_profile': False}):
+            body = dict(good, **extra_failure)
+            report = assess_response(200, json.dumps(body).encode())
+            self.assertNotIn('observed_core_build_id', report)
+
     def test_http_error_is_not_confused_with_healthy_json(self):
         result = assess_response(503, b'{"ok": true}')
         self.assertFalse(result['ready'])

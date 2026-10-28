@@ -1,0 +1,42 @@
+name: MUSITU Axiom public health build provenance (read-only, non-enabling)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/diagnose_axiom_public_health.py'
+      - 'tests/connect/test_axiom_public_health_diagnostics.py'
+      - '.github/workflows/axiom-health-provenance-regression.yml'
+permissions:
+  contents: read
+jobs:
+  provenance-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Regression safety and bounded evidence contract
+        run: python -m unittest tests.connect.test_axiom_public_health_diagnostics -v
+      - name: Safe public version and build provenance observation
+        run: |
+          python qualification/diagnose_axiom_public_health.py --output axiom-public-health-build-observation.json
+          python - <<'PY'
+          import json
+          record=json.load(open('axiom-public-health-build-observation.json',encoding='utf-8'))
+          print('PUBLIC_HEALTH_READY='+str(record['ready']))
+          print('PUBLIC_HEALTH_FAILED_CHECKS='+','.join(record['failed_checks']))
+          if record.get('observed_core_build_id'):
+              print('PUBLIC_CORE_BUILD_ID='+record['observed_core_build_id'])
+          else:
+              print('PUBLIC_CORE_BUILD_ID=NOT_ATTESTED')
+          print('AXIOM_RELEASE_PROMOTION=NOT_GRANTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: axiom-public-build-provenance-observation
+          path: axiom-public-health-build-observation.json
+          if-no-files-found: error
