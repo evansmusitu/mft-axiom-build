@@ -31,12 +31,22 @@ print(json.dumps({'gate':'REVIEW_VIDEO_EXISTING_ASSET_PIN_VERIFIED','url':url,'s
 ja('/workers/scripts/'+NAME+'/subdomain','POST',{'enabled':True,'previews_enabled':False})
 state_after=ja('/workers/scripts/'+NAME+'/subdomain')
 print(json.dumps({'gate':'REVIEW_VIDEO_ENDPOINT_ENABLED','subdomain_after':state_after}))
-req=urllib.request.Request(url)
+# Cloudflare documents a descriptive application identity for workers.dev clients.
+# This identifies this verifier honestly; no browser spoofing or security change.
+PUBLIC_HEADERS={'User-Agent':'MUSITU-ReviewAssetVerifier/1.0'}
+req=urllib.request.Request(url,headers=PUBLIC_HEADERS)
 try:
     with urllib.request.urlopen(req,timeout=45) as r:
         data=r.read()
         result={'http_status':r.status,'content_type':r.headers.get('content-type'),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}
-        if r.status==200 and result['sha256']==META['video_sha256']:result['gate']='REVIEW_VIDEO_FULL_PUBLIC_HASH_PASS'
+        if r.status==200 and result['sha256']==META['video_sha256']:
+            with urllib.request.urlopen(urllib.request.Request(url,headers={**PUBLIC_HEADERS,'Range':'bytes=0-1023'}),timeout=45) as part:
+                range_data=part.read()
+                result['range_status']=part.status
+                result['range_bytes']=len(range_data)
+                result['range_matches_original_prefix']=range_data==data[:1024]
+                if part.status!=206 or len(range_data)!=1024 or range_data!=data[:1024]:raise RuntimeError('Public playback range mismatch')
+            result['gate']='REVIEW_VIDEO_FULL_PUBLIC_HASH_AND_RANGE_PASS'
 except urllib.error.HTTPError as e:
     raw=e.read(65536).decode('utf-8','replace')
     title=re.search(r'<title[^>]*>(.*?)</title>',raw,re.I|re.S)
