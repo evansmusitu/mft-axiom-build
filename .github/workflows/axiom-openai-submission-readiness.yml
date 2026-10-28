@@ -8,6 +8,10 @@ on:
       - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
       - 'mcp/operation_contracts.json'
       - 'mcp/plugin_contract_runtime.mjs'
+      - 'mcp/tests/**'
+      - 'ops/build_axiom_plugin_package.py'
+      - 'ops/verify_axiom_tool_schemas.py'
+      - 'ops/verify_axiom_live_public.py'
 permissions:
   contents: read
 jobs:

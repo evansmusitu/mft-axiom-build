@@ -21,7 +21,7 @@ def validate():
         contracts.add((skill.parent/'references/COMMERCIAL.md').read_text())
         assert (skill.parent/'agents/openai.yaml').is_file()
     assert len(contracts)==1
-    contract=contracts.pop();assert 'Do not display subscription plans or prices' in contract and 'never collect payment' not in contract.lower()
+    contract=contracts.pop();assert 'Do not display subscription plans or prices' in contract and 'Do not collect passwords' in contract
     assert 'Surface paid/team/API access' not in (PLUGIN/'skills/musitu-command-center/SKILL.md').read_text()
     assert 'Keep selling subordinate' not in (PLUGIN/'skills/musitu-commercial-expansion/SKILL.md').read_text()
     files=sorted(p for p in PLUGIN.rglob('*') if p.is_file());assert len(files)==147
