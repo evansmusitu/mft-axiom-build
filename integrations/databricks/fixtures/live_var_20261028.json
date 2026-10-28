@@ -1,0 +1,234 @@
+{
+  "schema": "musitu.axiom.databricks.live-capture-fixtures.v1",
+  "captured_date": "2026-10-28",
+  "source": "MUSITU Axiom live connector",
+  "category": "var_historical",
+  "cases": [
+    {
+      "id": "var_01",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.02,
+          -0.01,
+          0,
+          0.005,
+          0.01,
+          0.02,
+          -0.03,
+          0.015,
+          -0.005,
+          0.025,
+          -0.012,
+          0.008
+        ],
+        "alpha": 0.95
+      },
+      "axiom_value": 0.024499999999999994,
+      "verified": null
+    },
+    {
+      "id": "var_02",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.02,
+          -0.01,
+          0,
+          0.005,
+          0.01,
+          0.02,
+          -0.03,
+          0.015,
+          -0.005,
+          0.025,
+          -0.012,
+          0.008
+        ],
+        "alpha": 0.99
+      },
+      "axiom_value": 0.0289,
+      "verified": null
+    },
+    {
+      "id": "var_03",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.15,
+          -0.1,
+          -0.075,
+          0.005,
+          0.02,
+          0.04,
+          -0.03,
+          0.04,
+          -0.045,
+          0.025,
+          -0.06,
+          0.08
+        ],
+        "alpha": 0.95
+      },
+      "axiom_value": 0.12249999999999997,
+      "verified": null
+    },
+    {
+      "id": "var_04",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.15,
+          -0.1,
+          -0.075,
+          0.005,
+          0.02,
+          0.04,
+          -0.03,
+          0.04,
+          -0.045,
+          0.025,
+          -0.06,
+          0.08
+        ],
+        "alpha": 0.99
+      },
+      "axiom_value": 0.1445,
+      "verified": null
+    },
+    {
+      "id": "var_05",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          0.03,
+          0.01,
+          0.025,
+          0.04,
+          0.02,
+          0.01,
+          0.07,
+          0.05,
+          0.015,
+          0.023,
+          0.025,
+          0.005
+        ],
+        "alpha": 0.95
+      },
+      "axiom_value": -0.0077500000000000025,
+      "verified": null
+    },
+    {
+      "id": "var_06",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          0.03,
+          0.01,
+          0.025,
+          0.04,
+          0.02,
+          0.01,
+          0.07,
+          0.05,
+          0.015,
+          0.023,
+          0.025,
+          0.005
+        ],
+        "alpha": 0.99
+      },
+      "axiom_value": -0.00555,
+      "verified": null
+    },
+    {
+      "id": "var_07",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.005,
+          -0.01,
+          -0.006,
+          0,
+          0.002,
+          -0.008,
+          0.002,
+          -0.003,
+          0.001,
+          0.008,
+          -0.009,
+          0.006
+        ],
+        "alpha": 0.95
+      },
+      "axiom_value": 0.00945,
+      "verified": null
+    },
+    {
+      "id": "var_08",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.005,
+          -0.01,
+          -0.006,
+          0,
+          0.002,
+          -0.008,
+          0.002,
+          -0.003,
+          0.001,
+          0.008,
+          -0.009,
+          0.006
+        ],
+        "alpha": 0.99
+      },
+      "axiom_value": 0.00989,
+      "verified": null
+    },
+    {
+      "id": "var_09",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.04,
+          -0.03,
+          -0.02,
+          -0.01,
+          0,
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "alpha": 0.95
+      },
+      "axiom_value": 0.0355,
+      "verified": null
+    },
+    {
+      "id": "var_10",
+      "operation": "finance.var_historical",
+      "args": {
+        "returns": [
+          -0.04,
+          -0.03,
+          -0.02,
+          -0.01,
+          0,
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "alpha": 0.99
+      },
+      "axiom_value": 0.0391,
+      "verified": null
+    }
+  ]
+}
