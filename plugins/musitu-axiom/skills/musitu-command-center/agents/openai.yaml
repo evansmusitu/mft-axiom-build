@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Command Center"
+  short_description: "Route complex finance, quantitative, research, data, risk, modeling, optimization, veri..."
+  default_prompt: "Use MUSITU Axiom's Command Center workflow for this task."

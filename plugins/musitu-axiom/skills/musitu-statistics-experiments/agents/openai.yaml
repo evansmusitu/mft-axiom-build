@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Statistics Experiments"
+  short_description: "Perform statistical inference, hypothesis testing, effect estimation, regression-style..."
+  default_prompt: "Use MUSITU Axiom's Statistics Experiments workflow for this task."

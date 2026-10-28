@@ -2,10 +2,6 @@ name: MUSITU Axiom Public Plugin Gate V4 Cutover
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
-      - '.github/workflows/axiom-plugin-gate-v4-cutover.yml'
 
 permissions:
   contents: read

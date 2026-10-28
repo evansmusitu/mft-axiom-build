@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Existing Account Access"
+  short_description: "Resolve existing-account access and quota errors"
+  default_prompt: "Use $musitu-commercial-expansion to help resolve this existing MUSITU Axiom account access error."
