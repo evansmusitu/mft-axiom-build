@@ -1,0 +1,43 @@
+name: MUSITU Axiom and Connect cross-feature offline regression (non-enabling)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/diagnose_axiom_public_*.py'
+      - 'qualification/verify_axiom_public_source_readback.py'
+      - 'tests/connect/test_axiom_*.py'
+      - '.github/workflows/axiom-cross-feature-offline-regression.yml'
+permissions:
+  contents: read
+jobs:
+  full-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install previously pinned benchmark dependency
+        run: python -m pip install --disable-pip-version-check scipy==1.18.1
+      - name: Run entire Connect Python regression suite (offline/non-enabling)
+        run: python -m unittest discover -s tests/connect -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run production-worker and customer Node contracts without credentials
+        run: node --test tests/connect/test_production_worker.mjs tests/connect/test_customer_identity.mjs tests/connect/test_customer_admission.mjs tests/connect/test_customer_payload.mjs tests/connect/test_customer_ingress_canary.mjs tests/connect/test_customer_provisioning.mjs tests/connect/test_synthetic_beta_acceptance.mjs
+      - name: Existing customer admission and runtime guards
+        run: |
+          python qualification/validate_production_admission.py
+          python qualification/verify_live_production_runtime.py
+      - name: Verify commercial GA cannot be self-promoted
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unqualified public GA release detected' >&2
+            exit 1
+          fi
+          echo 'COMMERCIAL_GA=BLOCKED_PENDING_13_CONTROLS'
