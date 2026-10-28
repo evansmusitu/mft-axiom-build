@@ -4,6 +4,7 @@ Synthetic data only. Never connect to Paynow, Neon, or deployed Store.
 """
 import pathlib
 import re
+import warnings
 import sqlite3
 import unittest
 
@@ -30,10 +31,21 @@ class WriterSQLTest(unittest.TestCase):
         self.db.execute("INSERT INTO store_products(sku,amount_cents,currency,publisher_type,status) VALUES ('STORE_OWNER_TEST',425,'USD','first_party','approved')")
         self.db.execute("INSERT INTO store_checkout_intents(reference,customer_id,sku,amount_cents,currency,status,created_at,expires_at) VALUES (?, 'SYNTHETIC_TEST','STORE_OWNER_TEST',425,'USD','initiating','2026-10-27T20:00:00Z','2026-10-28T20:00:00Z')", (REFERENCE,))
         self.db.execute("UPDATE store_checkout_intents SET status='pending',browser_url='https://www.paynow.co.zw/Payment/ConfirmPayment/1234',poll_url=? WHERE reference=?", (POLL,REFERENCE))
-        self.args=['evt-'+('e'*64),REFERENCE,PAYNOW_REFERENCE,'Cancelled',425,POLL,'a'*64,'b'*64,'2026-10-27T21:00:00.000Z']
+        self.args=dict(zip((str(i) for i in range(1,10)),
+            ['evt-'+('e'*64),REFERENCE,PAYNOW_REFERENCE,'Cancelled',425,POLL,
+             'a'*64,'b'*64,'2026-10-27T21:00:00.000Z']))
 
     def tearDown(self):
         self.db.close()
+
+    def test_numeric_sql_bindings_are_python_314_compatible(self):
+        # ?1 ... ?9 are numbered named bindings; sequence binding becomes
+        # sqlite3.ProgrammingError in Python 3.14. Fail the test on warnings now.
+        self.assertIsInstance(self.args, dict, 'numbered SQLite placeholders require mapping-style bindings')
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', DeprecationWarning)
+            affected = self.db.execute(self.statement, self.args).rowcount
+        self.assertEqual(affected, 1)
 
     def test_exact_worker_sql_atomically_inserts_matching_pending_observation(self):
         affected=self.db.execute(self.statement,self.args).rowcount
@@ -57,14 +69,14 @@ class WriterSQLTest(unittest.TestCase):
     def test_exact_worker_sql_rejects_altered_order_amount_or_poll_url(self):
         for modified in [(4,426),(5,'https://www.paynow.co.zw/Interface/CheckPayment/?guid=00000000-1111-2222-3333-555555555555')]:
             with self.subTest(modified=modified):
-                args=self.args.copy();args[modified[0]]=modified[1]
+                args=self.args.copy();args[str(modified[0]+1)]=modified[1]
                 self.assertEqual(self.db.execute(self.statement,args).rowcount,0)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],0)
 
     def test_exact_worker_sql_disallows_unsanctioned_paid_or_refunded_observation(self):
         for state in ('Paid','Refunded','Unknown'):
             with self.subTest(state=state), self.assertRaises(sqlite3.IntegrityError):
-                args=self.args.copy();args[3]=state
+                args=self.args.copy();args["4"]=state
                 self.db.execute(self.statement,args)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM store_paynow_status_observations').fetchone()[0],0)
 
