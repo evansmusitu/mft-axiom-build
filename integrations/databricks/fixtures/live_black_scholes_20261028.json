@@ -1,0 +1,148 @@
+{
+  "schema": "musitu.axiom.databricks.live-capture-fixtures.v1",
+  "captured_date": "2026-10-28",
+  "source": "MUSITU Axiom live connector",
+  "category": "black_scholes",
+  "cases": [
+    {
+      "id": "bs_01",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 100,
+        "T": 1,
+        "r": 0.05,
+        "sigma": 0.2,
+        "kind": "call"
+      },
+      "axiom_value": 10.450583572185565,
+      "verified": null
+    },
+    {
+      "id": "bs_02",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 100,
+        "T": 1,
+        "r": 0.05,
+        "sigma": 0.2,
+        "kind": "put"
+      },
+      "axiom_value": 5.573526022256971,
+      "verified": null
+    },
+    {
+      "id": "bs_03",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 90,
+        "T": 0.5,
+        "r": 0.03,
+        "sigma": 0.35,
+        "kind": "call"
+      },
+      "axiom_value": 16.030097120837247,
+      "verified": null
+    },
+    {
+      "id": "bs_04",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 110,
+        "T": 0.5,
+        "r": 0.03,
+        "sigma": 0.35,
+        "kind": "put"
+      },
+      "axiom_value": 14.97352100828929,
+      "verified": null
+    },
+    {
+      "id": "bs_05",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 70,
+        "K": 100,
+        "T": 1,
+        "r": 0,
+        "sigma": 0.3,
+        "kind": "put"
+      },
+      "axiom_value": 31.42963214105302,
+      "verified": null
+    },
+    {
+      "id": "bs_06",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 70,
+        "K": 100,
+        "T": 1,
+        "r": 0,
+        "sigma": 0.3,
+        "kind": "call"
+      },
+      "axiom_value": 1.4296321410530268,
+      "verified": null
+    },
+    {
+      "id": "bs_07",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 150,
+        "K": 100,
+        "T": 0.25,
+        "r": 0.08,
+        "sigma": 0.45,
+        "kind": "call"
+      },
+      "axiom_value": 52.28737414795225,
+      "verified": null
+    },
+    {
+      "id": "bs_08",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 150,
+        "K": 100,
+        "T": 0.25,
+        "r": 0.08,
+        "sigma": 0.45,
+        "kind": "put"
+      },
+      "axiom_value": 0.3072414786277511,
+      "verified": null
+    },
+    {
+      "id": "bs_09",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 100,
+        "T": 0.02,
+        "r": 0.015,
+        "sigma": 0.1,
+        "kind": "call"
+      },
+      "axiom_value": 0.5792249328729397,
+      "verified": null
+    },
+    {
+      "id": "bs_10",
+      "operation": "finance.black_scholes",
+      "args": {
+        "S": 100,
+        "K": 100,
+        "T": 0.02,
+        "r": 0.015,
+        "sigma": 0.1,
+        "kind": "put"
+      },
+      "axiom_value": 0.549229432422969,
+      "verified": null
+    }
+  ]
+}
