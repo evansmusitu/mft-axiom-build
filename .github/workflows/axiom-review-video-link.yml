@@ -16,14 +16,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original recording bytes and seven HTTP behavior checks
         run: node review-video/verify.mjs
-      - name: Make the recording available on a separate unlisted static endpoint
+      - name: Inspect and enable only the pinned isolated recording endpoint
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: python3 review-video/deploy.py
+        run: python3 review-video/reconcile.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: axiom-review-video-link-20261027
-          path: review-video/link-evidence.json
+          path: review-video/*diagnostic.json
           retention-days: 30
           if-no-files-found: warn
