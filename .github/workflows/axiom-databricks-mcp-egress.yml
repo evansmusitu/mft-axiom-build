@@ -1,0 +1,74 @@
+name: MUSITU Databricks to Axiom public MCP network qualification
+
+on:
+  push:
+    branches:
+      - pilot/axiom-databricks-pat-20261027
+    paths:
+      - ".github/workflows/axiom-databricks-mcp-egress.yml"
+      - "integrations/databricks/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-public-mcp-egress-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-contract:
+    name: Offline contract for unauthenticated MCP handshake
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Test one-shot job safety and no-auth execution invariant
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd integrations/databricks && python3 -m unittest tests/test_mcp_egress.py -v)
+          python3 -m py_compile integrations/databricks/notebooks/05_musitu_axiom_mcp_egress.py
+          echo 'MUSITU_AXIOM_MCP_EGRESS_OFFLINE_CONTRACT_PASS'
+
+  notebook-import:
+    name: Import public MCP handshake notebook (zero Databricks compute)
+    needs: offline-contract
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-mcp-egress-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Non-overwriting source-only import
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/import_egress.py
+
+  notebook-network-probe:
+    name: Bounded serverless MCP initialize and tool list (no Axiom execution)
+    needs: offline-contract
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-mcp-egress-run]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run one serverless public MCP network probe with no Axiom credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_mcp_egress_run.py
