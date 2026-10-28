@@ -80,3 +80,7 @@ Follow actual job logs for IDs, timings and real MLflow outcome; no performance 
 - SHA-256 of imported SOURCE request: `8d913f06a08e8f2eee4e41f7d7ff91601447928302930200d62520cc95d80830`
 - Source path: `/Users/<authenticated Databricks user>/MUSITU_AXIOM_PRIVATE_PILOT_20261027/02_musitu_axiom_spark_scale`
 - Next action is one serverless synthetic benchmark. No enterprise Axiom authentication or production connection is permitted.
+
+## Snapshot parity execution gate (2026-10-28)
+
+The 14-case numerical parity notebook is imported on the isolated Databricks workspace, via one-time source-only run https://github.com/evansmusitu/mft-axiom-build/actions/runs/40583077642 . The following tagged commit triggers the pre-existing, bounded one-time serverless parity job. It compares *captured Axiom operation outputs* with independent local formula oracles, and uses Spark to confirm the aggregate count. It does not call live Axiom MCP and does not qualify Wolfram parity, audited model correctness or production readiness. Confirm the Databricks job and output log before reporting a result.
