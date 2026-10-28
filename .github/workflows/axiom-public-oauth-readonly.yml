@@ -1,0 +1,30 @@
+name: MUSITU Axiom public OAuth metadata and no-token boundary (read-only)
+on:
+  push:
+    branches: ['fix/axiom-public-health-build-hint-20261028']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/diagnose_axiom_public_oauth.py'
+      - 'tests/connect/test_axiom_public_oauth.py'
+      - '.github/workflows/axiom-public-oauth-readonly.yml'
+permissions:
+  contents: read
+jobs:
+  safe-oauth-observation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test only safe public metadata and rejected unauthenticated UserInfo
+        run: python -m unittest tests.connect.test_axiom_public_oauth -v
+      - name: Fetch public OAuth and protected-resource metadata with no credentials
+        run: python qualification/diagnose_axiom_public_oauth.py --output public-oauth-observation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-public-oauth-readonly
+          path: public-oauth-observation.json
+          if-no-files-found: error
