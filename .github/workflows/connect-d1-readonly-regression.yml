@@ -1,0 +1,37 @@
+name: MUSITU Connect hosted D1 read-only regression (non-enabling)
+on:
+  push:
+    branches: ['fix/connect-d1-readonly-metadata-20261028', 'main']
+    paths:
+      - 'qualification/probe_connect_hosted_d1.py'
+      - 'tests/connect/test_hosted_d1_readonly.py'
+      - '.github/workflows/connect-d1-readonly-regression.yml'
+      - 'infra/connect_customer_registry.sql'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/probe_connect_hosted_d1.py'
+      - 'tests/connect/test_hosted_d1_readonly.py'
+      - '.github/workflows/connect-d1-readonly-regression.yml'
+      - 'infra/connect_customer_registry.sql'
+permissions:
+  contents: read
+jobs:
+  readonly-local-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unprivileged Cloudflare D1 read-only contract tests
+        run: python -m unittest tests.connect.test_hosted_d1_readonly -v
+      - name: Reconfirm separate commercial GA release remains disabled
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected commercial GA release readiness' >&2
+            exit 1
+          fi
+          echo 'CONNECT_COMMERCIAL_GA=STILL_BLOCKED'
