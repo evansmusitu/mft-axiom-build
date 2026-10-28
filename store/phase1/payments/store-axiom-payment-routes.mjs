@@ -186,17 +186,20 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
    const eventId='evt-'+(await sha([
     p.reference,p.paynowreference,callback.digest,polled.digest
    ].join('\n'),'SHA-256')).toLowerCase();
+   const existingObservation=()=>db.prepare('SELECT event_id,reference,paynow_reference,provider_status,callback_digest,poll_digest FROM store_paynow_status_observations WHERE event_id=?1 LIMIT 1').bind(eventId).first();
+   const observationMatches=prior=>prior?.event_id===eventId&&
+    prior.reference===p.reference&&prior.paynow_reference===p.paynowreference&&
+    prior.provider_status===p.status&&prior.callback_digest===callback.digest&&
+    prior.poll_digest===polled.digest;
+   const alreadyRecorded=()=>reply(202,{ok:true,processed:false,idempotent:true,
+    observation_recorded:true,payment_status:'pending'});
    let prior;
-   try{
-    prior=await db.prepare('SELECT event_id,reference,paynow_reference,provider_status,callback_digest,poll_digest FROM store_paynow_status_observations WHERE event_id=?1 LIMIT 1').bind(eventId).first();
-   }catch{return reply(503,{ok:false,error:'store_observation_ledger_unavailable'});}
+   try{prior=await existingObservation();}
+   catch{return reply(503,{ok:false,error:'store_observation_ledger_unavailable'});}
    if(prior){
-    if(prior.reference!==p.reference||prior.paynow_reference!==p.paynowreference||
-       prior.provider_status!==p.status||prior.callback_digest!==callback.digest||
-       prior.poll_digest!==polled.digest)
+    if(!observationMatches(prior))
      return reply(409,{ok:false,error:'store_observation_identity_conflict'});
-    return reply(202,{ok:true,processed:false,idempotent:true,
-     observation_recorded:true,payment_status:'pending'});
+    return alreadyRecorded();
    }
    try{
     // Single SQLite/D1 statement is atomic; pending-order compare-and-set and
@@ -207,7 +210,19 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
      p.pollurl,callback.digest,polled.digest,new Date().toISOString()).run();
     if(insert?.success!==true||insert?.meta?.changes!==1)
      return reply(409,{ok:false,error:'store_observation_not_atomically_committed'});
-   }catch{return reply(503,{ok:false,error:'store_observation_persistence_failed'});}
+   }catch{
+    // Two verified callbacks can pass the pre-insert SELECT concurrently.
+    // If another worker committed the *same* immutable event, recover only
+    // after read-back of every identity and evidence field. Never treat a
+    // conflicting row or an unavailable ledger as a successful observation.
+    let raced;
+    try{raced=await existingObservation();}
+    catch{return reply(503,{ok:false,error:'store_observation_persistence_failed'});}
+    if(raced&&!observationMatches(raced))
+     return reply(409,{ok:false,error:'store_observation_identity_conflict'});
+    if(observationMatches(raced))return alreadyRecorded();
+    return reply(503,{ok:false,error:'store_observation_persistence_failed'});
+   }
    return reply(202,{ok:true,processed:false,observation_recorded:true,
     payment_status:'pending',reason:'provider_status_requires_manual_resolution'});
   }

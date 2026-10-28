@@ -325,3 +325,52 @@ test('mismatched callback and provider poll can never enter observation ledger',
  assert.equal(env.STORE_DB.data.observation,null);
  assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('store_paynow_status_observations')).length,0);
 });
+
+
+test('a concurrent identical signed observation is reconciled without duplicate writes',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const real=env.STORE_DB.prepare.bind(env.STORE_DB);
+ let writes=0;
+ env.STORE_DB.prepare=sql=>{
+   const q=real(sql);
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return q;
+   return {bind(...args){return {async run(){
+     writes++;
+     // Simulate a second worker committing the same verified event between
+     // our initial SELECT and INSERT. The attempted insert then conflicts.
+     env.STORE_DB.data.observation={event_id:args[0],reference:args[1],
+       paynow_reference:args[2],provider_status:args[3],
+       callback_digest:args[6],poll_digest:args[7]};
+     throw Error('SQLITE_CONSTRAINT_PRIMARYKEY');
+   }}}};
+ };
+ const response=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ const out=await response.json();
+ assert.equal(response.status,202);
+ assert.equal(out.idempotent,true);
+ assert.equal(out.observation_recorded,true);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(writes,1);
+ assert.equal(calls.length,1);
+});
+
+test('a conflicting concurrent observation never becomes idempotent success',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Cancelled'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const real=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   const q=real(sql);
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return q;
+   return {bind(...args){return {async run(){
+     env.STORE_DB.data.observation={event_id:args[0],reference:args[1],
+       paynow_reference:'OTHER-PAYNOW-REF',provider_status:args[3],
+       callback_digest:args[6],poll_digest:args[7]};
+     throw Error('SQLITE_CONSTRAINT');
+   }}}};
+ };
+ const response=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ const out=await response.json();
+ assert.notEqual(response.status,202);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+});
