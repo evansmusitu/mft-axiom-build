@@ -32,7 +32,7 @@ jobs:
           grep -q '^MUSITU_AXIOM_DATABRICKS_SYNTHETIC_4_OF_4_PASS$' <<< "$output"
           grep -q '^MLFLOW_EVALUATION_SKIPPED:' <<< "$output"
           python3 integrations/databricks/notebooks/03_musitu_axiom_parity.py | grep -q '^MUSITU_AXIOM_DATABRICKS_PARITY_14_OF_14_PASS$'
-          python3 integrations/databricks/notebooks/04_musitu_axiom_livecapture_30.py | grep -q '^MUSITU_AXIOM_DATABRICKS_LIVE_CAPTURE_30_OF_30_PASS
+          python3 integrations/databricks/notebooks/04_musitu_axiom_livecapture_30.py | grep -qx 'MUSITU_AXIOM_DATABRICKS_LIVE_CAPTURE_30_OF_30_PASS'
           printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
 
   workspace-auth-only:
