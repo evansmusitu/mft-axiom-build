@@ -1,0 +1,2861 @@
+{
+  "arithmetic.evaluate": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "40+2"
+      }
+    ]
+  },
+  "algebra.simplify": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "(x**2-1)/(x-1)"
+      }
+    ]
+  },
+  "algebra.expand": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "(x+1)**2"
+      }
+    ]
+  },
+  "algebra.factor": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2-1"
+      }
+    ]
+  },
+  "algebra.polynomial_roots": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2-1"
+      }
+    ]
+  },
+  "algebra.solve": {
+    "type": "object",
+    "properties": {
+      "equations": {
+        "type": "array",
+        "description": "Expressions equal to zero; for x+1=3 supply x+1-3.",
+        "items": {
+          "type": "string",
+          "description": "Expression equal to zero.",
+          "minLength": 1
+        },
+        "minItems": 1
+      },
+      "symbols": {
+        "type": "array",
+        "description": "Unknown variable names.",
+        "items": {
+          "type": "string",
+          "description": "Variable name.",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "uniqueItems": true,
+        "default": [
+          "x"
+        ]
+      }
+    },
+    "required": [
+      "equations"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "equations": [
+          "x+1-3"
+        ],
+        "symbols": [
+          "x"
+        ]
+      }
+    ]
+  },
+  "calculus.diff": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "order": {
+        "type": "integer",
+        "description": "Nonnegative differentiation order.",
+        "minimum": 0,
+        "default": 1
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**3",
+        "order": 2
+      }
+    ]
+  },
+  "calculus.integrate": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "bounds": {
+        "description": "Optional [lower, upper] limits. Omit, null, or [] for an indefinite integral.",
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "Number or symbolic value, such as 0, pi, or oo."
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "maxItems": 0
+          }
+        ]
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x",
+        "bounds": [
+          0,
+          2
+        ]
+      }
+    ]
+  },
+  "calculus.limit": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "to": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string",
+            "minLength": 1
+          }
+        ],
+        "description": "Number or symbolic value, such as 0, pi, or oo."
+      }
+    },
+    "required": [
+      "expression",
+      "to"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "sin(x)/x",
+        "to": 0
+      }
+    ]
+  },
+  "calculus.series": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "at": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string",
+            "minLength": 1
+          }
+        ],
+        "description": "Number or symbolic value, such as 0, pi, or oo.",
+        "default": 0
+      },
+      "order": {
+        "type": "integer",
+        "description": "Series truncation order.",
+        "minimum": 0,
+        "default": 6
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "exp(x)",
+        "order": 4
+      }
+    ]
+  },
+  "calculus.sum": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Index variable name.",
+        "minLength": 1,
+        "default": "k"
+      },
+      "start": {
+        "type": "integer",
+        "description": "Inclusive first index."
+      },
+      "end": {
+        "type": "integer",
+        "description": "Inclusive last index."
+      }
+    },
+    "required": [
+      "expression",
+      "start",
+      "end"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "k",
+        "start": 1,
+        "end": 4
+      }
+    ]
+  },
+  "calculus.product": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Index variable name.",
+        "minLength": 1,
+        "default": "k"
+      },
+      "start": {
+        "type": "integer",
+        "description": "Inclusive first index."
+      },
+      "end": {
+        "type": "integer",
+        "description": "Inclusive last index."
+      }
+    },
+    "required": [
+      "expression",
+      "start",
+      "end"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "k",
+        "start": 1,
+        "end": 4
+      }
+    ]
+  },
+  "numeric.root": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "guess": {
+        "type": "number",
+        "description": "Initial numerical root estimate."
+      }
+    },
+    "required": [
+      "expression",
+      "guess"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2-2",
+        "guess": 1
+      }
+    ]
+  },
+  "numeric.integrate": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "a": {
+        "type": "number",
+        "description": "Lower interval bound for variable x."
+      },
+      "b": {
+        "type": "number",
+        "description": "Upper interval bound for variable x."
+      },
+      "epsabs": {
+        "type": "number",
+        "description": "Nonnegative absolute integration tolerance; zero uses the relative tolerance.",
+        "minimum": 0,
+        "default": 1e-10
+      }
+    },
+    "required": [
+      "expression",
+      "a",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2",
+        "a": 0,
+        "b": 1
+      }
+    ]
+  },
+  "numeric.optimize_scalar": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "a": {
+        "type": "number",
+        "description": "Lower interval bound for variable x."
+      },
+      "b": {
+        "type": "number",
+        "description": "Upper interval bound for variable x."
+      }
+    },
+    "required": [
+      "expression",
+      "a",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2",
+        "a": 0,
+        "b": 1
+      }
+    ]
+  },
+  "numeric.ode": {
+    "type": "object",
+    "properties": {
+      "rhs": {
+        "type": "string",
+        "description": "Right-hand side f(t,y) of scalar y'=f(t,y).",
+        "minLength": 1
+      },
+      "t0": {
+        "type": "number",
+        "description": "Initial independent-variable value."
+      },
+      "t1": {
+        "type": "number",
+        "description": "Final independent-variable value."
+      },
+      "y0": {
+        "type": "number",
+        "description": "Initial value y(t0)."
+      },
+      "rtol": {
+        "type": "number",
+        "description": "Relative solver tolerance.",
+        "exclusiveMinimum": 0,
+        "default": 1e-08
+      },
+      "atol": {
+        "type": "number",
+        "description": "Absolute solver tolerance.",
+        "exclusiveMinimum": 0,
+        "default": 1e-10
+      }
+    },
+    "required": [
+      "rhs",
+      "t0",
+      "t1",
+      "y0"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "rhs": "y",
+        "t0": 0,
+        "t1": 1,
+        "y0": 1
+      }
+    ]
+  },
+  "linear.det": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "array",
+        "description": "Numeric matrix, as rows. Linear operations require a square matrix.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "A"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "A": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    ]
+  },
+  "linear.inv": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "array",
+        "description": "Numeric matrix, as rows. Linear operations require a square matrix.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "A"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "A": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    ]
+  },
+  "linear.eigen": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "array",
+        "description": "Numeric matrix, as rows. Linear operations require a square matrix.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "A"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "A": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    ]
+  },
+  "linear.solve": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "array",
+        "description": "Numeric matrix, as rows. Linear operations require a square matrix.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      },
+      "b": {
+        "description": "Right-hand-side vector, or matrix for multiple right-hand sides; one entry or row per row of A.",
+        "anyOf": [
+          {
+            "type": "array",
+            "description": "Right-hand-side vector.",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 1
+          },
+          {
+            "type": "array",
+            "description": "Right-hand sides as columns.",
+            "items": {
+              "type": "array",
+              "description": "One matrix row.",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 1
+            },
+            "minItems": 1
+          }
+        ]
+      }
+    },
+    "required": [
+      "A",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "A": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "b": [
+          4,
+          8
+        ]
+      }
+    ]
+  },
+  "numeric.least_squares": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "array",
+        "description": "Numeric matrix, as rows. Linear operations require a square matrix.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      },
+      "b": {
+        "description": "Right-hand-side vector, or matrix for multiple right-hand sides; one entry or row per row of A.",
+        "anyOf": [
+          {
+            "type": "array",
+            "description": "Right-hand-side vector.",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 1
+          },
+          {
+            "type": "array",
+            "description": "Right-hand sides as columns.",
+            "items": {
+              "type": "array",
+              "description": "One matrix row.",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 1
+            },
+            "minItems": 1
+          }
+        ]
+      }
+    },
+    "required": [
+      "A",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "A": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "b": [
+          4,
+          8
+        ]
+      }
+    ]
+  },
+  "numeric.interpolate": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "array",
+        "description": "Strictly increasing sample coordinates.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "y": {
+        "type": "array",
+        "description": "Sample values, one per x coordinate.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "at": {
+        "description": "Coordinate or coordinates to interpolate. Outside x, uses the closest endpoint value.",
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "array",
+            "description": "Interpolation coordinates.",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 1
+          }
+        ]
+      }
+    },
+    "required": [
+      "x",
+      "y",
+      "at"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": [
+          0,
+          1,
+          2
+        ],
+        "y": [
+          0,
+          2,
+          4
+        ],
+        "at": [
+          0.5,
+          1.5
+        ]
+      }
+    ]
+  },
+  "verified.interval_eval": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "SymPy expression, such as x**2, sin(x), pi, or 40+2. Use ** for powers.",
+        "minLength": 1
+      },
+      "symbol": {
+        "type": "string",
+        "description": "Variable or summation index name.",
+        "minLength": 1,
+        "default": "x"
+      },
+      "interval": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "Numeric [lower, upper] interval."
+      }
+    },
+    "required": [
+      "expression",
+      "interval"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "expression": "x**2",
+        "interval": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "statistics.describe": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          2,
+          4,
+          6,
+          8
+        ]
+      }
+    ]
+  },
+  "statistics.correlation": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "array",
+        "description": "First numeric sample.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "y": {
+        "type": "array",
+        "description": "Second numeric sample. Paired analyses require the same length as x.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      }
+    },
+    "required": [
+      "x",
+      "y"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "y": [
+          2,
+          4,
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  "statistics.covariance": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "array",
+        "description": "First numeric sample.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "y": {
+        "type": "array",
+        "description": "Second numeric sample. Paired analyses require the same length as x.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      }
+    },
+    "required": [
+      "x",
+      "y"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "y": [
+          2,
+          4,
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  "statistics.regression": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "array",
+        "description": "First numeric sample.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "y": {
+        "type": "array",
+        "description": "Second numeric sample. Paired analyses require the same length as x.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      }
+    },
+    "required": [
+      "x",
+      "y"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "y": [
+          2,
+          4,
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  "statistics.ttest_ind": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "array",
+        "description": "First numeric sample.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "y": {
+        "type": "array",
+        "description": "Second numeric sample. Paired analyses require the same length as x.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "equal_var": {
+        "type": "boolean",
+        "description": "Use pooled variance when true (combined sample size at least 3); Welch test when false (each sample size at least 2).",
+        "default": false
+      }
+    },
+    "required": [
+      "x",
+      "y"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "y": [
+          2,
+          4,
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  "statistics.quantile": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "q": {
+        "type": "number",
+        "description": "Quantile probability between 0 and 1.",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": [
+      "data",
+      "q"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "q": 0.5
+      }
+    ]
+  },
+  "statistics.zscore": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Nonconstant numeric sample.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "ddof": {
+        "type": "integer",
+        "description": "Degrees-of-freedom correction; must be less than sample size.",
+        "minimum": 0,
+        "default": 0
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3
+        ]
+      }
+    ]
+  },
+  "statistics.normal_fit": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3
+        ]
+      }
+    ]
+  },
+  "probability.normal_cdf": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "number",
+        "description": "Value at which to evaluate the CDF."
+      },
+      "mu": {
+        "type": "number",
+        "description": "Distribution mean.",
+        "default": 0
+      },
+      "sigma": {
+        "type": "number",
+        "description": "Positive standard deviation.",
+        "exclusiveMinimum": 0,
+        "default": 1
+      }
+    },
+    "required": [
+      "x"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": 0
+      }
+    ]
+  },
+  "probability.normal_ppf": {
+    "type": "object",
+    "properties": {
+      "p": {
+        "type": "number",
+        "description": "Cumulative probability. Endpoints give extended-real quantiles.",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "mu": {
+        "type": "number",
+        "description": "Distribution mean.",
+        "default": 0
+      },
+      "sigma": {
+        "type": "number",
+        "description": "Positive standard deviation.",
+        "exclusiveMinimum": 0,
+        "default": 1
+      }
+    },
+    "required": [
+      "p"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "p": 0.5
+      }
+    ]
+  },
+  "probability.binomial_pmf": {
+    "type": "object",
+    "properties": {
+      "k": {
+        "type": "integer",
+        "description": "Observed successes."
+      },
+      "n": {
+        "type": "integer",
+        "description": "Number of trials.",
+        "minimum": 0
+      },
+      "p": {
+        "type": "number",
+        "description": "Success probability.",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": [
+      "k",
+      "n",
+      "p"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "k": 2,
+        "n": 4,
+        "p": 0.5
+      }
+    ]
+  },
+  "probability.poisson_pmf": {
+    "type": "object",
+    "properties": {
+      "k": {
+        "type": "integer",
+        "description": "Observed event count."
+      },
+      "mu": {
+        "type": "number",
+        "description": "Expected event count.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "k",
+      "mu"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "k": 2,
+        "mu": 3
+      }
+    ]
+  },
+  "probability.exponential_cdf": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "number",
+        "description": "Value at which to evaluate the CDF."
+      },
+      "rate": {
+        "type": "number",
+        "description": "Positive exponential rate.",
+        "exclusiveMinimum": 0
+      }
+    },
+    "required": [
+      "x",
+      "rate"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": 1,
+        "rate": 2
+      }
+    ]
+  },
+  "probability.chi2_cdf": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "number",
+        "description": "Value at which to evaluate the CDF."
+      },
+      "df": {
+        "type": "number",
+        "description": "Positive degrees of freedom.",
+        "exclusiveMinimum": 0
+      }
+    },
+    "required": [
+      "x",
+      "df"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "x": 2,
+        "df": 3
+      }
+    ]
+  },
+  "finance.compound": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "number",
+        "description": "Initial amount."
+      },
+      "rate": {
+        "type": "number",
+        "description": "Annual rate as a decimal, e.g. 0.05."
+      },
+      "years": {
+        "type": "number",
+        "description": "Investment duration in years."
+      },
+      "n": {
+        "type": "integer",
+        "description": "Compounding periods per year.",
+        "minimum": 1,
+        "default": 1
+      }
+    },
+    "required": [
+      "principal",
+      "rate",
+      "years"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "principal": 100,
+        "rate": 0.05,
+        "years": 2
+      }
+    ]
+  },
+  "finance.npv": {
+    "type": "object",
+    "properties": {
+      "cashflows": {
+        "type": "array",
+        "description": "Cash flows from time zero onward; include the initial investment as the first entry.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "rate": {
+        "type": "number",
+        "description": "Discount rate per period as a decimal; cannot equal -1.",
+        "not": {
+          "const": -1
+        }
+      }
+    },
+    "required": [
+      "cashflows",
+      "rate"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "cashflows": [
+          -100,
+          60,
+          60
+        ],
+        "rate": 0.1
+      }
+    ]
+  },
+  "finance.black_scholes": {
+    "type": "object",
+    "properties": {
+      "S": {
+        "type": "number",
+        "description": "Positive spot price.",
+        "exclusiveMinimum": 0
+      },
+      "K": {
+        "type": "number",
+        "description": "Positive strike price.",
+        "exclusiveMinimum": 0
+      },
+      "T": {
+        "type": "number",
+        "description": "Positive time to expiry in years.",
+        "exclusiveMinimum": 0
+      },
+      "r": {
+        "type": "number",
+        "description": "Continuously compounded annual risk-free rate."
+      },
+      "sigma": {
+        "type": "number",
+        "description": "Positive annual volatility as a decimal.",
+        "exclusiveMinimum": 0
+      },
+      "kind": {
+        "type": "string",
+        "description": "Option type.",
+        "minLength": 1,
+        "enum": [
+          "call",
+          "put"
+        ],
+        "default": "call"
+      },
+      "q": {
+        "type": "number",
+        "description": "Continuously compounded dividend yield.",
+        "default": 0
+      }
+    },
+    "required": [
+      "S",
+      "K",
+      "T",
+      "r",
+      "sigma"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "S": 100,
+        "K": 100,
+        "T": 1,
+        "r": 0.05,
+        "sigma": 0.2
+      }
+    ]
+  },
+  "finance.greeks": {
+    "type": "object",
+    "properties": {
+      "S": {
+        "type": "number",
+        "description": "Positive spot price.",
+        "exclusiveMinimum": 0
+      },
+      "K": {
+        "type": "number",
+        "description": "Positive strike price.",
+        "exclusiveMinimum": 0
+      },
+      "T": {
+        "type": "number",
+        "description": "Positive time to expiry in years.",
+        "exclusiveMinimum": 0
+      },
+      "r": {
+        "type": "number",
+        "description": "Continuously compounded annual risk-free rate."
+      },
+      "sigma": {
+        "type": "number",
+        "description": "Positive annual volatility as a decimal.",
+        "exclusiveMinimum": 0
+      },
+      "kind": {
+        "type": "string",
+        "description": "Option type.",
+        "minLength": 1,
+        "enum": [
+          "call",
+          "put"
+        ],
+        "default": "call"
+      },
+      "q": {
+        "type": "number",
+        "description": "Continuously compounded dividend yield.",
+        "default": 0
+      }
+    },
+    "required": [
+      "S",
+      "K",
+      "T",
+      "r",
+      "sigma"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "S": 100,
+        "K": 100,
+        "T": 1,
+        "r": 0.05,
+        "sigma": 0.2
+      }
+    ]
+  },
+  "finance.implied_vol": {
+    "type": "object",
+    "properties": {
+      "S": {
+        "type": "number",
+        "description": "Positive spot price.",
+        "exclusiveMinimum": 0
+      },
+      "K": {
+        "type": "number",
+        "description": "Positive strike price.",
+        "exclusiveMinimum": 0
+      },
+      "T": {
+        "type": "number",
+        "description": "Positive time to expiry in years.",
+        "exclusiveMinimum": 0
+      },
+      "r": {
+        "type": "number",
+        "description": "Continuously compounded annual risk-free rate."
+      },
+      "kind": {
+        "type": "string",
+        "description": "Option type.",
+        "minLength": 1,
+        "enum": [
+          "call",
+          "put"
+        ],
+        "default": "call"
+      },
+      "q": {
+        "type": "number",
+        "description": "Continuously compounded dividend yield.",
+        "default": 0
+      },
+      "price": {
+        "type": "number",
+        "description": "Observed nonnegative option price.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "price",
+      "S",
+      "K",
+      "T",
+      "r"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "S": 100,
+        "K": 100,
+        "T": 1,
+        "r": 0.05,
+        "price": 10.450583572185565
+      }
+    ]
+  },
+  "finance.var_historical": {
+    "type": "object",
+    "properties": {
+      "returns": {
+        "type": "array",
+        "description": "Period returns as decimals.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "alpha": {
+        "type": "number",
+        "description": "Confidence level as a decimal strictly between 0 and 1.",
+        "exclusiveMinimum": 0,
+        "exclusiveMaximum": 1,
+        "default": 0.99
+      }
+    },
+    "required": [
+      "returns"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "returns": [
+          -0.03,
+          -0.01,
+          0.01,
+          0.02,
+          0.04
+        ]
+      }
+    ]
+  },
+  "finance.var_parametric": {
+    "type": "object",
+    "properties": {
+      "returns": {
+        "type": "array",
+        "description": "Period returns as decimals.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "alpha": {
+        "type": "number",
+        "description": "Confidence level as a decimal strictly between 0 and 1.",
+        "exclusiveMinimum": 0,
+        "exclusiveMaximum": 1,
+        "default": 0.99
+      }
+    },
+    "required": [
+      "returns"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "returns": [
+          -0.03,
+          -0.01,
+          0.01,
+          0.02,
+          0.04
+        ]
+      }
+    ]
+  },
+  "finance.cvar_historical": {
+    "type": "object",
+    "properties": {
+      "returns": {
+        "type": "array",
+        "description": "Period returns as decimals.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "alpha": {
+        "type": "number",
+        "description": "Confidence level as a decimal strictly between 0 and 1.",
+        "exclusiveMinimum": 0,
+        "exclusiveMaximum": 1,
+        "default": 0.99
+      }
+    },
+    "required": [
+      "returns"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "returns": [
+          -0.03,
+          -0.01,
+          0.01,
+          0.02,
+          0.04
+        ]
+      }
+    ]
+  },
+  "finance.returns": {
+    "type": "object",
+    "properties": {
+      "prices": {
+        "type": "array",
+        "description": "At least two strictly positive prices, in time order.",
+        "items": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minItems": 2
+      },
+      "kind": {
+        "type": "string",
+        "description": "Return convention.",
+        "minLength": 1,
+        "enum": [
+          "simple",
+          "log"
+        ],
+        "default": "simple"
+      }
+    },
+    "required": [
+      "prices"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "prices": [
+          100,
+          110,
+          105
+        ]
+      }
+    ]
+  },
+  "finance.portfolio_metrics": {
+    "type": "object",
+    "properties": {
+      "returns": {
+        "type": "array",
+        "description": "Period rows by asset columns; at least two observations.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 2
+      },
+      "weights": {
+        "type": "array",
+        "description": "One weight per asset; weights must sum to 1 within 1e-8.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "annualization": {
+        "type": "number",
+        "description": "Periods per year.",
+        "exclusiveMinimum": 0,
+        "default": 252
+      },
+      "risk_free": {
+        "type": "number",
+        "description": "Annual risk-free return as a decimal.",
+        "default": 0
+      }
+    },
+    "required": [
+      "returns",
+      "weights"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "returns": [
+          [
+            0.01,
+            0.02
+          ],
+          [
+            -0.01,
+            0.01
+          ],
+          [
+            0.03,
+            -0.02
+          ]
+        ],
+        "weights": [
+          0.5,
+          0.5
+        ]
+      }
+    ]
+  },
+  "finance.beta": {
+    "type": "object",
+    "properties": {
+      "asset_returns": {
+        "type": "array",
+        "description": "Asset returns as decimals, paired with market_returns.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "market_returns": {
+        "type": "array",
+        "description": "Benchmark returns as decimals; must have nonzero variance.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      }
+    },
+    "required": [
+      "asset_returns",
+      "market_returns"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "asset_returns": [
+          0.01,
+          -0.02,
+          0.03,
+          0.04
+        ],
+        "market_returns": [
+          0.02,
+          -0.01,
+          0.02,
+          0.03
+        ]
+      }
+    ]
+  },
+  "finance.drawdown": {
+    "type": "object",
+    "properties": {
+      "values": {
+        "type": "array",
+        "description": "Positive asset or portfolio values in time order.",
+        "items": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "values"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "values": [
+          100,
+          110,
+          99,
+          120
+        ]
+      }
+    ]
+  },
+  "finance.bond_price": {
+    "type": "object",
+    "properties": {
+      "face": {
+        "type": "number",
+        "description": "Bond face value.",
+        "exclusiveMinimum": 0,
+        "default": 100
+      },
+      "coupon_rate": {
+        "type": "number",
+        "description": "Annual coupon rate as a decimal."
+      },
+      "maturity": {
+        "type": "number",
+        "description": "Years to maturity.",
+        "exclusiveMinimum": 0
+      },
+      "frequency": {
+        "type": "integer",
+        "description": "Coupon payments per year.",
+        "minimum": 1,
+        "default": 2
+      },
+      "yield": {
+        "type": "number",
+        "description": "Annual yield as a decimal, greater than -frequency."
+      }
+    },
+    "required": [
+      "coupon_rate",
+      "maturity",
+      "yield"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "coupon_rate": 0.05,
+        "maturity": 2,
+        "yield": 0.04
+      }
+    ]
+  },
+  "finance.bond_yield": {
+    "type": "object",
+    "properties": {
+      "face": {
+        "type": "number",
+        "description": "Bond face value.",
+        "exclusiveMinimum": 0,
+        "default": 100
+      },
+      "coupon_rate": {
+        "type": "number",
+        "description": "Annual coupon rate as a decimal."
+      },
+      "maturity": {
+        "type": "number",
+        "description": "Years to maturity.",
+        "exclusiveMinimum": 0
+      },
+      "frequency": {
+        "type": "integer",
+        "description": "Coupon payments per year.",
+        "minimum": 1,
+        "default": 2
+      },
+      "price": {
+        "type": "number",
+        "description": "Positive observed bond price.",
+        "exclusiveMinimum": 0
+      }
+    },
+    "required": [
+      "coupon_rate",
+      "maturity",
+      "price"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "coupon_rate": 0.05,
+        "maturity": 2,
+        "price": 100
+      }
+    ]
+  },
+  "finance.duration": {
+    "type": "object",
+    "properties": {
+      "face": {
+        "type": "number",
+        "description": "Bond face value.",
+        "exclusiveMinimum": 0,
+        "default": 100
+      },
+      "coupon_rate": {
+        "type": "number",
+        "description": "Annual coupon rate as a decimal."
+      },
+      "maturity": {
+        "type": "number",
+        "description": "Years to maturity.",
+        "exclusiveMinimum": 0
+      },
+      "frequency": {
+        "type": "integer",
+        "description": "Coupon payments per year.",
+        "minimum": 1,
+        "default": 2
+      },
+      "yield": {
+        "type": "number",
+        "description": "Annual yield as a decimal, greater than -frequency."
+      }
+    },
+    "required": [
+      "coupon_rate",
+      "maturity",
+      "yield"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "coupon_rate": 0.05,
+        "maturity": 2,
+        "yield": 0.04
+      }
+    ]
+  },
+  "finance.monte_carlo_gbm": {
+    "type": "object",
+    "properties": {
+      "S0": {
+        "type": "number",
+        "description": "Positive initial asset price.",
+        "exclusiveMinimum": 0
+      },
+      "mu": {
+        "type": "number",
+        "description": "Annual drift as a decimal."
+      },
+      "sigma": {
+        "type": "number",
+        "description": "Annual volatility as a decimal.",
+        "minimum": 0
+      },
+      "T": {
+        "type": "number",
+        "description": "Simulation horizon in years.",
+        "minimum": 0
+      },
+      "steps": {
+        "type": "integer",
+        "description": "Time steps per simulated path.",
+        "minimum": 1,
+        "maximum": 5000,
+        "default": 252
+      },
+      "paths": {
+        "type": "integer",
+        "description": "Number of simulated paths.",
+        "minimum": 1,
+        "maximum": 20000,
+        "default": 1000
+      },
+      "seed": {
+        "type": "integer",
+        "description": "Nonnegative deterministic random seed.",
+        "minimum": 0,
+        "default": 0
+      }
+    },
+    "required": [
+      "S0",
+      "mu",
+      "sigma",
+      "T"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "S0": 100,
+        "mu": 0.05,
+        "sigma": 0.2,
+        "T": 1,
+        "steps": 10,
+        "paths": 100,
+        "seed": 0
+      }
+    ]
+  },
+  "timeseries.moving_average": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "window": {
+        "type": "integer",
+        "description": "Window length; cannot exceed the data length.",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "data",
+      "window"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "window": 3
+      }
+    ]
+  },
+  "timeseries.ewma": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "alpha": {
+        "type": "number",
+        "description": "Recursive smoothing weight in (0,1].",
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "default": 0.2
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "alpha": 0.5
+      }
+    ]
+  },
+  "timeseries.rolling_volatility": {
+    "type": "object",
+    "properties": {
+      "returns": {
+        "type": "array",
+        "description": "Period return observations as decimals.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2
+      },
+      "window": {
+        "type": "integer",
+        "description": "Window length, from 2 through the returns length.",
+        "minimum": 2
+      },
+      "annualization": {
+        "type": "number",
+        "description": "Periods per year.",
+        "exclusiveMinimum": 0,
+        "default": 252
+      }
+    },
+    "required": [
+      "returns",
+      "window"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "returns": [
+          -0.01,
+          0.02,
+          0.01,
+          -0.02
+        ],
+        "window": 2
+      }
+    ]
+  },
+  "geometry.distance": {
+    "type": "object",
+    "properties": {
+      "p": {
+        "type": "array",
+        "description": "First point coordinates.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "q": {
+        "type": "array",
+        "description": "Second point coordinates with the same dimension as p.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "p",
+      "q"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "p": [
+          0,
+          0
+        ],
+        "q": [
+          3,
+          4
+        ]
+      }
+    ]
+  },
+  "geometry.area_circle": {
+    "type": "object",
+    "properties": {
+      "radius": {
+        "type": "number",
+        "description": "Nonnegative radius.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "radius"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "radius": 2
+      }
+    ]
+  },
+  "geometry.volume_sphere": {
+    "type": "object",
+    "properties": {
+      "radius": {
+        "type": "number",
+        "description": "Nonnegative radius.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "radius"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "radius": 2
+      }
+    ]
+  },
+  "transforms.fft": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Numeric observations in their original order.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ]
+  },
+  "transforms.ifft": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "array",
+        "description": "Real-FFT frequency bins, not a full complex spectrum.",
+        "minItems": 1,
+        "items": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "description": "Python-compatible finite complex value, such as 1+2j.",
+              "minLength": 1,
+              "pattern": "^\\s*(?:(?:[+-]?(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?|[+-]?(?:(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?)?[jJ]|[+-]?(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?[+-](?:(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?)?[jJ])|\\(\\s*(?:[+-]?(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?|[+-]?(?:(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?)?[jJ]|[+-]?(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?[+-](?:(?:\\d(?:_?\\d)*(?:\\.(?:\\d(?:_?\\d)*)?)?|\\.\\d(?:_?\\d)*)(?:[eE][+-]?\\d(?:_?\\d)*)?)?[jJ])\\s*\\))\\s*$"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "re": {
+                  "type": "number",
+                  "description": "Real part.",
+                  "default": 0
+                },
+                "im": {
+                  "type": "number",
+                  "description": "Imaginary part.",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "n": {
+        "description": "Output sample count. Omit or null for 2*(number of bins-1).",
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 1
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "data"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "data": [
+          {
+            "re": 10,
+            "im": 0
+          },
+          {
+            "re": -2,
+            "im": 2
+          },
+          {
+            "re": -2,
+            "im": 0
+          }
+        ],
+        "n": 4
+      }
+    ]
+  },
+  "optimization.linear_program": {
+    "type": "object",
+    "properties": {
+      "c": {
+        "type": "array",
+        "description": "Objective coefficients to minimize c dot x.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "A_ub": {
+        "type": "array",
+        "description": "Inequality coefficient rows for A_ub x <= b_ub.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      },
+      "b_ub": {
+        "type": "array",
+        "description": "One upper limit per row of A_ub.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "A_eq": {
+        "type": "array",
+        "description": "Equality coefficient rows for A_eq x = b_eq.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      },
+      "b_eq": {
+        "type": "array",
+        "description": "One target per row of A_eq.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "bounds": {
+        "description": "[lower,upper] for all variables, or one such pair per variable. A null endpoint means unbounded; null for the whole bounds value uses default nonnegative bounds [0,null].",
+        "default": [
+          0,
+          null
+        ],
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "minItems": 1
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "c"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "c": [
+          -3,
+          -2
+        ],
+        "A_ub": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0,
+            1
+          ]
+        ],
+        "b_ub": [
+          4,
+          2,
+          3
+        ],
+        "bounds": [
+          0,
+          null
+        ]
+      }
+    ]
+  },
+  "optimization.quadratic": {
+    "type": "object",
+    "properties": {
+      "Q": {
+        "type": "array",
+        "description": "Square symmetric quadratic matrix for 0.5*x.T*Q*x+c.T*x.",
+        "items": {
+          "type": "array",
+          "description": "One matrix row.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        },
+        "minItems": 1
+      },
+      "c": {
+        "type": "array",
+        "description": "Linear objective coefficients.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      },
+      "x0": {
+        "type": "array",
+        "description": "Initial point; defaults to the zero vector.",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "Q",
+      "c"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "Q": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "c": [
+          -2,
+          -4
+        ]
+      }
+    ]
+  },
+  "units.convert": {
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "number",
+        "description": "Quantity to convert."
+      },
+      "from": {
+        "type": "string",
+        "description": "Source unit; must be dimensionally compatible with to.",
+        "minLength": 1,
+        "enum": [
+          "m",
+          "km",
+          "cm",
+          "mm",
+          "kg",
+          "g",
+          "s",
+          "min",
+          "h",
+          "Pa",
+          "kPa",
+          "MPa",
+          "C",
+          "F",
+          "K"
+        ]
+      },
+      "to": {
+        "type": "string",
+        "description": "Target unit.",
+        "minLength": 1,
+        "enum": [
+          "m",
+          "km",
+          "cm",
+          "mm",
+          "kg",
+          "g",
+          "s",
+          "min",
+          "h",
+          "Pa",
+          "kPa",
+          "MPa",
+          "C",
+          "F",
+          "K"
+        ]
+      }
+    },
+    "required": [
+      "value",
+      "from",
+      "to"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "value": 1,
+        "from": "km",
+        "to": "m"
+      }
+    ]
+  },
+  "knowledge.constant": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Embedded scientific constant identifier.",
+        "minLength": 1,
+        "enum": [
+          "c",
+          "G",
+          "h",
+          "e",
+          "k_B",
+          "N_A"
+        ]
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "name": "c"
+      }
+    ]
+  },
+  "knowledge.element": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Case-sensitive chemical symbol, embedded elements H through Ca.",
+        "minLength": 1,
+        "enum": [
+          "H",
+          "He",
+          "Li",
+          "Be",
+          "B",
+          "C",
+          "N",
+          "O",
+          "F",
+          "Ne",
+          "Na",
+          "Mg",
+          "Al",
+          "Si",
+          "P",
+          "S",
+          "Cl",
+          "Ar",
+          "K",
+          "Ca"
+        ]
+      }
+    },
+    "required": [
+      "symbol"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "symbol": "C"
+      }
+    ]
+  },
+  "combinatorics.factorial": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "integer",
+        "description": "Nonnegative factorial argument.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "n"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "n": 5
+      }
+    ]
+  },
+  "combinatorics.binomial": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "integer",
+        "description": "Upper binomial argument."
+      },
+      "k": {
+        "type": "integer",
+        "description": "Lower binomial argument."
+      }
+    },
+    "required": [
+      "n",
+      "k"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "n": 5,
+        "k": 2
+      }
+    ]
+  },
+  "numbertheory.isprime": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "integer",
+        "description": "Integer to analyze."
+      }
+    },
+    "required": [
+      "n"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "n": 42
+      }
+    ]
+  },
+  "numbertheory.factorint": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "integer",
+        "description": "Integer to analyze."
+      }
+    },
+    "required": [
+      "n"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "n": 42
+      }
+    ]
+  },
+  "numbertheory.gcd": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "integer",
+        "description": "First integer."
+      },
+      "b": {
+        "type": "integer",
+        "description": "Second integer."
+      }
+    },
+    "required": [
+      "a",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "a": 12,
+        "b": 18
+      }
+    ]
+  },
+  "numbertheory.lcm": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "integer",
+        "description": "First integer."
+      },
+      "b": {
+        "type": "integer",
+        "description": "Second integer."
+      }
+    },
+    "required": [
+      "a",
+      "b"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "a": 12,
+        "b": 18
+      }
+    ]
+  },
+  "verify.evaluate": {
+    "type": "object",
+    "properties": {
+      "lhs": {
+        "type": "string",
+        "description": "Left-hand symbolic expression.",
+        "minLength": 1
+      },
+      "rhs": {
+        "type": "string",
+        "description": "Right-hand symbolic expression.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "lhs",
+      "rhs"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "lhs": "(x+1)**2",
+        "rhs": "x**2+2*x+1"
+      }
+    ]
+  },
+  "verify.crosscheck": {
+    "type": "object",
+    "properties": {
+      "operation": {
+        "type": "string",
+        "description": "Operation to compute and independently check where a verification method applies.",
+        "minLength": 1
+      },
+      "args": {
+        "type": "object",
+        "description": "Inputs for the selected operation."
+      }
+    },
+    "required": [
+      "operation",
+      "args"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "operation": "arithmetic.evaluate",
+        "args": {
+          "expression": "40+2"
+        }
+      }
+    ]
+  }
+}

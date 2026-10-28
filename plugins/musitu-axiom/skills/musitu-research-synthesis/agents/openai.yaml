@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Research Synthesis"
+  short_description: "Perform evidence-bounded research synthesis for financial and business questions using..."
+  default_prompt: "Use MUSITU Axiom's Research Synthesis workflow for this task."

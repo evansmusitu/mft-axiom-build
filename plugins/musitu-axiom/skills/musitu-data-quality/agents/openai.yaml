@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Data Quality"
+  short_description: "Inspect data quality before quantitative analysis"
+  default_prompt: "Use MUSITU Axiom's Data Quality workflow for this task."

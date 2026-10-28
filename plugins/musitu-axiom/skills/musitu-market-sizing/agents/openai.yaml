@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Market Sizing"
+  short_description: "Estimate TAM, SAM, SOM and adjacent opportunity ranges using evidence-backed top-down,..."
+  default_prompt: "Use MUSITU Axiom's Market Sizing workflow for this task."

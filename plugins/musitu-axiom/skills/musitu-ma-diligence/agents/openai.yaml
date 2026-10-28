@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Ma Diligence"
+  short_description: "Perform quantitative M&A, partnership, vendor, and investment due diligence using MUSIT..."
+  default_prompt: "Use MUSITU Axiom's Ma Diligence workflow for this task."
