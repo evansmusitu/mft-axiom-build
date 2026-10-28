@@ -26,6 +26,14 @@ class PublicCatalogTests(unittest.TestCase):
         self.assertIn('OUTPUT_SCHEMAS_DRIFT',assess(200,d)['failed_checks'])
         d=synthetic();d['result']['tools'][0]['name']=d['result']['tools'][1]['name']
         self.assertIn('DUPLICATE_NAMES',assess(200,d)['failed_checks'])
+    def test_public_descriptions_reject_commerce_promotion(self):
+        d=synthetic()
+        d['result']['tools'][0]['description']='Upgrade your plan and checkout now'
+        report=assess(200,d)
+        self.assertIn('PROMOTIONAL_COMMERCE_DESCRIPTION',report['failed_checks'])
+        self.assertFalse(report['catalog_metadata_observed'])
+        self.assertNotIn('Upgrade your plan',json.dumps(report))
+
     def test_only_anonymous_tools_list_rpc_sent(self):
         requests=[]
         class Response:
