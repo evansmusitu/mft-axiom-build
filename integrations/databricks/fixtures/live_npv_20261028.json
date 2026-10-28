@@ -1,0 +1,167 @@
+{
+  "schema": "musitu.axiom.databricks.live-capture-fixtures.v1",
+  "captured_date": "2026-10-28",
+  "source": "MUSITU Axiom live connector",
+  "category": "npv",
+  "cases": [
+    {
+      "id": "npv_01",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0,
+        "cashflows": [
+          -1000,
+          120,
+          240,
+          360,
+          520
+        ]
+      },
+      "axiom_value": 240,
+      "verified": null
+    },
+    {
+      "id": "npv_02",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.005,
+        "cashflows": [
+          -1500,
+          200,
+          300,
+          450,
+          800
+        ]
+      },
+      "axiom_value": 223.54228510674318,
+      "verified": null
+    },
+    {
+      "id": "npv_03",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.035,
+        "cashflows": [
+          -500,
+          40,
+          40,
+          40,
+          40,
+          450
+        ]
+      },
+      "axiom_value": 25.811093430824876,
+      "verified": null
+    },
+    {
+      "id": "npv_04",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.075,
+        "cashflows": [
+          -10000,
+          2600,
+          2600,
+          2600,
+          2600,
+          2600
+        ]
+      },
+      "axiom_value": 519.3007451959763,
+      "verified": null
+    },
+    {
+      "id": "npv_05",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.15,
+        "cashflows": [
+          -100,
+          50,
+          55,
+          60
+        ]
+      },
+      "axiom_value": 24.517136516807774,
+      "verified": null
+    },
+    {
+      "id": "npv_06",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.325,
+        "cashflows": [
+          -250,
+          110,
+          80,
+          65,
+          50
+        ]
+      },
+      "axiom_value": -77.24870638431294,
+      "verified": null
+    },
+    {
+      "id": "npv_07",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.8,
+        "cashflows": [
+          -3500,
+          1500,
+          2300,
+          2700
+        ]
+      },
+      "axiom_value": -1493.8271604938275,
+      "verified": null
+    },
+    {
+      "id": "npv_08",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 1,
+        "cashflows": [
+          -100,
+          80,
+          90,
+          100
+        ]
+      },
+      "axiom_value": -25,
+      "verified": null
+    },
+    {
+      "id": "npv_09",
+      "operation": "finance.npv",
+      "args": {
+        "rate": 0.0001,
+        "cashflows": [
+          -900,
+          100,
+          200,
+          300,
+          350
+        ]
+      },
+      "axiom_value": 49.7200599891019,
+      "verified": null
+    },
+    {
+      "id": "npv_10",
+      "operation": "finance.npv",
+      "args": {
+        "rate": -0.2,
+        "cashflows": [
+          -2000,
+          500,
+          600,
+          700,
+          800
+        ]
+      },
+      "axiom_value": 2882.812499999999,
+      "verified": null
+    }
+  ]
+}
