@@ -1,6 +1,7 @@
 """Anonymous fixed tools/list discovery only. No tools/call, credentials or release."""
 import argparse
 import json
+import re
 from pathlib import Path
 import urllib.request
 import urllib.error
@@ -9,6 +10,7 @@ URL='https://mcp.mftintelligence.com/mcp'
 BODY=b'{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 HIDDEN={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
 LIMIT=1048576
+PROMOTIONAL=re.compile(r'\b(subscribe|upgrade|checkout|monthly plan|subscription plan)\b',re.I)
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*_args,**_kwargs):return None
@@ -43,6 +45,8 @@ def assess(status,doc):
             for key,expect in (('tools',108),('operations',74),('business',30),('output_schemas',108)):
                 if counts[key]!=expect:issues.append(key.upper()+'_DRIFT')
             if HIDDEN.intersection(names):issues.append('PRIVATE_COMMERCE_EXPOSED')
+            if any(isinstance(t.get('description'),str) and PROMOTIONAL.search(t['description']) for t in rows):
+                issues.append('PROMOTIONAL_COMMERCE_DESCRIPTION')
     return {'schema':'musitu.axiom.public_catalog_readonly.v1','failed_checks':issues,'counts':counts,
             'catalog_metadata_observed':not issues,'oauth_e2e_qualified':False,
             'openai_submission_approved':False,'commercial_ga_qualified':False}
