@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original recording bytes and seven HTTP behavior checks
         run: node review-video/verify.mjs
-      - name: Inspect and enable only the pinned isolated recording endpoint
+      - name: Verify the pinned recording using an identifiable application client
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: python3 review-video/reconcile.py
