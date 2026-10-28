@@ -84,6 +84,59 @@ export async function issueOfflineCredential({env,tenantId,scopes,expiresAt,nowM
   }
 }
 
+/**
+ * Synthetic-only atomic credential rotation for a single active credential.
+ * Preserves the old credential's scopes, tenant and expiry. The new secret is
+ * returned once. The old credential is revoked in the same D1 batch.
+ * This is NOT a production key-management endpoint or customer authorization.
+ */
+export async function rotateOfflineCredential({env,tenantId,credentialId,nowMs=Date.now()}={}) {
+  if (!ready(env)) return disabled();
+  const db=env?.CONNECT_CUSTOMER_DB;
+  if (!db || typeof db.prepare!=='function' || typeof db.batch!=='function') return unavailable();
+  if (typeof tenantId!=='string' || !TENANT_ID.test(tenantId) ||
+      typeof credentialId!=='string' || !CREDENTIAL_ID.test(credentialId) ||
+      !validClock(nowMs)) return invalid();
+  try {
+    const secretBytes=new Uint8Array(32);
+    crypto.getRandomValues(secretBytes);
+    const bearer_token='mct_'+btoa(String.fromCharCode(...secretBytes))
+      .replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+    const tokenHash=await digest(bearer_token);
+    const newId='cred_'+crypto.randomUUID().replaceAll('-','');
+    const results=await db.batch([
+      db.prepare(
+        'INSERT INTO connect_customer_credentials '
+        + '(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) '
+        + "SELECT ?,old.tenant_id,?,'active',old.expires_at,old.can_plan,old.can_risk "
+        + 'FROM connect_customer_credentials old '
+        + 'JOIN connect_customer_tenants tenant ON tenant.tenant_id=old.tenant_id '
+        + "WHERE old.credential_id=? AND old.tenant_id=? AND old.status='active' "
+        + "AND tenant.status='active' AND unixepoch(old.expires_at)>? "
+        + 'RETURNING credential_id,tenant_id'
+      ).bind(newId,tokenHash,credentialId,tenantId,Math.floor(nowMs/1000)),
+      db.prepare(
+        "UPDATE connect_customer_credentials SET status='revoked' "
+        + "WHERE credential_id=? AND tenant_id=? AND status='active' "
+        + 'AND EXISTS (SELECT 1 FROM connect_customer_credentials '
+        + 'WHERE credential_id=? AND tenant_id=?) RETURNING credential_id'
+      ).bind(credentialId,tenantId,newId,tenantId),
+    ]);
+    const inserted=results?.[0]?.results;
+    const revoked=results?.[1]?.results;
+    if (!Array.isArray(results) || results.length!==2 ||
+        !Array.isArray(inserted) || !Array.isArray(revoked)) return unavailable();
+    if (inserted.length!==1 || revoked.length!==1 ||
+        inserted[0]?.credential_id!==newId || inserted[0]?.tenant_id!==tenantId ||
+        revoked[0]?.credential_id!==credentialId) {
+      return failure(404,'CREDENTIAL_NOT_FOUND');
+    }
+    return {ok:true,tenant_id:tenantId,credential_id:newId,bearer_token};
+  } catch {
+    return unavailable();
+  }
+}
+
 export async function revokeOfflineCredential({env,tenantId,credentialId}={}) {
   if (!ready(env)) return disabled();
   if (!database(env)) return unavailable();
