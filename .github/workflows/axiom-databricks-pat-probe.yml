@@ -33,6 +33,7 @@ jobs:
           grep -q '^MLFLOW_EVALUATION_SKIPPED:' <<< "$output"
           python3 integrations/databricks/notebooks/03_musitu_axiom_parity.py | grep -q '^MUSITU_AXIOM_DATABRICKS_PARITY_14_OF_14_PASS$'
           python3 integrations/databricks/notebooks/04_musitu_axiom_livecapture_30.py | grep -qx 'MUSITU_AXIOM_DATABRICKS_LIVE_CAPTURE_30_OF_30_PASS'
+          (cd integrations/databricks && python3 -m unittest discover -s tests -v)
           printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
 
   workspace-auth-only:
@@ -310,8 +311,6 @@ jobs:
           set +x
           python3 integrations/databricks/databricks_parity_run.py
 
-          (cd integrations/databricks && python3 -m unittest discover -s tests -v)
-          printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
 
   workspace-livecapture-import:
     name: Import the 30-case Axiom live snapshot notebook (no compute)
