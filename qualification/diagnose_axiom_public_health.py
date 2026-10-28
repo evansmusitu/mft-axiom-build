@@ -13,6 +13,7 @@ from pathlib import Path
 HEALTH_URL = 'https://mcp.mftintelligence.com/health'
 MAX_BYTES = 8192
 PUBLIC_NUMERIC_VERSION = re.compile(r'(?:[0-9]{1,4}\.){2}[0-9]{1,4}')
+PUBLIC_CORE_BUILD_SHA = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
 EXPECTED = (
     ('ok', True),
     ('server_version', '4.0.0'),
@@ -51,6 +52,10 @@ def assess_response(status, body):
     if (report['failed_checks'] == ['server_version_mismatch']
             and type(observed) is str and PUBLIC_NUMERIC_VERSION.fullmatch(observed)):
         report['observed_server_version'] = observed
+        core = value.get('core')
+        build = core.get('build_id') if isinstance(core, dict) else None
+        if type(build) is str and PUBLIC_CORE_BUILD_SHA.fullmatch(build):
+            report['observed_core_build_id'] = build
     report['ready'] = not report['failed_checks']
     return report
 

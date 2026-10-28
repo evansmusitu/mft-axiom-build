@@ -18,6 +18,12 @@ three dot-separated decimal components, each 1–4 digits (for example
 `4.1.7`). Non-numeric strings, free-form text and excessive lengths are not
 echoed. This public-version hint helps investigate drift without relaxing
 the v4.0.0 requirement or exposing arbitrary server response text.
+A core build identifier is also reported **only** if it is a lowercase
+40- or 64-character hexadecimal string and the numeric server version is
+the sole mismatched health field. Such an observed string is a provenance
+**hint**, not verification that a known Git commit was deployed or that
+external Cloudflare release approval occurred. Unknown/free-form build IDs
+and any additional failed health checks suppress this field.
 
 Run locally or in the dedicated non-enabling GitHub Actions workflow:
 
