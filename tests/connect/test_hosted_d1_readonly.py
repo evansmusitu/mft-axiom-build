@@ -63,7 +63,7 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                     'version': 'production'}})
             return FakeResponse({'success': True, 'result': [{
                 'success': True, 'meta': {'rows_written': 0, 'changes': 0,
-                                         'changed_db': True},
+                                         'changed_db': False},
                 'results': [{'type': kind, 'name': name, 'sql': sql}
                             for (kind, name), sql in source_objects.items()]
             }]})
@@ -108,6 +108,26 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                     return FakeResponse({'success': True, 'result': [{
                         'success': True, 'meta': meta, 'results': rows}]})
 
+                with self.assertRaises(probe.ProbeError):
+                    probe.run_probe(cfg, transport=transport)
+
+    def test_provider_changed_db_signal_must_not_be_ignored(self):
+        """No green evidence if Cloudflare reports any database alteration."""
+        cfg = probe.load_config(config())
+        objects = probe.local_schema_objects()
+        rows = [{'type': kind, 'name': name, 'sql': ddl}
+                for (kind, name), ddl in objects.items()]
+        for flag in (True, 1, 'false', None):
+            with self.subTest(changed_db=repr(flag)):
+                def transport(req, timeout):
+                    if req.get_method() == 'GET':
+                        return FakeResponse({'success': True, 'result': {
+                            'uuid': cfg['database_id'], 'name': cfg['database_name']}})
+                    return FakeResponse({'success': True, 'result': [{
+                        'success': True,
+                        'meta': {'changes': 0, 'rows_written': 0, 'changed_db': flag},
+                        'results': rows,
+                    }]})
                 with self.assertRaises(probe.ProbeError):
                     probe.run_probe(cfg, transport=transport)
 
