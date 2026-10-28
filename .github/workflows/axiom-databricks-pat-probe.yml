@@ -32,6 +32,284 @@ jobs:
           grep -q '^MUSITU_AXIOM_DATABRICKS_SYNTHETIC_4_OF_4_PASS$' <<< "$output"
           grep -q '^MLFLOW_EVALUATION_SKIPPED:' <<< "$output"
           python3 integrations/databricks/notebooks/03_musitu_axiom_parity.py | grep -q '^MUSITU_AXIOM_DATABRICKS_PARITY_14_OF_14_PASS$'
+          python3 integrations/databricks/notebooks/04_musitu_axiom_livecapture_30.py | grep -q '^MUSITU_AXIOM_DATABRICKS_LIVE_CAPTURE_30_OF_30_PASS
+          printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
+
+  workspace-auth-only:
+    name: Auth-only workspace probe (GET request, zero compute)
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-auth-check]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABRICKS_HOST: https://dbc-3179c56f-a6c7.cloud.databricks.com
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - name: Confirm secret was configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Missing repository Actions secret DATABRICKS_TOKEN'
+            exit 1
+          fi
+      - name: Validate workspace-scoped PAT without printing identity or token
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          status="$(curl --proto '=https' --tlsv1.2 --silent --show-error \
+            --max-time 25 --retry 0 --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${DATABRICKS_TOKEN}" \
+            --header 'Accept: application/json' \
+            "${DATABRICKS_HOST}/api/2.0/preview/scim/v2/Me")"
+          case "$status" in
+            200) echo 'MUSITU_DATABRICKS_WORKSPACE_PAT_AUTH_PASS; no compute or data writes' ;;
+            401) echo '::error::PAT was rejected by the workspace (HTTP 401)' ; exit 1 ;;
+            403) echo '::error::PAT lacks required permission or scope (HTTP 403)' ; exit 1 ;;
+            *) echo "::error::Workspace read-only identity probe returned HTTP ${status}" ; exit 1 ;;
+          esac
+
+  workspace-notebook-import:
+    name: One-time no-compute import of synthetic pilot notebook
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-notebook-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Refuse missing PAT secret
+        shell: bash
+        run: |
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Repository secret DATABRICKS_TOKEN missing'
+            exit 1
+          fi
+      - name: Import private synthetic notebook, then verify workspace object
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_import.py
+
+  workspace-source-verify:
+    name: Read-only persisted notebook source verification (no compute)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-source-verify]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Require configured workspace token
+        shell: bash
+        run: |
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Repository Actions secret DATABRICKS_TOKEN is missing'
+            exit 1
+          fi
+      - name: Export stored notebook source and verify hash against GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/verify_import.py
+
+  workspace-mlflow-tracking:
+    name: One-time local numeric evaluation to Databricks MLflow tracking (no compute)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-mlflow-tracking]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Require workspace PAT; never expose its value
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::DATABRICKS_TOKEN repository secret is missing'
+            exit 1
+          fi
+      - name: Track one four-case synthetic numerical verification in remote MLflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/tracking.py
+
+  workspace-live-smoke:
+    name: One-time Databricks serverless synthetic smoke (cost-bearing)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-live-smoke]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Require Databricks token in GitHub secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
+            echo '::error::Missing repository secret DATABRICKS_TOKEN'
+            exit 1
+          fi
+      - name: Execute one idempotent serverless notebook job, auto-timeout 900s
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_jobs.py
+
+  workspace-spark-import:
+    name: One-time non-overwriting Spark benchmark import (zero compute)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-spark-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Import private Spark notebook without running compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/import_scale.py
+
+  workspace-spark-run:
+    name: One-time 1M-row Databricks serverless Spark benchmark (cost-bearing)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-spark-run]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Execute bounded serverless Spark benchmark and verify notebook output
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_scale_run.py
+
+  workspace-spark-mlflow-attest:
+    name: Persist completed Spark benchmark metrics into Databricks MLflow
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-spark-mlflow]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Cross-check original Spark run and persist verified MLflow metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/scale_evidence_tracking.py
+
+  workspace-parity-import:
+    name: One-time Axiom snapshot parity notebook import (no compute)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-parity-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Import source-only Axiom snapshot parity notebook
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/import_parity.py
+
+  workspace-parity-run:
+    name: One-time synthetic Axiom parity validation on Databricks serverless
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-parity-run]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Execute one-time independent Axiom numerical snapshot parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_parity_run.py
+
           (cd integrations/databricks && python3 -m unittest discover -s tests -v)
           printf '%s\n' 'MUSITU_DATABRICKS_OFFLINE_CHECK_PASS'
 
@@ -309,3 +587,49 @@ jobs:
           set -euo pipefail
           set +x
           python3 integrations/databricks/databricks_parity_run.py
+
+  workspace-livecapture-import:
+    name: Import the 30-case Axiom live snapshot notebook (no compute)
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-livecapture-import]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Import 30-case synthetic financial notebook without overwriting
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/import_livecapture.py
+
+  workspace-livecapture-run:
+    name: Compare 30 captured Axiom outputs to independent Databricks math
+    needs: offline-synthetic
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/pilot/axiom-databricks-pat-20261027' &&
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[databricks-livecapture-run]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Execute one-time, bounded Databricks serverless 30-case financial benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 integrations/databricks/databricks_livecapture_run.py
