@@ -63,6 +63,7 @@ def capture_worker(name):
             if binding.get('name')=='MCP_CORE' and binding.get('type')=='service':capture_worker(binding['service'])
 
 capture_worker('musitu-axiom-mcp')
+capture_worker('musitu-axiom-support')
 c,domains=json_get('/accounts/'+ACCOUNT+'/workers/domains')
 targets=[d for d in (domains or []) if d.get('hostname') in ['mcp.mftintelligence.com','support.mftintelligence.com','auth.mftintelligence.com','axiom.mftintelligence.com','axiom-stage.mftintelligence.com']]
 (PRIVATE/'worker-domains.json').write_text(json.dumps({'http':c,'domains':targets},indent=2)+'\n')

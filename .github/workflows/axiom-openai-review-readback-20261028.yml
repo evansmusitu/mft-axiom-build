@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Capture current sources and settings without mutation
+      - name: Capture gateway, core, and support sources without mutation
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AXIOM_LEGACY_PAYLOAD_PASSPHRASE: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
