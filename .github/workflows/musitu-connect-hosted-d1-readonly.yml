@@ -1,0 +1,33 @@
+name: MUSITU Connect hosted D1 staging schema (manual read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: musitu-connect-hosted-d1-staging-readonly
+  cancel-in-progress: false
+jobs:
+  staged-schema-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MUSITU_CF_STAGING_ACCOUNT_ID: ${{ secrets.MUSITU_CF_STAGING_ACCOUNT_ID }}
+      MUSITU_CF_PRODUCTION_ACCOUNT_ID: ${{ secrets.MUSITU_CF_PRODUCTION_ACCOUNT_ID }}
+      MUSITU_CF_STAGING_DATABASE_NAME: ${{ secrets.MUSITU_CF_STAGING_DATABASE_NAME }}
+      MUSITU_CF_STAGING_DATABASE_ID: ${{ secrets.MUSITU_CF_STAGING_DATABASE_ID }}
+      MUSITU_CF_STAGING_READ_TOKEN: ${{ secrets.MUSITU_CF_STAGING_READ_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Qualify local mock contract first (no network)
+        run: python -m unittest tests.connect.test_hosted_d1_readonly -v
+      - name: Inspect only the independently scoped staged D1 database
+        run: python qualification/probe_connect_hosted_d1.py --output hosted-d1-readonly-evidence.json
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-connect-hosted-d1-readonly-evidence
+          path: hosted-d1-readonly-evidence.json
+          if-no-files-found: error
