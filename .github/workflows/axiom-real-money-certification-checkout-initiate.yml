@@ -2,9 +2,6 @@ name: MUSITU Axiom Real Money Certification Checkout Initiate
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-real-money-certification-checkout-initiate.yml'
 
 permissions:
   contents: read
@@ -15,6 +12,7 @@ concurrency:
 
 jobs:
   initiate:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
