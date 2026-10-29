@@ -71,6 +71,40 @@ class CommercialGaReleaseTests(unittest.TestCase):
         forged['qualifications'][key] = 'true'
         self.assertEqual(audit(forged)[2], 'INVALID_CONTROL_STATUS')
 
+    def test_qualified_control_rejects_invalid_source_uri_and_verification_time(self):
+        """Evidence pointers require a real URL shape and a canonical past UTC time.
+
+        These structural checks NEVER authenticate the source or reviewer.
+        """
+        from qualification.validate_commercial_ga import audit
+        original = json.loads(GA.read_text(encoding='utf-8'))
+        key = next(iter(original['qualifications']))
+        proof = {
+            'source_uri': 'https://github.com/evansmusitu/mft-axiom-build/actions/runs/12345',
+            'independent_verifier': 'independent-reviewer-test',
+            'verified_at_utc': '2026-10-27T17:00:00Z',
+        }
+        baseline = deepcopy(original)
+        baseline['qualifications'][key] = 'QUALIFIED'
+        baseline['independent_evidence_refs'][key] = deepcopy(proof)
+        self.assertEqual(audit(baseline)[2], 'MISSING_12_COMMERCIAL_CONTROLS')
+        invalids = [
+            ('source_uri', 'https://'),
+            ('source_uri', 'https://user:private@example.org/evidence/1'),
+            ('source_uri', 'http://example.org/evidence/1'),
+            ('source_uri', 'https://example.org'),
+            ('verified_at_utc', 'yesterday'),
+            ('verified_at_utc', '2026-02-30T17:00:00Z'),
+            ('verified_at_utc', '2026-10-27T18:00:00+01:00'),
+            ('verified_at_utc', '2099-01-01T00:00:00Z'),
+        ]
+        for field, value in invalids:
+            with self.subTest(field=field, value=value):
+                candidate = deepcopy(baseline)
+                candidate['independent_evidence_refs'][key][field] = value
+                self.assertEqual(
+                    audit(candidate)[2], 'MISSING_QUALIFIED_EVIDENCE:' + key)
+
     def _test_only_all_qualified_record(self):
         # These are synthetic documentary references ONLY and never count as
         # evidence of a hosted Cloudflare D1 or legally approved production GA.
