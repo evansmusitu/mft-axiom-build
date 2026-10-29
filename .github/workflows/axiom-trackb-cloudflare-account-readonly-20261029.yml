@@ -1,0 +1,93 @@
+# S2 only: repeat native account/subscription READS. No AI inference, no upgrades.
+name: AXIOM Track B Cloudflare native zero-cash metadata S2 (not release)
+on:
+  push:
+    branches:
+      - build/axiom-openhands-s2-readonly-20261027
+    paths:
+      - .github/workflows/axiom-trackb-cloudflare-account-readonly-20261029.yml
+permissions:
+  contents: read
+jobs:
+  s2-account-metadata:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-openhands-s2-readonly-20261027' && github.event_name == 'push' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AXIOM_CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Two account-native GETs, exact allowlist, no inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,sys,urllib.request,urllib.error
+          A=os.environ.get('AXIOM_CF_ACCOUNT','')
+          T=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not T or len(T)>4096 or any(ord(c)<33 or ord(c)==127 for c in T):
+              print('AXIOM_CF_S2=BLOCKED_CREDENTIAL_UNAVAILABLE');sys.exit(1)
+          if len(A)!=32 or any(c not in '0123456789abcdef' for c in A):
+              print('AXIOM_CF_S2=BLOCKED_ACCOUNT_PIN');sys.exit(1)
+          ROOT='https://api.cloudflare.com'
+          PATHS=('/client/v4/accounts/'+A,'/client/v4/accounts/'+A+'/subscriptions')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,url): return None
+          opener=urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+          def get(path):
+              if path not in PATHS:raise ValueError('UNAPPROVED_ROUTE')
+              req=urllib.request.Request(ROOT+path,headers={'Authorization':'Bearer '+T,'Accept':'application/json'},method='GET')
+              try:
+                  with opener.open(req,timeout=8) as response:
+                      if response.status!=200:raise ValueError('BAD_HTTP_STATUS')
+                      raw=response.read(131073)
+              except urllib.error.HTTPError as exc:
+                  print('AXIOM_CF_S2_HTTP_CODE='+str(exc.code))
+                  raise ValueError('PROVIDER_HTTP_DENIED') from None
+              except Exception:
+                  raise ValueError('PROVIDER_TRANSPORT_DENIED') from None
+              if len(raw)>131072:raise ValueError('OVERSIZED')
+              def reject_dupes(items):
+                  d={}
+                  for k,v in items:
+                      if k in d:raise ValueError('DUPLICATE_JSON')
+                      d[k]=v
+                  return d
+              def reject_special(_):raise ValueError('NONFINITE')
+              try:obj=json.loads(raw,object_pairs_hook=reject_dupes,parse_constant=reject_special)
+              except Exception:raise ValueError('INVALID_JSON') from None
+              if type(obj) is not dict or obj.get('success') is not True:raise ValueError('PROVIDER_NOT_SUCCESS')
+              return obj
+          try:
+              account=get(PATHS[0]).get('result')
+              if type(account) is not dict or account.get('id')!=A:raise ValueError('ACCOUNT_ID_MISMATCH')
+              print('AXIOM_CF_S2_ACCOUNT_IDENTITY=PASS')
+              obj=get(PATHS[1])
+              subscriptions=obj.get('result')
+              if type(subscriptions) is not list or len(subscriptions)>100:raise ValueError('BAD_SUBSCRIPTIONS')
+              info=obj.get('result_info')
+              if type(info) is dict and info.get('total_count') != len(subscriptions):
+                  raise ValueError('INCOMPLETE_SUBSCRIPTIONS')
+              if info is not None and type(info) is not dict:raise ValueError('BAD_PAGE_INFO')
+              paid=[]
+              for sub in subscriptions:
+                  if type(sub) is not dict:raise ValueError('BAD_SUBSCRIPTION_ROW')
+                  plan=sub.get('rate_plan')
+                  if plan is not None and type(plan) is not dict:raise ValueError('BAD_RATE_PLAN')
+                  plan_id=str((plan or {}).get('id') or '').upper()
+                  price=sub.get('price')
+                  if price is not None and (type(price) not in (int,float) or not (0<=price<10000000)):
+                      raise ValueError('BAD_PRICE')
+                  paid.append(plan_id.startswith(('WORKERS_PAID','PARTNERS_WORKERS')) or (price is not None and price>0))
+              print('AXIOM_CF_S2_SUBSCRIPTIONS_READ=PASS')
+              print('AXIOM_CF_S2_POSITIVE_PRICE_OR_PAID_PLAN_OBSERVED='+('TRUE' if any(paid) else 'FALSE'))
+              print('AXIOM_CF_S2_SUBSCRIPTIONS_COUNT='+str(len(subscriptions)))
+          except ValueError:
+              print('AXIOM_CF_S2=BLOCKED_NATIVE_ACCOUNT_READ')
+              sys.exit(1)
+          print('AXIOM_CF_S2_PROVIDER_FREE_TIER_HARD_STOP=NOT_PROVEN')
+          print('AXIOM_CF_S2_REMAINING_NEURONS=NOT_VERIFIED')
+          print('AXIOM_CF_S2_MODEL_INFERENCE=NOT_EXECUTED')
+          print('AXIOM_CF_S2_GLOBAL_ANTIROLLBACK=FAILED_IN_SYNTHETIC_ATTACK')
+          print('AXIOM_CF_S2_RELEASE=NOT_CERTIFIED')
+          PY
