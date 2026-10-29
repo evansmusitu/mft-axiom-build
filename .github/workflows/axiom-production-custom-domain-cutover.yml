@@ -31,12 +31,13 @@ jobs:
       - name: Attach production hostname to certified MUSITU public edge with rollback
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
           import hashlib,json,os,time,urllib.error,urllib.parse,urllib.request,pathlib
 
@@ -44,13 +45,35 @@ jobs:
           aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; zone_name=os.environ['ZONE_NAME']
           prod=os.environ['PROD_HOST']; stage=os.environ['STAGE_HOST']; edge=os.environ['PUBLIC_EDGE']
           backend=os.environ['PROTECTED_BACKEND']; adapter=os.environ['PROTECTED_ADAPTER']
-          hdr={
+          api_token=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          legacy_hdr={
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
             'Accept':'application/json',
             'User-Agent':'MUSITU-Axiom-Production-Domain-Cutover/1.0',
           }
+          bearer_hdr={
+            'Authorization':'Bearer '+api_token,
+            'Content-Type':'application/json',
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Production-Domain-Cutover/1.0',
+          }
+          hdr=None
+
+          auth_candidates=[bearer_hdr] if api_token else []
+          if os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip(): auth_candidates.append(legacy_hdr)
+          for candidate in auth_candidates:
+            probe=urllib.request.Request(base+f'/zones/{zid}',headers=candidate,method='GET')
+            try:
+              with urllib.request.urlopen(probe,timeout=35) as r:
+                if 200<=r.status<300:
+                  hdr=candidate
+                  break
+            except Exception:
+              pass
+          if hdr is None:
+            raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN')
 
           def call(path,method='GET',body=None):
             data=None if body is None else json.dumps(body,separators=(',',':')).encode()

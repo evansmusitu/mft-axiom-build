@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "musitu-axiom",
+  "version": "1.0.0",
+  "description": "Portable public MUSITU Axiom Agent Plugin package for the sealed Profile A skill surface.",
+  "author": {
+    "name": "MUSITU"
+  }
+}

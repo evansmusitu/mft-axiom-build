@@ -1,0 +1,147 @@
+{
+  "schema": "musitu.axiom.financial-ontology.v1",
+  "version": "1.0.0",
+  "concepts": [
+    {
+      "id": "entity.corporation",
+      "kind": "entity",
+      "label": "Corporation",
+      "aliases": ["company", "corporate entity"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical reporting-entity semantic contract"
+      }
+    },
+    {
+      "id": "instrument.equity.common",
+      "kind": "instrument",
+      "label": "Common Stock",
+      "aliases": ["common equity", "ordinary shares"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical common-equity instrument contract"
+      }
+    },
+    {
+      "id": "statement.income",
+      "kind": "statement",
+      "label": "Income Statement",
+      "aliases": ["profit and loss statement", "p&l statement"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical income-statement semantic contract"
+      }
+    },
+    {
+      "id": "metric.revenue",
+      "kind": "metric",
+      "label": "Revenue",
+      "aliases": ["total sales", "sales revenue"],
+      "dimension": "currency",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical revenue metric contract"
+      }
+    },
+    {
+      "id": "metric.net_income",
+      "kind": "metric",
+      "label": "Net Income",
+      "aliases": ["net profit", "profit after tax"],
+      "dimension": "currency",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical net-income metric contract"
+      }
+    },
+    {
+      "id": "metric.net_margin",
+      "kind": "metric",
+      "label": "Net Margin",
+      "aliases": ["net profit margin", "net income margin"],
+      "dimension": "ratio",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical net-margin metric contract"
+      }
+    },
+    {
+      "id": "unit.currency.usd",
+      "kind": "unit",
+      "label": "US Dollar",
+      "aliases": ["USD", "U.S. dollar"],
+      "dimension": "currency",
+      "code": "USD",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical currency-unit semantic contract"
+      }
+    },
+    {
+      "id": "unit.ratio.percent",
+      "kind": "unit",
+      "label": "Percent",
+      "aliases": ["percentage", "%"],
+      "dimension": "ratio",
+      "code": "%",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical ratio-unit semantic contract"
+      }
+    },
+    {
+      "id": "unit.shares.count",
+      "kind": "unit",
+      "label": "Shares",
+      "aliases": ["share count", "number of shares"],
+      "dimension": "shares",
+      "code": "shares",
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical share-count unit contract"
+      }
+    },
+    {
+      "id": "corporate_action.stock_split",
+      "kind": "corporate_action",
+      "label": "Stock Split",
+      "aliases": ["share split", "split shares"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-financial-modeling",
+        "reference": "canonical stock-split action contract"
+      }
+    },
+    {
+      "id": "portfolio.standard",
+      "kind": "portfolio",
+      "label": "Investment Portfolio",
+      "aliases": ["portfolio", "investment holdings"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-portfolio-analysis",
+        "reference": "canonical portfolio semantic contract"
+      }
+    },
+    {
+      "id": "risk.market",
+      "kind": "risk",
+      "label": "Market Risk",
+      "aliases": ["systematic market risk", "price market risk"],
+      "introduced_in": "1.0.0",
+      "lineage": {
+        "source": "internal:musitu-risk-analysis",
+        "reference": "canonical market-risk semantic contract"
+      }
+    }
+  ]
+}

@@ -24,10 +24,43 @@ jobs:
       MCP_RULE_REF: musitu_axiom_mcp_machine_transport
       AXIOM_BASE: https://axiom.mftintelligence.com
       BILLING_BASE: https://payments.mftintelligence.com
+      BILLING_WORKER: mft-axiom-billing-ingress
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
       EXPECTED_OPERATIONS: '74'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Diagnose Cloudflare credential authentication scheme
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          api="https://api.cloudflare.com/client/v4"
+          paths=["/user/tokens/verify","/zones/5b56528f03948ff5917a5e0cd9f7109e"]
+          schemes=[
+            ("x_auth_key",{"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"]}),
+            ("bearer_api_token",{"Authorization":"Bearer "+os.environ.get("CLOUDFLARE_API_TOKEN","")}),
+          ]
+          out={}
+          for s,h in schemes:
+            out[s]={}
+            for path in paths:
+              req=urllib.request.Request(api+path,headers={"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Auth-Diagnostic/1.0",**h},method="GET")
+              try:
+                with urllib.request.urlopen(req,timeout=30) as r:
+                  body=r.read(4096); code=r.status
+              except urllib.error.HTTPError as e:
+                body=e.read(4096); code=e.code
+              try: obj=json.loads(body or b"{}")
+              except: obj={}
+              out[s][path]={"http":code,"success":obj.get("success"),"errors":[{"code":x.get("code"),"message":x.get("message")} for x in (obj.get("errors") or []) if isinstance(x,dict)]}
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
 
       - name: Validate MCP gateway source
         shell: bash
@@ -42,19 +75,21 @@ jobs:
       - name: Deploy isolated MCP worker and custom domain fail-closed
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
-          import email,hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+          import email,hashlib,json,os,pathlib,secrets,socket,time,urllib.error,urllib.parse,urllib.request
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; zone=os.environ['ZONE_NAME']
           host=os.environ['MCP_HOST']; worker=os.environ['MCP_WORKER']; rule_ref=os.environ['MCP_RULE_REF']
           source_path=pathlib.Path('mcp/musitu_axiom_mcp_worker.mjs'); source=source_path.read_bytes(); source_sha=hashlib.sha256(source).hexdigest()
-          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Deploy/1.0'}
+          legacy_auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Deploy/1.0'}
+          bearer_auth={'Authorization':'Bearer '+os.environ.get('CLOUDFLARE_API_TOKEN','').strip(),'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Deploy/1.0'}
 
           def raw(url,method='GET',headers=None,body=None,timeout=45):
               req=urllib.request.Request(url,headers=dict(headers or {}),data=body,method=method)
@@ -62,6 +97,13 @@ jobs:
                   with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
               except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
               except urllib.error.URLError:return 0,{},b''
+
+          def choose_auth():
+              for candidate in (bearer_auth, legacy_auth):
+                  c,_,_=raw(api+f'/zones/{zid}', 'GET', candidate)
+                  if 200<=c<300: return candidate
+              raise RuntimeError('Cloudflare credential rejected under both Bearer-token and X-Auth-Key authentication')
+          auth=choose_auth()
 
           def cf(path,method='GET',obj=None,expected=None):
               h=dict(auth); body=None
@@ -92,6 +134,7 @@ jobs:
                       {'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},
                       {'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},
                       {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':'https://'+host},
+                      {'type':'service','name':'AXIOM_BILLING','service':os.environ['BILLING_WORKER']},
                   ],
               }
               boundary,body=mp(metadata,'index.mjs',source); h=dict(auth); h['Content-Type']='multipart/form-data; boundary='+boundary
@@ -139,6 +182,8 @@ jobs:
           bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict)}
           for name,value in [('AXIOM_BASE',os.environ['AXIOM_BASE']),('BILLING_BASE',os.environ['BILLING_BASE']),('MCP_PUBLIC_BASE','https://'+host)]:
               if bindings.get(name,{}).get('text')!=value:raise RuntimeError('MCP Worker binding readback mismatch '+name)
+          service_bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict) and b.get('type')=='service'}
+          if service_bindings.get('AXIOM_BILLING',{}).get('service')!=os.environ['BILLING_WORKER']:raise RuntimeError('MCP billing service binding readback mismatch')
           sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain') or {}
           if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise RuntimeError('MCP workers.dev exposure not disabled')
 
@@ -169,15 +214,31 @@ jobs:
               cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':zone,'override_existing_origin':True})
           after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if isinstance(d,dict) and d.get('hostname')==host]
           if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('MCP custom-domain mapping readback failed')
+          print(json.dumps({
+              'custom_domain_id':after[0].get('id'),
+              'custom_domain_cert_id':after[0].get('cert_id'),
+              'custom_domain_hostname':after[0].get('hostname'),
+              'custom_domain_service':after[0].get('service'),
+          },sort_keys=True))
 
-          # Wait for the custom domain and execute the MCP protocol contract.
+          # Wait longer for DNS/TLS/custom-domain propagation and emit resolver/probe evidence on failure.
           base='https://'+host; final_health=None
-          for _ in range(60):
+          try:
+              addrs=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              print(json.dumps({'mcp_dns_resolution':'ok','addresses':addrs},sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({'mcp_dns_resolution':'error','error':str(exc)[:240]},sort_keys=True))
+
+          last_probe={}
+          for attempt in range(150):
               c,_,x=http_json(base+'/health')
+              last_probe={'attempt':attempt+1,'http':c,'payload':x}
               if c==200 and x.get('ok') is True and int(x.get('operation_count') or -1)==int(os.environ['EXPECTED_OPERATIONS']) and x.get('build_id')==os.environ['EXPECTED_BUILD'] and x.get('catalog_configured') is True and x.get('checkout_enabled') is True:
                   final_health=x;break
               time.sleep(2)
-          if final_health is None:raise RuntimeError('MCP health did not reach exact production contract')
+          if final_health is None:
+              print(json.dumps({'mcp_health_last_probe':last_probe},sort_keys=True))
+              raise RuntimeError('MCP health did not reach exact production contract within 5 minutes')
 
           init={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'musitu-deploy-verifier','version':'1.0'}}}
           ic,_,io=http_json(base+'/mcp','POST',init)
@@ -234,3 +295,7 @@ jobs:
             musitu-axiom-mcp-production-deploy.sha256
           retention-days: 30
           if-no-files-found: warn
+
+# Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
+# Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
+# 2026-09-27: extend custom-domain readiness window and record resolver/probe evidence.

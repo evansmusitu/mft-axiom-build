@@ -46,19 +46,22 @@ jobs:
       - name: Migrate D1, deploy OAuth Worker, and prove OAuth-to-MCP E2E
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
-          import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,socket,time,urllib.error,urllib.parse,urllib.request,uuid
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']
           host=os.environ['AUTH_HOST']; worker=os.environ['AUTH_WORKER']; rule_ref=os.environ['AUTH_RULE_REF']; issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']
           source_path=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs'); source=source_path.read_bytes(); source_sha=hashlib.sha256(source).hexdigest()
-          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
+          api_token=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          legacy_CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
+          bearer_CFH={'Authorization':'Bearer '+api_token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
 
           def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
               req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
@@ -67,6 +70,16 @@ jobs:
                   with opener.open(req,timeout=timeout) as r:return r.status,r.headers,r.read()
               except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
               except urllib.error.URLError:return 0,{},b''
+
+          def choose_auth():
+              candidates=[]
+              if api_token: candidates.append(('api_token',bearer_CFH))
+              if os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip(): candidates.append(('legacy_global_key',legacy_CFH))
+              for _,candidate in candidates:
+                  c,_,_=raw(api+f'/zones/{zid}', 'GET', candidate)
+                  if 200<=c<300: return candidate
+              raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN to a valid API token with the required account/zone permissions')
+          CFH=choose_auth()
 
           def cf(path,method='GET',obj=None,expected=None):
               h=dict(CFH); body=None
@@ -175,14 +188,30 @@ jobs:
           if not before:cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True})
           after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if d.get('hostname')==host]
           if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('OAuth custom-domain mapping failed')
+          print(json.dumps({
+              'custom_domain_id':after[0].get('id'),
+              'custom_domain_cert_id':after[0].get('cert_id'),
+              'custom_domain_hostname':after[0].get('hostname'),
+              'custom_domain_service':after[0].get('service'),
+          },sort_keys=True))
 
-          # Public OAuth metadata and health.
-          health=None
-          for _ in range(45):
+          # Wait longer for DNS/TLS/custom-domain propagation and emit resolver/probe evidence on failure.
+          try:
+              addrs=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              print(json.dumps({'oauth_dns_resolution':'ok','addresses':addrs},sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({'oauth_dns_resolution':'error','error':str(exc)[:240]},sort_keys=True))
+
+          health=None; last_probe={}
+          for attempt in range(150):
               hc,_,ho,_=http_json(issuer+'/health')
-              if hc==200 and ho.get('ok') is True and ho.get('issuer')==issuer and ho.get('resource')==resource and ho.get('dcr') is True and ho.get('pkce_s256') is True:health=ho;break
+              last_probe={'attempt':attempt+1,'http':hc,'payload':ho}
+              if hc==200 and ho.get('ok') is True and ho.get('issuer')==issuer and ho.get('resource')==resource and ho.get('dcr') is True and ho.get('pkce_s256') is True:
+                  health=ho;break
               time.sleep(2)
-          if health is None:raise RuntimeError('OAuth health contract did not become ready')
+          if health is None:
+              print(json.dumps({'oauth_health_last_probe':last_probe},sort_keys=True))
+              raise RuntimeError('OAuth health contract did not become ready within 5 minutes')
           dc,_,disc,_=http_json(issuer+'/.well-known/oauth-authorization-server')
           expected={'issuer':issuer,'authorization_endpoint':issuer+'/oauth/authorize','token_endpoint':issuer+'/oauth/token','registration_endpoint':issuer+'/oauth/register','revocation_endpoint':issuer+'/oauth/revoke'}
           if dc!=200 or any(disc.get(k)!=v for k,v in expected.items()) or 'S256' not in (disc.get('code_challenge_methods_supported') or []) or 'none' not in (disc.get('token_endpoint_auth_methods_supported') or []):raise RuntimeError('OAuth discovery metadata contract mismatch')
@@ -194,7 +223,7 @@ jobs:
           print('::add-mask::'+verifier)
           inserted=False;client_id=None;access=None;refresh=None;access2=None;refresh2=None;evidence={}
           try:
-              residue=d1("SELECT (SELECT count(*) FROM customers WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM api_keys WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM oauth_clients WHERE client_name LIKE 'MUSITU OAuth E2E%')+(SELECT count(*) FROM oauth_authorization_flows WHERE id LIKE 'flow_%' AND created_at>datetime('now','-2 hours')) AS n;")
+              residue=d1("SELECT (SELECT count(*) FROM customers WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM api_keys WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM oauth_clients WHERE client_name LIKE 'MUSITU OAuth E2E%')+(SELECT count(*) FROM oauth_authorization_flows WHERE client_id IN (SELECT client_id FROM oauth_clients WHERE client_name LIKE 'MUSITU OAuth E2E%'))+(SELECT count(*) FROM oauth_authorization_codes WHERE customer_id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id LIKE 'fixture_oauth_%') AS n;")
               if not residue or int(residue[0]['n'])!=0:raise RuntimeError('preexisting OAuth fixture residue')
               d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,prefix+'@invalid.example','MUSITU OAuth E2E fixture','developer','active',100,created])
               d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[source_key_id,customer,account_hash,account_prefix,'oauth-e2e-source-key','active',created,source_expires]);inserted=True
@@ -205,13 +234,19 @@ jobs:
               aq={'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':'axiom.execute billing.read','state':state,'code_challenge':challenge,'code_challenge_method':'S256','resource':resource}
               ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-OAuth-E2E/1.0'})
               if ac!=200:raise RuntimeError('authorization page HTTP '+str(ac))
-              page=ab.decode('utf-8','replace'); fm=re.search(r'name="flow_id" value="([^"]+)"',page); cookie_header=str(ah.get('Set-Cookie') or '')
-              if not fm or 'musitu_oauth_flow=' not in cookie_header:raise RuntimeError('authorization flow/cookie missing')
-              flow_id=fm.group(1);print('::add-mask::'+flow_id);cookie=cookie_header.split(';',1)[0]
-              pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'musitu_account_key':account_key},{'Accept':'text/html','Cookie':cookie},follow=False)
-              if pc!=302:raise RuntimeError('authorization consent POST expected 302 got '+str(pc))
-              loc=str(ph.get('Location') or ''); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
-              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')
+              page=ab.decode('utf-8','replace'); fm=re.search(r'name="flow_id" value="([^"]+)"',page); nm=re.search(r'name="flow_nonce" value="([^"]+)"',page); cookie_header=str(ah.get('Set-Cookie') or '')
+              if not fm or not nm or 'musitu_oauth_flow=' not in cookie_header:raise RuntimeError('authorization flow/nonce/cookie missing')
+              flow_id=fm.group(1);flow_nonce=nm.group(1);print('::add-mask::'+flow_id);print('::add-mask::'+flow_nonce)
+              # Prove the exact mobile handoff. The credential POST must render a 200 document, not depend on an HTTP redirect chain.
+              pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'flow_nonce':flow_nonce,'musitu_account_key':account_key},{'Accept':'text/html'},follow=False)
+              if pc!=200:raise RuntimeError('authorization consent POST expected 200 callback document got '+str(pc))
+              if ph.get('Location'):raise RuntimeError('authorization consent POST still depends on HTTP redirect')
+              nav=pb.decode('utf-8','replace'); cm=re.search(r'data-oauth-callback="([^"]+)"',nav)
+              if not cm:raise RuntimeError('authorization callback document missing exact callback target')
+              loc=htmlmod.unescape(cm.group(1)); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
+              if parsed.scheme!='https' or parsed.hostname!='chatgpt.com' or parsed.path!='/connector/oauth/musitu-e2e':raise RuntimeError('authorization callback target mismatch')
+              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization callback code/state mismatch')
+              if '<meta http-equiv="refresh"' not in nav or 'window.location.replace(' not in nav or 'id="continue-chatgpt"' not in nav:raise RuntimeError('authorization callback document missing redundant mobile navigation paths')
               print('::add-mask::'+code)
               tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource})
               if tc!=200:raise RuntimeError('token exchange HTTP '+str(tc)+' '+tb[:240].decode('utf-8','ignore'))
@@ -222,7 +257,9 @@ jobs:
               if len(ar)!=1 or ar[0].get('customer_id')!=customer or ar[0].get('issuer')!=issuer or ar[0].get('resource')!=resource or ar[0].get('status')!='active' or ar[0].get('revoked_at'):raise RuntimeError('OAuth access-token ledger mismatch')
 
               rid='MUSITU-OAUTH-MCP-E2E-'+uuid.uuid4().hex.upper();before=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
-              mc,_,mo,_=http_json(mcp+'/mcp','POST',{'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},{'Authorization':'Bearer '+access,'x-musitu-request-id':rid})
+              mc,mh,mo,mraw=http_json(mcp+'/mcp','POST',{'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},{'Authorization':'Bearer '+access,'x-musitu-request-id':rid})
+              print(json.dumps({'mcp_compute_http':mc,'mcp_compute_headers':{k:v for k,v in mh.items() if k.lower() in ('content-type','www-authenticate','server','cf-ray')},'mcp_compute_body':(mraw[:1200].decode('utf-8','replace') if isinstance(mraw,bytes) else str(mraw)[:1200])},sort_keys=True))
+              print(json.dumps({'mcp_compute_http':mc,'mcp_compute_headers':{k:v for k,v in mh.items() if k.lower() in ('content-type','www-authenticate','server','cf-ray')},'mcp_compute_body':(mraw[:1200].decode('utf-8','replace') if isinstance(mraw,bytes) else str(mraw)[:1200])},sort_keys=True))
               mr=mo.get('result') or {};ser=json.dumps(mo,separators=(',',':'),sort_keys=True)
               if mc!=200 or mr.get('isError') is True or not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',ser):raise RuntimeError('OAuth access token failed MCP compute')
               ev=d1('SELECT request_id,compute_units,http_status,result_sha256,key_id FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
@@ -245,19 +282,19 @@ jobs:
               a2h=hashlib.sha256(access2.encode()).hexdigest();r2h=hashlib.sha256(refresh2.encode()).hexdigest();rev=d1('SELECT a.revoked_at,k.status,(SELECT revoked_at FROM oauth_refresh_tokens WHERE token_hash=?2) AS refresh_revoked FROM oauth_access_tokens a JOIN api_keys k ON k.id=a.api_key_id WHERE a.token_hash=?1',[a2h,r2h])
               if len(rev)!=1 or not rev[0].get('revoked_at') or rev[0].get('status')!='revoked' or not rev[0].get('refresh_revoked'):raise RuntimeError('OAuth revocation ledger mismatch')
 
-              evidence={'schema':'musitu.axiom.oauth.production_e2e.v1','gate':'MUSITU_AXIOM_OAUTH_E2E_PASS','issuer':issuer,'resource':resource,'authorization_code_flow':True,'dynamic_client_registration':True,'pkce_s256':True,'resource_parameter_preserved':True,'existing_musitu_account_authenticated':True,'account_key_returned_to_chatgpt':False,'authorization_code_one_time':True,'opaque_access_token':True,'access_token_expires_seconds':3600,'refresh_token_rotation':True,'revocation_verified':True,'oauth_access_registered_as_axiom_bearer':True,'oauth_to_mcp_authenticated_compute_http':200,'result_42_observed':True,'usage_event_created':True,'metering_verified':True,'raw_account_key_published':False,'raw_access_token_published':False,'raw_refresh_token_published':False,'raw_authorization_code_published':False,'oauth_worker_source_sha256':source_sha,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              evidence={'schema':'musitu.axiom.oauth.production_e2e.v1','gate':'MUSITU_AXIOM_OAUTH_E2E_PASS','issuer':issuer,'resource':resource,'authorization_code_flow':True,'dynamic_client_registration':True,'pkce_s256':True,'resource_parameter_preserved':True,'existing_musitu_account_authenticated':True,'mobile_cookie_independent_form_nonce_verified':True,'mobile_post_200_callback_document_verified':True,'mobile_http_redirect_chain_removed':True,'mobile_meta_refresh_verified':True,'mobile_js_replace_verified':True,'mobile_manual_continue_anchor_verified':True,'account_key_returned_to_chatgpt':False,'authorization_code_one_time':True,'opaque_access_token':True,'access_token_expires_seconds':3600,'refresh_token_rotation':True,'revocation_verified':True,'oauth_access_registered_as_axiom_bearer':True,'oauth_to_mcp_authenticated_compute_http':200,'result_42_observed':True,'usage_event_created':True,'metering_verified':True,'raw_account_key_published':False,'raw_access_token_published':False,'raw_refresh_token_published':False,'raw_authorization_code_published':False,'oauth_worker_source_sha256':source_sha,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           finally:
               if inserted:
                   # OAuth fixture cleanup; never touch non-fixture customer state.
                   try:
                       d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_access_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_refresh_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_codes WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_flows WHERE client_id=?1',[client_id or '']);d1('DELETE FROM oauth_clients WHERE client_id=?1',[client_id or '']);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])
                   finally:
-                      rem=d1("SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_authorization_codes WHERE customer_id=?1) AS n",[customer])
+                      rem=d1("SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_authorization_codes WHERE customer_id=?1)+(SELECT count(*) FROM oauth_authorization_flows WHERE client_id=?2)+(SELECT count(*) FROM oauth_clients WHERE client_id=?2) AS n",[customer,client_id or ''])
                       evidence['fixture_rows_remaining']=int(rem[0]['n']) if rem else -1
           if evidence.get('gate')!='MUSITU_AXIOM_OAUTH_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('OAuth E2E gate or fixture cleanup failed')
           evidence['cleanup_complete']=True
           p=pathlib.Path('musitu-axiom-oauth-production-e2e.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-oauth-production-e2e.sha256').write_text(dg+'  '+p.name+'\n')
-          print(json.dumps({'gate':evidence['gate'],'issuer':issuer,'resource':resource,'dcr':True,'pkce_s256':True,'refresh_rotation':True,'revocation_verified':True,'oauth_to_mcp_authenticated_compute_http':200,'metering_verified':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
+          print(json.dumps({'gate':evidence['gate'],'issuer':issuer,'resource':resource,'dcr':True,'pkce_s256':True,'mobile_cookie_independent_form_nonce_verified':True,'mobile_post_200_callback_document_verified':True,'mobile_http_redirect_chain_removed':True,'refresh_rotation':True,'revocation_verified':True,'oauth_to_mcp_authenticated_compute_http':200,'metering_verified':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
           PY
 
       - name: Upload sealed OAuth evidence
@@ -270,3 +307,8 @@ jobs:
             musitu-axiom-oauth-production-e2e.sha256
           retention-days: 30
           if-no-files-found: warn
+
+# Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
+# Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
+# 2026-09-27: extend custom-domain readiness window and record resolver/probe evidence.
+# 2026-09-27 final edge recovery proof: re-run OAuth-to-public-MCP E2E after MCP wrapper restoration.

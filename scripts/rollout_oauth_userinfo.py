@@ -218,7 +218,7 @@ def oauth_grant(scope_text: str, account_key: str, tag: str):
     )
     params = urllib.parse.parse_qs(urllib.parse.urlparse(str(ph.get("Location") or "")).query)
     raw_code = (params.get("code") or [""])[0]
-    if pc != 302 or not raw_code or (params.get("state") or [""])[0] != state:
+    if pc != 303 or not raw_code or (params.get("state") or [""])[0] != state:
         raise RuntimeError("authorization redirect failed")
     mask(raw_code)
 

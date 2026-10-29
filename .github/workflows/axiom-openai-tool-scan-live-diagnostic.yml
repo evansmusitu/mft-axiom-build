@@ -1,0 +1,75 @@
+name: MUSITU Axiom OpenAI Tool Scan Live Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-tool-scan-live-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reproduce legacy and MCP 2026-07-28 OpenAI discovery against production
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.error, urllib.request
+          url='https://mcp.mftintelligence.com/mcp'
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          opener=urllib.request.build_opener(NoRedirect())
+
+          def call(payload,extra=None):
+              h={'Content-Type':'application/json','Accept':'application/json, text/event-stream','User-Agent':'OpenAI-MCP-Tool-Scan-Diagnostic/2.0'}
+              if extra:h.update(extra)
+              req=urllib.request.Request(url,headers=h,data=json.dumps(payload,separators=(',',':')).encode(),method='POST')
+              try:
+                  with opener.open(req,timeout=40) as r: status=r.status; rh=dict(r.headers.items()); raw=r.read()
+              except urllib.error.HTTPError as e: status=e.code; rh=dict(e.headers.items()); raw=e.read()
+              text=raw.decode('utf-8','replace')
+              try:o=json.loads(text) if text else None
+              except Exception:o={'non_json_prefix':text[:300]}
+              return {'http':status,'content_type':rh.get('Content-Type',''),'body':o,'body_len':len(raw)}
+
+          ci={'name':'openai-tool-scan-diagnostic','version':'2.0'}
+          modern_meta={
+            'io.modelcontextprotocol/protocolVersion':'2026-07-28',
+            'io.modelcontextprotocol/clientCapabilities':{},
+            'io.modelcontextprotocol/clientInfo':ci,
+          }
+          mh={'MCP-Protocol-Version':'2026-07-28'}
+
+          discover=call({'jsonrpc':'2.0','id':'discover-1','method':'server/discover','params':{'_meta':modern_meta}}, {**mh,'Mcp-Method':'server/discover'})
+          modern_list=call({'jsonrpc':'2.0','id':'tools-1','method':'tools/list','params':{'_meta':modern_meta}}, {**mh,'Mcp-Method':'tools/list'})
+          legacy_init=call({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':ci}})
+          legacy_list=call({'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}})
+
+          problems=[]
+          db=discover.get('body') or {}; dr=db.get('result') if isinstance(db,dict) else None
+          if discover['http']!=200: problems.append('discover_http')
+          if not isinstance(dr,dict): problems.append('discover_missing_result')
+          else:
+              versions=dr.get('supportedVersions')
+              if not isinstance(versions,list) or '2026-07-28' not in versions: problems.append('discover_supported_versions')
+              if not isinstance(dr.get('capabilities'),dict): problems.append('discover_capabilities')
+              if not isinstance(dr.get('ttlMs'),int): problems.append('discover_ttl_ms')
+              if dr.get('cacheScope') not in ('public','private'): problems.append('discover_cache_scope')
+              if dr.get('resultType')!='complete': problems.append('discover_result_type')
+          mlb=modern_list.get('body') or {}; mlr=mlb.get('result') if isinstance(mlb,dict) else None
+          if modern_list['http']!=200: problems.append('modern_tools_http')
+          if not isinstance(mlr,dict) or not isinstance(mlr.get('tools'),list): problems.append('modern_tools_shape')
+          elif mlr.get('resultType')!='complete': problems.append('modern_tools_result_type')
+          if legacy_init['http']!=200 or not isinstance((legacy_init.get('body') or {}).get('result'),dict): problems.append('legacy_initialize_regression')
+          if legacy_list['http']!=200 or not isinstance(((legacy_list.get('body') or {}).get('result') or {}).get('tools'),list): problems.append('legacy_tools_regression')
+
+          out={'gate':'MUSITU_AXIOM_OPENAI_MODERN_DISCOVERY_DIAGNOSTIC','discover':discover,'modern_tools_summary':{'http':modern_list['http'],'body_len':modern_list['body_len'],'result_keys':sorted(mlr.keys()) if isinstance(mlr,dict) else []},'legacy_initialize_http':legacy_init['http'],'legacy_tools_http':legacy_list['http'],'problems':problems}
+          print(json.dumps(out,sort_keys=True))
+          if problems: raise SystemExit('Modern MCP discovery defects: '+','.join(problems))
+          PY

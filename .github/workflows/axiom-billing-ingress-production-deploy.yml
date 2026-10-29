@@ -29,8 +29,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntax-check deployment program
         run: python -m py_compile ops/axiom_billing_ingress_deploy_v2.py
+      - name: Require dedicated Cloudflare API token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+
       - name: Deploy isolated fail-closed billing ingress with rollback
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python ops/axiom_billing_ingress_deploy_v2.py

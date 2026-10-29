@@ -1,0 +1,151 @@
+name: MUSITU Axiom OAuth RFC9700 303 Migration
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-oauth-rfc9700-303-migration.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: musitu-axiom-oauth-rfc9700-303-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-verify-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      BRANCH: frontier/axiom-v5-skill-fabric
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+          fetch-depth: 0
+
+      - name: Patch only remaining non-workflow OAuth authorization POST verifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('scripts/rollout_oauth_userinfo.py'): (
+                  'if pc != 302 or not raw_code or (params.get("state") or [""])[0] != state:',
+                  'if pc != 303 or not raw_code or (params.get("state") or [""])[0] != state:',
+              ),
+              Path('frontier_v5/scripts/frontier_live_verify.py'): (
+                  'if pc!=302 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")',
+                  'if pc!=303 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")',
+              ),
+          }
+
+          for path, (old, new) in replacements.items():
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'Fail-closed: {path} expected exactly one targeted stale 302 verifier contract, found {count}')
+              path.write_text(text.replace(old, new, 1))
+              print(f'patched={path}')
+          PY
+
+          # Production behavior and reviewer gate are already 303. This migration aligns the two remaining non-workflow verifiers.
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          python -m py_compile scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          git diff --check
+
+          python - <<'PY'
+          from pathlib import Path
+          worker=Path('auth/musitu_axiom_oauth_worker.mjs').read_text()
+          if 'return new Response(null,{status:303,headers:{location:r.toString(),' not in worker:
+              raise RuntimeError('Fail-closed: credential-bearing worker redirect is not 303')
+          if 'return new Response(null,{status:302,headers:{location:r.toString(),' in worker:
+              raise RuntimeError('Fail-closed: credential-bearing worker redirect still uses 302')
+          deploy=Path('.github/workflows/axiom-oauth-production-deploy.yml').read_text()
+          if 'authorization consent POST expected 303' not in deploy:
+              raise RuntimeError('Fail-closed: production gate does not require 303')
+          if 'authorization consent POST expected 302' in deploy:
+              raise RuntimeError('Fail-closed: production gate still expects 302')
+          reviewer=Path('.github/workflows/axiom-openai-reviewer-demo-provision.yml').read_text()
+          if "if pc!=303 or not code" not in reviewer or "if pc!=302 or not code" in reviewer:
+              raise RuntimeError('Fail-closed: reviewer gate 303 invariant failed')
+          rollout=Path('scripts/rollout_oauth_userinfo.py').read_text()
+          if 'if pc != 303 or not raw_code' not in rollout or 'if pc != 302 or not raw_code' in rollout:
+              raise RuntimeError('Fail-closed: UserInfo rollout gate 303 invariant failed')
+          frontier=Path('frontier_v5/scripts/frontier_live_verify.py').read_text()
+          if 'if pc!=303 or not code' not in frontier or 'if pc!=302 or not code' in frontier:
+              raise RuntimeError('Fail-closed: Frontier live verifier 303 invariant failed')
+          print('RFC9700_303_REMAINING_NONWORKFLOW_VERIFIERS=PASS')
+          PY
+
+      - name: Commit the remaining non-workflow 303 verifier alignment on Frontier only
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$BRANCH"
+          git status --short
+          git diff -- scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "2"
+          git commit -m 'Align remaining OAuth verifiers with 303 redirect'
+          NEW_SHA="$(git rev-parse HEAD)"
+          echo "new_sha=$NEW_SHA" >> "$GITHUB_OUTPUT"
+          git push origin "HEAD:$BRANCH"
+
+      - name: Dispatch and require exact-SHA production OAuth deploy GREEN
+        shell: bash
+        env:
+          NEW_SHA: ${{ steps.commit.outputs.new_sha }}
+        run: |
+          set -euo pipefail
+          gh workflow run axiom-oauth-production-deploy.yml --ref "$BRANCH"
+          RUN_ID=""
+          for _ in $(seq 1 40); do
+            RUN_ID="$(gh run list --workflow axiom-oauth-production-deploy.yml --branch "$BRANCH" --event workflow_dispatch --limit 20 --json databaseId,headSha,createdAt --jq '.[] | select(.headSha==env.NEW_SHA) | .databaseId' | head -n1 || true)"
+            [ -n "$RUN_ID" ] && break
+            sleep 3
+          done
+          [ -n "$RUN_ID" ] || { echo 'Fail-closed: exact-SHA production deploy run did not appear' >&2; exit 1; }
+          echo "PRODUCTION_DEPLOY_RUN_ID=$RUN_ID"
+          gh run watch "$RUN_ID" --exit-status
+          GOT_SHA="$(gh run view "$RUN_ID" --json headSha --jq '.headSha')"
+          CONCLUSION="$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion')"
+          [ "$GOT_SHA" = "$NEW_SHA" ]
+          [ "$CONCLUSION" = "success" ]
+
+      - name: Dispatch and require exact-SHA persistent reviewer gate GREEN
+        shell: bash
+        env:
+          NEW_SHA: ${{ steps.commit.outputs.new_sha }}
+        run: |
+          set -euo pipefail
+          gh workflow run axiom-openai-reviewer-demo-provision.yml --ref "$BRANCH"
+          RUN_ID=""
+          for _ in $(seq 1 40); do
+            RUN_ID="$(gh run list --workflow axiom-openai-reviewer-demo-provision.yml --branch "$BRANCH" --event workflow_dispatch --limit 20 --json databaseId,headSha,createdAt --jq '.[] | select(.headSha==env.NEW_SHA) | .databaseId' | head -n1 || true)"
+            [ -n "$RUN_ID" ] && break
+            sleep 3
+          done
+          [ -n "$RUN_ID" ] || { echo 'Fail-closed: exact-SHA reviewer verification run did not appear' >&2; exit 1; }
+          echo "REVIEWER_RUN_ID=$RUN_ID"
+          gh run watch "$RUN_ID" --exit-status
+          GOT_SHA="$(gh run view "$RUN_ID" --json headSha --jq '.headSha')"
+          CONCLUSION="$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion')"
+          [ "$GOT_SHA" = "$NEW_SHA" ]
+          [ "$CONCLUSION" = "success" ]
+
+      - name: Re-prove sealed main did not move
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api repos/${{ github.repository }}/branches/main --jq '.commit.sha')"
+          test "$MAIN_SHA" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          echo 'SEALED_MAIN_UNCHANGED=PASS'
