@@ -117,7 +117,7 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
         objects = probe.local_schema_objects()
         rows = [{'type': kind, 'name': name, 'sql': ddl}
                 for (kind, name), ddl in objects.items()]
-        for flag in (True, 1, 'false', None):
+        for flag in (True, 1, 'false', None, 'MISSING'):
             with self.subTest(changed_db=repr(flag)):
                 def transport(req, timeout):
                     if req.get_method() == 'GET':
@@ -125,7 +125,9 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                             'uuid': cfg['database_id'], 'name': cfg['database_name']}})
                     return FakeResponse({'success': True, 'result': [{
                         'success': True,
-                        'meta': {'changes': 0, 'rows_written': 0, 'changed_db': flag},
+                        'meta': ({'changes': 0, 'rows_written': 0}
+                                 if flag == 'MISSING' else
+                                 {'changes': 0, 'rows_written': 0, 'changed_db': flag}),
                         'results': rows,
                     }]})
                 with self.assertRaises(probe.ProbeError):
@@ -160,6 +162,7 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
               '.github/workflows/musitu-connect-hosted-d1-readonly.yml').read_text()
         trigger = wf.split('\non:\n', 1)[1].split('\npermissions:', 1)[0]
         self.assertIn('workflow_dispatch:', trigger)
+        self.assertIn("if: github.ref == 'refs/heads/main'", wf)
         self.assertNotIn('push:', trigger)
         self.assertNotIn('pull_request:', trigger)
         self.assertIn('python qualification/probe_connect_hosted_d1.py', wf)
