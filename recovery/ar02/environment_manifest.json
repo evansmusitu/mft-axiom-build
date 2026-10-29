@@ -1,0 +1,51 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-environment-manifest.v1",
+  "phase": "AR-02",
+  "authority_commit": "87c105608ae658bd5b1f50bc718523ace54a5f5c",
+  "mode": "LOCAL_ZERO_COST",
+  "estimated_external_cost_usd": 0,
+  "network_required": false,
+  "provider_api_key_required": false,
+  "synthetic_fixtures_only": true,
+  "production_authority": false,
+  "cloud_resources_created": false,
+  "canonical_schema": "recovery/ar02/schema/0001_project_work_graph.sql",
+  "environments": [
+    {
+      "environment_id": "development",
+      "database_path": "development/data/axiom-ar02-development.sqlite3",
+      "object_root": "development/objects",
+      "queue_root": "development/queue",
+      "identity_audience": "urn:musitu:axiom:ar02:development",
+      "synthetic_data_only": true,
+      "cloud_binding_status": "NOT_CREATED"
+    },
+    {
+      "environment_id": "staging",
+      "database_path": "staging/data/axiom-ar02-staging.sqlite3",
+      "object_root": "staging/objects",
+      "queue_root": "staging/queue",
+      "identity_audience": "urn:musitu:axiom:ar02:staging",
+      "synthetic_data_only": true,
+      "cloud_binding_status": "NOT_CREATED"
+    },
+    {
+      "environment_id": "canary",
+      "database_path": "canary/data/axiom-ar02-canary.sqlite3",
+      "object_root": "canary/objects",
+      "queue_root": "canary/queue",
+      "identity_audience": "urn:musitu:axiom:ar02:canary",
+      "synthetic_data_only": true,
+      "cloud_binding_status": "NOT_CREATED"
+    }
+  ],
+  "forbidden_identifiers": [
+    "musitu-axiom-prod",
+    "mft-axiom-prod",
+    "504029cc-f9a5-495e-818f-63c6144b4ea4",
+    "4a62b374-7232-4103-b201-34443c467382",
+    "axiom.mftintelligence.com",
+    "app.mftintelligence.com"
+  ],
+  "next_external_boundary": "DEDICATED_FREE_TIER_RESOURCE_INVENTORY_AND_COST_CONFIRMATION"
+}

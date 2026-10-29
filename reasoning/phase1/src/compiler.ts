@@ -2,10 +2,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { hashJson, sha256Hex } from "./canonical.ts";
 import { OperationContractError, type OperationRegistry } from "./registry.ts";
+import { validateProgramShape } from "./schema_validation.ts";
 import type { AxiomNode, AxiomProgram, CompilerManifest, JsonValue, TypeRef, TypedValue, ValueRef } from "./types.ts";
 
 const COMPILER_VERSION="1.0.0";
-const COMPILER_IMPLEMENTATION_HASH=sha256Hex(readFileSync(fileURLToPath(import.meta.url),"utf8"));
+const COMPILER_IMPLEMENTATION_HASH=hashJson({
+  compiler:sha256Hex(readFileSync(fileURLToPath(import.meta.url),"utf8")),
+  shapeValidator:sha256Hex(readFileSync(new URL("./schema_validation.ts",import.meta.url),"utf8")),
+  irSchema:sha256Hex(readFileSync(new URL("../spec/axiom-ir.schema.json",import.meta.url),"utf8")),
+  canonicalizer:sha256Hex(readFileSync(new URL("./canonical.ts",import.meta.url),"utf8")),
+});
 
 export function compilerManifest():CompilerManifest {
   return {id:"axiom.phase1-compiler",version:COMPILER_VERSION,implementationHash:COMPILER_IMPLEMENTATION_HASH};
@@ -47,16 +53,16 @@ function validateValue(type:TypeRef,value:JsonValue,path:string,issues:Validatio
     case "record":
       if(value===null||Array.isArray(value)||typeof value!=="object"){fail("expected object record");return;}
       for(const [field,fieldType] of Object.entries(type.fields)){
-        if(!(field in value)){fail(`missing record field ${field}`);continue;}
+        if(!Object.hasOwn(value,field)){fail(`missing record field ${field}`);continue;}
         validateValue(fieldType,(value as Record<string,JsonValue>)[field],`${path}.${field}`,issues,nodeId);
       }
-      for(const field of Object.keys(value))if(!(field in type.fields))fail(`unexpected record field ${field}`);
+      for(const field of Object.keys(value))if(!Object.hasOwn(type.fields,field))fail(`unexpected record field ${field}`);
       return;
   }
 }
 
 function resolveType(ref:ValueRef, inputs:Record<string,TypedValue>, outputs:Map<string,TypeRef>):TypeRef {
-  if("input" in ref){const v=inputs[ref.input];if(!v)throw new OperationContractError("MISSING_INPUT",`Unknown input: ${ref.input}`);return v.type;}
+  if("input" in ref){const v=Object.hasOwn(inputs,ref.input)?inputs[ref.input]:undefined;if(!v)throw new OperationContractError("MISSING_INPUT",`Unknown input: ${ref.input}`);return v.type;}
   if("node" in ref){const t=outputs.get(ref.node);if(!t)throw new OperationContractError("MISSING_NODE_REFERENCE",`Unknown or unresolved node: ${ref.node}`);return t;}
   return ref.literal.type;
 }
@@ -78,7 +84,9 @@ function topo(nodes:AxiomNode[],issues:ValidationIssue[]):AxiomNode[] {
 }
 
 export function compileProgram(program:AxiomProgram,registry:OperationRegistry):AxiomProgram {
-  const p=cloneProgram(program), issues:ValidationIssue[]=[];
+  const shapeIssues=validateProgramShape(program);
+  if(shapeIssues.some(issue=>issue.code!=="MISSING_PROVENANCE"))throw new ProgramValidationError(shapeIssues);
+  const p=cloneProgram(program), issues:ValidationIssue[]=[...shapeIssues];
   if(p.irVersion!=="0.1")issues.push({code:"UNSUPPORTED_IR_VERSION",message:`Unsupported IR version: ${p.irVersion}`});
   if(typeof p.objective!=="string"||!p.objective.trim())issues.push({code:"MISSING_OBJECTIVE",message:"objective is required"});
   for(const [name,value] of Object.entries(p.inputs)){

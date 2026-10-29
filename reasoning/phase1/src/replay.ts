@@ -26,5 +26,6 @@ export function replayCertificate(certificate:ReasoningCertificate,registry:Oper
   if(hashJson(json(execution.trace))!==core.traceHash)diagnostics.push("trace hash mismatch");
   if(hashJson(json(execution.outputs))!==core.outputsHash)diagnostics.push("outputs hash mismatch");
   if(JSON.stringify(execution.operationManifest)!==JSON.stringify(core.operationManifest))diagnostics.push("operation manifest mismatch");
+  if(hashJson(json(execution.compilerManifest))!==hashJson(json(core.compilerManifest??null)))diagnostics.push("compiler manifest mismatch");
   return {status:diagnostics.length?"MISMATCH":"MATCH",diagnostics};
 }

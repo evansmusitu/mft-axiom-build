@@ -1,0 +1,35 @@
+{
+  "status": "INTEGRATION_CANDIDATE_NOT_RELEASED",
+  "pins": {
+    "main": [
+      "06cc5f74fb066c11f8d81390f424e58a2f9c261a",
+      "repair/axiom-proof-integrity-20261029"
+    ],
+    "workers": [
+      "f228751105ff6638f822132b2fda262e61db425b",
+      "repair/axiom-worker-proof-20261029"
+    ],
+    "frontier": [
+      "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+      "repair/axiom-frontier-contracts-20261029"
+    ],
+    "recovery": [
+      "57059ca181af25ea7ed58b864c733ff67c014d29",
+      "repair/axiom-task-recovery-20261029"
+    ],
+    "runtime": [
+      "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+      "repair/axiom-runtime-contract-20261029"
+    ],
+    "integrated": [
+      "06cc5f74fb066c11f8d81390f424e58a2f9c261a",
+      "repair/axiom-whole-system-20261029"
+    ],
+    "multiplatform": [
+      "d9552b1164c1d67b8eb52a78e77e25d475378b1c",
+      "repair/axiom-oracle-20261029"
+    ]
+  },
+  "runtime_verified_slice": "W02 W06 W15",
+  "source_scope": "Selected component imports, preserving current main workflows; no original branch merged"
+}

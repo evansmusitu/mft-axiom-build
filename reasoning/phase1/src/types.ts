@@ -82,6 +82,7 @@ export interface ExecutionResult {
   outputs: Record<string, TypedValue>;
   trace: TraceEntry[];
   operationManifest: OperationManifestEntry[];
+  compilerManifest: CompilerManifest;
   verifications: VerificationResult[];
   executionHash: string;
 }
