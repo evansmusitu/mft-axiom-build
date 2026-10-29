@@ -2,10 +2,6 @@ name: MUSITU Axiom Public Plugin Gate V4 Cutover
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
-      - '.github/workflows/axiom-plugin-gate-v4-cutover.yml'
 
 permissions:
   contents: read
@@ -16,6 +12,7 @@ concurrency:
 
 jobs:
   cutover:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

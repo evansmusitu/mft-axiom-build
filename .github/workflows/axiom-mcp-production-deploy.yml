@@ -2,16 +2,13 @@ name: MUSITU Axiom MCP Production Deploy
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'mcp/musitu_axiom_mcp_worker.mjs'
-      - '.github/workflows/axiom-mcp-production-deploy.yml'
 
 permissions:
   contents: read
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
