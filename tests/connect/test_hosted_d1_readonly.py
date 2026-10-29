@@ -215,6 +215,14 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
         self.assertNotIn('wrangler', wf)
         self.assertNotIn('CLOUDFLARE_API_TOKEN', wf)
         self.assertNotIn('deploy', wf.lower())
+        ci = (Path(__file__).resolve().parents[2] /
+              '.github/workflows/connect-d1-readonly-regression.yml').read_text()
+        for protected_path in (
+            '.github/workflows/musitu-connect-hosted-d1-readonly.yml',
+            'docs/operations/musitu-connect-hosted-d1-readonly.md',
+        ):
+            self.assertEqual(ci.count("'"+protected_path+"'"), 2,
+                             'CI must cover changes to this staging safety-critical path')
 
 
 if __name__ == '__main__':
