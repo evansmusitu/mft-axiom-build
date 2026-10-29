@@ -8,6 +8,10 @@ on:
       - '.github/workflows/axiom-billing-commercial-enable.yml'
       - '.github/workflows/axiom-billing-ingress-production-deploy.yml'
       - '.github/workflows/axiom-billing-checkout-intents-migration.yml'
+      - '.github/workflows/axiom-billing-status-contract-patch.yml'
+      - '.github/workflows/axiom-billing-checkout-persistence-diagnostic.yml'
+      - '.github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml'
+      - '.github/workflows/axiom-production-customer-bearer-compute-metering-e2e.yml'
       - 'tests/connect/test_privileged_billing_workflows.py'
       - '.github/workflows/musitu-ga-privileged-workflow-safety.yml'
   pull_request:
@@ -18,6 +22,10 @@ on:
       - '.github/workflows/axiom-billing-commercial-enable.yml'
       - '.github/workflows/axiom-billing-ingress-production-deploy.yml'
       - '.github/workflows/axiom-billing-checkout-intents-migration.yml'
+      - '.github/workflows/axiom-billing-status-contract-patch.yml'
+      - '.github/workflows/axiom-billing-checkout-persistence-diagnostic.yml'
+      - '.github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml'
+      - '.github/workflows/axiom-production-customer-bearer-compute-metering-e2e.yml'
       - 'tests/connect/test_privileged_billing_workflows.py'
       - '.github/workflows/musitu-ga-privileged-workflow-safety.yml'
 permissions:

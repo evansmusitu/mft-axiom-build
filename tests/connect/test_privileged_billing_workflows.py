@@ -8,7 +8,7 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SENSITIVE = ['.github/workflows/axiom-real-money-certification-reconcile.yml','.github/workflows/axiom-billing-disposable-checkout-e2e.yml','.github/workflows/axiom-billing-commercial-enable.yml','.github/workflows/axiom-billing-ingress-production-deploy.yml','.github/workflows/axiom-billing-checkout-intents-migration.yml']
+SENSITIVE = ['.github/workflows/axiom-real-money-certification-reconcile.yml','.github/workflows/axiom-billing-disposable-checkout-e2e.yml','.github/workflows/axiom-billing-commercial-enable.yml','.github/workflows/axiom-billing-ingress-production-deploy.yml','.github/workflows/axiom-billing-checkout-intents-migration.yml','.github/workflows/axiom-billing-status-contract-patch.yml','.github/workflows/axiom-billing-checkout-persistence-diagnostic.yml','.github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml','.github/workflows/axiom-production-customer-bearer-compute-metering-e2e.yml']
 
 class PrivilegedBillingWorkflowTests(unittest.TestCase):
     def test_each_privileged_workflow_is_manual_only_from_reviewed_main(self):
