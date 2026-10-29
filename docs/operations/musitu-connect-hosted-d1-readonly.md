@@ -16,7 +16,10 @@ account only*, configure GitHub Actions secrets:
 
 Never use an existing production D1 database, real tenant, production secret,
 public production route, or any real mine data. Never commit secret values.
-Manually dispatch `.github/workflows/musitu-connect-hosted-d1-readonly.yml`.
+Manually dispatch `.github/workflows/musitu-connect-hosted-d1-readonly.yml`
+from the reviewed default `main` branch only. Its staging job is explicitly
+skipped for any other branch ref, even if someone selects another ref when
+manually invoking it.
 The workflow intentionally has **no push/PR triggers**, no Wrangler or deploy
 step, no production mutation, and never passes release credentials. Missing
 or overlapping staging/production account IDs fail closed before any HTTP call.
@@ -28,7 +31,10 @@ returned UUID and exact staging name, and executes a single fixed read-only
 all customer table and trigger definitions must match the checked-in
 `infra/connect_customer_registry.sql` (normalized whitespace only).
 It rejects missing append-only event triggers, mismatched SQL, unexpected
-customer objects, failed queries, or provider-reported writes/changes.
+customer objects, failed queries, or provider-reported writes/changes. A
+successful provider observation requires the explicit JSON boolean
+`meta.changed_db: false`; missing metadata is blocked even though the provider
+API describes this field as optional.
 
 Output is exclusively created and sanitized; it omits token, account and
 database identifiers, raw result bodies, customer data and full SQL. Provider
