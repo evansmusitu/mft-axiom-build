@@ -2,15 +2,13 @@ name: MUSITU Axiom Production Entitlement + D1 Gate
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-production-entitlement-and-d1-gate.yml'
 
 permissions:
   contents: read
 
 jobs:
   production-gate:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
