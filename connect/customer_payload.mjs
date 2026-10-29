@@ -40,7 +40,7 @@ function normalizedDecimal(token) {
 
 function numberPreservesDecimalValue(token) {
   const converted = Number(token);
-  if (!Number.isFinite(converted)) return false;
+  if (!Number.isFinite(converted) || Object.is(converted, -0)) return false;
   const original = normalizedDecimal(token);
   const reproduced = normalizedDecimal(converted.toString());
   return original !== null && reproduced !== null
@@ -61,7 +61,19 @@ function inspectJsonObjectTokens(source) {
       if (ch === '\\') {
         pos++; // Ignore the escaped next character, including an escaped quote.
       } else if (ch === '"') {
-        return JSON.parse(source.slice(start, pos));
+        const value = JSON.parse(source.slice(start, pos));
+        // JSON.parse permits escaped lone surrogates, but UTF-8 encoders
+        // replace them with U+FFFD and can collapse distinct signed inputs.
+        for (let index = 0; index < value.length; index++) {
+          const unit = value.charCodeAt(index);
+          if (unit >= 0xD800 && unit <= 0xDBFF) {
+            const next = value.charCodeAt(++index);
+            if (!(next >= 0xDC00 && next <= 0xDFFF)) throw new Error('invalid_json');
+          } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+            throw new Error('invalid_json');
+          }
+        }
+        return value;
       }
     }
     throw new Error('invalid_json');

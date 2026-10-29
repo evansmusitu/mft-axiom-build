@@ -154,3 +154,29 @@ test('duplicate-key error remains higher priority than numerical-fidelity errors
   assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
     {ok:false,status:400,error:'DUPLICATE_JSON_KEY'});
 });
+
+test('rejects unpaired UTF-16 surrogate escapes in JSON strings and property names', async()=>{
+  for (const raw of [
+    String.raw`{"value":"\ud800"}`,
+    String.raw`{"value":"\udc00"}`,
+    String.raw`{"\ud800":"bad key"}`,
+    String.raw`{"value":"ok\ud800tail"}`,
+  ]) {
+    assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+      {ok:false,status:400,error:'INVALID_JSON'},raw);
+  }
+  for (const raw of [
+    String.raw`{"value":"\ud83d\ude80"}`,
+    '{"value":"🚀"}',
+  ]) {
+    assert.equal((await readBoundedCustomerJson(makeRequest(raw))).ok,true,raw);
+  }
+});
+
+test('rejects negative-zero JSON numeric spellings that lose their sign during canonicalization', async()=>{
+  for (const raw of ['{"budget":-0}', '{"budget":-0.0}', '{"nested":{"value":-0e3}}']) {
+    assert.deepEqual(await readBoundedCustomerJson(makeRequest(raw)),
+      {ok:false,status:400,error:'NUMERIC_PRECISION_LOSS'},raw);
+  }
+  assert.equal((await readBoundedCustomerJson(makeRequest('{"budget":0}'))).ok,true);
+});
