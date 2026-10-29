@@ -223,6 +223,14 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
     if(observationMatches(raced))return alreadyRecorded();
     return reply(503,{ok:false,error:'store_observation_persistence_failed'});
    }
+   // A successful changes count is only an acknowledgement. Verify that the
+   // immutable evidence is actually readable before reporting it as recorded.
+   let stored;
+   try{stored=await existingObservation();}
+   catch{return reply(503,{ok:false,error:'store_observation_readback_unavailable'});}
+   if(!stored)return reply(503,{ok:false,error:'store_observation_readback_missing'});
+   if(!observationMatches(stored))
+    return reply(409,{ok:false,error:'store_observation_identity_conflict'});
    return reply(202,{ok:true,processed:false,observation_recorded:true,
     payment_status:'pending',reason:'provider_status_requires_manual_resolution'});
   }

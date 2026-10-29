@@ -374,3 +374,42 @@ test('a conflicting concurrent observation never becomes idempotent success',asy
  assert.equal(out.entitlement_granted,false);
  assert.equal(out.publisher_payout_authorized,false);
 });
+
+
+test('observation writer never reports persisted evidence from an acknowledged but missing SQL row',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Cancelled'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const prepare=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return prepare(sql);
+   return {bind(){return {async run(){return {success:true,meta:{changes:1}};}}}};
+ };
+ const res=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ const body=await res.json();
+ assert.equal(res.status,503,'acknowledged SQL change without read-back is not verified persistence');
+ assert.notEqual(body.observation_recorded,true);
+ assert.equal(body.entitlement_granted,false);
+ assert.equal(body.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.data.observation,null);
+});
+
+test('observation writer rejects a reported successful insert whose read-back identity differs',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const prepare=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return prepare(sql);
+   return {bind(...values){return {async run(){
+     env.STORE_DB.data.observation={event_id:values[0],reference:values[1],
+       paynow_reference:'UNRELATED_PROVIDER_REFERENCE',provider_status:values[3],
+       callback_digest:values[6],poll_digest:values[7]};
+     return {success:true,meta:{changes:1}};
+   }}}};
+ };
+ const res=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ const body=await res.json();
+ assert.equal(res.status,409);
+ assert.equal(body.error,'store_observation_identity_conflict');
+ assert.notEqual(body.observation_recorded,true);
+ assert.equal(body.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
