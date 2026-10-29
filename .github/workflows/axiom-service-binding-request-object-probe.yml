@@ -1,9 +1,6 @@
 name: MUSITU Axiom Service Binding Request Object Probe
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-service-binding-request-object-probe.yml'
   workflow_dispatch:
 
 permissions:
@@ -11,6 +8,7 @@ permissions:
 
 jobs:
   probe:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
