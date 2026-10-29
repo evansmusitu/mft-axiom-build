@@ -1,12 +1,12 @@
 name: MUSITU Axiom Stage Protocol Cutover V5.1
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-stage-domain-auth-final-v2.yml']
+
 permissions:
   contents: read
 jobs:
   final:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
