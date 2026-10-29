@@ -24,7 +24,7 @@ The workflow intentionally has **no push/PR triggers**, no Wrangler or deploy
 step, no production mutation, and never passes release credentials. Missing
 or overlapping staging/production account IDs fail closed before any HTTP call.
 
-The workflow runs the six synthetic contract tests first, then authenticates
+The workflow runs the seven synthetic contract tests first, then authenticates
 against Cloudflare's published D1 GET database metadata API, verifies the
 returned UUID and exact staging name, and executes a single fixed read-only
 `SELECT` through D1's query API. The SQL reads the `sqlite_schema` catalog:
@@ -39,6 +39,18 @@ API describes this field as optional.
 Output is exclusively created and sanitized; it omits token, account and
 database identifiers, raw result bodies, customer data and full SQL. Provider
 access problems produce fixed error codes. No redirects are followed.
+
+The API confirms the database's reported UUID, name and customer-schema
+content. It does **not** independently authenticate the supplied production
+account ID or prove that the API token has only D1 Read permission: Cloudflare's
+query endpoint can also accept D1 Write tokens. The sanitized report therefore
+sets `staging_account_isolation_independently_verified=false`,
+`staging_read_token_scope_independently_verified=false`,
+`hosted_transactional_qualification=false`, and
+`production_customer_admission=false` even after a successful probe.
+The operator must separately verify the account inventory and token permission
+at the Cloudflare control plane. A source-file or test declaration is not that
+independent evidence.
 
 Even a successful hosted identity/schema observation remains **partial**:
 it does NOT prove D1 cross-region atomic quotas, customer identity, revocation,
