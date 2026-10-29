@@ -61,20 +61,28 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                 return FakeResponse({'success': True, 'result': {
                     'name': cfg['database_name'], 'uuid': cfg['database_id'],
                     'version': 'production'}})
+            query = json.loads(req.data)['sql']
+            if 'sqlite_schema' in query:
+                results = [{'type': kind, 'name': name, 'sql': sql}
+                           for (kind, name), sql in source_objects.items()]
+            else:
+                results = [{'tenants': 0, 'credentials': 0, 'usage_events': 0,
+                            'daily_usage': 0, 'minute_usage': 0}]
             return FakeResponse({'success': True, 'result': [{
                 'success': True, 'meta': {'rows_written': 0, 'changes': 0,
                                          'changed_db': False},
-                'results': [{'type': kind, 'name': name, 'sql': sql}
-                            for (kind, name), sql in source_objects.items()]
+                'results': results
             }]})
 
         evidence = probe.run_probe(cfg, transport=transport)
-        self.assertEqual([v[0] for v in calls], ['GET', 'POST'])
-        self.assertEqual(len(calls), 2)
+        self.assertEqual([v[0] for v in calls], ['GET', 'POST', 'POST'])
+        self.assertEqual(len(calls), 3)
         self.assertTrue(all('api.cloudflare.com/client/v4/accounts/' in v[1] for v in calls))
         request_json = json.loads(calls[1][2])
         self.assertEqual(set(request_json), {'sql', 'params'})
         self.assertEqual(request_json['params'], [])
+        self.assertTrue(json.loads(calls[2][2])['sql'].startswith('SELECT '))
+        self.assertNotIn('sqlite_schema', json.loads(calls[2][2])['sql'])
         self.assertTrue(request_json['sql'].startswith('SELECT '))
         self.assertNotIn('INSERT', request_json['sql'])
         self.assertTrue(evidence['staging_database_identity_verified'])
@@ -83,6 +91,8 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
         self.assertFalse(evidence['hosted_transactional_qualification'])
         self.assertFalse(evidence['production_customer_admission'])
         self.assertTrue(evidence['hosted_schema_matches_source'])
+        self.assertTrue(evidence['staging_customer_tables_empty_at_read_time'])
+        self.assertFalse(evidence['cross_region_customer_data_absence_verified'])
         self.assertEqual(evidence['schema_objects_checked'], 9)
         self.assertFalse(evidence['hosted_concurrency_qualified'])
         self.assertFalse(evidence['commercial_ga_enabled'])

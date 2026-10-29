@@ -26,12 +26,16 @@ or overlapping staging/production account IDs fail closed before any HTTP call.
 
 The workflow runs the seven synthetic contract tests first, then authenticates
 against Cloudflare's published D1 GET database metadata API, verifies the
-returned UUID and exact staging name, and executes a single fixed read-only
-`SELECT` through D1's query API. The SQL reads the `sqlite_schema` catalog:
+returned UUID and exact staging name, and executes two fixed read-only
+`SELECT` statements through D1's query API. The first reads the `sqlite_schema` catalog:
 all customer table and trigger definitions must match the checked-in
 `infra/connect_customer_registry.sql` (normalized whitespace only).
 It rejects missing append-only event triggers, mismatched SQL, unexpected
-customer objects, failed queries, or provider-reported writes/changes. A
+customer objects, failed queries, or provider-reported writes/changes. The
+second query reads only aggregate counts from the five customer tables and
+requires every count to be precisely zero, without returning any tenant,
+credential or event identifier. The report states the table-emptiness
+observation and explicitly leaves cross-region absence unverified. A
 successful provider observation requires the explicit JSON boolean
 `meta.changed_db: false`; missing metadata is blocked even though the provider
 API describes this field as optional.
