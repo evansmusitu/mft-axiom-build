@@ -24,7 +24,7 @@ The workflow intentionally has **no push/PR triggers**, no Wrangler or deploy
 step, no production mutation, and never passes release credentials. Missing
 or overlapping staging/production account IDs fail closed before any HTTP call.
 
-The workflow runs the seven synthetic contract tests first, then authenticates
+The workflow runs the eight synthetic contract tests first, then authenticates
 against Cloudflare's published D1 GET database metadata API, verifies the
 returned UUID and exact staging name, and executes two fixed read-only
 `SELECT` statements through D1's query API. The first reads the `sqlite_schema` catalog:
