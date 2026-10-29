@@ -1,0 +1,49 @@
+name: MUSITU complete verified whole-product handoff October 29
+on:
+  push:
+    branches: ['handoff/whole-product-20261029-verified']
+    paths:
+      - '.github/workflows/musitu-whole-product-handoff-20261029.yml'
+      - 'handoff_tools/assemble_whole_product_20261029.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261027
+          run-id: '40532383032'
+          github-token: ${{ github.token }}
+          path: original_handoff
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Snapshot full Git trees and seal all historical and current source bytes
+        run: python handoff_tools/assemble_whole_product_20261029.py
+      - name: Verify every SHA and force commercial GA NO-GO
+        run: |
+          python export/payload/HANDOFF/VERIFY_PACKAGE.py
+          python export/payload/PRODUCT_LIVE_MAIN_20261029/qualification/validate_commercial_ga.py --audit
+          if python export/payload/PRODUCT_LIVE_MAIN_20261029/qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected commercial GA promotion' >&2
+            exit 1
+          fi
+          echo 'CUSTOMER_ADMISSION=BLOCKED GA=BLOCKED'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_VERIFIED_20261029
+          path: export/payload/
+          include-hidden-files: true
+          compression-level: 6
+          retention-days: 90
+          if-no-files-found: error
