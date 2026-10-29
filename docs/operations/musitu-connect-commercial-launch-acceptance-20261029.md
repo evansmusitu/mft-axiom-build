@@ -61,7 +61,8 @@ Use no real money for these initial tests; no unfunded test account is
 presented as a paying customer. Refunds must never be inferred from
 `Cancelled` or `Disputed` provider states.
 
-A finance reviewer independently joins the provider ledger, order/checkout
+A finance reviewer uses the independent provider ledger from the merchant's
+original system, then joins the order/checkout
 intent, immutable event record, subscription/entitlement state, generated
 invoice, refund and settlement records with amount/currency, fees, timestamps,
 provider transaction IDs and idempotency keys. Reconcile counts and net/gross
