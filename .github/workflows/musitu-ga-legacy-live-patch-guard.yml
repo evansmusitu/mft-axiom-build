@@ -1,0 +1,39 @@
+name: MUSITU GA historical live Worker patches must be manual-only
+on:
+  push:
+    branches: ['fix/ga-legacy-worker-patch-manual-only-20261029','main']
+    paths:
+      - '.github/workflows/axiom-live-metering-durability-patch.yml'
+      - '.github/workflows/axiom-live-request-id-propagation-patch.yml'
+      - '.github/workflows/axiom-modal-edge-service-compat-patch.yml'
+      - 'tests/connect/test_ga_legacy_live_patch_guard.py'
+      - '.github/workflows/musitu-ga-legacy-live-patch-guard.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '.github/workflows/axiom-live-metering-durability-patch.yml'
+      - '.github/workflows/axiom-live-request-id-propagation-patch.yml'
+      - '.github/workflows/axiom-modal-edge-service-compat-patch.yml'
+      - 'tests/connect/test_ga_legacy_live_patch_guard.py'
+      - '.github/workflows/musitu-ga-legacy-live-patch-guard.yml'
+permissions:
+  contents: read
+jobs:
+  local-no-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prohibit automatic historical Cloudflare Worker patches
+        run: python -m unittest tests.connect.test_ga_legacy_live_patch_guard -v
+      - name: Preserve full commercial customer admission closed
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected commercial release promotion' >&2
+            exit 1
+          fi
+          echo 'GA=BLOCKED'
