@@ -87,6 +87,14 @@ jobs:
           set -euo pipefail
           python3 -m unittest -v store/phase1/payments/test_store_paynow_status_observations.py store/phase1/payments/test_store_paynow_observation_writer_sql.py
           echo MUSITU_STORE_V2_PAYNOW_OBSERVATION_CANDIDATE_DISPOSABLE_SQLITE=PASS
+      - name: Qualify quarantined observation snapshot integrity and isolated restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No Neon/D1 credentials, real checkout, live DB writes or Paynow calls.
+          python3 -m py_compile store/phase1/payments/store_paynow_recovery_audit.py
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_recovery_audit.py
+          echo MUSITU_STORE_V2_DISPOSABLE_SQLITE_RECOVERY_AUDIT=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
