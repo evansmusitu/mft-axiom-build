@@ -61,6 +61,33 @@ Use no real money for these initial tests; no unfunded test account is
 presented as a paying customer. Refunds must never be inferred from
 `Cancelled` or `Disputed` provider states.
 
+The non-enabling offline reconciliation preflight accepts only private,
+redacted Paynow test-export JSON with SHA-256-digested references, integer USD
+cent amounts and explicit provider/intent/invoice/refund/entitlement rows. Run:
+
+```sh
+python -m qualification.reconcile_connect_ga_sandbox \\
+  --input /private/approved-connect-paynow-sandbox-export.json \\
+  --output /private/new-sandbox-consistency-observation.json
+```
+
+The input schema is `musitu.connect.ga_paynow_sandbox_reconcile.v1`,
+`mode=PAYNOW_TEST_MODE` with arrays `provider`, `intents`,
+`invoices`, `refunds`, `entitlements`. Every row uses a 64-character
+lowercase reference SHA-256; rows except entitlements include `status`,
+`amount_cents` and `currency=USD`; entitlements use a literal boolean
+`active`. Valid paid orders require one issued matching invoice and active
+entitlement, while refunded orders require a credited invoice, a processed
+full-amount refund and no active entitlement. Cancelled, pending and failed
+orders cannot retain issued invoices, refunds or active entitlements. This is a
+**bounded, offline semantic checker**, not an authenticated provider reader,
+not a bank settlement certificate, not a substitute for partial-refund business
+policy, and never finance approval. Even a clean output always records
+`finance_independently_approved=false` and `commercial_ga_qualified=false`.
+No real transaction ID, provider key or personal information belongs in its
+input or output; retain original merchant evidence separately in access-
+controlled custody.
+
 A finance reviewer uses the independent provider ledger from the merchant's
 original system, then joins the order/checkout
 intent, immutable event record, subscription/entitlement state, generated
