@@ -6,9 +6,13 @@ invoice validity, settlement, human financial approval or commercial GA.
 Only hashed references enter; results intentionally contain no row-level IDs.
 """
 from __future__ import annotations
+import argparse
 from collections import Counter
 import json
+import math
+from pathlib import Path
 import re
+import sys
 
 SCHEMA = 'musitu.connect.ga_paynow_sandbox_reconcile.v1'
 MAX_ITEMS = 200
@@ -66,7 +70,7 @@ def _validate(bundle):
                 if type(row['active']) is not bool:
                     return False
             else:
-                if (row['status'] not in STATUSES[name]
+                if (not isinstance(row['status'], str) or row['status'] not in STATUSES[name]
                         or type(row['amount_cents']) is not int
                         or not 1 <= row['amount_cents'] <= 1_000_000_000
                         or row['currency'] != 'USD'):
@@ -134,3 +138,58 @@ def assess(bundle):
         if mismatches else 'OFFLINE_CONSISTENT_NOT_FINANCE_CERTIFIED',
         mismatches, len(provider),
     )
+
+def _strict_object(pairs):
+    item = {}
+    for key, value in pairs:
+        if key in item:
+            raise ValueError('DUPLICATE_SANDBOX_EXPORT_KEY')
+        item[key] = value
+    return item
+
+
+def _finite_number(token):
+    n = float(token)
+    if not math.isfinite(n):
+        raise ValueError('NONFINITE_SANDBOX_EXPORT_NUMBER')
+    return n
+
+
+def _reject_nonfinite(_token):
+    raise ValueError('NONFINITE_SANDBOX_EXPORT_NUMBER')
+
+
+def main(argv=None):
+    """Offline command-line observation. Never authenticate provider evidence."""
+    parser = argparse.ArgumentParser(description='Private redacted Paynow TEST export consistency only')
+    parser.add_argument('--input', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        with args.input.open('rb') as source:
+            raw = source.read(MAX_BYTES + 1)
+        if not raw or len(raw) > MAX_BYTES:
+            report = _report('OFFLINE_INPUT_REJECTED')
+        else:
+            try:
+                data = json.loads(
+                    raw.decode('utf-8', errors='strict'),
+                    object_pairs_hook=_strict_object,
+                    parse_constant=_reject_nonfinite,
+                    parse_float=_finite_number,
+                )
+                report = assess(data)
+            except (ValueError, UnicodeError, RecursionError):
+                report = _report('OFFLINE_INPUT_REJECTED')
+        with args.output.open('x', encoding='utf-8') as destination:
+            destination.write(json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + '\n')
+    except (OSError, RecursionError):
+        print('CONNECT_SANDBOX_RECONCILIATION=BLOCKED_INPUT_OR_REPORT_ERROR', file=sys.stderr)
+        return 2
+    print('CONNECT_SANDBOX_RECONCILIATION=' + report['status'])
+    return (0 if report['status'] == 'OFFLINE_CONSISTENT_NOT_FINANCE_CERTIFIED'
+            else 1)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
