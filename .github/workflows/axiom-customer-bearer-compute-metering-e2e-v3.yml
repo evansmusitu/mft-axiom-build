@@ -1,9 +1,6 @@
 name: MUSITU Axiom Bearer Compute Metering E2E v3
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,6 +12,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:

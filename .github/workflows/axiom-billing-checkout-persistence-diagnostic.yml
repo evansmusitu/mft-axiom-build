@@ -1,9 +1,6 @@
 name: MUSITU Axiom Checkout Persistence Diagnostic
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-billing-checkout-persistence-diagnostic.yml'
   workflow_dispatch:
 
 permissions:
@@ -11,6 +8,7 @@ permissions:
 
 jobs:
   diagnose:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

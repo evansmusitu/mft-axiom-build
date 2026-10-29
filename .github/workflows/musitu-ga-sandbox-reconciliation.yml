@@ -1,0 +1,35 @@
+name: MUSITU Connect payment test-export consistency (offline not finance certified)
+on:
+  push:
+    branches: ['fix/ga-privileged-workflows-manual-only-20261029', 'main']
+    paths:
+      - 'qualification/reconcile_connect_ga_sandbox.py'
+      - 'tests/connect/test_ga_sandbox_reconciliation.py'
+      - '.github/workflows/musitu-ga-sandbox-reconciliation.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/reconcile_connect_ga_sandbox.py'
+      - 'tests/connect/test_ga_sandbox_reconciliation.py'
+      - '.github/workflows/musitu-ga-sandbox-reconciliation.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test synthetic-only reconciliation mismatches
+        run: python -m unittest tests.connect.test_ga_sandbox_reconciliation -v
+      - name: Keep full commercial release fail closed
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected commercial release authorization' >&2
+            exit 1
+          fi
+          echo 'MERCHANT_APPROVAL=NOT_PROVEN GA=BLOCKED'
