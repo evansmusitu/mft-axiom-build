@@ -7,6 +7,7 @@ DANGEROUS=[
     '.github/workflows/axiom-live-metering-durability-patch.yml',
     '.github/workflows/axiom-live-request-id-propagation-patch.yml',
     '.github/workflows/axiom-modal-edge-service-compat-patch.yml',
+    '.github/workflows/axiom-metering-identity-diagnostic.yml',
 ]
 MANUAL="if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"
 
