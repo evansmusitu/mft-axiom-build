@@ -13,6 +13,9 @@ import hmac
 import os
 import json
 import math
+import re
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,6 +102,43 @@ def _verified_release_attestation(record):
     return hmac.compare_digest(correct, signature)
 
 
+_EVIDENCE_TIME = re.compile(
+    r'\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z\\Z'
+)
+
+
+def _valid_evidence_reference(proof):
+    """Only validate documentary shape, NOT independent provider authenticity."""
+    if not isinstance(proof, dict):
+        return False
+    url = proof.get('source_uri')
+    reviewer = proof.get('independent_verifier')
+    stamp = proof.get('verified_at_utc')
+    if (not isinstance(url, str) or not 10 <= len(url) <= 2048
+            or any(char.isspace() or ord(char) < 32 for char in url)
+            or not isinstance(reviewer, str) or not 1 <= len(reviewer) <= 128
+            or not reviewer.strip() or any(ord(ch) < 32 for ch in reviewer)
+            or not isinstance(stamp, str) or _EVIDENCE_TIME.fullmatch(stamp) is None):
+        return False
+    try:
+        parsed = urlsplit(url)
+        if (parsed.scheme not in ('https', 'github-actions')
+                or not parsed.netloc or not parsed.path or parsed.path == '/'
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            return False
+        # HTTPS references must have a genuine hostname shape, not bare
+        # "https://" or a local host. Provider origin is checked separately.
+        if parsed.scheme == 'https' and (
+                not parsed.hostname or '.' not in parsed.hostname
+                or parsed.hostname.lower() == 'localhost'):
+            return False
+        when = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return False
+    return when <= datetime.now(timezone.utc) + timedelta(minutes=5)
+
+
 def audit(record):
     """Return (valid, ready, reason). Never trigger a deployment."""
     if not isinstance(record, dict) or record.get('schema') != SCHEMA:
@@ -124,12 +164,7 @@ def audit(record):
     qualified = {key for key, status in checks.items() if status == 'QUALIFIED'}
     for key in qualified:
         proof = refs.get(key)
-        if (not isinstance(proof, dict) or not isinstance(proof.get('source_uri'), str)
-                or not proof['source_uri'].startswith(('https://', 'github-actions://'))
-                or not isinstance(proof.get('independent_verifier'), str)
-                or not proof['independent_verifier'].strip()
-                or not isinstance(proof.get('verified_at_utc'), str)
-                or not proof['verified_at_utc'].strip()):
+        if not _valid_evidence_reference(proof):
             return False, False, 'MISSING_QUALIFIED_EVIDENCE:'+key
     release = record.get('release')
     if not isinstance(release, dict):

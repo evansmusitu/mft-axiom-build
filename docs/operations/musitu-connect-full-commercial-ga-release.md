@@ -36,6 +36,15 @@ is required by this **GA-specific** policy.
 
 ## Release-file parser integrity
 
+A control marked QUALIFIED must identify a structurally valid HTTPS source
+document or GitHub Actions evidence locator (including a path), a bounded
+nonempty verifier identity, and a real UTC ISO-8601 verification timestamp
+that is not future-dated. Credentials embedded in evidence URLs, empty
+hostnames, non-HTTPS public links and impossible dates fail closed. These
+checks validate pointer syntax and time only; they do not authenticate a
+provider account, reviewer identity, legal approval, signed acceptance or
+evidence integrity. Approval remains separately attested after external review.
+
 Before evaluating any release evidence or approval signature, the non-enabling
 GA validator reads at most 65,536 bytes of strict UTF-8 JSON and rejects
 duplicate keys (including nested release flags), `NaN`, `Infinity`,
