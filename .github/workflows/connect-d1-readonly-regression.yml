@@ -10,6 +10,8 @@ on:
       - 'qualification/connect_d1_staging_preflight.py'
       - 'tests/connect/test_d1_staging_preflight.py'
       - 'docs/operations/musitu-connect-hosted-d1-staging-preflight.md'
+      - '.github/workflows/musitu-connect-hosted-d1-readonly.yml'
+      - 'docs/operations/musitu-connect-hosted-d1-readonly.md'
   pull_request:
     branches: ['main']
     paths:
@@ -20,6 +22,8 @@ on:
       - 'qualification/connect_d1_staging_preflight.py'
       - 'tests/connect/test_d1_staging_preflight.py'
       - 'docs/operations/musitu-connect-hosted-d1-staging-preflight.md'
+      - '.github/workflows/musitu-connect-hosted-d1-readonly.yml'
+      - 'docs/operations/musitu-connect-hosted-d1-readonly.md'
 permissions:
   contents: read
 jobs:
