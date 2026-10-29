@@ -13,7 +13,43 @@ class PrivilegedDeploymentWorkflowTests(unittest.TestCase):
                 source = (ROOT / relative).read_text(encoding='utf-8')
                 self.assertIn("  workflow_dispatch:", source)
                 header = source.split('\njobs:', 1)[0]
-                self.assertNotRegex(header, r'(?m)^  (?:push|pull_request|schedule):\s*)
+                self.assertNotRegex(header, r'(?m)^  (?:push|pull_request|schedule):[ \t]*
+                self.assertIn('github.event_name == \'workflow_dispatch\'', source)
+                self.assertIn('github.ref == \'refs/heads/main\'', source)
+                self.assertIn('permissions:\n  contents: read', source)
+    
+    def test_unprivileged_ci_covers_every_deployment_safety_file(self):
+        source = (ROOT / '.github/workflows/musitu-ga-deployment-safety.yml').read_text()
+        self.assertIn("branches: ['main']", source)
+        self.assertIn("tests.connect.test_privileged_deployment_workflows", source)
+        for path in PRIVILEGED:
+            self.assertEqual(source.count("'"+path+"'"), 2, path)
+        self.assertIn('pull_request:', source)
+        self.assertNotIn('workflow_dispatch:', source)
+        self.assertNotIn('secrets.', source)
+        self.assertNotIn('wrangler', source.lower())
+
+if __name__ == '__main__':
+    unittest.main()
+)
+                self.assertIn('github.event_name == \'workflow_dispatch\'', source)
+                self.assertIn('github.ref == \'refs/heads/main\'', source)
+                self.assertIn('permissions:\n  contents: read', source)
+    
+    def test_unprivileged_ci_covers_every_deployment_safety_file(self):
+        source = (ROOT / '.github/workflows/musitu-ga-deployment-safety.yml').read_text()
+        self.assertIn("branches: ['main']", source)
+        self.assertIn("tests.connect.test_privileged_deployment_workflows", source)
+        for path in PRIVILEGED:
+            self.assertEqual(source.count("'"+path+"'"), 2, path)
+        self.assertIn('pull_request:', source)
+        self.assertNotIn('workflow_dispatch:', source)
+        self.assertNotIn('secrets.', source)
+        self.assertNotIn('wrangler', source.lower())
+
+if __name__ == '__main__':
+    unittest.main()
+)
                 self.assertIn('github.event_name == \'workflow_dispatch\'', source)
                 self.assertIn('github.ref == \'refs/heads/main\'', source)
                 self.assertIn('permissions:\n  contents: read', source)
