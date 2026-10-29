@@ -137,6 +137,38 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                 with self.assertRaises(probe.ProbeError):
                     probe.run_probe(cfg, transport=transport)
 
+    def test_nonempty_staging_customer_registry_refuses_observation(self):
+        """Schema equality alone must not qualify a DB holding customer rows."""
+        cfg = probe.load_config(config())
+        objects = probe.local_schema_objects()
+        schema_rows = [{'type': k[0], 'name': k[1], 'sql': v}
+                       for k, v in objects.items()]
+        count_keys = ('tenants', 'credentials', 'usage_events', 'daily_usage',
+                      'minute_usage')
+        for nonempty in count_keys:
+            with self.subTest(nonempty=nonempty):
+                calls = []
+                counts = {k: 0 for k in count_keys}
+                counts[nonempty] = 1
+                def transport(req, timeout):
+                    calls.append(req.get_method())
+                    if req.get_method() == 'GET':
+                        return FakeResponse({'success': True, 'result': {
+                            'name': cfg['database_name'], 'uuid': cfg['database_id']}})
+                    query = json.loads(req.data)['sql']
+                    if 'sqlite_schema' in query:
+                        rows = schema_rows
+                    else:
+                        rows = [counts]
+                    return FakeResponse({'success': True, 'result': [{
+                        'success': True,
+                        'meta': {'changes': 0, 'rows_written': 0,
+                                 'changed_db': False},
+                        'results': rows,
+                    }]})
+                with self.assertRaises(probe.ProbeError):
+                    probe.run_probe(cfg, transport=transport)
+
     def test_wrong_remote_identity_is_rejected_before_sql(self):
         cfg = probe.load_config(config())
         calls = []
