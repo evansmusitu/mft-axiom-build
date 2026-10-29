@@ -1,0 +1,37 @@
+name: MUSITU SHA verified whole product handoff 20261029
+on:
+  push:
+    branches: ['chore/musitu-whole-product-handoff-20261029']
+    paths:
+      - '.github/workflows/musitu-handoff-export-20261029.yml'
+      - 'tools/packaging/musitu-handoff-export-20261029.py'
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+jobs:
+  export-complete-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build verified source and public research evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m py_compile tools/packaging/musitu-handoff-export-20261029.py
+          PYTHONDONTWRITEBYTECODE=1 python -B tools/packaging/musitu-handoff-export-20261029.py
+      - name: Upload complete verified ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_HANDOFF_20261029
+          path: ${{ runner.temp }}/MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_HANDOFF_20261029/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
