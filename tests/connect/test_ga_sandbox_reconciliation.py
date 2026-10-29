@@ -1,5 +1,10 @@
 """No provider-supplied export may silently activate Connect paid entitlements."""
 import copy
+import json
+from pathlib import Path
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
 import unittest
 from qualification.reconcile_connect_ga_sandbox import assess
 
@@ -60,6 +65,29 @@ class SandboxFinanceContractTests(unittest.TestCase):
         case=paid_case()
         case['provider'].append({'reference_sha256':REF2,'status':'paid','amount_cents':1900,'currency':'USD'})
         self.assertIn('MISSING_INTENT',assess(case)['mismatch_categories'])
+
+    def test_cli_is_exclusive_bounded_and_never_exposes_provider_identifiers(self):
+        with TemporaryDirectory() as temp:
+            src = Path(temp) / 'private-sandbox-only.json'
+            out = Path(temp) / 'reconciliation-observation.json'
+            src.write_text(json.dumps(paid_case()), encoding='utf-8')
+            args = [sys.executable, '-m', 'qualification.reconcile_connect_ga_sandbox',
+                    '--input', str(src), '--output', str(out)]
+            run = subprocess.run(args, capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            result = json.loads(out.read_text(encoding='utf-8'))
+            self.assertFalse(result['commercial_ga_qualified'])
+            self.assertFalse(result['finance_independently_approved'])
+            self.assertNotIn(REF, run.stdout + run.stderr + out.read_text())
+            second = subprocess.run(args, capture_output=True, text=True)
+            self.assertNotEqual(second.returncode, 0)
+            self.assertEqual(json.loads(out.read_text()), result)
+
+            out.unlink()
+            src.write_text(json.dumps(paid_case()) + ' ' * 70000, encoding='utf-8')
+            invalid = subprocess.run(args, capture_output=True, text=True)
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertNotIn(REF, invalid.stderr)
 
     def test_invalid_input_is_fail_closed_not_claimed_finance_certification(self):
         case=paid_case()
