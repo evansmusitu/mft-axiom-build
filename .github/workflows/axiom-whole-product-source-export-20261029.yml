@@ -1,0 +1,127 @@
+# Transfer-only, $0, no credentials or provider execution. NOT RELEASE.
+name: AXIOM 20261029 pinned whole-product source handoff export
+on:
+  push:
+    branches: [build/axiom-openhands-s2-readonly-20261027]
+    paths:
+      - .github/workflows/axiom-whole-product-source-export-20261029.yml
+permissions:
+  contents: read
+jobs:
+  clean-pinned-source:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-openhands-s2-readonly-20261027' && github.event_name == 'push' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout pinned main_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 06cc5f74fb066c11f8d81390f424e58a2f9c261a
+          path: main_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned s2_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 41068765cb6d523e6498d8065bb23af04a231107
+          path: s2_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned iso_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6b642b52b96909b0e21569a645ac35176205f3c8
+          path: iso_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned pr1_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3
+          path: pr1_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned native_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 912be04f9703d42a977524f790b5ecf6915367f3
+          path: native_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned connect_checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 190363831eded4c1901a141c99302b3c8e2b48bd
+          path: connect_checkout
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Inspect and export clean exact Git blobs, omit potential credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,subprocess,sys,zipfile
+          from pathlib import Path
+          ROOT=Path(os.environ['GITHUB_WORKSPACE'])
+          OUT=Path(os.environ['RUNNER_TEMP'])/'axiom-source-archive'
+          OUT.mkdir(exist_ok=True)
+          targets={"LIVE_MAIN_PINNED_20261029":("main_checkout","06cc5f74fb066c11f8d81390f424e58a2f9c261a"),"OPENHANDS_TRACKB_S2_PINNED":("s2_checkout","41068765cb6d523e6498d8065bb23af04a231107"),"SECURITY_ISO_PINNED":("iso_checkout","6b642b52b96909b0e21569a645ac35176205f3c8"),"FRONTIER_PR1_PINNED":("pr1_checkout","8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"),"FREE_NATIVE_OPENHANDS_PINNED":("native_checkout","912be04f9703d42a977524f790b5ecf6915367f3"),"MUSITU_CONNECT_FEATURE_PINNED":("connect_checkout","190363831eded4c1901a141c99302b3c8e2b48bd")}
+          forbidden=[
+              re.compile(rb'whsec_[A-Za-z0-9_\-]{15,}'),
+              re.compile(rb'ghp_[A-Za-z0-9_]{20,}'),
+              re.compile(rb'github_pat_[A-Za-z0-9_]{25,}'),
+              re.compile(rb'sk-proj-[A-Za-z0-9_\-]{15,}'),
+              re.compile(rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
+              re.compile(rb'(?:AKIA|ASIA)[0-9A-Z]{16}'),
+          ]
+          unsafe=re.compile(r'(?i)(?:^|/)(?:\.env(?:\.[^/]*)?|id_rsa|id_ed25519|credentials\.json|service-account\.json|.*\.(?:p12|pfx|pem|key))$')
+          manifest={'schema':'musitu.axiom.source.archive.v1','release':'NOT_CERTIFIED',
+                    'no_model_inference':True,'source':'live_git_checkout_pinned_sha','sources':{}}
+          for label,(folder,pin) in targets.items():
+              repo=ROOT/folder
+              def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.DEVNULL)
+              if git('rev-parse','HEAD').decode().strip()!=pin:
+                  raise SystemExit('PINNED_SOURCE_DRIFT_DENIED')
+              tree=git('ls-files','-s','-z').split(b'\0')
+              included=[];excluded=[]
+              dest=OUT/(label+'.zip')
+              with zipfile.ZipFile(dest,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as zipout:
+                  for item in tree:
+                      if not item:continue
+                      head,rawpath=item.split(b'\t',1)
+                      mode,sha,stage=head.decode().split(' ')
+                      name=os.fsdecode(rawpath)
+                      if stage!='0' or name.startswith('/') or '\\' in name or any(s in ('','.','..') for s in name.split('/')):
+                          raise SystemExit('INVALID_GIT_PATH')
+                      source=repo/name
+                      if mode=='120000':body=os.fsencode(os.readlink(source))
+                      elif mode in ('100644','100755'):body=source.read_bytes()
+                      else:raise SystemExit('UNSUPPORTED_GIT_FILE_MODE')
+                      blob=hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()
+                      if blob!=sha:raise SystemExit('GIT_BLOB_MISMATCH')
+                      record={'path':name,'git_sha1':sha,'sha256':hashlib.sha256(body).hexdigest(),'bytes':len(body),'mode':mode}
+                      if unsafe.search(name) or any(rx.search(body) for rx in forbidden):
+                          record['reason']='POTENTIAL_CREDENTIAL_EXCLUDED'
+                          excluded.append(record)
+                      else:
+                          info=zipfile.ZipInfo(name,(2026,10,29,0,0,0))
+                          zipout.writestr(info,body,compress_type=zipfile.ZIP_DEFLATED,compresslevel=6)
+                          included.append(record)
+              size=dest.stat().st_size
+              if size>65000000:raise SystemExit('ARCHIVE_SIZE_LIMIT_DENIED')
+              manifest['sources'][label]={'sha':pin,'count':len(included),'excluded':len(excluded),
+                  'zip_sha256':hashlib.sha256(dest.read_bytes()).hexdigest(),'zip_bytes':size,
+                  'tracked_files':included,'excluded_files':excluded,
+                  'full_exact_source_reconstructable_from_archive_only':not bool(excluded)}
+              print(label+': INCLUDED='+str(len(included))+' EXCLUDED='+str(len(excluded))+' ZIP_BYTES='+str(size))
+          (OUT/'PINNED_GITHUB_SOURCE_MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+          print('MUSITU_AXIOM_PINNED_SIX_BRANCH_SOURCE_EXPORT_PASS_NOT_RELEASE')
+          PY
+      - name: Publish short-retention transfer artifact, no product deployment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: AXIOM_PINNED_SIX_BRANCH_CLEAN_SOURCE_20261029
+          path: ${{ runner.temp }}/axiom-source-archive/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
