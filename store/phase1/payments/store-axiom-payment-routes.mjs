@@ -247,6 +247,21 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
       committed.some(item=>item?.success!==true||item?.meta?.changes!==1))
      return reply(409,{ok:false,error:'store_review_not_atomically_committed'});
   }catch{return reply(503,{ok:false,error:'store_review_persistence_failed'});}
+  // Batch change-count acknowledgements are not authoritative evidence.
+  // Independently verify both persisted Store rows before reporting review.
+  let savedReview,savedIntent;
+  try{
+   savedReview=await db.prepare('SELECT reference,paynow_reference,review_status,callback_digest,poll_digest FROM store_checkout_reviews WHERE reference=?1 LIMIT 1').bind(p.reference).first();
+   savedIntent=await db.prepare('SELECT reference,status,amount_cents,currency,poll_url FROM store_checkout_intents WHERE reference=?1 LIMIT 1').bind(p.reference).first();
+  }catch{return reply(503,{ok:false,error:'store_review_readback_unavailable'});}
+  if(!savedReview||!savedIntent)
+   return reply(503,{ok:false,error:'store_review_readback_missing'});
+  if(savedReview.reference!==p.reference||savedReview.paynow_reference!==p.paynowreference||
+     savedReview.review_status!==review||savedReview.callback_digest!==callback.digest||
+     savedReview.poll_digest!==polled.digest||savedIntent.reference!==p.reference||
+     savedIntent.status!==review||savedIntent.amount_cents!==intent.amount_cents||
+     savedIntent.currency!=='USD'||savedIntent.poll_url!==p.pollurl)
+   return reply(409,{ok:false,error:'store_review_readback_conflict'});
   return reply(202,{ok:true,processed:true,payment_status:review});
  }};
 }

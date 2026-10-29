@@ -413,3 +413,53 @@ test('observation writer rejects a reported successful insert whose read-back id
  assert.equal(body.entitlement_granted,false);
  assert.equal(env.STORE_DB.data.intent.status,'pending');
 });
+
+// Independent final-state evidence read-back must not trust a database batch's
+// changes=1 acknowledgement alone: both persisted Store rows must match.
+test('final Paid review rejects acknowledged batch with no durable review or order transition',async()=>{
+ const {app,env}=fixture();
+ env.STORE_DB.batch=async()=>[
+  {success:true,meta:{changes:1}},
+  {success:true,meta:{changes:1}}
+ ];
+ const response=await app.fetch(webhook(),env);
+ const out=await response.json();
+ assert.equal(response.status,503,'a confirmed write count alone is not durable payment-review evidence');
+ assert.equal(out.error,'store_review_readback_missing');
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+
+test('final Refunded review rejects contradictory provider identity after successful batch',async()=>{
+ const signed=signedStatus({status:'Refunded'});
+ const {app,env}=fixture(signed);
+ const batch=env.STORE_DB.batch.bind(env.STORE_DB);
+ env.STORE_DB.batch=async statements=>{
+  const result=await batch(statements);
+  env.STORE_DB.data.review.paynow_reference='OTHER-PAYNOW-REFERENCE';
+  return result;
+ };
+ const response=await app.fetch(webhook(signed),env);
+ const out=await response.json();
+ assert.equal(response.status,409,'inconsistent saved provider ref must not be reported as an accepted refund review');
+ assert.equal(out.error,'store_review_readback_conflict');
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+});
+
+test('final review cannot certify persistence when the post-commit read-back fails',async()=>{
+ const {app,env}=fixture();
+ const first=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+  const statement=first(sql);
+  if(!sql.startsWith('SELECT reference,paynow_reference,review_status,callback_digest,poll_digest'))return statement;
+  return {bind(){return {async first(){throw Error('temporary_db_read_failure');}}}};
+ };
+ const response=await app.fetch(webhook(),env);
+ const out=await response.json();
+ assert.equal(response.status,503);
+ assert.equal(out.error,'store_review_readback_unavailable');
+ assert.equal(out.entitlement_granted,false);
+});
