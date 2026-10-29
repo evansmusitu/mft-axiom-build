@@ -1,9 +1,6 @@
 name: MUSITU Axiom Live Request ID Propagation Patch
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-live-request-id-propagation-patch.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,6 +12,7 @@ concurrency:
 
 jobs:
   patch:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
