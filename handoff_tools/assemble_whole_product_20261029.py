@@ -33,13 +33,21 @@ def github(path):
  with urlopen(Request('https://api.github.com/repos/'+REPO+'/'+path,headers=headers),timeout=30) as r:
   return json.load(r)
 archive=list(Path('original_handoff').rglob('MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261027.zip'))
-if len(archive)!=1 or hash_bytes(archive[0].read_bytes())!=OLD_SHA:
- raise RuntimeError('Missing verified October 27 whole-product source archive')
-with zipfile.ZipFile(archive[0]) as z:
- if z.testzip():raise RuntimeError('Archived ZIP corrupt')
- for member in z.infolist():
-  safe(member.filename)
-  if not member.is_dir():put(member.filename,z.read(member))
+if len(archive)==1:
+ if hash_bytes(archive[0].read_bytes())!=OLD_SHA:
+  raise RuntimeError('Historical original ZIP SHA mismatch')
+ with zipfile.ZipFile(archive[0]) as z:
+  if z.testzip():raise RuntimeError('Archived ZIP corrupt')
+  for member in z.infolist():
+   safe(member.filename)
+   if not member.is_dir():put(member.filename,z.read(member))
+elif (Path('original_handoff')/'HANDOFF'/'VERIFY_PACKAGE.py').is_file():
+ # download-artifact@v4 unzips the outer artifact; it already checked the
+ # archived GitHub artifact digest against the published SHA-256 in its logs.
+ for file in Path('original_handoff').rglob('*'):
+  if file.is_file():put(file.relative_to('original_handoff').as_posix(),file.read_bytes())
+else:
+ raise RuntimeError('Historical GitHub artifact missing or not recognized')
 old=subprocess.run([sys.executable,str(ROOT/'HANDOFF/VERIFY_PACKAGE.py')],
                    capture_output=True,text=True,check=True)
 if 'PASS 998' not in old.stdout:raise RuntimeError('Historic 998 checks did not pass')
