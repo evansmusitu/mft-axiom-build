@@ -143,8 +143,15 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   try{old=await db.prepare('SELECT reference,paynow_reference,callback_digest,review_status FROM store_checkout_reviews WHERE reference=?1 LIMIT 1').bind(p.reference).first();}
   catch{return reply(503,{ok:false,error:'store_db_unavailable'});}
   if(old){
-   if(old.paynow_reference===p.paynowreference&&old.callback_digest===callback.digest)
-    return reply(202,{ok:true,processed:true,idempotent:true,payment_status:old.review_status});
+   if(old.paynow_reference===p.paynowreference&&old.callback_digest===callback.digest){
+    // A prior immutable review row alone is not evidence that the associated
+    // checkout transition committed. Replays must not endorse a torn batch.
+    const expected=p.status==='Paid'?'review_required':
+      p.status==='Refunded'?'refund_review_required':null;
+    if(!expected||old.reference!==p.reference||old.review_status!==expected||intent.status!==expected)
+     return reply(409,{ok:false,error:'store_review_replay_state_conflict'});
+    return reply(202,{ok:true,processed:true,idempotent:true,payment_status:expected});
+   }
    return reply(409,{ok:false,error:'payment_review_requires_manual_resolution'});
   }
   if(intent.status!=='pending')return reply(409,{ok:false,error:'order_not_pending'});

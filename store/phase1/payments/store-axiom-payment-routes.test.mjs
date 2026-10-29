@@ -463,3 +463,46 @@ test('final review cannot certify persistence when the post-commit read-back fai
  assert.equal(out.error,'store_review_readback_unavailable');
  assert.equal(out.entitlement_granted,false);
 });
+
+// A legacy or interrupted batch can leave contradictory review / intent rows.
+// A replay must never turn such partial persistence into an affirmative review.
+test('identical paid callback replay rejects a persisted review with a pending checkout',async()=>{
+ const {app,env,calls}=fixture();
+ assert.equal((await app.fetch(webhook(),env)).status,202);
+ env.STORE_DB.data.intent.status='pending';
+ const writes=env.STORE_DB.log.length;
+ const response=await app.fetch(webhook(),env);
+ const result=await response.json();
+ assert.equal(response.status,409,'prior review alone cannot certify completed checkout persistence');
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.entitlement_granted,false);
+ assert.equal(result.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.log.slice(writes).filter(x=>x.method==='run').length,0);
+ assert.equal(calls.length,1,'replay conflict must not initiate another provider operation');
+});
+
+test('identical paid callback replay rejects a contradictory persisted refund review',async()=>{
+ const {app,env}=fixture();
+ assert.equal((await app.fetch(webhook(),env)).status,202);
+ env.STORE_DB.data.review.review_status='refund_review_required';
+ const response=await app.fetch(webhook(),env);
+ const result=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'review_required');
+});
+
+test('identical refunded callback replay rejects contradictory checkout review status',async()=>{
+ const body=signedStatus({status:'Refunded'});
+ const {app,env}=fixture(body);
+ assert.equal((await app.fetch(webhook(body),env)).status,202);
+ env.STORE_DB.data.intent.status='review_required';
+ const response=await app.fetch(webhook(body),env);
+ const result=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.refund_finalized,false);
+ assert.equal(result.publisher_payout_authorized,false);
+});
