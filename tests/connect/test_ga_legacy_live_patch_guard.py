@@ -8,6 +8,15 @@ DANGEROUS=[
     '.github/workflows/axiom-live-request-id-propagation-patch.yml',
     '.github/workflows/axiom-modal-edge-service-compat-patch.yml',
     '.github/workflows/axiom-metering-identity-diagnostic.yml',
+    '.github/workflows/axiom-modal-adapter-repair-probe.yml',
+    '.github/workflows/axiom-modal-edge-transport-repair.yml',
+    '.github/workflows/axiom-kernel-exception-diagnostic.yml',
+    '.github/workflows/axiom-service-binding-runtime-shape.yml',
+    '.github/workflows/axiom-canonical-kernel-payload-capture.yml',
+    '.github/workflows/axiom-modal-adapter-exact-request-probe.yml',
+    '.github/workflows/cloudflare-service-fetch-signature-probe.yml',
+    '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml',
+    '.github/workflows/axiom-service-binding-request-object-probe.yml',
 ]
 MANUAL="if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"
 
