@@ -8,6 +8,7 @@ real database acceptance, marketplace approval or permission to deploy.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -148,14 +149,142 @@ def audit_snapshot(snapshot):
         db.close()
 
 
+
+# Recovery qualification deliberately DOES NOT apply missing events or re-poll
+# Paynow. The second snapshot is an operator-supplied comparison, not an
+# attested source of truth. Every discrepancy requires independent evidence.
+_RECOVERY_TABLES = (
+    ('store_paynow_status_observations', 'event_id'),
+    ('store_checkout_reviews', 'reference'),
+    ('store_checkout_intents', 'reference'),
+    ('store_products', 'sku'),
+    ('store_customer_tokens', 'token_hash'),
+)
+_CHECKOUT_IDENTITY_FIELDS = ('reference', 'customer_id', 'sku', 'amount_cents',
+                             'currency', 'created_at', 'expires_at')
+
+
+def _read_snapshot_tables(path):
+    """Read exact table rows into locally scoped memory, never into output."""
+    uri = 'file:' + quote(str(Path(path).resolve()), safe='/') + '?mode=ro'
+    with closing(sqlite3.connect(uri, uri=True, timeout=2)) as db:
+        db.execute('PRAGMA query_only=ON')
+        db.row_factory = sqlite3.Row
+        result = {}
+        for table, key in _RECOVERY_TABLES:
+            count = db.execute('SELECT COUNT(*) FROM ' + table).fetchone()[0]
+            if count > 200_000:
+                raise ValueError('snapshot table too large')
+            rows = {}
+            for row in db.execute('SELECT * FROM ' + table):
+                r = dict(row)
+                rows[r[key]] = r
+            result[table] = rows
+        return result
+
+
+def compare_offline_snapshots(restored, later):
+    """Produce redacted, fail-closed RPO delta. NEVER restore, replay or pay.
+
+    `later` is merely a caller-asserted comparison snapshot. The results do
+    not establish independent snapshot provenance, delivery, or settlement.
+    """
+    old_report, new_report = audit_snapshot(restored), audit_snapshot(later)
+    base = {
+        'scope': 'local_sqlite_snapshot_pair_only',
+        'restore_authorized': False,
+        'payment_authorized': False,
+        'publisher_payout_authorized': False,
+        'automatic_replay_authorized': False,
+        'later_snapshot_provenance_verified': False,
+        'provider_reconciliation_required': True,
+    }
+    if not old_report['qualified'] or not new_report['qualified']:
+        return {**base, 'status': 'unqualified_snapshot',
+                'restored_failures': old_report['failures'],
+                'later_failures': new_report['failures']}
+    try:
+        old, new = _read_snapshot_tables(restored), _read_snapshot_tables(later)
+    except (OSError, ValueError, sqlite3.Error, TypeError):
+        return {**base, 'status': 'unqualified_snapshot',
+                'restored_failures': ['snapshot_reinspection_failed'],
+                'later_failures': ['snapshot_reinspection_failed']}
+
+    obs='store_paynow_status_observations'
+    reviews='store_checkout_reviews'
+    intents='store_checkout_intents'
+    summary = {
+        'missing_observations': len(new[obs].keys() - old[obs].keys()),
+        'restored_only_observations': len(old[obs].keys() - new[obs].keys()),
+        'changed_existing_observations': sum(
+            old[obs][key] != new[obs][key] for key in old[obs].keys() & new[obs].keys()),
+        'missing_reviews': len(new[reviews].keys() - old[reviews].keys()),
+        'restored_only_reviews': len(old[reviews].keys() - new[reviews].keys()),
+        'changed_existing_reviews': sum(
+            old[reviews][key] != new[reviews][key]
+            for key in old[reviews].keys() & new[reviews].keys()),
+        'missing_checkout_intents': len(new[intents].keys() - old[intents].keys()),
+        'restored_only_checkout_intents': len(old[intents].keys() - new[intents].keys()),
+        'changed_checkout_states': sum(
+            old[intents][key]['status'] != new[intents][key]['status']
+            for key in old[intents].keys() & new[intents].keys()),
+        'changed_checkout_identities': sum(
+            any(old[intents][key][field] != new[intents][key][field]
+                for field in _CHECKOUT_IDENTITY_FIELDS)
+            for key in old[intents].keys() & new[intents].keys()),
+    }
+    other_difference = False
+    for table, _ in _RECOVERY_TABLES:
+        if table not in (obs,reviews,intents) and old[table] != new[table]:
+            other_difference = True
+    # Even an allowed transition from pending to reviewed must be reconciled
+    # by a human with original provider evidence; a snapshot is not approval.
+    changed_other_intent_fields = any(
+        old[intents][key] != new[intents][key]
+        for key in old[intents].keys() & new[intents].keys())
+    conflict = any(summary[k] for k in (
+        'restored_only_observations', 'changed_existing_observations',
+        'restored_only_reviews', 'changed_existing_reviews',
+        'restored_only_checkout_intents', 'changed_checkout_identities'))
+    differing = conflict or other_difference or changed_other_intent_fields or any(
+        old[table].keys() != new[table].keys() for table, _ in _RECOVERY_TABLES)
+    if conflict:
+        status='conflict'
+    elif differing:
+        status='manual_reconciliation_required'
+    else:
+        status='equivalent'
+    return {**base, 'status': status, **summary,
+            'other_store_data_differ': other_difference,
+            'operator_action': ('obtain_trusted_provider_and_store_provenance;'
+                                'investigate_discrepancies_without_automatic_replay'
+                                if differing else
+                                'no_snapshot_difference;provider_authenticity_still_unproven'),
+            'restored_observation_fingerprint_sha256':
+                old_report['observation_fingerprint_sha256'],
+            'later_observation_fingerprint_sha256':
+                new_report['observation_fingerprint_sha256']}
+
+
 def main():
     parser = argparse.ArgumentParser(description='Read-only offline Store V2 observation recovery audit; NO live migration')
-    parser.add_argument('--snapshot',type=Path,required=True,
-                        help='Local SQLite snapshot path (never a Neon or D1 connection)')
+    parser.add_argument('--snapshot',type=Path,
+                        help='One local SQLite snapshot to audit')
+    parser.add_argument('--restored',type=Path,
+                        help='Offline restored snapshot for read-only difference analysis')
+    parser.add_argument('--later',type=Path,
+                        help='Operator-supplied comparison snapshot (NOT authenticated)')
     args = parser.parse_args()
-    result = audit_snapshot(args.snapshot)
+    if args.snapshot and not (args.restored or args.later):
+        result = audit_snapshot(args.snapshot)
+        code = 0 if result['qualified'] else 1
+    elif not args.snapshot and args.restored and args.later:
+        result = compare_offline_snapshots(args.restored,args.later)
+        code = {'equivalent':0,'manual_reconciliation_required':2}.get(result['status'],1)
+    else:
+        parser.error('supply --snapshot OR BOTH --restored and --later')
     print(json.dumps(result,sort_keys=True))
-    return 0 if result['qualified'] else 1
+    return code
 
 
 if __name__ == '__main__':

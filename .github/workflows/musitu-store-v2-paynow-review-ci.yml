@@ -94,7 +94,9 @@ jobs:
           # No Neon/D1 credentials, real checkout, live DB writes or Paynow calls.
           python3 -m py_compile store/phase1/payments/store_paynow_recovery_audit.py
           python3 -m unittest -v store/phase1/payments/test_store_paynow_recovery_audit.py
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_recovery_compare.py
           echo MUSITU_STORE_V2_DISPOSABLE_SQLITE_RECOVERY_AUDIT=PASS
+          echo MUSITU_STORE_V2_RESTORED_SNAPSHOT_DIFFERENTIAL_GATE=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
