@@ -181,5 +181,37 @@ class ObservationRecoveryAuditTests(unittest.TestCase):
         self.assertNotIn('12345',json.dumps(result))
 
 
+    def test_tampered_sqlite_check_bypass_with_invalid_hex_digest_fails_closed(self):
+        # sqlite quick_check can return 'ok' for rows inserted while CHECK
+        # enforcement was disabled. Recompute event identity to remove that
+        # independent signal and expose the missing field-level validation.
+        self.db.execute('PRAGMA ignore_check_constraints=ON')
+        self.observe('forged','Disputed','G'*64,'b'*64)
+        self.db.commit()
+        report=audit_snapshot(self.path)
+        self.assertFalse(report['qualified'],report)
+        self.assertIn('observation_field_conflict',report['failures'])
+
+    def test_tampered_snapshot_with_malformed_timestamp_suffix_fails_closed(self):
+        self.db.execute('PRAGMA ignore_check_constraints=ON')
+        event_id='evt-'+hashlib.sha256('\n'.join((REF2,'PAYNOW-TWO','c'*64,'d'*64)).encode()).hexdigest()
+        self.db.execute("INSERT INTO store_paynow_status_observations(event_id,reference,paynow_reference,provider_status,amount_cents,currency,poll_url,callback_digest,poll_digest,observed_at) VALUES (?,?,?,?,425,'USD',?,?,?,'invalid-dateZ')",
+            (event_id,REF2,'PAYNOW-TWO','Disputed',POLL2,'c'*64,'d'*64))
+        self.db.commit()
+        report=audit_snapshot(self.path)
+        self.assertFalse(report['qualified'],report)
+        self.assertIn('observation_field_conflict',report['failures'])
+
+    def test_tampered_snapshot_with_undersized_provider_ref_fails_closed(self):
+        self.db.execute('PRAGMA ignore_check_constraints=ON')
+        event_id='evt-'+hashlib.sha256('\n'.join((REF2,'x','c'*64,'d'*64)).encode()).hexdigest()
+        self.db.execute("INSERT INTO store_paynow_status_observations(event_id,reference,paynow_reference,provider_status,amount_cents,currency,poll_url,callback_digest,poll_digest,observed_at) VALUES (?,?,?,?,425,'USD',?,?,?,'2026-10-29T09:00:00Z')",
+            (event_id,REF2,'x','Disputed',POLL2,'c'*64,'d'*64))
+        self.db.commit()
+        report=audit_snapshot(self.path)
+        self.assertFalse(report['qualified'],report)
+        self.assertIn('observation_field_conflict',report['failures'])
+
+
 if __name__=='__main__':
     unittest.main()

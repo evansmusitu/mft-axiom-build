@@ -28,6 +28,19 @@ The test suite builds its own schema on a temporary local SQLite file, seeds syn
 
 The restored fingerprint establishes **snapshot-equivalent recovery only**; the later event necessarily remains missing and requires an independently designed catch-up/reconciliation procedure. It does not qualify time-to-recover, loss tolerance, provider replay or real hosted persistence.
 
+## Hardening against locally bypassed SQLite CHECK constraints (October 29)
+
+The read-only auditor does **not** trust `PRAGMA quick_check` or the presence of
+schema `CHECK` declarations as proof that historic data obeyed those constraints.
+An attacker or malfunctioning recovery process can create SQLite rows while
+`PRAGMA ignore_check_constraints=ON`, then restore ordinary read-only access.
+The auditor independently validates canonical lowercase 64-digit SHA-256
+callback and poll digests, provider-reference and poll-URL lengths, and a
+real UTC timestamp with the exact approved precision. Three real SQLite
+adversarial fixtures were first observed falsely qualifying, then correctly
+rejected as `observation_field_conflict`. This is **field-integrity hardening**,
+not proof that original Paynow signatures/receipts are genuine.
+
 ## Next independent authorization gates
 
 1. A separate reviewer must approve the exact observation schema SQL, D1/SQLite connection semantics, backup provenance, retention/immutability policy, migration and rollback strategy; current snapshot tests do not do that.

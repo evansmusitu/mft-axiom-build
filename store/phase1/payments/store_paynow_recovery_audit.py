@@ -11,6 +11,8 @@ import argparse
 from contextlib import closing
 import hashlib
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 import sqlite3
 from urllib.parse import quote
@@ -21,6 +23,21 @@ OBS_SCHEMA = HERE / 'store-paynow-status-observations.candidate.sql'
 OBS_COLUMNS = ('event_id', 'reference', 'paynow_reference', 'provider_status',
                'amount_cents', 'currency', 'poll_url', 'callback_digest',
                'poll_digest', 'observed_at')
+
+
+
+_HEX_SHA256 = re.compile(r'[0-9a-f]{64}\Z')
+_UTC_TIMESTAMP = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{3})?Z\Z')
+
+
+def _valid_observation_timestamp(value):
+    if not isinstance(value,str) or not _UTC_TIMESTAMP.fullmatch(value):
+        return False
+    try:
+        datetime.fromisoformat(value.replace('Z','+00:00'))
+    except ValueError:
+        return False
+    return True
 
 
 def _schema_manifest(db):
@@ -137,7 +154,11 @@ def audit_snapshot(snapshot):
             if (not isinstance(amount,int) or amount<1 or amount>100000000 or
                 currency!='USD' or status not in {'Created','Sent','Cancelled',
                   'Disputed','Awaiting Delivery','Delivered'} or
-                not isinstance(at,str) or not at.endswith('Z')):
+                not isinstance(provider,str) or not 3 <= len(provider) <= 80 or
+                not isinstance(poll,str) or not 32 <= len(poll) <= 300 or
+                not isinstance(cb,str) or not _HEX_SHA256.fullmatch(cb) or
+                not isinstance(polled,str) or not _HEX_SHA256.fullmatch(polled) or
+                not _valid_observation_timestamp(at)):
                 failures.add('observation_field_conflict')
             digest.update(json.dumps(row,ensure_ascii=True,
                 separators=(',',':')).encode('utf-8'))
