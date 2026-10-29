@@ -16,23 +16,45 @@ account only*, configure GitHub Actions secrets:
 
 Never use an existing production D1 database, real tenant, production secret,
 public production route, or any real mine data. Never commit secret values.
-Manually dispatch `.github/workflows/musitu-connect-hosted-d1-readonly.yml`.
+Manually dispatch `.github/workflows/musitu-connect-hosted-d1-readonly.yml`
+from the reviewed default `main` branch only. Its staging job is explicitly
+skipped for any other branch ref, even if someone selects another ref when
+manually invoking it.
 The workflow intentionally has **no push/PR triggers**, no Wrangler or deploy
 step, no production mutation, and never passes release credentials. Missing
 or overlapping staging/production account IDs fail closed before any HTTP call.
 
-The workflow runs the six synthetic contract tests first, then authenticates
+The workflow runs the eight synthetic contract tests first, then authenticates
 against Cloudflare's published D1 GET database metadata API, verifies the
-returned UUID and exact staging name, and executes a single fixed read-only
-`SELECT` through D1's query API. The SQL reads the `sqlite_schema` catalog:
+returned UUID and exact staging name, and executes two fixed read-only
+`SELECT` statements through D1's query API. The first reads the `sqlite_schema` catalog:
 all customer table and trigger definitions must match the checked-in
 `infra/connect_customer_registry.sql` (normalized whitespace only).
 It rejects missing append-only event triggers, mismatched SQL, unexpected
-customer objects, failed queries, or provider-reported writes/changes.
+customer objects, failed queries, or provider-reported writes/changes. The
+second query reads only aggregate counts from the five customer tables and
+requires every count to be precisely zero, without returning any tenant,
+credential or event identifier. The report states the table-emptiness
+observation and explicitly leaves cross-region absence unverified. A
+successful provider observation requires the explicit JSON boolean
+`meta.changed_db: false`; missing metadata is blocked even though the provider
+API describes this field as optional.
 
 Output is exclusively created and sanitized; it omits token, account and
 database identifiers, raw result bodies, customer data and full SQL. Provider
 access problems produce fixed error codes. No redirects are followed.
+
+The API confirms the database's reported UUID, name and customer-schema
+content. It does **not** independently authenticate the supplied production
+account ID or prove that the API token has only D1 Read permission: Cloudflare's
+query endpoint can also accept D1 Write tokens. The sanitized report therefore
+sets `staging_account_isolation_independently_verified=false`,
+`staging_read_token_scope_independently_verified=false`,
+`hosted_transactional_qualification=false`, and
+`production_customer_admission=false` even after a successful probe.
+The operator must separately verify the account inventory and token permission
+at the Cloudflare control plane. A source-file or test declaration is not that
+independent evidence.
 
 Even a successful hosted identity/schema observation remains **partial**:
 it does NOT prove D1 cross-region atomic quotas, customer identity, revocation,

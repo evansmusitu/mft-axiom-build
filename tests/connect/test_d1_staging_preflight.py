@@ -61,6 +61,15 @@ class StagingPreflightTests(unittest.TestCase):
         self.assertNotIn("database_id", record)
         self.assertNotIn("Bearer", report)
         self.assertIn("REMOTE_D1_STILL_BLOCKED", run.stdout)
+        self.assertIn("CONNECT_COMMERCIAL_GA_CUSTOMER_ADMISSION=BLOCKED", run.stdout)
+
+    def test_current_runbook_names_full_commercial_ga_not_pilot_release(self):
+        runbook = (ROOT / 'docs/operations/musitu-connect-hosted-d1-staging-preflight.md').read_text()
+        self.assertIn('qualification/musitu_connect_commercial_ga_release.json', runbook)
+        self.assertIn('full commercial', runbook.lower())
+        self.assertNotIn('PR #9 remains unmerged', runbook)
+        self.assertNotIn('pilot agreements', runbook)
+        self.assertIn('qualification/probe_connect_hosted_d1.py', runbook)
 
     def test_wrong_schema_fingerprint_rejected_without_output(self):
         entry = candidate()

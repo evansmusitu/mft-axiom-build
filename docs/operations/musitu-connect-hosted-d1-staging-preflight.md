@@ -1,6 +1,6 @@
 # MUSITU Connect — hosted Cloudflare D1 staging preflight
 
-**23 October 2026. Status: candidate preparation only, NOT remote D1 qualification.**
+**28 October 2026. Status: structural preflight only, NOT hosted D1 qualification or commercial GA admission.**
 
 This runbook prepares a *future*, isolated staging test after the required
 Cloudflare infrastructure owner explicitly authorizes it. It does not authorize
@@ -9,11 +9,14 @@ routing, real user data, or real customer accounts.
 
 ## Gate boundaries
 
-Current production Connect-to-Axiom calculation is separately authorized and
-must remain untouched. PR #9 remains unmerged; the protected `main` branch
-is not to be modified by this plan. `qualification/musitu_connect_beta_release_gate.json`
-still blocks new beta customers, public commercial access, a Connect ChatGPT
-listing and production predictive methane.
+Existing approved Connect-to-Axiom arithmetic remains untouched. PR #9 was
+merged on 27 October 2026. Full commercial general availability (GA), not a
+pilot/beta programme, is the approved release objective. The authoritative
+non-enabling release register is
+`qualification/musitu_connect_commercial_ga_release.json`; it still blocks
+new customer admission, public Connect publication and any predictive methane
+safety claims. Historical beta evidence remains preserved but is not the
+current commercial release objective.
 
 `qualification/connect_d1_staging_preflight.py` is a **network-free, standard
 library-only** metadata validator. It does not have a Cloudflare API client,
@@ -66,7 +69,7 @@ It writes reports exclusively without overwriting existing evidence.
    Successful structural validation prints
    `CONNECT_D1_STAGING_PREFLIGHT=STRUCTURAL_PASS`,
    `REMOTE_D1_STILL_BLOCKED` and
-   `CONNECT_BETA_CUSTOMER_ADMISSION=BLOCKED`.
+   `CONNECT_COMMERCIAL_GA_CUSTOMER_ADMISSION=BLOCKED`.
 
 4. Keep the report private alongside the infrastructure change request.
    It **does not authorize** applying migrations, deploying a Worker,
@@ -107,17 +110,32 @@ propagation across distinct Worker isolates and regions; local Miniflare
 success is insufficient. Collect sanitized test run IDs and evidence of
 resource cleanup.
 
-Production-safe operator authentication, on-call human acknowledgment,
-legal/privacy-approved retention and deletion, pilot agreements and
-an independently signed production rollout remain mandatory.
+Production-safe operator authentication, externally delivered and human
+acknowledged incident paging, legal/privacy-approved retention and deletion,
+commercial terms and independently approved release controls remain mandatory.
+A pilot or beta customer programme is not a prerequisite to full commercial GA.
+
+## After offline structural preflight
+
+The manual-only provider-side identity/schema inspection now exists at
+`qualification/probe_connect_hosted_d1.py` and the workflow
+`.github/workflows/musitu-connect-hosted-d1-readonly.yml`. It requires a
+real staging-only Cloudflare D1 Read token, distinct production/staging account
+IDs and verified staging database UUID and schema. **It has not run against a
+connected hosted staging account**; its synthetic tests are not evidence of
+remote quota atomicity, rollback, billing, independent operator authorization
+or legal readiness. Do not confuse the structural preflight with that
+manual hosted read-only step or with full commercial GA qualification.
 
 ## Recorded evidence and remaining risks
 
 - Offline validator: `qualification/connect_d1_staging_preflight.py`.
 - Its contract tests:
   `python -m unittest tests.connect.test_d1_staging_preflight -v`.
-- Current data and authorization contract:
-  `qualification/musitu_connect_beta_release_gate.json`.
+- Current full commercial release contract:
+  `qualification/musitu_connect_commercial_ga_release.json`.
+- Historical beta qualification record remains archived as evidence and does not
+  control the new full commercial GA objective.
 - These checks only establish that proposed metadata is well-formed,
   production binding claims are absent, and the schema matches this Git
   checkout. They provide **zero** real Cloudflare account isolation,

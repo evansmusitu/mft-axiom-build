@@ -23,6 +23,17 @@ SCHEMA_PATH = ROOT / 'infra/connect_customer_registry.sql'
 API_ORIGIN = 'https://api.cloudflare.com/client/v4'
 SQL = ("SELECT type, name, sql FROM sqlite_schema "
        "WHERE name LIKE 'connect_customer_%' ORDER BY type, name")
+EMPTY_COUNTS_SQL = (
+    "SELECT "
+    "(SELECT COUNT(*) FROM connect_customer_tenants) AS tenants, "
+    "(SELECT COUNT(*) FROM connect_customer_credentials) AS credentials, "
+    "(SELECT COUNT(*) FROM connect_customer_usage_events) AS usage_events, "
+    "(SELECT COUNT(*) FROM connect_customer_daily_usage) AS daily_usage, "
+    "(SELECT COUNT(*) FROM connect_customer_minute_usage) AS minute_usage"
+)
+EMPTY_COUNT_KEYS = frozenset({
+    'tenants', 'credentials', 'usage_events', 'daily_usage', 'minute_usage'
+})
 HEX32 = re.compile(r'[0-9a-f]{32}\Z')
 STAGING_NAME = re.compile(r'musitu-connect-stage-[a-z0-9][a-z0-9-]{2,47}\Z')
 MAX_RESPONSE_BYTES = 65536
@@ -115,6 +126,28 @@ def _normalized_sql(value):
     return ' '.join(value.split())
 
 
+def _read_only_query(endpoint, headers, statement, transport):
+    """One fixed SELECT; deny any unknown write metadata and never echo rows."""
+    body = json.dumps({'sql': statement, 'params': []},
+                      separators=(',', ':')).encode('utf-8')
+    req = urllib.request.Request(endpoint + '/query', data=body, method='POST',
+                                 headers={**headers, 'Content-Type': 'application/json'})
+    query = _request_json(req, transport=transport).get('result')
+    if not isinstance(query, list) or len(query) != 1 or not isinstance(query[0], dict):
+        raise ProbeError('REMOTE_QUERY_RESPONSE_INVALID')
+    result = query[0]
+    meta = result.get('meta')
+    if (result.get('success') is not True or not isinstance(meta, dict)
+            or type(meta.get('changes')) is not int or meta['changes'] != 0
+            or type(meta.get('rows_written')) is not int or meta['rows_written'] != 0
+            or meta.get('changed_db') is not False):
+        raise ProbeError('REMOTE_QUERY_NOT_PROVEN_READ_ONLY')
+    rows = result.get('results')
+    if not isinstance(rows, list) or len(rows) > 64:
+        raise ProbeError('REMOTE_QUERY_RESPONSE_INVALID')
+    return rows
+
+
 def run_probe(config, transport=None):
     """Never follow HTTP redirects, and execute only GET + the fixed SELECT."""
     if transport is None:
@@ -130,21 +163,7 @@ def run_probe(config, transport=None):
             or metadata.get('name') != config['database_name']):
         raise ProbeError('REMOTE_STAGING_IDENTITY_MISMATCH')
 
-    body = json.dumps({'sql': SQL, 'params': []}, separators=(',', ':')).encode('utf-8')
-    req = urllib.request.Request(endpoint + '/query', data=body, method='POST',
-                                 headers={**headers, 'Content-Type': 'application/json'})
-    query = _request_json(req, transport=transport).get('result')
-    if not isinstance(query, list) or len(query) != 1 or not isinstance(query[0], dict):
-        raise ProbeError('REMOTE_QUERY_RESPONSE_INVALID')
-    result = query[0]
-    meta = result.get('meta')
-    if (result.get('success') is not True or not isinstance(meta, dict)
-            or type(meta.get('changes')) is not int or meta['changes'] != 0
-            or type(meta.get('rows_written')) is not int or meta['rows_written'] != 0):
-        raise ProbeError('REMOTE_QUERY_NOT_PROVEN_READ_ONLY')
-    rows = result.get('results')
-    if not isinstance(rows, list) or len(rows) > 64:
-        raise ProbeError('REMOTE_SCHEMA_RESPONSE_INVALID')
+    rows = _read_only_query(endpoint, headers, SQL, transport)
     remote = {}
     for row in rows:
         if (not isinstance(row, dict) or row.get('type') not in ('table', 'trigger')
@@ -158,12 +177,26 @@ def run_probe(config, transport=None):
     if set(remote) != set(local) or any(
             remote[k] != _normalized_sql(local[k]) for k in local):
         raise ProbeError('REMOTE_SCHEMA_DRIFT')
+    # The metadata/schema observation is not an empty staging DB proof.
+    # Read counts only; never retrieve a tenant, credential or usage row.
+    counts_rows = _read_only_query(endpoint, headers, EMPTY_COUNTS_SQL, transport)
+    if (len(counts_rows) != 1 or not isinstance(counts_rows[0], dict)
+            or set(counts_rows[0]) != EMPTY_COUNT_KEYS
+            or any(type(value) is not int or value != 0
+                   for value in counts_rows[0].values())):
+        raise ProbeError('STAGING_CUSTOMER_REGISTRY_NOT_EMPTY_OR_UNVERIFIED')
     return {
         'schema': 'musitu.connect.hosted_d1_readonly_probe.v1',
         'result': 'HOSTED_STAGING_IDENTITY_AND_SCHEMA_OBSERVED_ONLY',
         'local_schema_sha256': hashlib.sha256(SCHEMA_PATH.read_bytes()).hexdigest(),
         'staging_database_identity_verified': True,
+        'staging_account_isolation_independently_verified': False,
+        'staging_read_token_scope_independently_verified': False,
+        'hosted_transactional_qualification': False,
+        'production_customer_admission': False,
         'hosted_schema_matches_source': True,
+        'staging_customer_tables_empty_at_read_time': True,
+        'cross_region_customer_data_absence_verified': False,
         'schema_objects_checked': len(local),
         'hosted_concurrency_qualified': False,
         'cross_region_quota_qualified': False,

@@ -61,24 +61,38 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                 return FakeResponse({'success': True, 'result': {
                     'name': cfg['database_name'], 'uuid': cfg['database_id'],
                     'version': 'production'}})
+            query = json.loads(req.data)['sql']
+            if 'sqlite_schema' in query:
+                results = [{'type': kind, 'name': name, 'sql': sql}
+                           for (kind, name), sql in source_objects.items()]
+            else:
+                results = [{'tenants': 0, 'credentials': 0, 'usage_events': 0,
+                            'daily_usage': 0, 'minute_usage': 0}]
             return FakeResponse({'success': True, 'result': [{
                 'success': True, 'meta': {'rows_written': 0, 'changes': 0,
-                                         'changed_db': True},
-                'results': [{'type': kind, 'name': name, 'sql': sql}
-                            for (kind, name), sql in source_objects.items()]
+                                         'changed_db': False},
+                'results': results
             }]})
 
         evidence = probe.run_probe(cfg, transport=transport)
-        self.assertEqual([v[0] for v in calls], ['GET', 'POST'])
-        self.assertEqual(len(calls), 2)
+        self.assertEqual([v[0] for v in calls], ['GET', 'POST', 'POST'])
+        self.assertEqual(len(calls), 3)
         self.assertTrue(all('api.cloudflare.com/client/v4/accounts/' in v[1] for v in calls))
         request_json = json.loads(calls[1][2])
         self.assertEqual(set(request_json), {'sql', 'params'})
         self.assertEqual(request_json['params'], [])
+        self.assertTrue(json.loads(calls[2][2])['sql'].startswith('SELECT '))
+        self.assertNotIn('sqlite_schema', json.loads(calls[2][2])['sql'])
         self.assertTrue(request_json['sql'].startswith('SELECT '))
         self.assertNotIn('INSERT', request_json['sql'])
         self.assertTrue(evidence['staging_database_identity_verified'])
+        self.assertFalse(evidence['staging_account_isolation_independently_verified'])
+        self.assertFalse(evidence['staging_read_token_scope_independently_verified'])
+        self.assertFalse(evidence['hosted_transactional_qualification'])
+        self.assertFalse(evidence['production_customer_admission'])
         self.assertTrue(evidence['hosted_schema_matches_source'])
+        self.assertTrue(evidence['staging_customer_tables_empty_at_read_time'])
+        self.assertFalse(evidence['cross_region_customer_data_absence_verified'])
         self.assertEqual(evidence['schema_objects_checked'], 9)
         self.assertFalse(evidence['hosted_concurrency_qualified'])
         self.assertFalse(evidence['commercial_ga_enabled'])
@@ -111,6 +125,60 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
                 with self.assertRaises(probe.ProbeError):
                     probe.run_probe(cfg, transport=transport)
 
+    def test_provider_changed_db_signal_must_not_be_ignored(self):
+        """No green evidence if Cloudflare reports any database alteration."""
+        cfg = probe.load_config(config())
+        objects = probe.local_schema_objects()
+        rows = [{'type': kind, 'name': name, 'sql': ddl}
+                for (kind, name), ddl in objects.items()]
+        for flag in (True, 1, 'false', None, 'MISSING'):
+            with self.subTest(changed_db=repr(flag)):
+                def transport(req, timeout):
+                    if req.get_method() == 'GET':
+                        return FakeResponse({'success': True, 'result': {
+                            'uuid': cfg['database_id'], 'name': cfg['database_name']}})
+                    return FakeResponse({'success': True, 'result': [{
+                        'success': True,
+                        'meta': ({'changes': 0, 'rows_written': 0}
+                                 if flag == 'MISSING' else
+                                 {'changes': 0, 'rows_written': 0, 'changed_db': flag}),
+                        'results': rows,
+                    }]})
+                with self.assertRaises(probe.ProbeError):
+                    probe.run_probe(cfg, transport=transport)
+
+    def test_nonempty_staging_customer_registry_refuses_observation(self):
+        """Schema equality alone must not qualify a DB holding customer rows."""
+        cfg = probe.load_config(config())
+        objects = probe.local_schema_objects()
+        schema_rows = [{'type': k[0], 'name': k[1], 'sql': v}
+                       for k, v in objects.items()]
+        count_keys = ('tenants', 'credentials', 'usage_events', 'daily_usage',
+                      'minute_usage')
+        for nonempty in count_keys:
+            with self.subTest(nonempty=nonempty):
+                calls = []
+                counts = {k: 0 for k in count_keys}
+                counts[nonempty] = 1
+                def transport(req, timeout):
+                    calls.append(req.get_method())
+                    if req.get_method() == 'GET':
+                        return FakeResponse({'success': True, 'result': {
+                            'name': cfg['database_name'], 'uuid': cfg['database_id']}})
+                    query = json.loads(req.data)['sql']
+                    if 'sqlite_schema' in query:
+                        rows = schema_rows
+                    else:
+                        rows = [counts]
+                    return FakeResponse({'success': True, 'result': [{
+                        'success': True,
+                        'meta': {'changes': 0, 'rows_written': 0,
+                                 'changed_db': False},
+                        'results': rows,
+                    }]})
+                with self.assertRaises(probe.ProbeError):
+                    probe.run_probe(cfg, transport=transport)
+
     def test_wrong_remote_identity_is_rejected_before_sql(self):
         cfg = probe.load_config(config())
         calls = []
@@ -140,12 +208,21 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
               '.github/workflows/musitu-connect-hosted-d1-readonly.yml').read_text()
         trigger = wf.split('\non:\n', 1)[1].split('\npermissions:', 1)[0]
         self.assertIn('workflow_dispatch:', trigger)
+        self.assertIn("if: github.ref == 'refs/heads/main'", wf)
         self.assertNotIn('push:', trigger)
         self.assertNotIn('pull_request:', trigger)
         self.assertIn('python qualification/probe_connect_hosted_d1.py', wf)
         self.assertNotIn('wrangler', wf)
         self.assertNotIn('CLOUDFLARE_API_TOKEN', wf)
         self.assertNotIn('deploy', wf.lower())
+        ci = (Path(__file__).resolve().parents[2] /
+              '.github/workflows/connect-d1-readonly-regression.yml').read_text()
+        for protected_path in (
+            '.github/workflows/musitu-connect-hosted-d1-readonly.yml',
+            'docs/operations/musitu-connect-hosted-d1-readonly.md',
+        ):
+            self.assertEqual(ci.count("'"+protected_path+"'"), 2,
+                             'CI must cover changes to this staging safety-critical path')
 
 
 if __name__ == '__main__':
