@@ -1,0 +1,12 @@
+.pwa-native-space{display:grid;gap:var(--space-5);padding-bottom:var(--space-8)}
+.pwa-native-space[hidden]{display:none}
+.pwa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);align-items:start}
+.pwa-grid .project-card{min-width:0}
+.pwa-metadata{display:grid;gap:.45rem}.pwa-metadata div{display:grid;grid-template-columns:minmax(7rem,.35fr) 1fr;gap:.6rem}.pwa-metadata dt{font-weight:700}.pwa-metadata dd{margin:0;overflow-wrap:anywhere}
+#pwa-device-state{max-height:24rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+html[data-network-profile="constrained"] .media-preview,html[data-network-profile="constrained"] [data-heavy-preview]{display:none!important}
+html[data-network-profile="constrained"] *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+html[data-network-profile="offline"] #connection-state{background:var(--warning-bg);color:var(--warning)}
+@media(max-width:52rem){.pwa-grid{grid-template-columns:1fr}.pwa-native-space button,.pwa-native-space a,.pwa-native-space summary{min-height:3rem}.pwa-native-space input,.pwa-native-space select,.pwa-native-space textarea{min-height:3rem;font-size:1rem}.pwa-native-space{padding-bottom:12rem}.pwa-metadata div{grid-template-columns:1fr}}
+@media(max-width:30rem){.pwa-native-space .section-heading{display:grid}.pwa-native-space .button{width:100%;margin:.2rem 0}.pwa-grid{gap:var(--space-3)}}
+@media(prefers-reduced-motion:reduce){.pwa-native-space *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}

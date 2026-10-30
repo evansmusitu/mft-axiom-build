@@ -103,16 +103,17 @@ export class BoundedModelProviderTransport {
     try{
       response=await this.fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
     }catch{
+      clearTimeout(timer);
       if(controller.signal.aborted)throw new ModelAdapterError("MODEL_UPSTREAM_TIMEOUT","Model provider request timed out",504);
       throw new ModelAdapterError("MODEL_UPSTREAM_NETWORK","Model provider request failed",502);
-    }finally{clearTimeout(timer);}
+    }
     try{
       const cap=Number.isInteger(maxResponseBytes)&&Number(maxResponseBytes)>0
         ?Math.min(this.maxResponseBytes,Number(maxResponseBytes)):this.maxResponseBytes;
       const captured=await captureBoundedJsonResponse({
-        response,allowedStatus:this.allowedStatus,allowedMediaTypes:["application/json"],maxResponseBytes:cap,secrets
+        response,allowedStatus:this.allowedStatus,allowedMediaTypes:["application/json"],maxResponseBytes:cap,secrets,signal:controller.signal
       });
       return captured.body;
-    }catch(error){translate(error);}
+    }catch(error){translate(error);}finally{clearTimeout(timer);}
   }
 }

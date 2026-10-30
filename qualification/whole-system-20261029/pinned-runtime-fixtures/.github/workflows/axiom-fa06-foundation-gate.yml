@@ -1,0 +1,54 @@
+name: MUSITU Axiom FA-06 Foundation Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa06-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA06_PREWRITE_INTENT.md'
+      - '.github/workflows/axiom-fa06-foundation-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-fa06-foundation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  foundation:
+    name: FA-06 deterministic foundation tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify governed branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa06-20260915"
+          test -f docs/axiom_final_product/FA06_PREWRITE_INTENT.md
+          grep -Fq 'START BUILDING' docs/axiom_final_product/FA06_PREWRITE_INTENT.md
+
+      - name: Run vNext and FA-06 deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Enforce no deployment capability in this gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '(^|[[:space:]])(deploy|pages: write|id-token: write|packages: write|contents: write)([[:space:]]|$)' .github/workflows/axiom-fa06-foundation-gate.yml

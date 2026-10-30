@@ -2,7 +2,8 @@ import type {
   AcquisitionRecord, AuditEvent, AuditRecord, AuditVerificationResult, AuthorizationGrant, EvidenceArtifact,
   IdempotencyClaimInput, IdempotencyClaimResult, IdempotencyCompleteInput, PlatformExecutionRecord,
   StoredApiOutcome, TemporalFact, TenantScope, WorldSnapshot, ModelCompilationRecord, ModelExchangeArtifact, ModelExplanationRecord,
-  DistributedExecutionIntentCore, DistributedExecutionJob, DistributedExecutionLease, ControlPlaneResult
+  DistributedExecutionIntentCore, DistributedExecutionJob, DistributedExecutionLease, ControlPlaneResult,
+  AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, WorkerLeaseCapability
 } from "./types.ts";
 
 export interface IngestionReplayClaim {
@@ -70,4 +71,10 @@ export interface DistributedExecutionRepository {
   releaseForRetry(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string):Promise<DistributedExecutionJob>;
   complete(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string,result:ControlPlaneResult):Promise<DistributedExecutionJob>;
   failTerminal(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string,code:"STALE"|"FAILED_INTEGRITY"):Promise<DistributedExecutionJob>;
+
+  claimNextAuthenticated(worker:AuthenticatedWorkerContext,now:string,leaseMs:number):Promise<AuthenticatedDistributedExecutionLease|undefined>;
+  heartbeatAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string,leaseMs:number):Promise<AuthenticatedDistributedExecutionLease>;
+  releaseForRetryAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string):Promise<DistributedExecutionJob>;
+  completeAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string,result:ControlPlaneResult):Promise<DistributedExecutionJob>;
+  failTerminalAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string,code:"STALE"|"FAILED_INTEGRITY"):Promise<DistributedExecutionJob>;
 }

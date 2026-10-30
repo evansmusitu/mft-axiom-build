@@ -1,0 +1,8 @@
+{
+  "$schema":"https://static.modelcontextprotocol.io/schemas/draft/server.schema.json",
+  "name":"com.mftintelligence/axiom-frontier",
+  "description":"MUSITU Axiom Frontier provider-neutral MCP server.",
+  "version":"0.1.0",
+  "remotes":[{"type":"streamable-http","url":"REPLACE_WITH_REAL_ISOLATED_FRONTIER_MCP_URL/mcp"}],
+  "_meta":{"com.mftintelligence/claim-boundary":{"status":"STAGING_ENDPOINT_REQUIRED","public_contract":"BOUNDED","production_endpoint_forbidden":true}}
+}

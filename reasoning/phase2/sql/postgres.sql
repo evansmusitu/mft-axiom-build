@@ -170,6 +170,9 @@ CREATE TABLE IF NOT EXISTS axiom_distributed_execution_jobs (
   attempt_count BIGINT NOT NULL,
   lease_owner TEXT,
   lease_expires_at TEXT,
+  lease_worker_key_id TEXT,
+  lease_pool_id TEXT,
+  lease_capability_core_hash TEXT,
   terminal_at TEXT,
   result_json JSONB,
   result_hash TEXT,
@@ -180,5 +183,22 @@ CREATE TABLE IF NOT EXISTS axiom_distributed_execution_jobs (
   UNIQUE (job_id)
 );
 
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_worker_key_id TEXT;
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_pool_id TEXT;
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_capability_core_hash TEXT;
+
 CREATE INDEX IF NOT EXISTS axiom_distributed_execution_claim
   ON axiom_distributed_execution_jobs(status, lease_expires_at, created_at, job_id);
+
+CREATE TABLE IF NOT EXISTS axiom_worker_operation_receipts (
+  worker_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  worker_key_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  outcome_json JSONB NOT NULL,
+  outcome_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  receipt_hash TEXT NOT NULL,
+  PRIMARY KEY(worker_id, request_id)
+);

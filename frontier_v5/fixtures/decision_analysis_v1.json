@@ -1,0 +1,83 @@
+{
+  "schema": "musitu.axiom.decision-golden-corpus.v1",
+  "qualification": "BOUNDED_LOCAL_HAND_CALCULATED_ORACLES_NOT_EXTERNAL_CERTIFICATION",
+  "cases": [
+    {
+      "id": "launch_without_signal",
+      "problem": {
+        "states": [{"id":"favorable","probability":0.6},{"id":"unfavorable","probability":0.4}],
+        "actions": [{"id":"launch","utilities":{"favorable":100,"unfavorable":-80}},{"id":"wait","utilities":{"favorable":0,"unfavorable":0}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["Priors and utilities are illustrative inputs, not empirically estimated."],
+        "evidence_refs":[]
+      },
+      "expected":{"expected_utilities":{"launch":28,"wait":0},"recommended_action":"launch","max_expected_utility":28,"expected_value_with_perfect_information":60,"evpi":32,"evsi":null,"minimax_regret":{"action":"launch","value":80}},
+      "oracle":"EU launch = 0.6*100 + 0.4*(-80) = 28. Perfect information = 0.6*100 + 0.4*0 = 60. Maximum regrets: launch 80, wait 100."
+    },
+    {
+      "id": "imperfect_signal_and_cost",
+      "problem": {
+        "states":[{"id":"favorable","probability":0.6},{"id":"unfavorable","probability":0.4}],
+        "actions":[{"id":"launch","utilities":{"favorable":100,"unfavorable":-80}},{"id":"wait","utilities":{"favorable":0,"unfavorable":0}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["Signals have declared conditional likelihoods; no empirical accuracy claim."],
+        "evidence_refs":[],
+        "signal_model":{"signals":[{"id":"positive","likelihoods":{"favorable":0.8,"unfavorable":0.25}},{"id":"negative","likelihoods":{"favorable":0.2,"unfavorable":0.75}}]},
+        "information_cost":3
+      },
+      "expected":{"recommended_action":"launch","expected_value_with_sample_information":40,"evpi":32,"evsi":12,"net_evsi":9},
+      "oracle":"Positive joint launch utility = 0.6*0.8*100 - 0.4*0.25*80 = 40. Negative joint utility = 12 - 24 = -12, so wait. Sample value = 40, gain = 12, after cost = 9."
+    },
+    {
+      "id": "independent_signal_has_zero_value",
+      "problem": {
+        "states":[{"id":"favorable","probability":0.6},{"id":"unfavorable","probability":0.4}],
+        "actions":[{"id":"launch","utilities":{"favorable":100,"unfavorable":-80}},{"id":"wait","utilities":{"favorable":0,"unfavorable":0}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["The two signal outcomes are independent of state."],
+        "evidence_refs":[],
+        "signal_model":{"signals":[{"id":"heads","likelihoods":{"favorable":0.5,"unfavorable":0.5}},{"id":"tails","likelihoods":{"favorable":0.5,"unfavorable":0.5}}]}
+      },
+      "expected":{"expected_value_with_sample_information":28,"evsi":0,"net_evsi":0},
+      "oracle":"Each signal preserves priors; launch for both. Weighted value 14+14=28, same as no signal."
+    },
+    {
+      "id": "perfect_signal_reaches_evpi",
+      "problem": {
+        "states":[{"id":"favorable","probability":0.6},{"id":"unfavorable","probability":0.4}],
+        "actions":[{"id":"launch","utilities":{"favorable":100,"unfavorable":-80}},{"id":"wait","utilities":{"favorable":0,"unfavorable":0}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["The perfect signal reveals the state by construction."],
+        "evidence_refs":[],
+        "signal_model":{"signals":[{"id":"yes","likelihoods":{"favorable":1,"unfavorable":0}},{"id":"no","likelihoods":{"favorable":0,"unfavorable":1}}]}
+      },
+      "expected":{"expected_value_with_sample_information":60,"evsi":32,"evpi":32},
+      "oracle":"Launch in favorable state and wait otherwise; value 60, gain 32."
+    },
+    {
+      "id": "negative_utility_minimax_regret",
+      "problem": {
+        "states":[{"id":"one","probability":0.5},{"id":"two","probability":0.5}],
+        "actions":[{"id":"A","utilities":{"one":-5,"two":-20}},{"id":"B","utilities":{"one":-10,"two":-10}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["Larger utility is preferred, including when all outcomes are negative."],
+        "evidence_refs":[]
+      },
+      "expected":{"expected_utilities":{"A":-12.5,"B":-10},"recommended_action":"B","expected_value_with_perfect_information":-7.5,"evpi":2.5,"max_regret":{"A":10,"B":5},"minimax_regret":{"action":"B","value":5}},
+      "oracle":"A averages -12.5; B -10. Perfect information averages -5 and -10 = -7.5; gain 2.5. Maximum regrets A10, B5."
+    },
+    {
+      "id": "tied_actions_zero_probability_signal",
+      "problem": {
+        "states":[{"id":"only","probability":1}],
+        "actions":[{"id":"b","utilities":{"only":2}},{"id":"a","utilities":{"only":2}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["Tie breaking uses ascending action identifier, not an invented preference."],
+        "evidence_refs":[],
+        "signal_model":{"signals":[{"id":"seen","likelihoods":{"only":1}},{"id":"impossible","likelihoods":{"only":0}}]}
+      },
+      "expected":{"recommended_action":"a","tied_recommendations":["a","b"],"evpi":0,"evsi":0,"minimax_regret":{"action":"a","value":0}},
+      "oracle":"Both actions return 2, so all regret/information gains are zero. A zero probability signal supplies no posterior."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+qualification/whole-system-20261029/check-results/
