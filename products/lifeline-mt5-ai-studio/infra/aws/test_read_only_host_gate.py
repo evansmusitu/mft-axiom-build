@@ -69,6 +69,19 @@ class GateTests(unittest.TestCase):
     def test_missing_reservations_denied(self):
         self.assertFalse(self.run_gate(lambda p,t,i,e: e.clear())["candidate_qualifies_for_manual_review"])
 
+    def test_paginated_instance_inventory_fails_closed(self):
+        # An incomplete first page cannot prove an empty AWS account/region.
+        r = self.run_gate(lambda p,t,i,e: e.update(NextToken="another-page"))
+        self.assertFalse(r["no_existing_ec2_instances"])
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
+    def test_nonlist_or_malformed_instance_inventory_fails_closed(self):
+        for data in (None, {}, [{"Instances": "not-an-array"}],
+                     [{"Instances": []}, {"Instances": None}]):
+            with self.subTest(data=data):
+                r = self.run_gate(lambda p,t,i,e: e.update(Reservations=data))
+                self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
     def test_transport_error_never_succeeds(self):
         def error(_): raise QualificationError("AWS_READ_DENIED_OR_UNAVAILABLE")
         with self.assertRaises(QualificationError): qualify(error)
