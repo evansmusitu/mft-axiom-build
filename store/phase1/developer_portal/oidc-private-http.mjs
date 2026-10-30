@@ -4,7 +4,10 @@
  * Dependencies must be operator-verified, durable and trusted server-side:
  * gate.start/complete, sessionLookup and sessionRevoke. Mocked in local tests.
  */
+import {timingSafeEqual} from 'node:crypto';
 const SESSION='__Host-musitu_store_session';
+const FLOW='__Host-musitu_store_flow';
+const FLOW_STATE=/^[A-Za-z0-9_-]{43}$/;
 const SID=/^[A-Za-z0-9_-]{12,128}$/;
 const ROLES=new Set(['developer','owner','review_identity','review_security']);
 const DENIED={publisherApproved:false,publicationAuthorized:false,paymentAuthorized:false,payoutAuthorized:false,entitlementGranted:false};
@@ -21,15 +24,19 @@ function canonicalOrigin(s){
   throw Error('private_http_configuration_denied');
  return s;
 }
-function sessionId(cookieHeader){
+function cookieValue(cookieHeader,name,pattern){
  if(typeof cookieHeader!=='string'||cookieHeader.length>4096)return null;
- const found=cookieHeader.split(';').map(x=>x.trim()).filter(x=>x.startsWith(SESSION+'='));
+ const found=cookieHeader.split(';').map(x=>x.trim()).filter(x=>x.startsWith(name+'='));
  if(found.length!==1)return null;
- const sid=found[0].slice(SESSION.length+1);
- return SID.test(sid)?sid:null;
+ const value=found[0].slice(name.length+1);
+ return pattern.test(value)?value:null;
 }
-function sessionCookie(value,age){
- return `${SESSION}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${age}`;
+function sessionId(cookieHeader){return cookieValue(cookieHeader,SESSION,SID);}
+function flowCookie(value,age){return `${FLOW}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${age}`;}
+function sessionCookie(value,age){return `${SESSION}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${age}`;}
+function equalFlow(a,b){
+ if(typeof a!=='string'||typeof b!=='string'||!FLOW_STATE.test(a)||!FLOW_STATE.test(b))return false;
+ return timingSafeEqual(Buffer.from(a),Buffer.from(b));
 }
 export function createPrivateOidcHttpHandler({origin,issuerOrigin,gate,sessionLookup,sessionRevoke,now=Date.now}={}){
  const site=canonicalOrigin(origin),issuer=canonicalOrigin(issuerOrigin);
@@ -47,19 +54,32 @@ export function createPrivateOidcHttpHandler({origin,issuerOrigin,gate,sessionLo
     try{
      const result=await gate.start();
      const target=new URL(result?.authorizationUrl);
-     if(target.protocol!=='https:'||target.origin!==issuer||target.username||target.password||target.hash)
+     if(target.protocol!=='https:'||target.origin!==issuer||target.username||target.password||target.hash||
+       target.searchParams.getAll('state').length!==1||
+       !FLOW_STATE.test(target.searchParams.get('state')??''))
       throw Error('invalid_redirect');
-     return new Response(null,{status:303,headers:{...headers,location:target.toString()}});
+     // Bind the one-time server-side OIDC state to THIS browser, preventing
+     // an attacker from logging a victim into the attacker's account via CSRF.
+     return new Response(null,{status:303,headers:{...headers,location:target.toString(),
+       'set-cookie':flowCookie(target.searchParams.get('state'),300)}});
     }catch{return respond(503,{ok:false,code:'identity_provider_unavailable',...DENIED});}
    }
    if(u.pathname==='/auth/oidc/callback'&&req.method==='GET'){
+    const state=u.searchParams.get('state');
+    const browserState=cookieValue(req.headers.get('cookie'),FLOW,FLOW_STATE);
+    if(u.searchParams.getAll('state').length!==1||!equalFlow(state,browserState))
+     return respond(401,{ok:false,code:'identity_not_verified',...DENIED},
+       {'set-cookie':flowCookie('',0)});
     try{
      const v=await gate.complete(req.url);
      if(!v||!SID.test(v.sessionId)||!ROLES.has(v.role)||
         Object.keys(DENIED).some(k=>v[k]!==false))throw Error('unsafe_session');
-     return new Response(null,{status:303,headers:{...headers,
-       location:site+'/auth/session','set-cookie':sessionCookie(v.sessionId,900)}});
-    }catch{return respond(401,{ok:false,code:'identity_not_verified',...DENIED});}
+     const responseHeaders=new Headers({...headers,location:site+'/auth/session'});
+     responseHeaders.append('set-cookie',sessionCookie(v.sessionId,900));
+     responseHeaders.append('set-cookie',flowCookie('',0));
+     return new Response(null,{status:303,headers:responseHeaders});
+    }catch{return respond(401,{ok:false,code:'identity_not_verified',...DENIED},
+      {'set-cookie':flowCookie('',0)});}
    }
    if(u.search||u.pathname==='/auth/oidc/callback'||u.pathname==='/auth/oidc/start')
     return respond(404,{ok:false,code:'not_found',...DENIED});
