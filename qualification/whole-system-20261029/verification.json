@@ -12,7 +12,7 @@
     },
     "phase1": {
       "exit": 0,
-      "test_count": 25,
+      "test_count": 26,
       "seconds": 0.315
     },
     "phase2": {
@@ -163,7 +163,8 @@
     "reasoning/phase2/src/distributed_execution_proof.ts": "ce24c43dfea1a6ec8dc6f71974a3f01da80c4ad46b0eee20e4f5dc23bc92cfc2",
     "reasoning/phase2/src/distributed_execution_store.ts": "5bd35932c6ed286d2259424d06439d32038ea335a3efd15f8b57086b42113802",
     "reasoning/phase2/src/model_provider_transport.ts": "f715aeab40982338a3fc168a85ea9e6065b4ee3ae162da630adf63a47f578441",
-    "recovery/ar03_06/kernel.py": "434eaecf82c14130e6298c89963630f170e92845d21c4c7ef2fba7f634dece4e"
+    "recovery/ar03_06/kernel.py": "434eaecf82c14130e6298c89963630f170e92845d21c4c7ef2fba7f634dece4e",
+    "reasoning/phase1/src/replay.ts": "250bb0cd667d7862e65e7ed5c5416fcc184cb9150122c8032f677679fbe96141"
   },
   "independent_review": {
     "findings_reproduced_and_repaired": 4,
@@ -181,7 +182,7 @@
     "production_deployed": false,
     "external_benchmark": "NOT_RUN",
     "live_D1": "NOT_RUN",
-    "live_PostgreSQL": "NOT_RUN",
+    "live_PostgreSQL": "PRODUCTION_NOT_RUN_DISPOSABLE_GITHUB_CI_RECHECK_PENDING",
     "B27_antirollback": "NOT_REQUALIFIED_RETAINS_ORIGINAL_FAILED_GATE",
     "independent_custody": "NOT_QUALIFIED"
   },
@@ -189,5 +190,12 @@
     "Passing source regressions do not establish current production reachability or release qualification.",
     "Budgets count bounded calls; no account-wide USD0 guarantee is inferred.",
     "Custom criteria and source entailment are not certified by typed completion."
-  ]
+  ],
+  "postgres_followup": {
+    "cause": "JSON.stringify compared object insertion order after JSONB persistence",
+    "correction": "canonical manifest commitment comparison",
+    "new_unit_regression": "reordering matches; altered module identity still rejects",
+    "new_postgres_case": "real persisted authenticated worker completion and rejected missing proof",
+    "status": "CI_PENDING"
+  }
 }

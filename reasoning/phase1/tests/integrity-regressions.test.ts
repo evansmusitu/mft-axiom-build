@@ -51,3 +51,14 @@ test("reserved node identifiers remain represented in outputs and commitments",(
   assert.equal(Object.hasOwn(result.outputs,"__proto__"),true);
   assert.equal(result.outputs["__proto__"].value,true);
 });
+
+test("certificate replay survives JSONB object key reordering without weakening module identity",()=>{
+  const registry=createDefaultRegistry(),p=compileProgram(program(),registry),execution=new AxiomRuntime(registry).execute(p),signer=createSigner();
+  const original=issueCertificate(p,execution,signer);
+  const reorder=(v:any):any=>Array.isArray(v)?v.map(reorder):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().reverse().map(k=>[k,reorder(v[k])])):v;
+  const persisted=reorder(JSON.parse(JSON.stringify(original)));
+  assert.deepEqual(replayCertificate(persisted,registry,undefined,original.publicKeyPem),{status:'MATCH',diagnostics:[]});
+  const changed=createDefaultRegistry(),manifest=changed.manifest.bind(changed);
+  changed.manifest=()=>manifest().map(row=>({...row,moduleHash:'e'.repeat(64)}));
+  assert.equal(replayCertificate(persisted,changed,undefined,original.publicKeyPem).status,'MISMATCH');
+});
