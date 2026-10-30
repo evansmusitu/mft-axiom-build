@@ -102,6 +102,10 @@ export function createPrivateOidcHttpHandler({origin,issuerOrigin,gate,sessionLo
     if(!sid)return respond(401,{ok:false,code:'unauthorized',...DENIED});
     try{
      if(await sessionRevoke(sid)!==true)throw Error('revoke_denied');
+     // A write acknowledgment is not proof of revocation. Re-read the durable
+     // authorization state and report success only once it is no longer active.
+     const observed=await sessionLookup(sid);
+     if(observed?.active!==false&&observed!==null)throw Error('revoke_not_observed');
      return respond(204,null,{'set-cookie':sessionCookie('',0)});
     }catch{return respond(503,{ok:false,code:'session_revocation_unavailable',...DENIED});}
    }

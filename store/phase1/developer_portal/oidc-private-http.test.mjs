@@ -6,12 +6,13 @@ const origin='https://store-stage.example.org';
 const issuer='https://idp.example.org';
 const state='a'.repeat(43);
 const flowCookie='__Host-musitu_store_flow='+state;
-function fixture({failStart=false,failComplete=false,active=true,role='review_security',expired=false}={}){
+function fixture({failStart=false,failComplete=false,active=true,role='review_security',expired=false,revokeEffective=true}={}){
  const calls={start:0,complete:[],lookup:[],revoke:[]};
+ let revoked=false;
  const gate={async start(){calls.start++;if(failStart)throw Error('provider-down');return {authorizationUrl:issuer+'/authorize?response_type=code&state='+state};},
  async complete(url){calls.complete.push(url);if(failComplete)throw Error('bad-id-token');return {sessionId:'operator-session-id-000001',role:'review_security',publisherApproved:false,publicationAuthorized:false,paymentAuthorized:false,payoutAuthorized:false,entitlementGranted:false};}};
- const lookup=async id=>{calls.lookup.push(id);return {active,role,expiresAt:expired?120:600,subject:'owner-user-0001'};};
- const revoke=async id=>{calls.revoke.push(id);return true;};
+ const lookup=async id=>{calls.lookup.push(id);return {active:active&&!revoked,role,expiresAt:expired?120:600,subject:'owner-user-0001'};};
+ const revoke=async id=>{calls.revoke.push(id);if(revokeEffective)revoked=true;return true;};
  return {calls,handler:createPrivateOidcHttpHandler({origin,issuerOrigin:issuer,gate,sessionLookup:lookup,sessionRevoke:revoke,now:()=>200000})};
 }
 const req=(path,options={})=>new Request(origin+path,options);
@@ -106,4 +107,28 @@ test('unsafe or ambiguous authorization URL state fails closed before browser co
  const r=await handler(req('/auth/oidc/start'));
  assert.equal(r.status,503);
  assert.equal(r.headers.get('set-cookie'),null);
+});
+
+// A provider acknowledging the revoke call is not sufficient: require an
+// independently observed inactive session before reporting logout success.
+test('logout rejects acknowledged but ineffective revocation and never claims success',async()=>{
+ const f=fixture({revokeEffective:false});
+ const r=await f.handler(req('/auth/logout',{method:'POST',headers:{cookie,origin,'sec-fetch-site':'same-origin'}}));
+ assert.equal(r.status,503);
+ assert.equal((await r.json()).code,'session_revocation_unavailable');
+ assert.deepEqual(f.calls.revoke,['operator-session-id-000001']);
+ assert.deepEqual(f.calls.lookup,['operator-session-id-000001']);
+ const stillActive=await f.handler(req('/auth/session',{headers:{cookie}}));
+ assert.equal(stillActive.status,200);
+});
+
+test('successful logout requires independently observed inactive durable session',async()=>{
+ const f=fixture();
+ const r=await f.handler(req('/auth/logout',{method:'POST',headers:{cookie,origin,'sec-fetch-site':'same-origin'}}));
+ assert.equal(r.status,204);
+ assert.equal(r.headers.get('set-cookie'),'__Host-musitu_store_session=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0');
+ assert.deepEqual(f.calls.revoke,['operator-session-id-000001']);
+ assert.deepEqual(f.calls.lookup,['operator-session-id-000001']);
+ const inactive=await f.handler(req('/auth/session',{headers:{cookie}}));
+ assert.equal(inactive.status,401);
 });
