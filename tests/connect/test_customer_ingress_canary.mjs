@@ -178,7 +178,7 @@ test('offline customer canary rejects impossible calendar timestamps',async()=>{
   } finally { f.sql.close(); }
 });
 
-test('offline Mining ingestion rejects unknown-UTC-offset event timestamps',async()=>{
+test('offline Mining ingestion rejects -00:00 unknown-local-offset timestamps',async()=>{
   const f=fixture({alphaDaily:8,alphaMinute:8});
   try {
     const unknown=JSON.stringify({rows:[{...sampleRow,event_time:'2026-10-22T10:00:00-00:00'}],budget:100});
