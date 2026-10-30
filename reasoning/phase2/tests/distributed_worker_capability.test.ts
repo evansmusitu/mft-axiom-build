@@ -51,7 +51,7 @@ test("SQLite authenticated worker operations are receipt-idempotent capability-f
   const auth=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0});
   const leaseSigner=phase2.createStaticWorkerLeaseSigner("lease-signing:p25c:v1",leaseKeys);
   const proof=(opts:{worker?:"a"|"b";requestId:string;action:string;targetJobId?:string;body:any;issuedAt?:string})=>{
-    const isB=opts.worker==="b",key=isB?otherKeys.privateKey:workerKeys.privateKey;
+    const isB=opts.worker==="b",key=(isB?otherKeys:workerKeys).privateKey;
     const unsigned={
       protocolVersion:"axiom.worker-request/v1",
       workerId:isB?"worker:b":"worker:a",

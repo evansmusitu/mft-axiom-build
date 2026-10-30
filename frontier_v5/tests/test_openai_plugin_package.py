@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Behavioral contract for OAI-002 current OpenAI plugin packaging.
 
-This contract follows the current OpenAI Plugins package model: a required
+This contract follows the imported OpenAI Plugins package model: a required
 ``.codex-plugin/plugin.json`` manifest, bundled ``skills/``, an optional
 registered-MCP compatibility ``.app.json``, and a repo marketplace at
 ``.agents/plugins/marketplace.json``.  MUSITU must not fabricate the external
 ``plugin_asdk_app...`` registration required to bind its public remote MCP.
 
+Marketplace input is an exact, hash-pinned historical fixture; no active
+marketplace is installed in the integrated repository by this test.
 The test proves repository-local package correctness only.  It does not claim
 ChatGPT desktop installation, Developer Mode MCP registration, workspace
 publication, universal directory publication, or production cutover.
@@ -19,6 +21,8 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
+from frontier_v5.tests.historical_distribution_fixture import pinned_distribution_fixture
+
 try:
     from frontier_v5.runtime.openai_plugin_package import (
         OpenAIPluginPackage,
@@ -30,7 +34,7 @@ except ModuleNotFoundError as exc:
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "frontier_v5/MANIFEST.json"
 SOURCE = ROOT / "frontier_v5/openai_plugins/musitu-axiom-public"
-MARKETPLACE = ROOT / ".agents/plugins/marketplace.json"
+MARKETPLACE_RELATIVE = ".agents/plugins/marketplace.json"
 EXPECTED_SOURCE = "./frontier_v5/openai_plugins/musitu-axiom-public"
 
 
@@ -53,6 +57,9 @@ def main() -> None:
     assert set(public_skills).isdisjoint(private_skills)
 
     package = OpenAIPluginPackage(ROOT)
+    # The class exposes this path as an instance attribute. Override only the
+    # test instance; keep production construction and active profiles intact.
+    package.marketplace_path = pinned_distribution_fixture(MARKETPLACE_RELATIVE)
     source = package.validate_source()
 
     # Current OpenAI package entry point and local marketplace are mandatory.
@@ -191,7 +198,7 @@ def main() -> None:
         bad_market["plugins"][0]["policy"]["authentication"] = "NEVER"
         expect_error(lambda: package.validate_marketplace(bad_market), "authentication policy")
 
-    print("MUSITU_AXIOM_FRONTIER_OPENAI_PLUGIN_PACKAGE_PASS")
+    print("MUSITU_AXIOM_FRONTIER_OPENAI_PLUGIN_PACKAGE_PASS scope=LOCAL_PACKAGE_WITH_ARCHIVED_MARKETPLACE active_marketplace_qualified=false")
 
 
 if __name__ == "__main__":

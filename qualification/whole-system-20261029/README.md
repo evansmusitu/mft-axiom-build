@@ -16,6 +16,26 @@ python3 qualification/whole-system-20261029/run_checks.py
 
 Results and raw logs are written to the ignored `check-results/` directory. The local qualification corpus covers bounded implementations; it does not certify all 30 packages or 110 targets. The additional decision skill remains an internal candidate outside submission profiles.
 
+The 30 October continuation adds 31 independent-oracle/behavior test methods,
+two-state probability robustness, and explicit execution of 35 existing
+script-style Frontier contracts (ordinary unittest discovery does not invoke
+their `main()` functions). Two script contracts validate hash-pinned historical
+distribution sources only; their success grants no active CI or marketplace
+qualification. The browser/media full-stack script is excluded from this offline
+runner and still requires its own installed-dependency acceptance.
+
+For real local workerd/D1 transactions, install the exact existing repository
+pin `miniflare@4.20260730.0` without account credentials, then run:
+
+```sh
+python3 qualification/whole-system-20261029/run_checks.py --with-local-d1
+```
+
+An isolated dependency installation can instead be selected with
+`AXIOM_MINIFLARE_MODULE` pointing at its Miniflare module. The additional CI
+workflow runs this command with read-only repository permissions and no cloud
+secrets. Local D1 compatibility does not promote hosted D1 or production gates.
+
 ## Deployment and integration boundaries
 
 - The new execution-contract SQL must be applied and qualified in an isolated environment before this API can be deployed. Legacy task history is not rewritten. D1 adapters with a legacy global memory key fail closed pending an admitted migration.

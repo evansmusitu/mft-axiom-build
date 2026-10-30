@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Fail-closed repository contract for Frontier v5 supply-chain controls.
+"""Fail-closed source contract for archived Frontier v5 supply-chain controls.
 
 This test uses only the standard library so it can execute before third-party
-packages are installed. It verifies repository-owned reproducibility policy;
+packages are installed. It verifies hash-pinned historical workflow policy;
 runtime package versions and downloaded-asset bytes are separately verified by
 ``frontier_v5/scripts/verify_supply_chain.py`` in the Full-Stack gate.
+Passing this archive check does not qualify current active CI enforcement.
 """
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
+
+from frontier_v5.tests.historical_distribution_fixture import pinned_distribution_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 FRONTIER = ROOT / "frontier_v5"
@@ -60,6 +63,10 @@ def fail(message: str) -> None:
     raise AssertionError(message)
 
 
+def historical_workflow(path: Path) -> Path:
+    return pinned_distribution_fixture(path.relative_to(ROOT).as_posix())
+
+
 def main() -> None:
     if not LOCK.is_file():
         fail("frontier_v5/supply_chain/LOCK.json is required")
@@ -90,9 +97,7 @@ def main() -> None:
     assert required == sorted(required, key=str.casefold), "dependency lock must be deterministically sorted"
 
     for name, path in WORKFLOWS.items():
-        if not path.is_file():
-            fail(f"required Frontier workflow missing: {path.name}")
-        text = path.read_text(encoding="utf-8")
+        text = historical_workflow(path).read_text(encoding="utf-8")
         if "runs-on: ubuntu-latest" in text:
             fail(f"{name} workflow uses mutable ubuntu-latest")
         if "runs-on: ubuntu-24.04" not in text:
@@ -107,7 +112,7 @@ def main() -> None:
         if version and version.group(1) != expected_python:
             fail(f"{name} workflow Python {version.group(1)} differs from lock {expected_python}")
 
-    full = WORKFLOWS["fullstack"].read_text(encoding="utf-8")
+    full = historical_workflow(WORKFLOWS["fullstack"]).read_text(encoding="utf-8")
     for fragment in ("python -m pip install --upgrade pip", "python -m pip install pillow python-docx"):
         if fragment in full:
             fail(f"fullstack workflow contains mutable dependency install: {fragment}")
@@ -131,13 +136,13 @@ def main() -> None:
         fail("Playwright package version differs from supply-chain lock")
     assert str(playwright.get("chromium_build") or "").isdigit()
 
-    capture = WORKFLOWS["python_hash_capture"].read_text(encoding="utf-8")
+    capture = historical_workflow(WORKFLOWS["python_hash_capture"]).read_text(encoding="utf-8")
     if "capture_distribution_hashes.py" not in capture:
         fail("Python hash-capture workflow must execute the reviewed capture utility")
     if "capture_is_attestation" in capture:
         fail("Python hash-capture workflow must not self-promote captured hashes to attestation")
 
-    supply_text = WORKFLOWS["supply_chain"].read_text(encoding="utf-8")
+    supply_text = historical_workflow(WORKFLOWS["supply_chain"]).read_text(encoding="utf-8")
     for name, path in WORKFLOWS.items():
         if name == "supply_chain":
             continue
@@ -153,7 +158,7 @@ def main() -> None:
     assert status.get("os_package_snapshot_pinned") is False
     assert status.get("supply_chain_level") == "PARTIAL"
 
-    print("MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_CONTRACT_PASS")
+    print("MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_CONTRACT_PASS scope=ARCHIVED_WORKFLOW_SOURCE_ONLY active_workflows_qualified=false")
 
 
 if __name__ == "__main__":

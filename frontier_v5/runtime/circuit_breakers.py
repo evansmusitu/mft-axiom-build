@@ -7,6 +7,7 @@ contract tests and production evidence collectors.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from threading import RLock
 from typing import Iterable, Mapping
 
@@ -103,7 +104,13 @@ class CircuitBreakerFabric:
     def _validate_epoch(now_epoch: float) -> float:
         if isinstance(now_epoch, bool) or not isinstance(now_epoch, (int, float)):
             raise TypeError("now_epoch must be numeric")
-        return float(now_epoch)
+        try:
+            now = float(now_epoch)
+        except OverflowError as exc:
+            raise ValueError("now_epoch must be finite") from exc
+        if not math.isfinite(now):
+            raise ValueError("now_epoch must be finite")
+        return now
 
     @staticmethod
     def _display_epoch(value: float | None) -> int | float | None:
@@ -293,6 +300,12 @@ class CircuitBreakerFabric:
         now = self._validate_epoch(now_epoch)
         if isinstance(latency_ms, bool) or not isinstance(latency_ms, (int, float)):
             raise TypeError("latency_ms must be numeric")
+        try:
+            finite_latency = math.isfinite(latency_ms)
+        except OverflowError as exc:
+            raise ValueError("latency_ms must be finite") from exc
+        if not finite_latency:
+            raise ValueError("latency_ms must be finite")
         if latency_ms < 0:
             raise ValueError("latency_ms cannot be negative")
 

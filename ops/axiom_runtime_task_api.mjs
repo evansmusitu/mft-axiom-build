@@ -188,7 +188,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
     return json(409,{error:'submission_already_recorded_reconcile_before_retry',task_id:taskId,status:previous.status});
   }
   try{await governance.assertBound({customer,objective});}catch(error){return json(403,{error:clean(error?.message||'execution_not_authorized',240)});}
-  const runtime=createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME});
+  const runtime=payload.decision===undefined?createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME}):null;
   const store=governance,research=createFixedResearch(fetchImpl),model=createWorkersAIModel(env);
   let observerConnected=true;
   const stream=new ReadableStream({

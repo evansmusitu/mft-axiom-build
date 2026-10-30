@@ -1,0 +1,54 @@
+name: AXIOM whole-system offline qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'axiom_interface/**'
+      - 'frontier_v5/**'
+      - 'reasoning/**'
+      - 'recovery/**'
+      - 'multiplatform/**'
+      - 'ops/axiom_execution_contract*'
+      - 'ops/axiom_runtime_task_api.mjs'
+      - 'qualification/whole-system-20261029/**'
+      - '.github/workflows/axiom-whole-system-offline-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-contracts:
+    name: Whole-system offline contracts and local D1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      CLOUDFLARE_CF_FETCH_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Install existing worker dependency lock
+        working-directory: reasoning/phase2
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned local D1 emulator without account credentials
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0
+      - name: Run integrated offline contracts including real local D1 transactions
+        run: python3 qualification/whole-system-20261029/run_checks.py --with-local-d1
+      - name: Preserve raw offline evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-whole-system-offline-evidence
+          path: qualification/whole-system-20261029/check-results/
+          if-no-files-found: error

@@ -11,11 +11,13 @@ import json
 import math
 import re
 import struct
+from fractions import Fraction
 from typing import Any, Mapping
 
 _ID = re.compile(r'^[A-Za-z0-9_.:-]{1,100}$')
 _FORMAT = 'musitu.axiom.decision-input-f64be.v1'
 _MAX_ITEMS = 100
+_MAX_RANGE_ACTIONS = 20  # Bound the quadratic exact-threshold proof before persistence.
 
 
 def _fields(value: Any, required: set[str], optional: set[str] = frozenset()) -> Mapping[str, Any]:
@@ -90,7 +92,7 @@ def _numeric_commitment(value: Any) -> Any:
 
 def normalize_decision(problem: Mapping[str, Any]) -> dict[str, Any]:
     problem = _fields(problem, {'states', 'actions', 'utility_unit', 'assumptions', 'evidence_refs'},
-                      {'signal_model', 'information_cost'})
+                      {'signal_model', 'information_cost', 'probability_range'})
     states = []
     for raw in _rows(problem['states'], 'states'):
         raw = _fields(raw, {'id', 'probability'})
@@ -139,8 +141,104 @@ def normalize_decision(problem: Mapping[str, Any]) -> dict[str, Any]:
         signal_model = {'signals': signals}
     elif cost:
         raise ValueError('information cost requires a signal model')
-    return {'states': states, 'actions': actions, 'utility_unit': _text(problem['utility_unit'], 'utility unit', 80),
-            'assumptions': assumptions, 'evidence_refs': refs, 'signal_model': signal_model, 'information_cost': cost}
+    value = {'states': states, 'actions': actions, 'utility_unit': _text(problem['utility_unit'], 'utility unit', 80),
+             'assumptions': assumptions, 'evidence_refs': refs, 'signal_model': signal_model, 'information_cost': cost}
+    if 'probability_range' in problem:
+        if len(actions) > _MAX_RANGE_ACTIONS:
+            raise ValueError('probability_range supports at most 20 actions')
+        bounds = _fields(problem['probability_range'], {'state_id', 'lower', 'upper'})
+        selected = _id(bounds['state_id'])
+        lower, upper = _number(bounds['lower'], 'probability lower bound'), _number(bounds['upper'], 'probability upper bound')
+        if len(states) != 2 or selected not in ids:
+            raise ValueError('probability_range requires exactly two states and an existing state_id')
+        if not 0 <= lower <= upper <= 1:
+            raise ValueError('probability bounds must satisfy 0 <= lower <= upper <= 1')
+        if not lower <= next(row['probability'] for row in states if row['id'] == selected) <= upper:
+            raise ValueError('baseline selected-state probability must lie within probability_range')
+        if signal_model is not None:
+            raise ValueError('probability_range does not support signal models or robust information value')
+        value['probability_range'] = {'state_id': selected, 'lower': lower, 'upper': upper}
+    return value
+
+
+def _probability_robustness(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Exact affine comparisons for one declared two-state probability range.
+
+    A binary64 input denotes its exact rational value for this analysis. Display
+    values are rounded to binary64, while ties and interval membership use exact
+    fractions. No uncertain utilities, signal models or empirical priors are fit.
+    """
+    bounds = value['probability_range']
+    selected = bounds['state_id']
+    complement = next(row['id'] for row in value['states'] if row['id'] != selected)
+    lower, upper = Fraction(bounds['lower']), Fraction(bounds['upper'])
+    lines = {}
+    for action in value['actions']:
+        intercept = Fraction(action['utilities'][complement])
+        lines[action['id']] = (intercept, Fraction(action['utilities'][selected]) - intercept)
+
+    def at(line, probability):
+        return line[0] + line[1] * probability
+
+    def optimal(probability):
+        utilities = {key: at(line, probability) for key, line in lines.items()}
+        best = max(utilities.values())
+        return [key for key, utility in utilities.items() if utility == best]
+
+    utility_ranges = {}
+    possible = []
+    for key, line in lines.items():
+        start, end = at(line, lower), at(line, upper)
+        utility_ranges[key] = {'at_lower': float(start), 'at_upper': float(end),
+                               'minimum': float(min(start, end)), 'maximum': float(max(start, end))}
+        # A line is optimal somewhere iff every pairwise affine inequality has
+        # a common feasible p in the closed range; endpoint winners alone miss
+        # lines which are optimal only in the interior.
+        feasible_lower, feasible_upper = lower, upper
+        feasible = True
+        for other in lines.values():
+            intercept, slope = line[0] - other[0], line[1] - other[1]
+            if slope == 0:
+                if intercept < 0:
+                    feasible = False
+                    break
+            elif slope > 0:
+                feasible_lower = max(feasible_lower, -intercept / slope)
+            else:
+                feasible_upper = min(feasible_upper, -intercept / slope)
+        if feasible and feasible_lower <= feasible_upper:
+            possible.append(key)
+
+    thresholds = []
+    keys = list(lines)
+    for index, first in enumerate(keys):
+        for second in keys[index + 1:]:
+            intercept = lines[first][0] - lines[second][0]
+            slope = lines[first][1] - lines[second][1]
+            if slope == 0:
+                identical = intercept == 0
+                thresholds.append({'actions': [first, second], 'relation': 'IDENTICAL' if identical else 'PARALLEL',
+                                   'probability': None, 'exact_probability': None,
+                                   'in_unit_interval': identical, 'in_range': identical})
+                continue
+            threshold = -intercept / slope
+            try:
+                approximation = float(threshold)
+            except OverflowError:
+                approximation = None
+            thresholds.append({'actions': [first, second], 'relation': 'CROSSING', 'probability': approximation,
+                               'exact_probability': {'numerator': str(threshold.numerator), 'denominator': str(threshold.denominator)},
+                               'in_unit_interval': 0 <= threshold <= 1, 'in_range': lower <= threshold <= upper})
+    at_lower, at_upper = optimal(lower), optimal(upper)
+    return {'schema': 'musitu.axiom.decision-probability-robustness.v1',
+            'scope': 'TWO_STATE_EXPECTED_UTILITY_ONLY', 'state_id': selected, 'complement_state_id': complement,
+            'complement_probability_rule': 'P(complement_state_id)=1-P(state_id)',
+            'lower': bounds['lower'], 'upper': bounds['upper'], 'utility_ranges': utility_ranges,
+            'optimal_at_lower': at_lower, 'optimal_at_upper': at_upper,
+            'robust_optimal_actions': [key for key in at_lower if key in at_upper], 'possible_optimal_actions': possible,
+            'robust_optimal_definition': 'EXPECTED_UTILITY_OPTIMAL_THROUGHOUT_CLOSED_RANGE',
+            'pairwise_break_even': thresholds, 'comparison_arithmetic': 'EXACT_RATIONALS_OF_DECLARED_BINARY64_INPUTS',
+            'probabilities_empirically_validated': False}
 
 
 def evaluate_decision(problem: Mapping[str, Any]) -> dict[str, Any]:
@@ -178,7 +276,7 @@ def evaluate_decision(problem: Mapping[str, Any]) -> dict[str, Any]:
         net = _sum([evsi, -value['information_cost']])
     committed = {'format': _FORMAT, 'problem': _numeric_commitment(value)}
     digest = hashlib.sha256(json.dumps(committed, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
-    return {'schema': 'musitu.axiom.decision-analysis.v1', 'expected_utilities': expected,
+    result = {'schema': 'musitu.axiom.decision-analysis.v1', 'expected_utilities': expected,
             'recommended_action': winners[0], 'tied_recommendations': winners, 'max_expected_utility': best,
             'regrets': regrets, 'max_regret': maxima, 'minimax_regret': {'action': minimax, 'value': minimum},
             'expected_value_with_perfect_information': perfect, 'evpi': evpi,
@@ -186,6 +284,9 @@ def evaluate_decision(problem: Mapping[str, Any]) -> dict[str, Any]:
             'utility_unit': value['utility_unit'], 'assumptions': value['assumptions'], 'evidence_refs': value['evidence_refs'],
             'input_sha256': digest, 'commitment_format': _FORMAT,
             'recommendation_only': True, 'authority_granted': False, 'source_evidence_verified': False}
+    if 'probability_range' in value:
+        result['robustness'] = _probability_robustness(value)
+    return result
 
 
 if __name__ == '__main__':

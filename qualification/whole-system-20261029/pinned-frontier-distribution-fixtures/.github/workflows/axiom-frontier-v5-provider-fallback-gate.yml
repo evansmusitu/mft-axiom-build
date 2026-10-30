@@ -1,0 +1,43 @@
+name: MUSITU Axiom Frontier v5 Provider Fallback Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-skill-fabric
+    paths:
+      - 'frontier_v5/tests/test_provider_fallback_contract.py'
+      - 'frontier_v5/runtime/provider_fallback.py'
+      - 'frontier_v5/runtime/circuit_breakers.py'
+      - '.github/workflows/axiom-frontier-v5-provider-fallback-gate.yml'
+  pull_request:
+    paths:
+      - 'frontier_v5/tests/test_provider_fallback_contract.py'
+      - 'frontier_v5/runtime/provider_fallback.py'
+      - 'frontier_v5/runtime/circuit_breakers.py'
+      - '.github/workflows/axiom-frontier-v5-provider-fallback-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-frontier-v5-provider-fallback
+  cancel-in-progress: true
+
+jobs:
+  provider-fallback-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Verify provider outage and quality-preserving fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_provider_fallback_contract.py | tee /tmp/provider-fallback.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_PROVIDER_FALLBACK_PASS' /tmp/provider-fallback.log

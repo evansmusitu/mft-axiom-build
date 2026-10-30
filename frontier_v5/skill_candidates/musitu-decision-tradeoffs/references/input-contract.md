@@ -12,6 +12,21 @@ contains P(signal | state). Sum likelihoods over signals to one for each state.
 Optional nonnegative `information_cost` requires a signal model and uses the
 same utility unit. Do not reverse conditional likelihoods and posteriors.
 
+For uncertainty about one probability, optionally supply
+`probability_range: {state_id, lower, upper}`. This mode requires exactly two
+states and at most 20 actions; the other state's probability is `1-p`. Bounds
+must satisfy `0 <= lower <= upper <= 1` and contain the declared point prior.
+Signal models and robust information value are outside this mode. The action
+limit bounds the quadratic exact-threshold proof before durable storage; point
+analysis without a range retains its existing 100-row limits.
+
+Range output includes endpoint utility ranges, actions optimal throughout the
+closed range, actions optimal somewhere (including the interior), and pairwise
+break-even thresholds. Exact fractions describe the declared binary64 utility
+values; rounded threshold displays do not decide equality or interval membership.
+An empty robust-optimal set means no action is optimal across the whole range.
+Range analysis does not establish empirical probabilities or action authority.
+
 Probabilities, utilities, costs and arithmetic results must be finite. Integer
 values outside JavaScript's safe integer range are rejected consistently across
 the two runtimes. The commitment normalizes row order and binds all accepted
@@ -32,3 +47,5 @@ EVSI 9. These are illustrative assumptions, not observed business performance.
 The shared six-case oracle corpus is
 `frontier_v5/fixtures/decision_analysis_v1.json`; it includes independent and
 perfect signals, negative utilities, tied actions and a zero-probability signal.
+The additional `decision_probability_robustness_v1.json` corpus covers interval
+switches, dominance, exact boundary ties and binary64 display edge cases.
