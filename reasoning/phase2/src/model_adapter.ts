@@ -222,16 +222,17 @@ export class HttpStructuredModelAdapter implements ModelAdapter {
     try{
       response=await this.fetchFn(url,{method:"POST",headers,body:requestBody,redirect:"manual",signal:controller.signal});
     }catch(error){
+      clearTimeout(timer);
       if(controller.signal.aborted)throw new ModelAdapterError("MODEL_UPSTREAM_TIMEOUT","Model provider request timed out",504);
       throw new ModelAdapterError("MODEL_UPSTREAM_NETWORK","Model provider request failed",502);
-    }finally{clearTimeout(timer);}
+    }
     let captured;
     try{
       captured=await captureBoundedJsonResponse({
         response,allowedStatus:this.allowedStatus,allowedMediaTypes:["application/json"],
-        maxResponseBytes:Math.min(this.maxResponseBytes,input.profile.maxModelResponseBytes),secrets
+        maxResponseBytes:Math.min(this.maxResponseBytes,input.profile.maxModelResponseBytes),secrets,signal:controller.signal
       });
-    }catch(error){translate(error);}
+    }catch(error){translate(error);}finally{clearTimeout(timer);}
     let parsed:any;
     try{parsed=JSON.parse(captured!.body);}catch{throw new ModelAdapterError("MODEL_UPSTREAM_INVALID_JSON","Model provider response is not valid JSON",502);}
     if(!parsed||typeof parsed!=="object"||Array.isArray(parsed)||Object.keys(parsed).length!==1||!("proposal" in parsed)||!parsed.proposal||typeof parsed.proposal!=="object"||Array.isArray(parsed.proposal)){

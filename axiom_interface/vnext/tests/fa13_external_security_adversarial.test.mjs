@@ -1,3 +1,4 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,12 +18,12 @@ const authority={
 const workspace=()=>EngineeringWorkspaceRuntime.create({projectId,authority,files:{'index.html':'<h1>safe</h1>\n','app.js':'export const safe=true;\n','axiom.tests.json':JSON.stringify({checks:[{kind:'contains',path:'index.html',value:'safe'}]})}});
 
 test('attack: external qualification package includes governed workflow fixtures',()=>{
-  const enterpriseWorkflow=new URL('../../../.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml',import.meta.url);
+  const enterpriseWorkflow=pinnedSource('.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml');
   for(const path of [
     '../../../.github/workflows/axiom-fa13-cloudflare-preproduction-qualification.yml',
     '../../../.github/workflows/cloudflare-access-audit.yml',
     '../../../.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml',
-  ])assert.equal(fs.existsSync(new URL(path,import.meta.url)),true,`missing governed external fixture ${path}`);
+  ])assert.equal(fs.existsSync(pinnedSource(path)),true,`missing governed external fixture ${path}`);
   const workflow=fs.readFileSync(enterpriseWorkflow,'utf8');
   for(const watched of [
     'axiom_interface/vnext/engineering_command_center_*.js',

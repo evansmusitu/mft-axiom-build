@@ -1,10 +1,10 @@
-import {inspectConnectedRuntime,runConnectedTask} from './runtime_execution_client.mjs';
+import {inspectConnectedRuntime,inspectConnectedSubmission,runConnectedTask} from './runtime_execution_client.mjs';
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const clean=(value,limit=2000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,limit);
 const PHASES=Object.freeze(['ACCEPTED','RUNTIME_CONNECTED','RESEARCHING','EXECUTING','SYNTHESIZING','PERSISTING','COMPLETED']);
 const LABELS=Object.freeze({ACCEPTED:'Task accepted',RUNTIME_CONNECTED:'Protected runtime connected',RESEARCHING:'Retrieving fixed-source evidence',EXECUTING:'Executing metered runtime operation',SYNTHESIZING:'Building the answer',PERSISTING:'Saving artifact and receipt',COMPLETED:'Completed',FAILED:'Failed safely'});
-let running=false,lastObjective='';
+let running=false,lastObjective='',lastSubmissionId='';
 
 function el(tag,{className='',text='',attrs={}}={}){
   const node=document.createElement(tag);if(className)node.className=className;if(text)node.textContent=text;
@@ -47,7 +47,8 @@ function renderAuthentication(panel,signInHref){
 function renderFailure(panel,error){
   const output=$('#runtime-output',panel);output.replaceChildren();
   const card=el('article',{className:'runtime-error'});card.append(el('h3',{text:'Task stopped safely'}),el('p',{text:clean(error?.message||'The execution pipeline failed.',300)}));
-  const retry=el('button',{className:'button primary',text:'Retry task',attrs:{type:'button'}});retry.addEventListener('click',()=>void execute(lastObjective));card.append(retry);output.append(card);
+  card.append(el('p',{text:'Check the saved task before submitting again; a disconnected request may already have completed.'}));output.append(card);
+  if(lastSubmissionId){const check=el('button',{className:'button',text:'Check saved task',attrs:{type:'button'}});check.addEventListener('click',async()=>{try{const result=await inspectConnectedSubmission(lastSubmissionId);if(result?.status==='COMPLETED')renderResult(panel,result);else card.append(el('p',{text:result?`Saved task: ${result.status}`:'No task has been recorded for this submission yet.'}));}catch(e){card.append(el('p',{text:clean(e.message,240)}));}});card.append(check);}
   const state=$('.runtime-state',panel);state.textContent='Failed safely';state.dataset.runtimeState='failed';
   const status=$('#composer-status');if(status)status.textContent='Execution failed safely · retry available';
 }
@@ -63,7 +64,9 @@ function renderResult(panel,result){
   if(Array.isArray(artifact.findings)&&artifact.findings.length){report.append(el('h4',{text:'Findings'}));const list=el('ul');for(const finding of artifact.findings)list.append(el('li',{text:clean(finding,1200)}));report.append(list);}
   if(Array.isArray(artifact.citations)&&artifact.citations.length){report.append(el('h4',{text:'Sources'}));const sources=el('ol',{className:'runtime-sources'});for(const source of artifact.citations){const item=el('li'),link=el('a',{text:clean(source.title,240),attrs:{href:source.url,target:'_blank',rel:'noopener noreferrer'}});item.append(link,el('small',{text:`${clean(source.publisher,120)}${source.published_at?` · ${clean(source.published_at,60)}`:''}`}));sources.append(item);}report.append(sources);}
   if(Array.isArray(artifact.limitations)&&artifact.limitations.length){report.append(el('h4',{text:'Limitations'}));const list=el('ul',{className:'muted'});for(const item of artifact.limitations)list.append(el('li',{text:clean(item,800)}));report.append(list);}
-  const facts=el('aside',{className:'runtime-proof'});facts.append(el('small',{className:'eyebrow',text:'EXECUTION PROOF'}),el('h3',{text:'Full connection verified'}));
+  const facts=el('aside',{className:'runtime-proof'});facts.append(el('small',{className:'eyebrow',text:'EXECUTION RECEIPT'}),el('h3',{text:'Artifact and evidence commitments'}));
+  addLabeled(facts,'Project',result.execution_contract?.project_id||'');addLabeled(facts,'Work',result.execution_contract?.work_id||'');addLabeled(facts,'Agent',result.execution_contract?.agent_id||'');
+  facts.append(el('p',{text:'Receipt checks bind the recorded inputs and outputs. Custom success criteria and source claims require their own evaluation.'}));
   addLabeled(facts,'Runtime',`${result.runtime?.operation_count||0} operations · ${clean(result.runtime?.build_id,100)}`);
   addLabeled(facts,'Operation',result.execution?.operation||'No quantitative operation required');
   addLabeled(facts,'Synthesis',artifact.synthesis_mode||'GOVERNED_SYNTHESIS');
@@ -81,9 +84,12 @@ async function execute(objective){
   if(running)return;objective=clean(objective,2000);if(objective.length<3)return;running=true;lastObjective=objective;
   await ensureHome();const panel=executionPanel(objective);document.querySelectorAll('.execute-button').forEach(button=>button.disabled=true);
   try{
-    const session=await (window.AxiomBrowserSessionReady||Promise.resolve(window.AxiomBrowserSession?.getState?.()));
+    await window.AxiomBrowserSessionReady;
+    const session=window.AxiomBrowserSession?.getState?.();
     if(!session?.authenticated){renderAuthentication(panel,session?.signInHref);return;}
-    const result=await runConnectedTask(objective,{onEvent:event=>{if(event.event==='phase')updatePhase(panel,event.data?.phase);}});renderResult(panel,result);
+    const executionContext=window.AxiomExecutionContext?.get?.(objective);
+    lastSubmissionId=crypto.randomUUID();
+    const result=await runConnectedTask(objective,{executionContext,submissionId:lastSubmissionId,onEvent:event=>{if(event.event==='phase')updatePhase(panel,event.data?.phase);}});renderResult(panel,result);
     const input=$('#composer-input');if(input)input.value='';
   }catch(error){if(error?.code==='AUTHENTICATION_REQUIRED')renderAuthentication(panel,error.signInHref);else renderFailure(panel,error);}
   finally{running=false;document.querySelectorAll('.execute-button').forEach(button=>button.disabled=false);}

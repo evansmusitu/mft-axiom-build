@@ -134,6 +134,21 @@ class IntegrityRepairs(unittest.TestCase):
         self.assertEqual(graph.as_of('fact', '2026-10-29T00:30:00Z'), [fact])
         self.assertEqual(graph.as_of('fact', '2026-10-29T01:00:00Z'), [])
 
+    def test_memory_migration_failure_rolls_back_legacy_data(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'blocked-migration.db'
+            with sqlite3.connect(path) as db:
+                db.execute('CREATE TABLE memory_records(tenant TEXT NOT NULL,namespace TEXT NOT NULL,key TEXT NOT NULL,record_id TEXT PRIMARY KEY,payload_json TEXT NOT NULL,observed_at TEXT NOT NULL,tombstone INTEGER NOT NULL DEFAULT 0,supersedes TEXT)')
+                db.execute("INSERT INTO memory_records VALUES('A','public','fact','record','{}','2026-10-29T00:00:00Z',0,NULL)")
+                # An unrelated table must not be dropped to force migration.
+                db.execute('CREATE TABLE memory_records_tenant_v2(marker TEXT)')
+                db.execute("INSERT INTO memory_records_tenant_v2 VALUES('preserve')")
+            with self.assertRaises(sqlite3.OperationalError):
+                SQLiteProductionStore(path)
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute('SELECT tenant,record_id FROM memory_records').fetchall(), [('A','record')])
+                self.assertEqual(db.execute('SELECT marker FROM memory_records_tenant_v2').fetchall(), [('preserve',)])
+
     def test_temporal_intervals_validate_real_order_and_timezone(self):
         evidence = EvidenceRecord(EvidenceClass.USER, 1, 'fixture', '2026-10-29T00:00:00Z')
         graph = TemporalEvidenceGraph()

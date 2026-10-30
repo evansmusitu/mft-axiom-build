@@ -1,3 +1,4 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -7,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {createFixedResearch} from '../../../ops/axiom_runtime_task_api.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url)),root=path.resolve(here,'../../..');
-const read=relative=>fs.readFileSync(path.join(root,relative),'utf8');
+const read=relative=>fs.readFileSync(pinnedSource(relative),'utf8');
 
 test('research transport can contact only fixed HTTPS providers',async()=>{
   const seen=[];

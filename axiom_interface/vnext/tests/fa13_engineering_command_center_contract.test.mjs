@@ -1,9 +1,10 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const root=new URL('../',import.meta.url);
 const read=name=>fs.readFileSync(new URL(name,root),'utf8');
-const repoRead=name=>fs.readFileSync(new URL(`../../../${name}`,import.meta.url),'utf8');
+const repoRead=name=>fs.readFileSync(pinnedSource(name),'utf8');
 const modules=['engineering_command_center_security.js','engineering_command_center_verifier.js','engineering_command_center_adapters.js','engineering_command_center_store.js','engineering_workspace_runtime.js','engineering_command_center_ui.js'];
 test('FA-13 modules introduce no direct external transport host shell or deployment executor',()=>{const source=modules.map(read).join('\n');for(const pattern of [/\bfetch\s*\(/,/WebSocket\s*\(/,/XMLHttpRequest/,/EventSource\s*\(/,/navigator\.sendBeacon/,/child_process/,/\bspawn\s*\(/,/\bexec\s*\(/,/docker\s+push/,/kubectl\s+apply/,/terraform\s+apply/])assert.equal(pattern.test(source),false,`forbidden primitive ${pattern}`);});
 test('FA-13 UI exposes serious engineering workspace while preserving claim boundaries',()=>{const ui=read('engineering_command_center_ui.js');for(const text of ['Engineering Mission Control','Files · editor · diff · diagnostics · search · tests · preview','No parity, cloud execution, production deployment, SSO or red-team qualification is inferred from UI presence','PRODUCTION AUTHORITY: FALSE','Bounded virtual terminal','14-row Engineering Command Center matrix','Engineering Command Center does not redefine AXIOM as an IDE'])assert.ok(ui.includes(text),text);});

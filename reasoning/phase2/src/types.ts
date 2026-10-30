@@ -1,6 +1,7 @@
 import type { AxiomNode, AxiomProgram, CompilerManifest, ConstraintSpec, JsonValue, TypeRef, TypedValue } from "../../phase1/src/types.ts";
 import type { ReasoningCertificate } from "../../phase1/src/certificate.ts";
 import type { SignerIdentity } from "./signer.ts";
+import type { WorkerLeaseCapability } from "./worker_lease_capability.ts";
 
 export interface TenantScope { tenantId: string; }
 
@@ -454,6 +455,9 @@ export interface DistributedExecutionState {
   attemptCount:number;
   leaseOwner?:string;
   leaseExpiresAt?:string;
+  leaseWorkerKeyId?:string;
+  leasePoolId?:string;
+  leaseCapabilityCoreHash?:string;
   terminalAt?:string;
   result?:ControlPlaneResult;
   resultHash?:string;
@@ -469,4 +473,89 @@ export interface DistributedExecutionLease {
   workerId:string;
   leaseEpoch:number;
   leaseExpiresAt:string;
+}
+
+
+export type WorkerAction="CLAIM"|"HEARTBEAT"|"RELEASE"|"COMPLETE"|"FAIL_TERMINAL";
+
+export interface WorkerIdentity {
+  protocolVersion:"axiom.worker/v1";
+  workerId:string;
+  keyId:string;
+  poolId:string;
+  algorithm:"Ed25519";
+  publicKeySha256:string;
+}
+export interface WorkerTrustRecord {
+  identity:WorkerIdentity;
+  publicKeyPem:string;
+  status:"ACTIVE"|"REVOKED";
+  maxLeaseMs:number;
+  allowedActions:WorkerAction[];
+  recordHash:string;
+}
+export interface WorkerRequestProof {
+  protocolVersion:"axiom.worker-request/v1";
+  workerId:string;
+  keyId:string;
+  requestId:string;
+  action:WorkerAction;
+  targetJobId?:string;
+  bodyHash:string;
+  issuedAt:string;
+  signatureBase64:string;
+}
+export interface AuthenticatedWorkerContext {
+  identity:WorkerIdentity;
+  maxLeaseMs:number;
+  allowedActions:WorkerAction[];
+  requestId:string;
+  action:WorkerAction;
+  targetJobId?:string;
+  bodyHash:string;
+  issuedAt:string;
+  requestHash:string;
+}
+
+
+export type WorkerLeaseAction="HEARTBEAT"|"RELEASE"|"COMPLETE"|"FAIL_TERMINAL";
+export interface WorkerLeaseCapabilityCore {
+  protocolVersion:"axiom.worker-lease/v1";
+  workerId:string;
+  workerKeyId:string;
+  poolId:string;
+  tenantId:string;
+  jobId:string;
+  intentHash:string;
+  leaseEpoch:number;
+  leaseExpiresAt:string;
+  allowedActions:WorkerLeaseAction[];
+  signerKeyId:string;
+}
+export interface WorkerLeaseCapability {
+  core:WorkerLeaseCapabilityCore;
+  capabilityId:string;
+  signatureBase64:string;
+}
+export interface PreparedWorkerLeaseCapability {
+  core:WorkerLeaseCapabilityCore;
+  signingPayload:JsonValue;
+  coreHash:string;
+}
+
+
+export interface AuthenticatedDistributedExecutionLease extends DistributedExecutionLease {
+  workerKeyId:string;
+  poolId:string;
+  capability:WorkerLeaseCapability;
+}
+export interface WorkerOperationReceipt {
+  workerId:string;
+  workerKeyId:string;
+  requestId:string;
+  action:WorkerAction;
+  requestHash:string;
+  outcomeHash:string;
+  createdAt:string;
+  receiptHash:string;
 }

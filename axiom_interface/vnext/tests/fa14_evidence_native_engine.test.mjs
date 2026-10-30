@@ -49,9 +49,11 @@ test('denied or stale research sources cannot satisfy claim gate',()=>{
   assert.ok(v.findings.some(x=>x.type==='SOURCE_STALE'));
 });
 
-test('analysis gate requires lineage, transformations, qualified capability and reproducibility',()=>{
+test('analysis metadata cannot self-certify lineage, execution or reproducibility',()=>{
   const a=createAnalysisResult({analysisId:'analysis:a1',projectId:'project:p1',title:'Analysis',sourceLineage:[{source_id:'evidence:d1',locator:'table A'}],transformations:[{operation:'mean',formula:'sum(x)/n'}],capability:{id:'statistics.describe',qualification:'CERTIFIED_ATOMIC'},uncertainty:'Sampling uncertainty reported',reproducibility:{environment:'node test',seed:'42',input_hashes:['abc'],code_or_formula_version:'v1'}});
-  assert.equal(verifyAnalysis(a).status,'PASS_LINEAGE_GATE');
+  assert.equal(verifyAnalysis(a).status,'BLOCKED');
+  assert.equal(verifyAnalysis(a).reproducible,false);
+  assert.equal(verifyAnalysis(a).metadata_complete,true);
   assert.equal(analysisInspector(a).exact_capability.id,'statistics.describe');
   const bad={...a,capability:{id:'candidate.x',qualification:'DISCOVERED_CANDIDATE'}};
   assert.equal(verifyAnalysis(bad).status,'BLOCKED');
@@ -68,19 +70,18 @@ test('Twin results remain simulated, uncertain and NOT_CERTIFIED',()=>{
   assert.throws(()=>assertScenarioNotObserved(s),FA14GateError);
 });
 
-test('artifact packages require evidence, provenance and versions; public approval stays external',()=>{
+test('artifact metadata needs resolved evidence and versions; public approval stays external',()=>{
   const a=createArtifactRecord({artifactId:'artifact:a1',projectId:'project:p1',title:'Outcome',kind:'report',evidenceRefs:['evidence:e1'],provenance:[{type:'research',ref:'research:r1'}]});
   assert.equal(verifyArtifact(a).status,'BLOCKED');
   addArtifactVersion(a,{contentSha256:'0123456789abcdef0123456789abcdef',summary:'v1'});
-  assert.equal(verifyArtifact(a).status,'PASS_ARTIFACT_LINEAGE_GATE');
-  const pkg=buildArtifactOutcomePackage(a);
-  assert.equal(pkg.publication_execution_allowed,false);
-  assert.equal(pkg.required_next_gate,'AUTHORIZATION_APPROVAL');
+  assert.equal(verifyArtifact(a).status,'BLOCKED');
+  assert.equal(verifyArtifact(a).metadata_complete,true);
+  assert.throws(()=>buildArtifactOutcomePackage(a),FA14GateError);
   assert.throws(()=>approveArtifact(a,{risk_class:'S4',decision:'ALLOW',receipt_id:'approval:r1',human_approval:false}),FA14GateError);
   approveArtifact(a,{risk_class:'S4',decision:'ALLOW',receipt_id:'approval:r2',human_approval:true});
-  const approved=buildArtifactOutcomePackage(a);
-  assert.equal(approved.required_next_gate,'GOVERNED_EXTERNAL_EXECUTOR');
-  assert.equal(approved.publication_execution_allowed,false);
+  assert.equal(a.approval_state,'APPROVED');
+  assert.equal(a.publication_intent.external_executor_required,true);
+  assert.throws(()=>buildArtifactOutcomePackage(a),FA14GateError);
 });
 
 test('FA-14 final-app boundary does not relabel historical Phase 14 or grant production authority',()=>{

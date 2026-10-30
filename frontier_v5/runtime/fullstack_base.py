@@ -206,7 +206,11 @@ class SQLiteProductionStore:
         self.db = sqlite3.connect(self.path)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
-        self.migrate()
+        try:
+            self.migrate()
+        except BaseException:
+            self.db.close()
+            raise
 
     def migrate(self) -> None:
         # One transaction protects both legacy data and schema on migration
@@ -328,8 +332,18 @@ class CloudflareD1ProductionStore:
         return rows
 
     def migrate(self) -> None:
+        # D1's REST adapter has no cross-statement migration transaction here.
+        # Admit fresh/compatible schemas only. Existing global identities need
+        # an explicitly reviewed data migration, never an implicit drop/copy.
+        self.query('CREATE TABLE IF NOT EXISTS frontier_memory(tenant TEXT NOT NULL, namespace TEXT NOT NULL, k TEXT NOT NULL, record_id TEXT NOT NULL, payload_json TEXT NOT NULL, observed_at TEXT NOT NULL, PRIMARY KEY(tenant,record_id))')
+        columns = self.query('PRAGMA table_info(frontier_memory)')
+        try:
+            primary = [row['name'] for row in sorted(columns, key=lambda row: int(row['pk'])) if int(row['pk'])]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise FrontierError('frontier memory schema could not be verified') from exc
+        if primary != ['tenant', 'record_id']:
+            raise FrontierError('frontier memory requires explicit tenant-scoped legacy migration before admission')
         for sql in (
-            "CREATE TABLE IF NOT EXISTS frontier_memory(tenant TEXT NOT NULL, namespace TEXT NOT NULL, k TEXT NOT NULL, record_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, observed_at TEXT NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_frontier_memory_lookup ON frontier_memory(tenant,namespace,k,observed_at)",
             "CREATE TABLE IF NOT EXISTS frontier_twins(tenant TEXT NOT NULL, twin_id TEXT NOT NULL, version TEXT NOT NULL, twin_type TEXT NOT NULL, payload_json TEXT NOT NULL, source_sha256 TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(tenant,twin_id,version))",
             "CREATE TABLE IF NOT EXISTS frontier_eval_events(event_id TEXT PRIMARY KEY, suite TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL)",

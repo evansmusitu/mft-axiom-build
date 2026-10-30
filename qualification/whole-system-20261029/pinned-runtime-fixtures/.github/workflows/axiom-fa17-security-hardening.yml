@@ -1,0 +1,125 @@
+name: MUSITU Axiom FA17 Security Hardening
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa17-20260916
+    paths:
+      - 'docs/axiom_final_product/FA17_*'
+      - 'axiom_interface/vnext/fa17_*'
+      - 'axiom_interface/vnext/tests/fa17_*'
+      - '.github/scripts/axiom_fa17_*'
+      - '.github/workflows/axiom-fa17-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-and-attack:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Freeze source and change scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=e88f4ecd09343bd04d1196b3379ed8d8c3677c82
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa17-20260916'
+          test "$(git merge-base "$SOURCE" HEAD)" = "$SOURCE"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_QUALIFICATION' docs/axiom_final_product/FA17_PREWRITE_INTENT.md
+          python - <<'PY'
+          import json,subprocess
+          source='e88f4ecd09343bd04d1196b3379ed8d8c3677c82'
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA17_') or p.startswith('axiom_interface/vnext/fa17_') or p.startswith('axiom_interface/vnext/tests/fa17_') or p in {'axiom_interface/vnext/fa16_pwa_engine.js','axiom_interface/vnext/tests/fa16_pwa_engine.test.mjs'} or p.startswith('.github/scripts/axiom_fa17_') or p.startswith('.github/workflows/axiom-fa17-'))
+          bad=sorted(p for p in changed if not allowed(p))
+          if bad: raise SystemExit('FA17 change escaped frozen qualification scope: '+repr(bad))
+          matrix=json.load(open('docs/axiom_final_product/FA17_SECURITY_MATRIX.json'))
+          expected={'source_commit':source,'candidate_state':'SECURITY_QUALIFICATION_PENDING_INDEPENDENT_VERIFICATION','qualification_earned':False,'high_severity_gate':'BLOCK_ON_OPEN_HIGH_OR_CRITICAL','builder_and_verifier_must_be_distinct':True,'repository_write_authority_present':False,'production_credentials_present':False,'production_authority':False,'fa16_tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','fa16_phase_exit_earned':False}
+          drift={key:(matrix.get(key),value) for key,value in expected.items() if matrix.get(key)!=value}
+          if drift: raise SystemExit('FA17 truth boundary drift: '+repr(drift))
+          PY
+      - name: Full final-app regression and adversarial suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/fa17_security_qualification.mjs
+          python -m py_compile .github/scripts/axiom_fa17_security_scan.py .github/scripts/axiom_fa17_isolated_dast.py
+          node --test axiom_interface/vnext/tests/*.test.mjs
+      - name: Credential-free SAST secrets SSRF and supply-chain scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa17-work
+          python .github/scripts/axiom_fa17_security_scan.py --output fa17-work/fa17-security-scan.json
+          test "$(jq -r .status fa17-work/fa17-security-scan.json)" = PASS_NO_OPEN_HIGH_SEVERITY
+          test "$(jq -r .high_or_critical_open fa17-work/fa17-security-scan.json)" = 0
+      - name: Isolated hostile-path DAST
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/axiom_fa17_isolated_dast.py --self-test
+      - name: Build exact-head security evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa17-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          files=['docs/axiom_final_product/FA17_PREWRITE_INTENT.md','docs/axiom_final_product/FA17_SECURITY_MATRIX.json','axiom_interface/vnext/fa17_security_qualification.mjs','axiom_interface/vnext/tests/fa17_security_hardening.test.mjs','axiom_interface/vnext/tests/fa17_adversarial_red_team.test.mjs','axiom_interface/vnext/fa16_pwa_engine.js','axiom_interface/vnext/tests/fa16_pwa_engine.test.mjs','.github/scripts/axiom_fa17_security_scan.py','.github/scripts/axiom_fa17_isolated_dast.py','.github/workflows/axiom-fa17-security-hardening.yml','.github/workflows/axiom-fa17-independent-verifier.yml']
+          hashes={path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest() for path in files}
+          scan=json.load(open('fa17-work/fa17-security-scan.json'))
+          suites={name:'PASS' for name in ['SAST','DAST','PROMPT_INJECTION','PRIVILEGE','SECRETS','SSRF','SUPPLY_CHAIN','EVALUATOR_TAMPER','ROLLBACK_EVIDENCE_TAMPER']}
+          evidence={'schema':'musitu.axiom.fa17.builder-evidence.v1','status':'BUILDER_TESTS_AND_ATTACK_PASS_NO_OPEN_HIGH_SEVERITY','candidate_commit':os.environ['GITHUB_SHA'],'source_commit':'e88f4ecd09343bd04d1196b3379ed8d8c3677c82','evaluator_policy_sha256':'bc9d59b3fcfd850193f0d00314e8fcd1ff30f8bb5894b479ca7563e3bfa005fd','suite_results':suites,'repository_scan_sha256':hashlib.sha256(pathlib.Path('fa17-work/fa17-security-scan.json').read_bytes()).hexdigest(),'open_high_or_critical':scan['high_or_critical_open'],'open_medium_residuals':scan['medium_open'],'files_sha256':hashes,'independent_verification_required':True,'fa16_tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','fa16_phase_exit_earned':False,'production_authority':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          path=pathlib.Path('fa17-evidence/fa17-builder-evidence.json');path.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          (path.parent/'fa17-builder-evidence.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest()+'  '+path.name+'\n')
+          pathlib.Path('fa17-evidence/fa17-security-scan.json').write_bytes(pathlib.Path('fa17-work/fa17-security-scan.json').read_bytes())
+          PY
+      - name: Upload builder security evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa17-builder-security-evidence
+          path: fa17-evidence/
+          retention-days: 90
+
+  security-review:
+    runs-on: ubuntu-24.04
+    needs: test-and-attack
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Separate adversarial review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa17_*.test.mjs
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa17-security-review.json
+          python .github/scripts/axiom_fa17_isolated_dast.py --self-test
+          test "$(jq -r .high_or_critical_open /tmp/fa17-security-review.json)" = 0
+          python - <<'PY'
+          import pathlib,re
+          text='\n'.join(path.read_text() for path in pathlib.Path('.github/workflows').glob('axiom-fa17-*.yml'))
+          if re.search(r'(?m)^\s*(?:contents|actions|deployments|packages|id-token):\s*write\s*$',text): raise SystemExit('FA17 workflow has write authority')
+          if re.search(r'uses:\s*[^\s#]+@(?![0-9a-f]{40}(?:\s|$))',text): raise SystemExit('FA17 workflow action is not immutable')
+          for token in ['wrangler '+'deploy','kubectl '+'apply','terraform '+'apply','git '+'push','gh pr '+'merge']:
+              if token in text: raise SystemExit('FA17 workflow contains deploy/write command')
+          PY
+
+  independent-verifier:
+    needs: security-review
+    uses: ./.github/workflows/axiom-fa17-independent-verifier.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      builder_run_id: ${{ github.run_id }}
+    permissions:
+      contents: read
+      actions: read

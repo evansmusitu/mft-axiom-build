@@ -1,3 +1,4 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -77,8 +78,8 @@ test('FA-18 implementation has no network transport host executor deployment or 
 
 test('FA-18 artifacts use portable internal checksum paths',()=>{
   const root=new URL('../../../',import.meta.url);
-  const builder=fs.readFileSync(new URL('.github/workflows/axiom-fa18-build-challenge.yml',root),'utf8');
-  const verifier=fs.readFileSync(new URL('.github/workflows/axiom-fa18-independent-verifier.yml',root),'utf8');
+  const builder=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa18-build-challenge.yml'),'utf8');
+  const verifier=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa18-independent-verifier.yml'),'utf8');
   assert.ok(builder.includes('(cd fa18-builder-evidence && sha256sum fa18-builder-evidence.json > fa18-builder-evidence.sha256)'));
   assert.ok(verifier.includes('(cd fa18-independent-evidence && sha256sum fa18-independent-verifier.json > fa18-independent-verifier.sha256)'));
   assert.equal(builder.includes('  fa18-builder-evidence/fa18-builder-evidence.json'),false);

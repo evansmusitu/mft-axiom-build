@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {sqliteD1,applyExecutionSchema} from './execution_test_helpers.mjs';
+import {ATOMIC_OPERATIONS} from '../vnext/capability_registry.js';
+import {sha256Json} from '../vnext/execution_integrity.mjs';
 
 import worker from '../../ops/axiom_browser_application_worker.mjs';
 
@@ -177,48 +180,31 @@ test('static application responses remain inline and hardened', async () => {
 });
 
 async function connectedEnvironment({operationCount=74}={}) {
-  const calls=[];
-  const validHash=await sha256Hex(ACCOUNT_KEY);
-  const db={
-    prepare(sql){
-      return {
-        bind(...values){
-          calls.push({sql,values});
-          return {
-            async run(){return {success:true};},
-            async first(){
-              if(sql.includes('FROM api_keys')&&sql.includes('JOIN customers'))return values[0]===validHash?{customer_id:'customer-test',email:'axiom.test@mftintelligence.com'}:null;
-              if(sql.includes('FROM customers'))return values[0]==='customer-test'?{id:'customer-test',email:'axiom.test@mftintelligence.com',plan:'developer'}:null;
-              if(sql.includes('FROM usage_events'))return {request_id:values[0],operation:'arithmetic.evaluate',compute_units:1,http_status:200,result_sha256:'d'.repeat(64)};
-              return null;
-            },
-          };
-        },
-      };
-    },
-  };
-  const runtimeCalls=[];
-  const runtime={
-    async fetch(input,init={}){
-      const url=new URL(typeof input==='string'?input:input.url);runtimeCalls.push({url,init});
-      if(url.pathname==='/health')return Response.json({ok:true,build_id:'protected-runtime-build',operation_count:operationCount});
-      if(url.pathname==='/v1/tools')return Response.json({build_id:'protected-runtime-build',operation_count:operationCount,tools:['arithmetic.evaluate',...Array.from({length:Math.max(0,operationCount-1)},(_,index)=>`fixture.operation.${index}`)]});
-      if(url.pathname==='/v1/compute')return Response.json({result:{value:42},receipt:{signature:'sealed-runtime-receipt'}});
-      return new Response('not found',{status:404});
-    },
-  };
-  return {
-    calls,runtimeCalls,
-    env:{
-      ASSETS:{async fetch(){return new Response('<!doctype html><title>MUSITU Axiom Workspace</title>',{headers:{'content-type':'text/html'}});}},
-      AXIOM_DB:db,AXIOM_RUNTIME:runtime,
-      AUTH_RATE_LIMITER:{async limit(){return {success:true};}},
-      TASK_RATE_LIMITER:{async limit(){return {success:true};}},
-      AXIOM_BROWSER_SESSION_SECRET:'connected-test-session-secret-with-more-than-thirty-two-bytes',
-      APP_HOST:'connected.example',APP_ORIGIN:'https://connected.example',APP_ENTRY:'/vnext/index.html#/home',APP_ASSET_ENTRY:'/vnext/index.html',
-      RUNTIME_CONNECTION_REQUIRED:'true',BUILD_SHA:'1'.repeat(40),
-    },
-  };
+  const calls=[],runtimeCalls=[],db=applyExecutionSchema(sqliteD1()),validHash=await sha256Hex(ACCOUNT_KEY);
+  db.exec(`CREATE TABLE customers(id TEXT PRIMARY KEY,email TEXT,plan TEXT,status TEXT);
+    CREATE TABLE api_keys(id TEXT PRIMARY KEY,customer_id TEXT,key_hash TEXT,key_prefix TEXT,label TEXT,status TEXT,created_at TEXT,last_used_at TEXT,expires_at TEXT,revoked_at TEXT);
+    CREATE TABLE usage_events(request_id TEXT,customer_id TEXT,key_id TEXT,operation TEXT,compute_units INTEGER,http_status INTEGER,result_sha256 TEXT);`);
+  db.connection.prepare('INSERT INTO customers VALUES(?,?,?,?)').run('customer-test','axiom.test@mftintelligence.com','developer','active');
+  db.connection.prepare('INSERT INTO api_keys(id,customer_id,key_hash,status) VALUES(?,?,?,?)').run('key-owner','customer-test',validHash,'active');
+  const prepare=db.prepare.bind(db);db.prepare=sql=>({bind(...values){calls.push({sql,values});return prepare(sql).bind(...values);}});
+  const runtime={async fetch(input,init={}){
+    const url=new URL(typeof input==='string'?input:input.url);runtimeCalls.push({url,init});
+    if(url.pathname==='/health')return Response.json({ok:true,build_id:'protected-runtime-build',operation_count:operationCount});
+    if(url.pathname==='/v1/tools')return Response.json({build_id:'protected-runtime-build',operation_count:operationCount,tools:ATOMIC_OPERATIONS.slice(0,operationCount)});
+    if(url.pathname==='/v1/compute'){
+      const keyHash=await sha256Hex(init.headers.authorization.slice(7)),key=db.connection.prepare('SELECT * FROM api_keys WHERE key_hash=?').get(keyHash);
+      assert.ok(key,'delegated key must actually exist');
+      const body={result:{value:42}},digest=await sha256Json(body),rid=init.headers['x-musitu-request-id'];
+      db.connection.prepare('INSERT INTO usage_events VALUES(?,?,?,?,?,?,?)').run(rid,key.customer_id,key.id,'arithmetic.evaluate',1,200,digest);
+      return Response.json({...body,receipt:{customer_id:key.customer_id,request_id:rid,operation:'arithmetic.evaluate',result_sha256:digest}});
+    }
+    return new Response('not found',{status:404});
+  }};
+  return {calls,runtimeCalls,env:{
+    ASSETS:{async fetch(){return new Response('<!doctype html><title>MUSITU Axiom Workspace</title>',{headers:{'content-type':'text/html'}});}},
+    AXIOM_DB:db,AXIOM_RUNTIME:runtime,AUTH_RATE_LIMITER:{async limit(){return {success:true};}},TASK_RATE_LIMITER:{async limit(){return {success:true};}},
+    AXIOM_BROWSER_SESSION_SECRET:'connected-test-session-secret-with-more-than-thirty-two-bytes',APP_HOST:'connected.example',APP_ORIGIN:'https://connected.example',APP_ENTRY:'/vnext/index.html#/home',APP_ASSET_ENTRY:'/vnext/index.html',RUNTIME_CONNECTION_REQUIRED:'true',BUILD_SHA:'1'.repeat(40),
+  }};
 }
 
 async function connectedSession(env){
@@ -234,15 +220,15 @@ test('connected worker proves login through completed metered protected executio
   const fixture=await connectedEnvironment(),origin='https://connected.example',session=await connectedSession(fixture.env);
   const connection=await worker.fetch(new Request(`${origin}/vnext/api/runtime`),fixture.env);
   assert.equal(connection.status,200);assert.equal((await connection.json()).fully_connected,true);
-  const response=await worker.fetch(new Request(`${origin}/vnext/api/tasks`,{method:'POST',headers:{origin,cookie:`__Host-axiom_session=${session}`,'content-type':'application/json',accept:'text/event-stream'},body:JSON.stringify({objective:'Calculate 40+2 and explain the verified result.'})}),fixture.env);
+  const response=await worker.fetch(new Request(`${origin}/vnext/api/tasks`,{method:'POST',headers:{origin,cookie:`__Host-axiom_session=${session}`,'content-type':'application/json',accept:'text/event-stream'},body:JSON.stringify({objective:'Calculate 40+2 and explain the verified result.',submission_id:'submission-fixture',execution_context:{project_id:'project-test',work_id:'work-test',controls:{privacy:'Private',budget:1}}})}),fixture.env);
   assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/event-stream/);
   const stream=await response.text();
   for(const phase of ['ACCEPTED','RUNTIME_CONNECTED','EXECUTING','SYNTHESIZING','PERSISTING','COMPLETED'])assert.match(stream,new RegExp(`"phase":"${phase}"`));
   assert.match(stream,/"value":42/);assert.match(stream,/"customer_metered":true/);assert.match(stream,/"operation_count":74/);
-  assert.ok(fixture.calls.some(call=>/INSERT INTO axiom_execution_tasks/i.test(call.sql)));
+  assert.ok(fixture.calls.some(call=>/INSERT INTO axiom_ec_runs/i.test(call.sql)));
   assert.ok(fixture.calls.some(call=>/INSERT INTO api_keys/i.test(call.sql)));
   assert.ok(fixture.calls.some(call=>/DELETE FROM api_keys/i.test(call.sql)));
-  assert.ok(fixture.calls.some(call=>/UPDATE axiom_execution_tasks SET status='COMPLETED'/i.test(call.sql)));
+  assert.ok(fixture.calls.some(call=>/UPDATE axiom_ec_runs SET status='COMPLETED'/i.test(call.sql)));
   assert.doesNotMatch(stream,/authorization|bearer|musitu_test_account_key/i);
 });
 

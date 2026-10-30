@@ -15,7 +15,7 @@ test('browser client uses only the same-origin HttpOnly session and consumes liv
     ].join('');
     return new Response(stream,{status:200,headers:{'content-type':'text/event-stream'}});
   };
-  const result=await runConnectedTask('Calculate 40+2',{fetchImpl,baseURI:'https://axiom.example/vnext/index.html',onEvent:event=>events.push(event)});
+  const result=await runConnectedTask('Calculate 40+2',{executionContext:{controls:{privacy:'Private',budget:1}},fetchImpl,baseURI:'https://axiom.example/vnext/index.html',onEvent:event=>events.push(event)});
   assert.equal(captured.url,'https://axiom.example/vnext/api/tasks');
   assert.equal(captured.init.credentials,'same-origin');
   assert.equal(captured.init.headers.authorization,undefined);
@@ -26,7 +26,7 @@ test('browser client uses only the same-origin HttpOnly session and consumes liv
 
 test('client surfaces sign-in requirement without following an external redirect',async()=>{
   const fetchImpl=async()=>new Response(JSON.stringify({error:'authenticated_session_required',sign_in_path:'/auth/start'}),{status:401,headers:{'content-type':'application/json'}});
-  await assert.rejects(()=>runConnectedTask('Calculate 40+2',{fetchImpl,baseURI:'https://axiom.example/vnext/index.html'}),error=>{
+  await assert.rejects(()=>runConnectedTask('Calculate 40+2',{executionContext:{controls:{privacy:'Private',budget:1}},fetchImpl,baseURI:'https://axiom.example/vnext/index.html'}),error=>{
     assert.equal(error.code,'AUTHENTICATION_REQUIRED');
     assert.equal(error.signInHref,'https://axiom.example/auth/start');
     return true;
@@ -35,5 +35,5 @@ test('client surfaces sign-in requirement without following an external redirect
 
 test('client rejects non-event-stream success responses',async()=>{
   const fetchImpl=async()=>Response.json({status:'COMPLETED'});
-  await assert.rejects(()=>runConnectedTask('Calculate 40+2',{fetchImpl,baseURI:'https://axiom.example/vnext/index.html'}),/event stream/i);
+  await assert.rejects(()=>runConnectedTask('Calculate 40+2',{executionContext:{controls:{privacy:'Private',budget:1}},fetchImpl,baseURI:'https://axiom.example/vnext/index.html'}),/event stream/i);
 });

@@ -20,6 +20,43 @@ const requireId=(name,value)=>{
   return v;
 };
 const uid=prefix=>`${prefix}:${globalThis.crypto?.randomUUID?.()||`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+const SHA256=/^[0-9a-f]{64}$/;
+
+// Resolvers are application-owned capabilities, never serialized user input.
+// They must return records whose bytes/proof were verified by the trusted store.
+// These synchronous checks bind metadata to those records; they do not perform
+// a new cryptographic proof or infer execution from a qualification label.
+function dataJSON(value,seen=new Set()){
+  if(value===null||typeof value==='string'||typeof value==='boolean')return JSON.stringify(value);
+  if(typeof value==='number'&&Number.isFinite(value))return JSON.stringify(value);
+  if(!value||typeof value!=='object'||seen.has(value))throw new TypeError('finite acyclic JSON required');
+  seen.add(value);
+  try{
+    if(Array.isArray(value))return '['+Array.from(value,item=>dataJSON(item,seen)).join(',')+']';
+    if(Object.getPrototypeOf(value)!==Object.prototype&&Object.getPrototypeOf(value)!==null)throw new TypeError('JSON record required');
+    return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+dataJSON(value[key],seen)).join(',')+'}';
+  }finally{seen.delete(value);}
+}
+function sameData(left,right){try{return dataJSON(left)===dataJSON(right);}catch{return false;}}
+function resolved(options,name,id){
+  try{const row=typeof options?.[name]==='function'?options[name](id):null;return row&&typeof row==='object'&&typeof row.then!=='function'?row:null;}catch{return null;}
+}
+function trustedScope(record,options,findings){
+  const scope=options?.scope;
+  if(!scope?.tenant_id||!scope?.project_id||!scope?.work_id){findings.push({type:'TRUSTED_CONTEXT_REQUIRED'});return false;}
+  if(['tenant_id','project_id','work_id'].some(key=>record?.[key]!==scope[key])){findings.push({type:'RECORD_SCOPE_MISMATCH'});return false;}
+  return true;
+}
+function recordScope(row,scope){return Boolean(row&&['tenant_id','project_id','work_id'].every(key=>row[key]===scope?.[key]));}
+function verifyEvidenceBinding(ref,digest,options,findings){
+  if(!SHA256.test(String(digest||'')))findings.push({type:'INVALID_SHA256',ref});
+  const source=resolved(options,'resolveEvidence',ref);
+  if(!source||source.evidence_id!==ref){findings.push({type:'UNRESOLVED_EVIDENCE',ref});return null;}
+  if(!recordScope(source,options.scope))findings.push({type:'EVIDENCE_SCOPE_MISMATCH',ref});
+  if(source.verification_status!=='VERIFIED'||!SHA256.test(source.content_sha256||''))findings.push({type:'EVIDENCE_NOT_VERIFIED',ref});
+  if(digest!==source.content_sha256)findings.push({type:'EVIDENCE_DIGEST_MISMATCH',ref});
+  return source;
+}
 
 export class FA14GateError extends Error{
   constructor(message,code='FA14_GATE'){super(message);this.name='FA14GateError';this.code=code;}
@@ -164,6 +201,7 @@ export function createAnalysisResult(input={}){
   return {
     schema:'musitu.axiom.fa14.analysis.v1',
     analysis_id:requireId('analysisId',input.analysisId||uid('analysis')),
+    tenant_id:clean(input.tenantId,180),
     project_id:requireId('projectId',input.projectId),
     work_id:clean(input.workId,180),
     title:requireText('analysis title',input.title,500),
@@ -171,6 +209,7 @@ export function createAnalysisResult(input={}){
     transformations:arr(input.transformations).map((x,i)=>({step:i+1,operation:requireText('transformation operation',x?.operation,240),formula:clean(x?.formula,2000),parameters:copy(x?.parameters||{})})),
     capability:{id:requireText('capability id',input.capability?.id,240),qualification:clean(input.capability?.qualification,80)},
     outputs:copy(input.outputs||{}),
+    execution_id:clean(input.executionId,180),
     uncertainty:clean(input.uncertainty,2000),
     budget:copy(input.budget||{}),
     reproducibility:{environment:clean(input.reproducibility?.environment,1000),seed:clean(input.reproducibility?.seed,240),input_hashes:arr(input.reproducibility?.input_hashes).map(x=>clean(x,128)),code_or_formula_version:clean(input.reproducibility?.code_or_formula_version,240)},
@@ -178,14 +217,40 @@ export function createAnalysisResult(input={}){
   };
 }
 
-export function verifyAnalysis(result){
+export function verifyAnalysis(result,options={}){
   const findings=[];
   if(!arr(result?.source_lineage).length)findings.push({type:'MISSING_SOURCE_LINEAGE'});
   if(!arr(result?.transformations).length)findings.push({type:'MISSING_TRANSFORMATION_HISTORY'});
   if(!result?.capability?.id)findings.push({type:'MISSING_CAPABILITY'});
   if(!['CERTIFIED_ATOMIC','REGISTERED_DERIVED'].includes(result?.capability?.qualification))findings.push({type:'UNQUALIFIED_CAPABILITY',qualification:result?.capability?.qualification||'UNKNOWN'});
   if(!result?.reproducibility?.environment||!result?.reproducibility?.code_or_formula_version)findings.push({type:'INCOMPLETE_REPRODUCIBILITY'});
-  return {schema:'musitu.axiom.fa14.analysis-verification.v1',status:findings.length?'BLOCKED':'PASS_LINEAGE_GATE',findings,reproducible:!findings.length};
+  const metadataComplete=!findings.length;
+  trustedScope(result,options,findings);
+  const hashes=arr(result?.reproducibility?.input_hashes);
+  if(!hashes.length||hashes.some(hash=>!SHA256.test(hash))||new Set(hashes).size!==hashes.length)findings.push({type:'INVALID_INPUT_COMMITMENTS'});
+  const sourceHashes=[];
+  for(const source of arr(result?.source_lineage)){
+    sourceHashes.push(source.sha256);
+    const resolvedSource=verifyEvidenceBinding(source.source_id,source.sha256,options,findings);
+    if(resolvedSource&&source.locator!==resolvedSource.locator)findings.push({type:'SOURCE_LOCATOR_MISMATCH',ref:source.source_id});
+  }
+  if(!sameData([...new Set(sourceHashes)].sort(),[...hashes].sort()))findings.push({type:'INPUT_LINEAGE_MISMATCH'});
+  const capability=resolved(options,'resolveCapability',result?.capability?.id);
+  if(!capability||capability.id!==result?.capability?.id||capability.status!=='ACTIVE'
+      ||!['CERTIFIED_ATOMIC','REGISTERED_DERIVED'].includes(capability.qualification)
+      ||capability.qualification!==result?.capability?.qualification
+      ||capability.code_or_formula_version!==result?.reproducibility?.code_or_formula_version)findings.push({type:'CAPABILITY_NOT_RESOLVED_AND_QUALIFIED'});
+  let outputValid=false;
+  try{dataJSON(result?.outputs);outputValid=Boolean(result.outputs&&typeof result.outputs==='object'&&Object.keys(result.outputs).length);}catch{}
+  if(!outputValid)findings.push({type:'MISSING_OR_INVALID_EXECUTED_OUTPUT'});
+  const execution=resolved(options,'resolveExecution',result?.execution_id);
+  if(!execution||!result?.execution_id||execution.execution_id!==result.execution_id
+      ||!recordScope(execution,options.scope)||execution.status!=='SUCCEEDED'
+      ||execution.verification_status!=='VERIFIED'||execution.replay_status!=='MATCH'
+      ||execution.capability_id!==result?.capability?.id
+      ||execution.code_or_formula_version!==result?.reproducibility?.code_or_formula_version
+      ||!sameData(execution.input_hashes,hashes)||!sameData(execution.outputs,result?.outputs))findings.push({type:'EXECUTION_PROOF_NOT_BOUND'});
+  return {schema:'musitu.axiom.fa14.analysis-verification.v1',status:findings.length?'BLOCKED':'PASS_LINEAGE_GATE',findings,metadata_complete:metadataComplete,reproducible:!findings.length,verification_basis:'TRUSTED_RESOLVED_EXECUTION_AND_EVIDENCE',fresh_cryptographic_verification:false};
 }
 
 export function analysisInspector(result){
@@ -240,6 +305,7 @@ export function createArtifactRecord(input={}){
   return {
     schema:'musitu.axiom.fa14.artifact.v1',
     artifact_id:requireId('artifactId',input.artifactId||uid('artifact')),
+    tenant_id:clean(input.tenantId,180),
     project_id:requireId('projectId',input.projectId),work_id:clean(input.workId,180),
     title:requireText('artifact title',input.title,500),kind:requireText('artifact kind',input.kind,100),
     evidence_refs:arr(input.evidenceRefs).map(x=>requireId('evidence ref',x)),
@@ -253,12 +319,29 @@ export function addArtifactVersion(artifact,input={}){
   artifact.versions.push(row);return copy(row);
 }
 
-export function verifyArtifact(artifact){
+export function verifyArtifact(artifact,options={}){
   const findings=[];
   if(!arr(artifact?.evidence_refs).length)findings.push({type:'MISSING_EVIDENCE_BINDING'});
   if(!arr(artifact?.provenance).length)findings.push({type:'MISSING_PROVENANCE'});
   if(!arr(artifact?.versions).length)findings.push({type:'MISSING_VERSION_HISTORY'});
-  return {schema:'musitu.axiom.fa14.artifact-verification.v1',status:findings.length?'BLOCKED':'PASS_ARTIFACT_LINEAGE_GATE',findings};
+  const metadataComplete=!findings.length;
+  trustedScope(artifact,options,findings);
+  for(const ref of arr(artifact?.evidence_refs)){
+    const source=resolved(options,'resolveEvidence',ref);
+    verifyEvidenceBinding(ref,source?.content_sha256,options,findings);
+  }
+  for(const provenance of arr(artifact?.provenance))verifyEvidenceBinding(provenance.ref,provenance.sha256,options,findings);
+  const commitment={artifact_id:artifact?.artifact_id,tenant_id:artifact?.tenant_id,project_id:artifact?.project_id,work_id:artifact?.work_id,title:artifact?.title,kind:artifact?.kind,evidence_refs:artifact?.evidence_refs,provenance:artifact?.provenance};
+  for(const [index,version] of arr(artifact?.versions).entries()){
+    if(version.version!==index+1||!SHA256.test(version.content_sha256||''))findings.push({type:'INVALID_VERSION_COMMITMENT',version:version.version});
+    let stored=null;
+    try{stored=options?.resolveArtifactVersion?.(artifact.artifact_id,version.version);}catch{}
+    if(!stored||typeof stored.then==='function'||!recordScope(stored,options.scope)
+        ||stored.artifact_id!==artifact.artifact_id||stored.version!==version.version
+        ||stored.verification_status!=='VERIFIED'||stored.content_sha256!==version.content_sha256
+        ||!sameData(stored.artifact_commitment,commitment))findings.push({type:'ARTIFACT_VERSION_NOT_BOUND',version:version.version});
+  }
+  return {schema:'musitu.axiom.fa14.artifact-verification.v1',status:findings.length?'BLOCKED':'PASS_ARTIFACT_LINEAGE_GATE',findings,metadata_complete:metadataComplete,verification_basis:'TRUSTED_RESOLVED_EVIDENCE_AND_VERSION',fresh_cryptographic_verification:false};
 }
 
 export function approveArtifact(artifact,receipt={}){
@@ -271,8 +354,8 @@ export function approveArtifact(artifact,receipt={}){
   return copy(artifact.publication_intent);
 }
 
-export function buildArtifactOutcomePackage(artifact){
-  const verification=verifyArtifact(artifact);
+export function buildArtifactOutcomePackage(artifact,options={}){
+  const verification=verifyArtifact(artifact,options);
   if(verification.status!=='PASS_ARTIFACT_LINEAGE_GATE')throw new FA14GateError('artifact package blocked until evidence, provenance and version history are complete','artifact_lineage_gate');
   return {
     schema:'musitu.axiom.fa14.artifact-outcome-package.v1',artifact:copy(artifact),verification,

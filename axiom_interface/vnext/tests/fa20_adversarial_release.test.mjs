@@ -1,3 +1,4 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -100,8 +101,8 @@ test('release-control module has no network transport host executor or deploy co
 
 test('qualification workflows are credential-free read-only and reproducible',()=>{
   const root=new URL('../../../',import.meta.url);
-  const builder=fs.readFileSync(new URL('.github/workflows/axiom-fa20-release-control.yml',root),'utf8');
-  const verifier=fs.readFileSync(new URL('.github/workflows/axiom-fa20-independent-verifier.yml',root),'utf8');
+  const builder=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa20-release-control.yml'),'utf8');
+  const verifier=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa20-independent-verifier.yml'),'utf8');
   for(const workflow of [builder,verifier]){
     assert.match(workflow,/permissions:\n\s+contents: read\n\s+actions: read/);
     assert.equal(/^\s*(?:contents|actions|deployments|packages|id-token):\s*write\s*$/m.test(workflow),false);
@@ -113,7 +114,7 @@ test('qualification workflows are credential-free read-only and reproducible',()
 
 test('inactive staging workflow is isolated and cannot mutate production',()=>{
   const root=new URL('../../../',import.meta.url);
-  const workflow=fs.readFileSync(new URL('.github/workflows/axiom-fa20-staging-canary.yml',root),'utf8');
+  const workflow=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa20-staging-canary.yml'),'utf8');
   assert.ok(workflow.includes("- 'docs/axiom_final_product/FA20_STAGE_AUTHORITY.json'"));
   assert.ok(workflow.includes('START FA20 STAGING AND CANARY'));
   assert.ok(workflow.includes('musitu-axiom-fa20-staging'));

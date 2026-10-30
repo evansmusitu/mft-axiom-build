@@ -1,0 +1,767 @@
+{
+  "schema": "musitu.axiom.frontier-local-qualification.v1",
+  "status": "LOCAL_CORE_REQUIREMENTS_PASS",
+  "scope": "BOUNDED_LOCAL_CORE_CONTRACTS",
+  "full_target_qualified": false,
+  "external_comparison": "NOT_RUN",
+  "live_provider_qualification": "NOT_RUN",
+  "world_superiority": "NOT_CERTIFIED",
+  "case_count": 23,
+  "passed": 23,
+  "family_count": 11,
+  "families": [
+    "authorization",
+    "calibration",
+    "causal-twin",
+    "decision-analysis",
+    "evaluation",
+    "memory",
+    "planning",
+    "routing",
+    "temporal-memory",
+    "tenant-persistence",
+    "verification"
+  ],
+  "cases": [
+    {
+      "case_id": "memory-multihandle-restart-tombstone",
+      "family": "memory",
+      "pass": true,
+      "expected": {
+        "values": [
+          1,
+          2
+        ],
+        "stale_reader_refreshed": true,
+        "tombstone_visible": true
+      },
+      "actual": {
+        "values": [
+          1,
+          2
+        ],
+        "stale_reader_refreshed": true,
+        "tombstone_visible": true
+      },
+      "error": null,
+      "expected_sha256": "cf2d8487cbdab294bf670f479fd3d9fd0a1354fbac7ff05dde771cffc9524bc4",
+      "actual_sha256": "cf2d8487cbdab294bf670f479fd3d9fd0a1354fbac7ff05dde771cffc9524bc4"
+    },
+    {
+      "case_id": "memory-tenant-content-id-isolation",
+      "family": "tenant-persistence",
+      "pass": true,
+      "expected": {
+        "A": 42,
+        "B": 42,
+        "C": null
+      },
+      "actual": {
+        "A": 42,
+        "B": 42,
+        "C": null
+      },
+      "error": null,
+      "expected_sha256": "9a11f5a9660c58c6d0a26a8b0e2c923145a0e63b2f5a8b4798e72a04b41c5b89",
+      "actual_sha256": "9a11f5a9660c58c6d0a26a8b0e2c923145a0e63b2f5a8b4798e72a04b41c5b89"
+    },
+    {
+      "case_id": "temporal-offset-half-open",
+      "family": "temporal-memory",
+      "pass": true,
+      "expected": {
+        "before": 0,
+        "during": [
+          42
+        ],
+        "exclusive_end": 0
+      },
+      "actual": {
+        "before": 0,
+        "during": [
+          42
+        ],
+        "exclusive_end": 0
+      },
+      "error": null,
+      "expected_sha256": "7a50ca4b93500c3f91d15ed5ba1f73bdcf9282f23ab64cc5c7a8c5f2fe575220",
+      "actual_sha256": "7a50ca4b93500c3f91d15ed5ba1f73bdcf9282f23ab64cc5c7a8c5f2fe575220"
+    },
+    {
+      "case_id": "registered-consequential-action-authority",
+      "family": "authorization",
+      "pass": true,
+      "expected": {
+        "rejected": true,
+        "callbacks": 0
+      },
+      "actual": {
+        "rejected": true,
+        "callbacks": 0
+      },
+      "error": null,
+      "expected_sha256": "5cd97e737f4dcbf6c957348083373d80e36cdcecfcccc87821113f59727f1ef9",
+      "actual_sha256": "5cd97e737f4dcbf6c957348083373d80e36cdcecfcccc87821113f59727f1ef9"
+    },
+    {
+      "case_id": "empty-independent-verification-abstains",
+      "family": "verification",
+      "pass": true,
+      "expected": false,
+      "actual": false,
+      "error": null,
+      "expected_sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "actual_sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+    },
+    {
+      "case_id": "independent-numeric-invariant-accepts",
+      "family": "verification",
+      "pass": true,
+      "expected": true,
+      "actual": true,
+      "error": null,
+      "expected_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "actual_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "case_id": "independent-numeric-invariant-rejects",
+      "family": "verification",
+      "pass": true,
+      "expected": false,
+      "actual": false,
+      "error": null,
+      "expected_sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "actual_sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+    },
+    {
+      "case_id": "brier-hand-oracle",
+      "family": "calibration",
+      "pass": true,
+      "expected": 0.04,
+      "actual": 0.039999999999999994,
+      "error": null,
+      "expected_sha256": "a888fe9e2469182b8e3e3bca241d3189dc144349bc2d0ac64c56c444276e9763",
+      "actual_sha256": "4663d8a9b569aff5eff74f300f4b958b2f053bc9fc8973d9b6e29757ef67be38"
+    },
+    {
+      "case_id": "ece-hand-oracle",
+      "family": "calibration",
+      "pass": true,
+      "expected": 0.2,
+      "actual": 0.19999999999999998,
+      "error": null,
+      "expected_sha256": "44896b09365746b5f7167ee4d64988a38f7f4628803cbf86224e74eeb7c69e9d",
+      "actual_sha256": "43814c47ef2084c6b227608920b9a0ed9162a099743fc261436427d03ffad3c9"
+    },
+    {
+      "case_id": "calibration-rejects-nan",
+      "family": "calibration",
+      "pass": true,
+      "expected": true,
+      "actual": true,
+      "error": null,
+      "expected_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "actual_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "case_id": "linear-causal-intervention-hand-oracle",
+      "family": "causal-twin",
+      "pass": true,
+      "expected": {
+        "baseline": {
+          "revenue": 110,
+          "profit": 35
+        },
+        "demand_60": {
+          "revenue": 130,
+          "profit": 43
+        }
+      },
+      "actual": {
+        "baseline": {
+          "demand": 50.0,
+          "cost": 20.0,
+          "revenue": 110.0,
+          "profit": 35.0
+        },
+        "demand_60": {
+          "demand": 60.0,
+          "cost": 20.0,
+          "revenue": 130.0,
+          "profit": 43.0
+        }
+      },
+      "error": null,
+      "expected_sha256": "60b9d8c0d7261ebef2640ef735725a436d12b5e8e6b71d455bc9d5d39490eb12",
+      "actual_sha256": "3435a963a83fdc9efd14209176e6b05f24d8aa64511b271afe37a5203f05ab68"
+    },
+    {
+      "case_id": "causal-cycle-rejected",
+      "family": "causal-twin",
+      "pass": true,
+      "expected": true,
+      "actual": true,
+      "error": null,
+      "expected_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "actual_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "case_id": "verified-scoped-routing",
+      "family": "routing",
+      "pass": true,
+      "expected": {
+        "chosen": "allowed",
+        "unavailable_domain_rejected": true
+      },
+      "actual": {
+        "chosen": "allowed",
+        "unavailable_domain_rejected": true
+      },
+      "error": null,
+      "expected_sha256": "a7ac1f0a1741f3ca25bea2690de18bd42e634dc144b533c487eef02ee0782a3e",
+      "actual_sha256": "a7ac1f0a1741f3ca25bea2690de18bd42e634dc144b533c487eef02ee0782a3e"
+    },
+    {
+      "case_id": "planner-dependencies-restart-tenant",
+      "family": "planning",
+      "pass": true,
+      "expected": {
+        "ready_before": [
+          "retrieve"
+        ],
+        "blocked_out_of_order": true,
+        "ready_after_restart": [
+          "analyze"
+        ],
+        "preserved": {
+          "value": 42
+        },
+        "tenant_isolated": true,
+        "history_valid": true
+      },
+      "actual": {
+        "ready_before": [
+          "retrieve"
+        ],
+        "blocked_out_of_order": true,
+        "ready_after_restart": [
+          "analyze"
+        ],
+        "preserved": {
+          "value": 42
+        },
+        "tenant_isolated": true,
+        "history_valid": true
+      },
+      "error": null,
+      "expected_sha256": "ff9599b7ce5ea153585edd5d0916479e49231bbe53daaae0be2cd2e68ded8283",
+      "actual_sha256": "ff9599b7ce5ea153585edd5d0916479e49231bbe53daaae0be2cd2e68ded8283"
+    },
+    {
+      "case_id": "regression-nan-rejected",
+      "family": "evaluation",
+      "pass": true,
+      "expected": true,
+      "actual": true,
+      "error": null,
+      "expected_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "actual_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "case_id": "longitudinal-nan-rejected",
+      "family": "evaluation",
+      "pass": true,
+      "expected": true,
+      "actual": true,
+      "error": null,
+      "expected_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "actual_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "case_id": "empty-adversarial-suite-fails",
+      "family": "evaluation",
+      "pass": true,
+      "expected": "FAIL",
+      "actual": "FAIL",
+      "error": null,
+      "expected_sha256": "8dda96cc06ec8a54f6d789a9f4e5c22e8af9eb9c60a8f7046473c57163e079ff",
+      "actual_sha256": "8dda96cc06ec8a54f6d789a9f4e5c22e8af9eb9c60a8f7046473c57163e079ff"
+    },
+    {
+      "case_id": "decision-launch_without_signal",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "expected_utilities": {
+          "launch": 28,
+          "wait": 0
+        },
+        "recommended_action": "launch",
+        "max_expected_utility": 28,
+        "expected_value_with_perfect_information": 60,
+        "evpi": 32,
+        "evsi": null,
+        "minimax_regret": {
+          "action": "launch",
+          "value": 80
+        }
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "launch": 28.0,
+          "wait": 0.0
+        },
+        "recommended_action": "launch",
+        "tied_recommendations": [
+          "launch"
+        ],
+        "max_expected_utility": 28.0,
+        "regrets": {
+          "launch": {
+            "favorable": 0.0,
+            "unfavorable": 80.0
+          },
+          "wait": {
+            "favorable": 100.0,
+            "unfavorable": 0.0
+          }
+        },
+        "max_regret": {
+          "launch": 80.0,
+          "wait": 100.0
+        },
+        "minimax_regret": {
+          "action": "launch",
+          "value": 80.0
+        },
+        "expected_value_with_perfect_information": 60.0,
+        "evpi": 32.0,
+        "expected_value_with_sample_information": null,
+        "evsi": null,
+        "net_evsi": null,
+        "signal_policy": [],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "Priors and utilities are illustrative inputs, not empirically estimated."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "87b2eec71acb6c3cfc0744fc842261aa703384215a7176016576a6ab2550fb3c",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "81c4f66b8002f369d6c7fcd240be6fa81a613902d1aca4d0815195a86a79cf8b",
+      "actual_sha256": "d7576516b05af99dff80eb0923b2bae8ef6ff9b4b9dda593c018141f37add2cb"
+    },
+    {
+      "case_id": "decision-imperfect_signal_and_cost",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "recommended_action": "launch",
+        "expected_value_with_sample_information": 40,
+        "evpi": 32,
+        "evsi": 12,
+        "net_evsi": 9
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "launch": 28.0,
+          "wait": 0.0
+        },
+        "recommended_action": "launch",
+        "tied_recommendations": [
+          "launch"
+        ],
+        "max_expected_utility": 28.0,
+        "regrets": {
+          "launch": {
+            "favorable": 0.0,
+            "unfavorable": 80.0
+          },
+          "wait": {
+            "favorable": 100.0,
+            "unfavorable": 0.0
+          }
+        },
+        "max_regret": {
+          "launch": 80.0,
+          "wait": 100.0
+        },
+        "minimax_regret": {
+          "action": "launch",
+          "value": 80.0
+        },
+        "expected_value_with_perfect_information": 60.0,
+        "evpi": 32.0,
+        "expected_value_with_sample_information": 40.0,
+        "evsi": 12.0,
+        "net_evsi": 9.0,
+        "signal_policy": [
+          {
+            "signal_id": "negative",
+            "probability": 0.42000000000000004,
+            "posterior": {
+              "favorable": 0.2857142857142857,
+              "unfavorable": 0.7142857142857143
+            },
+            "recommended_action": "wait",
+            "expected_utility": 0.0
+          },
+          {
+            "signal_id": "positive",
+            "probability": 0.58,
+            "posterior": {
+              "favorable": 0.8275862068965517,
+              "unfavorable": 0.1724137931034483
+            },
+            "recommended_action": "launch",
+            "expected_utility": 68.96551724137932
+          }
+        ],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "Signals have declared conditional likelihoods; no empirical accuracy claim."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "dc5057c18ed148405e31469e2bc4be5ca344d8f48db0fd78fab02acc49b5cdd5",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "2d392fd46bd6a5fbaad34c96ed2d1414bd95f57f57ef6ab85d3699ba124c5db3",
+      "actual_sha256": "b158751088c7dac4993f97dc5da0b1b842fcde7db8065ff4f5a33a3276cf06e2"
+    },
+    {
+      "case_id": "decision-independent_signal_has_zero_value",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "expected_value_with_sample_information": 28,
+        "evsi": 0,
+        "net_evsi": 0
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "launch": 28.0,
+          "wait": 0.0
+        },
+        "recommended_action": "launch",
+        "tied_recommendations": [
+          "launch"
+        ],
+        "max_expected_utility": 28.0,
+        "regrets": {
+          "launch": {
+            "favorable": 0.0,
+            "unfavorable": 80.0
+          },
+          "wait": {
+            "favorable": 100.0,
+            "unfavorable": 0.0
+          }
+        },
+        "max_regret": {
+          "launch": 80.0,
+          "wait": 100.0
+        },
+        "minimax_regret": {
+          "action": "launch",
+          "value": 80.0
+        },
+        "expected_value_with_perfect_information": 60.0,
+        "evpi": 32.0,
+        "expected_value_with_sample_information": 28.0,
+        "evsi": 0.0,
+        "net_evsi": 0.0,
+        "signal_policy": [
+          {
+            "signal_id": "heads",
+            "probability": 0.5,
+            "posterior": {
+              "favorable": 0.6,
+              "unfavorable": 0.4
+            },
+            "recommended_action": "launch",
+            "expected_utility": 28.0
+          },
+          {
+            "signal_id": "tails",
+            "probability": 0.5,
+            "posterior": {
+              "favorable": 0.6,
+              "unfavorable": 0.4
+            },
+            "recommended_action": "launch",
+            "expected_utility": 28.0
+          }
+        ],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "The two signal outcomes are independent of state."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "941bbcd4c9102f6334ae9556de8f60823c6b749ab727f6829613ce1b246a65a0",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "31ff588fc00e6d175c5b6621a3a7035f535965ff93330e87489865d3c2f07d45",
+      "actual_sha256": "f048f6a22a360881db3c411d99ca5dde5f96742f7d9cfeedb6b178c44daa1f71"
+    },
+    {
+      "case_id": "decision-perfect_signal_reaches_evpi",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "expected_value_with_sample_information": 60,
+        "evsi": 32,
+        "evpi": 32
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "launch": 28.0,
+          "wait": 0.0
+        },
+        "recommended_action": "launch",
+        "tied_recommendations": [
+          "launch"
+        ],
+        "max_expected_utility": 28.0,
+        "regrets": {
+          "launch": {
+            "favorable": 0.0,
+            "unfavorable": 80.0
+          },
+          "wait": {
+            "favorable": 100.0,
+            "unfavorable": 0.0
+          }
+        },
+        "max_regret": {
+          "launch": 80.0,
+          "wait": 100.0
+        },
+        "minimax_regret": {
+          "action": "launch",
+          "value": 80.0
+        },
+        "expected_value_with_perfect_information": 60.0,
+        "evpi": 32.0,
+        "expected_value_with_sample_information": 60.0,
+        "evsi": 32.0,
+        "net_evsi": 32.0,
+        "signal_policy": [
+          {
+            "signal_id": "no",
+            "probability": 0.4,
+            "posterior": {
+              "favorable": 0.0,
+              "unfavorable": 1.0
+            },
+            "recommended_action": "wait",
+            "expected_utility": 0.0
+          },
+          {
+            "signal_id": "yes",
+            "probability": 0.6,
+            "posterior": {
+              "favorable": 1.0,
+              "unfavorable": 0.0
+            },
+            "recommended_action": "launch",
+            "expected_utility": 100.0
+          }
+        ],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "The perfect signal reveals the state by construction."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "a943b46abd66eaaa08475bf7b3d2d17731d6a9de3b60764c43ca5ddb89458aca",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "206f24683f9896888d56c16f9ebcb3213b8440e648ed8a6a816cf8718dd59e51",
+      "actual_sha256": "3e1237ce55a3375e7e7030298db0b9383aec4155de1538f17fe88a6ee8f000c5"
+    },
+    {
+      "case_id": "decision-negative_utility_minimax_regret",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "expected_utilities": {
+          "A": -12.5,
+          "B": -10
+        },
+        "recommended_action": "B",
+        "expected_value_with_perfect_information": -7.5,
+        "evpi": 2.5,
+        "max_regret": {
+          "A": 10,
+          "B": 5
+        },
+        "minimax_regret": {
+          "action": "B",
+          "value": 5
+        }
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "A": -12.5,
+          "B": -10.0
+        },
+        "recommended_action": "B",
+        "tied_recommendations": [
+          "B"
+        ],
+        "max_expected_utility": -10.0,
+        "regrets": {
+          "A": {
+            "one": 0.0,
+            "two": 10.0
+          },
+          "B": {
+            "one": 5.0,
+            "two": 0.0
+          }
+        },
+        "max_regret": {
+          "A": 10.0,
+          "B": 5.0
+        },
+        "minimax_regret": {
+          "action": "B",
+          "value": 5.0
+        },
+        "expected_value_with_perfect_information": -7.5,
+        "evpi": 2.5,
+        "expected_value_with_sample_information": null,
+        "evsi": null,
+        "net_evsi": null,
+        "signal_policy": [],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "Larger utility is preferred, including when all outcomes are negative."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "8dcb8f696c420758678ef48fb14b288241c6ecd323459b2c588673e43e95c550",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "204c0aadc34f49c5eac1d8f752df45b78bfcd8a0336c57855e8154e5c149f8ae",
+      "actual_sha256": "92689a9def107547f8b59bbc9b9e1426fccc7a55b5b7dd048d11a8724c3422be"
+    },
+    {
+      "case_id": "decision-tied_actions_zero_probability_signal",
+      "family": "decision-analysis",
+      "pass": true,
+      "expected": {
+        "recommended_action": "a",
+        "tied_recommendations": [
+          "a",
+          "b"
+        ],
+        "evpi": 0,
+        "evsi": 0,
+        "minimax_regret": {
+          "action": "a",
+          "value": 0
+        }
+      },
+      "actual": {
+        "schema": "musitu.axiom.decision-analysis.v1",
+        "expected_utilities": {
+          "a": 2.0,
+          "b": 2.0
+        },
+        "recommended_action": "a",
+        "tied_recommendations": [
+          "a",
+          "b"
+        ],
+        "max_expected_utility": 2.0,
+        "regrets": {
+          "a": {
+            "only": 0.0
+          },
+          "b": {
+            "only": 0.0
+          }
+        },
+        "max_regret": {
+          "a": 0.0,
+          "b": 0.0
+        },
+        "minimax_regret": {
+          "action": "a",
+          "value": 0.0
+        },
+        "expected_value_with_perfect_information": 2.0,
+        "evpi": 0.0,
+        "expected_value_with_sample_information": 2.0,
+        "evsi": 0.0,
+        "net_evsi": 0.0,
+        "signal_policy": [
+          {
+            "signal_id": "impossible",
+            "probability": 0,
+            "posterior": null,
+            "recommended_action": null,
+            "expected_utility": null
+          },
+          {
+            "signal_id": "seen",
+            "probability": 1.0,
+            "posterior": {
+              "only": 1.0
+            },
+            "recommended_action": "a",
+            "expected_utility": 2.0
+          }
+        ],
+        "utility_unit": "declared utility points",
+        "assumptions": [
+          "Tie breaking uses ascending action identifier, not an invented preference."
+        ],
+        "evidence_refs": [],
+        "input_sha256": "2d714cc096ac198a8b1f099211c585c315a117fc7efa6a68154f5560124f9ef3",
+        "commitment_format": "musitu.axiom.decision-input-f64be.v1",
+        "recommendation_only": true,
+        "authority_granted": false,
+        "source_evidence_verified": false
+      },
+      "error": null,
+      "expected_sha256": "ac9b800a50cc4d00cab02739b2fd5fe3d366e2a3c6e56541598163bd4cc038ce",
+      "actual_sha256": "14529c592644301f052933d84829e566f1cd8684f2f7b3f602bf72934b2668f0"
+    }
+  ],
+  "implementation_files_sha256": {
+    "runtime/advanced.py": "20e6759aa192e15d4ce27ff569103d8de814232eefea342adb602238af270b22",
+    "runtime/fabric.py": "e9d7be0a0f87ad7a39bebed149ede098090f11d1992a54caeb141f542e132f2d",
+    "runtime/fullstack_base.py": "2823839e557db35c4849f33f71877eaf9682d5f1d0e254bb3490ec47c8047a05",
+    "runtime/persistent_planner.py": "0ad648243348531c99e58d0de3ef0ad044fb5109cf6ae01c84f96a6ee47d1f6a",
+    "runtime/decision_analysis.py": "f64e62eaf73c9b1ae5f154589157c46f24b12d5aa7ebfb5174601304285db111",
+    "fixtures/decision_analysis_v1.json": "67778eaf214b7b18766a912961bb697680f946a69def614ae8f66155822461cb",
+    "scripts/qualify_local_capabilities.py": "8767bf579f0ee39e8b912995ca63df505f0231cb71de4001dc6b9f7a1e5c761b"
+  },
+  "evidence_sha256": "e1b7bba0d3d48b74c824daea5ba9dbc7d458c2f623347ecc316146926c7a7d4b",
+  "generated_at": "2026-10-30T05:45:29.950075+00:00"
+}

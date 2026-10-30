@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
+import {ATOMIC_OPERATIONS} from '../vnext/capability_registry.js';
+const RESULT_DIGEST=createHash('sha256').update('{"result":{"value":42}}').digest('hex');
 
 import {createProtectedRuntimeBridge} from '../../ops/axiom_runtime_bridge.mjs';
 
@@ -14,7 +17,7 @@ function database(){
           return {
             run:async()=>({success:true}),
             first:async()=>sql.includes('usage_events')
-              ? {request_id:args[0],operation:'arithmetic.evaluate',compute_units:1,http_status:200,result_sha256:'c'.repeat(64)}
+              ? {request_id:args[0],operation:'arithmetic.evaluate',compute_units:1,http_status:200,result_sha256:RESULT_DIGEST}
               : null,
           };
         },
@@ -31,8 +34,8 @@ function runtime({computeStatus=200}={}){
       const url=new URL(typeof input==='string'?input:input.url);
       calls.push({url:url.href,init});
       if(url.pathname==='/health')return Response.json({ok:true,build_id:'runtime-build',operation_count:74});
-      if(url.pathname==='/v1/tools')return Response.json({build_id:'runtime-build',operation_count:74,tools:['arithmetic.evaluate',...Array.from({length:73},(_,index)=>`fixture.operation.${index}`)]});
-      if(url.pathname==='/v1/compute')return Response.json(computeStatus===200?{result:{value:42},receipt:{signature:'sealed'}}:{error:'upstream_failed'},{status:computeStatus});
+      if(url.pathname==='/v1/tools')return Response.json({build_id:'runtime-build',operation_count:74,tools:ATOMIC_OPERATIONS});
+      if(url.pathname==='/v1/compute')return Response.json(computeStatus===200?{result:{value:42},receipt:{signature:'fixture-only',customer_id:'customer_1',request_id:init.headers['x-musitu-request-id'],operation:'arithmetic.evaluate',result_sha256:RESULT_DIGEST}}:{error:'upstream_failed'},{status:computeStatus});
       return new Response('not found',{status:404});
     },
   };
@@ -63,7 +66,7 @@ test('bridge mints a hash-only one-request credential, meters execution, and del
   const compute=service.calls.find(call=>new URL(call.url).pathname==='/v1/compute');
   assert.equal(compute.init.headers.authorization,`Bearer ${token}`);
   assert.equal(result.receipt.compute_units,1);
-  assert.equal(result.receipt.result_sha256,'c'.repeat(64));
+  assert.equal(result.receipt.result_sha256,RESULT_DIGEST);
   assert.doesNotMatch(JSON.stringify(result),new RegExp(token));
 });
 

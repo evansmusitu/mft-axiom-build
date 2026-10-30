@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {executeRuntimeTask} from '../runtime_task_service.mjs';
+import {executeRuntimeTask as executeGovernedTask} from '../runtime_task_service.mjs';
+import {admittedTaskFixture} from '../../tests/execution_test_helpers.mjs';
+import {ATOMIC_OPERATIONS} from '../capability_registry.js';
+const executeRuntimeTask=async args=>executeGovernedTask(await admittedTaskFixture(args));
 
 function dependencies(overrides={}) {
   const writes=[];
   return {writes,objective:'Research a source and calculate 40+2.',customer:{customer_id:'tenant-a'},
-    runtime:{inspect:async()=>({ok:true,build_id:'fixture',operation_count:74,tools:['arithmetic.evaluate',...Array.from({length:73},(_,i)=>`fixture.${i}`)]}),execute:async()=>({operation:'arithmetic.evaluate',http_status:200,result:{value:42},receipt:{result_sha256:'a'.repeat(64),compute_units:1}})},
+    runtime:{inspect:async()=>({ok:true,build_id:'fixture',operation_count:74,tools:ATOMIC_OPERATIONS}),execute:async input=>({operation:'arithmetic.evaluate',request_id:input.request_id,http_status:200,result:{value:42},receipt:{result_commitment_verified:true,result_sha256:'a'.repeat(64),compute_units:1}})},
     research:async()=>[{source_id:'source-a',title:'Source',url:'https://example.org/a',excerpt:'Bound source content.'}],
     model:async()=>({summary:'Evidence-bound calculation.',findings:['42'],citations:['source-a']}),
     store:{create:async r=>writes.push(['create',r]),complete:async r=>writes.push(['complete',r]),fail:async r=>writes.push(['fail',r])},

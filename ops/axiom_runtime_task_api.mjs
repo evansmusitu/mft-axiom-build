@@ -1,5 +1,8 @@
 import {executeRuntimeTask} from '../axiom_interface/vnext/runtime_task_service.mjs';
 import {createProtectedRuntimeBridge} from './axiom_runtime_bridge.mjs';
+import {createD1ExecutionGovernance} from './axiom_execution_contract.mjs';
+import {sha256Json} from '../axiom_interface/vnext/execution_integrity.mjs';
+import {executeDecisionTask} from '../axiom_interface/vnext/runtime_decision_service.mjs';
 
 const COMMON_HEADERS=Object.freeze({
   'cache-control':'no-store',
@@ -124,8 +127,17 @@ function sendEvent(controller,event,data){
   controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 }
 
-export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImpl=globalThis.fetch}={}){
+export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImpl=globalThis.fetch,executionCtx}={}){
   const url=new URL(request.url);
+  const submission=url.pathname.match(/^\/vnext\/api\/submissions\/([A-Za-z0-9_-]{6,90})$/);
+  if(submission&&request.method==='GET'){
+    if(!customer?.customer_id)return json(401,{error:'authenticated_session_required'});
+    try{
+      const id=`task_${(await sha256Json({tenant_id:String(customer.customer_id),submission_id:submission[1]})).slice(0,48)}`;
+      const result=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(id);
+      return result?json(200,result):json(404,{error:'submission_not_recorded'});
+    }catch{return json(503,{error:'governed_task_readback_unavailable'});}
+  }
   if (url.pathname==='/vnext/api/runtime'&&request.method==='GET') {
     try {
       const runtime=await createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME}).inspect();
@@ -136,8 +148,10 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   if (!taskMatch) return null;
   if (!customer?.customer_id) return json(401,{error:'authenticated_session_required',sign_in_path:'/auth/start'});
   if (request.method==='GET'&&taskMatch[1]) {
-    const task=await createD1TaskStore(env.AXIOM_DB).get(taskMatch[1],String(customer.customer_id));
-    return task?json(200,task):json(404,{error:'task_not_found'});
+    try{
+      const task=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(taskMatch[1]);
+      return task?json(200,task):json(404,{error:'task_not_found'});
+    }catch{return json(503,{error:'governed_task_readback_unavailable'});}
   }
   if (request.method!=='POST'||taskMatch[1]) return json(405,{error:'method_not_allowed'},{allow:taskMatch[1]?'GET':'POST'});
   if (request.headers.get('origin')!==origin) return json(403,{error:'origin_rejected'});
@@ -152,19 +166,43 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   if (encoder.encode(raw).length>8192) return json(413,{error:'request_too_large'});
   let payload;
   try { payload=JSON.parse(raw); } catch { return json(400,{error:'invalid_json'}); }
+  if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).some(k=>!['objective','execution_context','decision','submission_id'].includes(k)))return json(400,{error:'unsupported_task_fields'});
+  if(!payload.execution_context||typeof payload.execution_context!=='object')return json(400,{error:'execution_context_required'});
+  if(!/^[A-Za-z0-9_-]{6,90}$/.test(payload.submission_id??'')||!payload.execution_context.work_id)return json(400,{error:'stable_submission_and_work_id_required'});
   const objective=clean(payload?.objective,2000);
   if (objective.length<3) return json(400,{error:'objective_required'});
+  let governance;
+  try{
+    const input_commitment=payload.decision===undefined?null:{kind:'decision',sha256:await sha256Json(payload.decision)};
+    governance=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).admit({objective,context:payload.execution_context,input_commitment});
+    await governance.assertBound({customer,objective});
+  }catch(error){
+    const status=error?.name==='TypeError'?400:error?.name==='NotAllowedError'?403:503;
+    return json(status,{error:clean(error?.message||'execution_contract_unavailable',240),error_code:clean(error?.name||'ContractError',80)});
+  }
   const runtime=createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME});
-  const store=createD1TaskStore(env.AXIOM_DB),research=createFixedResearch(fetchImpl),model=createWorkersAIModel(env);
+  const taskId=`task_${(await sha256Json({tenant_id:String(customer.customer_id),submission_id:payload.submission_id})).slice(0,48)}`;
+  const previous=await governance.get(taskId);
+  if(previous){
+    if(previous.execution_contract?.contract_sha256!==governance.contract.contract_sha256)return json(409,{error:'submission_contract_conflict',task_id:taskId});
+    if(previous.status==='COMPLETED')return new Response(`event: complete\ndata: ${JSON.stringify(previous)}\n\n`,{headers:{...COMMON_HEADERS,'content-type':'text/event-stream; charset=utf-8'}});
+    return json(409,{error:'submission_already_recorded_reconcile_before_retry',task_id:taskId,status:previous.status});
+  }
+  const store=governance,research=createFixedResearch(fetchImpl),model=createWorkersAIModel(env);
+  let observerConnected=true;
   const stream=new ReadableStream({
     start(controller){
-      Promise.resolve().then(async()=>{
-        const result=await executeRuntimeTask({objective,customer,runtime,research,model,store,emit:event=>sendEvent(controller,'phase',event)});
-        sendEvent(controller,'complete',result);
+      const send=(event,value)=>{if(observerConnected)try{sendEvent(controller,event,value);}catch{observerConnected=false;}};
+      const work=Promise.resolve().then(async()=>{
+        const options={objective,customer,runtime,research,model,store,governance,idFactory:()=>taskId,emit:event=>send('phase',event)};
+        const result=payload.decision===undefined?await executeRuntimeTask(options):await executeDecisionTask({...options,problem:payload.decision});
+        send('complete',result);
       }).catch(error=>{
-        try { sendEvent(controller,'error',{schema:'musitu.axiom.runtime-task-error.v1',error_code:clean(error?.name||'TaskError',80),error_message:clean(error?.message||'Task failed',300),retryable:['NetworkError','TimeoutError'].includes(error?.name)}); } catch {}
+        send('error',{schema:'musitu.axiom.runtime-task-error.v1',error_code:clean(error?.name||'TaskError',80),error_message:clean(error?.message||'Task failed',300),retryable:false});
       }).finally(()=>{try { controller.close(); } catch {}});
+      executionCtx?.waitUntil?.(work);
     },
+    cancel(){observerConnected=false;},
   });
   return new Response(stream,{status:200,headers:{...COMMON_HEADERS,'content-type':'text/event-stream; charset=utf-8','x-accel-buffering':'no'}});
 }

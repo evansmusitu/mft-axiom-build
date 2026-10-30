@@ -268,7 +268,7 @@ async function staticApplication(request, env, url,config) {
   return hardenedAsset(response, url.pathname);
 }
 
-async function application(request, env, url,config) {
+async function application(request, env, url,config,executionCtx) {
   const appHealthPath=config.connectedRuntime?'/vnext/health':'/health';
   if (url.pathname === appHealthPath && ['GET', 'HEAD'].includes(request.method)) {
     const runtimeBindings=!config.connectedRuntime||Boolean(env.AXIOM_RUNTIME?.fetch&&env.TASK_RATE_LIMITER?.limit);
@@ -294,7 +294,7 @@ async function application(request, env, url,config) {
   if (url.pathname === '/auth/sign-out' && request.method === 'POST') return signOut(request,config);
   if (config.connectedRuntime&&url.pathname.startsWith('/vnext/api/')) {
     const restored=await authenticatedSession(request,env);
-    const response=await handleRuntimeTaskApi(request,env,{customer:restored?{customer_id:String(restored.row.id),display_name:String(restored.row.email),plan:String(restored.row.plan||'')}:null,origin:config.origin});
+    const response=await handleRuntimeTaskApi(request,env,{customer:restored?{customer_id:String(restored.row.id),display_name:String(restored.row.email),plan:String(restored.row.plan||'')}:null,origin:config.origin,executionCtx});
     if (response) return response;
   }
   if (config.connectedRuntime&&(url.pathname.startsWith('/v1/')||url.pathname.startsWith('/billing/'))) return env.AXIOM_RUNTIME.fetch(request);
@@ -303,11 +303,11 @@ async function application(request, env, url,config) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env,executionCtx) {
     const url = new URL(request.url);
     let config;
     try { config=applicationConfig(env); } catch { return json(503,{error:'application_configuration_invalid'}); }
     if (url.hostname !== config.host) return json(404, {error:'not_found'});
-    return application(request, env, url,config);
+    return application(request, env, url,config,executionCtx);
   },
 };

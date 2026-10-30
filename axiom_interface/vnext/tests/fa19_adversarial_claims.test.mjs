@@ -1,3 +1,4 @@
+import {pinnedSource} from './pinned_source_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -91,8 +92,8 @@ test('FA-19 evaluator has no transport host executor deploy command or certified
 
 test('FA-19 workflows retain portable internal checksum paths',()=>{
   const root=new URL('../../../',import.meta.url);
-  const builder=fs.readFileSync(new URL('.github/workflows/axiom-fa19-comparison-harness.yml',root),'utf8');
-  const verifier=fs.readFileSync(new URL('.github/workflows/axiom-fa19-independent-verifier.yml',root),'utf8');
+  const builder=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa19-comparison-harness.yml'),'utf8');
+  const verifier=fs.readFileSync(pinnedSource('.github/workflows/axiom-fa19-independent-verifier.yml'),'utf8');
   assert.ok(builder.includes('(cd fa19-harness-evidence && sha256sum fa19-harness-evidence.json > fa19-harness-evidence.sha256)'));
   assert.ok(verifier.includes('(cd fa19-independent-evidence && sha256sum fa19-independent-verifier.json > fa19-independent-verifier.sha256)'));
   assert.equal(builder.includes('  fa19-harness-evidence/fa19-harness-evidence.json'),false);

@@ -1,11 +1,16 @@
 import {parseTaskEventStream} from './runtime_task_service.mjs';
+import {normalizeExecutionContext} from './execution_contract.mjs';
 
 const clean=(value,limit=2000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,limit);
 
-export async function runConnectedTask(objective,{fetchImpl=globalThis.fetch,baseURI=globalThis.document?.baseURI,onEvent=()=>{},signal}={}){
+export async function runConnectedTask(objective,{executionContext,decision,submissionId=crypto.randomUUID(),fetchImpl=globalThis.fetch,baseURI=globalThis.document?.baseURI,onEvent=()=>{},signal}={}){
   objective=clean(objective,2000);
   if (objective.length<3) throw new TypeError('Describe a task with at least 3 characters.');
   if (typeof fetchImpl!=='function'||!baseURI) throw new TypeError('same-origin task transport unavailable');
+  if(!executionContext)throw new TypeError('execution context is required');
+  const context=normalizeExecutionContext(executionContext);
+  if(!/^[A-Za-z0-9_-]{6,90}$/.test(submissionId))throw new TypeError('stable submission id required');
+  context.work_id??=`work_${submissionId}`;
   const endpoint=new URL('./api/tasks',baseURI);
   const response=await fetchImpl(endpoint.href,{
     method:'POST',
@@ -14,7 +19,7 @@ export async function runConnectedTask(objective,{fetchImpl=globalThis.fetch,bas
     redirect:'error',
     referrerPolicy:'same-origin',
     headers:{accept:'text/event-stream','content-type':'application/json'},
-    body:JSON.stringify({objective}),
+    body:JSON.stringify({objective,submission_id:submissionId,execution_context:context,...(decision===undefined?{}:{decision})}),
     signal,
   });
   if (!response.ok) {
@@ -50,6 +55,14 @@ export async function inspectConnectedRuntime({fetchImpl=globalThis.fetch,baseUR
   const body=await response.json();
   if (!response.ok||body?.fully_connected!==true||body?.operation_count!==74) throw new DOMException('complete protected runtime is unavailable','NetworkError');
   return body;
+}
+
+export async function inspectConnectedSubmission(submissionId,{fetchImpl=globalThis.fetch,baseURI=globalThis.document?.baseURI}={}){
+  if(!/^[A-Za-z0-9_-]{6,90}$/.test(submissionId))throw new TypeError('submission id required');
+  const response=await fetchImpl(new URL(`./api/submissions/${submissionId}`,baseURI).href,{credentials:'same-origin',cache:'no-store',redirect:'error',headers:{accept:'application/json'}});
+  if(response.status===404)return null;
+  if(!response.ok)throw new Error('Saved task could not be read; no retry was submitted.');
+  return response.json();
 }
 
 export const RUNTIME_EXECUTION_CLIENT_BOUNDARY=Object.freeze({

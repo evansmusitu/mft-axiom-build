@@ -40,3 +40,16 @@ export async function verifyTaskCommitments(result) {
   const {receipt_sha256,...body}=result.receipt;
   return body.artifact_sha256===await sha256Json(result.artifact)&&receipt_sha256===await sha256Json(body);
 }
+
+export async function verifyExecutionResultCommitment(task){
+  const e=task.execution;if(!e)return task.receipt.runtime_result_sha256===null;
+  if(e.request_id!==task.request_id||e.http_status!==200||task.receipt.runtime_result_sha256!==e.receipt?.result_sha256)return false;
+  if(e.operation==='decision.evaluate'){
+    if(!task.decision_input||await sha256Json(task.decision_input)!==task.execution_contract.input_commitment?.sha256)return false;
+    const {evaluateDecision}=await import('./decision_analysis.mjs');
+    const replay=await evaluateDecision(task.decision_input);
+    return canonicalJson(replay)===canonicalJson(e.result)&&canonicalJson(task.artifact.decision)===canonicalJson(e.result)&&await sha256Json(e.result)===e.receipt.result_sha256;
+  }
+  if(!e.committed_response||e.receipt?.result_commitment_verified!==true)return false;
+  return await sha256Json(e.committed_response)===e.receipt.result_sha256&&canonicalJson(e.committed_response.result??e.committed_response)===canonicalJson(e.result);
+}

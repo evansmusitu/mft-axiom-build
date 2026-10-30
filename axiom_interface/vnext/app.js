@@ -38,6 +38,7 @@ const state={
   dataError:null,
   projects:[],
   work:[],
+  activeWorkId:'',
   activeProjectId:localStorage.getItem("axiom.vnext.active-project") || ""
 };
 
@@ -45,6 +46,7 @@ function activeProject(){
   return state.projects.find(p=>p.project_id===state.activeProjectId) || null;
 }
 function setActiveProject(projectId){
+  if(state.activeProjectId!==projectId)state.activeWorkId='';
   state.activeProjectId=projectId || "";
   try{
     if(state.activeProjectId)localStorage.setItem("axiom.vnext.active-project",state.activeProjectId);
@@ -159,7 +161,7 @@ function renderWork(){
   const actions=project?'<button class="button primary" type="button" data-action="new-work">New work</button>':'<button class="button" type="button" data-goto="projects">Choose project</button>';
   return `${pageHead("work",actions)}
     ${project?`<div class="card" style="margin-bottom:14px"><small class="eyebrow">Active project</small><h3>${esc(project.name)}</h3><p>${esc(project.goal||"No goal set")}</p><small class="muted">Browser-local ProjectStore · ${project.event_chain_verified?"event chain verified":"event chain not verified"}</small></div>`:""}
-    ${project?`<div class="list">${rows.length?rows.map(row=>`<article class="list-row" data-contract="${esc(row.contract_id)}"><span><strong>${esc(row.title)}</strong><small>${esc(row.outcome)} · ${row.success_criteria.length} success criteria · ${row.integrity_verified?"integrity verified":"integrity pending"}</small></span><span style="display:flex;gap:6px;align-items:center">${badge(row.approval?"Approved":"Draft",row.approval?"ok":"")}<button class="button" type="button" data-verify-work="${esc(row.contract_id)}">Verify</button>${row.approval?"":`<button class="button" type="button" data-approve-work="${esc(row.contract_id)}">Approve</button>`}</span></article>`).join(""):`<div class="card"><h3>No Outcome Contracts yet</h3><p>Create one to define the outcome, success criteria, constraints and approval boundary before execution.</p></div>`}</div>`:`<div class="card"><h3>Select a project first</h3><p>Work is always bound to a project graph. Create or select a project before creating an Outcome Contract.</p></div>`}
+    ${project?`<div class="list">${rows.length?rows.map(row=>`<article class="list-row" data-contract="${esc(row.contract_id)}"><span><strong>${esc(row.title)}</strong><small>${esc(row.outcome)} · ${row.success_criteria.length} success criteria · ${row.integrity_verified?"integrity verified":"integrity pending"}</small></span><span style="display:flex;gap:6px;align-items:center">${badge(row.approval?"Approved":"Draft",row.approval?"ok":"")}<button class="button" type="button" data-verify-work="${esc(row.contract_id)}">Verify</button><button class="button" type="button" data-select-work="${esc(row.contract_id)}">Use for execution</button>${row.approval?"":`<button class="button" type="button" data-approve-work="${esc(row.contract_id)}">Approve</button>`}</span></article>`).join(""):`<div class="card"><h3>No Outcome Contracts yet</h3><p>Create one to define the outcome, success criteria, constraints and approval boundary before execution.</p></div>`}</div>`:`<div class="card"><h3>Select a project first</h3><p>Work is always bound to a project graph. Create or select a project before creating an Outcome Contract.</p></div>`}
     <section class="section"><div class="card"><small class="eyebrow">Execution boundary</small><h3>Preview-only until a qualified executor is connected</h3><p>Approval records policy intent and an evidence-linked decision receipt. It does not execute a consequential external action.</p></div></section>`;
 }
 
@@ -435,6 +437,7 @@ function bindPageEvents(){
     else event("ui.preview-action",{action});
   }));
   $$('[data-verify-work]').forEach(b=>b.addEventListener("click",()=>void verifyWork(b.dataset.verifyWork)));
+  $$('[data-select-work]').forEach(b=>b.addEventListener('click',()=>{state.activeWorkId=b.dataset.selectWork;nav('home');}));
   $$('[data-approve-work]').forEach(b=>b.addEventListener("click",()=>void approveWork(b.dataset.approveWork)));
   $$('[data-quick]').forEach(b=>b.addEventListener("click",()=>event("composer.quick-input",{type:b.dataset.quick})));
 }
@@ -543,6 +546,21 @@ function installGlobalEvents(){
   });
 }
 
+window.AxiomExecutionContext=Object.freeze({get(objective){
+  const work=state.work.find(w=>w.contract_id===state.activeWorkId);
+  if(work&&work.outcome!==objective)throw new TypeError('Use the selected Work objective or create a new Work contract.');
+  const controls={...state.controls};
+  if(work){
+    if(!work.integrity_verified)throw new TypeError('Verify the selected Work contract before execution.');
+    const c=work.constraints||{};
+    const stricter=(a,b,order)=>{if(!order.includes(a)||!order.includes(b))throw new TypeError('This Work policy requires an explicit supported execution policy.');return order[Math.min(order.indexOf(a),order.indexOf(b))];};
+    controls.autonomy=stricter(c.autonomy,controls.autonomy,['Preview only','Approval each action','Policy-bounded']);
+    controls.privacy=stricter(c.privacy,controls.privacy,['Private','Project','Organization']);
+    controls.evidence=stricter(c.evidence,controls.evidence,['Independent validation','Verified','Standard']);
+    if(c.compute_budget!==null&&c.compute_budget!==undefined)controls.budget=Math.min(Number(c.compute_budget),controls.budget===''?1:Number(controls.budget));
+  }
+  return {project_id:state.activeProjectId||'project_default',...(work?{work_id:work.contract_id,success_criteria:[...work.success_criteria]}:{}),agent_id:'axiom-runtime-v1',controls};
+}});
 installGlobalEvents();
 updateNetwork();
 renderRoute();

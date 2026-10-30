@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:musitu:axiom:execution-contract:v1",
+  "title":"MUSITU Axiom execution contract v1",
+  "type":"object","additionalProperties":false,
+  "required":["schema","tenant_id","project_id","work_id","agent_id","objective","success_criteria","required_outcomes","input_commitment","policy","issued_at","expires_at","contract_sha256"],
+  "properties":{
+    "schema":{"const":"musitu.axiom.execution-contract.v1"},
+    "tenant_id":{"$ref":"#/$defs/id"},"project_id":{"$ref":"#/$defs/id"},"work_id":{"$ref":"#/$defs/id"},"agent_id":{"$ref":"#/$defs/id"},
+    "objective":{"type":"string","minLength":3,"maxLength":2000},
+    "success_criteria":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"string","minLength":3,"maxLength":1000}},
+    "required_outcomes":{"type":"array","uniqueItems":true,"contains":{"const":"artifact"},"items":{"enum":["artifact","research","compute","decision"]}},
+    "input_commitment":{"oneOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["kind","sha256"],"properties":{"kind":{"const":"decision"},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}}}]},
+    "policy":{"type":"object","additionalProperties":false,"required":["autonomy","privacy","evidence","budget_unit","max_compute_calls","max_provider_calls","allowed_operations","allowed_actions"],"properties":{
+      "autonomy":{"enum":["Policy-bounded","Preview only","Approval each action"]},
+      "privacy":{"enum":["Private","Project","Organization"]},
+      "evidence":{"enum":["Verified","Standard","Independent validation"]},
+      "budget_unit":{"const":"CALLS_NOT_CURRENCY"},
+      "max_compute_calls":{"type":"integer","minimum":0,"maximum":1000000},"max_provider_calls":{"type":"integer","minimum":0,"maximum":1000000},
+      "allowed_operations":{"type":"array","uniqueItems":true,"items":{"type":"string","maxLength":120}},
+      "allowed_actions":{"type":"array","uniqueItems":true,"items":{"enum":["compute","research","model","decision"]}}
+    }},
+    "issued_at":{"type":"string","format":"date-time"},"expires_at":{"type":"string","format":"date-time"},"contract_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}
+  },
+  "$defs":{"id":{"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,179}$"}}
+}

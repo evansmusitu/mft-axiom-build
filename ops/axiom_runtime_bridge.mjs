@@ -1,3 +1,4 @@
+import {sha256Json} from '../axiom_interface/vnext/execution_integrity.mjs';
 const encoder=new TextEncoder();
 const clean=(value,limit=200)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,limit);
 
@@ -44,7 +45,7 @@ export function createProtectedRuntimeBridge({db,service,tokenFactory=randomToke
       const token=String(tokenFactory()),keyId=clean(idFactory(),180),created=now().toISOString(),expires=new Date(now().getTime()+10*60*1000).toISOString(),tokenHash=await sha256(token);
       if (token.length<48||!/^[A-Za-z0-9._~-]+$/.test(token)||!keyId) throw new DOMException('delegated credential generation failed','SecurityError');
       await db.prepare("INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'browser-task-one-request','active',?5,NULL,?6,NULL)").bind(keyId,customer_id,tokenHash,token.slice(0,16),created,expires).run();
-      let response,ledger=null;
+      let response,ledger=null,committedResponse=null;
       try {
         response=await jsonResponse(service,'/v1/compute',{
           method:'POST',
@@ -53,7 +54,15 @@ export function createProtectedRuntimeBridge({db,service,tokenFactory=randomToke
         });
         if (response.status<200||response.status>=300) throw new DOMException(`protected runtime compute failed HTTP ${response.status}`,'NetworkError');
         ledger=await db.prepare('SELECT request_id,operation,compute_units,http_status,result_sha256 FROM usage_events WHERE request_id=?1 AND customer_id=?2 AND key_id=?3 LIMIT 1').bind(request_id,customer_id,keyId).first();
-        if (!ledger||ledger.request_id!==request_id||ledger.operation!==operation||Number(ledger.http_status)!==200||Number(ledger.compute_units)<=0||!/^[0-9a-f]{32,64}$/i.test(String(ledger.result_sha256||''))) throw new DOMException('protected runtime metering receipt unavailable','DataError');
+        if (!ledger||ledger.request_id!==request_id||ledger.operation!==operation||Number(ledger.http_status)!==200||!Number.isFinite(Number(ledger.compute_units))||Number(ledger.compute_units)<=0||!/^[0-9a-f]{64}$/.test(String(ledger.result_sha256||''))) throw new DOMException('protected runtime metering receipt unavailable','DataError');
+        // Runtime v3/v4 hashes the canonical kernel response, before the gateway
+        // adds its reserved `axiom` metadata and `receipt` fields. The D1 ledger
+        // is the trusted server-side commitment source; no HMAC claim is made.
+        if(!response.body||typeof response.body!=='object'||Array.isArray(response.body)||response.body.ok===false)throw new DOMException('protected runtime result is invalid','DataError');
+        const {axiom:_metadata,receipt,...kernelBody}=response.body;
+        if(!receipt||receipt.customer_id!==customer_id||receipt.request_id!==request_id||receipt.operation!==operation||receipt.result_sha256!==ledger.result_sha256)throw new DOMException('protected runtime receipt identity mismatch','DataError');
+        if(await sha256Json(kernelBody)!==ledger.result_sha256)throw new DOMException('protected runtime result commitment mismatch','DataError');
+        committedResponse=kernelBody;
       } finally {
         try {
           await db.prepare('DELETE FROM api_keys WHERE id=?1 AND key_hash=?2').bind(keyId,tokenHash).run();
@@ -66,9 +75,12 @@ export function createProtectedRuntimeBridge({db,service,tokenFactory=randomToke
         request_id,
         http_status:response.status,
         result:response.body?.result??response.body,
+        committed_response:committedResponse,
         receipt:{
           compute_units:Number(ledger.compute_units),
           result_sha256:String(ledger.result_sha256),
+          result_commitment_verified:true,
+          commitment_contract:'D1_LEDGER_CANONICAL_KERNEL_BODY_SHA256_V1',
           runtime_receipt_present:Boolean(response.body?.receipt||response.body?.signature),
           customer_metered:true,
           delegated_credential_disclosed:false,
