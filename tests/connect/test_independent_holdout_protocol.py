@@ -155,6 +155,23 @@ class HoldoutProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'independent_protocol_timezone_offset_invalid'):
             inspect_protocol(q)
 
+    def test_preregistered_timestamps_reject_unknown_offsets_and_non_rfc3339_forms(self):
+        from benchmarks.mining_adapter.independent_holdout_protocol import _timestamp
+        for value in (
+            '2025-01-01T00:00:00-00:00',  # RFC3339: unknown UTC offset
+            '2025-01-01 00:00:00+00:00',  # Python's permissive space separator
+            '2025-W01-3T00:00:00+00:00',  # week-date form is not the source contract
+        ):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                    ValueError, 'independent_protocol_timestamp_invalid|independent_protocol_timezone_offset_invalid'):
+                _timestamp(value)
+        self.assertEqual(_timestamp('2025-01-01T00:00:00Z'), START)
+        self.assertEqual(_timestamp('2025-01-01T00:00:00+00:00'), START)
+        declaration = candidate()
+        declaration['folds'][0]['first_feature_time'] = '2025-01-01T00:00:00-00:00'
+        with self.assertRaisesRegex(ValueError, 'independent_protocol_timezone_offset_invalid'):
+            inspect_protocol(declaration)
+
     def test_preregistered_timestamps_accept_boundary_offsets(self):
         from benchmarks.mining_adapter.independent_holdout_protocol import _timestamp
         self.assertEqual(_timestamp('2025-01-01T14:00:00+14:00'), START)

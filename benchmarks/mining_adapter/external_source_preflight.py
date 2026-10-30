@@ -29,6 +29,8 @@ PUBLIC_DEV_SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8f
 NUMERIC_SENSORS = tuple(k for k in MINING_TELEMETRY_SENSORS if k != 'F_SIDE')
 ROW_FIELDS = frozenset(('event_time',) + MINING_TELEMETRY_SENSORS)
 HEX_SHA = re.compile(r'[0-9a-f]{64}\Z')
+# Restrict time declarations to unambiguous RFC 3339 calendar timestamps.
+RFC3339_TIME = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z')
 
 class _DuplicateJSONKeyError(ValueError):
     """Reject ambiguous source or manifest JSON, including nested objects."""
@@ -93,8 +95,10 @@ def _sha256_file(path: Path) -> str:
 
 
 def _parsed_time(value: Any) -> datetime:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or RFC3339_TIME.fullmatch(value) is None:
         raise ValueError('external_source_timestamp_invalid')
+    if value.endswith('-00:00'):
+        raise ValueError('external_source_timezone_offset_invalid')
     try:
         result = datetime.fromisoformat(value.replace('Z', '+00:00'))
     except ValueError:

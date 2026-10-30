@@ -128,6 +128,23 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'external_source_timezone_offset_invalid'):
             self.inspect()
 
+    def test_source_timestamp_rejects_unknown_offset_and_noncanonical_calendar_forms(self):
+        from benchmarks.mining_adapter.external_source_preflight import _parsed_time
+        for value in (
+            '2025-04-07T00:00:00-00:00',
+            '2025-04-07 00:00:00+00:00',
+            '2025-W15-1T00:00:00+00:00',
+        ):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                    ValueError, 'external_source_timestamp_invalid|external_source_timezone_offset_invalid'):
+                _parsed_time(value)
+        # Real source stream is hash-pinned; a syntactically valid manifest
+        # cannot disguise a -00:00 telemetry clock as verified UTC.
+        self.lines[0]['event_time'] = '2025-04-07T00:00:00-00:00'
+        self.write_source()
+        with self.assertRaisesRegex(ValueError, 'external_source_timestamp_invalid|external_source_timezone_offset_invalid'):
+            self.inspect()
+
     def test_boundary_utc_offsets_parse_without_normalizing_them_away(self):
         from benchmarks.mining_adapter.external_source_preflight import _parsed_time
         self.assertEqual(_parsed_time('2025-04-07T14:00:00+14:00'), self.start)

@@ -178,6 +178,18 @@ test('offline customer canary rejects impossible calendar timestamps',async()=>{
   } finally { f.sql.close(); }
 });
 
+test('offline Mining ingestion rejects unknown-UTC-offset event timestamps',async()=>{
+  const f=fixture({alphaDaily:8,alphaMinute:8});
+  try {
+    const unknown=JSON.stringify({rows:[{...sampleRow,event_time:'2026-10-22T10:00:00-00:00'}],budget:100});
+    const response=await inspect(req({payload:unknown}),f.env);
+    assert.deepEqual(response,{status:400,body:{ok:false,error:'INVALID_MINING_REQUEST'}});
+    const known=JSON.stringify({rows:[{...sampleRow,event_time:'2026-10-22T10:00:00+00:00'}],budget:100});
+    assert.equal((await inspect(req({payload:known}),f.env)).status,200);
+    assert.equal(events(f.sql,'tenant_alpha'),2);
+  } finally {f.sql.close();}
+});
+
 test('valid spatial metadata with timezone and scoped Mining semantics remains accepted',async()=>{
   const f=fixture({alphaDaily:10,alphaMinute:10});
   try{

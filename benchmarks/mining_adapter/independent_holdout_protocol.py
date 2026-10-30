@@ -23,6 +23,8 @@ FROZEN_MODEL_SHA = '3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab0
 FROZEN_THRESHOLD = 0.022545819099925965
 HEX_SHA = re.compile(r'[a-f0-9]{64}\Z')
 ALIAS = re.compile(r'[A-Za-z0-9_.-]{1,128}\Z')
+# Restrict time declarations to unambiguous RFC 3339 calendar timestamps.
+RFC3339_TIME = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z')
 
 
 def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -59,8 +61,10 @@ _TASK = {
 
 
 def _timestamp(v: Any) -> datetime:
-    if not isinstance(v, str):
+    if not isinstance(v, str) or RFC3339_TIME.fullmatch(v) is None:
         raise ValueError('independent_protocol_timestamp_invalid')
+    if v.endswith('-00:00'):
+        raise ValueError('independent_protocol_timezone_offset_invalid')
     try:
         t = datetime.fromisoformat(v.replace('Z', '+00:00'))
     except ValueError:

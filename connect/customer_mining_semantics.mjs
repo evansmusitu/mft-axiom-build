@@ -26,6 +26,8 @@ function validEventTime(time) {
   if (match[8] !== 'Z') {
     const zoneHour = Number(match[10]);
     const zoneMinute = Number(match[11]);
+    // RFC 3339 uses -00:00 to mean UTC offset unknown, not known UTC.
+    if (match[9] === '-' && zoneHour === 0 && zoneMinute === 0) return false;
     if (zoneHour > 14 || zoneMinute > 59 || (zoneHour === 14 && zoneMinute !== 0)) return false;
   }
   return true;
