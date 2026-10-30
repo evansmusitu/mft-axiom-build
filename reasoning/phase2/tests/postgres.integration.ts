@@ -436,8 +436,8 @@ test("PostgreSQL authenticated completion resolves and replays real persisted ex
   await pool.query("TRUNCATE axiom_worker_operation_receipts, axiom_distributed_execution_jobs, axiom_platform_executions, axiom_world_snapshots, axiom_temporal_facts");
   const at="2026-10-30T06:00:00.000Z",H="a".repeat(64),workerKeys=generateKeyPairSync("ed25519"),leaseKeys=generateKeyPairSync("ed25519");
   const trust=phase2.createWorkerTrustRecord({workerId:"pg-proof-worker",keyId:"pg-proof-key",poolId:"pg-proof-pool",publicKey:workerKeys.publicKey,status:"ACTIVE",maxLeaseMs:5000,allowedActions:["CLAIM","COMPLETE"]});
-  const trustStore={get:(w:string,k:string)=>w===trust.workerId&&k===trust.keyId?trust:undefined};
-  const authenticator=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0}),credential=phase2.createStaticWorkerCredential(trust.workerId,trust.keyId,workerKeys.privateKey);
+  const trustStore={get:(w:string,k:string)=>w===trust.identity.workerId&&k===trust.identity.keyId?trust:undefined};
+  const authenticator=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0}),credential=phase2.createStaticWorkerCredential(trust.identity.workerId,trust.identity.keyId,workerKeys.privateKey);
   const world=new PostgresWorldStateRepository(pool),executions=new PostgresExecutionRepository(pool),registry=createDefaultRegistry(),signer=createStaticSignerProvider("pg-proof-signer",createSigner());
   const verifier=new phase2.PersistedDistributedCompletionVerifier({world,executions,registry,signer});
   const jobs=new phase2.PostgresDistributedExecutionRepository(pool,{workerTrustStore:trustStore,leaseSigner:phase2.createStaticWorkerLeaseSigner("pg-proof-lease",leaseKeys),completionVerifier:verifier});
