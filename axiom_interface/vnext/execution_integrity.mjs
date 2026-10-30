@@ -38,7 +38,8 @@ export async function sha256Json(value) {
 export async function verifyTaskCommitments(result) {
   if(!result?.artifact||!result?.receipt)return false;
   const {receipt_sha256,...body}=result.receipt;
-  return body.artifact_sha256===await sha256Json(result.artifact)&&receipt_sha256===await sha256Json(body);
+  const {receipt:_,object_refs:__,...payload}=result;
+  return body.task_payload_sha256===await sha256Json(payload)&&body.artifact_sha256===await sha256Json(result.artifact)&&receipt_sha256===await sha256Json(body);
 }
 
 export async function verifyExecutionResultCommitment(task){

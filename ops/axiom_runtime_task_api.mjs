@@ -175,19 +175,20 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   try{
     const input_commitment=payload.decision===undefined?null:{kind:'decision',sha256:await sha256Json(payload.decision)};
     governance=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).admit({objective,context:payload.execution_context,input_commitment});
-    await governance.assertBound({customer,objective});
   }catch(error){
     const status=error?.name==='TypeError'?400:error?.name==='NotAllowedError'?403:503;
     return json(status,{error:clean(error?.message||'execution_contract_unavailable',240),error_code:clean(error?.name||'ContractError',80)});
   }
-  const runtime=createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME});
   const taskId=`task_${(await sha256Json({tenant_id:String(customer.customer_id),submission_id:payload.submission_id})).slice(0,48)}`;
-  const previous=await governance.get(taskId);
+  let previous;
+  try{previous=await governance.get(taskId);}catch{return json(503,{error:'stored_submission_could_not_be_verified',task_id:taskId});}
   if(previous){
     if(previous.execution_contract?.contract_sha256!==governance.contract.contract_sha256)return json(409,{error:'submission_contract_conflict',task_id:taskId});
     if(previous.status==='COMPLETED')return new Response(`event: complete\ndata: ${JSON.stringify(previous)}\n\n`,{headers:{...COMMON_HEADERS,'content-type':'text/event-stream; charset=utf-8'}});
     return json(409,{error:'submission_already_recorded_reconcile_before_retry',task_id:taskId,status:previous.status});
   }
+  try{await governance.assertBound({customer,objective});}catch(error){return json(403,{error:clean(error?.message||'execution_not_authorized',240)});}
+  const runtime=createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME});
   const store=governance,research=createFixedResearch(fetchImpl),model=createWorkersAIModel(env);
   let observerConnected=true;
   const stream=new ReadableStream({

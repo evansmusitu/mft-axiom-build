@@ -16,7 +16,11 @@ export function executionRecord(value,allowed,label){
 function choice(value,values,label){if(!values.includes(value))throw new TypeError(`${label} is invalid`);return value;}
 export function normalizeExecutionContext(value={}){
   executionRecord(value,['project_id','work_id','agent_id','controls','success_criteria'],'execution context');
-  const controls=executionRecord(value.controls||{},['autonomy','privacy','evidence','budget'],'execution controls');
+  const controls=executionRecord(value.controls||{},['autonomy','privacy','evidence','budget','approval','deadline'],'execution controls');
+  const approval=choice(controls.approval??'Before consequential action',['Before consequential action','Every tool action','Read-only auto, writes approved'],'approval');
+  let deadline=controls.deadline??null;
+  if(deadline==='')deadline=null;
+  if(deadline!==null){if(typeof deadline!=='string'||!/^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(deadline)||!Number.isFinite(Date.parse(deadline)))throw new TypeError('deadline requires an explicit valid timezone');deadline=new Date(deadline).toISOString();}
   const budget=controls.budget===undefined||controls.budget===''?1:controls.budget;
   if(!((typeof budget==='number'&&Number.isSafeInteger(budget))||(typeof budget==='string'&&/^(0|[1-9][0-9]*)$/.test(budget)))||Number(budget)<0||Number(budget)>1000000)throw new TypeError('budget must be a nonnegative integer number of compute calls');
   const criteria=value.success_criteria??['Return an artifact bound to its execution and evidence.'];
@@ -24,7 +28,7 @@ export function normalizeExecutionContext(value={}){
   const normalized={
     project_id:value.project_id===undefined?'project_default':requireExecutionId(value.project_id,'project_id'),
     agent_id:value.agent_id===undefined?EXECUTION_AGENT_ID:requireExecutionId(value.agent_id,'agent_id'),
-    controls:{autonomy:choice(controls.autonomy??'Policy-bounded',['Policy-bounded','Preview only','Approval each action'],'autonomy'),privacy:choice(controls.privacy??'Private',['Private','Project','Organization'],'privacy'),evidence:choice(controls.evidence??'Verified',['Verified','Standard','Independent validation'],'evidence'),budget:Number(budget)},
+    controls:{autonomy:choice(controls.autonomy??'Policy-bounded',['Policy-bounded','Preview only','Approval each action'],'autonomy'),privacy:choice(controls.privacy??'Private',['Private','Project','Organization'],'privacy'),evidence:choice(controls.evidence??'Verified',['Verified','Standard','Independent validation'],'evidence'),budget:Number(budget),approval,deadline},
     success_criteria:criteria.map(x=>x.trim()),
   };
   if(value.work_id!==undefined)normalized.work_id=requireExecutionId(value.work_id,'work_id');
@@ -50,7 +54,9 @@ export async function validateExecutionContract(contract){
     if(contract.input_commitment.kind!=='decision'||!/^[0-9a-f]{64}$/.test(contract.input_commitment.sha256))throw new TypeError('invalid input commitment');
   }
   if(contract.required_outcomes.includes('decision')!==(contract.input_commitment?.kind==='decision'))throw new TypeError('decision outcome requires a bound input commitment');
-  const p=executionRecord(contract.policy,['autonomy','privacy','evidence','budget_unit','max_compute_calls','max_provider_calls','allowed_operations','allowed_actions'],'execution policy');
+  const p=executionRecord(contract.policy,['autonomy','privacy','evidence','approval','deadline','budget_unit','max_compute_calls','max_provider_calls','allowed_operations','allowed_actions'],'execution policy');
+  choice(p.approval,['Before consequential action','Every tool action','Read-only auto, writes approved'],'approval');
+  if(p.deadline!==null&&(!Number.isFinite(Date.parse(p.deadline))||new Date(p.deadline).toISOString()!==p.deadline||Date.parse(contract.expires_at)>Date.parse(p.deadline)))throw new TypeError('contract deadline must bound execution expiry');
   choice(p.autonomy,['Policy-bounded','Preview only','Approval each action'],'autonomy');choice(p.privacy,['Private','Project','Organization'],'privacy');choice(p.evidence,['Verified','Standard','Independent validation'],'evidence');
   if(p.budget_unit!==EXECUTION_BUDGET_UNIT)throw new TypeError('budget unit invalid');
   for(const k of ['max_compute_calls','max_provider_calls'])if(!Number.isSafeInteger(p[k])||p[k]<0||p[k]>1000000)throw new TypeError(`invalid ${k}`);

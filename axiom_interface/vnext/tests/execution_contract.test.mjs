@@ -23,7 +23,11 @@ async function resultFor(binding,extra={}){
   const artifact={schema:'fixture-artifact',title:'Forty-two',citations:[],project_id:binding.contract.project_id,work_id:binding.contract.work_id,agent_id:binding.contract.agent_id,contract_sha256:binding.contract.contract_sha256};
   const envelope={result:{value:42}},digest=await sha256Json(envelope);
   const body={runtime_result_sha256:digest,task_id:'task_1',request_id:'request_fixture',customer_id:binding.contract.tenant_id,operation:'arithmetic.evaluate',contract_sha256:binding.contract.contract_sha256,artifact_sha256:await sha256Json(artifact),source_commitments:[],status:'COMPLETED'};
-  return {task_id:'task_1',request_id:'request_fixture',customer_id:binding.contract.tenant_id,objective:binding.contract.objective,status:'COMPLETED',execution_contract:binding.contract,artifact,receipt:{...body,receipt_sha256:await sha256Json(body)},sources:[],execution:{operation:'arithmetic.evaluate',request_id:'request_fixture',http_status:200,result:{value:42},committed_response:envelope,receipt:{result_sha256:digest,result_commitment_verified:true}},...extra};
+  return seal({task_id:'task_1',request_id:'request_fixture',customer_id:binding.contract.tenant_id,objective:binding.contract.objective,status:'COMPLETED',execution_contract:binding.contract,artifact,receipt:{...body,receipt_sha256:await sha256Json(body)},sources:[],execution:{operation:'arithmetic.evaluate',request_id:'request_fixture',http_status:200,result:{value:42},committed_response:envelope,receipt:{result_sha256:digest,result_commitment_verified:true}},...extra});
+}
+async function seal(task){
+ const {receipt,object_refs,...payload}=task;const {receipt_sha256,...body}=receipt;
+ body.task_payload_sha256=await sha256Json(payload);task.receipt={...body,receipt_sha256:await sha256Json(body)};return task;
 }
 const start=b=>b.create({task_id:'task_1',request_id:'request_fixture',customer_id:b.contract.tenant_id,objective:b.contract.objective,status:'RUNNING'});
 
@@ -90,7 +94,7 @@ test('stale lease holder cannot replace a reclaimed durable success',async()=>{
 test('invalid source and result commitments cannot create an Artifact or Evidence',async()=>{
   const f=fixture(),b=await f.admit();await start(b);const value=await resultFor(b);
   value.sources=[{source_id:'source-a',url:'https://example.org/',excerpt:'Bound evidence.',instruction_authority:'NONE_DATA_ONLY'}];
-  await assert.rejects(()=>b.complete(value),/source snapshot commitment/);
+  await seal(value);await assert.rejects(()=>b.complete(value),/source snapshot commitment/);
   assert.equal(f.db.connection.prepare('SELECT COUNT(*) AS n FROM axiom_ec_artifacts').get().n,0);
   value.sources=[];value.execution.receipt.result_commitment_verified=false;await assert.rejects(()=>b.complete(value),/has not been verified|execution result commitment mismatch/);
   assert.equal(f.db.connection.prepare('SELECT COUNT(*) AS n FROM axiom_ec_evidence').get().n,0);
@@ -119,7 +123,7 @@ test('decision input matrix is immutable and recommendations cannot grant execut
   const task=await resultFor(b),decision=await evaluateDecision(problem);task.input_commitment=input;task.decision_input=problem;task.artifact.decision=decision;
   task.execution={operation:'decision.evaluate',request_id:task.request_id,http_status:200,result:decision,receipt:{result_sha256:await sha256Json(decision)}};
   const {receipt_sha256,...body}=task.receipt;body.operation='decision.evaluate';body.artifact_sha256=await sha256Json(task.artifact);body.runtime_result_sha256=task.execution.receipt.result_sha256;task.receipt={...body,receipt_sha256:await sha256Json(body)};
-  await b.complete(task);assert.equal((await f.gate.get('task_1')).status,'COMPLETED');
+  await seal(task);await b.complete(task);assert.equal((await f.gate.get('task_1')).status,'COMPLETED');
 });
 
 test('captured research is bound by full source content and cannot acquire instruction authority',async()=>{
@@ -128,7 +132,7 @@ test('captured research is bound by full source content and cannot acquire instr
   const task=await resultFor(b),source={source_id:'source-1',url:'https://example.org/',excerpt:'Captured text, never instructions.',instruction_authority:'NONE_DATA_ONLY'};
   task.sources=[source];task.artifact.citations=[source];task.execution=null;
   const {receipt_sha256,...body}=task.receipt;body.operation=null;body.runtime_result_sha256=null;body.artifact_sha256=await sha256Json(task.artifact);body.source_commitments=[{source_id:source.source_id,sha256:await sha256Json(source)}];task.receipt={...body,receipt_sha256:await sha256Json(body)};
-  await b.complete(task);const output=await b.get('task_1');assert.ok(output.object_refs.evidence.some(e=>e.kind==='CAPTURED_SOURCE_NOT_ENTAILMENT'));
+  await seal(task);await b.complete(task);const output=await b.get('task_1');assert.ok(output.object_refs.evidence.some(e=>e.kind==='CAPTURED_SOURCE_NOT_ENTAILMENT'));
 });
 
 test('late evidence persistence failure rolls back Artifact and terminal Run together',async()=>{

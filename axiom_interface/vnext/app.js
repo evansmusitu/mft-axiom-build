@@ -1,3 +1,4 @@
+import {workExecutionContext} from './work_execution_context.mjs';
 import {initBrowserSession} from "../browser_session.js";
 import {ATOMIC_OPERATIONS, ARCHETYPES, DERIVED_CAPABILITY_COUNT, routeCapability, capabilityFamilies} from "./capability_registry.js";
 import {VNextDataAdapter, VNEXT_DATA_BOUNDARY} from "./data_adapters.js";
@@ -546,21 +547,7 @@ function installGlobalEvents(){
   });
 }
 
-window.AxiomExecutionContext=Object.freeze({get(objective){
-  const work=state.work.find(w=>w.contract_id===state.activeWorkId);
-  if(work&&work.outcome!==objective)throw new TypeError('Use the selected Work objective or create a new Work contract.');
-  const controls={...state.controls};
-  if(work){
-    if(!work.integrity_verified)throw new TypeError('Verify the selected Work contract before execution.');
-    const c=work.constraints||{};
-    const stricter=(a,b,order)=>{if(!order.includes(a)||!order.includes(b))throw new TypeError('This Work policy requires an explicit supported execution policy.');return order[Math.min(order.indexOf(a),order.indexOf(b))];};
-    controls.autonomy=stricter(c.autonomy,controls.autonomy,['Preview only','Approval each action','Policy-bounded']);
-    controls.privacy=stricter(c.privacy,controls.privacy,['Private','Project','Organization']);
-    controls.evidence=stricter(c.evidence,controls.evidence,['Independent validation','Verified','Standard']);
-    if(c.compute_budget!==null&&c.compute_budget!==undefined)controls.budget=Math.min(Number(c.compute_budget),controls.budget===''?1:Number(controls.budget));
-  }
-  return {project_id:state.activeProjectId||'project_default',...(work?{work_id:work.contract_id,success_criteria:[...work.success_criteria]}:{}),agent_id:'axiom-runtime-v1',controls};
-}});
+window.AxiomExecutionContext=Object.freeze({get:objective=>workExecutionContext(state,objective)});
 installGlobalEvents();
 updateNetwork();
 renderRoute();

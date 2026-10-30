@@ -1,0 +1,193 @@
+{
+  "schema": "musitu.axiom.whole-system-repair-verification.v1",
+  "status": "LOCAL_CANDIDATE_PASS_NOT_RELEASE",
+  "verified_at": "2026-10-30T06:06:29.554127+00:00",
+  "main_baseline": "06cc5f74fb066c11f8d81390f424e58a2f9c261a",
+  "branch": "repair/axiom-whole-system-20261029",
+  "checks": {
+    "application": {
+      "exit": 0,
+      "test_count": 323,
+      "seconds": 3.13
+    },
+    "phase1": {
+      "exit": 0,
+      "test_count": 25,
+      "seconds": 0.315
+    },
+    "phase2": {
+      "exit": 0,
+      "test_count": 189,
+      "seconds": 6.059
+    },
+    "frontier": {
+      "exit": 0,
+      "test_count": 23,
+      "seconds": 0.265
+    },
+    "recovery": {
+      "exit": 0,
+      "test_count": 22,
+      "seconds": 2.322
+    },
+    "recovery_application": {
+      "exit": 0,
+      "test_count": 6,
+      "seconds": 1.98
+    },
+    "multiplatform": {
+      "exit": 0,
+      "test_count": 21,
+      "seconds": 0.165
+    }
+  },
+  "audit_findings": {
+    "W01": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "reasoning/phase1/src/canonical.ts",
+      "verification_group": "phase1"
+    },
+    "W02": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "axiom_interface/vnext/execution_integrity.mjs",
+      "verification_group": "application"
+    },
+    "W03": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/advanced.py",
+      "verification_group": "frontier"
+    },
+    "W04": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "reasoning/phase2/src/distributed_execution_proof.ts",
+      "verification_group": "phase2"
+    },
+    "W05": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "recovery/ar03_06/kernel.py",
+      "verification_group": "recovery"
+    },
+    "W06": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "ops/axiom_runtime_task_api.mjs",
+      "verification_group": "application"
+    },
+    "W07": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "ops/axiom_execution_contract.mjs",
+      "verification_group": "application"
+    },
+    "W08": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "axiom_interface/vnext/fa14_evidence_native_engine.js",
+      "verification_group": "application"
+    },
+    "W09": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/advanced.py",
+      "verification_group": "frontier"
+    },
+    "W10": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/advanced.py",
+      "verification_group": "frontier"
+    },
+    "W11": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/fullstack_base.py",
+      "verification_group": "frontier"
+    },
+    "W12": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/fabric.py",
+      "verification_group": "frontier"
+    },
+    "W13": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "frontier_v5/runtime/fullstack_base.py",
+      "verification_group": "frontier"
+    },
+    "W14": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "multiplatform/quality.py",
+      "verification_group": "multiplatform"
+    },
+    "W15": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "axiom_interface/vnext/runtime_task_service.mjs",
+      "verification_group": "application"
+    },
+    "W16": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "ops/axiom_runtime_bridge.mjs",
+      "verification_group": "application"
+    },
+    "W17": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "reasoning/phase2/src/model_provider_transport.ts",
+      "verification_group": "phase2"
+    },
+    "W18": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "reasoning/phase1/src/schema_validation.ts",
+      "verification_group": "phase1"
+    },
+    "W19": {
+      "status": "SOURCE_REPAIRED_LOCAL_REGRESSION",
+      "primary_source": "reasoning/phase1/src/certificate.ts",
+      "verification_group": "phase1"
+    }
+  },
+  "source_files_sha256": {
+    "axiom_interface/vnext/decision_analysis.mjs": "f386d530ef9280beef18ff206cbb5914d2a7551f4dae228bc8ee4221766f5063",
+    "axiom_interface/vnext/execution_contract.mjs": "c0bfd1ee5647fae8a794c5c4db2f68b0cd3aeaad5872e93419de13a3ba142e16",
+    "axiom_interface/vnext/execution_integrity.mjs": "99349e0c1bd60cc6d82d37ec13bbc9a686ca5d007dbcdba93b7182ffeb561358",
+    "axiom_interface/vnext/fa14_evidence_native_engine.js": "1c1eae7a041809d6462d074436af2a05cdf753a4d3d2b92da13baa4855dbe1fe",
+    "axiom_interface/vnext/runtime_decision_service.mjs": "139f1e54cf25ac0f848c21c1160d422976e54d39bdcaa186f6a22919c384ea86",
+    "axiom_interface/vnext/runtime_execution_client.mjs": "a09f9c5a092b1f2f2d15de9a3368a12d81ee8025b1158265ff432a54956657bb",
+    "axiom_interface/vnext/runtime_task_service.mjs": "83ee6ffe275bd04d90f6ba93ea1fa282d82fe7314baf866f74f87a3c0acab9b2",
+    "axiom_interface/vnext/work_execution_context.mjs": "bcc8f218b5146932a24b9822f16f9cb6736105c511ada79afea438ac765bb9be",
+    "frontier_v5/runtime/advanced.py": "20e6759aa192e15d4ce27ff569103d8de814232eefea342adb602238af270b22",
+    "frontier_v5/runtime/decision_analysis.py": "f64e62eaf73c9b1ae5f154589157c46f24b12d5aa7ebfb5174601304285db111",
+    "frontier_v5/runtime/fabric.py": "e9d7be0a0f87ad7a39bebed149ede098090f11d1992a54caeb141f542e132f2d",
+    "frontier_v5/runtime/fullstack_base.py": "2823839e557db35c4849f33f71877eaf9682d5f1d0e254bb3490ec47c8047a05",
+    "multiplatform/quality.py": "58271a1d4f12fea7ddeaec50beea8d5be73d39d47e8cd39a91c40606e6c59b7d",
+    "ops/axiom_execution_contract.mjs": "75633aac086625e13c3b2f9fb9e233f9f1361a0216287d02b2d553b3b7956547",
+    "ops/axiom_execution_contract_schema.sql": "368e67d7bdafb340b2f7aeb14ab5d3a229754ae89d6dcdb496d6e3f82b37b4d4",
+    "ops/axiom_runtime_bridge.mjs": "45f7d36dc5b2a9253b00e22962c8264887053c0c30f0f4463375b69fc33aff82",
+    "ops/axiom_runtime_task_api.mjs": "f167f606c1e0933860963bd98ff3978fea4b05535750ebe555ad5ae51c108854",
+    "reasoning/phase1/src/canonical.ts": "e71e704ff07eb6689b4c1d3fc0fd132139b4eda51fc0d00b6ca16d14f05274eb",
+    "reasoning/phase1/src/certificate.ts": "56144cf31c991873f2de73c47570334d2367e02e4a54965b4dfb1a6e31949644",
+    "reasoning/phase1/src/schema_validation.ts": "523b4ec102f9ad79d4b1636036109985f136d6c5cfa926e66d945c5ae0e8fbda",
+    "reasoning/phase2/src/distributed_execution_postgres.ts": "58e9c5ac192867fa80b43241abd3865c83ff4065cb9d2c9973ea404683e89fef",
+    "reasoning/phase2/src/distributed_execution_proof.ts": "ce24c43dfea1a6ec8dc6f71974a3f01da80c4ad46b0eee20e4f5dc23bc92cfc2",
+    "reasoning/phase2/src/distributed_execution_store.ts": "5bd35932c6ed286d2259424d06439d32038ea335a3efd15f8b57086b42113802",
+    "reasoning/phase2/src/model_provider_transport.ts": "f715aeab40982338a3fc168a85ea9e6065b4ee3ae162da630adf63a47f578441",
+    "recovery/ar03_06/kernel.py": "434eaecf82c14130e6298c89963630f170e92845d21c4c7ef2fba7f634dece4e"
+  },
+  "independent_review": {
+    "findings_reproduced_and_repaired": 4,
+    "focused_tests_passed": 22,
+    "report": "final-contract-review.md"
+  },
+  "qualification": {
+    "local_cases": 23,
+    "families": 11,
+    "full_frontier_targets_certified": false,
+    "new_internal_skill_candidates": 1,
+    "new_public_skills": 0,
+    "OpenAI_Agents": "PENDING_REQUIRED_CREDENTIAL_SELECTION_NOT_IMPLEMENTED",
+    "OpenAI_Decisions_API": "NOT_IMPLEMENTED_LOCAL_DECISION_WORKFLOW_IS_DISTINCT",
+    "production_deployed": false,
+    "external_benchmark": "NOT_RUN",
+    "live_D1": "NOT_RUN",
+    "live_PostgreSQL": "NOT_RUN",
+    "B27_antirollback": "NOT_REQUALIFIED_RETAINS_ORIGINAL_FAILED_GATE",
+    "independent_custody": "NOT_QUALIFIED"
+  },
+  "notes": [
+    "Passing source regressions do not establish current production reachability or release qualification.",
+    "Budgets count bounded calls; no account-wide USD0 guarantee is inferred.",
+    "Custom criteria and source entailment are not certified by typed completion."
+  ]
+}

@@ -14,7 +14,7 @@ export async function readD1ExecutionRun({db,customer,taskId}={}){
   const row=await query('SELECT r.*,w.project_id,w.agent_id,w.contract_json FROM axiom_ec_runs r JOIN axiom_ec_works w ON w.tenant_id=r.tenant_id AND w.work_id=r.work_id WHERE r.tenant_id=?1 AND r.task_id=?2',tenant,taskId).first();
   if(!row)return null;
   const result=JSON.parse(row.result_json),contract=JSON.parse(row.contract_json);await validateExecutionContract(contract);
-  if(contract.tenant_id!==tenant||contract.work_id!==row.work_id||contract.contract_sha256!==row.contract_sha256)throw new DOMException('stored execution identity mismatch','DataError');
+  if(contract.tenant_id!==tenant||contract.work_id!==row.work_id||contract.project_id!==row.project_id||contract.agent_id!==row.agent_id||contract.contract_sha256!==row.contract_sha256||result.task_id!==row.task_id||result.customer_id!==tenant||result.objective!==contract.objective||result.status!==row.status)throw new DOMException('stored execution identity mismatch','DataError');
   const artifactsReply=await query('SELECT artifact_id,content_sha256,content_json FROM axiom_ec_artifacts WHERE tenant_id=?1 AND task_id=?2',tenant,taskId).all();
   const artifacts=artifactsReply.results??artifactsReply,evidence=[];
   for(const artifact of artifacts){
@@ -65,10 +65,11 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
       if(prior.request_sha256!==requestHash)deny('immutable Work contract does not match this objective or policy');
       contract=JSON.parse(prior.contract_json);
     }else{
+      if(proposal.controls.deadline&&Date.parse(proposal.controls.deadline)<=Date.parse(created))deny('Work deadline has expired');
       const body={schema:EXECUTION_CONTRACT_SCHEMA,tenant_id:tenant,project_id:proposal.project_id,work_id:workId,agent_id:EXECUTION_AGENT_ID,objective,
         success_criteria:proposal.success_criteria,required_outcomes:[...requiredExecutionOutcomes(objective),...(input_commitment?['decision']:[])],input_commitment,
-        policy:{autonomy:proposal.controls.autonomy,privacy:proposal.controls.privacy,evidence:proposal.controls.evidence,budget_unit:EXECUTION_BUDGET_UNIT,max_compute_calls:proposal.controls.budget,max_provider_calls:providers,allowed_operations:clone(allowed),allowed_actions:['compute','research','model','decision']},
-        issued_at:created,expires_at:new Date(Date.parse(created)+ttl).toISOString()};
+        policy:{autonomy:proposal.controls.autonomy,privacy:proposal.controls.privacy,evidence:proposal.controls.evidence,approval:proposal.controls.approval,deadline:proposal.controls.deadline,budget_unit:EXECUTION_BUDGET_UNIT,max_compute_calls:proposal.controls.budget,max_provider_calls:providers,allowed_operations:clone(allowed),allowed_actions:['compute','research','model','decision']},
+        issued_at:created,expires_at:new Date(Math.min(Date.parse(created)+ttl,proposal.controls.deadline?Date.parse(proposal.controls.deadline):Infinity)).toISOString()};
       contract={...body,contract_sha256:await sha256Json(body)};
       await db.batch([
         statement("INSERT OR IGNORE INTO axiom_ec_projects(tenant_id,project_id,state) VALUES(?1,?2,'ACTIVE')",tenant,contract.project_id),
@@ -86,10 +87,14 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
       if(input.customer&&input.customer.customer_id!==tenant)deny('cross-tenant execution binding');
       if(input.objective!==undefined&&input.objective!==contract.objective)deny('execution objective mismatch');
       await validateExecutionContract(contract);
-      const row=await statement("SELECT w.*,p.state AS project_state,a.state AS agent_state FROM axiom_ec_works w JOIN axiom_ec_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id JOIN axiom_ec_agents a ON a.tenant_id=w.tenant_id AND a.agent_id=w.agent_id WHERE w.tenant_id=?1 AND w.work_id=?2",tenant,workId).first();
+      const row=await statement("SELECT w.*,p.state AS project_state,a.state AS agent_state,(SELECT COALESCE(SUM(compute_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_compute,(SELECT COALESCE(SUM(provider_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_providers FROM axiom_ec_works w JOIN axiom_ec_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id JOIN axiom_ec_agents a ON a.tenant_id=w.tenant_id AND a.agent_id=w.agent_id WHERE w.tenant_id=?1 AND w.work_id=?2",tenant,workId).first();
       if(!row||row.contract_sha256!==contract.contract_sha256||row.contract_json!==canonicalJson(contract)||row.state!=='ACTIVE'||row.project_state!=='ACTIVE'||row.agent_state!=='ACTIVE'||row.expires_at<=instant())deny('execution authority expired, revoked or changed');
+      if(row.project_id!==contract.project_id||row.agent_id!==contract.agent_id||row.expires_at!==contract.expires_at||row.max_compute_calls!==contract.policy.max_compute_calls||row.max_provider_calls!==contract.policy.max_provider_calls)deny('immutable Work projections changed');
+      const used={compute_calls:row.used_compute,provider_calls:row.used_providers};
+      if(!Number.isSafeInteger(row.compute_calls)||!Number.isSafeInteger(row.provider_calls)||row.compute_calls<0||row.provider_calls<0||row.compute_calls!==used.compute_calls||row.provider_calls!==used.provider_calls)deny('Work usage counters differ from admitted reservations');
       if(contract.policy.autonomy==='Preview only')deny('Preview only does not authorize execution');
       if(contract.policy.autonomy==='Approval each action')deny('Approval each action requires an admitted action approval');
+      if(contract.policy.approval==='Every tool action')deny('Every tool action requires an admitted action approval');
       if(contract.policy.evidence==='Independent validation')deny('Independent validation requires a qualified independent verifier');
       if(activeRun){
         const run=await statement('SELECT status,binding_id,generation,lease_expires_at FROM axiom_ec_runs WHERE tenant_id=?1 AND task_id=?2',tenant,activeRun.task_id).first();
@@ -114,7 +119,15 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         if(['research','model'].includes(action.kind)&&providerCost<1)throw new TypeError('external action must reserve its provider calls');
         const computeCost=action.kind==='compute'?1:0,time=instant();
         const results=await db.batch([
-          statement("UPDATE axiom_ec_works SET compute_calls=compute_calls+?3,provider_calls=provider_calls+?4 WHERE tenant_id=?1 AND work_id=?2 AND contract_sha256=?5 AND state='ACTIVE' AND expires_at>?6 AND compute_calls+?3<=max_compute_calls AND provider_calls+?4<=max_provider_calls AND EXISTS(SELECT 1 FROM axiom_ec_projects p WHERE p.tenant_id=?1 AND p.project_id=axiom_ec_works.project_id AND p.state='ACTIVE') AND EXISTS(SELECT 1 FROM axiom_ec_agents a WHERE a.tenant_id=?1 AND a.agent_id=axiom_ec_works.agent_id AND a.state='ACTIVE')",tenant,workId,computeCost,providerCost,contract.contract_sha256,time),
+          statement(`UPDATE axiom_ec_works SET compute_calls=compute_calls+?3,provider_calls=provider_calls+?4
+            WHERE tenant_id=?1 AND work_id=?2 AND contract_sha256=?5 AND state='ACTIVE' AND expires_at>?6
+            AND compute_calls+?3<=?7 AND provider_calls+?4<=?8
+            AND max_compute_calls=?7 AND max_provider_calls=?8 AND expires_at=?9 AND project_id=?10 AND agent_id=?11
+            AND compute_calls=(SELECT COALESCE(SUM(compute_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=?1 AND z.work_id=?2)
+            AND provider_calls=(SELECT COALESCE(SUM(provider_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=?1 AND z.work_id=?2)
+            AND EXISTS(SELECT 1 FROM axiom_ec_projects p WHERE p.tenant_id=?1 AND p.project_id=axiom_ec_works.project_id AND p.state='ACTIVE')
+            AND EXISTS(SELECT 1 FROM axiom_ec_agents a WHERE a.tenant_id=?1 AND a.agent_id=axiom_ec_works.agent_id AND a.state='ACTIVE')`,
+            tenant,workId,computeCost,providerCost,contract.contract_sha256,time,contract.policy.max_compute_calls,contract.policy.max_provider_calls,contract.expires_at,contract.project_id,contract.agent_id),
           statement('INSERT INTO axiom_ec_reservations(tenant_id,reservation_id,work_id,task_id,binding_id,generation,action_kind,operation,compute_calls,provider_calls,created_at) SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11 WHERE changes()=1',tenant,makeId('reservation'),workId,activeRun?.task_id??null,bindingId,activeRun?.generation??null,action.kind,action.operation??null,computeCost,providerCost,time),
         ]);
         if(changed(results[0])!==1||changed(results[1])!==1)deny('execution call budget exhausted or authority revoked');

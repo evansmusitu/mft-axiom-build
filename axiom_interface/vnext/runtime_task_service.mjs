@@ -189,9 +189,11 @@ export async function executeRuntimeTask({objective,customer,runtime,research,mo
     artifact=Object.freeze({...artifact,project_id:c.project_id,work_id:c.work_id,agent_id:c.agent_id,contract_sha256:c.contract_sha256});
     const completedAt=now().toISOString();
     const sourceCommitments=await Promise.all(sources.map(async source=>({source_id:source.source_id,sha256:await sha256Json(source)})));
+    const resultBody={...base,status:'COMPLETED',completed_at:completedAt,runtime:{build_id:catalog.build_id,operation_count:catalog.operation_count,fully_connected:true},plan:Object.freeze(clone(plan)),sources,execution:execution?Object.freeze(clone(execution)):null,artifact};
     const receiptBody={schema:'musitu.axiom.runtime-task-receipt.v1',task_id:id,request_id:rid,customer_id:String(customer.customer_id),contract_sha256:c.contract_sha256,runtime_build_id:catalog.build_id,operation:execution?.operation||null,runtime_result_sha256:execution?.receipt?.result_sha256||null,source_ids:sources.map(source=>source.source_id),source_commitments:sourceCommitments,artifact_sha256:await sha256(artifact),started_at:startedAt,completed_at:completedAt,status:'COMPLETED'};
+    receiptBody.task_payload_sha256=await sha256Json(resultBody);
     const receipt=Object.freeze({...receiptBody,receipt_sha256:await sha256(receiptBody)});
-    const result=Object.freeze({...base,status:'COMPLETED',completed_at:completedAt,runtime:{build_id:catalog.build_id,operation_count:catalog.operation_count,fully_connected:true},plan:Object.freeze(clone(plan)),sources,execution:execution?Object.freeze(clone(execution)):null,artifact,receipt});
+    const result=Object.freeze({...resultBody,receipt});
     announce('PERSISTING');
     await store.complete(clone(result));
     announce('COMPLETED',{receipt_sha256:receipt.receipt_sha256});
