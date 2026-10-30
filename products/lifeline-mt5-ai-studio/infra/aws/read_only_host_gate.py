@@ -89,9 +89,13 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
             for i in rows))
     live = call(["ec2", "describe-instances", "--region", REGION])
     reservations = live.get("Reservations", None)
-    result["no_existing_ec2_instances"] = (type(reservations) is list and all(
-        type(r) is dict and type(r.get("Instances")) is list and not r["Instances"]
-        for r in reservations))
+    # Refuse incomplete pagination. Even an empty initial page is not a
+    # complete regional inventory if the API supplies a continuation token.
+    result["no_existing_ec2_instances"] = (
+        not live.get("NextToken")
+        and type(reservations) is list
+        and all(type(r) is dict and type(r.get("Instances")) is list
+                and not r["Instances"] for r in reservations))
     result["candidate_qualifies_for_manual_review"] = all(
         result[k] for k in ("account_plan_free_active", "credit_buffer_present",
         "account_not_expired", "t3_small_eligible", "official_windows_ami_eligible",
