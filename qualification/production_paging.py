@@ -7,15 +7,73 @@ The delivery API only executes when explicitly armed by an operator.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
+import math
 import os
+import re
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.request import Request, urlopen
 
 PAGERDUTY_ENDPOINT = 'https://events.pagerduty.com/v2/enqueue'
 DEDUP_KEY = 'musitu-connect-production-runtime-availability-v1'
+MAX_GUARD_BYTES = 65_536
+MAX_GUARD_AGE = timedelta(minutes=15)
+MAX_FUTURE_SKEW = timedelta(minutes=2)
+GUARD_UTC = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z')
+
+
+def _guard_is_fresh(checked_at_utc: Any) -> bool:
+    """Prevent replayed or delayed green observations from suppressing faults.
+
+    Invalid or stale evidence is never sent to PagerDuty, but causes the
+    command to exit nonzero so the external job-failure monitor can escalate.
+    This is not proof of either live provider paging or human acknowledgment.
+    """
+    if not isinstance(checked_at_utc, str) or not GUARD_UTC.fullmatch(checked_at_utc):
+        return False
+    try:
+        stamp = datetime.fromisoformat(checked_at_utc.replace('Z', '+00:00'))
+        age = datetime.now(timezone.utc) - stamp
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return -MAX_FUTURE_SKEW <= age <= MAX_GUARD_AGE
+
+
+def _unique_guard_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('DUPLICATE_GUARD_KEY')
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_guard(_token):
+    raise ValueError('NONFINITE_GUARD_NUMBER')
+
+
+def _finite_guard_float(token):
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError('NONFINITE_GUARD_NUMBER')
+    return value
+
+
+def load_guard(path: Path) -> dict[str, Any]:
+    """Bound the actual UTF-8 bytes; refuse ambiguous guard evidence before paging."""
+    with path.open('rb') as source:
+        raw = source.read(MAX_GUARD_BYTES + 1)
+    if not raw or len(raw) > MAX_GUARD_BYTES:
+        raise ValueError('INVALID_GUARD_SIZE')
+    result = json.loads(raw.decode('utf-8', errors='strict'),
+                        object_pairs_hook=_unique_guard_object,
+                        parse_constant=_reject_nonfinite_guard,
+                        parse_float=_finite_guard_float)
+    if not isinstance(result, dict):
+        raise ValueError('INVALID_GUARD_RECORD')
+    return result
 
 
 def evaluate_paging(
@@ -38,6 +96,7 @@ def evaluate_paging(
             or not isinstance(guard.get('source_commit'), str)
             or len(guard['source_commit']) != 40
             or any(ch not in '0123456789abcdef' for ch in guard['source_commit'])
+            or not _guard_is_fresh(guard.get('checked_at_utc'))
             or guard.get('credentials_used') is not False
             or guard.get('production_mutation_performed') is not False):
         return result
@@ -90,7 +149,10 @@ def evaluate_paging(
             raw = response.read(8193)
             if response.status != 202 or len(raw) > 8192:
                 raise ValueError('provider_response_unacceptable')
-        acknowledgement = json.loads(raw)
+        acknowledgement = json.loads(raw.decode('utf-8', errors='strict'),
+                                     object_pairs_hook=_unique_guard_object,
+                                     parse_constant=_reject_nonfinite_guard,
+                                     parse_float=_finite_guard_float)
         if (not isinstance(acknowledgement, Mapping)
                 or acknowledgement.get('status') != 'success'
                 or acknowledgement.get('dedup_key') != DEDUP_KEY):
@@ -112,8 +174,8 @@ def main() -> int:
     parser.add_argument('--enable-external-page', action='store_true')
     args = parser.parse_args()
     try:
-        guard = json.loads(args.guard.read_text(encoding='utf-8'))
-    except (OSError, ValueError):
+        guard = load_guard(args.guard)
+    except (OSError, ValueError, UnicodeError, RecursionError):
         guard = {}
     key = os.environ.get('MUSITU_CONNECT_PAGERDUTY_ROUTING_KEY', '') if args.enable_external_page else ''
     result = evaluate_paging(guard, enable_external_page=args.enable_external_page, routing_key=key)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -103,6 +104,13 @@ def _reject_nonfinite(_):
     raise ValueError('NONFINITE_JSON_NUMBER')
 
 
+def _finite_json_float(token):
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError('NONFINITE_JSON_NUMBER')
+    return value
+
+
 def _request_json(request, *, transport):
     try:
         with transport(request, timeout=15) as response:
@@ -112,7 +120,8 @@ def _request_json(request, *, transport):
         if not isinstance(raw, bytes) or not (0 < len(raw) <= MAX_RESPONSE_BYTES):
             raise ProbeError('PROVIDER_RESPONSE_SIZE_INVALID')
         doc = json.loads(raw, object_pairs_hook=_unique_object,
-                         parse_constant=_reject_nonfinite)
+                         parse_constant=_reject_nonfinite,
+                         parse_float=_finite_json_float)
     except (urllib.error.URLError, OSError, ValueError, UnicodeError, RecursionError):
         raise ProbeError('PROVIDER_RESPONSE_UNTRUSTED') from None
     if not isinstance(doc, dict) or doc.get('success') is not True:
