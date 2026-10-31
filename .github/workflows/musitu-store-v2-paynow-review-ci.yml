@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/musitu-store-v2-package-state-20261012
+      - feature/store-v2-publisher-evidence-pilot-20261021
     paths:
       - 'store/phase1/payments/**'
       - 'store/phase1/RELEASE_GATES_AND_EXTERNAL_REQUIREMENTS_20261018.md'
@@ -80,11 +81,28 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v store/phase1/payments/test_store_staging_source_preflight.py
+      - name: Qualify optional immutable Paynow observation ledger against disposable SQLite only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_status_observations.py store/phase1/payments/test_store_paynow_observation_writer_sql.py
+          echo MUSITU_STORE_V2_PAYNOW_OBSERVATION_CANDIDATE_DISPOSABLE_SQLITE=PASS
+      - name: Qualify quarantined observation snapshot integrity and isolated restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No Neon/D1 credentials, real checkout, live DB writes or Paynow calls.
+          python3 -m py_compile store/phase1/payments/store_paynow_recovery_audit.py
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_recovery_audit.py
+          python3 -m unittest -v store/phase1/payments/test_store_paynow_recovery_compare.py
+          echo MUSITU_STORE_V2_DISPOSABLE_SQLITE_RECOVERY_AUDIT=PASS
+          echo MUSITU_STORE_V2_RESTORED_SNAPSHOT_DIFFERENTIAL_GATE=PASS
       - name: Qualify synthetic signed Paynow callbacks and negative security cases
         shell: bash
         run: |
           set -euo pipefail
-          node --test store/phase1/payments/paynow-review.test.mjs store/phase1/payments/paynow-review-ledger.test.mjs store/phase1/payments/paynow-provider-poll.test.mjs store/phase1/payments/store-axiom-checkout.test.mjs store/phase1/payments/store-axiom-payment-routes.test.mjs
+          # All current Store-scoped payment tests, including status conflicts, stage deny-all, Neon SQL guard.
+          node --test store/phase1/payments/*.test.mjs
           echo MUSITU_STORE_V2_PAYNOW_REVIEW_ONLY=PASS
           echo MUSITU_STORE_AXIOM_PATTERN_STORE_CHECKOUT_ISOLATION=PASS
           echo MUSITU_STORE_V2_PAYNOW_DURABLE_PRIVATE_LEDGER_TESTS=PASS

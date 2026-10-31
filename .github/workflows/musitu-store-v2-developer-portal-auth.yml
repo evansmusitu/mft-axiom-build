@@ -1,0 +1,51 @@
+name: MUSITU Store V2 private developer portal auth and review security
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - 'store/phase1/developer_portal/**'
+      - '.github/workflows/musitu-store-v2-developer-portal-auth.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  private-auth-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve signed Store V1 source
+        run: |
+          set -euo pipefail
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java)" = '395b488a7841cd5f32065cac9826983e0454d955'
+          test "$(git hash-object store/phase1/android-client/app/src/main/java/com/musitu/store/MainActivity.java)" = 'd5ee6821877a151abfe95c50e8677b2f1b19ae5f'
+      - name: Verify private JWT and developer reviewer security
+        run: |
+          set -euo pipefail
+          node --check store/phase1/developer_portal/portal.mjs
+          node --check store/phase1/developer_portal/quarantine-upload.mjs
+          node --check store/phase1/developer_portal/private-filesystem-quarantine.mjs
+          node --check store/phase1/developer_portal/postgres-session-status.mjs
+          node --check store/phase1/developer_portal/postgres-rate-gate.mjs
+          node --check store/phase1/developer_portal/oidc-durable-ledger.mjs
+          node --check store/phase1/developer_portal/oidc-private-http.mjs
+          node --check store/phase1/developer_portal/private-apk-structure.mjs
+          node --check store/phase1/developer_portal/private-structure-review.mjs
+          node --test store/phase1/developer_portal/oidc-durable-ledger.test.mjs store/phase1/developer_portal/portal.test.mjs store/phase1/developer_portal/postgres-repository.test.mjs store/phase1/developer_portal/quarantine-upload.test.mjs store/phase1/developer_portal/quarantine-lifecycle.test.mjs store/phase1/developer_portal/private-filesystem-quarantine.test.mjs store/phase1/developer_portal/postgres-session-status.test.mjs store/phase1/developer_portal/private-apk-structure.test.mjs store/phase1/developer_portal/private-structure-review.test.mjs store/phase1/developer_portal/postgres-rate-gate.test.mjs store/phase1/developer_portal/portal-rate-gate.test.mjs
+          node --test store/phase1/developer_portal/oidc-private-http.test.mjs
+          echo MUSITU_STORE_V2_PORTAL_TESTS=PASS
+      - name: Qualify fail-closed no-payment and no-public-release contract
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const source=readFileSync('store/phase1/developer_portal/portal.mjs','utf8');
+          for(const text of ['publicationAuthorized:false','publisherApproved:false','paymentAuthorized:false','payoutAuthorized:false','REVIEW_REQUIRED']){
+            assert.ok(source.includes(text), 'missing invariant '+text);
+          }
+          assert.ok(!source.includes('process.env.STORE_PAYNOW_INTEGRATION_KEY'));
+          assert.ok(!source.includes('createServer('));
+          console.log('MUSITU_STORE_V2_PORTAL_PRIVATE_NO_COMMERCE=PASS');
+          JS

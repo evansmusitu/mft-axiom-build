@@ -107,6 +107,7 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   if(!webhook&&!status)return null;
   if(u.origin!==ROOT)return reply(404,{ok:false,error:'route_origin_rejected'});
   if(env?.STORE_CALLBACKS_CERTIFIED!=='true'||!env.STORE_DB||
+     env.STORE_PAYNOW_ID!=='27721'||env.STORE_PAYNOW_MODE!=='testing'||
      typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<16)
    return reply(503,{ok:false,error:'store_callbacks_not_configured'});
   const db=env.STORE_DB;
@@ -142,8 +143,15 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   try{old=await db.prepare('SELECT reference,paynow_reference,callback_digest,review_status FROM store_checkout_reviews WHERE reference=?1 LIMIT 1').bind(p.reference).first();}
   catch{return reply(503,{ok:false,error:'store_db_unavailable'});}
   if(old){
-   if(old.paynow_reference===p.paynowreference&&old.callback_digest===callback.digest)
-    return reply(202,{ok:true,processed:true,idempotent:true,payment_status:old.review_status});
+   if(old.paynow_reference===p.paynowreference&&old.callback_digest===callback.digest){
+    // A prior immutable review row alone is not evidence that the associated
+    // checkout transition committed. Replays must not endorse a torn batch.
+    const expected=p.status==='Paid'?'review_required':
+      p.status==='Refunded'?'refund_review_required':null;
+    if(!expected||old.reference!==p.reference||old.review_status!==expected||intent.status!==expected)
+     return reply(409,{ok:false,error:'store_review_replay_state_conflict'});
+    return reply(202,{ok:true,processed:true,idempotent:true,payment_status:expected});
+   }
    return reply(409,{ok:false,error:'payment_review_requires_manual_resolution'});
   }
   if(intent.status!=='pending')return reply(409,{ok:false,error:'order_not_pending'});
@@ -170,7 +178,70 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
   if(v.reference!==p.reference||v.amount!==p.amount||v.pollurl!==p.pollurl||
      v.paynowreference!==p.paynowreference)
    return reply(409,{ok:false,error:'provider_transaction_conflict'});
-  const review=(p.status==='Paid'&&v.status==='Paid')?'review_required':'refund_review_required';
+  // Non-final statuses and disagreements are not refund evidence. Never
+  // advance the immutable Store intent until both verified sources agree
+  // on the same explicit final paid/refunded state.
+  if(p.status!==v.status)
+   return reply(409,{ok:false,error:'provider_payment_state_conflict'});
+  if(p.status!=='Paid'&&p.status!=='Refunded'){
+   // An opt-in private candidate ledger may preserve matching signed callback
+   // and independent provider-poll observations. It never changes order status.
+   // Until its migration/adapter have been independently admitted, default is
+   // disabled and the current pending semantics remain unchanged.
+   if(env.STORE_PAYNOW_OBSERVATIONS_ENABLED!=='true')
+    return reply(202,{ok:true,processed:false,payment_status:'pending',reason:'provider_status_not_final'});
+   const eventId='evt-'+(await sha([
+    p.reference,p.paynowreference,callback.digest,polled.digest
+   ].join('\n'),'SHA-256')).toLowerCase();
+   const existingObservation=()=>db.prepare('SELECT event_id,reference,paynow_reference,provider_status,callback_digest,poll_digest FROM store_paynow_status_observations WHERE event_id=?1 LIMIT 1').bind(eventId).first();
+   const observationMatches=prior=>prior?.event_id===eventId&&
+    prior.reference===p.reference&&prior.paynow_reference===p.paynowreference&&
+    prior.provider_status===p.status&&prior.callback_digest===callback.digest&&
+    prior.poll_digest===polled.digest;
+   const alreadyRecorded=()=>reply(202,{ok:true,processed:false,idempotent:true,
+    observation_recorded:true,payment_status:'pending'});
+   let prior;
+   try{prior=await existingObservation();}
+   catch{return reply(503,{ok:false,error:'store_observation_ledger_unavailable'});}
+   if(prior){
+    if(!observationMatches(prior))
+     return reply(409,{ok:false,error:'store_observation_identity_conflict'});
+    return alreadyRecorded();
+   }
+   try{
+    // Single SQLite/D1 statement is atomic; pending-order compare-and-set and
+    // immutable provider reference triggers protect against concurrent changes.
+    const insert=await db.prepare(
+     "INSERT INTO store_paynow_status_observations(event_id,reference,paynow_reference,provider_status,amount_cents,currency,poll_url,callback_digest,poll_digest,observed_at) SELECT ?1,?2,?3,?4,?5,'USD',?6,?7,?8,?9 WHERE EXISTS (SELECT 1 FROM store_checkout_intents WHERE reference=?2 AND status='pending' AND poll_url=?6 AND amount_cents=?5 AND currency='USD')"
+    ).bind(eventId,p.reference,p.paynowreference,p.status,intent.amount_cents,
+     p.pollurl,callback.digest,polled.digest,new Date().toISOString()).run();
+    if(insert?.success!==true||insert?.meta?.changes!==1)
+     return reply(409,{ok:false,error:'store_observation_not_atomically_committed'});
+   }catch{
+    // Two verified callbacks can pass the pre-insert SELECT concurrently.
+    // If another worker committed the *same* immutable event, recover only
+    // after read-back of every identity and evidence field. Never treat a
+    // conflicting row or an unavailable ledger as a successful observation.
+    let raced;
+    try{raced=await existingObservation();}
+    catch{return reply(503,{ok:false,error:'store_observation_persistence_failed'});}
+    if(raced&&!observationMatches(raced))
+     return reply(409,{ok:false,error:'store_observation_identity_conflict'});
+    if(observationMatches(raced))return alreadyRecorded();
+    return reply(503,{ok:false,error:'store_observation_persistence_failed'});
+   }
+   // A successful changes count is only an acknowledgement. Verify that the
+   // immutable evidence is actually readable before reporting it as recorded.
+   let stored;
+   try{stored=await existingObservation();}
+   catch{return reply(503,{ok:false,error:'store_observation_readback_unavailable'});}
+   if(!stored)return reply(503,{ok:false,error:'store_observation_readback_missing'});
+   if(!observationMatches(stored))
+    return reply(409,{ok:false,error:'store_observation_identity_conflict'});
+   return reply(202,{ok:true,processed:false,observation_recorded:true,
+    payment_status:'pending',reason:'provider_status_requires_manual_resolution'});
+  }
+  const review=p.status==='Paid'?'review_required':'refund_review_required';
   try{
    const at=new Date().toISOString();
    const committed=await db.batch([
@@ -183,6 +254,21 @@ export function createStorePaymentRoutes({providerFetch=globalThis.fetch,callbac
       committed.some(item=>item?.success!==true||item?.meta?.changes!==1))
      return reply(409,{ok:false,error:'store_review_not_atomically_committed'});
   }catch{return reply(503,{ok:false,error:'store_review_persistence_failed'});}
+  // Batch change-count acknowledgements are not authoritative evidence.
+  // Independently verify both persisted Store rows before reporting review.
+  let savedReview,savedIntent;
+  try{
+   savedReview=await db.prepare('SELECT reference,paynow_reference,review_status,callback_digest,poll_digest FROM store_checkout_reviews WHERE reference=?1 LIMIT 1').bind(p.reference).first();
+   savedIntent=await db.prepare('SELECT reference,status,amount_cents,currency,poll_url FROM store_checkout_intents WHERE reference=?1 LIMIT 1').bind(p.reference).first();
+  }catch{return reply(503,{ok:false,error:'store_review_readback_unavailable'});}
+  if(!savedReview||!savedIntent)
+   return reply(503,{ok:false,error:'store_review_readback_missing'});
+  if(savedReview.reference!==p.reference||savedReview.paynow_reference!==p.paynowreference||
+     savedReview.review_status!==review||savedReview.callback_digest!==callback.digest||
+     savedReview.poll_digest!==polled.digest||savedIntent.reference!==p.reference||
+     savedIntent.status!==review||savedIntent.amount_cents!==intent.amount_cents||
+     savedIntent.currency!=='USD'||savedIntent.poll_url!==p.pollurl)
+   return reply(409,{ok:false,error:'store_review_readback_conflict'});
   return reply(202,{ok:true,processed:true,payment_status:review});
  }};
 }

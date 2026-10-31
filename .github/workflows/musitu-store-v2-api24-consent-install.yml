@@ -5,6 +5,7 @@ on:
     branches:
       - feature/musitu-store-api24-consent-install-20261011
       - feature/musitu-store-v2-package-state-20261012
+      - feature/store-v2-publisher-evidence-pilot-20261021
     paths:
       - '.github/workflows/musitu-store-v2-api24-consent-install.yml'
       - 'store/phase1/android-client/settings.gradle'

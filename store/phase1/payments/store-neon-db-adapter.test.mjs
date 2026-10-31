@@ -104,3 +104,13 @@ test('Neon Store staging fails closed with checkout flags or merchant keys',()=>
   {...valid,STORE_NEON_DATABASE_URL:''},
  ]) assert.throws(()=>requireDisabledStoreNeonStaging(bad),/not_disabled_or_not_isolated/);
 });
+
+test('Neon adapter refuses multi-table reads and set operators even when all tables are on the allowlist',()=>{
+ const db=createStoreNeonD1Adapter(client());
+ for(const sql of [
+  'SELECT p.sku FROM store_products p JOIN store_customer_tokens c ON c.customer_id=?1',
+  'SELECT sku FROM store_products WHERE sku=?1 UNION SELECT token_hash FROM store_customer_tokens',
+  'SELECT sku FROM store_products WHERE sku=?1 INTERSECT SELECT sku FROM store_products',
+  'SELECT sku FROM store_products WHERE sku=?1 EXCEPT SELECT sku FROM store_products'
+ ]) assert.throws(()=>db.prepare(sql).bind('synthetic'),/store_neon_sql_statement_not_allowed/);
+});

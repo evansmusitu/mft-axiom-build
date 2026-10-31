@@ -109,7 +109,7 @@ export function createStoreBillingWorker({paynowFetch=globalThis.fetch,newRefere
     // product catalog have been separately approved and configured.
     if(env?.STORE_CHECKOUT_ENABLED!=='true'||env?.STORE_FIRST_PARTY_ONLY!=='true'||
        env?.STORE_CALLBACKS_CERTIFIED!=='true'||
-       !env.STORE_DB||!/^[1-9][0-9]{2,12}$/.test(env.STORE_PAYNOW_ID||'')||
+       !env.STORE_DB||env.STORE_PAYNOW_ID!=='27721'||env.STORE_PAYNOW_MODE!=='testing'||
        typeof env.STORE_PAYNOW_INTEGRATION_KEY!=='string'||env.STORE_PAYNOW_INTEGRATION_KEY.length<16)
       return reply(503,{ok:false,error:'store_checkout_not_configured'});
     const header=request.headers.get('authorization')||'';

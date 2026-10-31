@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- No network, installer, storage, device ID, camera, SMS or payment permissions. -->
+  <application android:allowBackup="false" android:usesCleartextTraffic="false" android:label="MUSITU V2 Device Test" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <activity android:name=".DeviceAcceptanceActivity" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

@@ -20,7 +20,7 @@ function fakeDb(){
   const intent={reference:checkoutReference,customer_id:'customer_fixture',sku:'MUSITU_OWNED_APP',
     amount_cents:425,currency:'USD',status:'pending',poll_url:pollurl,
     expires_at:'2099-10-19T00:00:00.000Z'};
-  const data={review:null,intent,authToken:{customer_id:'customer_fixture',status:'active',expires_at:'2099-01-01T00:00:00.000Z'}};
+  const data={review:null,observation:null,intent,authToken:{customer_id:'customer_fixture',status:'active',expires_at:'2099-01-01T00:00:00.000Z'}};
   return {log,data,prepare(sql){
     const entry={sql,values:[]};
     return {bind(...values){entry.values=values;return {
@@ -29,6 +29,7 @@ function fakeDb(){
         log.push({...entry,method:'first'});
         if(sql.includes('store_customer_tokens'))return data.authToken;
         if(sql.includes('store_checkout_reviews'))return data.review;
+        if(sql.includes('store_paynow_status_observations'))return data.observation;
         if(sql.includes('store_checkout_intents'))return (
           entry.values[0]===checkoutReference && (!sql.includes('customer_id=?2')||entry.values[1]==='customer_fixture')?data.intent:null);
         return null;
@@ -38,6 +39,11 @@ function fakeDb(){
         if(sql.includes('INSERT INTO store_checkout_reviews')){
           data.review={reference:entry.values[0],paynow_reference:entry.values[1],
             review_status:entry.values[2],callback_digest:entry.values[3],poll_digest:entry.values[4]};
+        }
+        if(sql.includes('INSERT INTO store_paynow_status_observations')){
+          data.observation={event_id:entry.values[0],reference:entry.values[1],
+            paynow_reference:entry.values[2],provider_status:entry.values[3],
+            callback_digest:entry.values[6],poll_digest:entry.values[7]};
         }
         if(sql.includes('UPDATE store_checkout_intents SET status=')){
           data.intent.status=entry.values[1];
@@ -56,7 +62,7 @@ function fixture(pollBody=signedStatus(),opts={}){
     return new Response(pollBody,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
   },newReference:()=>checkoutReference});
   const env={STORE_CALLBACKS_CERTIFIED:'true',STORE_CHECKOUT_ENABLED:'false',STORE_FIRST_PARTY_ONLY:'true',
-    STORE_PAYNOW_INTEGRATION_KEY:merchantKey,STORE_DB:fakeDb(),...opts};
+    STORE_PAYNOW_ID:'27721',STORE_PAYNOW_MODE:'testing',STORE_PAYNOW_INTEGRATION_KEY:merchantKey,STORE_DB:fakeDb(),...opts};
   return {app,env,calls};
 }
 const webhook=(body=signedStatus())=>new Request('https://payments.mftintelligence.com/store/billing/webhooks/paynow',{
@@ -222,4 +228,281 @@ test('authenticated status rejects expired, missing, malformed and revoked custo
   env.STORE_DB.data.authToken.status='revoked';
   assert.equal((await app.fetch(status(),env)).status,401);
   assert.equal(calls.length,0);
+});
+
+test('Store V2 webhook rejects borrowed FMI and unverified live-mode merchant IDs before DB access',async()=>{
+ for(const override of [{STORE_PAYNOW_ID:'26343'},{STORE_PAYNOW_MODE:'live'},{STORE_PAYNOW_MODE:undefined}]){
+  const {app,env,calls}=fixture(signedStatus(),override);
+  const response=await app.fetch(webhook(),env);
+  assert.equal(response.status,503);
+  assert.equal(calls.length,0);
+  assert.equal(env.STORE_DB.log.length,0);
+ }
+});
+
+
+test('non-final provider states never create fabricated refund reviews',async()=>{
+ for(const providerState of ['Created','Sent','Delivered','Awaiting Delivery','Cancelled','Disputed']){
+  const {app,env,calls}=fixture(signedStatus({status:providerState}));
+  const response=await app.fetch(webhook(signedStatus({status:providerState})),env);
+  const out=await response.json();
+  assert.equal(response.status,202,providerState);
+  assert.equal(out.processed,false,providerState);
+  assert.equal(out.payment_status,'pending',providerState);
+  assert.equal(out.entitlement_granted,false);
+  assert.equal(calls.length,1,'must independently poll Paynow');
+  assert.equal(env.STORE_DB.data.intent.status,'pending',providerState);
+  assert.equal(env.STORE_DB.data.review,null,providerState);
+  assert.equal(env.STORE_DB.log.filter(x=>/INSERT INTO store_checkout_reviews/.test(x.sql)).length,0);
+ }
+});
+test('contradictory paid and refunded provider states require manual resolution and never create reviews',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Refunded'}));
+ const response=await app.fetch(webhook(signedStatus({status:'Paid'})),env);
+ const out=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(calls.length,1);
+});
+
+
+test('certified private observation ledger persists matching signed cancellation, preserves pending status and denies entitlements',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Cancelled'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const response=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ const out=await response.json();
+ assert.equal(response.status,202);
+ assert.equal(out.payment_status,'pending');
+ assert.equal(out.observation_recorded,true);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+ assert.equal(calls.length,1);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(env.STORE_DB.data.observation.provider_status,'Cancelled');
+ assert.equal(env.STORE_DB.data.observation.reference,checkoutReference);
+ assert.equal(env.STORE_DB.data.observation.paynow_reference,providerRef);
+ assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('INSERT INTO store_paynow_status_observations')).length,1);
+});
+
+test('a repeated certified signed provider observation is idempotent without a second row',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const first=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ const second=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ assert.equal(first.status,202);assert.equal(second.status,202);
+ assert.equal((await second.json()).idempotent,true);
+ assert.equal(calls.length,2);
+ assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('INSERT INTO store_paynow_status_observations')).length,1);
+});
+
+test('certified nonfinal observation cannot report success when the ledger is unavailable',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Awaiting Delivery'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const old=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   if(sql.includes('store_paynow_status_observations'))throw Error('missing_candidate_migration');
+   return old(sql);
+ };
+ const response=await app.fetch(webhook(signedStatus({status:'Awaiting Delivery'})),env);
+ assert.equal(response.status,503);
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+
+test('observations disabled by default cannot perform ledger writes even with valid signed provider states',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Delivered'}));
+ const response=await app.fetch(webhook(signedStatus({status:'Delivered'})),env);
+ assert.equal(response.status,202);
+ assert.equal((await response.json()).payment_status,'pending');
+ assert.equal(env.STORE_DB.data.observation,null);
+ assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('store_paynow_status_observations')).length,0);
+});
+
+test('mismatched callback and provider poll can never enter observation ledger',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const response=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ assert.equal(response.status,409);
+ assert.equal(env.STORE_DB.data.observation,null);
+ assert.equal(env.STORE_DB.log.filter(x=>x.sql.includes('store_paynow_status_observations')).length,0);
+});
+
+
+test('a concurrent identical signed observation is reconciled without duplicate writes',async()=>{
+ const {app,env,calls}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const real=env.STORE_DB.prepare.bind(env.STORE_DB);
+ let writes=0;
+ env.STORE_DB.prepare=sql=>{
+   const q=real(sql);
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return q;
+   return {bind(...args){return {async run(){
+     writes++;
+     // Simulate a second worker committing the same verified event between
+     // our initial SELECT and INSERT. The attempted insert then conflicts.
+     env.STORE_DB.data.observation={event_id:args[0],reference:args[1],
+       paynow_reference:args[2],provider_status:args[3],
+       callback_digest:args[6],poll_digest:args[7]};
+     throw Error('SQLITE_CONSTRAINT_PRIMARYKEY');
+   }}}};
+ };
+ const response=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ const out=await response.json();
+ assert.equal(response.status,202);
+ assert.equal(out.idempotent,true);
+ assert.equal(out.observation_recorded,true);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(writes,1);
+ assert.equal(calls.length,1);
+});
+
+test('a conflicting concurrent observation never becomes idempotent success',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Cancelled'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const real=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   const q=real(sql);
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return q;
+   return {bind(...args){return {async run(){
+     env.STORE_DB.data.observation={event_id:args[0],reference:args[1],
+       paynow_reference:'OTHER-PAYNOW-REF',provider_status:args[3],
+       callback_digest:args[6],poll_digest:args[7]};
+     throw Error('SQLITE_CONSTRAINT');
+   }}}};
+ };
+ const response=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ const out=await response.json();
+ assert.notEqual(response.status,202);
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+});
+
+
+test('observation writer never reports persisted evidence from an acknowledged but missing SQL row',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Cancelled'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const prepare=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return prepare(sql);
+   return {bind(){return {async run(){return {success:true,meta:{changes:1}};}}}};
+ };
+ const res=await app.fetch(webhook(signedStatus({status:'Cancelled'})),env);
+ const body=await res.json();
+ assert.equal(res.status,503,'acknowledged SQL change without read-back is not verified persistence');
+ assert.notEqual(body.observation_recorded,true);
+ assert.equal(body.entitlement_granted,false);
+ assert.equal(body.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.data.observation,null);
+});
+
+test('observation writer rejects a reported successful insert whose read-back identity differs',async()=>{
+ const {app,env}=fixture(signedStatus({status:'Disputed'}),{STORE_PAYNOW_OBSERVATIONS_ENABLED:'true'});
+ const prepare=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+   if(!sql.includes('INSERT INTO store_paynow_status_observations'))return prepare(sql);
+   return {bind(...values){return {async run(){
+     env.STORE_DB.data.observation={event_id:values[0],reference:values[1],
+       paynow_reference:'UNRELATED_PROVIDER_REFERENCE',provider_status:values[3],
+       callback_digest:values[6],poll_digest:values[7]};
+     return {success:true,meta:{changes:1}};
+   }}}};
+ };
+ const res=await app.fetch(webhook(signedStatus({status:'Disputed'})),env);
+ const body=await res.json();
+ assert.equal(res.status,409);
+ assert.equal(body.error,'store_observation_identity_conflict');
+ assert.notEqual(body.observation_recorded,true);
+ assert.equal(body.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+
+// Independent final-state evidence read-back must not trust a database batch's
+// changes=1 acknowledgement alone: both persisted Store rows must match.
+test('final Paid review rejects acknowledged batch with no durable review or order transition',async()=>{
+ const {app,env}=fixture();
+ env.STORE_DB.batch=async()=>[
+  {success:true,meta:{changes:1}},
+  {success:true,meta:{changes:1}}
+ ];
+ const response=await app.fetch(webhook(),env);
+ const out=await response.json();
+ assert.equal(response.status,503,'a confirmed write count alone is not durable payment-review evidence');
+ assert.equal(out.error,'store_review_readback_missing');
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.review,null);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+});
+
+test('final Refunded review rejects contradictory provider identity after successful batch',async()=>{
+ const signed=signedStatus({status:'Refunded'});
+ const {app,env}=fixture(signed);
+ const batch=env.STORE_DB.batch.bind(env.STORE_DB);
+ env.STORE_DB.batch=async statements=>{
+  const result=await batch(statements);
+  env.STORE_DB.data.review.paynow_reference='OTHER-PAYNOW-REFERENCE';
+  return result;
+ };
+ const response=await app.fetch(webhook(signed),env);
+ const out=await response.json();
+ assert.equal(response.status,409,'inconsistent saved provider ref must not be reported as an accepted refund review');
+ assert.equal(out.error,'store_review_readback_conflict');
+ assert.equal(out.entitlement_granted,false);
+ assert.equal(out.publisher_payout_authorized,false);
+});
+
+test('final review cannot certify persistence when the post-commit read-back fails',async()=>{
+ const {app,env}=fixture();
+ const first=env.STORE_DB.prepare.bind(env.STORE_DB);
+ env.STORE_DB.prepare=sql=>{
+  const statement=first(sql);
+  if(!sql.startsWith('SELECT reference,paynow_reference,review_status,callback_digest,poll_digest'))return statement;
+  return {bind(){return {async first(){throw Error('temporary_db_read_failure');}}}};
+ };
+ const response=await app.fetch(webhook(),env);
+ const out=await response.json();
+ assert.equal(response.status,503);
+ assert.equal(out.error,'store_review_readback_unavailable');
+ assert.equal(out.entitlement_granted,false);
+});
+
+// A legacy or interrupted batch can leave contradictory review / intent rows.
+// A replay must never turn such partial persistence into an affirmative review.
+test('identical paid callback replay rejects a persisted review with a pending checkout',async()=>{
+ const {app,env,calls}=fixture();
+ assert.equal((await app.fetch(webhook(),env)).status,202);
+ env.STORE_DB.data.intent.status='pending';
+ const writes=env.STORE_DB.log.length;
+ const response=await app.fetch(webhook(),env);
+ const result=await response.json();
+ assert.equal(response.status,409,'prior review alone cannot certify completed checkout persistence');
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.entitlement_granted,false);
+ assert.equal(result.publisher_payout_authorized,false);
+ assert.equal(env.STORE_DB.data.intent.status,'pending');
+ assert.equal(env.STORE_DB.log.slice(writes).filter(x=>x.method==='run').length,0);
+ assert.equal(calls.length,1,'replay conflict must not initiate another provider operation');
+});
+
+test('identical paid callback replay rejects a contradictory persisted refund review',async()=>{
+ const {app,env}=fixture();
+ assert.equal((await app.fetch(webhook(),env)).status,202);
+ env.STORE_DB.data.review.review_status='refund_review_required';
+ const response=await app.fetch(webhook(),env);
+ const result=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.entitlement_granted,false);
+ assert.equal(env.STORE_DB.data.intent.status,'review_required');
+});
+
+test('identical refunded callback replay rejects contradictory checkout review status',async()=>{
+ const body=signedStatus({status:'Refunded'});
+ const {app,env}=fixture(body);
+ assert.equal((await app.fetch(webhook(body),env)).status,202);
+ env.STORE_DB.data.intent.status='review_required';
+ const response=await app.fetch(webhook(body),env);
+ const result=await response.json();
+ assert.equal(response.status,409);
+ assert.equal(result.error,'store_review_replay_state_conflict');
+ assert.equal(result.refund_finalized,false);
+ assert.equal(result.publisher_payout_authorized,false);
 });

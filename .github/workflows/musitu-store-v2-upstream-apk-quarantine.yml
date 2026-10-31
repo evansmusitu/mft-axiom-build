@@ -1,0 +1,60 @@
+name: MUSITU Store V2 pinned upstream APK quarantine
+on:
+  push:
+    branches: [feature/store-v2-publisher-evidence-pilot-20261021]
+    paths:
+      - 'store/phase1/publisher_intake/quarantine_release.py'
+      - 'store/phase1/publisher_intake/test_quarantine_release.py'
+      - '.github/workflows/musitu-store-v2-upstream-apk-quarantine.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  private-upstream-static-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prove URL and binary quarantine rejection behavior offline
+        run: |
+          set -euo pipefail
+          python3 -m py_compile store/phase1/publisher_intake/quarantine_release.py
+          python3 -m unittest discover -s store/phase1/publisher_intake -p 'test_quarantine_release.py' -v
+      - name: Use preinstalled SDK (avoid obsolete Android SDK 'tools' installer)
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
+          SDK_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ ! -x "$SDK_HOME/build-tools/35.0.0/apksigner" ]; then
+            "$SDK_HOME/cmdline-tools/16.0/bin/sdkmanager" --install 'build-tools;35.0.0'
+          fi
+          test -x "$SDK_HOME/build-tools/35.0.0/apksigner"
+          test -x "$SDK_HOME/build-tools/35.0.0/aapt"
+      - name: Inspect pinned official GitHub APK binaries without retention
+        run: |
+          set -euo pipefail
+          python3 store/phase1/publisher_intake/quarantine_release.py \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --output "$RUNNER_TEMP/store-v2-apk-static-inspection.json"
+          python3 - "$RUNNER_TEMP/store-v2-apk-static-inspection.json" <<'PY'
+          import json,sys
+          report=json.load(open(sys.argv[1]))
+          assert report['files_retained'] is False
+          assert report['classification']=='UPSTREAM_APK_BYTES_VERIFIED_STATIC_ONLY_NOT_PUBLISHER_APPROVED'
+          assert len(report['results'])==2
+          for app in report['results']:
+              assert app['accepted_store_app'] is False
+              assert app['malware_clearance']=='NOT_PERFORMED'
+              assert app['publisher_consent']=='NOT_ESTABLISHED'
+              assert app['store_commerce_enabled'] is False
+              assert len(app['certificate_sha256_digests'])>=1
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-store-v2-upstream-static-metadata-only
+          path: ${{ runner.temp }}/store-v2-apk-static-inspection.json
+          retention-days: 7
+          if-no-files-found: error
