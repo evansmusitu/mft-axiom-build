@@ -48,6 +48,18 @@ class GateTests(unittest.TestCase):
             with self.subTest(t=t, status=status):
                 self.assertFalse(self.run_gate(lambda p,*_: p.update(accountPlanType=t,accountPlanStatus=status))["candidate_qualifies_for_manual_review"])
 
+    def test_short_plan_horizon_denied_for_persistent_host_review(self):
+        short = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()
+        r = self.run_gate(lambda p,*_: p.update(accountPlanExpirationDate=short))
+        self.assertTrue(r["account_not_expired"])
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
+    def test_naive_expiry_timestamp_denied(self):
+        naive = (datetime.now(timezone.utc) + timedelta(days=60)).replace(tzinfo=None).isoformat()
+        r = self.run_gate(lambda p,*_: p.update(accountPlanExpirationDate=naive))
+        self.assertFalse(r["account_not_expired"])
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
     def test_low_credits_denied(self):
         self.assertFalse(self.run_gate(lambda p,*_: p["accountPlanRemainingCredits"].update(amount=4))["candidate_qualifies_for_manual_review"])
 
