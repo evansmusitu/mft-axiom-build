@@ -84,14 +84,14 @@ export async function reconcileRefund(db,verified){
  must([eventId,provider,transactionId,refundId,orderId,currency].every(x=>okString(x,1,150))&&Number.isSafeInteger(amountMinor)&&amountMinor>0,'invalid_refund_evidence');
  const ref=await one(db,'SELECT * FROM refund_requests WHERE id=? AND order_id=?',refundId,orderId);
  must(ref&&ref.amount_minor===amountMinor,'refund_mismatch');
- if(ref.state==='settled'){must(ref.event_id===eventId,'refund_event_collision');return {idempotent:true};}
+ if(ref.state==='settled'){const prior=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);must(ref.event_id===eventId&&prior&&prior.provider===provider&&prior.provider_transaction_id===transactionId&&prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.currency===currency,'refund_event_collision');return {idempotent:true};}
  must(ref.state==='provider_pending','refund_not_provider_pending');
  const order=await one(db,'SELECT * FROM orders WHERE id=? AND state=\'settled\'',orderId);must(order&&order.currency===currency,'refund_currency_mismatch');
  const already=await one(db,"SELECT COALESCE(SUM(amount_minor),0) AS amount FROM refund_requests WHERE order_id=? AND state='settled'",orderId);
  // Round credit reversal toward consumer only on final refund; no currency float.
- const prevUnits=Math.floor(order.grant_units*already.amount/order.amount_minor);
- const nextUnits=Math.floor(order.grant_units*(already.amount+amountMinor)/order.amount_minor);
- const delta=nextUnits-prevUnits;must(delta>0,'refund_requires_manual_credit_adjustment');
+ const prevUnits=BigInt(order.grant_units)*BigInt(already.amount)/BigInt(order.amount_minor);
+ const nextUnits=BigInt(order.grant_units)*BigInt(already.amount+amountMinor)/BigInt(order.amount_minor);
+ const delta=Number(nextUnits-prevUnits);must(Number.isSafeInteger(delta)&&delta>0,'refund_requires_manual_credit_adjustment');
  await atomic(db,[
   ['INSERT INTO provider_events(event_id,provider,provider_transaction_id,order_id,kind,amount_minor,currency) VALUES(?,?,?,?,?,?,?)',eventId,provider,transactionId,orderId,'refund',amountMinor,currency],
   ["UPDATE refund_requests SET state='settled',event_id=? WHERE id=? AND state='provider_pending'",eventId,refundId],

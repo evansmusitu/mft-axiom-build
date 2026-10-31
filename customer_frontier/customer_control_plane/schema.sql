@@ -20,3 +20,10 @@ CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL 
 CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), work_id TEXT NOT NULL REFERENCES work(id), kind TEXT NOT NULL, sha256 TEXT NOT NULL, storage_ref TEXT NOT NULL, evidence_state TEXT NOT NULL DEFAULT 'not_verified' CHECK(evidence_state IN ('not_verified','verified')));
 CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), work_id TEXT NOT NULL REFERENCES work(id), artifact_id TEXT REFERENCES artifacts(id), claim TEXT NOT NULL, evidence_sha256 TEXT NOT NULL, verifier_subject TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE INDEX IF NOT EXISTS ix_evidence_work ON evidence(tenant_id,work_id);
+-- The independently authorized ledger is append-only, not editable by tenant actions.
+CREATE TRIGGER IF NOT EXISTS axiom_credit_ledger_no_update BEFORE UPDATE ON credit_ledger BEGIN SELECT RAISE(ABORT,'immutable_credit_ledger'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_credit_ledger_no_delete BEFORE DELETE ON credit_ledger BEGIN SELECT RAISE(ABORT,'immutable_credit_ledger'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_provider_event_no_update BEFORE UPDATE ON provider_events BEGIN SELECT RAISE(ABORT,'immutable_provider_event'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_provider_event_no_delete BEFORE DELETE ON provider_events BEGIN SELECT RAISE(ABORT,'immutable_provider_event'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_invoice_no_update BEFORE UPDATE ON invoices BEGIN SELECT RAISE(ABORT,'immutable_invoice'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_invoice_no_delete BEFORE DELETE ON invoices BEGIN SELECT RAISE(ABORT,'immutable_invoice'); END;
