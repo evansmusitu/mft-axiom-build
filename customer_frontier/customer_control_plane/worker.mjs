@@ -1,5 +1,6 @@
 // Candidate Customer Control Plane API. NOT deployed. No payment capture in ChatGPT.
 import {one,all,execute,balance,createOrder,reconcileSettlement,reserve,finishHold,requestRefund,reconcileRefund} from './ledger.mjs';
+import {createCustomerCase,listOwnCustomerCases,listOwnMemberships} from './customer_lifecycle.mjs';
 import {verifyAndEnroll} from './enrollment.mjs';
 import {qualifiedLoginRedirect} from './login_broker.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
@@ -49,6 +50,9 @@ export async function handle(request,env){
  if(method!=='GET'&&method!=='HEAD'){const origin=request.headers.get('origin');if(origin!==url.origin||request.headers.get('x-axiom-intent')!=='customer-action')return error('csrf_or_origin_rejected',403);}
  const {identity_id,tenant_id,role}=user;const write=role==='owner'||role==='admin'||role==='member';const billingAdmin=role==='owner'||role==='admin';
  try{
+ if(path==='/v1/customer/memberships'&&method==='GET')return json({ok:true,memberships:await listOwnMemberships(db,{tenant_id,identity_id})});
+ if(path==='/v1/customer/cases'&&method==='GET')return json({ok:true,cases:await listOwnCustomerCases(db,{tenant_id,identity_id})});
+ if(path==='/v1/customer/cases'&&method==='POST'){const b=await readBody(request);const recorded=await createCustomerCase(db,{tenant_id,identity_id},b,request.headers.get('idempotency-key'));return json({ok:true,case:recorded,note:'Request recorded for independent review; no irreversible action performed.'},recorded.idempotent?200:202);}
  if(path==='/v1/customer/me'&&method==='GET')return json({ok:true,tenant_id,role,identity_id,credit:billingAdmin?await balance(db,tenant_id):{booked:null,reserved:null,available:null,debt:null},billing_access:billingAdmin,payment_live:false});
  if(path==='/v1/customer/catalog'&&method==='GET'){if(!billingAdmin)return error('billing_role_denied',403);return json({ok:true,products:await all(db,'SELECT id,name,currency,amount_minor,grant_units FROM price_catalog WHERE enabled=1 ORDER BY amount_minor')});}
  if(path==='/v1/customer/orders'&&method==='GET'){if(!billingAdmin)return error('billing_role_denied',403);return json({ok:true,orders:await all(db,'SELECT id,price_id,amount_minor,currency,grant_units,state,created_at FROM orders WHERE tenant_id=? ORDER BY created_at DESC LIMIT 100',tenant_id)});}
