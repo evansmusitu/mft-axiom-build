@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 REGION = "eu-north-1"
@@ -60,14 +60,20 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
     result["account_plan_free_active"] = p.get("accountPlanType") == "FREE" and p.get("accountPlanStatus") == "ACTIVE"
     result["credit_buffer_present"] = 40 <= credit <= 1_000
     expiry = p.get("accountPlanExpirationDate")
-    if type(expiry) is not str:
-        expiry_valid = False
-    else:
+    expiry_valid = False
+    min_runway = False
+    if type(expiry) is str:
         try:
-            expiry_valid = datetime.fromisoformat(expiry.replace("Z", "+00:00")).astimezone(timezone.utc) > datetime.now(timezone.utc)
+            parsed = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                expiry_utc = parsed.astimezone(timezone.utc)
+                now_utc = datetime.now(timezone.utc)
+                expiry_valid = expiry_utc > now_utc
+                min_runway = expiry_utc >= now_utc + timedelta(days=30)
         except ValueError:
-            expiry_valid = False
+            pass
     result["account_not_expired"] = expiry_valid
+    result["minimum_30day_plan_runway"] = min_runway
     types = call(["ec2", "describe-instance-types", "--region", REGION,
                   "--instance-types", "t3.small"])
     found = types.get("InstanceTypes", [])
@@ -98,7 +104,7 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
                 and not r["Instances"] for r in reservations))
     result["candidate_qualifies_for_manual_review"] = all(
         result[k] for k in ("account_plan_free_active", "credit_buffer_present",
-        "account_not_expired", "t3_small_eligible", "official_windows_ami_eligible",
+        "account_not_expired", "minimum_30day_plan_runway", "t3_small_eligible", "official_windows_ami_eligible",
         "no_existing_ec2_instances"))
     # No status can ever be promoted to deployment approval here. A separate
     # approved, audited host build + SSM/firewall/price gate is mandatory.
