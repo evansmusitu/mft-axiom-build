@@ -42,7 +42,7 @@ jobs:
           set -eu
           for p in customer_frontier/customer_control_plane/*.mjs customer_frontier/standalone_portal/portal.js; do node --check "$p"; done
       - name: Run customer ledger, auth and isolation tests
-        run: node --test customer_frontier/tests/customer.test.mjs
+        run: node --test customer_frontier/tests/*.test.mjs
       - name: Run reference and frontier-gate tests
         run: python -m unittest discover -s customer_frontier/tests -p 'test_*.py' -v
       - name: Fail closed on unqualified superiority claims
