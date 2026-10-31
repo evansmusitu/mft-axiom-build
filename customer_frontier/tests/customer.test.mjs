@@ -63,11 +63,27 @@ test('cross-origin or forged browser JSON is never enrollment proof',async()=>{c
  db.close();
 });
 test('OIDC login is disabled unless a private broker is qualified',async()=>{const db=await setup();const r=await handle(new Request('https://localhost/auth/start'),{CUSTOMER_DB:db});assert.equal(r.status,503);assert.equal((await r.json()).error,'login_not_qualified');db.close();});
-test('OIDC broker rejects wrong domain or missing PKCE S256, and accepts qualified redirect',async()=>{
- const good='https://auth.mftintelligence.com/oauth/authorize?state='+('A'.repeat(43))+'&code_challenge='+('B'.repeat(43))+'&code_challenge_method=S256';
- const env=url=>({IDENTITY_LOGIN_QUALIFIED:'qualified_private_binding',IDENTITY_LOGIN_SERVICE:{fetch:async()=>new Response(JSON.stringify({authorization_url:url}),{status:200})}});
- for(const bad of ['https://evil.example/oauth/authorize?state='+('A'.repeat(43))+'&code_challenge='+('B'.repeat(43))+'&code_challenge_method=S256',good.replace('S256','plain'),good.replace('state='+('A'.repeat(43)),'state=short')])await assert.rejects(qualifiedLoginRedirect(env(bad)),/invalid_login_redirect/);
+test('OIDC broker pins client, callback, code flow, nonce, PKCE and unique parameters',async()=>{
+ const params=new URLSearchParams({client_id:'axiom-browser-client',redirect_uri:'https://portal.mftintelligence.com/oauth/callback',response_type:'code',scope:'openid profile',state:'A'.repeat(43),nonce:'C'.repeat(43),code_challenge:'B'.repeat(43),code_challenge_method:'S256'});
+ const good='https://auth.mftintelligence.com/oauth/authorize?'+params.toString();
+ const env=url=>({CUSTOMER_OAUTH_CLIENT_ID:'axiom-browser-client',CUSTOMER_LOGIN_REDIRECT_URI:'https://portal.mftintelligence.com/oauth/callback',IDENTITY_LOGIN_QUALIFIED:'qualified_private_binding',IDENTITY_LOGIN_SERVICE:{fetch:async()=>new Response(JSON.stringify({authorization_url:url}),{status:200})}});
  assert.equal(await qualifiedLoginRedirect(env(good)),good);
+ const override=(key,value)=>{const u=new URL(good);u.searchParams.set(key,value);return u.href};
+ const dup=new URL(good);dup.searchParams.append('redirect_uri','https://evil.example/steal');
+ for(const bad of [
+  good.replace('auth.mftintelligence.com','evil.example'),
+  override('code_challenge_method','plain'),
+  override('state','short'),
+  override('nonce','short'),
+  override('client_id','attacker-oauth-client'),
+  override('redirect_uri','https://evil.example/callback'),
+  override('response_type','token'),
+  override('scope','profile'),
+  dup.href
+ ])await assert.rejects(qualifiedLoginRedirect(env(bad)),/invalid_login_redirect/);
+ await assert.rejects(qualifiedLoginRedirect({...env(good),CUSTOMER_OAUTH_CLIENT_ID:'different-client'}),/invalid_login_redirect/);
+ await assert.rejects(qualifiedLoginRedirect({...env(good),CUSTOMER_LOGIN_REDIRECT_URI:'https://evil.example/callback'}),/login_configuration_unqualified/);
+ await assert.rejects(qualifiedLoginRedirect({...env(good),CUSTOMER_OAUTH_CLIENT_ID:null}),/login_configuration_unqualified/);
 });
 test('tenant ownership enforced by SQLite foreign keys across Project, Work, Agent, Artifact, Evidence',async()=>{
  const db=await setup();await execute(db,"INSERT INTO projects(id,tenant_id,name,objective,created_by) VALUES('p_owner','t1','Example','Goal','u1')");
