@@ -1,0 +1,28 @@
+name: LIFELINE Cloudflare-Modal Backend Readonly Gate
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-backend-gate-readonly.yml'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  access-gateway-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Assert pinned Access app, MFA and private Worker binding readiness
+        run: python products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py
+      - name: Save redacted gateway readiness
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-cloudflare-modal-private-cutover-gate
+          path: lifeline-backend-cutover-readiness.json
+          retention-days: 3

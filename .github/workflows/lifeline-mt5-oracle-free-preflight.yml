@@ -1,0 +1,28 @@
+name: LIFELINE Oracle Always Free ARM Static Budget Safety CI
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/oracle_free/**'
+      - '.github/workflows/lifeline-mt5-oracle-free-preflight.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  validate-synthetic-budget-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate fake OCI requests with fail-closed tests (no providers)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/oracle_free
+          python -m unittest discover -s . -p 'test_*.py' -v
+          python -m py_compile policy.py
+          echo 'oracle_free_static_budget_policy_only=true'
+          echo 'oracle_account_or_vm_created=false'
+          echo 'no_money_or_provider_access_requested=true'

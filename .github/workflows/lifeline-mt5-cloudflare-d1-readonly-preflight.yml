@@ -1,0 +1,37 @@
+name: LIFELINE D1 Entitlement — Read-Only, No Provisioning
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-cloudflare-d1-readonly-preflight.yml'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/alternative/provider_preflight.py'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/alternative/test_provider_preflight.py'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  qualification:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Offline fail-closed preflight tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare/alternative
+          python -m unittest -v test_provider_preflight
+          python -m py_compile provider_preflight.py
+      - name: Account-scoped read only check (no secret fields printed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/alternative/provider_preflight.py
+          echo 'new_cloudflare_resource_created=false'
+          echo 'billing_change_performed=false'
+          echo 'live_d1_cutover_authorized=false'

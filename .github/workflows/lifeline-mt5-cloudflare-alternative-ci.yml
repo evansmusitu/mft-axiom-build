@@ -1,0 +1,24 @@
+name: LIFELINE $0 Cloudflare-only Service Binding + D1 Contract CI
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/alternative/**'
+      - '.github/workflows/lifeline-mt5-cloudflare-alternative-ci.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  local-sqlite-and-hmac:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Nonprovider offline SQL and WebCrypto tests only
+        run: |
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare/alternative
+          node --check gateway.mjs
+          node --check private_worker.mjs
+          node --test --disable-warning=ExperimentalWarning test_*.mjs

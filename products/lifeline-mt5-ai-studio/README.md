@@ -1,0 +1,75 @@
+### 27 October 2026 — read-only Cloudflare Workers inventory + imported-data integrity (SOURCE CHECKPOINT)
+
+The account-scoped Cloudflare preflight now **GETs** the Workers scripts inventory as well as D1 and subscriptions. It reports only a sanitized observed count/name-collision flag, never other projects' Worker metadata, and never infers Workers Free entitlement, a hard US$0 spend cap or deployment authorization. Source-side TDD: 5 new provider tests failed before implementation, then 13/13 passed. The offline research importer now fingerprints imported metadata alongside parsed bars, rejecting post-import changes to symbols, timeframes, source labels and SHA-256 hashes. Research TDD: one regression with six failing cases before the fix, then 11/11 research tests passed. These fingerprints are **not signatures and do not authenticate a broker or price feed**. Full local suites: 75 Windows, 36 Modal, 13 Cloudflare preflight and 17 Node alternate/gateway bounds tests. Evidence: `validation/CLOUDFLARE_WORKERS_INVENTORY_AND_RESEARCH_20261027.md`.
+
+The stateless private Worker is still **not deployed**; legacy Cloudflare–Modal remains disconnected. No trading, no public customer access, no Windows host pairing or finance/resource mutation. Cloudflare account plan and $0 protections remain unverified until genuine provider checks and owner acceptance.
+
+### 25 October 2026 — existing owner/agent edge body limits hardened (SOURCE ONLY)
+
+The existing Cloudflare owner/agent gateway used `Request.text()` before applying its 65,536-byte input cap, permitting excessive buffering on unauthenticated agent routes if a future private backend cutover was enabled. It now imports a bounded byte-stream reader from `infra/cloudflare/bounded_body.mjs`, rejecting excessive declared or received size with HTTP 413, malformed UTF-8 with HTTP 400, and cancelling oversized incoming streams early. It retains the isolated no-trading allowlist and owner/agent authentication. New standalone regressions cover 64 KiB exact boundary, stream cancellation, oversized first chunk, malformed/oversized length header and invalid UTF-8. The normal signed Bridge CI now includes these tests alongside the full JWT/HMAC edge suite. **No Cloudflare worker, service binding or cutover was deployed or enabled.** See `validation/LEGACY_EDGE_REQUEST_BOUNDS_20261025.md`.
+
+### 25 October 2026 — signed stateless private-worker stream bounds hardened (SOURCE ONLY)
+
+A security regression review found that the private Service Binding worker and its owner-gateway adapter buffered potentially oversized inbound request or downstream response streams before rejecting them. The status-only request now accepts a maximum of two bytes (`{}`) and cancels oversized streams; the gateway enforces a 4,096-byte UTF-8 response cap during streaming, before JSON/schema validation. Red/green local tests: **12/12 Cloudflare alternative/config tests passed** after two security fixes; the new tests each failed before the matching fix. No Worker was deployed and no upstream accounts, tokens or bindings changed. Full acceptance and environmental caveats: [`validation/SECURE_STREAM_BOUNDS_20261025.md`](validation/SECURE_STREAM_BOUNDS_20261025.md).
+
+### 25 October 2026 — D1-free signed stateless status source implemented (NOT DEPLOYED)
+
+The 11 existing Cloudflare D1 databases exceed the documented Workers Free numeric allowance (10). Instead of provisioning or repurposing shared databases, LIFELINE implemented an isolated **no-database, signed status-only** mode in existing `infra/cloudflare/alternative/{private_worker.mjs,gateway.mjs}` plus `wrangler.stateless.private.toml`. It requires existing owner Access JWT, independent explicit cutover, matching stateless mode, pinned tenant and HMAC. It deliberately reports `jobs:null`, no database/Windows/Modal/Neon connectivity, and no trading. It cannot execute jobs. Stateless mode has *no durable nonce replay prevention*, so only the idempotent status response is permitted. No Cloudflare Worker or binding has been deployed, and no Free-plan entitlement/hard $0 cap has been proven.
+
+[RED CI #40170287999](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40170287999) reproduced missing behavior; [GREEN #40170435002](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40170435002) completed 10/10 tests. Details: `validation/CLOUDFLARE_STATELESS_ACCEPTANCE_20261025.md`.
+
+# LIFELINE MT5 AI Studio — Isolated owner-only development
+
+**Operational status, 25 October 2026:**
+
+### 25 October 2026 — REAL D1 provider capacity gate (do not provision)
+
+An authenticated, strictly GET-only Cloudflare account audit [run 40162809028](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40162809028) returned **11 existing D1 databases**. The proposed isolated name `lifeline-mt5-d1-isolated` was **not present**, and names/IDs from other projects were not logged. The documented Workers Free numeric limit is **10 databases per account** (https://developers.cloudflare.com/d1/platform/limits/). Account subscriptions were readable, but **Workers Free entitlement and an effective zero-dollar spending cap remain UNVERIFIED**. Consequently **no new database may be provisioned under the $0 constraint**. The existing 11 databases belong to the shared account; do NOT repurpose or delete one. Existing source-only alternative remains UNDEPLOYED and does not provide a live D1-backed service.
+
+The new `infra/cloudflare/alternative/provider_preflight.py` and `test_provider_preflight.py` implement read-only, exact-account, sanitized provider checks. **8 tests passed**; all existing LIFELINE signed bridge, Five-Cloud, Cloudflare alternative, AXIOM and brand CI passed at code commit `daaa4a71ed9d39915d47438b5a8a9d25e624fc67`. The confirmed numeric quota block is separate from unverified Workers plan and hard no-spend controls. Next investigate a truly stateless private Worker/non-D1 alternative under verified Workers Free entitlement or obtain owner-approved existing dedicated infrastructure; no paid services or new resources without explicit approval.
+
+**Previous status, 24 October 2026:** private research and engineering stage. **NOT an operating public MT5 trading system, not a connected Cloudflare→Modal backend, and not a permanently hosted Windows agent.** Do not advertise live customer execution or results.
+
+Repository: [evansmusitu/mft-axiom-build](https://github.com/evansmusitu/mft-axiom-build), branch `product/lifeline-mt5-fivecloud-isolated-20261020`, [draft PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30). Protected `main` is out of scope. Budget **$0**; no paid provision, uncontrolled compute, public launch, broker orders, real customer data or arbitrary shell.
+
+## $0 no-Modal alternative — source complete, Cloudflare D1 stage NOT deployed
+
+With the owner's explicit decision **not to create a new Modal workspace** and confirmation of **no Windows host**, LIFELINE now has a distinct Cloudflare-native research alternative: enrolled owner Access JWT → private Worker Service Binding → D1 synthetic status store, with temporary GitHub Windows 2022 execution only on manually initiated, SHA256-reviewed builds. This avoids creating a potentially workspace-wide Modal proxy token.
+
+[Alternative source, setup and limitations](infra/cloudflare/alternative/README.md) · [Red/green acceptance](validation/CLOUDFLARE_NO_MODAL_ACCEPTANCE_20261024.md).
+
+At latest commit, the owner-only `GET /owner/alternative/status` code is **not deployed**: it deliberately returns an unavailable status until actual D1, a private no-public-route Worker, separate stage HMAC bindings and explicit cutover have been independently verified. The offline checks use actual WebCrypto and SQLite SQL; **they are not evidence of a live Cloudflare D1 database**. Existing Neon and Modal secret stores remain unchanged. A GitHub Windows runner remains ephemeral, never an always-on desktop or native local MCP host. Trading is disabled and PR stays draft.
+
+## Verified, evidence-backed progress
+
+| Surface | Real verification and limitation |
+|---|---|
+| Cloudflare Access | Dedicated single-owner Access app with independent MFA; a prior audited owner session succeeded. `GET /owner/verify` and `GET /owner/readiness` are owner-only, credential-safe and **diagnostic**. |
+| Private Worker | Latest authenticated provider evidence: **6/10** binding names installed, **four sensitive bindings absent**. Explicit `LIFELINE_PRIVATE_BACKEND_CUTOVER` remains **OFF**. Backend routes intentionally fail closed. |
+| Modal ↔ Neon | Previously tested **private** synthetic signed probe and receipt with restricted Neon `lifeline_stage_app`, FORCE RLS and HMAC replay denial. **Not** a Cloudflare-originated live request. |
+| Windows MetaEditor | Verified vendor-signed MetaEditor produced a no-order EX5 on disposable GitHub Actions Windows runner ([proof 39562462108](https://github.com/evansmusitu/mft-axiom-build/actions/runs/39562462108)). This is not an enduring Windows computer or historical-market backtest. |
+| Windows + Python/JS integration | Real Node Edge→loopback FastAPI/SQLite synthetic signed round trip passed on **native Windows Server 2022 GitHub runner** ([40095181801](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40095181801)) and Ubuntu ([40095041178](https://github.com/evansmusitu/mft-axiom-build/actions/runs/40095041178)). Neither CI run connected to live Modal/Neon or native MT5. |
+| MCP security | Only a read-only `lifeline_status` tool. MCP 2025-03-26 initialize schema, authenticated `notifications/initialized` HTTP 202, SSE-less GET HTTP 405, strict request IDs and cross-tenant rejection tested. |
+| Vercel | Isolated owner-only stage UI with deployment SSO; no trading controls or public customer release. |
+
+Current detailed acceptance: [Native Windows, initialization and tenant isolation](validation/NATIVE_CROSSLANG_SECURITY_20261024.md), [offline cross-language integration](validation/OFFLINE_FULLSTACK_ACCEPTANCE_20261024.md), [provider scope gate](validation/SECURE_SCOPE_GATE_20261024.md), [six of ten binding evidence](validation/GITHUB_EXISTING_SECRETS_20261024.md).
+
+## The real blockers
+
+1. **Modal proxy token scope:** Live read-only metadata found **13 unrelated applications sharing LIFELINE's Modal environment** and **44 proxy token records**. On the existing Starter workspace, per-app proxy-token authorization is **not demonstrated**. Do not generate a broadly scoped token, export shared workspace API credentials to Cloudflare, disable Modal proxy auth, or deploy publicly to evade the restriction. An official support inquiry is open.
+2. **Four Worker secret bindings:** `AGENT_HMAC_KEY`, `EDGE_SHARED_SECRET`, `MODAL_PROXY_KEY`, and `MODAL_PROXY_SECRET` are **missing** from the Worker. Modal existing secrets do not reveal their values via metadata and GitHub secret aliases are unavailable. A proof-tested source-only encrypted handoff exists, **not a live transfer**.
+3. **Actual Cloudflare→Modal→Neon acceptance:** Do not authorize backend cutover merely because keys appear present. Require a truly isolated proxy identity, owner Access JWT, strict tenant binding, positive and negative live tests, and proven zero-cost operating constraints.
+4. **Permanent Windows host:** No approved 24/7 native Windows x64 machine. GitHub Windows runners compile/tests only, and OCI enrollment was blocked by a declined card; no vendor approval for an alternative yet.
+5. **Product certification:** No actual native MT5 MCP paired, broker demonstration market-history backtest, compliance or customer/public release.
+
+## Engineering & safe verification
+
+`infra/cloudflare/` is the Cloudflare Access gateway and read-only MCP interface. `infra/modal/` contains the private Modal/FastAPI queue, signed probe/receipt and restricted Neon DB backend. `windows/` contains reviewed MQL5, signed compiler and native read-only MCP adapters. `infra/oracle_free/` contains a **candidate** ARM/Wine hosting feasibility policy, not a deployed Oracle server.
+
+The safe CI suites live under `.github/workflows/lifeline*.yml` and include authenticated edge tests, Windows+Ubuntu agent tests, disposable Windows MetaEditor compilation, offline Node→Python signed-bridge integration and nonmutating provider metadata checks. Native Windows *cross-language* acceptance workflow triggers only on its own source change or explicit dispatch to conserve Actions minutes.
+
+Check [PR #30](https://github.com/evansmusitu/mft-axiom-build/pull/30) and the most recent CI evidence before trusting claims. Git history and dated validation records preserve earlier v0.4–v1.4 progression. Never substitute stale snapshot assertions for provider-backed evidence. No code deploys automatically to Modal from a source push.
+
+## Immediate next step
+
+Await legitimate provider isolation guidance from Modal or qualify an independent LIFELINE-only account/workspace with explicit zero-spend controls. Only then design a controlled secret-to-secret transfer and **genuine** end-to-end live Cloudflare→Modal→Neon test. Preserve the draft PR, protected main and all separate MUSITU projects. No purchase, MFA reset, API-key leak, trade operation or production release.

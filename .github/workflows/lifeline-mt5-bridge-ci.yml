@@ -1,0 +1,51 @@
+name: LIFELINE MT5 Signed Bridge Security CI
+on:
+  push:
+    branches:
+      - product/lifeline-mt5-fivecloud-isolated-20261020
+    paths:
+      - 'products/lifeline-mt5-ai-studio/windows/**'
+      - 'products/lifeline-mt5-ai-studio/infra/**'
+      - '.github/workflows/lifeline-mt5-bridge-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  agent-security:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test authenticated queue, replay safety, and signed receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'fastapi>=0.115,<1' 'httpx>=0.28,<1'
+          cd products/lifeline-mt5-ai-studio/windows
+          python -m unittest -v test_agent.py test_poller.py
+  edge-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Cloudflare Access RS256 JWT, agent HMAC and route restrictions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm install --omit=dev --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --test test.mjs test_bounded_body.mjs

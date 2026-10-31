@@ -1,0 +1,56 @@
+name: LIFELINE Live Cloudflare Access Guest-Denial Proof
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-cloudflare-guest-deny.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  anonymous-negative:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Verify Cloudflare owner-MFA private hostname never forwards guest request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error
+          URL='https://lifeline-mt5-stage.mftintelligence.com'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+          results=[]
+          for path,body in [('/',None),('/healthz',None),('/operator/status',b'{}')]:
+              code=None;target=''
+              for attempt in range(3):
+                  req=urllib.request.Request(URL+path,headers={
+                      'User-Agent':'LIFELINE-Access-Anonymous-Security-Probe/1',
+                      'Content-Type':'application/json','Cache-Control':'no-store'},
+                      data=body,method='POST' if body is not None else 'GET')
+                  try:
+                      with opener.open(req,timeout=20) as resp:
+                          code=resp.status;target=resp.headers.get('Location','')
+                  except urllib.error.HTTPError as exc:
+                      code=exc.code;target=exc.headers.get('Location','')
+                  except Exception:
+                      code=None;target=''
+                  if code is not None:break
+                  time.sleep(8)
+              # Cloudflare Access expected to return a sign-in redirect or a
+              # 401/403. 503 from the unconfigured Worker means Access FAILED.
+              qualified=code in (401,403) or (
+                  code==302 and ('/cdn-cgi/access/' in target or
+                      '.cloudflareaccess.com' in target))
+              if not qualified:
+                  raise SystemExit('Cloudflare Access guest denial NOT PROVEN: path='+
+                                   path+' http='+str(code)+' (backend stays closed)')
+              results.append({'path':path,'guest_http':code,'access_blocked':True})
+          print(json.dumps({'schema':'lifeline.cloudflare_access_guest_denial.v1',
+              'hostname':'lifeline-mt5-stage.mftintelligence.com',
+              'all_unauthenticated_requests_blocked':True,
+              'no_cookies_used':True,'redirects_not_followed':True,
+              'backend_access_proven':False,'public_trading':False,
+              'results':results},sort_keys=True))
+          PY

@@ -1,0 +1,33 @@
+name: LIFELINE Windows Host Readiness Contract
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-windows-host-readiness.yml'
+      - 'products/lifeline-mt5-ai-studio/windows/Test-LifelineHost.ps1'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  failclosed-unpaired-runner:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Run read-only native host audit
+        shell: pwsh
+        run: |
+          & ./products/lifeline-mt5-ai-studio/windows/Test-LifelineHost.ps1 -ResultDir "$env:RUNNER_TEMP/lifeline-host-proof" -AllowUnpaired
+          $x=Get-Content "$env:RUNNER_TEMP/lifeline-host-proof/host-readiness.json" -Raw | ConvertFrom-Json
+          if(-not $x.windows_x64){throw 'Windows x64 qualification failed'}
+          if($x.ready_for_research_agent -or $x.acquired_persistent_host -or $x.verified_24x7_uptime){throw 'Unpaired CI runner mistakenly reported as a durable host'}
+          if($x.trading_enabled -or $x.shell_enabled){throw 'Development-only security policy changed'}
+          if($x.vendor_mcp_build_supported -or $x.terminal_build -or $x.metaeditor_build){throw 'Unsigned/uninstalled binaries must not qualify as MCP-capable'}
+          if($x.ready_for_manual_local_probe){throw 'Unpaired runner must not report native MCP readiness'}
+          if($x.schema -ne 'lifeline.windows.host_readiness.v1'){throw 'Host proof schema changed'}
+          Write-Host 'unpaired_runner_fails_closed=true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-host-readiness-no-secrets
+          path: ${{ runner.temp }}/lifeline-host-proof/host-readiness.json
+          retention-days: 3

@@ -1,0 +1,45 @@
+name: LIFELINE MT5 v0.3 Source Handoff
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: ['.github/workflows/lifeline-mt5-export.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage-versioned-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate and package the real source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/windows
+          python -m unittest -q test_agent.py
+          cd ../../..
+          mkdir -p dist/LIFELINE_MT5_AI_STUDIO_v0.3/.github/workflows
+          cp -a products/lifeline-mt5-ai-studio dist/LIFELINE_MT5_AI_STUDIO_v0.3/
+          cp .github/workflows/lifeline-mt5*.yml dist/LIFELINE_MT5_AI_STUDIO_v0.3/.github/workflows/
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path("dist/LIFELINE_MT5_AI_STUDIO_v0.3")
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in sorted(root.rglob("*")) if p.is_file() and "__pycache__" not in p.parts}
+          (root/"SHA256SUMS.json").write_text(json.dumps(files,indent=2,sort_keys=True)+"\n")
+          print("handoff_files_verified=",len(files))
+          PY
+          find dist -type d -name __pycache__ -prune -exec rm -r {} +
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LIFELINE_MT5_AI_STUDIO_v0.3_SOURCE
+          path: dist/LIFELINE_MT5_AI_STUDIO_v0.3/
+          retention-days: 14
+          include-hidden-files: true
+          if-no-files-found: error
