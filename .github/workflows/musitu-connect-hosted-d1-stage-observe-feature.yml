@@ -1,0 +1,62 @@
+name: MUSITU Connect isolated staging D1 readonly via dedicated GitHub secrets
+
+on:
+  push:
+    branches: ['feat/musitu-commercial-ga-phase123-evidence-20261031']
+    paths:
+      - '.github/workflows/musitu-connect-hosted-d1-stage-observe-feature.yml'
+      - 'tests/connect/test_hosted_d1_stage_workflow_policy.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-staging-d1-secret-observation
+  cancel-in-progress: false
+
+jobs:
+  policy:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/feat/musitu-commercial-ga-phase123-evidence-20261031' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify secrets scope and production mutation denial
+        run: python -m unittest tests.connect.test_hosted_d1_stage_workflow_policy -v
+
+  staged-schema-readonly:
+    needs: [policy]
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/feat/musitu-commercial-ga-phase123-evidence-20261031' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      MUSITU_CF_STAGING_ACCOUNT_ID: ${{ secrets.MUSITU_CF_STAGING_ACCOUNT_ID }}
+      MUSITU_CF_PRODUCTION_ACCOUNT_ID: ${{ secrets.MUSITU_CF_PRODUCTION_ACCOUNT_ID }}
+      MUSITU_CF_STAGING_DATABASE_NAME: ${{ secrets.MUSITU_CF_STAGING_DATABASE_NAME }}
+      MUSITU_CF_STAGING_DATABASE_ID: ${{ secrets.MUSITU_CF_STAGING_DATABASE_ID }}
+      MUSITU_CF_STAGING_READ_TOKEN: ${{ secrets.MUSITU_CF_STAGING_READ_TOKEN }}
+    steps:
+      - name: Check out reviewed preflight code, not a workflow author's branch
+        uses: actions/checkout@v4
+        with:
+          ref: 06cc5f74fb066c11f8d81390f424e58a2f9c261a
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify mock contract without provider access
+        run: python -m unittest tests.connect.test_hosted_d1_readonly -v
+      - name: Run guarded hosted staging schema and zero-row observation
+        run: python qualification/probe_connect_hosted_d1.py --output hosted-d1-readonly-evidence.json
+      - name: Upload non-admitting evidence only on successful provider probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-staging-d1-readonly-observation
+          path: hosted-d1-readonly-evidence.json
+          retention-days: 14
+          if-no-files-found: error
