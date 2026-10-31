@@ -19,6 +19,7 @@ export class AXIOMCustomerAdapter {
  getLedger(){return this.request('/ledger');}
  getOrders(){return this.request('/orders');}
  getCatalog(){return this.request('/catalog');}
+ getLiveBillingTruth(){return this.request('/billing/truth');}
  getInvoices(){return this.request('/invoices');}
  getRefunds(){return this.request('/refunds');}
  getProjects(){return this.request('/projects');}
