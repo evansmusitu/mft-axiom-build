@@ -57,6 +57,9 @@ export async function handle(request,env){
   if(env.PAYMENT_CHECKOUT_QUALIFIED!=='true'||!env.CHECKOUT_SERVICE?.fetch)return error('checkout_not_qualified',503);
   const b=await readBody(request);const key=request.headers.get('idempotency-key');
   const order=await createOrder(db,tenant_id,identity_id,b.price_id,key);
+  // Idempotent retries for a settled or void order cannot open another checkout.
+  if(order.state==='settled')return json({ok:true,order:{id:order.id,state:order.state,amount_minor:order.amount_minor,currency:order.currency,grant_units:order.grant_units},checkout:{available:false}},200);
+  if(order.state!=='pending')return error('order_not_payable',409);
   const provider=await env.CHECKOUT_SERVICE.fetch(new Request('https://axiom-internal/payments/create',{
    method:'POST',headers:{'content-type':'application/json','idempotency-key':order.id},
    body:JSON.stringify({order_id:order.id,amount_minor:order.amount_minor,currency:order.currency,tenant_id:tenant_id}),redirect:'error'}));

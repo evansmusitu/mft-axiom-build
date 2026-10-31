@@ -55,3 +55,12 @@ WHEN NEW.state='settled' AND OLD.state!='settled' AND NOT EXISTS (
  WHERE e.event_id=NEW.event_id AND e.order_id=OLD.order_id AND e.kind='refund'
  AND e.amount_minor=OLD.amount_minor AND e.currency=o.currency
 ) BEGIN SELECT RAISE(ABORT,'refund_evidence_required'); END;
+
+-- A provider refund can never cross the original captured amount, even under
+-- parallel verification. This check executes at the state transition itself.
+CREATE TRIGGER IF NOT EXISTS axiom_refund_cumulative_cap BEFORE UPDATE OF state ON refund_requests
+WHEN NEW.state='settled' AND OLD.state!='settled' AND (
+ (SELECT COALESCE(SUM(r.amount_minor),0) FROM refund_requests r
+  WHERE r.order_id=OLD.order_id AND r.state='settled') + OLD.amount_minor >
+ (SELECT o.amount_minor FROM orders o WHERE o.id=OLD.order_id)
+) BEGIN SELECT RAISE(ABORT,'refund_exceeds_order_amount'); END;

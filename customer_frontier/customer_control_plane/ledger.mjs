@@ -37,7 +37,7 @@ export async function reconcileSettlement(db,verified){
   ['INSERT INTO credit_ledger(id,tenant_id,delta,source_key,event_id) VALUES(?,?,?,?,?)',id(),order.tenant_id,order.grant_units,`settlement:${orderId}`,eventId],
   ['INSERT INTO invoices(id,tenant_id,order_id,currency,amount_minor) VALUES(?,?,?,?,?)',id(),order.tenant_id,orderId,currency,amountMinor]
  ]);
- }catch(error){const p=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);if(p&&p.order_id===orderId&&p.amount_minor===amountMinor&&p.currency===currency)return {idempotent:true,orderId};throw error}
+ }catch(error){const p=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);if(p){must(p.order_id===orderId&&p.provider===provider&&p.provider_transaction_id===transactionId&&p.kind===kind&&p.amount_minor===amountMinor&&p.currency===currency,'event_collision');return {idempotent:true,orderId};}throw error}
  return {idempotent:false,orderId};
 }
 export async function reserve(db,tenant,requestKey,units,workId=null){
@@ -66,7 +66,7 @@ export async function finishHold(db,tenant,holdId,mode){
 }
 export async function requestRefund(db,tenant,identity,orderId,amountMinor,reason,key){
  must(okString(key,8,100)&&okString(reason,8,500)&&Number.isSafeInteger(amountMinor)&&amountMinor>0,'invalid_refund');
- const prior=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(prior){must(prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.identity_id===identity,'refund_key_conflict');return prior;}
+ const prior=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(prior){must(prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.identity_id===identity&&prior.reason===reason,'refund_key_conflict');return prior;}
  const order=await one(db,'SELECT * FROM orders WHERE id=? AND tenant_id=? AND state=\'settled\'',orderId,tenant);must(order,'settled_order_missing');
  const refundId=id();
  // Conditional insert performs the outstanding-value check within one serialized D1 write.
@@ -76,7 +76,7 @@ export async function requestRefund(db,tenant,identity,orderId,amountMinor,reaso
    LEFT JOIN refund_requests r ON r.order_id=o.id AND r.state!='rejected'
    WHERE o.id=? GROUP BY o.id,o.amount_minor)`;
  try{const created=await execute(db,statement,refundId,tenant,orderId,identity,amountMinor,reason,key,amountMinor,orderId);must(created.meta?.changes===1,'refund_exceeds_outstanding');}
- catch(e){const old=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(old){must(old.order_id===orderId&&old.amount_minor===amountMinor&&old.identity_id===identity,'refund_key_conflict');return old;}throw e}
+ catch(e){const old=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(old){must(old.order_id===orderId&&old.amount_minor===amountMinor&&old.identity_id===identity&&old.reason===reason,'refund_key_conflict');return old;}throw e}
  return await one(db,'SELECT * FROM refund_requests WHERE id=?',refundId);
 }
 export async function reconcileRefund(db,verified){
@@ -84,19 +84,46 @@ export async function reconcileRefund(db,verified){
  must([eventId,provider,transactionId,refundId,orderId,currency].every(x=>okString(x,1,150))&&Number.isSafeInteger(amountMinor)&&amountMinor>0,'invalid_refund_evidence');
  const ref=await one(db,'SELECT * FROM refund_requests WHERE id=? AND order_id=?',refundId,orderId);
  must(ref&&ref.amount_minor===amountMinor,'refund_mismatch');
- if(ref.state==='settled'){const prior=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);must(ref.event_id===eventId&&prior&&prior.provider===provider&&prior.provider_transaction_id===transactionId&&prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.currency===currency,'refund_event_collision');return {idempotent:true};}
+ const sameEvent=async()=>{
+  const p=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);
+  return ref && p && p.provider===provider && p.provider_transaction_id===transactionId && p.order_id===orderId && p.kind==='refund' && p.amount_minor===amountMinor && p.currency===currency;
+ };
+ if(ref.state==='settled'){
+  must(ref.event_id===eventId && await sameEvent(),'refund_event_collision');
+  return {idempotent:true};
+ }
  must(ref.state==='provider_pending','refund_not_provider_pending');
- const order=await one(db,'SELECT * FROM orders WHERE id=? AND state=\'settled\'',orderId);must(order&&order.currency===currency,'refund_currency_mismatch');
- const already=await one(db,"SELECT COALESCE(SUM(amount_minor),0) AS amount FROM refund_requests WHERE order_id=? AND state='settled'",orderId);
- // Round credit reversal toward consumer only on final refund; no currency float.
- const prevUnits=BigInt(order.grant_units)*BigInt(already.amount)/BigInt(order.amount_minor);
- const nextUnits=BigInt(order.grant_units)*BigInt(already.amount+amountMinor)/BigInt(order.amount_minor);
- const delta=Number(nextUnits-prevUnits);must(Number.isSafeInteger(delta)&&delta>0,'refund_requires_manual_credit_adjustment');
- await atomic(db,[
-  ['INSERT INTO provider_events(event_id,provider,provider_transaction_id,order_id,kind,amount_minor,currency) VALUES(?,?,?,?,?,?,?)',eventId,provider,transactionId,orderId,'refund',amountMinor,currency],
-  ["UPDATE refund_requests SET state='settled',event_id=? WHERE id=? AND state='provider_pending'",eventId,refundId],
-  ['INSERT INTO credit_ledger(id,tenant_id,delta,source_key,event_id) VALUES(?,?,?,?,?)',id(),order.tenant_id,-delta,`refund:${refundId}`,eventId]
- ]);
- return {idempotent:false,revokedUnits:delta};
+ const order=await one(db,"SELECT * FROM orders WHERE id=? AND state='settled'",orderId);
+ must(order&&order.currency===currency,'refund_currency_mismatch');
+ // Exact SQLite integer arithmetic is safe only under this explicit product cap.
+ // Production catalog limits and real D1 semantics remain separate release gates.
+ must(Number.isSafeInteger(order.grant_units)&&Number.isSafeInteger(order.amount_minor)&&
+      BigInt(order.grant_units)*BigInt(order.amount_minor)<=BigInt(Number.MAX_SAFE_INTEGER),
+      'refund_integer_precision_unverified');
+ // Crucial concurrency invariant: compute cumulative debit inside the SAME atomic
+ // batch, AFTER the verified refund changes state. Never use a prior SELECT's
+ // refunded sum to decide a money/credit mutation.
+ const postCredit=`WITH totals AS (
+  SELECT o.tenant_id AS tenant_id,o.grant_units AS units,o.amount_minor AS money,
+   (SELECT COALESCE(SUM(r.amount_minor),0) FROM refund_requests r
+    WHERE r.order_id=o.id AND r.state='settled') AS refunded
+  FROM orders o WHERE o.id=?
+ ) INSERT INTO credit_ledger(id,tenant_id,delta,source_key,event_id)
+ SELECT ?,tenant_id,
+  -(CAST((units*refunded)/money AS INTEGER) - CAST((units*(refunded-CAST(? AS INTEGER)))/money AS INTEGER)),?,?
+ FROM totals WHERE (CAST((units*refunded)/money AS INTEGER) - CAST((units*(refunded-CAST(? AS INTEGER)))/money AS INTEGER))>0`;
+ try{
+  await atomic(db,[
+   ['INSERT INTO provider_events(event_id,provider,provider_transaction_id,order_id,kind,amount_minor,currency) VALUES(?,?,?,?,?,?,?)',eventId,provider,transactionId,orderId,'refund',amountMinor,currency],
+   ["UPDATE refund_requests SET state='settled',event_id=? WHERE id=? AND state='provider_pending'",eventId,refundId],
+   [postCredit,orderId,id(),amountMinor,`refund:${refundId}`,eventId,amountMinor]
+  ]);
+ }catch(error){
+  const settled=await one(db,'SELECT state,event_id FROM refund_requests WHERE id=?',refundId);
+  if(settled?.state==='settled'&&settled.event_id===eventId && await sameEvent())return {idempotent:true};
+  throw error;
+ }
+ const posted=await one(db,'SELECT -delta AS units FROM credit_ledger WHERE tenant_id=? AND source_key=?',order.tenant_id,`refund:${refundId}`);
+ return {idempotent:false,revokedUnits:posted?.units||0};
 }
 export {one,all,execute,atomic};
