@@ -153,3 +153,25 @@ clients and customer isolation still require an independently authorized
 canary/compatibility release process. No new customer credentials, hosted D1
 mutations, beta admission, production deployment, or mine-safety claims are
 authorized here. The separate blocked beta gate remains unchanged.
+
+## Source-only arithmetic upstream JSON integrity (31 October 2026 — continuation)
+
+The Connect production Worker source now reads Axiom arithmetic responses through a
+64-KiB **actual UTF-8 byte cap** rather than an unbounded `Response.json()` call.
+It rejects malformed UTF-8, duplicate object keys at any depth (including
+escaped aliases), lossy/overflowing JSON numeric literals, signed negative
+zero, and ambiguous Unicode surrogates before interpreting any successful
+upstream result. Valid existing arithmetic envelopes remain supported.
+
+The strict reader intentionally stays **inline** in `connect/production_worker.mjs`:
+`qualification/production_runtime_enablement.py` currently copies that Worker
+as a single file before Wrangler packaging. Pulling the isolated customer
+JSON-intake module into this production file would break that deployment path.
+Regression proof: two new tests first failed with HTTP 200 instead of 502,
+then passed after the fix. The wider source-only Node suite and Python
+boundary suites were re-run. Existing authorization, approved arithmetic,
+customer beta gates, and frozen methane-model settings have not changed.
+
+This is **not** deployment evidence and does not prove hosted Axiom protocol
+compatibility with every permitted legacy response. A separately authorized
+canary and release review remains required before any production update.

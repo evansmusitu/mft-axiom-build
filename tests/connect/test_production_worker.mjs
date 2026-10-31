@@ -228,6 +228,56 @@ test('risk rejects malformed Axiom success and operation substitution', async ()
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test('risk refuses ambiguous upstream JSON keys before arithmetic attribution', async () => {
+  const mod = await worker();
+  const originalFetch = globalThis.fetch;
+  let upstreamText = '';
+  globalThis.fetch = async () => new Response(upstreamText, {
+    status: 200, headers: {'content-type': 'application/json'},
+  });
+  try {
+    // JSON.parse alone selects the last repeated key, hiding contradictory
+    // success, a second numeric result, or an escaped duplicate property.
+    for (const raw of [
+      '{"ok":false,"ok":true,"result":{"result":"3.348"}}',
+      '{"ok":true,"result":{"result":"3.348","result":"999"}}',
+      '{"ok":true,"res\\u0075lt":{"result":"1"},"result":{"result":"3.348"}}',
+    ]) {
+      upstreamText = raw;
+      const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+        method:'POST', headers:authHeaders(),
+        body:JSON.stringify({run_id:'ambiguous-upstream',rows:[scenario[0]]}),
+      }), env);
+      assert.equal(response.status, 502, 'ambiguity accepted: ' + raw);
+      assert.deepEqual(await response.json(), {ok:false,error:'AXIOM_RESPONSE_INVALID'});
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('risk refuses oversized and lossy-numeric upstream JSON', async () => {
+  const mod = await worker();
+  const originalFetch = globalThis.fetch;
+  let upstreamText = '';
+  globalThis.fetch = async () => new Response(upstreamText, {
+    status: 200, headers:{'content-type':'application/json'},
+  });
+  try {
+    for (const raw of [
+      '{"ok":true,"result":{"result":1e999}}',
+      '{"ok":true,"result":{"result":9007199254740993}}',
+      JSON.stringify({ok:true,result:{result:'3.348'},padding:'x'.repeat(70_000)}),
+    ]) {
+      upstreamText = raw;
+      const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+        method:'POST',headers:authHeaders(),
+        body:JSON.stringify({run_id:'bounded-upstream',rows:[scenario[0]]}),
+      }), env);
+      assert.equal(response.status, 502, 'unsafe response accepted');
+      assert.deepEqual(await response.json(), {ok:false,error:'AXIOM_RESPONSE_INVALID'});
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('risk forbids upstream request-ID type coercion', async () => {
   const mod = await worker();
   const originalFetch = globalThis.fetch;

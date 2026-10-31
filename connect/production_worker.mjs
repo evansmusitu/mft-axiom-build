@@ -18,6 +18,158 @@ const OPTIONAL_MINING_FIELDS = ['record_id', 'asset_id', 'site', 'event_time', '
 const AXIOM_BASE = 'https://axiom.mftintelligence.com';
 const INTERNAL_TOKEN_LABEL = 'MUSITU-CONNECT-RUNTIME-INTERNAL-V1';
 
+// Kept inline: the authorized rollout copies this Worker as one file. Importing
+// offline customer-intake modules would break that deployment packaging path.
+// No new customer routes or Axiom operations are enabled by this parser.
+const MAX_AXIOM_RESPONSE_BYTES = 65_536;
+
+function normalizedDecimal(token) {
+  const match = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(token);
+  if (!match) return null;
+  const fraction = match[3] || '';
+  let digits = (match[2] + fraction).replace(/^0+/, '');
+  if (!digits) return ['0','0','0'];
+  const count = digits.length;
+  digits = digits.replace(/0+$/, '');
+  const exponentText = match[4] || '0';
+  if (exponentText.length > 32) return null;
+  const exponent = BigInt(exponentText) - BigInt(fraction.length)
+    + BigInt(count - digits.length);
+  return [match[1] === '-' ? '-' : '+', digits, exponent.toString()];
+}
+
+function numberPreservesDecimalValue(token) {
+  const converted = Number(token);
+  if (!Number.isFinite(converted) || Object.is(converted, -0)) return false;
+  const original = normalizedDecimal(token);
+  const reproduced = normalizedDecimal(converted.toString());
+  return original !== null && reproduced !== null
+    && original.every((value, index) => value === reproduced[index]);
+}
+
+function inspectJsonObjectTokens(source) {
+  let pos = 0;
+  let lossy = false;
+  const spaces = () => {
+    while (pos < source.length && /\s/.test(source[pos])) pos++;
+  };
+  const stringToken = () => {
+    if (source[pos] !== '"') throw new Error('invalid_json');
+    const start = pos++;
+    while (pos < source.length) {
+      const ch = source[pos++];
+      if (ch === '\\') {
+        pos++; // Ignore the escaped next character, including an escaped quote.
+      } else if (ch === '"') {
+        const value = JSON.parse(source.slice(start, pos));
+        // JSON.parse permits escaped lone surrogates, but UTF-8 encoders
+        // replace them with U+FFFD and can collapse distinct signed inputs.
+        for (let index = 0; index < value.length; index++) {
+          const unit = value.charCodeAt(index);
+          if (unit >= 0xD800 && unit <= 0xDBFF) {
+            const next = value.charCodeAt(++index);
+            if (!(next >= 0xDC00 && next <= 0xDFFF)) throw new Error('invalid_json');
+          } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+            throw new Error('invalid_json');
+          }
+        }
+        return value;
+      }
+    }
+    throw new Error('invalid_json');
+  };
+  const visit = depth => {
+    if (depth > 128) throw new Error('json_depth_limit');
+    spaces();
+    if (source[pos] === '"') {
+      stringToken();
+      return false;
+    }
+    if (source[pos] === '{') {
+      pos++;
+      spaces();
+      const seen = new Set();
+      if (source[pos] === '}') { pos++; return false; }
+      while (pos < source.length) {
+        spaces();
+        const key = stringToken();
+        if (seen.has(key)) return true;
+        seen.add(key);
+        spaces();
+        if (source[pos++] !== ':') throw new Error('invalid_json');
+        if (visit(depth + 1)) return true;
+        spaces();
+        const delimiter = source[pos++];
+        if (delimiter === '}') return false;
+        if (delimiter !== ',') throw new Error('invalid_json');
+      }
+      throw new Error('invalid_json');
+    }
+    if (source[pos] === '[') {
+      pos++;
+      spaces();
+      if (source[pos] === ']') { pos++; return false; }
+      while (pos < source.length) {
+        if (visit(depth + 1)) return true;
+        spaces();
+        const delimiter = source[pos++];
+        if (delimiter === ']') return false;
+        if (delimiter !== ',') throw new Error('invalid_json');
+      }
+      throw new Error('invalid_json');
+    }
+    // JSON.parse validates grammar, but it may silently round numeric tokens.
+    const start = pos;
+    while (pos < source.length && !/[\s,\]}]/.test(source[pos])) pos++;
+    const token = source.slice(start, pos);
+    if (/^[-0-9]/.test(token) && !numberPreservesDecimalValue(token)) lossy = true;
+    return false;
+  };
+  const duplicate = visit(0);
+  if (!duplicate) {
+    spaces();
+    if (pos !== source.length) throw new Error('invalid_json');
+  }
+  return {duplicate, lossy};
+}
+
+async function readBoundedAxiomResponse(response) {
+  const reader = response?.body?.getReader?.();
+  if (!reader) throw new Error('invalid_upstream_body');
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error('invalid_upstream_chunk');
+      total += value.byteLength;
+      if (total > MAX_AXIOM_RESPONSE_BYTES) {
+        void reader.cancel().catch(() => {});
+        throw new Error('upstream_response_too_large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try { reader.releaseLock(); } catch { /* reject without upstream detail */ }
+  }
+  if (total === 0) throw new Error('empty_upstream_body');
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const source = new TextDecoder('utf-8', {fatal:true}).decode(bytes);
+  const decoded = JSON.parse(source);
+  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+    throw new Error('invalid_upstream_object');
+  }
+  const integrity = inspectJsonObjectTokens(source);
+  if (integrity.duplicate || integrity.lossy) throw new Error('ambiguous_upstream_json');
+  return decoded;
+}
+
 function json(status, body) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
@@ -380,7 +532,7 @@ async function handleRisk(request, env) {
 
   let decoded = {};
   try {
-    decoded = await response.json();
+    decoded = await readBoundedAxiomResponse(response);
   } catch {
     return json(502, { ok: false, error: 'AXIOM_RESPONSE_INVALID' });
   }
