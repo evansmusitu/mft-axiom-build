@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS holds (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL R
 CREATE INDEX IF NOT EXISTS ix_hold_tenant_state ON holds(tenant_id,state);
 CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), order_id TEXT NOT NULL UNIQUE REFERENCES orders(id), currency TEXT NOT NULL, amount_minor INTEGER NOT NULL CHECK(amount_minor>0), tax_status TEXT NOT NULL DEFAULT 'tax_review_required', issued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(order_id,tenant_id) REFERENCES orders(id,tenant_id));
 CREATE TABLE IF NOT EXISTS refund_requests (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), order_id TEXT NOT NULL REFERENCES orders(id), identity_id TEXT NOT NULL REFERENCES identities(id), amount_minor INTEGER NOT NULL CHECK(amount_minor>0), reason TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('requested','rejected','provider_pending','settled')) DEFAULT 'requested', client_key TEXT NOT NULL, event_id TEXT UNIQUE REFERENCES provider_events(event_id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(tenant_id,client_key), FOREIGN KEY(order_id,tenant_id) REFERENCES orders(id,tenant_id), FOREIGN KEY(tenant_id,identity_id) REFERENCES memberships(tenant_id,identity_id));
-CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, objective TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES identities(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, objective TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES identities(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(tenant_id,created_by) REFERENCES memberships(tenant_id,identity_id));
 CREATE UNIQUE INDEX IF NOT EXISTS ux_project_tenant ON projects(id,tenant_id);
 CREATE INDEX IF NOT EXISTS ix_project_tenant ON projects(tenant_id);
-CREATE TABLE IF NOT EXISTS work (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), project_id TEXT NOT NULL REFERENCES projects(id), title TEXT NOT NULL, desired_outcome TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('draft','approved','running','verified','blocked')) DEFAULT 'draft', created_by TEXT NOT NULL REFERENCES identities(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id));
+CREATE TABLE IF NOT EXISTS work (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), project_id TEXT NOT NULL REFERENCES projects(id), title TEXT NOT NULL, desired_outcome TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('draft','approved','running','verified','blocked')) DEFAULT 'draft', created_by TEXT NOT NULL REFERENCES identities(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id), FOREIGN KEY(tenant_id,created_by) REFERENCES memberships(tenant_id,identity_id));
 CREATE UNIQUE INDEX IF NOT EXISTS ux_work_tenant ON work(id,tenant_id);
 CREATE INDEX IF NOT EXISTS ix_work_project ON work(tenant_id,project_id);
 CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), work_id TEXT NOT NULL REFERENCES work(id), principal TEXT NOT NULL, scope TEXT NOT NULL, budget_units INTEGER NOT NULL CHECK(budget_units>=0), status TEXT NOT NULL DEFAULT 'inactive' CHECK(status IN ('inactive','active','revoked')), FOREIGN KEY(work_id,tenant_id) REFERENCES work(id,tenant_id));
@@ -64,3 +64,74 @@ WHEN NEW.state='settled' AND OLD.state!='settled' AND (
   WHERE r.order_id=OLD.order_id AND r.state='settled') + OLD.amount_minor >
  (SELECT o.amount_minor FROM orders o WHERE o.id=OLD.order_id)
 ) BEGIN SELECT RAISE(ABORT,'refund_exceeds_order_amount'); END;
+
+-- ADDITIVE CUSTOMER INTEGRITY HARDENING, CANDIDATE ONLY, NOT RETROFITTED TO D1.
+-- Trigger/index creation on an existing database requires quarantining historical
+-- rows, approved separate migration, shadow verification and independent rollback.
+CREATE TRIGGER IF NOT EXISTS axiom_credit_event_tenant_guard BEFORE INSERT ON credit_ledger
+WHEN NEW.event_id IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM provider_events pe JOIN orders o ON o.id=pe.order_id
+ WHERE pe.event_id=NEW.event_id AND o.tenant_id=NEW.tenant_id
+) BEGIN SELECT RAISE(ABORT,'ledger_event_tenant_mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_refund_event_order_guard BEFORE UPDATE OF event_id,state ON refund_requests
+WHEN NEW.event_id IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM provider_events pe JOIN orders o ON o.id=pe.order_id
+ WHERE pe.event_id=NEW.event_id AND pe.order_id=NEW.order_id
+ AND pe.kind='refund' AND pe.amount_minor=NEW.amount_minor AND o.tenant_id=NEW.tenant_id
+) BEGIN SELECT RAISE(ABORT,'refund_event_order_mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_provider_event_order_economics BEFORE INSERT ON provider_events
+WHEN NOT EXISTS (
+ SELECT 1 FROM orders o WHERE o.id=NEW.order_id AND o.currency=NEW.currency
+ AND ((NEW.kind='settlement' AND NEW.amount_minor=o.amount_minor)
+   OR (NEW.kind='refund' AND NEW.amount_minor<=o.amount_minor))
+) BEGIN SELECT RAISE(ABORT,'provider_event_order_economics_mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_invoice_order_economics BEFORE INSERT ON invoices
+WHEN NOT EXISTS (
+ SELECT 1 FROM orders o WHERE o.id=NEW.order_id AND o.tenant_id=NEW.tenant_id
+ AND o.currency=NEW.currency AND o.amount_minor=NEW.amount_minor
+) BEGIN SELECT RAISE(ABORT,'invoice_order_economics_mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_order_economics_immutable BEFORE UPDATE ON orders
+WHEN OLD.id!=NEW.id OR OLD.tenant_id!=NEW.tenant_id OR OLD.identity_id!=NEW.identity_id
+ OR OLD.price_id!=NEW.price_id OR OLD.amount_minor!=NEW.amount_minor
+ OR OLD.currency!=NEW.currency OR OLD.grant_units!=NEW.grant_units
+ OR OLD.client_key!=NEW.client_key OR OLD.created_at!=NEW.created_at
+BEGIN SELECT RAISE(ABORT,'order_economics_immutable'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_order_terminal_state_guard BEFORE UPDATE OF state ON orders
+WHEN OLD.state!=NEW.state AND NOT (OLD.state='pending' AND NEW.state IN ('settled','void'))
+BEGIN SELECT RAISE(ABORT,'order_terminal_state_immutable'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_refund_request_economics_immutable BEFORE UPDATE ON refund_requests
+WHEN OLD.id!=NEW.id OR OLD.tenant_id!=NEW.tenant_id OR OLD.order_id!=NEW.order_id
+ OR OLD.identity_id!=NEW.identity_id OR OLD.amount_minor!=NEW.amount_minor
+ OR OLD.reason!=NEW.reason OR OLD.client_key!=NEW.client_key
+ OR OLD.created_at!=NEW.created_at
+BEGIN SELECT RAISE(ABORT,'refund_economics_immutable'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_refund_terminal_state_guard BEFORE UPDATE OF state,event_id ON refund_requests
+WHEN NOT (
+ (OLD.state=NEW.state AND OLD.event_id IS NEW.event_id)
+ OR (OLD.state='requested' AND NEW.state IN ('provider_pending','rejected') AND NEW.event_id IS NULL)
+ OR (OLD.state='provider_pending' AND NEW.state='rejected' AND NEW.event_id IS NULL)
+ OR (OLD.state='provider_pending' AND NEW.state='settled' AND OLD.event_id IS NULL AND NEW.event_id IS NOT NULL)
+) BEGIN SELECT RAISE(ABORT,'refund_terminal_state_immutable'); END;
+
+-- One customer's plan/version fixes the amount, currency and granted units.
+CREATE TRIGGER IF NOT EXISTS axiom_order_catalog_economics BEFORE INSERT ON orders
+WHEN NOT EXISTS (
+ SELECT 1 FROM price_catalog p WHERE p.id=NEW.price_id
+ AND p.currency=NEW.currency AND p.amount_minor=NEW.amount_minor
+ AND p.grant_units=NEW.grant_units
+) BEGIN SELECT RAISE(ABORT,'order_catalog_economics_mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_catalog_purchased_economics_immutable BEFORE UPDATE ON price_catalog
+WHEN EXISTS(SELECT 1 FROM orders o WHERE o.price_id=OLD.id) AND (
+ OLD.id!=NEW.id OR OLD.name!=NEW.name OR OLD.currency!=NEW.currency
+ OR OLD.amount_minor!=NEW.amount_minor OR OLD.grant_units!=NEW.grant_units
+ OR OLD.version!=NEW.version
+) BEGIN SELECT RAISE(ABORT,'catalog_purchased_economics_immutable'); END;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_axiom_provider_event_credit_once
+ON credit_ledger(event_id) WHERE event_id IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS axiom_provider_credit_amount_guard BEFORE INSERT ON credit_ledger
+WHEN NEW.event_id IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM provider_events e JOIN orders o ON o.id=e.order_id
+ WHERE e.event_id=NEW.event_id AND o.tenant_id=NEW.tenant_id
+ AND ((e.kind='settlement' AND NEW.delta=o.grant_units)
+   OR (e.kind='refund' AND NEW.delta<0))
+) BEGIN SELECT RAISE(ABORT,'provider_credit_amount_mismatch'); END;
