@@ -127,7 +127,10 @@ def evaluate_paging(
             raw = response.read(8193)
             if response.status != 202 or len(raw) > 8192:
                 raise ValueError('provider_response_unacceptable')
-        acknowledgement = json.loads(raw)
+        acknowledgement = json.loads(raw.decode('utf-8', errors='strict'),
+                                     object_pairs_hook=_unique_guard_object,
+                                     parse_constant=_reject_nonfinite_guard,
+                                     parse_float=_finite_guard_float)
         if (not isinstance(acknowledgement, Mapping)
                 or acknowledgement.get('status') != 'success'
                 or acknowledgement.get('dedup_key') != DEDUP_KEY):

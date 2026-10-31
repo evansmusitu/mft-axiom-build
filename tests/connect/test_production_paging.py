@@ -97,6 +97,20 @@ class ProductionPagingTests(unittest.TestCase):
         self.assertNotIn('sensitive-routing-key', json.dumps(report))
         self.assertFalse(report['production_mutation_performed'])
 
+    def test_duplicate_provider_ack_fields_never_count_as_transport_proof(self):
+        class AmbiguousAck:
+            status = 202
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, n=-1):
+                return (b'{"status":"error","status":"success",'
+                        b'"dedup_key":"musitu-connect-production-runtime-availability-v1"}')
+        with patch('qualification.production_paging.urlopen', return_value=AmbiguousAck()):
+            result = evaluate_paging(guard(), enable_external_page=True, routing_key='private-token')
+        self.assertEqual(result['delivery_status'], 'EXTERNAL_PAGING_DELIVERY_FAILED')
+        self.assertFalse(result['provider_transport_acknowledged'])
+        self.assertFalse(result['external_paging_verified'])
+
     def test_provider_timeout_and_nonmatching_ack_fail_closed_no_secret_leakage(self):
         with patch('qualification.production_paging.urlopen', side_effect=TimeoutError('private-token')):
             report=evaluate_paging(guard(), enable_external_page=True, routing_key='private-token')
