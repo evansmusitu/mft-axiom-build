@@ -1,0 +1,94 @@
+name: MUSITU source-only full-product handoff snapshot 20261031
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths: ['.github/workflows/musitu-whole-product-source-snapshot-20261031.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Archive exact immutable Git source trees without deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, io, json, os, pathlib, subprocess, tarfile, zipfile
+          from datetime import datetime, timezone
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          if (os.environ.get('GITHUB_REPOSITORY') != 'evansmusitu/mft-axiom-build'
+              or os.environ.get('GITHUB_REF_NAME') != 'feat/musitu-connect-frontier'):
+              raise SystemExit('WRONG_REPOSITORY_OR_BRANCH')
+          git('fetch', '--no-tags', 'origin', 'main')
+          feature = git('rev-parse', 'HEAD')
+          main = git('rev-parse', 'refs/remotes/origin/main')
+          sealed = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          git('cat-file', '-e', sealed+'^{commit}')
+          root = pathlib.Path('/tmp/musitu-current-tree-source-20261031')
+          root.mkdir(exist_ok=False)
+          sources = [('PRODUCT_ACTIVE_FEATURE_BRANCH',feature),
+                     ('PRODUCT_CURRENT_MAIN',main),
+                     ('REFERENCE_PREVIOUSLY_SEALED_MAIN',sealed)]
+          counts = {}
+          for folder, commit in sources:
+              dest = root/folder
+              dest.mkdir()
+              raw = subprocess.check_output(['git','archive','--format=tar',commit])
+              with tarfile.open(fileobj=io.BytesIO(raw),mode='r:') as archive:
+                  for member in archive.getmembers():
+                      p = pathlib.PurePosixPath(member.name)
+                      if (p.is_absolute() or '..' in p.parts
+                          or not (member.isfile() or member.isdir())):
+                          raise RuntimeError('UNSAFE_GIT_SOURCE_MEMBER')
+                      if (p.name in ('.env','credentials.json','id_rsa')
+                          or p.suffix in ('.pem','.p12','.key')):
+                          raise RuntimeError('POTENTIAL_TRACKED_SECRET')
+                  archive.extractall(dest,filter='data')
+              counts[folder] = sum(x.is_file() for x in dest.rglob('*'))
+              if not counts[folder]:
+                  raise RuntimeError('EMPTY_SOURCE_TREE')
+          meta = root/'LIVE_GIT_SNAPSHOT'
+          meta.mkdir()
+          state = {'schema':'musitu.source-only.chatshift.v1',
+                   'captured_utc':datetime.now(timezone.utc).isoformat(),
+                   'repository':'evansmusitu/mft-axiom-build',
+                   'feature_branch':'feat/musitu-connect-frontier',
+                   'feature_head':feature, 'main_head':main,
+                   'historical_sealed_main':sealed, 'snapshot_files':counts,
+                   'deployment_performed':False, 'customer_admission_authorized':False,
+                   'production_methane_prediction_authorized':False}
+          (meta/'STATE.json').write_text(json.dumps(state,indent=2,sort_keys=True)+'\n')
+          hashes = {p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in root.rglob('*') if p.is_file()}
+          (meta/'CHECKSUMS.json').write_text(json.dumps(hashes,indent=2,sort_keys=True)+'\n')
+          target = pathlib.Path('/tmp/MUSITU_AXIOM_CONNECT_CURRENT_GIT_TREES_20261031.zip')
+          with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED,compresslevel=8) as out:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file():
+                      out.write(p,p.relative_to(root).as_posix())
+          with zipfile.ZipFile(target) as zipped:
+              for name,expected in hashes.items():
+                  if hashlib.sha256(zipped.read(name)).hexdigest()!=expected:
+                      raise RuntimeError('SNAPSHOT_SHA256_MISMATCH')
+          print('SOURCE_SNAPSHOT=PASS')
+          print('SOURCE_STATE='+json.dumps(state,sort_keys=True))
+          print('SOURCE_ZIP_SHA256='+hashlib.sha256(target.read_bytes()).hexdigest())
+          PY
+      - name: Publish source-only handoff artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CONNECT_CURRENT_GIT_TREES_20261031
+          path: /tmp/MUSITU_AXIOM_CONNECT_CURRENT_GIT_TREES_20261031.zip
+          retention-days: 30
+          if-no-files-found: error
