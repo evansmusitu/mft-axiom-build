@@ -7,6 +7,7 @@ This additive engineering package continues the verified AXIOM 29 October handof
 ## Contents
 
 - `customer_control_plane/schema.sql` — D1/SQLite persistent identity, tenant membership, immutable credit ledger, verified provider event uniqueness, holds, settled receipts, refund requests, and Project/Work/Agent/Artifact/Evidence graph.
+- `customer_control_plane/enrollment.mjs` and `login_broker.mjs` — qualified private identity attestation, safe first-customer provisioning, OAuth PKCE login broker; not deployed and not a replacement for live OAuth worker.
 - `customer_control_plane/ledger.mjs` — integer-money, idempotent order and verified settlement/reversal accounting, unit reservations and commits, conditional refund limits.
 - `customer_control_plane/worker.mjs` — server-side tenant-scoped customer API. Requires a qualified identity verifier service; denies unqualified checkout. Cross-site POST intent/origin guard.
 - `customer_control_plane/private_reconciler.mjs` — **private-only** provider-reconciliation boundary. Must not be publicly routed; provider independently verifies real settlement/refund evidence.
@@ -14,7 +15,7 @@ This additive engineering package continues the verified AXIOM 29 October handof
 - `customer_control_plane/vnext_remote_data_adapter.mjs` — optional typed bridge to the existing `axiom_interface/vnext/` Project/Work shell. Does not mislabel local preview as production execution.
 - `standalone_portal/` — accessible, responsive independent web customer account frontend for credits/usage, orders, receipts, refund requests, tenant projects, work, artifacts/evidence overview, and support.
 - `tests/` — reproducible isolated source tests for ledger, concurrency-related invariants, access and fail-closed behavior.
-- `benchmarks/` — frontier-comparison targets and strict **NOT CERTIFIED** evidence comparator; no invented baseline scores.
+- `benchmarks/` — 34 fixed independent numerical reference vectors (not live AXIOM outputs), frontier-comparison targets and strict **NOT CERTIFIED** evidence comparator; no invented baseline scores.
 
 ## Local tests ($0 network/provider cost)
 
@@ -25,6 +26,7 @@ python benchmarks/verify_benchmarks.py benchmarks/frontier_manifest.json benchma
 node --check customer_control_plane/worker.mjs
 node --check customer_control_plane/private_reconciler.mjs
 node --check standalone_portal/portal.js
+python benchmarks/build_reference_cases.py
 ```
 
 `sqlite_d1_test_adapter.mjs` uses Node 22 experimental `node:sqlite` for deterministic offline tests only; D1 production transactional behavior and distributed durability **must be proven on actual Cloudflare D1** before promotion.
@@ -41,9 +43,9 @@ The standalone browser site may support external commercial relationships subjec
 
 `private_reconciler.mjs` requires a separately operated private Worker and provider verifier, with `ALLOW_INTERNAL_RECONCILIATION=qualified_private_binding`. Do **not** expose its route publicly or trust a user-supplied `verified:true` field. The provider verifier must make and record a true live PSP status check, robust against replay, webhook spoofing, ambiguity and provider outage, with externally retained evidence. No provider-specific adapter is asserted complete here. The code is prepared for that binding but does not fabricate it.
 
-### Identity — the key-first experience remains a source-level gap
+### Identity — keyless registration candidate added; production key-first gap remains
 
-The sealed live OAuth worker currently asks users for `musitu_account_key` to connect ChatGPT. This candidate **does not alter that worker**. A new qualifying identity broker must complete verified registration, MFA, OIDC session, recovery, PKCE, OAuth consent, customer/tenant provisioning, canonical `issuer + subject` mapping, legacy customer key migration, and revocation. Each account must have the same tenant identity on the standalone portal and ChatGPT plugin, independently proofed. Customer API fails closed when the `IDENTITY_VERIFIER` is absent or the membership is not already active. Authentication service must verify bearer audience, expiry, scopes, CSRF and MFA. Do not infer identity from a `tenant_id` request parameter or email alone.
+The sealed live OAuth worker currently asks users for `musitu_account_key` to connect ChatGPT. This candidate **does not alter that worker**. An isolated `login_broker.mjs` / `enrollment.mjs` candidate now provides qualified-provider-only redirects, fresh verified-MFA enrollment and audit metadata. An externally qualified identity broker must still complete live verified registration, MFA, OIDC session, recovery, PKCE, OAuth consent, customer/tenant provisioning, canonical `issuer + subject` mapping, legacy customer key migration, and revocation. Each account must have the same tenant identity on the standalone portal and ChatGPT plugin, independently proofed. Customer API fails closed when the `IDENTITY_VERIFIER` is absent or the membership is not already active. Authentication service must verify bearer audience, expiry, scopes, CSRF and MFA. Do not infer identity from a `tenant_id` request parameter or email alone.
 
 ### Five-object workspace
 
@@ -74,3 +76,7 @@ All money is integer minor currency units. Credit ledger, provider receipts and 
 - PR #1 must stay open, draft, unmerged. Production remains rollback origin.
 
 **Do not start a production billing trial or publish a frontier superiority claim from local synthetic tests.**
+
+## 31 October continuation
+
+New candidate includes database-level tenant isolation, settlement-state evidence checks, authenticated enrollment contracts, separated billing roles, customer draft-work navigation and 34 finance reference vectors. Local results: **42 Node tests + 10 Python tests passed**. These tests do **not** prove merchant settlement, production IdP, provider-held ledger, real D1 safety, customer activation or beating a frontier competitor. See `docs/CUSTOMER_FRONTIER_CONTINUATION_RECORD_20261031.md` and `docs/IDENTITY_ONBOARDING_SECURITY_CONTRACT.md`.

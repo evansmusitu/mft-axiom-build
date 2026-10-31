@@ -1,0 +1,687 @@
+{
+  "cases": [
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1000,
+          60,
+          170,
+          340,
+          560,
+          800
+        ],
+        "rate": 0.0
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "930",
+      "id": "npv_00",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1011,
+          65,
+          177,
+          353,
+          577,
+          819
+        ],
+        "rate": 0.01
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "903.2232155235601014925061752271059",
+      "id": "npv_01",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1022,
+          70,
+          184,
+          366,
+          594,
+          838
+        ],
+        "rate": 0.025
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "840.0984922507514293516322013700415",
+      "id": "npv_02",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1033,
+          75,
+          191,
+          379,
+          611,
+          857
+        ],
+        "rate": 0.05
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "713.2187884187976742005156091879217",
+      "id": "npv_03",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1044,
+          80,
+          198,
+          392,
+          628,
+          876
+        ],
+        "rate": 0.075
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "597.7310997573112178325703374737463",
+      "id": "npv_04",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1055,
+          85,
+          205,
+          405,
+          645,
+          895
+        ],
+        "rate": 0.1
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "492.2449720895865284909749085693352",
+      "id": "npv_05",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1066,
+          90,
+          212,
+          418,
+          662,
+          914
+        ],
+        "rate": 0.15
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "280.3252968339319393015568001891757",
+      "id": "npv_06",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1077,
+          95,
+          219,
+          431,
+          679,
+          933
+        ],
+        "rate": 0.2
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "106.0729166666666666666666666666666",
+      "id": "npv_07",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1088,
+          100,
+          226,
+          444,
+          696,
+          952
+        ],
+        "rate": -0.05
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "1870.366204259199652356388011949441",
+      "id": "npv_08",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1099,
+          105,
+          233,
+          457,
+          713,
+          971
+        ],
+        "rate": -0.1
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "2663.328743924537248725634642415621",
+      "id": "npv_09",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1110,
+          110,
+          240,
+          470,
+          730,
+          990
+        ],
+        "rate": 0.35
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "-265.2403120321289976999641854254131",
+      "id": "npv_10",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "cashflows": [
+          -1121,
+          115,
+          247,
+          483,
+          747,
+          1009
+        ],
+        "rate": 0.5
+      },
+      "convention": "t0 undiscounted; each subsequent cashflow discounted by (1+rate)^t",
+      "expected": "-511.0164609053497942386831275720161",
+      "id": "npv_11",
+      "operation": "finance.npv"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1000,
+        "frequency": 1,
+        "maturity": 1,
+        "yield": 0.01
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1039.603960396039603960396039603960",
+      "id": "bond_00",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1010,
+        "frequency": 1,
+        "maturity": 2,
+        "yield": 0.02
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1068.829296424452133794694348327567",
+      "id": "bond_01",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1020,
+        "frequency": 1,
+        "maturity": 3,
+        "yield": 0.035
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1062.865045807978878305718666256734",
+      "id": "bond_02",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1030,
+        "frequency": 1,
+        "maturity": 4,
+        "yield": 0.05
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1030.000000000000000000000000000000",
+      "id": "bond_03",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1040,
+        "frequency": 1,
+        "maturity": 5,
+        "yield": 0.075
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "934.8069925480402509942915319496310",
+      "id": "bond_04",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1050,
+        "frequency": 1,
+        "maturity": 6,
+        "yield": 0.1
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "821.3488132782331514410172723377857",
+      "id": "bond_05",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1060,
+        "frequency": 1,
+        "maturity": 7,
+        "yield": 0.13
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "684.9626353051754753777414083044462",
+      "id": "bond_06",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1070,
+        "frequency": 1,
+        "maturity": 8,
+        "yield": 0.2
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "454.1358515875057155921353452217650",
+      "id": "bond_07",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1080,
+        "frequency": 1,
+        "maturity": 9,
+        "yield": -0.01
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1693.462129860928174125218188564371",
+      "id": "bond_08",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "coupon_rate": 0.05,
+        "face": 1090,
+        "frequency": 1,
+        "maturity": 10,
+        "yield": 0.0
+      },
+      "convention": "annual fixed coupon, frequency=1, face at maturity, yield annual, no accrued interest",
+      "expected": "1635.0",
+      "id": "bond_09",
+      "operation": "finance.bond_price"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "c": [
+          -2,
+          -8
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-9",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_00",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            4,
+            0
+          ],
+          [
+            0,
+            6
+          ]
+        ],
+        "c": [
+          -4,
+          -12
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-14",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_01",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            6,
+            0
+          ],
+          [
+            0,
+            8
+          ]
+        ],
+        "c": [
+          -6,
+          -16
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-19",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_02",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            8,
+            0
+          ],
+          [
+            0,
+            10
+          ]
+        ],
+        "c": [
+          -8,
+          -20
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-24",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_03",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            10,
+            0
+          ],
+          [
+            0,
+            12
+          ]
+        ],
+        "c": [
+          -10,
+          -24
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-29",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_04",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            12,
+            0
+          ],
+          [
+            0,
+            14
+          ]
+        ],
+        "c": [
+          -12,
+          -28
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-34",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_05",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            14,
+            0
+          ],
+          [
+            0,
+            16
+          ]
+        ],
+        "c": [
+          -14,
+          -32
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-39",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_06",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            16,
+            0
+          ],
+          [
+            0,
+            18
+          ]
+        ],
+        "c": [
+          -16,
+          -36
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-44",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_07",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            18,
+            0
+          ],
+          [
+            0,
+            20
+          ]
+        ],
+        "c": [
+          -18,
+          -40
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-49",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_08",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            20,
+            0
+          ],
+          [
+            0,
+            22
+          ]
+        ],
+        "c": [
+          -20,
+          -44
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-54",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_09",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            22,
+            0
+          ],
+          [
+            0,
+            24
+          ]
+        ],
+        "c": [
+          -22,
+          -48
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-59",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_10",
+      "operation": "optimization.quadratic"
+    },
+    {
+      "abs_tolerance": "0.0000001",
+      "args": {
+        "Q": [
+          [
+            24,
+            0
+          ],
+          [
+            0,
+            26
+          ]
+        ],
+        "c": [
+          -24,
+          -52
+        ]
+      },
+      "convention": "unconstrained minimum 0.5*x^T Q x + c^T x, strictly positive diagonal Q",
+      "expected_objective": "-64",
+      "expected_x": [
+        "1",
+        "2"
+      ],
+      "id": "qp_11",
+      "operation": "optimization.quadratic"
+    }
+  ],
+  "claim": "REFERENCE_VECTORS_ONLY_NOT_AXIOM_TESTED",
+  "reference_engine": "Python Decimal 34-digit precision; exact convex diagonal quadratic stationary point",
+  "schema_version": 1
+}

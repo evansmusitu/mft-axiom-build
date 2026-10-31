@@ -12,6 +12,7 @@ export class AXIOMCustomerAdapter {
   return data;
  }
  getAccount(){return this.request('/me');}
+ enroll(){return this.request('/enroll',{method:'POST',body:{}});}
  getLedger(){return this.request('/ledger');}
  getOrders(){return this.request('/orders');}
  getCatalog(){return this.request('/catalog');}

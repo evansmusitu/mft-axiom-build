@@ -34,3 +34,69 @@ test('unverified independent identity cannot bootstrap a new tenant',async()=>{c
 
 test('credit ledger and provider receipts cannot be edited or deleted',async()=>{const db=await setup();const o=await insertOrder(db);await reconcileSettlement(db,ev(o));await assert.rejects(execute(db,'UPDATE credit_ledger SET delta=999 WHERE tenant_id=?','t1'),/immutable_credit_ledger/);await assert.rejects(execute(db,'DELETE FROM provider_events WHERE event_id=?','evt-1'),/immutable_provider_event/);await assert.rejects(execute(db,'UPDATE invoices SET amount_minor=1 WHERE order_id=?',o.id),/immutable_invoice/);assert.equal((await balance(db,'t1')).booked,100);db.close();});
 test('settled refund cannot be replayed with altered provider reference',async()=>{const db=await setup();const o=await insertOrder(db);await reconcileSettlement(db,ev(o));const r=await requestRefund(db,'t1','u1',o.id,2000,'Buyer requested refund','refund-key-500');await execute(db,"UPDATE refund_requests SET state='provider_pending' WHERE id=?",r.id);const v={eventId:'refund-final-1',provider:'sandbox',transactionId:'original',refundId:r.id,orderId:o.id,amountMinor:2000,currency:'USD'};await reconcileRefund(db,v);await assert.rejects(reconcileRefund(db,{...v,transactionId:'substituted'}),/refund_event_collision/);db.close();});
+
+import {validateEnrollmentAttestation,provisionPersonalTenant} from '../customer_control_plane/enrollment.mjs';
+import {qualifiedLoginRedirect} from '../customer_control_plane/login_broker.mjs';
+const now=Date.now();
+const enrollment=(fields={})=>({verified:true,production_qualified:true,audience:'customer-control-plane',issuer:'https://id.example',subject:'new-user-1',email_verified:true,mfa_verified:true,tenant_kind:'personal',proof_id:'proof_qualified_987654321',verifier_identity:'identity-gateway-s1',verified_at_ms:now-1000,expires_at_ms:now+100000,...fields});
+test('external identity proof provisions a unique single-owner tenant without API key',async()=>{
+ const db=await setup();const item=await provisionPersonalTenant(db,enrollment(),{now});assert.equal(item.created,true);
+ const t=await one(db,'SELECT id FROM tenants WHERE id=?',item.tenant_id);assert.ok(t);
+ const member=await one(db,'SELECT role,status FROM memberships WHERE identity_id=? AND tenant_id=?',item.identity_id,item.tenant_id);assert.equal(member.role,'owner');assert.equal(member.status,'active');
+ const record=await one(db,'SELECT * FROM enrollment_evidence WHERE proof_id=?','proof_qualified_987654321');assert.ok(record);assert.ok(!JSON.stringify(record).includes('new-user-1'));
+ db.close();
+});
+test('replayed authenticated registration is idempotent',async()=>{const db=await setup();const a=await provisionPersonalTenant(db,enrollment(),{now});const b=await provisionPersonalTenant(db,enrollment(),{now});assert.equal(b.created,false);assert.equal(a.tenant_id,b.tenant_id);assert.equal((await one(db,'SELECT count(*) n FROM enrollment_evidence')).n,1);db.close();});
+test('replayed proof cannot provision a second identity',async()=>{const db=await setup();await provisionPersonalTenant(db,enrollment(),{now});await assert.rejects(provisionPersonalTenant(db,enrollment({subject:'unrelated-user'}),{now}),/UNIQUE constraint failed/);assert.equal((await one(db,'SELECT count(*) n FROM tenants')).n,3);db.close();});
+test('revoked identity cannot enroll a fresh unauthorized tenant',async()=>{const db=await setup();const a=await provisionPersonalTenant(db,enrollment(),{now});await execute(db,"UPDATE memberships SET status='revoked' WHERE tenant_id=?",a.tenant_id);await assert.rejects(provisionPersonalTenant(db,enrollment(),{now}),/existing_identity_review_required/);db.close();});
+test('fresh, multi-factor, verified email, qualified provider evidence is mandatory',()=>{
+ for(const v of [{email_verified:false},{mfa_verified:false},{production_qualified:false},{verified:false},{audience:'another-service'},{verified_at_ms:now-301000},{expires_at_ms:now-1},{issuer:'http://insecure.example'},{issuer:'https://id.example@evil.example'}]){
+  assert.throws(()=>validateEnrollmentAttestation(enrollment(v),now));
+ }
+});
+test('public enrollment fails closed without qualified independent identity provider',async()=>{const db=await setup();const response=await handle(post('/v1/customer/enroll',{}),{CUSTOMER_DB:db});assert.equal(response.status,403);assert.equal((await one(db,'SELECT count(*) n FROM tenants')).n,2);db.close();});
+test('cross-origin or forged browser JSON is never enrollment proof',async()=>{const db=await setup();const authorized={CUSTOMER_DB:db,IDENTITY_ENROLLMENT_QUALIFIED:'qualified_private_binding',IDENTITY_ENROLLMENT_VERIFIER:{fetch:async()=>new Response(JSON.stringify(enrollment()),{status:200})}};
+ assert.equal((await handle(new Request('https://localhost/v1/customer/enroll',{method:'POST',headers:{origin:'https://evil.example','x-axiom-intent':'customer-action'},body:JSON.stringify(enrollment())}),authorized)).status,403);
+ assert.equal((await one(db,'SELECT count(*) n FROM tenants')).n,2);
+ const r=await handle(post('/v1/customer/enroll',{subject:'attacker',role:'owner'}),authorized);assert.equal(r.status,201);
+ assert.equal((await one(db,"SELECT count(*) n FROM identities WHERE external_sub='attacker'")).n,0);
+ db.close();
+});
+test('OIDC login is disabled unless a private broker is qualified',async()=>{const db=await setup();const r=await handle(new Request('https://localhost/auth/start'),{CUSTOMER_DB:db});assert.equal(r.status,503);assert.equal((await r.json()).error,'login_not_qualified');db.close();});
+test('OIDC broker rejects wrong domain or missing PKCE S256, and accepts qualified redirect',async()=>{
+ const good='https://auth.mftintelligence.com/oauth/authorize?state='+('A'.repeat(43))+'&code_challenge='+('B'.repeat(43))+'&code_challenge_method=S256';
+ const env=url=>({IDENTITY_LOGIN_QUALIFIED:'qualified_private_binding',IDENTITY_LOGIN_SERVICE:{fetch:async()=>new Response(JSON.stringify({authorization_url:url}),{status:200})}});
+ for(const bad of ['https://evil.example/oauth/authorize?state='+('A'.repeat(43))+'&code_challenge='+('B'.repeat(43))+'&code_challenge_method=S256',good.replace('S256','plain'),good.replace('state='+('A'.repeat(43)),'state=short')])await assert.rejects(qualifiedLoginRedirect(env(bad)),/invalid_login_redirect/);
+ assert.equal(await qualifiedLoginRedirect(env(good)),good);
+});
+test('tenant ownership enforced by SQLite foreign keys across Project, Work, Agent, Artifact, Evidence',async()=>{
+ const db=await setup();await execute(db,"INSERT INTO projects(id,tenant_id,name,objective,created_by) VALUES('p_owner','t1','Example','Goal','u1')");
+ await assert.rejects(execute(db,"INSERT INTO work(id,tenant_id,project_id,title,desired_outcome,created_by) VALUES('w_cross','t2','p_owner','Attack','Wrong tenant','u2')"),/FOREIGN KEY/);
+ await execute(db,"INSERT INTO work(id,tenant_id,project_id,title,desired_outcome,created_by) VALUES('w_owner','t1','p_owner','Analysis','Evidence','u1')");
+ await assert.rejects(execute(db,"INSERT INTO agents(id,tenant_id,work_id,principal,scope,budget_units) VALUES('ag_cross','t2','w_owner','fake','none',0)"),/FOREIGN KEY/);
+ await assert.rejects(execute(db,"INSERT INTO artifacts(id,tenant_id,work_id,kind,sha256,storage_ref) VALUES('artifact_cross','t2','w_owner','text','abc','ref')"),/FOREIGN KEY/);
+ await execute(db,"INSERT INTO artifacts(id,tenant_id,work_id,kind,sha256,storage_ref) VALUES('a1','t1','w_owner','text','abc','ref')");
+ await assert.rejects(execute(db,"INSERT INTO evidence(id,tenant_id,work_id,artifact_id,claim,evidence_sha256,verifier_subject) VALUES('ev_cross','t2','w_owner','a1','false','abc','fake')"),/FOREIGN KEY/);
+ db.close();
+});
+test('credit orders cannot bind users to unrelated tenants',async()=>{const db=await setup();await assert.rejects(execute(db,"INSERT INTO orders(id,tenant_id,identity_id,price_id,amount_minor,currency,grant_units,client_key) VALUES('o_cross','t1','u2','p1',2000,'USD',100,'testcross')"),/FOREIGN KEY/);db.close();});
+test('enrollment evidence is immutable',async()=>{const db=await setup();await provisionPersonalTenant(db,enrollment(),{now});await assert.rejects(execute(db,"DELETE FROM enrollment_evidence WHERE proof_id='proof_qualified_987654321'"),/immutable_enrollment_evidence/);db.close();});
+test('workspace members cannot initiate financial operations or view invoices and ledger',async()=>{
+ const db=await setup();await execute(db,"UPDATE memberships SET role='member' WHERE tenant_id='t1' AND identity_id='u1'");const env=authEnv(db);
+ for(const path of ['/v1/customer/ledger','/v1/customer/orders','/v1/customer/refunds','/v1/customer/invoices','/v1/customer/catalog'])assert.equal((await handle(new Request('https://localhost'+path),env)).status,403,path);
+ assert.equal((await handle(post('/v1/customer/orders',{price_id:'p1'},{'idempotency-key':'member-purchase'}),env)).status,403);
+ assert.equal((await handle(post('/v1/customer/refunds',{order_id:'x',amount_minor:10,reason:'Unauthorized',},{'idempotency-key':'member-refund'}),env)).status,403);
+ const me=await (await handle(new Request('https://localhost/v1/customer/me'),env)).json();assert.equal(me.billing_access,false);assert.equal(me.credit.booked,null);
+ assert.equal((await handle(post('/v1/customer/projects',{name:'Allowed',objective:'Draft project'}),env)).status,201);
+ db.close();
+});
+test('viewers may read workspace but cannot create projects or access billing',async()=>{
+ const db=await setup();await execute(db,"UPDATE memberships SET role='viewer' WHERE tenant_id='t1' AND identity_id='u1'");const env=authEnv(db);
+ assert.equal((await handle(new Request('https://localhost/v1/customer/projects'),env)).status,200);
+ assert.equal((await handle(post('/v1/customer/projects',{name:'Forbidden',objective:'Forbidden'}),env)).status,403);
+ assert.equal((await handle(new Request('https://localhost/v1/customer/invoices'),env)).status,403);
+ db.close();
+});
+test('direct SQL settlement without provider event is prohibited',async()=>{const db=await setup();const o=await insertOrder(db);await assert.rejects(execute(db,"UPDATE orders SET state='settled' WHERE id=?",o.id),/settlement_evidence_required/);assert.equal((await balance(db,'t1')).booked,0);db.close();});
+test('direct SQL refund settlement without verified refund event is prohibited',async()=>{const db=await setup();const o=await insertOrder(db);await reconcileSettlement(db,ev(o));const r=await requestRefund(db,'t1','u1',o.id,2000,'Return request','refund-without-event');await execute(db,"UPDATE refund_requests SET state='provider_pending' WHERE id=?",r.id);await assert.rejects(execute(db,"UPDATE refund_requests SET state='settled' WHERE id=?",r.id),/refund_evidence_required/);db.close();});
+test('cross-tenant invoices cannot attach to another tenant settled order',async()=>{const db=await setup();const o=await insertOrder(db);await reconcileSettlement(db,ev(o));await assert.rejects(execute(db,"INSERT INTO invoices(id,tenant_id,order_id,currency,amount_minor) VALUES('cross-invoice','t2',?,'USD',2000)",o.id),/FOREIGN KEY|UNIQUE/);db.close();});
