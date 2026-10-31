@@ -84,6 +84,69 @@ export async function issueOfflineCredential({env,tenantId,scopes,expiresAt,nowM
   }
 }
 
+/**
+ * Synthetic-only credential rotation. D1 batch is one SQL transaction; the
+ * issuance SELECT requires the old active scoped tenant credential and the
+ * revocation UPDATE requires the newly inserted credential. If either SQL
+ * operation errors the entire batch is rolled back. A zero-row result never
+ * constitutes a successful rotation. No HTTP entrypoint or production binding.
+ */
+export async function rotateOfflineCredential({env,tenantId,credentialId,scopes,
+  expiresAt,nowMs=Date.now()}={}) {
+  if (!ready(env)) return disabled();
+  const db=env?.CONNECT_CUSTOMER_DB;
+  if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function') return unavailable();
+  if (typeof tenantId !== 'string' || !TENANT_ID.test(tenantId) ||
+      typeof credentialId !== 'string' || !CREDENTIAL_ID.test(credentialId) ||
+      !Array.isArray(scopes) || scopes.length < 1 || scopes.length > 2 ||
+      new Set(scopes).size !== scopes.length || !scopes.every(s=>SCOPES.has(s)) ||
+      !validTime(expiresAt) || !validClock(nowMs)) return invalid();
+  const duration=Date.parse(expiresAt)-nowMs;
+  if (duration < 60_000 || duration > 90*24*60*60*1000) return invalid();
+  try {
+    const secretBytes=new Uint8Array(32);
+    crypto.getRandomValues(secretBytes);
+    const bearer_token='mct_'+btoa(String.fromCharCode(...secretBytes))
+      .replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+    const tokenHash=await digest(bearer_token);
+    const newId='cred_'+crypto.randomUUID().replaceAll('-','');
+    const commands=[
+      db.prepare(
+        'INSERT INTO connect_customer_credentials ' +
+        '(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) ' +
+        "SELECT ?,t.tenant_id,?,'active',?,?,? FROM connect_customer_tenants t " +
+        'JOIN connect_customer_credentials c ON c.tenant_id=t.tenant_id ' +
+        'WHERE t.tenant_id=? AND t.status=\'active\' AND c.credential_id=? ' +
+        'AND c.status=\'active\' AND unixepoch(c.expires_at)>? ' +
+        'RETURNING credential_id,tenant_id'
+      ).bind(newId,tokenHash,expiresAt,
+        scopes.includes('mining.plan')?1:0,scopes.includes('mining.risk')?1:0,
+        tenantId,credentialId,Math.floor(nowMs/1000)),
+      db.prepare(
+        "UPDATE connect_customer_credentials SET status='revoked' " +
+        "WHERE tenant_id=? AND credential_id=? AND status='active' " +
+        'AND EXISTS (SELECT 1 FROM connect_customer_credentials ' +
+        "WHERE tenant_id=? AND credential_id=? AND status='active') " +
+        'RETURNING credential_id'
+      ).bind(tenantId,credentialId,tenantId,newId),
+    ];
+    const results=await db.batch(commands);
+    if (!Array.isArray(results) || results.length !== 2 ||
+        !Array.isArray(results[0]?.results) || !Array.isArray(results[1]?.results)) {
+      return unavailable();
+    }
+    if (results[0].results.length === 0 && results[1].results.length === 0) {
+      return failure(404,'ACTIVE_CREDENTIAL_NOT_FOUND');
+    }
+    if (results[0].results.length !== 1 || results[1].results.length !== 1 ||
+        results[0].results[0].credential_id !== newId ||
+        results[0].results[0].tenant_id !== tenantId ||
+        results[1].results[0].credential_id !== credentialId) return unavailable();
+    return {ok:true,tenant_id:tenantId,credential_id:newId,
+      rotated_credential_id:credentialId,bearer_token};
+  } catch {return unavailable();}
+}
+
 export async function revokeOfflineCredential({env,tenantId,credentialId}={}) {
   if (!ready(env)) return disabled();
   if (!database(env)) return unavailable();

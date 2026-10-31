@@ -9,6 +9,7 @@ on:
       - 'connect/customer_admission.mjs'
       - 'connect/customer_provisioning.mjs'
       - 'tests/connect/test_customer_provisioning.mjs'
+      - 'tests/connect/test_customer_rotation.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
       - 'tests/connect/test_mainline_d1_ci.py'
       - 'connect/customer_payload.mjs'
@@ -24,6 +25,7 @@ on:
       - 'connect/customer_admission.mjs'
       - 'connect/customer_provisioning.mjs'
       - 'tests/connect/test_customer_provisioning.mjs'
+      - 'tests/connect/test_customer_rotation.mjs'
       - 'tests/connect/test_customer_d1_local.mjs'
       - 'tests/connect/test_mainline_d1_ci.py'
       - 'connect/customer_payload.mjs'
@@ -56,6 +58,8 @@ jobs:
         run: python -m unittest discover -s tests/connect -p test_mainline_d1_ci.py -v
       - name: Node SQLite reference contract
         run: node --test tests/connect/test_customer_admission.mjs
+      - name: Synthetic-only atomic credential rotation regression
+        run: node --test tests/connect/test_customer_rotation.mjs
       - name: Local workerd D1 contract (not remote D1)
         run: timeout 100s node --test tests/connect/test_customer_d1_local.mjs
       - name: Local workerd customer JSON size gate (not deployed)
