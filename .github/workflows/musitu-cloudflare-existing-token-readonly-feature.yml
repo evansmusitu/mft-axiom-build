@@ -41,6 +41,7 @@ jobs:
           import json
           import os
           import sys
+          import urllib.error
           import urllib.request
 
           token = os.environ.get('READONLY_TOKEN', '')
@@ -76,6 +77,10 @@ jobs:
               result = doc.get('result')
               if not isinstance(result, dict) or result.get('status') != 'active':
                   raise ValueError('inactive_token')
+          except urllib.error.HTTPError as error:
+              # Report only the HTTP status; never read provider bodies or credentials.
+              print('CLOUDFLARE_READONLY_TOKEN=HTTP_STATUS_' + str(error.code))
+              sys.exit(2)
           except Exception:
               print('CLOUDFLARE_READONLY_TOKEN=PROVIDER_AUTH_UNVERIFIED')
               sys.exit(2)
