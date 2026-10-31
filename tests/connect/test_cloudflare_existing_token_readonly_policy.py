@@ -12,7 +12,7 @@ class ExistingCloudflareTokenPolicy(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/feat/musitu-commercial-ga-phase123-evidence-20261031'", source)
         self.assertIn("github.repository == 'evansmusitu/mft-axiom-build'", source)
         self.assertIn('permissions:\n  contents: read', source)
-        self.assertIn('https://api.cloudflare.com/client/v4/user/tokens/verify', source)
+        self.assertIn('https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/tokens/verify', source)
         self.assertIn("method='GET'", source)
         self.assertEqual(source.count('${{ secrets.CLOUDFLARE_API_TOKEN }}'), 1)
         for forbidden in ('CLOUDFLARE_GLOBAL_API_KEY', 'wrangler', '/d1/database/',

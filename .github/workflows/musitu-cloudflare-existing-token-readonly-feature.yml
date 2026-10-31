@@ -54,7 +54,7 @@ jobs:
                   return None
 
           request = urllib.request.Request(
-              'https://api.cloudflare.com/client/v4/user/tokens/verify',
+              'https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/tokens/verify',
               headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'},
               method='GET',
           )
