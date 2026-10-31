@@ -192,6 +192,21 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
             probe.run_probe(cfg, transport=transport)
         self.assertEqual(calls, ['GET'])
 
+    def test_untrusted_provider_float_overflow_is_not_accepted_as_metadata(self):
+        """1e999 may not silently parse to infinity in a provider response."""
+        import urllib.request
+
+        class OverflowResponse:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, size=-1):
+                return b'{"success":true,"result":{},"ignored":1e999}'
+
+        request = urllib.request.Request('https://api.cloudflare.com/client/v4/test', method='GET')
+        with self.assertRaisesRegex(probe.ProbeError, 'PROVIDER_RESPONSE_UNTRUSTED'):
+            probe._request_json(request, transport=lambda *_args, **_kwargs: OverflowResponse())
+
     def test_reports_exclusively_without_identifier_disclosure(self):
         with TemporaryDirectory() as td:
             output = Path(td) / 'proof.json'
