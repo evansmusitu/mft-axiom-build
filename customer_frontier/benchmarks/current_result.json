@@ -1,0 +1,57 @@
+{
+  "comparisons": [
+    {
+      "id": "onboarding_p90_seconds",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "first_eligible_result_success_rate",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "accuracy",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "finance_risk_accuracy",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "tenant_isolation_attack_success",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "accessibility_success_rate",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "p95_latency_seconds",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "availability_rate",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "verified_customer_outcome_rate",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    },
+    {
+      "id": "payment_reconciliation_error_rate",
+      "reason": "no_measurement",
+      "state": "NOT_PROVEN"
+    }
+  ],
+  "note": "Presence of digests and alleged independent verifier is not cryptographic or human validation. External evidence verification and Security Gateway veto remain mandatory.",
+  "qualified_comparisons": 0,
+  "status": "NOT_CERTIFIED"
+}
