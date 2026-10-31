@@ -85,4 +85,29 @@ jobs:
               print('CLOUDFLARE_READONLY_TOKEN=PROVIDER_AUTH_UNVERIFIED')
               sys.exit(2)
           print('CLOUDFLARE_READONLY_TOKEN=ACTIVE_NOT_STAGING_QUALIFIED')
+          # Production-account metadata discovery only; no D1 rows or SQL.
+          metadata_request = urllib.request.Request(
+              'https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database?page=1&per_page=10',
+              headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'},
+              method='GET',
+          )
+          try:
+              with urllib.request.build_opener(NoRedirect()).open(metadata_request, timeout=12) as response:
+                  raw = response.read(16385)
+                  status = response.status
+              if status != 200 or not raw or len(raw) > 16384:
+                  raise ValueError('metadata_unacceptable')
+              metadata = json.loads(raw.decode('utf-8', errors='strict'), object_pairs_hook=unique_object)
+              if not isinstance(metadata, dict) or metadata.get('success') is not True:
+                  raise ValueError('metadata_not_accepted')
+              if not isinstance(metadata.get('result'), list):
+                  raise ValueError('metadata_invalid')
+          except urllib.error.HTTPError as error:
+              print('CLOUDFLARE_D1_METADATA=HTTP_STATUS_' + str(error.code))
+              sys.exit(2)
+          except Exception:
+              print('CLOUDFLARE_D1_METADATA=UNVERIFIED')
+              sys.exit(2)
+          # This is the existing account, not independent staging verification.
+          print('CLOUDFLARE_D1_METADATA=ACCESSIBLE_PRODUCTION_ACCOUNT_ONLY')
           PY

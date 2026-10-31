@@ -14,6 +14,8 @@ class ExistingCloudflareTokenPolicy(unittest.TestCase):
         self.assertIn('permissions:\n  contents: read', source)
         self.assertIn('https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/tokens/verify', source)
         self.assertIn("method='GET'", source)
+        self.assertIn('https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database?page=1&per_page=10', source)
+        self.assertIn('CLOUDFLARE_D1_METADATA=ACCESSIBLE_PRODUCTION_ACCOUNT_ONLY', source)
         self.assertEqual(source.count('${{ secrets.CLOUDFLARE_API_TOKEN }}'), 1)
         for forbidden in ('CLOUDFLARE_GLOBAL_API_KEY', 'wrangler', '/d1/database/',
                           '/workers/', 'exec(', 'eval(', 'subprocess', 'shell=True',
