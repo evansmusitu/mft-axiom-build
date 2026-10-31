@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any, Mapping
@@ -32,6 +33,13 @@ def _reject_nonfinite_guard(_token):
     raise ValueError('NONFINITE_GUARD_NUMBER')
 
 
+def _finite_guard_float(token):
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError('NONFINITE_GUARD_NUMBER')
+    return value
+
+
 def load_guard(path: Path) -> dict[str, Any]:
     """Bound the actual UTF-8 bytes; refuse ambiguous guard evidence before paging."""
     with path.open('rb') as source:
@@ -40,7 +48,8 @@ def load_guard(path: Path) -> dict[str, Any]:
         raise ValueError('INVALID_GUARD_SIZE')
     result = json.loads(raw.decode('utf-8', errors='strict'),
                         object_pairs_hook=_unique_guard_object,
-                        parse_constant=_reject_nonfinite_guard)
+                        parse_constant=_reject_nonfinite_guard,
+                        parse_float=_finite_guard_float)
     if not isinstance(result, dict):
         raise ValueError('INVALID_GUARD_RECORD')
     return result

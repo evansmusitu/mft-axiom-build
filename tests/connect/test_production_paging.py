@@ -45,6 +45,7 @@ class ProductionPagingTests(unittest.TestCase):
                 original.replace('"passed": false', '"passed": false, "passed": true'),
                 original + ' ' * 70000,
                 original.replace('"passed": false', '"passed": NaN'),
+                original.replace('"passed": false', '"passed": false, "extra": 1e999'),
             )
             for payload in cases:
                 with self.subTest(kind=len(payload)):
