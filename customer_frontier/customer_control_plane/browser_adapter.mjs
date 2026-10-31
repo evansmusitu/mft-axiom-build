@@ -12,6 +12,9 @@ export class AXIOMCustomerAdapter {
   return data;
  }
  getAccount(){return this.request('/me');}
+ getMemberships(){return this.request('/memberships');}
+ getCases(){return this.request('/cases');}
+ createCase(kind,subject,detail,key=crypto.randomUUID()){return this.request('/cases',{method:'POST',body:{kind,subject,detail},idempotencyKey:key});}
  enroll(){return this.request('/enroll',{method:'POST',body:{}});}
  getLedger(){return this.request('/ledger');}
  getOrders(){return this.request('/orders');}
