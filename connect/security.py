@@ -18,4 +18,4 @@ def verify(envelope: SignedEnvelope, secret: bytes) -> bool:
     return hmac.compare_digest(expected,envelope.signature)
 
 def canonical_bytes(value: Mapping[str,Any]) -> bytes:
-    return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")
+    return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode("utf-8")

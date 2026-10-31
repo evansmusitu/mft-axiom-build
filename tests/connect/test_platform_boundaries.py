@@ -21,6 +21,19 @@ class PlatformBoundaryTests(unittest.TestCase):
         signed=sign(payload,b"secret")
         self.assertTrue(verify(signed,b"secret"))
         self.assertFalse(verify(signed,b"wrong"))
+    def test_signing_boundary_rejects_nonfinite_json_numbers(self):
+        # These are not valid RFC 8259 JSON numbers. They must never enter
+        # canonical request hashes, signatures or persisted lineage evidence.
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=repr(value)):
+                with self.assertRaisesRegex(ValueError, "Out of range float values"):
+                    canonical_bytes({"records": [{"sensor": value}]})
+                with self.assertRaisesRegex(ValueError, "Out of range float values"):
+                    ConnectFabric(signing_secret=b"test-key").ingest(
+                        run_id="nonfinite", connector_name="Test adapter",
+                        domain="test", records=[{"sensor": value}],
+                    )
+
     def test_fabric_emits_canonical_and_lineage_evidence(self):
         fabric=ConnectFabric(signing_secret=b"secret")
         run=fabric.ingest(run_id="r1",connector_name="Mining Adapter",domain="mining",records=[{"x":1}])
