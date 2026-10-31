@@ -82,6 +82,16 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
         and found[0].get("InstanceType") == "t3.small"
         and found[0].get("FreeTierEligible") is True
         and (found[0].get("MemoryInfo") or {}).get("SizeInMiB", 0) >= 2048)
+    offerings = call(["ec2", "describe-instance-type-offerings", "--region", REGION,
+                      "--location-type", "region", "--filters",
+                      "Name=instance-type,Values=t3.small"])
+    offered = offerings.get("InstanceTypeOfferings")
+    result["t3_small_region_offered"] = (
+        not offerings.get("NextToken")
+        and type(offered) is list and any(
+            type(o) is dict and o.get("InstanceType") == "t3.small"
+            and o.get("LocationType") == "region" and o.get("Location") == REGION
+            for o in offered))
     images = call(["ec2", "describe-images", "--region", REGION, "--owners", "amazon",
                    "--filters", "Name=name,Values=Windows_Server-2022-English-Full-Base-*",
                    "Name=state,Values=available"])
@@ -104,7 +114,8 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
                 and not r["Instances"] for r in reservations))
     result["candidate_qualifies_for_manual_review"] = all(
         result[k] for k in ("account_plan_free_active", "credit_buffer_present",
-        "account_not_expired", "minimum_30day_plan_runway", "t3_small_eligible", "official_windows_ami_eligible",
+        "account_not_expired", "minimum_30day_plan_runway", "t3_small_eligible",
+        "t3_small_region_offered", "official_windows_ami_eligible",
         "no_existing_ec2_instances"))
     # No status can ever be promoted to deployment approval here. A separate
     # approved, audited host build + SSM/firewall/price gate is mandatory.

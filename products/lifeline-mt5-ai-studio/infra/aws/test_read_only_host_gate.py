@@ -11,7 +11,9 @@ class GateTests(unittest.TestCase):
                 "accountPlanRemainingCredits": {"amount": 100.0, "unit": "USD"},
                 "accountPlanExpirationDate": future, "accountId": "123456789012"}
         instance = {"InstanceTypes": [{"InstanceType": "t3.small", "FreeTierEligible": True,
-                                        "MemoryInfo": {"SizeInMiB": 2048}}]}
+                                        "MemoryInfo": {"SizeInMiB": 2048}}],
+                    "InstanceTypeOfferings": [{"InstanceType": "t3.small", "LocationType": "region",
+                                               "Location": "eu-north-1"}]}
         images = {"Images": [{"Name": "Windows_Server-2022-English-Full-Base-2026.10.27",
                                "Architecture": "x86_64", "State": "available", "Platform": "windows",
                                "FreeTierEligible": True, "ImageId": "ami-valid"}]}
@@ -23,13 +25,16 @@ class GateTests(unittest.TestCase):
             seen.append(args)
             if args[:2] == ["freetier", "get-account-plan-state"]: return plan
             if args[:2] == ["ec2", "describe-instance-types"]: return instance
+            if args[:2] == ["ec2", "describe-instance-type-offerings"]:
+                return {"InstanceTypeOfferings": instance["InstanceTypeOfferings"]}
             if args[:2] == ["ec2", "describe-images"]: return images
             if args[:2] == ["ec2", "describe-instances"]: return ec2
             raise AssertionError("Unknown AWS operation")
         report = qualify(caller)
-        self.assertEqual(len(seen), 4)
+        self.assertEqual(len(seen), 5)
         self.assertTrue(all(x[0:2] in [["freetier", "get-account-plan-state"],
                                          ["ec2", "describe-instance-types"],
+                                         ["ec2", "describe-instance-type-offerings"],
                                          ["ec2", "describe-images"],
                                          ["ec2", "describe-instances"]] for x in seen))
         self.assertNotIn("123456789012", str(report))
@@ -69,6 +74,16 @@ class GateTests(unittest.TestCase):
     def test_type_not_free_or_too_small_denied(self):
         self.assertFalse(self.run_gate(lambda p,t,*_: t["InstanceTypes"][0].update(FreeTierEligible=False))["candidate_qualifies_for_manual_review"])
         self.assertFalse(self.run_gate(lambda p,t,*_: t["InstanceTypes"][0]["MemoryInfo"].update(SizeInMiB=1024))["candidate_qualifies_for_manual_review"])
+
+    def test_instance_type_not_offered_in_stockholm_denied(self):
+        # Free tier type eligibility alone does not show regional availability.
+        r = self.run_gate(lambda p,t,*_: t.update(InstanceTypeOfferings=[]))
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
+    def test_instance_type_offered_only_in_other_region_denied(self):
+        r = self.run_gate(lambda p,t,*_: t.update(InstanceTypeOfferings=[
+            {"InstanceType": "t3.small", "LocationType": "region", "Location": "eu-west-1"}]))
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
 
     def test_ami_owner_name_or_freeflag_denied(self):
         self.assertFalse(self.run_gate(lambda p,t,i,e: i["Images"][0].update(Name="Windows_Server-2022-English-Full-Base-evil"))["candidate_qualifies_for_manual_review"])
