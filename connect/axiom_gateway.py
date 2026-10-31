@@ -1,7 +1,42 @@
 import json
 import urllib.request
+from math import isfinite
 from typing import Any, Callable
 from .core import IntegrationGate
+
+def _unique_json_properties(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Fail closed if a remote response contains ambiguous duplicate keys."""
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate_json_key")
+        value[key] = item
+    return value
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError("nonstandard_json_constant")
+
+
+def _finite_json_float(token: str) -> float:
+    value = float(token)
+    if not isfinite(value):
+        raise ValueError("nonfinite_json_number")
+    return value
+
+
+def _parse_remote_response(raw: bytes) -> dict[str, Any]:
+    """Permit only unambiguous RFC 8259 JSON objects at the remote boundary."""
+    try:
+        value = json.loads(raw.decode("utf-8"),
+            object_pairs_hook=_unique_json_properties,
+            parse_constant=_reject_json_constant,
+            parse_float=_finite_json_float)
+    except (ValueError, UnicodeError):
+        raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID") from None
+    if not isinstance(value, dict):
+        raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+    return value
 
 class AxiomComputeExecutor:
     def __init__(self, endpoint: str, bearer_token: str, timeout: float = 10.0) -> None:
@@ -29,11 +64,11 @@ class AxiomComputeExecutor:
             method="POST",
         )
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
-        decoded=json.loads(response.read().decode("utf-8"))
+        decoded=_parse_remote_response(response.read())
         if not isinstance(decoded,dict):
             raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         returned_request_id=decoded.get("request_id")
-        if returned_request_id is not None and str(returned_request_id)!=request_id:
+        if returned_request_id is not None and returned_request_id!=request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
         if decoded.get("ok") is False:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
@@ -73,8 +108,8 @@ class AxiomMcpExecutor:
             method="POST"
         )
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
-        decoded=json.loads(response.read().decode("utf-8"))
-        if str(decoded.get("id"))!=request_id:
+        decoded=_parse_remote_response(response.read())
+        if decoded.get("id")!=request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
         result=decoded["result"]
         if result.get("isError") is True:
