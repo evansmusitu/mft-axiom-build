@@ -38,6 +38,15 @@ def _parse_remote_response(raw: bytes) -> dict[str, Any]:
         raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
     return value
 
+def _encode_request(payload: dict[str, Any]) -> bytes:
+    # Never transmit nonstandard JSON with an authorization bearer token.
+    try:
+        return json.dumps(payload, separators=(",", ":"), sort_keys=True,
+                          allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError):
+        raise RuntimeError("AXIOM_REQUEST_INVALID") from None
+
+
 class AxiomComputeExecutor:
     def __init__(self, endpoint: str, bearer_token: str, timeout: float = 10.0) -> None:
         self.endpoint=endpoint
@@ -50,7 +59,7 @@ class AxiomComputeExecutor:
             "operation":request["operation"],
             "args":request.get("args") or {},
         }
-        body=json.dumps(payload,separators=(",",":"),sort_keys=True).encode("utf-8")
+        body=_encode_request(payload)
         outbound=urllib.request.Request(
             self.endpoint,
             data=body,
@@ -94,7 +103,7 @@ class AxiomMcpExecutor:
                 }
             }
         }
-        body=json.dumps(payload,separators=(",",":"),sort_keys=True).encode("utf-8")
+        body=_encode_request(payload)
         outbound=urllib.request.Request(
             self.endpoint,
             data=body,
@@ -109,12 +118,24 @@ class AxiomMcpExecutor:
         )
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
         decoded=_parse_remote_response(response.read())
-        if decoded.get("id")!=request_id:
+        if decoded.get("jsonrpc") != "2.0":
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        if decoded.get("id") != request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
-        result=decoded["result"]
+        if "error" in decoded:
+            if "result" in decoded:
+                raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+            raise RuntimeError("AXIOM_REMOTE_ERROR")
+        result=decoded.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        if "isError" in result and not isinstance(result["isError"], bool):
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         if result.get("isError") is True:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
-        structured=result["structuredContent"]
+        structured=result.get("structuredContent")
+        if not isinstance(structured, dict):
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         structured_request_id=structured.get("request_id")
         if structured_request_id is not None and structured_request_id!=request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
