@@ -50,7 +50,10 @@ test('reject wrong identity even for correct tenant',async()=>{
 test('reject unauthenticated, disabled, and malformed account principals',async()=>{
  for(const change of [{ok:false},{identity_id:null},{role:'disabled'},{role:'superadmin'}]){
   await withBrowser(async()=>Response.json(account(change)),async()=>{
-   await assert.rejects(VNextRemoteDataAdapter.open(binding),/remote_account_mismatch/);
+   // HTTP/JSON transport refuses ok:false before remote principal admission.
+   // Both paths must throw; no unverified account can become cloud-backed.
+   const expected=change.ok===false?/customer_request_failed/:/remote_account_mismatch/;
+   await assert.rejects(VNextRemoteDataAdapter.open(binding),expected);
   });
  }
 });
