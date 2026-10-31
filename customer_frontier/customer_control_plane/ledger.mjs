@@ -37,7 +37,7 @@ export async function reconcileSettlement(db,verified){
   ['INSERT INTO credit_ledger(id,tenant_id,delta,source_key,event_id) VALUES(?,?,?,?,?)',id(),order.tenant_id,order.grant_units,`settlement:${orderId}`,eventId],
   ['INSERT INTO invoices(id,tenant_id,order_id,currency,amount_minor) VALUES(?,?,?,?,?)',id(),order.tenant_id,orderId,currency,amountMinor]
  ]);
- }catch(error){const p=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);if(p&&p.order_id===orderId&&p.amount_minor===amountMinor&&p.currency===currency)return {idempotent:true,orderId};throw error}
+ }catch(error){const p=await one(db,'SELECT * FROM provider_events WHERE event_id=?',eventId);if(p){must(p.order_id===orderId&&p.provider===provider&&p.provider_transaction_id===transactionId&&p.kind===kind&&p.amount_minor===amountMinor&&p.currency===currency,'event_collision');return {idempotent:true,orderId};}throw error}
  return {idempotent:false,orderId};
 }
 export async function reserve(db,tenant,requestKey,units,workId=null){
@@ -66,7 +66,7 @@ export async function finishHold(db,tenant,holdId,mode){
 }
 export async function requestRefund(db,tenant,identity,orderId,amountMinor,reason,key){
  must(okString(key,8,100)&&okString(reason,8,500)&&Number.isSafeInteger(amountMinor)&&amountMinor>0,'invalid_refund');
- const prior=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(prior){must(prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.identity_id===identity,'refund_key_conflict');return prior;}
+ const prior=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(prior){must(prior.order_id===orderId&&prior.amount_minor===amountMinor&&prior.identity_id===identity&&prior.reason===reason,'refund_key_conflict');return prior;}
  const order=await one(db,'SELECT * FROM orders WHERE id=? AND tenant_id=? AND state=\'settled\'',orderId,tenant);must(order,'settled_order_missing');
  const refundId=id();
  // Conditional insert performs the outstanding-value check within one serialized D1 write.
@@ -76,7 +76,7 @@ export async function requestRefund(db,tenant,identity,orderId,amountMinor,reaso
    LEFT JOIN refund_requests r ON r.order_id=o.id AND r.state!='rejected'
    WHERE o.id=? GROUP BY o.id,o.amount_minor)`;
  try{const created=await execute(db,statement,refundId,tenant,orderId,identity,amountMinor,reason,key,amountMinor,orderId);must(created.meta?.changes===1,'refund_exceeds_outstanding');}
- catch(e){const old=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(old){must(old.order_id===orderId&&old.amount_minor===amountMinor&&old.identity_id===identity,'refund_key_conflict');return old;}throw e}
+ catch(e){const old=await one(db,'SELECT * FROM refund_requests WHERE tenant_id=? AND client_key=?',tenant,key);if(old){must(old.order_id===orderId&&old.amount_minor===amountMinor&&old.identity_id===identity&&old.reason===reason,'refund_key_conflict');return old;}throw e}
  return await one(db,'SELECT * FROM refund_requests WHERE id=?',refundId);
 }
 export async function reconcileRefund(db,verified){
@@ -89,8 +89,11 @@ export async function reconcileRefund(db,verified){
  const order=await one(db,'SELECT * FROM orders WHERE id=? AND state=\'settled\'',orderId);must(order&&order.currency===currency,'refund_currency_mismatch');
  const already=await one(db,"SELECT COALESCE(SUM(amount_minor),0) AS amount FROM refund_requests WHERE order_id=? AND state='settled'",orderId);
  // Round credit reversal toward consumer only on final refund; no currency float.
+ must([order.grant_units,order.amount_minor,already.amount].every(Number.isSafeInteger),'refund_integer_precision_unverified');
+ const cumulative=BigInt(already.amount)+BigInt(amountMinor);
+ must(cumulative<=BigInt(order.amount_minor),'refund_exceeds_order_amount');
  const prevUnits=BigInt(order.grant_units)*BigInt(already.amount)/BigInt(order.amount_minor);
- const nextUnits=BigInt(order.grant_units)*BigInt(already.amount+amountMinor)/BigInt(order.amount_minor);
+ const nextUnits=BigInt(order.grant_units)*cumulative/BigInt(order.amount_minor);
  const delta=Number(nextUnits-prevUnits);must(Number.isSafeInteger(delta)&&delta>0,'refund_requires_manual_credit_adjustment');
  await atomic(db,[
   ['INSERT INTO provider_events(event_id,provider,provider_transaction_id,order_id,kind,amount_minor,currency) VALUES(?,?,?,?,?,?,?)',eventId,provider,transactionId,orderId,'refund',amountMinor,currency],
