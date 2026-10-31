@@ -16,6 +16,34 @@ from urllib.request import Request, urlopen
 
 PAGERDUTY_ENDPOINT = 'https://events.pagerduty.com/v2/enqueue'
 DEDUP_KEY = 'musitu-connect-production-runtime-availability-v1'
+MAX_GUARD_BYTES = 65_536
+
+
+def _unique_guard_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('DUPLICATE_GUARD_KEY')
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_guard(_token):
+    raise ValueError('NONFINITE_GUARD_NUMBER')
+
+
+def load_guard(path: Path) -> dict[str, Any]:
+    """Bound the actual UTF-8 bytes; refuse ambiguous guard evidence before paging."""
+    with path.open('rb') as source:
+        raw = source.read(MAX_GUARD_BYTES + 1)
+    if not raw or len(raw) > MAX_GUARD_BYTES:
+        raise ValueError('INVALID_GUARD_SIZE')
+    result = json.loads(raw.decode('utf-8', errors='strict'),
+                        object_pairs_hook=_unique_guard_object,
+                        parse_constant=_reject_nonfinite_guard)
+    if not isinstance(result, dict):
+        raise ValueError('INVALID_GUARD_RECORD')
+    return result
 
 
 def evaluate_paging(
@@ -112,8 +140,8 @@ def main() -> int:
     parser.add_argument('--enable-external-page', action='store_true')
     args = parser.parse_args()
     try:
-        guard = json.loads(args.guard.read_text(encoding='utf-8'))
-    except (OSError, ValueError):
+        guard = load_guard(args.guard)
+    except (OSError, ValueError, UnicodeError, RecursionError):
         guard = {}
     key = os.environ.get('MUSITU_CONNECT_PAGERDUTY_ROUTING_KEY', '') if args.enable_external_page else ''
     result = evaluate_paging(guard, enable_external_page=args.enable_external_page, routing_key=key)

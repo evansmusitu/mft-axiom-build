@@ -29,6 +29,37 @@ class Response:
 
 
 class ProductionPagingTests(unittest.TestCase):
+    def test_cli_rejects_duplicate_guard_keys_and_oversized_guard_without_paging(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from qualification.production_paging import main
+        import sys
+        with TemporaryDirectory() as d:
+            guard_file = Path(d) / 'guard.json'
+            result_file = Path(d) / 'assessment.json'
+            original = json.dumps(guard(False))
+            cases = (
+                original.replace('"passed": false', '"passed": false, "passed": true'),
+                original + ' ' * 70000,
+                original.replace('"passed": false', '"passed": NaN'),
+            )
+            for payload in cases:
+                with self.subTest(kind=len(payload)):
+                    guard_file.write_text(payload, encoding='utf-8')
+                    with patch.object(sys, 'argv', ['production_paging.py', '--guard', str(guard_file), '--output', str(result_file), '--enable-external-page']), \
+                         patch('qualification.production_paging.urlopen') as transport, \
+                         patch.dict('os.environ', {'MUSITU_CONNECT_PAGERDUTY_ROUTING_KEY':'NOT_REAL'}, clear=False), \
+                         redirect_stdout(StringIO()):
+                        self.assertEqual(main(), 2)
+                    transport.assert_not_called()
+                    result = json.loads(result_file.read_text(encoding='utf-8'))
+                    self.assertEqual(result['delivery_status'], 'GUARD_EVIDENCE_INVALID')
+                    self.assertFalse(result['external_paging_verified'])
+                    self.assertFalse(result['production_mutation_performed'])
+
     def test_healthy_guard_never_pages_even_when_armed(self):
         with patch('qualification.production_paging.urlopen') as call:
             report = evaluate_paging(guard(True), enable_external_page=True, routing_key='secret-value')
