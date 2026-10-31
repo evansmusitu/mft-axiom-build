@@ -60,8 +60,12 @@ export async function finishHold(db,tenant,holdId,mode){
  const hold=await one(db,'SELECT * FROM holds WHERE id=? AND tenant_id=?',holdId,tenant);must(hold,'hold_missing');
  if(hold.state===mode)return {idempotent:true};must(hold.state==='open','hold_already_finished');
  const op=['UPDATE holds SET state=? WHERE id=? AND tenant_id=? AND state=\'open\'',mode,holdId,tenant];
- const entries=[op];if(mode==='committed')entries.push(['INSERT INTO credit_ledger(id,tenant_id,delta,source_key) VALUES(?,?,?,?)',id(),tenant,-hold.units,`usage:${hold.id}`]);
- try{const result=await atomic(db,entries);must(result[0].meta?.changes===1,'hold_race');}catch(e){const p=await one(db,'SELECT state FROM holds WHERE id=?',holdId);if(p?.state===mode)return {idempotent:true};throw e}
+ // A SQL transition trigger requires the debit to exist before a hold is committed.
+ // db.batch MUST provide a single atomic database transaction; validate real D1 separately.
+ const entries=mode==='committed'?[
+  ['INSERT INTO credit_ledger(id,tenant_id,delta,source_key) VALUES(?,?,?,?)',id(),tenant,-hold.units,`usage:${hold.id}`],op
+ ]:[op];
+ try{const result=await atomic(db,entries);must(result[mode==='committed'?1:0].meta?.changes===1,'hold_race');}catch(e){const p=await one(db,'SELECT state FROM holds WHERE id=?',holdId);if(p?.state===mode)return {idempotent:true};throw e}
  return {idempotent:false};
 }
 export async function requestRefund(db,tenant,identity,orderId,amountMinor,reason,key){
