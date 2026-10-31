@@ -36,8 +36,8 @@ function fixture(){
     assert.equal(value.ok,true);
     return value;
   };
-  const rotate=(credentialId,tenantId='tenant_alpha')=>rotateOfflineCredential({
-    env,tenantId,credentialId,scopes:['mining.risk'],nowMs:now,expiresAt,
+  const rotate=(credentialId,tenantId='tenant_alpha',scopes=['mining.plan'])=>rotateOfflineCredential({
+    env,tenantId,credentialId,scopes,nowMs:now,expiresAt,
   });
   const seed=async tenantId=>{
     const value=await provisionOfflineTenant({env,tenantId,dailyLimit:4,minuteLimit:4});
@@ -46,12 +46,14 @@ function fixture(){
   return {sql,env,seed,issue,rotate};
 }
 
-test('synthetic credential rotation atomically revokes the old token and changes its scope',async()=>{
+test('synthetic credential rotation atomically revokes the old token and narrows its scope',async()=>{
   const f=fixture();
   try {
     await f.seed('tenant_alpha');
-    const old=await f.issue('tenant_alpha');
-    const fresh=await f.rotate(old.credential_id);
+    const old=await issueOfflineCredential({env:f.env,tenantId:'tenant_alpha',
+      scopes:['mining.plan','mining.risk'],nowMs:now,expiresAt});
+    assert.equal(old.ok,true);
+    const fresh=await f.rotate(old.credential_id,'tenant_alpha',['mining.risk']);
     assert.equal(fresh.ok,true);
     assert.equal(fresh.rotated_credential_id,old.credential_id);
     assert.match(fresh.bearer_token,/^mct_[A-Za-z0-9_-]{43}$/);
@@ -97,7 +99,7 @@ test('disabled rotation and failed SQL revocation never disclose or persist repl
     await f.seed('tenant_alpha');
     const old=await f.issue('tenant_alpha');
     const opts={env:f.env,tenantId:'tenant_alpha',credentialId:old.credential_id,
-      scopes:['mining.risk'],nowMs:now,expiresAt};
+      scopes:['mining.plan'],nowMs:now,expiresAt};
     assert.deepEqual(await rotateOfflineCredential({...opts,env:{...f.env,
       CONNECT_CUSTOMER_PROVISIONING_MODE:'disabled'}}),
       {ok:false,status:503,error:'PROVISIONING_DISABLED'});
@@ -109,6 +111,20 @@ test('disabled rotation and failed SQL revocation never disclose or persist repl
     const failed=await rotateOfflineCredential(opts);
     assert.deepEqual(failed,{ok:false,status:503,error:'PROVISIONING_UNAVAILABLE'});
     assert.equal(f.sql.prepare('SELECT count(*) AS n FROM connect_customer_credentials').get().n,1);
+    assert.equal(f.sql.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?')
+      .get(old.credential_id).status,'active');
+  } finally {f.sql.close();}
+});
+
+
+test('synthetic rotation refuses privilege elevation beyond old credential scopes',async()=>{
+  const f=fixture();
+  try {
+    await f.seed('tenant_alpha');
+    const old=await f.issue('tenant_alpha');
+    const result=await f.rotate(old.credential_id,'tenant_alpha',['mining.risk']);
+    assert.deepEqual(result,{ok:false,status:404,error:'ACTIVE_CREDENTIAL_NOT_FOUND'});
+    assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM connect_customer_credentials').get().n,1);
     assert.equal(f.sql.prepare('SELECT status FROM connect_customer_credentials WHERE credential_id=?')
       .get(old.credential_id).status,'active');
   } finally {f.sql.close();}

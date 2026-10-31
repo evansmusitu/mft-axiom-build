@@ -118,10 +118,12 @@ export async function rotateOfflineCredential({env,tenantId,credentialId,scopes,
         'JOIN connect_customer_credentials c ON c.tenant_id=t.tenant_id ' +
         'WHERE t.tenant_id=? AND t.status=\'active\' AND c.credential_id=? ' +
         'AND c.status=\'active\' AND unixepoch(c.expires_at)>? ' +
+        'AND (?=0 OR c.can_plan=1) AND (?=0 OR c.can_risk=1) ' +
         'RETURNING credential_id,tenant_id'
       ).bind(newId,tokenHash,expiresAt,
         scopes.includes('mining.plan')?1:0,scopes.includes('mining.risk')?1:0,
-        tenantId,credentialId,Math.floor(nowMs/1000)),
+        tenantId,credentialId,Math.floor(nowMs/1000),
+        scopes.includes('mining.plan')?1:0,scopes.includes('mining.risk')?1:0),
       db.prepare(
         "UPDATE connect_customer_credentials SET status='revoked' " +
         "WHERE tenant_id=? AND credential_id=? AND status='active' " +
