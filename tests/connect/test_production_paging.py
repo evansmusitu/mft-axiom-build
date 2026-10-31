@@ -1,5 +1,6 @@
 """Red/green contract: on-call paging never claimed without external acknowledgement."""
 import json
+from datetime import datetime, timedelta, timezone
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -12,6 +13,7 @@ def guard(passed=False):
         'schema': 'musitu.connect.live_runtime_guard.v1',
         'passed': passed,
         'source_commit': 'd56e8d3089e4f9aed11ba7011697f9791a160e08',
+        'checked_at_utc': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z'),
         'health_http_status': 200 if passed else 503,
         'unauthenticated_plan_http_status': 401 if passed else None,
         'credentials_used': False,
@@ -60,6 +62,27 @@ class ProductionPagingTests(unittest.TestCase):
                     self.assertEqual(result['delivery_status'], 'GUARD_EVIDENCE_INVALID')
                     self.assertFalse(result['external_paging_verified'])
                     self.assertFalse(result['production_mutation_performed'])
+
+    def test_stale_guard_never_claims_healthy_or_pages_untrusted_evidence(self):
+        current = datetime.now(timezone.utc)
+        cases = (
+            ('missing', None),
+            ('stale', (current - timedelta(hours=2)).isoformat(timespec='seconds').replace('+00:00','Z')),
+            ('future', (current + timedelta(hours=2)).isoformat(timespec='seconds').replace('+00:00','Z')),
+            ('non_utc', current.isoformat(timespec='seconds')),
+            ('invalid', 'not-a-timestamp'),
+        )
+        for label, stamp in cases:
+            with self.subTest(label=label), patch('qualification.production_paging.urlopen') as transport:
+                evidence = guard(True)
+                if stamp is None:
+                    evidence.pop('checked_at_utc')
+                else:
+                    evidence['checked_at_utc'] = stamp
+                result = evaluate_paging(evidence, enable_external_page=True, routing_key='test-operator-key')
+                transport.assert_not_called()
+                self.assertFalse(result['production_guard_passed'])
+                self.assertEqual(result['delivery_status'], 'GUARD_EVIDENCE_INVALID')
 
     def test_healthy_guard_never_pages_even_when_armed(self):
         with patch('qualification.production_paging.urlopen') as call:
