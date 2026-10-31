@@ -23,6 +23,7 @@ class GateTests(unittest.TestCase):
         seen = []
         def caller(args):
             seen.append(args)
+            if args[:2] == ["sts", "get-caller-identity"]: return {"Account": "123456789012"}
             if args[:2] == ["freetier", "get-account-plan-state"]: return plan
             if args[:2] == ["ec2", "describe-instance-types"]: return instance
             if args[:2] == ["ec2", "describe-instance-type-offerings"]:
@@ -31,8 +32,8 @@ class GateTests(unittest.TestCase):
             if args[:2] == ["ec2", "describe-instances"]: return ec2
             raise AssertionError("Unknown AWS operation")
         report = qualify(caller)
-        self.assertEqual(len(seen), 5)
-        self.assertTrue(all(x[0:2] in [["freetier", "get-account-plan-state"],
+        self.assertEqual(len(seen), 6)
+        self.assertTrue(all(x[0:2] in [["sts", "get-caller-identity"], ["freetier", "get-account-plan-state"],
                                          ["ec2", "describe-instance-types"],
                                          ["ec2", "describe-instance-type-offerings"],
                                          ["ec2", "describe-images"],
@@ -63,6 +64,17 @@ class GateTests(unittest.TestCase):
         naive = (datetime.now(timezone.utc) + timedelta(days=60)).replace(tzinfo=None).isoformat()
         r = self.run_gate(lambda p,*_: p.update(accountPlanExpirationDate=naive))
         self.assertFalse(r["account_not_expired"])
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
+    def test_mismatched_free_tier_account_identity_denied(self):
+        # A Free Tier plan from account A cannot qualify a host in account B.
+        r = self.run_gate(lambda p,*_: p.update(accountId="999999999999"))
+        self.assertFalse(r.get("caller_matches_free_plan_account", False))
+        self.assertFalse(r["candidate_qualifies_for_manual_review"])
+
+    def test_missing_free_tier_account_id_denied(self):
+        r = self.run_gate(lambda p,*_: p.pop("accountId"))
+        self.assertFalse(r.get("caller_matches_free_plan_account", False))
         self.assertFalse(r["candidate_qualifies_for_manual_review"])
 
     def test_low_credits_denied(self):

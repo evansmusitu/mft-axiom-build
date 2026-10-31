@@ -52,6 +52,14 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
               "firewall_verified": False, "public_trading_enabled": False,
               "billing_upgrade_authorized": False, "deployment_authorized": False}
     p = call(["freetier", "get-account-plan-state", "--region", "us-east-1"])
+    # Bind Free Tier credit/plan evidence to the same CLI principal as EC2.
+    # Compare in-memory only; never emit AWS account IDs or caller ARNs.
+    caller = call(["sts", "get-caller-identity", "--region", "us-east-1"])
+    account_id = p.get("accountId")
+    caller_account = caller.get("Account")
+    result["caller_matches_free_plan_account"] = (
+        type(account_id) is str and bool(re.fullmatch(r"[0-9]{12}", account_id))
+        and type(caller_account) is str and caller_account == account_id)
     money = p.get("accountPlanRemainingCredits")
     try:
         credit = float(money["amount"]) if type(money) is dict and money.get("unit") == "USD" else 0
@@ -114,7 +122,7 @@ def qualify(call: Callable[[list[str]], dict] = _invoke) -> dict:
                 and not r["Instances"] for r in reservations))
     result["candidate_qualifies_for_manual_review"] = all(
         result[k] for k in ("account_plan_free_active", "credit_buffer_present",
-        "account_not_expired", "minimum_30day_plan_runway", "t3_small_eligible",
+        "caller_matches_free_plan_account", "account_not_expired", "minimum_30day_plan_runway", "t3_small_eligible",
         "t3_small_region_offered", "official_windows_ami_eligible",
         "no_existing_ec2_instances"))
     # No status can ever be promoted to deployment approval here. A separate
