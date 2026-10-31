@@ -128,3 +128,28 @@ A later explicit release authorization is required for each external action.
 **Recommended commercial path:** restricted two-customer design-partner beta
 after the P0 gates, broader REST/API release after measured acceptance and
 support readiness, and a separately reviewed Connect MCP plugin afterward.
+
+## Feature-branch upstream arithmetic response integrity (31 October 2026)
+
+The Python `AxiomComputeExecutor` and the isolated JavaScript production-worker
+source now fail closed on purported arithmetic successes that omit a literal
+`ok: true` or the expected result envelope. They also reject an explicitly
+returned operation that differs from `arithmetic.evaluate`, and a nested
+`ok: false` result. Where a Connect request ID is returned by the upstream,
+identity must be exact; array-to-string coercion is not acceptable.
+
+The Python MCP transport additionally rejects successful JSON-RPC envelopes
+whose structured computation omits `result`, reports a different operation,
+or contains a nested failed/non-boolean `ok` flag. Valid JSON-RPC IDs and
+intentionally sanitized responses without a structured `request_id` remain
+supported. Previously permitted general-purpose production arithmetic is
+**not** disabled or reclassified as methane prediction by these source-only
+changes. This is not a deployed Worker change.
+
+Regression tests: `tests/connect/test_axiom_response_integrity.py`,
+`tests/connect/test_axiom_mcp_protocol_contract.py`, and
+`tests/connect/test_production_worker.mjs`. The real hosted upstream, legacy
+clients and customer isolation still require an independently authorized
+canary/compatibility release process. No new customer credentials, hosted D1
+mutations, beta admission, production deployment, or mine-safety claims are
+authorized here. The separate blocked beta gate remains unchanged.

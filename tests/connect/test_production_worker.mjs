@@ -201,6 +201,51 @@ test('production worker sends provenance-bound risk execution to Axiom and sanit
   }
 });
 
+test('risk rejects malformed Axiom success and operation substitution', async () => {
+  const mod = await worker();
+  const originalFetch = globalThis.fetch;
+  let currentUpstream;
+  globalThis.fetch = async () => Response.json(currentUpstream);
+  try {
+    const malformed = [
+      {},
+      { ok: 'true', result: { result: '3.348' } },
+      { ok: null, result: { result: '3.348' } },
+      { ok: true },
+      { ok: true, result: null },
+      { ok: true, result: { ok: false, result: '3.348' } },
+      { ok: true, operation: 'admin.execute', result: { result: '3.348' } },
+    ];
+    for (const payload of malformed) {
+      currentUpstream = payload;
+      const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ run_id: 'upstream-contract', rows: [scenario[0]] }),
+      }), env);
+      assert.equal(response.status, 502, 'upstream accepted: ' + JSON.stringify(payload));
+      assert.equal((await response.json()).ok, false);
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('risk forbids upstream request-ID type coercion', async () => {
+  const mod = await worker();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => Response.json({
+    ok: true,
+    request_id: [init.headers['x-musitu-request-id']],
+    result: { result: '3.348' },
+  });
+  try {
+    const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ run_id: 'upstream-id', rows: [scenario[0]] }),
+    }), env);
+    assert.equal(response.status, 502);
+    assert.equal((await response.json()).error, 'AXIOM_REQUEST_ID_MISMATCH');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('risk rejects multiple records before Axiom execution rather than silently ignoring records', async () => {
   const mod = await worker();
   const previousFetch = globalThis.fetch;

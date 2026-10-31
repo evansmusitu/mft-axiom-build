@@ -76,6 +76,41 @@ class AxiomResponseIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'AXIOM_REMOTE_RESPONSE_INVALID'):
             self._mcp(response)
 
+    def test_compute_rejects_non_boolean_or_missing_success(self):
+        for response in (
+            '{}',
+            '{"ok":"true","result":{"result":5}}',
+            '{"ok":null,"result":{"result":5}}',
+            '{"ok":true}',
+            '{"ok":true,"result":null}',
+            '{"ok":true,"result":{"ok":false,"result":5}}',
+        ):
+            with self.subTest(response=response):
+                with self.assertRaisesRegex(RuntimeError, 'AXIOM_REMOTE_RESPONSE_INVALID|AXIOM_REMOTE_ERROR'):
+                    self._compute(response)
+
+    def test_compute_rejects_wrong_operation_when_upstream_supplies_it(self):
+        response = '{"ok":true,"operation":"different.execute","result":{"result":5}}'
+        with self.assertRaisesRegex(RuntimeError, 'AXIOM_REMOTE_RESPONSE_INVALID'):
+            self._compute(response)
+
+    def test_compute_accepts_valid_sanitized_success(self):
+        response = '{"ok":true,"request_id":"req-9","operation":"arithmetic.evaluate","result":{"result":5}}'
+        self.assertEqual(self._compute(response)['result']['result'], 5)
+
+    def test_mcp_rejects_unbound_or_failed_structured_computation(self):
+        for structured in (
+            '{}',
+            '{"operation":"other.execute","result":5}',
+            '{"result":{"ok":false,"error":"remote-refusal"}}',
+            '{"result":{"ok":"false","result":5}}',
+        ):
+            with self.subTest(structured=structured):
+                raw = ('{"jsonrpc":"2.0","id":"req-9","result":'
+                       '{"structuredContent":' + structured + '}}')
+                with self.assertRaisesRegex(RuntimeError, 'AXIOM_REMOTE_RESPONSE_INVALID|AXIOM_REMOTE_ERROR'):
+                    self._mcp(raw)
+
     def test_mcp_retains_sanitized_valid_result_without_structured_request_id(self):
         response = '{"jsonrpc":"2.0","id":"req-9","result":{"structuredContent":{"result":5}}}'
         self.assertEqual(self._mcp(response), {'result': 5})

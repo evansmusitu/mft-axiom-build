@@ -81,6 +81,17 @@ class AxiomComputeExecutor:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
         if decoded.get("ok") is False:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
+        if decoded.get("ok") is not True:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        if "operation" in decoded and decoded["operation"] != request["operation"]:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        result = decoded.get("result")
+        if not isinstance(result, dict) or "result" not in result:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        if result.get("ok") is False:
+            raise RuntimeError("AXIOM_REMOTE_ERROR")
+        if "ok" in result and result["ok"] is not True:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         return decoded
 
 class AxiomMcpExecutor:
@@ -139,6 +150,16 @@ class AxiomMcpExecutor:
         structured_request_id=structured.get("request_id")
         if structured_request_id is not None and structured_request_id!=request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
+        if "operation" in structured and structured["operation"] != request["operation"]:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        if "result" not in structured:
+            raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
+        computation = structured["result"]
+        if isinstance(computation, dict):
+            if computation.get("ok") is False:
+                raise RuntimeError("AXIOM_REMOTE_ERROR")
+            if "ok" in computation and computation["ok"] is not True:
+                raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         return structured
 
 class AxiomGateway:

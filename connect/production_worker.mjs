@@ -391,14 +391,27 @@ async function handleRisk(request, env) {
       upstream_status: response.status,
     });
   }
+  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+    return json(502, { ok: false, error: 'AXIOM_RESPONSE_INVALID' });
+  }
   if (
     decoded.request_id !== undefined &&
-    String(decoded.request_id) !== requestId
+    decoded.request_id !== requestId
   ) {
     return json(502, { ok: false, error: 'AXIOM_REQUEST_ID_MISMATCH' });
   }
-  if (decoded.ok === false) {
+  if (decoded.ok === false || decoded.result?.ok === false) {
     return json(502, { ok: false, error: 'AXIOM_REMOTE_ERROR' });
+  }
+  const result = decoded.result;
+  if (
+    decoded.ok !== true ||
+    (decoded.operation !== undefined && decoded.operation !== 'arithmetic.evaluate') ||
+    !result || typeof result !== 'object' || Array.isArray(result) ||
+    !Object.prototype.hasOwnProperty.call(result, 'result') ||
+    (Object.prototype.hasOwnProperty.call(result, 'ok') && result.ok !== true)
+  ) {
+    return json(502, { ok: false, error: 'AXIOM_RESPONSE_INVALID' });
   }
 
   return json(200, {
