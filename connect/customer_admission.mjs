@@ -104,7 +104,13 @@ export async function readConnectCustomerUsage({db, principal, utcDay, nowMs=Dat
       principal.scope,Math.floor(nowMs/1000),
     ).first();
     if (!row) return unauthorized();
-    return {ok:true,tenant_id:row.tenant_id,utc_day:utcDay,
+    // A capability is scoped to one tenant. Do not trust a swapped, stale, or
+    // malformed D1 row to reassign its tenant or publish impossible counters.
+    if (row.tenant_id !== principal.tenant_id ||
+        !Number.isSafeInteger(row.used) || row.used < 0 ||
+        !Number.isSafeInteger(row.daily_limit) ||
+        row.daily_limit < 1 || row.daily_limit > 1_000_000) return unavailable();
+    return {ok:true,tenant_id:principal.tenant_id,utc_day:utcDay,
       used:row.used,daily_limit:row.daily_limit};
   } catch { return unavailable(); }
 }

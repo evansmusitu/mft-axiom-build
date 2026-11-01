@@ -375,3 +375,26 @@ enforcement disabled to model a corrupted/imported local file.
 This only verifies a read-only local database snapshot; it does not prove
 historical auth decisions, hosted D1 atomicity, customer identity, billing
 or production beta eligibility.
+
+
+## Isolated usage-read row integrity (1 November 2026 — source-only)
+
+The customer usage-read capability is already tied to its issuing SQLite/D1
+binding and checked against the current credential status/scope. Additional
+fail-closed validation now requires a returned usage row to identify the
+**exact** tenant recorded in the authenticated, frozen principal. Its `used`
+count must be a nonnegative safe integer, and `daily_limit` must be a safe
+integer inside the local registry's permitted 1–1,000,000 range. Incorrect
+rows yield a generic `CUSTOMER_RUNTIME_UNAVAILABLE` instead of disclosing
+cross-tenant usage or claiming impossible counter types. The response's
+`tenant_id` is derived from the authenticated principal, not re-trusted from
+the returned row.
+
+A valid count **above** the current daily limit remains visible: an operator
+can lower a quota after consumption, so `used > daily_limit` alone does not
+prove database corruption. The new focused regression first reproduced a
+cross-tenant usage disclosure through a simulated stale D1 read adapter,
+then verified fail-closed behavior and this limit-change compatibility case.
+The broader offline Node suite was rerun. This test does not qualify hosted
+Cloudflare D1, actual customers, billing, or beta admission, and does not
+import or enable customer routes in the production Connect Worker.

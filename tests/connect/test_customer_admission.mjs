@@ -321,3 +321,51 @@ test('two separate on-disk SQLite handles cannot jointly exceed one tenant quota
     rmSync(folder,{recursive:true,force:true});
   }
 });
+
+
+test('usage read fails closed on a mismatched tenant or invalid quota row returned by D1',async()=>{
+  const f=fixture({alphaLimit:5});
+  try {
+    // Admit through the real SQLite path, then simulate a stale/corrupt D1
+    // read adapter. The capability belongs to the same binding throughout.
+    const admitted=await admit(f.env,t1,'mining.plan');
+    assert.equal(admitted.ok,true);
+    const normal=await readConnectCustomerUsage({db:f.db,principal:admitted.principal,
+      utcDay:DAY,nowMs:TIME});
+    assert.deepEqual(normal,{ok:true,tenant_id:'tenant_alpha',utc_day:DAY,used:1,daily_limit:5});
+    const actualPrepare=f.db.prepare;
+    let poisoned=null;
+    f.db.prepare=statement=>{
+      if (statement.includes('SELECT t.tenant_id AS tenant_id')) {
+        return {bind(){return {async first(){return poisoned;}}}};
+      }
+      return actualPrepare(statement);
+    };
+    const suspicious=[
+      {tenant_id:'tenant_beta',used:1,daily_limit:5},
+      {tenant_id:'tenant_alpha',used:'1',daily_limit:5},
+      {tenant_id:'tenant_alpha',used:-1,daily_limit:5},
+      {tenant_id:'tenant_alpha',used:5.5,daily_limit:5},
+      {tenant_id:'tenant_alpha',used:1,daily_limit:0},
+      {tenant_id:'tenant_alpha',used:1,daily_limit:1.5},
+    ];
+    for (const row of suspicious){
+      poisoned=row;
+      const result=await readConnectCustomerUsage({db:f.db,
+        principal:admitted.principal,utcDay:DAY,nowMs:TIME});
+      assert.deepEqual(result,{ok:false,status:503,error:'CUSTOMER_RUNTIME_UNAVAILABLE'},
+        'invalid D1 result must not be returned: '+JSON.stringify(row));
+      assert.equal(JSON.stringify(result).includes('tenant_beta'),false);
+    }
+    // An administrator may lower a daily limit after prior usage was
+    // recorded. Counters above today's new limit must remain readable.
+    poisoned={tenant_id:'tenant_alpha',used:6,daily_limit:5};
+    assert.deepEqual(await readConnectCustomerUsage({db:f.db,
+      principal:admitted.principal,utcDay:DAY,nowMs:TIME}),
+      {ok:true,tenant_id:'tenant_alpha',utc_day:DAY,used:6,daily_limit:5});
+    // A normal row on the same verified capability remains readable.
+    poisoned={tenant_id:'tenant_alpha',used:1,daily_limit:5};
+    assert.deepEqual(await readConnectCustomerUsage({db:f.db,
+      principal:admitted.principal,utcDay:DAY,nowMs:TIME}),normal);
+  }finally{f.sql.close();}
+});
