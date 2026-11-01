@@ -1,0 +1,90 @@
+name: MUSITU independent mine source discovery (not validation)
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths: ['.github/workflows/musitu-independent-mine-discovery.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BRICKDATA_PRESENT: ${{ secrets.BRICKDATA_API_KEY != '' }}
+      BRIGHTDATA_TOKEN: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ vars.BRIGHTDATA_SERP_ZONE || secrets.BRIGHTDATA_SERP_ZONE }}
+    steps:
+      - name: One bounded source-discovery attempt, no model qualification
+        run: |
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          from pathlib import Path
+
+          report={
+            "schema":"musitu.methane.external_source_discovery.v1",
+            "claim":"DISCOVERY_ONLY_NOT_AN_INDEPENDENT_HOLDOUT",
+            "independent_methane_model_qualified":False,
+            "known_development_dataset_excluded":True,
+            "brightdata_attempted":False,
+            "candidates":[],
+          }
+          token=os.environ.get("BRIGHTDATA_TOKEN","")
+          zone=os.environ.get("BRIGHTDATA_ZONE","")
+          # A key named BRICKDATA_API_KEY may belong to another provider.
+          # Never send that key to Bright Data without confirming identity.
+          if not token or not zone:
+            report["status"]="MISSING_CONFIRMED_BRIGHTDATA_KEY_OR_ZONE"
+            report["brickdata_alias_present"]=os.environ.get("BRICKDATA_PRESENT","false").lower()=="true"
+          else:
+            query=("open licensed independent underground coal mine methane "
+                   "1 second sensor time series raw data distinct from Polish "
+                   "Mendeley yd7vw4c5mk OpenML 42701")
+            target="https://www.google.com/search?"+urllib.parse.urlencode({
+                "q":query,"brd_json":"1"})
+            body=json.dumps({"zone":zone,"url":target,"format":"raw"}).encode()
+            req=urllib.request.Request(
+              "https://api.brightdata.com/request",data=body,
+              headers={"Authorization":"Bearer "+token,
+                       "Content-Type":"application/json"},method="POST")
+            report["brightdata_attempted"]=True
+            try:
+              with urllib.request.urlopen(req,timeout=30) as response:
+                data=response.read(1_000_001)
+              if len(data)>1_000_000:
+                raise ValueError("provider_response_oversized")
+              payload=json.loads(data)
+              if not isinstance(payload,dict):
+                raise ValueError("provider_response_not_object")
+              organic=payload.get("organic",[])
+              if not isinstance(organic,list):
+                raise ValueError("provider_response_missing_organic")
+              for item in organic[:10]:
+                if not isinstance(item,dict):continue
+                url=item.get("link","")
+                title=item.get("title","")
+                if not isinstance(url,str) or not url.startswith("https://"):continue
+                if not isinstance(title,str):continue
+                report["candidates"].append({"title":title[:180],"url":url[:1000],
+                    "provenance_verified":False,"license_verified":False,
+                    "sensor_coverage_verified":False,"chronological_holdout_verified":False})
+              report["status"]="DISCOVERY_RESULTS_UNVERIFIED"
+            except Exception as error:
+              # Only error class: never log headers, secrets or response body.
+              report["status"]="PROVIDER_REQUEST_UNAVAILABLE"
+              report["error_class"]=type(error).__name__
+          output=Path("independent-mine-source-discovery.json")
+          output.write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+          print("DISCOVERY_STATUS="+report["status"])
+          print("MODEL_VALIDATION=BLOCKED")
+          print("CANDIDATES_UNVERIFIED="+str(len(report["candidates"])))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-independent-mine-source-discovery
+          path: independent-mine-source-discovery.json
+          retention-days: 30
+          if-no-files-found: error
