@@ -117,3 +117,30 @@ on a deployed application, approved connection lifecycle, real customer
 tokens, operational revocation/rollback, disaster recovery, safety
 review, and release authorization. No existing Cloudflare Worker or D1
 binding was changed.
+
+## Additional independent hosted and CI checks
+
+On 1 November 2026, a new synthetic `tenant_neonrace` with daily and
+minute quotas both 3 was exercised on **actual hosted Neon** using 12
+parallel, independent connector invocations to
+`connect_qualification.admit`. Results: 3 `ADMITTED`, 9
+`CUSTOMER_QUOTA_EXCEEDED`, no transport/query errors. Readback showed
+exactly 3 immutable events, 3 daily usage units and 3 minute usage units.
+No real credentials, customer identities or production resources were used.
+The network block was immediately restored and independently checked.
+
+The feature-branch PostgreSQL-17 CI harness on commit
+`00b8c6e52fd2248b8659f20fcc4ee87841fab3c7`, run
+`41323569932`, passed the independent ephemeral 16-client quota race,
+least-privilege role checks, database-enforced UUIDv4, replay, revocation,
+minute quota, audit append-only and accounting reconciliation.
+The feature-branch Connect qualification `41323569902` and
+infrastructure qualification `41323570071` were also successful.
+
+This is bounded security/concurrency **qualification of synthetic
+components**, **not** an approved deployed multi-process Worker-to-Neon
+customer admission, an HA/partition tolerance test, authorization to make
+`NOLOGIN` roles remotely usable by actual customers, or a substitute for
+formal customer release acceptance. Existing external release approvals
+remain blocked. The intentional failed historical UUIDv1 admission event
+remains immutable and documented.
