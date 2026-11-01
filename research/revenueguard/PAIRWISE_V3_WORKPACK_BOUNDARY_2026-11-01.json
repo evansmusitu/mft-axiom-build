@@ -1,0 +1,34 @@
+{
+  "schema": "musitu.revenueguard.v4_1.pairwise_v3_workpack_pointer.v1",
+  "status": "RESEARCH_ONLY_NOT_CERTIFIED",
+  "handoff_sha256": "e0dc025bcc881b03e0a1c811c5bfdc651af0c9d066bb7b70788662f93ba38a40",
+  "frozen_v4_sha256": "16ce77c048bc39990b9fe338f3090e430b2c8d7f2767efef11369bd3013be85d",
+  "local_workpack_name": "MUSITU_REVENUEGUARD_V41_PAIRWISE_V3_RESEARCH_2026-11-01.zip",
+  "local_workpack_sha256": "8620a31b44ce6467c2ac596c55ff4fdda828afb68be757e131f35d1656b49471",
+  "workpack_portability": "Local downloadable ZIP; source code NOT yet committed to GitHub; no assumption of GitHub access to sandbox bytes.",
+  "new_engineering": {
+    "trainer": "ContractNLI pairwise relevance + positive-only semantic head; four chunk deterministic safe checkpoints",
+    "evaluator": "Separate train-calibration/dev, unchanged gate; 8-shard source-bound evaluator",
+    "test_status": "23/23 new model/eval adversarial fixture tests PASS, 13/13 inherited research tests PASS",
+    "frozen_v4_regressions": "30/30 PASS on original unchanged test file"
+  },
+  "historical_evidence": {
+    "contractnli_v2_gate": "FAILED",
+    "cuad_matched_window_training": "COMPLETED_HISTORICAL",
+    "cuad_posttrain_heldout": "NOT_EXECUTED",
+    "github_artifact_status": "Expired; exact model weights not materialized",
+    "contractnli_v3_real_training": "NOT_RUN"
+  },
+  "admission": {
+    "v4_1_assembly": false,
+    "contractnli_test_open": false,
+    "maud_open": false,
+    "cuad_official_test_open": false,
+    "frontier_certification": false
+  },
+  "real_world": {
+    "permissioned_companies": 0,
+    "verified_recovered_cash_usd": 0
+  },
+  "base_repository_branch_not_modified": true
+}
