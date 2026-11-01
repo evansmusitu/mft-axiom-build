@@ -104,3 +104,20 @@ Next:
 - run MR-native pipeline/review
 - merge without squash while retaining source branch
 - post-merge main verification
+
+
+## Phase 2.5C — authenticated workers and lease-scoped capabilities
+
+- complete: server-owned Ed25519 worker identities/trust records and exact signed request authentication
+- complete: distinct Ed25519 lease-capability signer authority with canonical core commitments
+- complete: durable worker-operation receipts and exact request-ID conflict/replay semantics
+- complete: SQLite authenticated claims, heartbeat rotation, release/completion/failure fencing, integrity checks, and legacy migration behavior
+- complete: PostgreSQL authenticated parity with transactional receipts and `FOR UPDATE SKIP LOCKED`
+- complete: authenticated-only distributed worker runtime and one-durable-execution crash recovery
+- complete: removal of raw worker-ID repository mutations and legacy worker runtime path
+- complete: exact stale receipt replay without permitting stale new mutations
+- complete: P2.5A/P2.5B fixtures and gates migrated to authenticated worker control
+- complete: P2.5C end-to-end acceptance gate and GitHub Actions wiring
+- security review: no unresolved Critical or Important findings after two Important fixes plus runtime-private helper hardening
+- pre-documentation code-head verification: GitHub Actions run `41321869818` passed Phase 1, full Phase 2 conformance/gates through P2.5C, and PostgreSQL
+- merge readiness still requires a fresh exact-head workflow after documentation, PR-native green verification, non-squash merge with source retained, and post-merge main verification
