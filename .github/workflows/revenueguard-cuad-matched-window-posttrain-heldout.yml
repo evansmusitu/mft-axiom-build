@@ -27,7 +27,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
+          for attempt in $(seq 1 60); do
+            curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
+            if python -c "import json; a=json.load(open('matched_runs.json'))['workflow_runs']; assert any(x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success' for x in a)"; then
+              break
+            fi
+            echo "Waiting for the successful matched training workflow to finalize (attempt ${attempt}/60)"
+            sleep 10
+          done
           python - <<'PY'
           import json
           r=json.load(open('matched_runs.json'))['workflow_runs']
@@ -112,7 +119,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
+          for attempt in $(seq 1 60); do
+            curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
+            if python -c "import json; a=json.load(open('matched_runs.json'))['workflow_runs']; assert any(x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success' for x in a)"; then
+              break
+            fi
+            echo "Waiting for the successful matched training workflow to finalize (attempt ${attempt}/60)"
+            sleep 10
+          done
           python - <<'PY'
           import json
           r=json.load(open('matched_runs.json'))['workflow_runs']
