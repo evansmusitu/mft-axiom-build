@@ -24,7 +24,7 @@ jobs:
           assert 'ranking_loss' in train and 'semantic_logits[positives]' in train
           assert 'if partition(d) != \'build\'' in train
           assert 'test.json' not in train and "'maud_opened': False" in train
-          assert 'EXPECTED_DUPLICATE_CAL_DOCS = (\'548\',)' in gate
+          assert 'EXPECTED_EXCLUDED_DUPLICATE_CAL_DOCS = (\'548\',)' in gate
           assert "gate = {'accuracy_min': .90, 'macro_f1_min': .88, 'false_grounding_max': .02, 'evidence_recall_min': .85}" in gate
           assert 'dev_metrics(devrows)' in gate
           assert 'relevance_calibration_metrics(cal, k, th)' in gate
