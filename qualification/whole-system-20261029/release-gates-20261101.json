@@ -59,15 +59,37 @@
     }
   },
   "hosted_d1": {
-    "status": "BLOCKED_FRESH_ATTEMPT05_CF7406",
-    "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
-    "workflow_run_id": 41330823895,
-    "artifact_sha256": "2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02",
-    "databases_listed": 11,
-    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+    "status": "CONFIRMED_OWNER_SELECTED_STAGING_NAMESPACE_COMPONENT",
+    "owner_selected_database_name": "mft-axiom-claude-staging-20260927",
+    "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+    "namespace": "axiom_q06_",
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "workflow_run_id": 41343885986,
+    "artifact_sha256": "d9df2b87cfc62798a742879173b13212a9a5d1891fb28124e36f1c1246cbcc86",
+    "checks_passed": 7,
+    "migrations": "CONFIRMED_IN_SELECTED_TABLE_NAMESPACE",
+    "physical_database_isolation_qualified": false,
+    "new_database_created": false,
+    "existing_databases_deleted": 0,
+    "original_schema_records_and_worker_unchanged": true,
+    "durable_call_reservations_qualified": true,
+    "budget_unit": "CALLS_NOT_CURRENCY",
+    "actual_model_inference_budget_qualification": "NO_NEW_INFERENCE_PERFORMED",
+    "fresh_process_receipt_verified": true,
+    "temporary_worker_provider_readback": 404,
     "inference_calls": 0,
-    "migrations": "NOT_REACHED",
-    "existing_database_changes": 0
+    "evidence": "hosted-d1-reuse06-20261101.json",
+    "prior_attempt05_capacity_failure": {
+      "status": "BLOCKED_FRESH_ATTEMPT05_CF7406",
+      "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
+      "workflow_run_id": 41330823895,
+      "artifact_sha256": "2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02",
+      "databases_listed": 11,
+      "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+      "inference_calls": 0,
+      "migrations": "NOT_REACHED",
+      "existing_database_changes": 0
+    }
   },
   "hosted_postgres": {
     "status": "CONFIRMED_ISOLATED_COMPONENT_SCOPE",
@@ -111,7 +133,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "f2a0de932118c9c87720bf846aea885177e32ca5",
+  "last_revalidation_source": "168dbaa3a04433b553847e149cc670b0efdf0317",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -124,19 +146,20 @@
     "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
   },
   "verification": {
-    "source_sha": "f2a0de932118c9c87720bf846aea885177e32ca5",
-    "tree_sha": "0590dc387a6991d8adfc1fce1657e5f6451f6f7b",
-    "ci_merge_sha": "6c9c2c23121deaf73ec6792c9def15525a1df657",
-    "ci_merge_same_tree_verified": true,
-    "workflow_run_id": 41339624792,
-    "artifact_id": 13096837258,
-    "artifact_sha256": "9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84",
-    "download_hash_verified": true,
     "groups_passed": 21,
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "tree_sha": "b2be0d2095e0104493d630b59fc9577d7c60be62",
+    "ci_merge_sha": "78c0d240b6a184d6f85bc391ae6c4a3859fc38a8",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41343886169,
+    "artifact_id": 13097918302,
+    "artifact_sha256": "863e45cefa40eb90d02e5b5139b5ac110852bca65d20d08e1e66a0a476804640",
+    "download_hash_verified": true,
     "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
-    "isolated_workerd_tests": 9,
+    "local_workerd_storage_tests": 12,
+    "hosted_acceptance_protocol_tests": 6,
     "external_ledger_regression_tests": 22,
     "positive_external_ledger_checks": 21,
     "expected_authority_restore_counterexamples": 1
@@ -204,5 +227,23 @@
     "isolated_workerd_tests": 9,
     "workers_ai_offline_admission_protocol_tests": 10,
     "hosted_acceptance_protocol_tests": 6
+  },
+  "prior_verification_continuation07": {
+    "source_sha": "f2a0de932118c9c87720bf846aea885177e32ca5",
+    "tree_sha": "0590dc387a6991d8adfc1fce1657e5f6451f6f7b",
+    "ci_merge_sha": "6c9c2c23121deaf73ec6792c9def15525a1df657",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41339624792,
+    "artifact_id": 13096837258,
+    "artifact_sha256": "9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84",
+    "download_hash_verified": true,
+    "groups_passed": 21,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "isolated_workerd_tests": 9,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
   }
 }
