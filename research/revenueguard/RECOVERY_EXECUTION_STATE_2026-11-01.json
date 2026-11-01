@@ -1,0 +1,64 @@
+{
+  "schema": "musitu.revenueguard.v4_1.checkpoint_recovery.execution_state.v1",
+  "as_of_utc": "2026-11-01",
+  "status": "SOURCE_RETRAINING_IN_PROGRESS_NOT_YET_RECOVERED",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "revenueguard-v41-postgate-research-20261101",
+  "historical_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
+  "unchanged_frozen_v4_sha256": "16ce77c048bc39990b9fe338f3090e430b2c8d7f2767efef11369bd3013be85d",
+  "historical_artifact_situation": "GitHub Actions artifacts expired; GitHub returns HTTP 403 for jobs older than one month; old hashes cannot reconstruct model weights",
+  "source_recovery": {
+    "contractnli": {
+      "run_id": 41330633559,
+      "source_commit": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
+      "observed_state": "IN_PROGRESS",
+      "artifact_expected_name": "revenueguard-contractnli-adapted-model",
+      "next_conditional_workflow": ".github/workflows/revenueguard-v3-pairwise-recovery.yml",
+      "trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json",
+      "dev_workflow": ".github/workflows/revenueguard-v3-pairwise-locked-dev.yml",
+      "dev_trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_DEV.json"
+    },
+    "cuad": {
+      "run_id": 41330640096,
+      "source_commit": "914be62c1cff332ee7c3ad5189805103e9debe3a",
+      "observed_state": "IN_PROGRESS",
+      "source_artifact_expected_name": "revenueguard-cuad-epoch1-chunked-final",
+      "matched_workflow": ".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",
+      "matched_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json",
+      "heldout_workflow": ".github/workflows/revenueguard-cuad-matched-window-posttrain-heldout.yml",
+      "heldout_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_POSTTRAIN_HELDOUT.json",
+      "frozen_curriculum": {
+        "positive": 12305,
+        "same_question_hard_negative": 49354,
+        "total": 61659,
+        "max_length": 384,
+        "stride": 128,
+        "heldout_contracts": 45,
+        "heldout_questions": 2461
+      }
+    }
+  },
+  "checks": {
+    "github_recovery_infrastructure_smoke": "PASS",
+    "github_v3_recovery_source_gate_preflight": {
+      "run_id": 41331509794,
+      "status": "PASS"
+    },
+    "inherited_v3_research_unit_tests": "36/36 PASS",
+    "frozen_v4_structured_money_regressions": "30/30 PASS",
+    "source_adapter_final_artifact_present": false,
+    "cuad_source_final_artifact_present": false,
+    "contractnli_v3_real_dev_gate": "NOT_YET_EXECUTED",
+    "cuad_matched_heldout_gate": "NOT_YET_EXECUTED"
+  },
+  "limits": {
+    "certification": "NOT_CERTIFIED",
+    "permissioned_real_companies": 0,
+    "verified_recovered_cash_usd": 0,
+    "contractnli_test_opened": false,
+    "official_cuad_test_opened": false,
+    "maud_opened": false,
+    "v4_1_assembly_allowed": false
+  },
+  "rule": "Newly trained checkpoints must have their own SHA-256 and training ancestry; do not relabel regenerated artifacts with historic hashes. Trigger downstream workflows only after prerequisite success and verified artifacts; never bypass dev gates."
+}
