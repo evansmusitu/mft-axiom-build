@@ -1,7 +1,7 @@
 {
   "schema": "musitu.revenueguard.v4_1.checkpoint_recovery.execution_state.v1",
   "as_of_utc": "2026-11-01",
-  "status": "SOURCE_ENCODER_RECOVERED_AND_V3_REAL_TRAINING_STARTED_CUAD_SOURCE_TRAINING_IN_PROGRESS",
+  "status": "CONTRACTNLI_SOURCE_RECOVERED_V3_TRAINING_ACTIVE_CUAD_SOURCE_PARTIAL",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "revenueguard-v41-postgate-research-20261101",
   "historical_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
@@ -11,7 +11,7 @@
     "contractnli": {
       "run_id": 41330633559,
       "source_commit": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
-      "observed_state": "SUCCESS_FRESH_SOURCE_ARTIFACT_VERIFIED",
+      "observed_state": "SOURCE_RECOVERED_V3_CHUNK0_TRAINING",
       "artifact_expected_name": "revenueguard-contractnli-adapted-model",
       "next_conditional_workflow": ".github/workflows/revenueguard-v3-pairwise-recovery.yml",
       "trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json",
@@ -21,12 +21,21 @@
       "artifact_sha256": "ea7e9a0cf451ea998cd2b055df93b3a7cbde52654cc1268446e5682f7adb6916",
       "v3_training_run_id": 41336589127,
       "v3_training_trigger_commit": "dc4f8cae8256867d43af65cff8286fccb31ec000",
-      "v3_training_observed_state": "CHUNK0_IN_PROGRESS_SOURCE_PROVENANCE_AND_CORPUS_CHECKS_PASSED"
+      "v3_training_observed_state": "CHUNK0_IN_PROGRESS_SOURCE_PROVENANCE_AND_CORPUS_CHECKS_PASSED",
+      "recovery_artifact_id": 13094882183,
+      "recovery_artifact_sha256": "ea7e9a0cf451ea998cd2b055df93b3a7cbde52654cc1268446e5682f7adb6916",
+      "v3_training_jobs": [
+        {
+          "name": "chunk0",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
     },
     "cuad": {
       "run_id": 41330640096,
       "source_commit": "914be62c1cff332ee7c3ad5189805103e9debe3a",
-      "observed_state": "CHUNKS_0_AND_1_SUCCESS_CHUNK2_IN_PROGRESS",
+      "observed_state": "CHUNKS_0_1_2_SUCCEEDED_CHUNK_3_ACTIVE",
       "source_artifact_expected_name": "revenueguard-cuad-epoch1-chunked-final",
       "matched_workflow": ".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",
       "matched_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json",
@@ -53,7 +62,34 @@
           "sha256": "cc9d6ffe4c5ee8a1cf0b909a542a0c5d78da0f6cd8bf5855ef4be28747ee743f"
         }
       ],
-      "downstream_workflow_source_digest_verifier_syntax_fix_commit": "7ed925d014e954998208af4af3b0e6d5774cc804"
+      "downstream_workflow_source_digest_verifier_syntax_fix_commit": "7ed925d014e954998208af4af3b0e6d5774cc804",
+      "completed_chunks": [
+        "chunk0",
+        "chunk1",
+        "chunk2"
+      ],
+      "jobs": [
+        {
+          "name": "chunk0",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk1",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk3",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
     }
   },
   "checks": {
@@ -66,8 +102,8 @@
     "frozen_v4_structured_money_regressions": "30/30 PASS",
     "source_adapter_final_artifact_present": true,
     "cuad_source_final_artifact_present": false,
-    "contractnli_v3_real_dev_gate": "NOT_EXECUTED",
-    "cuad_matched_heldout_gate": "NOT_EXECUTED",
+    "contractnli_v3_real_dev_gate": "NOT_YET_EXECUTED",
+    "cuad_matched_heldout_gate": "NOT_YET_EXECUTED",
     "contractnli_v3_real_training": "CHUNK0_IN_PROGRESS"
   },
   "limits": {
