@@ -1,0 +1,98 @@
+{
+  "schema": "musitu.axiom.workers-ai-acceptance.v1",
+  "source_sha": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
+  "workflow_run_id": "41322607931",
+  "remote_claim_id": 13090340325,
+  "scope": "REAL_WORKERS_AI_WITH_LOCAL_SQLITE_GOVERNANCE",
+  "started_at": "2026-11-01T15:43:03.243Z",
+  "checks": {
+    "output_receipt_observer_recovery": {
+      "status": "CONFIRMED",
+      "task_id": "task_6b5dedcdb12c16c469e36812ed5a4a6346a5f1874dba0590",
+      "actual_summary": "This is a short acknowledgement containing marker 52ad40f32213daa102f6d677.",
+      "nonce_matches": true,
+      "receipt_sha256": "37cdf138bab206bc62f4676164fe9a881fec8c4d67cd9db3515c176d22b1c21a",
+      "artifact_sha256": "46db2034a8c69806ce37cadf47f2edfc1a277bd0161fd101d6339498804995d9",
+      "provider_calls": 2,
+      "inputs_resent": false
+    },
+    "replay_and_tenant_readback": {
+      "status": "CONFIRMED",
+      "extra_model_calls": 0,
+      "other_tenant_result": null
+    },
+    "call_budget_denial": {
+      "status": "CONFIRMED",
+      "extra_model_calls": 0
+    },
+    "fresh_process_readback": {
+      "status": "COMPLETED",
+      "receipt_sha256": "37cdf138bab206bc62f4676164fe9a881fec8c4d67cd9db3515c176d22b1c21a",
+      "extra_model_calls": 0
+    },
+    "active_stream_abort_and_work_revocation": {
+      "status": "CONFIRMED_CLIENT_AND_APPLICATION_SCOPE",
+      "content_delta_observed": true,
+      "abort_signal": true,
+      "work_revoked": true,
+      "terminal_application_status": "FAILED",
+      "successful_artifacts": 0,
+      "extra_dispatch_after_revocation": 0,
+      "provider_terminal_cancellation": "UNATTESTED_NO_PROVIDER_TURN_CANCEL_READBACK"
+    },
+    "free_allowance_observation": {
+      "status": "CONFIRMED_ANALYTICS_SCOPE",
+      "before": 0,
+      "after": 0,
+      "invoice_or_atomic_spend_proof": false
+    }
+  },
+  "inference_calls": 3,
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "hosted_d1_qualified": false,
+  "openai_agents_qualified": false,
+  "independent_custody_certified": false,
+  "anti_rollback_certified": false,
+  "release_authorized": false,
+  "billing_changes": 0,
+  "deployments": 0,
+  "usage_before": {
+    "observed_at": "2026-11-01T15:43:03.244Z",
+    "start": "2026-11-01T00:00:00.000Z",
+    "end": "2026-11-01T15:43:03.244Z",
+    "neurons": 0,
+    "rows": [],
+    "scope": "ACCOUNT_WIDE_ANALYTICS_NOT_AN_ATOMIC_BILLING_LOCK"
+  },
+  "limits": {
+    "free_daily_neurons": 10000,
+    "observed_neurons": 0,
+    "max_calls": 3,
+    "max_request_bytes": 8000,
+    "max_output_tokens_per_call": 1800,
+    "conservative_test_allowance_neurons": 1000,
+    "account_billing_hard_cap": false
+  },
+  "usage_after": {
+    "observed_at": "2026-11-01T15:44:23.594Z",
+    "start": "2026-11-01T00:00:00.000Z",
+    "end": "2026-11-01T15:44:23.594Z",
+    "neurons": 0,
+    "rows": [],
+    "scope": "ACCOUNT_WIDE_ANALYTICS_NOT_AN_ATOMIC_BILLING_LOCK"
+  },
+  "status": "CONFIRMED_BOUNDED_COMPONENT_SCOPE",
+  "cleanup": {
+    "local_database_removed": true,
+    "cloud_resources_created": 0
+  },
+  "completed_at": "2026-11-01T15:44:23.850Z",
+  "artifact": {
+    "id": 13089544814,
+    "sha256": "52f4e67808a1f2b85c2e2cd74fd66dd3b72a7025d43ba6ea7c3bba973533cc50",
+    "download_hash_verified": true
+  },
+  "root_receipt_commitments_verified": true,
+  "completed_response_usage_neurons": 52.20908737182617,
+  "zero_invoice_certified": false
+}

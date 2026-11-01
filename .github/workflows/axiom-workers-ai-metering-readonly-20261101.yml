@@ -1,0 +1,39 @@
+name: AXIOM Workers AI metering readback only
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/workers-ai-metering-authorization-20261101.json']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-workers-ai-metering-readback-20261101
+  cancel-in-progress: false
+jobs:
+  read-only-metering:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct read-only continuation
+        run: test "$(git rev-parse HEAD^)" = 5273169f6f5ba8f9e595b6a2024022198ea660ea
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Read delayed usage without inference
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node qualification/whole-system-20261029/workers-ai-metering-readback.mjs
+      - name: Preserve actual metering readback
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-workers-ai-metering-20261101-01
+          path: qualification/whole-system-20261029/workers-ai-metering-results/*.json
+          retention-days: 90
+          if-no-files-found: error

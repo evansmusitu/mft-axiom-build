@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   bounded-acceptance:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    if: github.event.pull_request.head.sha == '5273169f6f5ba8f9e595b6a2024022198ea660ea' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:

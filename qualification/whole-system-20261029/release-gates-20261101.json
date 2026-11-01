@@ -75,7 +75,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "64a1eecadeca55b6f3ac623faae49e48d362b882",
+  "last_revalidation_source": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -88,15 +88,40 @@
     "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
   },
   "verification": {
-    "groups_passed": 19,
-    "source_sha": "64a1eecadeca55b6f3ac623faae49e48d362b882",
-    "tree_sha": "0f353746677face2ce33658e75133b3c361200b0",
-    "workflow_run_id": 41314566465,
-    "artifact_id": 13086519184,
-    "artifact_sha256": "1cbb2988fa5b86b7cd7ab4ee4878f3fe0419149ca63322249b0e1b3439bf6673",
-    "application_tests": 490,
+    "groups_passed": 20,
+    "source_sha": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
+    "tree_sha": "9b8182318fdc4b258c4d8f9abc1f6e0eda7e02fa",
+    "ci_merge_sha": "966f585f0df59c7e411075e1680306d774c80fb1",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41322607849,
+    "artifact_id": 13090505207,
+    "artifact_sha256": "26219e9ff1fc2f59050bb6b401890f4e5165427a8ba99a18a5a1b217693a8634",
+    "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
-    "isolated_workerd_tests": 9
+    "isolated_workerd_tests": 9,
+    "workers_ai_offline_admission_protocol_tests": 8
+  },
+  "workers_ai_alternative": {
+    "status": "CONFIRMED_BOUNDED_COMPONENT_SCOPE",
+    "model": "@cf/google/gemma-4-26b-a4b-it",
+    "source_sha": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
+    "workflow_run_id": 41322607931,
+    "artifact": {
+      "id": 13089544814,
+      "sha256": "52f4e67808a1f2b85c2e2cd74fd66dd3b72a7025d43ba6ea7c3bba973533cc50",
+      "download_hash_verified": true
+    },
+    "real_output_and_receipt": true,
+    "observer_disconnect_recovery": true,
+    "fresh_process_readback": true,
+    "replay_extra_calls": 0,
+    "inference_calls": 3,
+    "completed_response_neurons": 52.20908737182617,
+    "client_abort_and_work_revocation": "CONFIRMED",
+    "provider_terminal_cancellation": "UNATTESTED",
+    "hosted_d1_qualified": false,
+    "zero_invoice_certified": false,
+    "further_automatic_dispatch": "DISABLED_BY_EXECUTED_SOURCE_PIN"
   }
 }
