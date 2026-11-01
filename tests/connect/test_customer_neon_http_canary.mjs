@@ -8,7 +8,7 @@ const UUID = '12345678-1234-4234-8234-123456789abc';
 const digest = createHash('sha256').update(TOKEN).digest('hex');
 const URL = 'https://isolated.example.invalid/__synthetic/neon/mining.plan';
 const ROW = {accepted:true,code:'ADMITTED',authorized_tenant:'tenant_canary',daily_used:'1'};
-const headers = {'authorization': `Bearer ${TOKEN}`, 'x-musitu-request-id':UUID};
+const headers = {'authorization': 'Bearer ' + TOKEN, 'x-musitu-request-id':UUID};
 function setup(row=ROW){
   const queries=[];
   const env={CONNECT_NEON_MODE:'isolated-synthetic-only',CONNECT_NEON_HTTP_ENABLED:true,CONNECT_NEON_HTTP_ORIGIN:'https://isolated.example.invalid',
@@ -63,4 +63,21 @@ test('denied scope, invalid bearer, quota and replay expose only stable codes',a
     [{accepted:false,code:'UNAUTHORIZED',authorized_tenant:null},401,'UNAUTHORIZED'],
     [{accepted:false,code:'CUSTOMER_QUOTA_EXCEEDED',authorized_tenant:'tenant_canary'},429,'CUSTOMER_QUOTA_EXCEEDED'],
     [{accepted:false,code:'CUSTOMER_MINUTE_QUOTA_EXCEEDED',authorized_tenant:'tenant_canary'},429,'CUSTOMER_MINUTE_QUOTA_EXCEEDED'],
-    [{accepted:false,code:'REQUEUMQ}%}=91%Pœ±…ÕÑ¡½É¥é•‘}Ñ•¹…¹ÐèÑ•¹…¹Ñ}…¹…Éäô°ÐÀä°IEUMQ}%}=91%Pt°(€tì(€™½È¡½¹ÍÐmÉ½Ü±ÍÑ…ÑÕÌ±½‘•t½˜…Í•Ì¥ì(€€€½¹ÍÐ¥¹¹•ÈõÍ•ÑÕÀ¡É½Ü¤í½¹ÍÐÈõ…Ý…¥Ð¡…¹‘±”¡É•ÅÕ•ÍÐ ¤±¥¹¹•È¹•¹Ø¤ì(€€€…ÍÍ•ÉÐ¹•ÅÕ…°¡È¹ÍÑ…ÑÕÌ±ÍÑ…ÑÕÌ¤í…ÍÍ•ÉÐ¹‘••ÁÅÕ…°¡…Ý…¥Ð‰½‘ä¡È¤±í½¬é™…±Í”±•ÉÉ½Èé½‘•ô¤ì(€ô)ô¤ì()Ñ•ÍÐ Õ¹•áÁ•Ñ•‘…Ñ…‰…Í”•á•ÁÑ¥½¹Ì…¹µ…±™½Éµ•É•ÍÕ±Ð™…¥°±½Í•Ý¥Ñ €ÔÀÌœ±…Íå¹Œ ¤ôùì(€™½È¡½¹ÍÐ‘ˆ½˜mí…Íå¹ŒÅÕ•Éä ¥íÑ¡É½Ü¹•ÜÉÉ½È ÁÉ¥Ù…Ñ”ME0™…¥±ÕÉ”Ñ½­•¸õÍ•É•Ðœ¥õô±í…Íå¹ŒÅÕ•Éä ¥íÉ•ÑÕÉ¸íÉ½ÝÌémuõõt¥ì(€€€½¹ÍÐ•¹Øõí=99Q}9=9}5=è¥Í½±…Ñ•µÍå¹Ñ¡•Ñ¥Œµ½¹±äœ±=99Q}9=9}!QQA}9	1éÑÉÕ”±=99Q}9=9}!QQA}=I%%8è¡ÑÑÁÌè¼½¥Í½±…Ñ•¹•á…µÁ±”¹¥¹Ù…±¥œ±=99Q}9=9}é‘‰ôì(€€€½¹ÍÐÈõ…Ý…¥Ð¡…¹‘±”¡É•ÅÕ•ÍÐ ¤±•¹Ø¤ì(€€€…ÍÍ•ÉÐ¹•ÅÕ…°¡È¹ÍÑ…ÑÕÌ°ÔÀÌ¤ì(€€€½¹ÍÐÁ…å±½…õ…Ý…¥Ð‰½‘ä¡È¤ì(€€€…ÍÍ•ÉÐ¹‘••ÁÅÕ…°¡Á…å±½…±í½¬é™…±Í”±•ÉÉ½ÈèUMQ=5I}9=9}U9Y%1	1ô¤ì(€€€…ÍÍ•ÉÐ¹‘½•Í9½Ñ5…Ñ ¡)M=8¹ÍÑÉ¥¹¥™ä¡Á…å±½…¤°½ÁÉ¥Ù…Ñ•ñÍ•É•ÑñME0¼¤ì(€ô)ô¤ì
+    [{accepted:false,code:'REQUEST_ID_CONFLICT',authorized_tenant:'tenant_canary'},409,'REQUEST_ID_CONFLICT'],
+  ];
+  for(const [row,status,code] of cases){
+    const inner=setup(row);const r=await handle(request(),inner.env);
+    assert.equal(r.status,status);assert.deepEqual(await body(r),{ok:false,error:code});
+  }
+});
+
+test('unexpected database exceptions and malformed result fail closed with 503',async()=>{
+  for(const db of [{async query(){throw new Error('private SQL failure token=secret')}},{async query(){return {rows:[]}}}]){
+    const env={CONNECT_NEON_MODE:'isolated-synthetic-only',CONNECT_NEON_HTTP_ENABLED:true,CONNECT_NEON_HTTP_ORIGIN:'https://isolated.example.invalid',CONNECT_NEON_DB:db};
+    const r=await handle(request(),env);
+    assert.equal(r.status,503);
+    const payload=await body(r);
+    assert.deepEqual(payload,{ok:false,error:'CUSTOMER_NEON_UNAVAILABLE'});
+    assert.doesNotMatch(JSON.stringify(payload),/private|secret|SQL/);
+  }
+});
