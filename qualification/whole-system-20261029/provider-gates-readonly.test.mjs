@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {classifySavedCancellation,inspectProviderGates} from './provider-gates-readonly-20261101.mjs';
+import {classifySavedCancellation,inspectProviderGates,safeInferenceFields} from './provider-gates-readonly-20261101.mjs';
 import {sanitizedMember,readAuthorityRoles} from './authority-provider-reconcile09.mjs';
 test('only an exact saved request identity and provider abort record can confirm cancellation',()=>{
   const ray='a53c044b0eda9b36';
@@ -27,4 +27,8 @@ test('unavailable authority metadata cannot establish custody and never dispatch
 test('saved-request reconciliation accepts a wider bounded window but rejects malformed windows before network access',async()=>{
   for(const savedWindow of [{start:'2026-11-01T15:40:00Z',end:'2026-11-03T00:00:00Z'},{start:'injected',end:'2026-11-01T20:00:00Z'}])await assert.rejects(()=>inspectProviderGates({token:'fixture',savedWindow,fetchImpl:()=>{throw Error('network must not be reached');}}),/bounded saved-request time window/);
   const result=classifySavedCancellation([{datetime:'2026-11-01T16:00:00Z',errorCode:3008,totalNeurons:0}]);assert.equal(result.status,'UNRESOLVED');assert.equal(result.final_usage,null,'a later or matching-time row without the saved identity is not proof');
+});
+test('provider Time scalars retain request timestamps without exposing tags, prompts or responses',()=>{
+  const field=(name,type)=>({name,type:{name:'',ofType:{name:type}}});
+  assert.deepEqual(safeInferenceFields({fields:[field('datetime','Time'),field('inferenceTimeMs','uint64'),field('neurons','float64'),field('tag','string'),field('prompt','string'),field('response','string')]}),['datetime','inferenceTimeMs','neurons']);
 });

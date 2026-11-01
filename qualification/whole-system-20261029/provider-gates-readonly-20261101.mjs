@@ -8,7 +8,8 @@ import {readAINeurons} from './workers-ai-free-client.mjs';
 
 const digest=v=>createHash('sha256').update(String(v)).digest('hex');
 const unwrap=t=>t?(t.name||unwrap(t.ofType)):null;
-const scalarNames=new Set(['datetime','date','modelId','modelName','requestId','rayId','status','statusCode','errorCode','errorDescription','responseStatus','responseStatusCode','totalNeurons','neurons','totalInputTokens','totalOutputTokens','inputTokens','outputTokens','requestSource','sampleInterval']);
+const scalarNames=new Set(['datetime','date','modelId','modelName','requestId','rayId','status','statusCode','errorCode','errorDescription','responseStatus','responseStatusCode','totalNeurons','neurons','totalInputTokens','totalOutputTokens','inputTokens','outputTokens','requestSource','sampleInterval','inferenceTimeMs','requestBytesIn','requestBytesOut']);
+export function safeInferenceFields(rowType){return (rowType?.fields??[]).filter(x=>scalarNames.has(x.name)&&['String','Int','Float','Boolean','Date','DateTime','Time','string','uint64','uint32','float64','datetime'].includes(unwrap(x.type))).map(x=>x.name);}
 export function classifySavedCancellation(rows,ray='a53c044b0eda9b36'){
   const exact=rows.filter(row=>Object.entries(row).some(([key,value])=>/^(?:rayId|requestId)$/i.test(key)&&String(value).split('-')[0]===ray));
   if(exact.length!==1)return {status:'UNRESOLVED',reason:exact.length?'AMBIGUOUS_REQUEST_ID':'SAVED_REQUEST_ID_NOT_FOUND',exact_matches:exact.length,final_usage:null};
@@ -59,7 +60,7 @@ export async function inspectProviderGates({token,fetchImpl=fetch,observe=()=>{}
   const schema=report.checks.inference_analytics_schema?.value??[];
   const rowType=schema.find(x=>/AiInferenceAdaptive(?:Fields)?$/i.test(x?.name??'')&&x?.fields);
   await capture('saved_request_rows',async()=>{
-    const fields=(rowType?.fields??[]).filter(x=>scalarNames.has(x.name)&&['String','Int','Float','Boolean','Date','DateTime','string','uint64','uint32','float64','datetime'].includes(unwrap(x.type))).map(x=>x.name);
+    const fields=safeInferenceFields(rowType);
     if(!fields.length)throw new Error('per-request analytics schema unavailable');
     const filters=schema.find(x=>/AiInferenceAdaptiveFilter_InputObject$/i.test(x?.name??''))?.inputFields?.map(x=>x.name)??[];
     const startKey=filters.includes('datetime_geq')?'datetime_geq':'datetime_gt';

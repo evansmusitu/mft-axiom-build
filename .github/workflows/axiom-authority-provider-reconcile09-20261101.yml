@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
       - name: Admit only the direct user-authorized gate reconciliation
-        run: test "$(git rev-parse HEAD^)" = 68f77111f7ecd1e5b773dceca75f311f5b664bc0
+        run: test "$(git rev-parse HEAD^)" = 1a53205de55799bd99914bb129b957626c59a8b1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.12.0'
