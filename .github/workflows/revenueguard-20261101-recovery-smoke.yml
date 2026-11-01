@@ -1,0 +1,14 @@
+name: RevenueGuard recovery infrastructure smoke
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['.github/workflows/revenueguard-20261101-recovery-smoke.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -c "print('recovery-isolated')"
