@@ -1,0 +1,12 @@
+{
+  "schema": "musitu.axiom.d1-attempt05-authorization.v1",
+  "user_instruction": "Provider-confirmed cancellation and the remaining D1, custody and anti-rollback gates",
+  "scope": "One fresh isolated D1 database and storage-only acceptance using the existing account",
+  "database_name": "axiom-acceptance-20261101-05",
+  "max_new_databases": 1,
+  "max_inference_calls": 0,
+  "existing_database_changes": false,
+  "billing_changes": false,
+  "production_changes": false,
+  "release_authorized": false
+}

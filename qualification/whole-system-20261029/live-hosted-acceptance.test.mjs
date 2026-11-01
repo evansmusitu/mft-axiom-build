@@ -1,11 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {interruptedCreationFetch,acceptanceResult,runGovernedHostedTask,isActiveCancellationTurn} from './live-hosted-acceptance.mjs';
+import {interruptedCreationFetch,acceptanceResult,runGovernedHostedTask,isActiveCancellationTurn,runHostedStorageAcceptance} from './live-hosted-acceptance.mjs';
 import {sha256Json,verifyTaskCommitments} from '../../axiom_interface/vnext/execution_integrity.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+
+test('fresh attempt05 cannot authorize any inference',async()=>{
+  await assert.rejects(()=>runHostedStorageAcceptance({runId:'axiom-acceptance-20261101-05',storageOnly:false}),/storage only, with zero inference/);
+});
 
 test('active cancellation rejects queued, terminal, primary and subagent events',()=>{
   for(const status of ['queued','waiting','completed','failed','cancelled'])assert.equal(isActiveCancellationTurn({type:'agent.session.turn.created',turn:{id:'control',status}},'primary'),false);

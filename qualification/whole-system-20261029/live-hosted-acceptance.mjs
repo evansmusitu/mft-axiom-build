@@ -162,7 +162,8 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
 }
 
 export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,storageOnly=false}={}){
-  const runId=isolatedRunId;assert.match(runId,/^axiom-acceptance-20261101-0[14]$/);
+  const runId=isolatedRunId;assert.match(runId,/^axiom-acceptance-20261101-0[145]$/);
+  if(runId.endsWith('-05'))assert.equal(storageOnly,true,'attempt05 authorizes storage only, with zero inference');
   assert.equal(process.env.GITHUB_REPOSITORY,repository,'only the authorized repository runner may execute');
   assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
   assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1','automatic reruns cannot dispatch a hosted task');
