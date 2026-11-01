@@ -1,0 +1,34 @@
+name: MUSITU Connect Neon synthetic admission qualification
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-neon-synthetic-qualification.yml'
+      - 'connect/customer_neon_admission.mjs'
+      - 'tests/connect/test_customer_neon_admission.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax and fail-closed adapter behavior
+        run: |
+          node --check connect/customer_neon_admission.mjs
+          node --test tests/connect/test_customer_neon_admission.mjs
+      - name: Confirm prototype remains out of live Worker imports
+        run: |
+          if grep -Fq "customer_neon_admission" connect/production_worker.mjs; then
+            echo "NEON_RUNTIME_WIRING_UNAUTHORIZED" >&2
+            exit 1
+          fi
+          echo "NEON_PROTOTYPE_ONLY=PASS"
