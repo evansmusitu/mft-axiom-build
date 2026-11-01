@@ -54,7 +54,8 @@
       "live_external_qualification": false,
       "deployed": false,
       "positive_guard_checks_passed": 21,
-      "authority_admin_restore_counterexample_reproduced": true
+      "authority_admin_restore_counterexample_reproduced": true,
+      "ci_evidence": "external-ledger-ci-20261101.json"
     }
   },
   "hosted_d1": {
@@ -110,7 +111,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+  "last_revalidation_source": "f2a0de932118c9c87720bf846aea885177e32ca5",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -123,20 +124,22 @@
     "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
   },
   "verification": {
-    "groups_passed": 20,
-    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
-    "tree_sha": "5682c74e2e7b0cc2ab2ada2c6380aafa48362da7",
-    "ci_merge_sha": "56c171e9bd003b345969dde1506b52144e8555c0",
+    "source_sha": "f2a0de932118c9c87720bf846aea885177e32ca5",
+    "tree_sha": "0590dc387a6991d8adfc1fce1657e5f6451f6f7b",
+    "ci_merge_sha": "6c9c2c23121deaf73ec6792c9def15525a1df657",
     "ci_merge_same_tree_verified": true,
-    "workflow_run_id": 41330823629,
-    "artifact_id": 13093625859,
-    "artifact_sha256": "ebc5fd3f38b76797897f0718fc4add9be38e321fcaf9f45c254cf48182299141",
+    "workflow_run_id": 41339624792,
+    "artifact_id": 13096837258,
+    "artifact_sha256": "9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84",
+    "download_hash_verified": true,
+    "groups_passed": 21,
     "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
     "isolated_workerd_tests": 9,
-    "workers_ai_offline_admission_protocol_tests": 10,
-    "hosted_acceptance_protocol_tests": 6
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
   },
   "workers_ai_alternative": {
     "status": "CONFIRMED_BOUNDED_COMPONENT_SCOPE",
@@ -185,5 +188,21 @@
       "budget_refunded": false,
       "observed_completed_account_neurons": 52.20908737182617
     }
+  },
+  "prior_verification_continuation06": {
+    "groups_passed": 20,
+    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+    "tree_sha": "5682c74e2e7b0cc2ab2ada2c6380aafa48362da7",
+    "ci_merge_sha": "56c171e9bd003b345969dde1506b52144e8555c0",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41330823629,
+    "artifact_id": 13093625859,
+    "artifact_sha256": "ebc5fd3f38b76797897f0718fc4add9be38e321fcaf9f45c254cf48182299141",
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "isolated_workerd_tests": 9,
+    "workers_ai_offline_admission_protocol_tests": 10,
+    "hosted_acceptance_protocol_tests": 6
   }
 }

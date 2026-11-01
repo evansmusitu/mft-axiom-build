@@ -1,0 +1,19 @@
+{
+  "schema": "musitu.axiom.external-ledger-ci.v1",
+  "source_sha": "f2a0de932118c9c87720bf846aea885177e32ca5",
+  "tree_sha": "0590dc387a6991d8adfc1fce1657e5f6451f6f7b",
+  "ci_merge_sha": "6c9c2c23121deaf73ec6792c9def15525a1df657",
+  "ci_merge_same_tree_verified": true,
+  "workflow_run_id": 41339624792,
+  "artifact_id": 13096837258,
+  "artifact_sha256": "9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84",
+  "download_hash_verified": true,
+  "groups_passed": 21,
+  "application_tests": 495,
+  "sdk_tests": 73,
+  "local_d1_tests": 11,
+  "isolated_workerd_tests": 9,
+  "external_ledger_regression_tests": 22,
+  "positive_external_ledger_checks": 21,
+  "expected_authority_restore_counterexamples": 1
+}

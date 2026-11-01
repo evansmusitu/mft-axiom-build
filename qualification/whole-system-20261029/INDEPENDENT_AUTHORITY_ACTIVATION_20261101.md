@@ -33,6 +33,24 @@ This continuation did not bypass that restriction or access its protected secret
 
 ## External monotonic ledger and destructive challenge
 
+Continuation 07 provides concrete reviewable software at source
+`f2a0de932118c9c87720bf846aea885177e32ca5`:
+`integrations/independent-ledger/{worker.mjs,client.mjs,protocol.mjs,build.mjs,wrangler.example.toml,README.md}`.
+The local review bundle SHA-256 is
+`4a09b367553353b6f99f5b773e278b7b27a9c3aee9b49caeeca77617379f6522`.
+Its test manifest deliberately uses a synthetic execution-artifact pin and is
+not an approved production runtime identity. The operator must independently
+review and bind the actual runtime digest, produce its own keys, and accept its
+own account/namespace, recovery and revocation controls. No deployment or send
+of this request occurred.
+
+Twenty-one local guard checks pass against actual D1 and SQLite Durable Object
+components, including builder restore, separate process readback, lost responses
+and revocation. A separate explicit regression restores the **authority's own**
+old snapshot and demonstrates replay is re-enabled. That is an unresolved
+counterexample, not acceptance; an independent high-water anchor/recovery
+mechanism must defeat it before the global anti-rollback gate can close.
+
 Provision the atomic consume/high-water ledger under that independent authority,
 outside builder-controlled restore and reset paths. Bind its authority epoch,
 revocation policy, immutable client trust pin and exact proposal/receipt digests.

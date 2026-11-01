@@ -34,7 +34,15 @@ guard/failure checks and one deliberately reproduced authority-admin restore
 counterexample. A green counterexample test is not anti-rollback acceptance.
 All 21 integrated groups passed locally before the final deadline improvement;
 the final focused tests then passed on that improvement and the added explicit
-counterexample. Exact-commit CI evidence will be recorded separately.
+counterexample. Final committed source `f2a0de932118c9c87720bf846aea885177e32ca5`
+passed all **21 groups** in
+[CI 41339624792](https://github.com/evansmusitu/mft-axiom-build/actions/runs/41339624792).
+Source tree `0590dc387a6991d8adfc1fce1657e5f6451f6f7b` equals the tested PR merge
+tree (`6c9c2c23121deaf73ec6792c9def15525a1df657`). Root downloaded artifact
+`13096837258`, verified ZIP SHA-256
+`9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84`, checked
+all 21 zero exits and the raw 495 application/22 ledger regression results.
+The explicit root-restore counterexample still reproduces in CI.
 
 The earlier B27 destructive failure and all previous evidence remain intact.
 The new component protects builder-controlled state only while the independent
