@@ -150,7 +150,9 @@ export class WorkerRequestAuthenticator {
     this.maxFutureSkewMs=config.maxFutureSkewMs;
   }
 
-  authenticate(proof:WorkerRequestProof,expected:WorkerAuthenticationExpectation):AuthenticatedWorkerContext {
+  private authenticateInternal(
+    proof:WorkerRequestProof,expected:WorkerAuthenticationExpectation,allowExpiredForReceiptReplay:boolean
+  ):AuthenticatedWorkerContext {
     if(!proof||proof.protocolVersion!=="axiom.worker-request/v1")throw new Error("Worker credential rejected: protocolVersion mismatch");
     const workerId=required(proof.workerId,"workerId"),keyId=required(proof.keyId,"keyId"),requestId=required(proof.requestId,"requestId");
     const actualAction=action(proof.action),wantedAction=action(expected?.action);
@@ -165,7 +167,8 @@ export class WorkerRequestAuthenticator {
     const issuedAt=canonicalIso(proof.issuedAt,"issuedAt"),now=canonicalIso(expected?.now,"now");
     const issuedMs=Date.parse(issuedAt),nowMs=Date.parse(now);
     if(issuedMs>nowMs+this.maxFutureSkewMs)throw new Error("Worker credential rejected: request timestamp is too far in the future");
-    if(nowMs-issuedMs>this.maxRequestAgeMs)throw new Error("Worker credential rejected: request is too old");
+    const requestFresh=nowMs-issuedMs<=this.maxRequestAgeMs;
+    if(!requestFresh&&!allowExpiredForReceiptReplay)throw new Error("Worker credential rejected: request is too old");
 
     const record=this.trustStore.get(workerId,keyId);
     if(!record)throw new Error("Worker credential rejected: no trusted worker/key");
@@ -188,7 +191,16 @@ export class WorkerRequestAuthenticator {
       ...(actualTarget===undefined?{}:{targetJobId:actualTarget}),
       bodyHash,
       issuedAt,
-      requestHash:hashWorkerRequestProof(proof)
+      requestHash:hashWorkerRequestProof(proof),
+      requestFresh
     }) as AuthenticatedWorkerContext;
+  }
+
+  authenticate(proof:WorkerRequestProof,expected:WorkerAuthenticationExpectation):AuthenticatedWorkerContext {
+    return this.authenticateInternal(proof,expected,false);
+  }
+
+  authenticateForReceiptReplay(proof:WorkerRequestProof,expected:WorkerAuthenticationExpectation):AuthenticatedWorkerContext {
+    return this.authenticateInternal(proof,expected,true);
   }
 }
