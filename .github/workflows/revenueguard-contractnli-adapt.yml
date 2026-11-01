@@ -3,7 +3,7 @@ name: RevenueGuard ContractNLI Local Adaptation
 on:
   push:
     branches:
-      - revenueguard-axiom-governor-20260911
+      - revenueguard-v41-postgate-research-20261101
     paths:
       - '.github/workflows/revenueguard-contractnli-adapt.yml'
   workflow_dispatch:
@@ -118,4 +118,4 @@ jobs:
             adapted_model/
             TRAINING_REPORT.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
