@@ -66,12 +66,6 @@ export interface ModelExplanationRepository {
 export interface DistributedExecutionRepository {
   create(scope:TenantScope,intent:DistributedExecutionIntentCore):Promise<DistributedExecutionJob>;
   get(scope:TenantScope,jobId:string):Promise<DistributedExecutionJob>;
-  claimNext(workerId:string,now:string,leaseMs:number):Promise<DistributedExecutionLease|undefined>;
-  heartbeat(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string,leaseMs:number):Promise<DistributedExecutionLease>;
-  releaseForRetry(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string):Promise<DistributedExecutionJob>;
-  complete(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string,result:ControlPlaneResult):Promise<DistributedExecutionJob>;
-  failTerminal(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string,code:"STALE"|"FAILED_INTEGRITY"):Promise<DistributedExecutionJob>;
-
   claimNextAuthenticated(worker:AuthenticatedWorkerContext,now:string,leaseMs:number):Promise<AuthenticatedDistributedExecutionLease|undefined>;
   heartbeatAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string,leaseMs:number):Promise<AuthenticatedDistributedExecutionLease>;
   releaseForRetryAuthenticated(scope:TenantScope,jobId:string,worker:AuthenticatedWorkerContext,capability:WorkerLeaseCapability,now:string):Promise<DistributedExecutionJob>;
