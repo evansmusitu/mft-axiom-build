@@ -1,6 +1,7 @@
 import {ATOMIC_OPERATIONS} from '../axiom_interface/vnext/capability_registry.js';
 import {canonicalJson,sha256Json,verifyTaskCommitments,verifyExecutionResultCommitment} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {EXECUTION_CONTRACT_SCHEMA,EXECUTION_AGENT_ID,EXECUTION_BUDGET_UNIT,normalizeExecutionContext,requiredExecutionOutcomes,requireExecutionId,executionRecord,validateExecutionContract} from '../axiom_interface/vnext/execution_contract.mjs';
+import {verifyAgentModelEvidence} from './axiom_agent_model_store.mjs';
 
 const clone=v=>structuredClone(v),hex=/^[0-9a-f]{64}$/;
 const deny=message=>{throw new DOMException(message,'NotAllowedError');};
@@ -26,9 +27,11 @@ export async function readD1ExecutionRun({db,customer,taskId}={}){
     }
   }
   if(row.status==='COMPLETED'){
+    await verifyAgentModelEvidence({db,tenant,taskId,evidence:result.provider_evidence??[]});
     if(!await verifyExecutionResultCommitment(result))throw new DOMException('stored execution result commitment mismatch','DataError');
     const snapshots=await Promise.all((result.sources??[]).map(async source=>({source_id:source.source_id,sha256:await sha256Json(source)})));
     const expected=[{kind:'EXECUTION_CONTRACT',content_sha256:await sha256Json(contract)},...snapshots.map(s=>({kind:'CAPTURED_SOURCE_NOT_ENTAILMENT',content_sha256:s.sha256})),{kind:'COMPLETION_RECEIPT',content_sha256:await sha256Json(result.receipt)}];
+    for(const item of result.provider_evidence??[])expected.push({kind:'PROVIDER_MODEL_EXECUTION',content_sha256:await sha256Json(item)});
     if(result.execution)expected.push({kind:'EXECUTION_RECORD',content_sha256:await sha256Json(result.execution)});
     const ordered=rows=>rows.map(({kind,content_sha256})=>({kind,content_sha256})).sort((a,b)=>canonicalJson(a).localeCompare(canonicalJson(b)));
     if(!await verifyTaskCommitments(result)||result.receipt.contract_sha256!==row.contract_sha256||canonicalJson(result.execution_contract)!==canonicalJson(contract)||canonicalJson(snapshots)!==canonicalJson(result.receipt.source_commitments??[])||artifacts.length!==1||artifacts[0].content_sha256!==result.receipt.artifact_sha256||canonicalJson(ordered(expected))!==canonicalJson(ordered(evidence)))throw new DOMException('stored completion proof mismatch','DataError');
@@ -86,6 +89,7 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
     async function assertBound(input={}){
       if(input.customer&&input.customer.customer_id!==tenant)deny('cross-tenant execution binding');
       if(input.objective!==undefined&&input.objective!==contract.objective)deny('execution objective mismatch');
+      if(input.task_id!==undefined&&(!activeRun||activeRun.task_id!==input.task_id))deny('task does not belong to this execution binding');
       await validateExecutionContract(contract);
       const row=await statement("SELECT w.*,p.state AS project_state,a.state AS agent_state,(SELECT COALESCE(SUM(compute_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_compute,(SELECT COALESCE(SUM(provider_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_providers FROM axiom_ec_works w JOIN axiom_ec_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id JOIN axiom_ec_agents a ON a.tenant_id=w.tenant_id AND a.agent_id=w.agent_id WHERE w.tenant_id=?1 AND w.work_id=?2",tenant,workId).first();
       if(!row||row.contract_sha256!==contract.contract_sha256||row.contract_json!==canonicalJson(contract)||row.state!=='ACTIVE'||row.project_state!=='ACTIVE'||row.agent_state!=='ACTIVE'||row.expires_at<=instant())deny('execution authority expired, revoked or changed');
@@ -108,6 +112,10 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
     }
 
     return Object.freeze({contract,assertBound,
+      async executionFence(taskId){
+        requireExecutionId(taskId,'task id');await assertBound({task_id:taskId});
+        return Object.freeze({task_id:activeRun.task_id,binding_id:bindingId,generation:activeRun.generation});
+      },
       async reserve(action={}){
         executionRecord(action,['kind','operation','provider_calls'],'execution action');
         await assertBound();
@@ -163,6 +171,7 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         }
         await assertBound();
         const initial=JSON.parse(existing?.result_json??'{}');
+        const modelSnapshot=await verifyAgentModelEvidence({db,tenant,taskId:task.task_id,evidence:task.provider_evidence??[],returnSnapshot:true});
         if(!await verifyExecutionResultCommitment(task))throw new DOMException('execution result commitment mismatch','DataError');
         if(task.status!=='COMPLETED'||task.request_id!==initial.request_id||task.receipt?.request_id!==task.request_id||task.receipt?.task_id!==task.task_id||task.receipt?.customer_id!==tenant||task.receipt?.status!=='COMPLETED'||task.receipt?.operation!==(task.execution?.operation??null)||task.receipt?.contract_sha256!==contract.contract_sha256||canonicalJson(task.execution_contract)!==canonicalJson(contract)||!await verifyTaskCommitments(task))throw new DOMException('task, contract, artifact or receipt commitment mismatch','DataError');
         for(const key of ['project_id','work_id','agent_id','contract_sha256'])if(task.artifact[key]!==contract[key])throw new DOMException('artifact object identity mismatch','DataError');
@@ -188,8 +197,9 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         if(sources.length&&!actions.some(a=>a.action_kind==='research'))deny('captured research has no admitted action reservation');
         const artifactId=`artifact_${task.task_id}`,time=instant(),evidence=[{id:`evidence_${task.task_id}_contract`,kind:'EXECUTION_CONTRACT',content:contract},...sources.map((s,i)=>({id:`evidence_${task.task_id}_source_${i}`,kind:'CAPTURED_SOURCE_NOT_ENTAILMENT',content:s}))];
         if(task.execution)evidence.push({id:`evidence_${task.task_id}_execution`,kind:'EXECUTION_RECORD',content:task.execution});
+        for(const [i,item] of (task.provider_evidence??[]).entries())evidence.push({id:`evidence_${task.task_id}_model_${i}`,kind:'PROVIDER_MODEL_EXECUTION',content:item});
         evidence.push({id:`evidence_${task.task_id}_receipt`,kind:'COMPLETION_RECEIPT',content:task.receipt});
-        const statements=[statement('INSERT INTO axiom_ec_artifacts(tenant_id,artifact_id,task_id,work_id,content_sha256,content_json,binding_id,generation,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)',tenant,artifactId,task.task_id,workId,task.receipt.artifact_sha256,canonicalJson(task.artifact),bindingId,activeRun.generation,time)];
+        const statements=[statement('INSERT INTO axiom_ec_agent_completion_guards(tenant_id,task_id,snapshot_json) VALUES(?1,?2,?3)',tenant,task.task_id,canonicalJson(modelSnapshot)),statement('INSERT INTO axiom_ec_artifacts(tenant_id,artifact_id,task_id,work_id,content_sha256,content_json,binding_id,generation,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)',tenant,artifactId,task.task_id,workId,task.receipt.artifact_sha256,canonicalJson(task.artifact),bindingId,activeRun.generation,time)];
         for(const row of evidence)statements.push(statement('INSERT INTO axiom_ec_evidence(tenant_id,evidence_id,artifact_id,kind,content_sha256,content_json) VALUES(?1,?2,?3,?4,?5,?6)',tenant,row.id,artifactId,row.kind,await sha256Json(row.content),canonicalJson(row.content)));
         statements.push(statement("UPDATE axiom_ec_runs SET status='COMPLETED',completed_at=?5,result_json=?6 WHERE tenant_id=?1 AND task_id=?2 AND binding_id=?3 AND generation=?4 AND status='RUNNING'",tenant,task.task_id,bindingId,activeRun.generation,time,canonicalJson(task)));
         const results=await db.batch(statements);

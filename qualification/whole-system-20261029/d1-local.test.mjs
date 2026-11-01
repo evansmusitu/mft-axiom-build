@@ -8,6 +8,9 @@ import {createD1ExecutionGovernance} from '../../ops/axiom_execution_contract.mj
 import {executeDecisionTask} from '../../axiom_interface/vnext/runtime_decision_service.mjs';
 import {handleRuntimeTaskApi} from '../../ops/axiom_runtime_task_api.mjs';
 import {sha256Json} from '../../axiom_interface/vnext/execution_integrity.mjs';
+import {createGovernedAgentModel} from '../../ops/axiom_agent_model_store.mjs';
+import {executeRuntimeTask} from '../../axiom_interface/vnext/runtime_task_service.mjs';
+import {ATOMIC_OPERATIONS} from '../../axiom_interface/vnext/capability_registry.js';
 
 const {Miniflare}=await import(process.env.AXIOM_MINIFLARE_MODULE||'miniflare');
 const schema=readFileSync(new URL('../../ops/axiom_execution_contract_schema.sql',import.meta.url),'utf8');
@@ -157,4 +160,20 @@ test('workerd D1: maximum supported range proof remains bounded and replayable',
   assert.ok(Buffer.byteLength(JSON.stringify(result))<500_000,'the exact-threshold task proof must remain bounded');
   assert.equal((await f.gate().get(result.task_id)).receipt.receipt_sha256,result.receipt.receipt_sha256);
   assert.equal(await f.count('axiom_ec_artifacts'),1);
+});
+
+test('workerd D1: hosted model checkpoints and proof resolve through actual completion/readback',{timeout:30000},async t=>{
+  const f=await fixture(t),taskId='task_hosted_proof';
+  const binding=await f.gate().admit({objective,context:{...context,controls:{privacy:'Project',budget:0}}});
+  let calls=0;
+  const client={async create(args){calls++;const stage=JSON.parse(args.input).stage,session_id='session_'+calls,turn_id='turn_'+calls;await args.onCheckpoint({session_id,turn_id});
+    return {session_id,turn_id,status:'completed',output_text:JSON.stringify(stage==='planning'?{title:'Declared model',needs_research:false,operation:null,operation_args:{}}:{title:'Brief',summary:'Declared model output',findings:[],citations:[],limitations:['No factual validation']})};}};
+  const model=createGovernedAgentModel({db:f.db,customer,taskId,governance:binding,client,model:'fixture-model',admitted:true,now:()=>new Date(f.clock.ms)});
+  const runtime={inspect:async()=>({ok:true,build_id:'fixture',operation_count:74,tools:ATOMIC_OPERATIONS}),execute:async()=>{throw new Error('no computation expected');}};
+  const result=await executeRuntimeTask({objective,customer,governance:binding,model,runtime,idFactory:()=>taskId,now:()=>new Date(f.clock.ms)});
+  assert.equal(calls,2);assert.equal(result.provider_evidence.length,2);
+  const saved=await f.gate().get(taskId);assert.equal(saved.receipt.receipt_sha256,result.receipt.receipt_sha256);
+  assert.equal(saved.object_refs.evidence.filter(e=>e.kind==='PROVIDER_MODEL_EXECUTION').length,2);
+  await f.db.prepare('UPDATE axiom_ec_agent_invocations SET output_json=? WHERE stage=?').bind('{"forged":true}','planning').run();
+  await assert.rejects(()=>f.gate().get(taskId),/commitment/);
 });

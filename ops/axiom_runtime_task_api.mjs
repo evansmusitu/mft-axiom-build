@@ -3,6 +3,7 @@ import {createProtectedRuntimeBridge} from './axiom_runtime_bridge.mjs';
 import {createD1ExecutionGovernance} from './axiom_execution_contract.mjs';
 import {sha256Json} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {executeDecisionTask} from '../axiom_interface/vnext/runtime_decision_service.mjs';
+import {createConfiguredOpenAIAgentModel} from './axiom_openai_agent_model.mjs';
 
 const COMMON_HEADERS=Object.freeze({
   'cache-control':'no-store',
@@ -189,7 +190,11 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   }
   try{await governance.assertBound({customer,objective});}catch(error){return json(403,{error:clean(error?.message||'execution_not_authorized',240)});}
   const runtime=payload.decision===undefined?createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME}):null;
-  const store=governance,research=createFixedResearch(fetchImpl),model=createWorkersAIModel(env);
+  const store=governance,research=createFixedResearch(fetchImpl);
+  let model;
+  try{model=payload.decision!==undefined?null:env.AXIOM_AGENT_PROVIDER==='openai_agents'
+    ?await createConfiguredOpenAIAgentModel(env,{db:env.AXIOM_DB,customer,taskId,governance}):createWorkersAIModel(env);
+  }catch(error){return json(503,{error:'configured_agent_provider_unavailable',error_code:clean(error?.name||'ProviderError',80)});}
   let observerConnected=true;
   const stream=new ReadableStream({
     start(controller){

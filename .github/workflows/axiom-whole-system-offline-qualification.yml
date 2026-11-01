@@ -11,6 +11,9 @@ on:
       - 'multiplatform/**'
       - 'ops/axiom_execution_contract*'
       - 'ops/axiom_runtime_task_api.mjs'
+      - 'ops/axiom_agent_model_store.mjs'
+      - 'ops/axiom_openai_*'
+      - 'integrations/openai-agents/**'
       - 'qualification/whole-system-20261029/**'
       - '.github/workflows/axiom-whole-system-offline-qualification.yml'
   workflow_dispatch:
@@ -43,8 +46,15 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install pinned local D1 emulator without account credentials
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0
+      - name: Install pinned public Agents SDK
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run integrated offline contracts including real local D1 transactions
         run: python3 qualification/whole-system-20261029/run_checks.py --with-local-d1
+      - name: Check reused credential availability without API requests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+        run: python3 ops/axiom_openai_credential_preflight.py > qualification/whole-system-20261029/check-results/openai-credential-presence.json
       - name: Preserve raw offline evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
