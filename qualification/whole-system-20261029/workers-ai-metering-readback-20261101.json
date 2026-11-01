@@ -1,0 +1,37 @@
+{
+  "schema": "musitu.axiom.workers-ai-metering-readback.v1",
+  "source_sha": "1e8c67d940f14ac884e7deab15fb90b3a05eb4fc",
+  "inference_calls": 0,
+  "billing_changes": 0,
+  "prior_completed_response_neurons": 52.20908737182617,
+  "cancellation_final_usage": "UNAVAILABLE_AFTER_CLIENT_ABORT",
+  "snapshots": [
+    {
+      "observed_at": "2026-11-01T15:48:22.810Z",
+      "start": "2026-11-01T00:00:00.000Z",
+      "end": "2026-11-01T15:48:22.810Z",
+      "neurons": 52.20908737182617,
+      "rows": [
+        {
+          "count": 2,
+          "sum": {
+            "totalInputTokens": 847,
+            "totalNeurons": 52.20908737182617,
+            "totalOutputTokens": 1632
+          }
+        }
+      ],
+      "scope": "ACCOUNT_WIDE_ANALYTICS_NOT_AN_ATOMIC_BILLING_LOCK"
+    }
+  ],
+  "release_authorized": false,
+  "status": "PROVIDER_USAGE_VISIBLE",
+  "daily_allowance_observed_remaining": 9947.790912628174,
+  "zero_invoice_or_atomic_billing_cap_certified": false,
+  "workflow_run_id": 41323058278,
+  "artifact": {
+    "id": 13090645500,
+    "sha256": "7206abaf7eee1c56cb39595d85669fdb7fd3e5ab5da31b682a55f06c09cb80be",
+    "download_hash_verified": true
+  }
+}

@@ -51,7 +51,12 @@ The transport enforced one model, three calls, at most 8,000 request bytes and
 The two completed responses directly reported **52.20908737182617 neurons**.
 The aborted stream has no final usage record. Immediate account analytics showed
 zero and no rows, so they did not yet reconcile with those nonzero response
-metrics. A separate delayed read-only reconciliation is recorded subsequently.
+metrics. Delayed read-only workflow 41323058278 then observed two account-wide
+completed requests and exactly 52.20908737182617 neurons, matching both response
+metrics. The observed free allowance remaining was 9947.790912628174 neurons.
+The aborted stream remains without a final usage record. Metering artifact
+13090645500 has verified ZIP SHA256
+`7206abaf7eee1c56cb39595d85669fdb7fd3e5ab5da31b682a55f06c09cb80be`.
 This is not an atomic spend lock or a zero-invoice attestation on a paid account.
 
 Governance was real local SQLite running the canonical contract and lifecycle

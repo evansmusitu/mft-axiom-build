@@ -122,6 +122,21 @@
     "provider_terminal_cancellation": "UNATTESTED",
     "hosted_d1_qualified": false,
     "zero_invoice_certified": false,
-    "further_automatic_dispatch": "DISABLED_BY_EXECUTED_SOURCE_PIN"
+    "further_automatic_dispatch": "DISABLED_BY_EXECUTED_SOURCE_PIN",
+    "delayed_account_metering": {
+      "status": "PROVIDER_USAGE_VISIBLE",
+      "workflow_run_id": 41323058278,
+      "recorded_completed_neurons": 52.20908737182617,
+      "recorded_completed_requests": 2,
+      "observed_free_allowance_remaining": 9947.790912628174,
+      "cancelled_stream_final_usage": "UNAVAILABLE",
+      "zero_invoice_certified": false,
+      "evidence": "workers-ai-metering-readback-20261101.json",
+      "artifact": {
+        "id": 13090645500,
+        "sha256": "7206abaf7eee1c56cb39595d85669fdb7fd3e5ab5da31b682a55f06c09cb80be",
+        "download_hash_verified": true
+      }
+    }
   }
 }
