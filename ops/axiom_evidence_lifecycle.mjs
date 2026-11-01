@@ -357,13 +357,19 @@ function tombstonesFor(commitments){
     ...commitments.completion_guards.map(row=>({object_kind:'COMPLETION_GUARD',object_id:row.task_id,commitment:row}))
   ];
 }
+function resolvedProviderInvocation(row,runs){
+  if(row.status==='SUCCEEDED')return true;
+  const knownTerminal=row.status==='UNCERTAIN'&&['HOSTED_TURN_FAILED','HOSTED_TURN_CANCELLED'].includes(row.error_code);
+  const capturedIdentity=/^[A-Za-z0-9_-]{1,200}$/.test(row.session_id??'')&&/^[A-Za-z0-9_-]{1,200}$/.test(row.turn_id??'');
+  return knownTerminal&&capturedIdentity&&row.output_json===null&&row.output_sha256===null&&runs.some(run=>run.task_id===row.task_id&&run.status==='FAILED');
+}
 async function makePlan(snapshot,tenant,workId){
   const commitments=await originalCommitments(snapshot);
   const blockers=[
     ...snapshot.holds.filter(row=>row.state==='ACTIVE').map(row=>({kind:'LEGAL_HOLD',hold_id:row.hold_id,object_kind:row.object_kind,object_id:row.object_id})),
     ...snapshot.dependencies.filter(row=>row.state==='ACTIVE'&&row.dependent_work_id!==workId).map(row=>({kind:'DEPENDENCY',dependency_id:row.dependency_id,dependent_work_id:row.dependent_work_id,object_kind:row.object_kind,object_id:row.object_id})),
     ...snapshot.runs.filter(row=>row.status==='RUNNING').map(row=>({kind:'ACTIVE_RUN',task_id:row.task_id})),
-    ...snapshot.invocations.filter(row=>row.status!=='SUCCEEDED').map(row=>({kind:'UNRESOLVED_PROVIDER_INVOCATION',invocation_id:row.invocation_id}))
+    ...snapshot.invocations.filter(row=>!resolvedProviderInvocation(row,snapshot.runs)).map(row=>({kind:'UNRESOLVED_PROVIDER_INVOCATION',invocation_id:row.invocation_id}))
   ];
   const body={schema:'musitu.axiom.evidence-impact-plan.v1',tenant_id:tenant,work_id:workId,
     snapshot_sha256:await sha256Json(snapshot),original_commitments:commitments,

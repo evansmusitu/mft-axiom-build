@@ -58,6 +58,21 @@ async function fixture({db=d1(),tenant='tenant-a',work='work-a',complete=true,gr
   return {db,clock,now,gate,binding,tenant,work,taskId,lifecycle};
 }
 const plan=f=>f.lifecycle.planWork({work_id:f.work});
+
+test('logical erasure of a known terminal failed provider requires failed Run and preserves the original export',async t=>{
+  const f=await fixture({complete:false,hosted:true});t.after(()=>f.db.connection.close());
+  f.db.connection.prepare("UPDATE axiom_ec_agent_invocations SET error_code='HOSTED_TURN_FAILED'").run();
+  assert.equal((await plan(f)).can_delete,false,'a still-running governed Run blocks erasure');
+  await f.binding.fail({task_id:f.taskId,request_id:`request_${f.taskId}`,customer_id:f.tenant,objective:f.binding.contract.objective,status:'FAILED'});
+  f.db.connection.prepare('UPDATE axiom_ec_agent_invocations SET error_code=NULL').run();
+  assert.equal((await plan(f)).can_delete,false,'a failed Run alone cannot erase an uncertain provider invocation');
+  f.db.connection.prepare("UPDATE axiom_ec_agent_invocations SET error_code='HOSTED_TURN_FAILED'").run();
+  const impact=await plan(f);assert.equal(impact.can_delete,true);
+  const exported=await f.lifecycle.exportWork({work_id:f.work,request_id:'export-terminal-failure'});assert.equal(await verifyEvidenceLifecycleExport(exported),true);
+  const receipt=await f.lifecycle.deleteWork({work_id:f.work,request_id:'delete-terminal-failure',reason_code:'GENERATED_FIXTURE',plan_sha256:impact.plan_sha256,export_receipt_sha256:exported.receipt.receipt_sha256});
+  assert.equal(receipt.status,'ERASED');assert.equal((await f.lifecycle.verifyWorkDeletion({work_id:f.work})).status,'VERIFIED_LOGICAL_ERASURE');
+  assert.equal(exported.payload.snapshot.invocations[0].error_code,'HOSTED_TURN_FAILED');
+});
 const exported=f=>f.lifecycle.exportWork({work_id:f.work,request_id:'export-1'});
 async function prepared(f){const impact=await plan(f),bundle=await exported(f);return {work_id:f.work,request_id:'delete-1',reason_code:'fixture-erasure',plan_sha256:impact.plan_sha256,export_receipt_sha256:bundle.receipt.receipt_sha256};}
 const owner=(db,f)=>createD1EvidenceLifecycle({db,customer:{customer_id:f.tenant},now:f.now,idFactory:p=>`${p}_${++id}`,authorize:async({action,work_id})=>({principal_id:'server-owner',authorization_id:`${work_id}:${action}`})});

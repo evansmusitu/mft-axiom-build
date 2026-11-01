@@ -125,7 +125,12 @@ WHEN NOT json_valid(NEW.snapshot_json) OR json_type(NEW.snapshot_json)!='object'
   EXISTS(SELECT 1 FROM axiom_lc_holds h WHERE h.tenant_id=NEW.tenant_id AND h.work_id=NEW.work_id AND h.state='ACTIVE')
   OR EXISTS(SELECT 1 FROM axiom_lc_dependencies d WHERE d.tenant_id=NEW.tenant_id AND d.work_id=NEW.work_id AND d.dependent_work_id!=NEW.work_id AND d.state='ACTIVE')
   OR EXISTS(SELECT 1 FROM axiom_ec_runs r WHERE r.tenant_id=NEW.tenant_id AND r.work_id=NEW.work_id AND r.status='RUNNING')
-  OR EXISTS(SELECT 1 FROM axiom_ec_agent_invocations i WHERE i.tenant_id=NEW.tenant_id AND i.work_id=NEW.work_id AND i.status!='SUCCEEDED')
+  OR EXISTS(SELECT 1 FROM axiom_ec_agent_invocations i WHERE i.tenant_id=NEW.tenant_id AND i.work_id=NEW.work_id AND i.status!='SUCCEEDED' AND NOT COALESCE(
+    i.status='UNCERTAIN' AND i.error_code IN('HOSTED_TURN_FAILED','HOSTED_TURN_CANCELLED')
+    AND i.output_json IS NULL AND i.output_sha256 IS NULL
+    AND i.session_id IS NOT NULL AND length(i.session_id) BETWEEN 1 AND 200 AND i.session_id NOT GLOB '*[^A-Za-z0-9_-]*'
+    AND i.turn_id IS NOT NULL AND length(i.turn_id) BETWEEN 1 AND 200 AND i.turn_id NOT GLOB '*[^A-Za-z0-9_-]*'
+    AND EXISTS(SELECT 1 FROM axiom_ec_runs r WHERE r.tenant_id=i.tenant_id AND r.task_id=i.task_id AND r.work_id=i.work_id AND r.status='FAILED'),0))
   OR NOT EXISTS(SELECT 1 FROM axiom_lc_exports e WHERE e.tenant_id=NEW.tenant_id AND e.work_id=NEW.work_id
    AND e.receipt_sha256=NEW.export_receipt_sha256 AND e.snapshot_sha256=NEW.snapshot_sha256)
  ))

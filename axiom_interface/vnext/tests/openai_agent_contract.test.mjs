@@ -8,6 +8,7 @@ import {executeRuntimeTask} from '../runtime_task_service.mjs';
 import {ATOMIC_OPERATIONS} from '../capability_registry.js';
 import {sha256Json} from '../execution_integrity.mjs';
 import {handleRuntimeTaskApi} from '../../../ops/axiom_runtime_task_api.mjs';
+import {HostedAgentError} from '../../../integrations/openai-agents/client.mjs';
 
 const customer={customer_id:'tenant-agent'},objective='Prepare a short planning brief.',taskId='task_agent_fixture';
 const planning={title:'Declared planning brief',needs_research:false,search_query:'',operation:null,operation_args:{}};
@@ -155,6 +156,16 @@ test('reconciliation uses bounded provider waiting as one durable read operation
   const recovered=await reconcileAgentInvocation({db:f.db,customer,taskId,stage:'planning',client});assert.equal(recovered.status,'completed');assert.equal(waits,1);assert.equal(f.calls.length,1);
   assert.equal(f.db.connection.prepare('SELECT reconcile_reads FROM axiom_ec_agent_invocations').get().reconcile_reads,1);
   assert.equal((await f.model({stage:'planning',objective})).operation,null);assert.equal(f.calls.length,1);
+});
+
+test('a known terminal provider failure is reconciled without repeated provider reads or another input',async t=>{
+  const f=await fixture(t,{create:async args=>{await args.onCheckpoint({session_id:'session_failed',turn_id:'turn_failed'});throw new HostedAgentError('HOSTED_TURN_FAILED',{provider_error_code:'usage_limit_exceeded'});}});
+  await f.start();await f.binding.reserve({kind:'model'});await assert.rejects(()=>f.model({stage:'planning',objective}));
+  const state=await reconcileAgentInvocation({db:f.db,customer,taskId,stage:'planning',client:{async reconcile(){throw new Error('terminal observation must not be polled again');}}});
+  assert.equal(state.status,'failed');assert.equal(state.input_resubmitted,false);assert.equal(f.calls.length,1);
+  assert.equal(f.db.connection.prepare('SELECT error_code FROM axiom_ec_agent_invocations').get().error_code,'HOSTED_TURN_FAILED');
+  assert.equal(f.db.connection.prepare('SELECT reconcile_reads FROM axiom_ec_agent_invocations').get().reconcile_reads,0);
+  assert.equal(f.db.connection.prepare('SELECT COUNT(*) AS n FROM axiom_ec_artifacts').get().n,0);
 });
 
 test('an invocation admitted after proof validation aborts the whole artifact transaction',async t=>{

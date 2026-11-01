@@ -12,13 +12,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   protocol:
-    # Both attempted missions are preserved. Later commits cannot dispatch.
-    if: github.event.pull_request.head.sha == 'e8bc36e40d06c7361d4f5e0dfad66a99743901bc' && github.event.pull_request.number == 55 && github.run_attempt == 1
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
-      AXIOM_ACCEPTANCE_ATTEMPT: '02'
+      AXIOM_ACCEPTANCE_ATTEMPT: '03'
       AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -40,7 +39,7 @@ jobs:
         id: remote-claim
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: axiom-hosted-dispatch-20261101-02
+          name: axiom-hosted-dispatch-20261101-03
           path: qualification/whole-system-20261029/runner-live-results/dispatch-claim.json
           retention-days: 90
           if-no-files-found: error
@@ -53,7 +52,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: axiom-hosted-protocol-acceptance-20261101-02
+          name: axiom-hosted-protocol-acceptance-20261101-03
           path: |
             qualification/whole-system-20261029/runner-live-results/*.json
           retention-days: 90

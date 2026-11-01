@@ -10,7 +10,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import {createRemoteD1} from './hosted-storage-client.mjs';
 import {createD1ExecutionGovernance} from '../../ops/axiom_execution_contract.mjs';
 import {createGovernedAgentModel,inspectAgentInvocations,reconcileAgentInvocation} from '../../ops/axiom_agent_model_store.mjs';
-import {createHostedAgentClient} from '../../integrations/openai-agents/client.mjs';
+import {createHostedAgentClient,safeHostedProviderFailureCode} from '../../integrations/openai-agents/client.mjs';
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 import {canonicalJson,sha256Json,verifyTaskCommitments} from '../../axiom_interface/vnext/execution_integrity.mjs';
 
@@ -20,7 +20,7 @@ const repository='evansmusitu/mft-axiom-build';
 const accountId='93f395f5121954671f92fffa453d6b61';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const safeError=error=>({name:String(error?.name||'Error').slice(0,80),code:String(error?.code||'ACCEPTANCE_STEP_FAILED').slice(0,100),status:Number.isInteger(error?.status)?error.status:null});
+const safeError=error=>({name:String(error?.name||'Error').slice(0,80),code:String(error?.code||'ACCEPTANCE_STEP_FAILED').slice(0,100),status:Number.isInteger(error?.status)?error.status:null,...(typeof error?.provider_error_code==='string'?{provider_error_code:safeHostedProviderFailureCode(error.provider_error_code)}:{})});
 
 /** Close the actual creation SSE after a durably observed turn ID. No input is
  * resent and no provider cancellation is submitted by this observer disconnect.
@@ -73,7 +73,7 @@ export async function acceptanceResult({base,contract,output,providerEvidence,co
 
 export async function runGovernedHostedTask({db,report,out,save,checkpoint=async()=>{},acceptanceRunId=runId}){
   let sessionId,turnId,controlTurnId,client;
-  const mission=acceptanceRunId;assert.match(mission,/^axiom-acceptance-20261101-0[12]$/);
+  const mission=acceptanceRunId;assert.match(mission,/^axiom-acceptance-20261101-0[123]$/);
   const sourceSha=report.source_sha;
       // The durable claim precedes all inference. An uncertain run never resends.
       await db.exec('CREATE TABLE IF NOT EXISTS axiom_acceptance_live_claim(run_id TEXT PRIMARY KEY,claimed_at TEXT NOT NULL,source_sha TEXT NOT NULL);');
@@ -101,7 +101,17 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       report.resources.session_id=sessionId;report.resources.primary_turn_id=turnId;save();
       assert.ok(sessionId&&turnId,'saved provider identities required');assert.equal(transport.creates,1);assert.equal(transport.dropped,true);
       if(!output){
-        for(const delay of [5000,10000,15000]){await pause(delay);try{const state=await reconcileAgentInvocation({db,customer,taskId:base.task_id,stage:'planning',client});if(state.status==='completed')break;}catch(error){report.reconciliation_error=safeError(error);}}
+        for(const delay of [1000,5000,10000]){
+          await pause(delay);let state;
+          try{state=await reconcileAgentInvocation({db,customer,taskId:base.task_id,stage:'planning',client});}
+          catch(error){report.reconciliation_error=safeError(error);continue;}
+          if(state.status==='completed')break;
+          if(['failed','cancelled'].includes(state.status)){
+            report.reconciled_terminal_status=state.status;save();
+            await governed.fail({...base,status:'FAILED',completed_at:new Date().toISOString(),error_code:'HOSTED_TURN_'+state.status.toUpperCase()});
+            throw new DOMException('provider turn is terminal; input was not resent','InvalidStateError');
+          }
+        }
         // Reading the completed invocation cache does not dispatch another input.
         output=await invoke(input);
       }

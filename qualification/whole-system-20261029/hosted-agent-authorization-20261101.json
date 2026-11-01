@@ -1,10 +1,12 @@
 {
   "authorization": "user-request-20261101-governed-hosted-one",
   "scope": "One actual OpenAI-hosted session with one cancellation follow-up, normal five-object contract in isolated workerd, remote ID/checkpoint artifacts before consuming later events.",
-  "attempt": "02",
-  "prior_provider_dispatches": 1,
+  "attempt": "03",
+  "prior_provider_dispatches": 2,
   "prior_attempt": {"workflow_run": 41278597576, "status": "FAILED_NO_COMPLETION_RECEIPT", "session_delete_acknowledged": true, "session_readback": 404, "artifact_sha256": "41cef72ff9f98ca8424fc42400012f3c56c49f6cc23216716c1ce576b199550b"},
   "revalidation": "New Work and fresh invocation after bounded read-only waiting repair; the previous mission is never resent and its immutable dispatch claim remains.",
+  "second_attempt": {"workflow_run": 41279039771, "status": "PROVIDER_TURN_FAILED_NO_OUTPUT_OR_COMPLETION_RECEIPT", "session_delete_acknowledged": true, "session_readback": 404, "artifact_sha256": "a7733bdd14615ff1f1e1c16c1bd5d981a4caaa022b6f2aaa6f3307c6a7689857"},
+  "diagnostic_attempt": "Retain only the documented failure category before cleanup; terminal failure is recorded once without repeated read attempts. Previous sessions must still return404. No automatic retry or resend of earlier Work.",
   "hosted_d1_qualification": "BLOCKED_CF_7406_ACCOUNT_DATABASE_LIMIT",
   "independent_custody_or_release_authority": false
 }

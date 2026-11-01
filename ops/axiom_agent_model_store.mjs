@@ -91,8 +91,9 @@ export function createGovernedAgentModel({db,customer,taskId,governance,client,m
       if(changes(written)!==1)throw new DOMException('provider completion was not persisted','InvalidStateError');
       await governance.assertBound({customer,objective:c.objective});
       const saved=await read(input.stage);collected.push(proof(saved));return output;
-    }catch{
-      await db.prepare("UPDATE axiom_ec_agent_invocations SET status='UNCERTAIN',error_code='HOSTED_RECONCILIATION_REQUIRED',updated_at=?3 WHERE tenant_id=?1 AND invocation_id=?2 AND status='STARTED'").bind(tenant,id,clock()).run();
+    }catch(error){
+      const terminal=error?.name==='HostedAgentError'&&['HOSTED_TURN_FAILED','HOSTED_TURN_CANCELLED'].includes(error.code)?error.code:'HOSTED_RECONCILIATION_REQUIRED';
+      await db.prepare("UPDATE axiom_ec_agent_invocations SET status='UNCERTAIN',error_code=?4,updated_at=?3 WHERE tenant_id=?1 AND invocation_id=?2 AND status='STARTED'").bind(tenant,id,clock(),terminal).run();
       throw new DOMException('hosted model outcome requires reconciliation; input was not resent','InvalidStateError');
     }
   };
@@ -117,6 +118,7 @@ export async function reconcileAgentInvocation({db,customer,taskId,stage,client,
   const reply=(status,item)=>({invocation_id:row.invocation_id,session_id:row.session_id,turn_id:row.turn_id,status,
     input_resubmitted:false,task_completion_authorized:false,...(item?{provider_evidence:proof(item)}:{})});
   if(row.status==='SUCCEEDED'){await verifiedOutput(row);return reply('completed',row);}
+  if(['HOSTED_TURN_FAILED','HOSTED_TURN_CANCELLED'].includes(row.error_code))return reply(row.error_code==='HOSTED_TURN_FAILED'?'failed':'cancelled');
   if(!checkpointId(row.session_id)||!checkpointId(row.turn_id))throw new DOMException('provider identity is uncertain; automatic resend is forbidden','InvalidStateError');
   const reconcile=client?.waitForCompletion??client?.reconcile;
   if(typeof reconcile!=='function')throw new TypeError('read-only Agents reconciliation client required');
@@ -124,7 +126,13 @@ export async function reconcileAgentInvocation({db,customer,taskId,stage,client,
   if(changes(updated)!==1)throw new DOMException('bounded provider reconciliation attempts exhausted','QuotaExceededError');
   let response;
   try{response=await reconcile.call(client,{sessionId:row.session_id,turnId:row.turn_id});}
-  catch{throw new DOMException('provider reconciliation unavailable; input was not resent','InvalidStateError');}
+  catch(error){
+    if(error?.name==='HostedAgentError'&&['HOSTED_TURN_FAILED','HOSTED_TURN_CANCELLED'].includes(error.code)){
+      await db.prepare("UPDATE axiom_ec_agent_invocations SET error_code=?3,updated_at=?4 WHERE tenant_id=?1 AND invocation_id=?2 AND status IN('STARTED','UNCERTAIN')").bind(tenant,row.invocation_id,error.code,now().toISOString()).run();
+      return reply(error.code==='HOSTED_TURN_FAILED'?'failed':'cancelled');
+    }
+    throw new DOMException('provider reconciliation unavailable; input was not resent','InvalidStateError');
+  }
   if(response?.session_id!==row.session_id||response?.turn_id!==row.turn_id)throw new DOMException('reconciled provider identity mismatch','DataError');
   if(response.status!=='completed')return reply(response.status==='failed'||response.status==='cancelled'?response.status:'pending');
   if(typeof response.output_text!=='string'||new TextEncoder().encode(response.output_text).length>64000)throw new DOMException('reconciled output exceeds bounded capture','DataError');

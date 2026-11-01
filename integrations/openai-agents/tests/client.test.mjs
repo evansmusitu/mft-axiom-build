@@ -393,6 +393,13 @@ test('completion-wait poll bounds reject before any provider request',async()=>{
   assert.equal(calls.length,0);
 });
 
+test('failed-turn diagnostics retain only documented machine categories and exclude provider text',async t=>{
+  for(const [code,expected]of[['usage_limit_exceeded','usage_limit_exceeded'],['sensitive-provider-text','OTHER_UNDISCLOSED']])await t.test(expected,async()=>{
+    const {calls,fetchImpl}=transport([jsonResponse({...turn('failed'),error:{code,message:'sensitive-provider-text'}})]);
+    await assert.rejects(client(fetchImpl).reconcile({sessionId,turnId}),error=>{safeError(error,'HOSTED_TURN_FAILED');assert.equal(error.provider_error_code,expected);assert.equal(JSON.stringify(error).includes('sensitive-provider-text'),false);return true;});assert.equal(calls.length,1);
+  });
+});
+
 test('preaborted signals do not dispatch and external aborts keep caller error text private', async () => {
   const before = new AbortController(); before.abort('sensitive-provider-text');
   const offline = transport([]);

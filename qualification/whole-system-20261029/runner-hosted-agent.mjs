@@ -7,11 +7,11 @@ import {resolve} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {runGovernedHostedTask} from './live-hosted-acceptance.mjs';
-import {createHostedAgentClient} from '../../integrations/openai-agents/client.mjs';
+import {createHostedAgentClient,safeHostedProviderFailureCode} from '../../integrations/openai-agents/client.mjs';
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 
 const root=process.cwd(),out=resolve(root,'qualification/whole-system-20261029/runner-live-results');
-const attempt=process.env.AXIOM_ACCEPTANCE_ATTEMPT||'01';assert.ok(['01','02'].includes(attempt));
+const attempt=process.env.AXIOM_ACCEPTANCE_ATTEMPT||'01';assert.ok(['01','02','03'].includes(attempt));
 const repo='evansmusitu/mft-axiom-build',claimName='axiom-hosted-dispatch-20261101-'+attempt;
 assert.equal(process.env.GITHUB_REPOSITORY,repo);assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1');
 assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
@@ -30,8 +30,7 @@ if(process.argv.includes('--claim')){
   assert.match(process.env.AXIOM_REMOTE_CLAIM_ID||'',/^\d+$/);
   const claim=await github('/actions/artifacts/'+process.env.AXIOM_REMOTE_CLAIM_ID);
   assert.equal(claim.name,claimName);assert.equal(String(claim.workflow_run.id),process.env.GITHUB_RUN_ID);assert.equal(claim.expired,false);
-  if(attempt==='02'){
-    const previous='sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c';
+  if(attempt!=='01')for(const previous of ['sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c',...(attempt==='03'?['sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9']:[])]){
     const response=await fetch('https://api.openai.com/v1/agents/sessions/'+previous,{headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'OpenAI-Beta':'agents=v1'},redirect:'error',signal:AbortSignal.timeout(10000)});
     assert.equal(response.status,404,'the previous failed mission must be deleted; never resend uncertain input');await response.body?.cancel();
   }
@@ -53,9 +52,10 @@ if(process.argv.includes('--claim')){
     resources:{},checkpoint_probe_artifact_id:probe.id,checkpoints:[],checks:{},cleanup:{},independent_custody_certified:false,anti_rollback_certified:false,release_authorized:false,
     limits:{sessions:1,cancellation_followup_turns:1,hard_token_or_currency_cap:false}};
   const save=()=>writeFileSync(resolve(out,'acceptance.json'),JSON.stringify(report,null,2)+'\n');save();
-  const safe=error=>({name:String(error?.name||'Error').slice(0,80),code:String(error?.code||'ACCEPTANCE_FAILED').slice(0,100),status:Number.isInteger(error?.status)?error.status:null});
+  const safe=error=>({name:String(error?.name||'Error').slice(0,80),code:String(error?.code||'ACCEPTANCE_FAILED').slice(0,100),status:Number.isInteger(error?.status)?error.status:null,...(typeof error?.provider_error_code==='string'?{provider_error_code:safeHostedProviderFailureCode(error.provider_error_code)}:{})});
+  let db;
   try{
-    const db=await mf.getD1Database('AXIOM_DB');
+    db=await mf.getD1Database('AXIOM_DB');
     await db.exec('CREATE TABLE axiom_acceptance_isolation(singleton INTEGER PRIMARY KEY CHECK(singleton=1),run_id TEXT NOT NULL UNIQUE,isolated INTEGER NOT NULL CHECK(isolated=1));');
     await db.prepare('INSERT INTO axiom_acceptance_isolation VALUES(1,?1,1)').bind(runId).run();
     const schema=await mf.dispatchFetch('https://isolated-acceptance.test/operator/schema',{method:'POST',headers:{authorization:'Bearer '+operator,'content-type':'application/json'},body:JSON.stringify({run_id:runId})});assert.equal(schema.status,200);
@@ -71,17 +71,19 @@ if(process.argv.includes('--claim')){
     };
     const verified=await runGovernedHostedTask({db,report,out,save,checkpoint,acceptanceRunId:runId});
     report.checks.governed_hosted_task={status:'CONFIRMED',value:verified};
-    const rows={};for(const table of ['axiom_ec_works','axiom_ec_runs','axiom_ec_artifacts','axiom_ec_evidence','axiom_ec_reservations','axiom_ec_agent_invocations','axiom_ec_agent_completion_guards'])rows[table]=(await db.prepare('SELECT * FROM '+table+' WHERE tenant_id=?').bind('acceptance-hosted').all()).results;
-    writeFileSync(resolve(out,'final-governance-journal.json'),JSON.stringify({schema:'musitu.axiom.local-governance-journal.v1',scope:report.scope,source_sha:report.source_sha,rows},null,2)+'\n');
   }catch(error){
     report.checks.governed_hosted_task={status:'FAILED',error:safe(error)};process.exitCode=1;
     if(report.resources.session_id&&report.resources.primary_turn_id)try{
       const sdk=new OpenAI({apiKey:process.env.OPENAI_API_KEY,maxRetries:0,timeout:10000,logLevel:'off'}).beta.agents.sessions;
       const turn=await sdk.turns.retrieve(report.resources.primary_turn_id,{session_id:report.resources.session_id},{signal:AbortSignal.timeout(10000)});
-      report.provider_status_before_cleanup={turn_id:turn.id,session_id:turn.session_id,status:turn.status,object:turn.object};
+      report.provider_status_before_cleanup={turn_id:turn.id,session_id:turn.session_id,status:turn.status,object:turn.object,...(turn.error?{provider_error_code:safeHostedProviderFailureCode(turn.error.code)}:{})};
     }catch(statusError){report.provider_status_error=safe(statusError);}
   }
   finally{
+    if(db)try{
+      const rows={};for(const table of ['axiom_ec_works','axiom_ec_runs','axiom_ec_artifacts','axiom_ec_evidence','axiom_ec_reservations','axiom_ec_agent_invocations','axiom_ec_agent_completion_guards'])rows[table]=(await db.prepare('SELECT * FROM '+table+' WHERE tenant_id=?').bind('acceptance-hosted').all()).results;
+      writeFileSync(resolve(out,'final-governance-journal.json'),JSON.stringify({schema:'musitu.axiom.local-governance-journal.v1',scope:report.scope,source_sha:report.source_sha,rows},null,2)+'\n');
+    }catch(journalError){report.journal_error=safe(journalError);process.exitCode=1;}
     const sessionId=report.resources.session_id;
     if(sessionId)try{
       const sdk=new OpenAI({apiKey:process.env.OPENAI_API_KEY,maxRetries:0,timeout:10000,logLevel:'off'}).beta.agents.sessions;

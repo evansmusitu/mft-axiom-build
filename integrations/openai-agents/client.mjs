@@ -3,6 +3,8 @@ import OpenAI from 'openai';
 const encoder = new TextEncoder();
 const turnStatuses = new Set(['queued', 'in_progress', 'waiting', 'completed', 'failed', 'cancelled']);
 const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+const providerFailureCodes=new Set(['context_length_exceeded','session_budget_exceeded','usage_limit_exceeded','rate_limit_exceeded','server_overloaded','cyber_policy','connection_failed','server_error','authentication_error','invalid_request','resource_not_found','sandbox_error','executor_version_incompatible','active_turn_not_steerable','request_timeout','internal_error']);
+export const safeHostedProviderFailureCode=value=>providerFailureCodes.has(value)?value:'OTHER_UNDISCLOSED';
 const sessionStatuses = new Set(['idle', 'in_progress', 'requires_action', 'failed']);
 const messages = {
   HOSTED_TIMEOUT: 'Hosted agent deadline exceeded; inspect the saved invocation before further work.',
@@ -222,6 +224,7 @@ function outputCapture(maxOutputBytes) {
 function inspectTurn(turn, state) {
   if (!turn || turn.object !== 'agent.session.turn' || turn.id !== state.turnId || turn.session_id !== state.sessionId ||
       turn.subagent_id != null || !turnStatuses.has(turn.status)) fail('HOSTED_PROTOCOL_ERROR');
+  if(turn.status==='failed')state.providerErrorCode=safeHostedProviderFailureCode(turn.error?.code);
   return turn.status;
 }
 
@@ -296,6 +299,7 @@ export function createHostedAgentClient({apiKey, model, fetchImpl = globalThis.f
       throw new HostedAgentError(context.failure.code, {
         session_id: state.sessionId, turn_id: state.turnId,
         cleanup_needed: context.dispatched && !state.terminal, cancel_attempted, cancel_requested,
+        ...(state.providerErrorCode?{provider_error_code:state.providerErrorCode}:{}),
       });
     } finally { context.dispose(); }
   }
@@ -320,6 +324,7 @@ export function createHostedAgentClient({apiKey, model, fetchImpl = globalThis.f
             if (next.done) break;
             const event = next.value;
             if (!event || typeof event.type !== 'string') fail('HOSTED_PROTOCOL_ERROR');
+            if(event.turn?.status==='failed')state.providerErrorCode=safeHostedProviderFailureCode(event.turn.error?.code);
             const sessionIds = [event.session_id, event.session?.id, event.turn?.session_id].filter(value => value != null);
             if (sessionIds.some(id => !validId(id) || id !== sessionIds[0]) || state.sessionId && sessionIds.some(id => id !== state.sessionId)) fail('HOSTED_PROTOCOL_ERROR');
             const sessionId = sessionIds[0] ?? state.sessionId;
