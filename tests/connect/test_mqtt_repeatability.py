@@ -1,4 +1,6 @@
 import unittest
+from math import inf,nan
+from pathlib import Path
 
 from benchmarks.mining_adapter.mqtt_repeatability import (
     MqttRepeatabilitySpec,
@@ -81,6 +83,49 @@ class MqttRepeatabilityTests(unittest.TestCase):
         broken=evaluate_performance_frontier(aggregate)
         self.assertFalse(broken["throughput_target_met"])
         self.assertFalse(broken["integrity_preserved"])
+
+    def test_nonfinite_measurements_cannot_qualify_repeatability_or_frontier(self):
+        spec=MqttRepeatabilitySpec()
+        reference=[{"round":i,"throughput_events_per_second":100.0,
+                    "p99_ms":20.0} for i in range(4)]
+        emqx=[{"round":i,"throughput_events_per_second":110.0,
+               "p99_ms":18.0} for i in range(4)]
+        for invalid in (nan,inf,-inf):
+            with self.subTest(invalid=repr(invalid)):
+                broken=[dict(x) for x in reference]
+                broken[1]["throughput_events_per_second"]=invalid
+                with self.assertRaisesRegex(ValueError,"repeatability_metric_invalid"):
+                    aggregate_repeatability(spec,broken,emqx)
+                with self.assertRaisesRegex(ValueError,"repeatability_metric_invalid"):
+                    evaluate_performance_frontier({
+                        "throughput":{"reference_median":invalid},
+                        "p99_latency":{"reference_median":20.0},
+                    })
+
+    def test_ci_does_not_mark_inconclusive_broker_comparison_green(self):
+        workflow=(Path(__file__).resolve().parents[2] /
+                  ".github/workflows/musitu-connect-mqtt-repeatability.yml").read_text()
+        # 2x throughput is a different claim from statistically repeatable
+        # broker comparison. Require 8 preregistered counterbalanced trials.
+        self.assertIn("REPEAT_TRIALS: '8'",workflow)
+        self.assertIn('assert aggregate["repeatability_passed"] is True',workflow)
+        self.assertIn('assert frontier["throughput_target_met"] is True',workflow)
+
+    def test_eight_round_comparison_requires_six_consistent_outcomes(self):
+        spec=MqttRepeatabilitySpec(trials=8)
+        ref=[{"round":i,"throughput_events_per_second":100.0,
+              "p99_ms":20.0} for i in range(8)]
+        emqx=[{"round":i,"throughput_events_per_second":102.0 if i<6 else 106.0,
+               "p99_ms":19.2 if i<6 else 18.0} for i in range(8)]
+        supported=aggregate_repeatability(spec,ref,emqx)
+        self.assertTrue(supported["repeatability_passed"])
+        self.assertEqual(supported["throughput"]["consistent_rounds"],6)
+        self.assertEqual(supported["throughput"]["minimum_consistent_rounds"],6)
+        # A 5/8 split does not meet the unchanged three-quarters rule.
+        emqx[5]={**emqx[5],"throughput_events_per_second":106.0}
+        refused=aggregate_repeatability(spec,ref,emqx)
+        self.assertFalse(refused["repeatability_passed"])
+        self.assertEqual(refused["throughput"]["reference_outcome"],"INCONCLUSIVE")
 
     def test_aggregate_fails_closed_on_insufficient_or_misaligned_trials(self):
         spec=MqttRepeatabilitySpec()

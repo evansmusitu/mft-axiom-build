@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 25
     env:
       REPEAT_EVENTS: '1000000'
-      REPEAT_TRIALS: '4'
+      REPEAT_TRIALS: '8'
       REPEAT_BATCH_SIZE: '3000'
       REPEAT_SEED: '20261006'
     steps:
@@ -65,7 +65,7 @@ jobs:
                   raise SystemExit(f"{name}_not_ready")
           PY
 
-      - name: Run four counterbalanced 1M-event rounds
+      - name: Run eight counterbalanced 1M-event rounds
         run: |
           mkdir -p qualification/repeatability
           python benchmarks/mining_adapter/mqtt_repeatability.py             --reference-port 18831             --emqx-port 18832             --events "$REPEAT_EVENTS"             --trials "$REPEAT_TRIALS"             --batch-size "$REPEAT_BATCH_SIZE"             --seed "$REPEAT_SEED"             --output qualification/repeatability/mqtt_repeatability.json
@@ -78,7 +78,7 @@ jobs:
           path=Path("qualification/repeatability/mqtt_repeatability.json")
           report=json.loads(path.read_text())
           aggregate=report["aggregate"]
-          assert aggregate["trials"] >= 4
+          assert aggregate["trials"] >= 8
           assert aggregate["events_per_trial"] >= 1_000_000
           assert len(aggregate["raw_trials"]["reference"]) == aggregate["trials"]
           assert len(aggregate["raw_trials"]["emqx"]) == aggregate["trials"]
@@ -91,6 +91,7 @@ jobs:
                   assert not trial["errors"]
           assert aggregate["throughput"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
           assert aggregate["p99_latency"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
+          assert aggregate["repeatability_passed"] is True
           frontier=report["performance_frontier"]
           assert frontier["integrity_preserved"] is True
           assert frontier["throughput_target_met"] is True

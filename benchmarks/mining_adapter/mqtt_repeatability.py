@@ -108,9 +108,15 @@ def evaluate_performance_frontier(aggregate: dict[str,Any]) -> dict[str,Any]:
 
 
 def _positive_float(value: Any, name: str) -> float:
-    if not isinstance(value,(int,float)) or value <= 0:
+    if isinstance(value,bool) or not isinstance(value,(int,float)) or value <= 0:
         raise ValueError(f"repeatability_metric_invalid:{name}")
-    return float(value)
+    try:
+        converted=float(value)
+    except (ValueError,OverflowError):
+        raise ValueError(f"repeatability_metric_invalid:{name}") from None
+    if not math.isfinite(converted):
+        raise ValueError(f"repeatability_metric_invalid:{name}")
+    return converted
 
 
 def _paired_outcome(left: float, right: float, tie_band: float, *, higher_is_better: bool) -> str:
