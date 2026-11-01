@@ -165,3 +165,30 @@ Two Important proof-integrity findings were fixed before merge eligibility:
 The execution record uses the already validated signer identity/key ID rather than rereading mutable provider metadata at persistence time.
 
 No Critical or Important finding remains unresolved in the bounded Phase-2.5B source diff after these fixes. Vendor SDK security, HSM provisioning, operator key rotation, mTLS, DNS/network perimeter policy, and hardware attestation are deployment/future-increment concerns, not properties claimed here.
+
+
+## Phase 2.5C worker trust containment
+
+A worker ID is descriptive metadata, not authority. Production distributed repositories expose only authenticated lifecycle mutation methods. Worker proof-of-possession uses Ed25519 and exact canonical request binding; server-owned trust records determine active/revoked status, worker pool, allowed actions, key identity, and maximum lease duration.
+
+Post-claim mutation requires two independent conditions: the request must authenticate to the worker key, and the supplied lease capability must verify under the configured lease-signer trust and match the exact current tenant/job/intent/worker/key/pool/epoch/expiry/core hash. Possession of only a worker credential or only a lease capability is insufficient.
+
+Worker-key revocation is immediate. A revoked key cannot use an existing unexpired lease or replay a prior operation receipt. Exact receipt replay also requires that the worker/key remain currently trusted and action-authorized.
+
+Worker request freshness protects new mutations. For response-loss recovery, the control boundary can cryptographically authenticate an old proof for receipt lookup only; repositories reject it if no exact receipt exists. This prevents the freshness window from turning a durable idempotency receipt into an availability failure without permitting stale new work.
+
+SQLite state transitions and receipts are one `BEGIN IMMEDIATE` transaction. PostgreSQL performs receipt checks and state mutations under transactions and preserves `FOR UPDATE SKIP LOCKED` claim selection; duplicate request races are constrained by the receipt primary key and rollback/replay behavior.
+
+### Phase 2.5C security-review hardening
+
+Three trust-boundary findings were fixed before merge eligibility:
+
+1. **Raw worker-ID authority bypass — Important.** The initial implementation added authenticated methods alongside the original raw `workerId` repository mutations and legacy worker runtime. Those methods were removed rather than deprecated; `DistributedModelExecutionWorker` is authenticated-only. The dead runtime-visible raw `currentLease` helper was also physically removed from both storage implementations.
+2. **Receipt replay after freshness expiry — Important.** The initial control authenticated freshness before receipt lookup, so a valid completed request could not recover a lost response after the freshness window. Replay-aware authentication now permits an old signed proof only to look up an exact durable receipt; absence of that receipt causes rejection before mutation. Current trust/revocation still applies.
+3. **Compile-time privacy was not accepted as a security boundary.** A TypeScript-`private` raw lease helper remained callable at runtime after the public methods were removed. Regression coverage requires the method to be absent from the runtime object/prototype.
+
+The bounded final review also checked capability substitution, cross-worker/cross-job binding, revocation, request-ID conflicts, receipt integrity, state-hash coverage, heartbeat rotation, legacy lease reclamation, PostgreSQL/SQLite parity, and recovery after persisted reasoning. No unresolved Critical or Important finding remains in the Phase-2.5C source diff.
+
+Dynamic worker administration, remote worker transport, mTLS/SPIFFE, hardware attestation, operator lease-signer rotation procedures, database-role policy, and broker infrastructure remain deployment or later-phase concerns.
+
+Phase 2.5C does not guarantee trading profit, investment returns, model correctness, upstream factual truth, valuation, or commercial success.
