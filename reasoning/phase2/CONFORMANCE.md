@@ -149,3 +149,31 @@ Phase 2.5B additionally requires:
 20. Every prior Phase-1 and Phase-2 gate remains green.
 
 No acceptance criterion asserts guaranteed profit, investment return, model truth, exactly-once external effects, valuation, or commercial success.
+
+
+## Phase-2.5C acceptance properties
+
+Phase 2.5C additionally requires:
+
+1. Production repositories expose no raw worker-ID lifecycle mutation API or runtime-visible raw lease helper.
+2. `DistributedModelExecutionWorker` requires authenticated worker control, a worker signing credential, and a request-ID generator.
+3. Worker requests use canonical Ed25519 proof-of-possession bound to exact action, body, target job, request ID, and issued time.
+4. Worker trust/policy is server-owned and independently controls ACTIVE/REVOKED status, pool, allowed actions, and max lease.
+5. Claims return a server-signed lease capability bound to worker/key/pool/tenant/job/intent/epoch/expiry/actions/signer key.
+6. Distributed state hashes commit worker key, pool, and lease-capability core hash while leased.
+7. Heartbeat rotates the capability-core commitment; the superseded capability cannot mutate the lease.
+8. Cross-worker, cross-key, cross-pool, cross-tenant, cross-job, cross-intent, and stale-epoch capability use fails closed.
+9. Worker-key revocation immediately blocks active-lease mutation and receipt replay.
+10. Worker operation receipts are durable, integrity checked, and transactionally atomic with the corresponding state change.
+11. Exact request-ID replay returns the same logical outcome and cannot claim a second job; changed reuse conflicts.
+12. Exact receipted replay may succeed after request-age expiry, while an unreceipted stale request cannot mutate.
+13. SQLite and PostgreSQL preserve equivalent authenticated fencing semantics; PostgreSQL retains `FOR UPDATE SKIP LOCKED`.
+14. Legacy P2.5A PENDING jobs remain claimable; legacy unauthenticated LEASED state cannot be treated as a current authenticated lease and can only be reclaimed after expiry under a higher epoch.
+15. A lost completion response after durable reasoning persistence releases/retries safely and recovery produces one durable execution-intent mapping.
+16. Network-free replay of that recovered execution returns `MATCH`.
+17. Raw storage/state/receipt tampering fails integrity verification.
+18. P2.5A and P2.5B acceptance gates remain green through migration to authenticated worker control.
+19. The P2.5C end-to-end gate composes proof-of-possession, receipt replay, capability rotation/substitution rejection, revocation, crash recovery, one durable execution, and network-free replay.
+20. Every prior Phase-1 and Phase-2 gate remains green.
+
+No acceptance criterion asserts guaranteed profit, investment return, model truth, exactly-once external effects, valuation, or commercial success.
