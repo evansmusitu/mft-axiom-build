@@ -149,6 +149,9 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
   private assertBody(worker:AuthenticatedWorkerContext,action:WorkerAction,body:unknown):void {
     if(worker.bodyHash!==distributedWorkerOperationBodyHash(action,body))throw new Error("Worker operation body hash mismatch");
   }
+  private requireFreshWorkerRequest(worker:AuthenticatedWorkerContext):void {
+    if(worker.requestFresh!==true)throw new Error("Worker credential rejected: request is too old for a new mutation");
+  }
   private receiptHashCore(row:{workerId:string;workerKeyId:string;requestId:string;action:string;requestHash:string;outcomeHash:string;createdAt:string}):string {
     return hashJson({domain:"AXIOM_WORKER_OPERATION_RECEIPT_V1",...row} as any);
   }
@@ -237,6 +240,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     try{
       await client.query("BEGIN");
       const replay=await this.replayReceipt(client,worker);if(replay.found){await client.query("COMMIT");return replay.value as any;}
+      this.requireFreshWorkerRequest(worker);
       const selected=await client.query(
         `SELECT * FROM axiom_distributed_execution_jobs
          WHERE status='PENDING' OR (status='LEASED' AND lease_expires_at<=$1)
@@ -273,6 +277,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     try{
       await client.query("BEGIN");const replay=await this.replayReceipt(client,worker);
       if(replay.found){await client.query("COMMIT");return replay.value as AuthenticatedDistributedExecutionLease;}
+      this.requireFreshWorkerRequest(worker);
       const job=await this.currentAuthenticatedLease(client,scope,jobId,worker,capability,at,"HEARTBEAT");
       const core=this.capabilityCore(job,worker,job.state.leaseEpoch,expires,record);
       const next={intent:job.intent,state:distributedMakeState(job.intent.intentHash,{
@@ -295,6 +300,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     try{
       await client.query("BEGIN");const replay=await this.replayReceipt(client,worker);
       if(replay.found){await client.query("COMMIT");return replay.value as DistributedExecutionJob;}
+      this.requireFreshWorkerRequest(worker);
       const job=await this.currentAuthenticatedLease(client,scope,jobId,worker,capability,at,"RELEASE");
       const next={intent:job.intent,state:distributedMakeState(job.intent.intentHash,{
         status:"PENDING",leaseEpoch:job.state.leaseEpoch,attemptCount:job.state.attemptCount
@@ -312,6 +318,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     try{
       await client.query("BEGIN");const replay=await this.replayReceipt(client,worker);
       if(replay.found){await client.query("COMMIT");return replay.value as DistributedExecutionJob;}
+      this.requireFreshWorkerRequest(worker);
       const job=await this.currentAuthenticatedLease(client,scope,jobId,worker,capability,at,"COMPLETE");
       distributedResultShape(job.intent,result);
       const next={intent:job.intent,state:distributedMakeState(job.intent.intentHash,{
@@ -332,6 +339,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     try{
       await client.query("BEGIN");const replay=await this.replayReceipt(client,worker);
       if(replay.found){await client.query("COMMIT");return replay.value as DistributedExecutionJob;}
+      this.requireFreshWorkerRequest(worker);
       const job=await this.currentAuthenticatedLease(client,scope,jobId,worker,capability,at,"FAIL_TERMINAL");
       const next={intent:job.intent,state:distributedMakeState(job.intent.intentHash,{
         status:code,leaseEpoch:job.state.leaseEpoch,attemptCount:job.state.attemptCount,terminalAt:at,failureCode:code
