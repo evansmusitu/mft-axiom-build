@@ -1,0 +1,329 @@
+name: RevenueGuard ContractNLI V3 Pairwise Real Retraining
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chunk0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fresh encoder ancestry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559/artifacts?name=revenueguard-contractnli-adapted-model' > artifacts.json
+          python - <<'PY'
+          import json,re
+          r=json.load(open('run.json'))
+          assert r['head_sha']=='eecee22260ccadc558b6c9317f85e70c24e2a7de' and r['conclusion']=='success'
+          a=[x for x in json.load(open('artifacts.json'))['artifacts'] if x['name']=='revenueguard-contractnli-adapted-model' and not x['expired']]
+          assert len(a)==1 and re.fullmatch('sha256:[0-9a-f]{64}',a[0]['digest'])
+          open('fresh_encoder.sha256','w').write(a[0]['digest'][7:]+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: encoder
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41330633559
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned dependencies and validate source model
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          r=json.load(open('encoder/TRAINING_REPORT.json'))
+          assert r['base_revision']=='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          assert r['contractnli_commit']=='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
+          for f in r['files']:
+           p=Path('encoder/adapted_model')/f['path']
+           assert p.stat().st_size==f['bytes'] and hashlib.sha256(p.read_bytes()).hexdigest()==f['sha256']
+          assert len(json.load(open('contract-nli/train.json'))['documents'])==423
+          print('new source model and train-only data verified')
+          PY
+      - name: Train positive-only semantic plus pairwise relevance chunk 0
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_pairwise_v3_recovery_train.py \
+            --encoder encoder/adapted_model \
+            --encoder-artifact-sha256 "$(cat fresh_encoder.sha256)" \
+            --train-json contract-nli/train.json \
+            --chunk-index 0 --num-chunks 4  \
+            --state-out v3_state_0.pt --report V3_CHUNK_0.json
+          python - <<'PY'
+          import json,torch
+          r=json.load(open('V3_CHUNK_0.json'))
+          s=torch.load('v3_state_0.pt',map_location='cpu',weights_only=False)
+          assert r['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_train.v1'
+          assert s['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1'
+          assert s['next_chunk']==1 and s['num_chunks']==4 and len(s['trainable_state'])==68
+          assert s['source_encoder_artifact_sha256']==open('fresh_encoder.sha256').read().strip()
+          assert s['train_sha256']==r['train_sha256']
+          print('trained/recovered chunk 0:',s['global_steps'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-0
+          path: |
+            v3_state_0.pt
+            V3_CHUNK_0.json
+            fresh_encoder.sha256
+          if-no-files-found: error
+          retention-days: 90
+  chunk1:
+    needs: chunk0
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fresh encoder ancestry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559/artifacts?name=revenueguard-contractnli-adapted-model' > artifacts.json
+          python - <<'PY'
+          import json,re
+          r=json.load(open('run.json'))
+          assert r['head_sha']=='eecee22260ccadc558b6c9317f85e70c24e2a7de' and r['conclusion']=='success'
+          a=[x for x in json.load(open('artifacts.json'))['artifacts'] if x['name']=='revenueguard-contractnli-adapted-model' and not x['expired']]
+          assert len(a)==1 and re.fullmatch('sha256:[0-9a-f]{64}',a[0]['digest'])
+          open('fresh_encoder.sha256','w').write(a[0]['digest'][7:]+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: encoder
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41330633559
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-0
+          path: previous
+      - name: Install pinned dependencies and validate source model
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          r=json.load(open('encoder/TRAINING_REPORT.json'))
+          assert r['base_revision']=='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          assert r['contractnli_commit']=='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
+          for f in r['files']:
+           p=Path('encoder/adapted_model')/f['path']
+           assert p.stat().st_size==f['bytes'] and hashlib.sha256(p.read_bytes()).hexdigest()==f['sha256']
+          assert len(json.load(open('contract-nli/train.json'))['documents'])==423
+          print('new source model and train-only data verified')
+          PY
+      - name: Train positive-only semantic plus pairwise relevance chunk 1
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_pairwise_v3_recovery_train.py \
+            --encoder encoder/adapted_model \
+            --encoder-artifact-sha256 "$(cat fresh_encoder.sha256)" \
+            --train-json contract-nli/train.json \
+            --chunk-index 1 --num-chunks 4 --state-in previous/v3_state_0.pt \
+            --state-out v3_state_1.pt --report V3_CHUNK_1.json
+          python - <<'PY'
+          import json,torch
+          r=json.load(open('V3_CHUNK_1.json'))
+          s=torch.load('v3_state_1.pt',map_location='cpu',weights_only=False)
+          assert r['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_train.v1'
+          assert s['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1'
+          assert s['next_chunk']==2 and s['num_chunks']==4 and len(s['trainable_state'])==68
+          assert s['source_encoder_artifact_sha256']==open('fresh_encoder.sha256').read().strip()
+          assert s['train_sha256']==r['train_sha256']
+          print('trained/recovered chunk 1:',s['global_steps'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-1
+          path: |
+            v3_state_1.pt
+            V3_CHUNK_1.json
+            fresh_encoder.sha256
+          if-no-files-found: error
+          retention-days: 90
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fresh encoder ancestry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559/artifacts?name=revenueguard-contractnli-adapted-model' > artifacts.json
+          python - <<'PY'
+          import json,re
+          r=json.load(open('run.json'))
+          assert r['head_sha']=='eecee22260ccadc558b6c9317f85e70c24e2a7de' and r['conclusion']=='success'
+          a=[x for x in json.load(open('artifacts.json'))['artifacts'] if x['name']=='revenueguard-contractnli-adapted-model' and not x['expired']]
+          assert len(a)==1 and re.fullmatch('sha256:[0-9a-f]{64}',a[0]['digest'])
+          open('fresh_encoder.sha256','w').write(a[0]['digest'][7:]+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: encoder
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41330633559
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-1
+          path: previous
+      - name: Install pinned dependencies and validate source model
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          r=json.load(open('encoder/TRAINING_REPORT.json'))
+          assert r['base_revision']=='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          assert r['contractnli_commit']=='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
+          for f in r['files']:
+           p=Path('encoder/adapted_model')/f['path']
+           assert p.stat().st_size==f['bytes'] and hashlib.sha256(p.read_bytes()).hexdigest()==f['sha256']
+          assert len(json.load(open('contract-nli/train.json'))['documents'])==423
+          print('new source model and train-only data verified')
+          PY
+      - name: Train positive-only semantic plus pairwise relevance chunk 2
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_pairwise_v3_recovery_train.py \
+            --encoder encoder/adapted_model \
+            --encoder-artifact-sha256 "$(cat fresh_encoder.sha256)" \
+            --train-json contract-nli/train.json \
+            --chunk-index 2 --num-chunks 4 --state-in previous/v3_state_1.pt \
+            --state-out v3_state_2.pt --report V3_CHUNK_2.json
+          python - <<'PY'
+          import json,torch
+          r=json.load(open('V3_CHUNK_2.json'))
+          s=torch.load('v3_state_2.pt',map_location='cpu',weights_only=False)
+          assert r['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_train.v1'
+          assert s['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1'
+          assert s['next_chunk']==3 and s['num_chunks']==4 and len(s['trainable_state'])==68
+          assert s['source_encoder_artifact_sha256']==open('fresh_encoder.sha256').read().strip()
+          assert s['train_sha256']==r['train_sha256']
+          print('trained/recovered chunk 2:',s['global_steps'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-2
+          path: |
+            v3_state_2.pt
+            V3_CHUNK_2.json
+            fresh_encoder.sha256
+          if-no-files-found: error
+          retention-days: 90
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fresh encoder ancestry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41330633559/artifacts?name=revenueguard-contractnli-adapted-model' > artifacts.json
+          python - <<'PY'
+          import json,re
+          r=json.load(open('run.json'))
+          assert r['head_sha']=='eecee22260ccadc558b6c9317f85e70c24e2a7de' and r['conclusion']=='success'
+          a=[x for x in json.load(open('artifacts.json'))['artifacts'] if x['name']=='revenueguard-contractnli-adapted-model' and not x['expired']]
+          assert len(a)==1 and re.fullmatch('sha256:[0-9a-f]{64}',a[0]['digest'])
+          open('fresh_encoder.sha256','w').write(a[0]['digest'][7:]+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: encoder
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41330633559
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-2
+          path: previous
+      - name: Install pinned dependencies and validate source model
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          r=json.load(open('encoder/TRAINING_REPORT.json'))
+          assert r['base_revision']=='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          assert r['contractnli_commit']=='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
+          for f in r['files']:
+           p=Path('encoder/adapted_model')/f['path']
+           assert p.stat().st_size==f['bytes'] and hashlib.sha256(p.read_bytes()).hexdigest()==f['sha256']
+          assert len(json.load(open('contract-nli/train.json'))['documents'])==423
+          print('new source model and train-only data verified')
+          PY
+      - name: Train positive-only semantic plus pairwise relevance chunk 3
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_pairwise_v3_recovery_train.py \
+            --encoder encoder/adapted_model \
+            --encoder-artifact-sha256 "$(cat fresh_encoder.sha256)" \
+            --train-json contract-nli/train.json \
+            --chunk-index 3 --num-chunks 4 --state-in previous/v3_state_2.pt \
+            --state-out v3_state_3.pt --report V3_CHUNK_3.json
+          python - <<'PY'
+          import json,torch
+          r=json.load(open('V3_CHUNK_3.json'))
+          s=torch.load('v3_state_3.pt',map_location='cpu',weights_only=False)
+          assert r['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_train.v1'
+          assert s['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1'
+          assert s['next_chunk']==4 and s['num_chunks']==4 and len(s['trainable_state'])==68
+          assert s['source_encoder_artifact_sha256']==open('fresh_encoder.sha256').read().strip()
+          assert s['train_sha256']==r['train_sha256']
+          print('trained/recovered chunk 3:',s['global_steps'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-3
+          path: |
+            v3_state_3.pt
+            V3_CHUNK_3.json
+            fresh_encoder.sha256
+          if-no-files-found: error
+          retention-days: 90
