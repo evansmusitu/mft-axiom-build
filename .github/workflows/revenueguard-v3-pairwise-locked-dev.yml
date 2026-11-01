@@ -1,0 +1,170 @@
+name: RevenueGuard ContractNLI V3 Duplicate-Clean Locked Development Gate
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['research/revenueguard/TRIGGER_V3_RECOVERY_DEV.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  score:
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve successfully completed new V3 training run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          API='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-v3-pairwise-recovery.yml/runs'
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" > v3runs.json
+          python - <<'PY'
+          import json
+          runs=json.load(open('v3runs.json'))['workflow_runs']
+          good=[r for r in runs if r['head_branch']=='revenueguard-v41-postgate-research-20261101' and r['conclusion']=='success' and r['status']=='completed']
+          assert good,'no successful completed real V3 checkpoint training'
+          r=max(good,key=lambda x:x['created_at'])
+          assert r['name']=='RevenueGuard ContractNLI V3 Pairwise Real Retraining'
+          with open('GITHUB_ENV_FILE','w') as f: f.write(str(r['id'])+'\n')
+          print('Verified complete V3 training run',r['id'],r['head_sha'])
+          PY
+          echo "run_id=$(cat GITHUB_ENV_FILE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-3
+          path: model
+          repository: evansmusitu/mft-axiom-build
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: encoder
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41330633559
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pin corpus and runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'scikit-learn>=1.5,<2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          unzip -q contract-nli.zip
+      - name: Score unchanged dev split using relevance-only V3
+        run: |
+          set -euo pipefail
+          STATE=model/v3_state_3.pt
+          test -f "$STATE"
+          python - <<'PY'
+          import json,torch
+          s=torch.load('model/v3_state_3.pt',map_location='cpu',weights_only=False)
+          assert s['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1'
+          assert s['next_chunk']==4 and s['num_chunks']==4 and len(s['trainable_state'])==68
+          assert s['source_encoder_artifact_sha256']==open('model/fresh_encoder.sha256').read().strip()
+          r=json.load(open('encoder/TRAINING_REPORT.json'))
+          assert r['base_revision']=='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          print('checkpoint complete; state/source anchored')
+          PY
+          STATE_SHA=$(sha256sum "$STATE" | awk '{print $1}')
+          python research/revenueguard/contractnli_v3_recovery_dev_shard.py \
+           --encoder encoder/adapted_model \
+           --state "$STATE" \
+           --expected-state-sha256 "$STATE_SHA" \
+           --source-encoder-artifact-sha256 "$(cat model/fresh_encoder.sha256)" \
+           --train-json contract-nli/train.json \
+           --dev-json contract-nli/dev.json \
+           --shard-index ${{ matrix.shard }} --num-shards 8 \
+           --out v3_raw_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-v3-recovery-dev-shard-${{ matrix.shard }}
+          path: v3_raw_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 90
+  aggregate:
+    needs: score
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve successful V3 training
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          API='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-v3-pairwise-recovery.yml/runs'
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" > v3runs.json
+          python - <<'PY'
+          import json
+          runs=json.load(open('v3runs.json'))['workflow_runs']
+          good=[r for r in runs if r['head_branch']=='revenueguard-v41-postgate-research-20261101' and r['conclusion']=='success' and r['status']=='completed']
+          assert good,'no successful completed real V3 checkpoint training'
+          r=max(good,key=lambda x:x['created_at'])
+          assert r['name']=='RevenueGuard ContractNLI V3 Pairwise Real Retraining'
+          with open('GITHUB_ENV_FILE','w') as f: f.write(str(r['id'])+'\n')
+          print('Verified complete V3 training run',r['id'],r['head_sha'])
+          PY
+          echo "run_id=$(cat GITHUB_ENV_FILE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-pairwise-v3-recovery-chunk-3
+          path: model
+          repository: evansmusitu/mft-axiom-build
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-v3-recovery-dev-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Install aggregation metrics library
+        run: python -m pip install 'scikit-learn>=1.5,<2'
+      - name: Resolve exact GitHub artifact digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=${{ steps.resolve.outputs.run_id }}
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=revenueguard-contractnli-pairwise-v3-recovery-chunk-3" > v3_artifact_meta.json
+          python - <<'PY'
+          import json,re
+          a=[x for x in json.load(open('v3_artifact_meta.json'))['artifacts'] if x['name']=='revenueguard-contractnli-pairwise-v3-recovery-chunk-3' and not x['expired']]
+          assert len(a)==1 and re.fullmatch('sha256:[0-9a-f]{64}',a[0]['digest'])
+          open('v3_artifact.sha256','w').write(a[0]['digest'][7:]+'\n')
+          PY
+          echo "V3_ARTIFACT_SHA=$(cat v3_artifact.sha256)" >> "$GITHUB_ENV"
+      - name: Freeze relevance-only calibration and unchanged dev gate result
+        run: |
+          set -euo pipefail
+          STATE_SHA=$(sha256sum model/v3_state_3.pt | awk '{print $1}')
+          python research/revenueguard/contractnli_v3_recovery_dev_aggregate.py \
+           --shard-glob 'shards/v3_raw_*.json' \
+           --checkpoint-artifact-sha256 "$V3_ARTIFACT_SHA" \
+           --source-encoder-artifact-sha256 "$(cat model/fresh_encoder.sha256)" \
+           --expected-state-sha256 "$STATE_SHA" \
+           --out V3_LOCKED_DEV_GATE.json
+          python - <<'PY'
+          import json
+          r=json.load(open('V3_LOCKED_DEV_GATE.json'))
+          assert r['schema']=='musitu.revenueguard.contractnli.pairwise_v3_recovery_locked_dev_eval.v1'
+          assert r['gate']['accuracy_min']==.90 and r['gate']['macro_f1_min']==.88
+          assert r['gate']['false_grounding_max']==.02 and r['gate']['evidence_recall_min']==.85
+          assert 'semantic-head labels or correctness do not participate' in r['calibration_contract']
+          print(json.dumps({'dev_gate_pass':r['gate']['pass'],'metrics':r['dev'],'checkpoint':r['checkpoint_artifact_sha256']},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-v3-locked-dev-result
+          path: V3_LOCKED_DEV_GATE.json
+          if-no-files-found: error
+          retention-days: 90
