@@ -57,27 +57,27 @@ export class AuthenticatedDistributedWorkerControl implements DistributedWorkerC
   }
   async claim(proof:WorkerRequestProof,now:string,leaseMs:number){
     const bodyHash=distributedWorkerOperationBodyHash("CLAIM",{leaseMs});
-    const worker=this.authenticator.authenticate(proof,{action:"CLAIM",bodyHash,now});
+    const worker=this.authenticator.authenticateForReceiptReplay(proof,{action:"CLAIM",bodyHash,now});
     return this.jobs.claimNextAuthenticated(worker,now,leaseMs);
   }
   async heartbeat(scope:TenantScope,jobId:string,proof:WorkerRequestProof,capability:WorkerLeaseCapability,now:string,leaseMs:number){
     const bodyHash=distributedWorkerOperationBodyHash("HEARTBEAT",{leaseMs,capabilityId:capability.capabilityId});
-    const worker=this.authenticator.authenticate(proof,{action:"HEARTBEAT",targetJobId:jobId,bodyHash,now});
+    const worker=this.authenticator.authenticateForReceiptReplay(proof,{action:"HEARTBEAT",targetJobId:jobId,bodyHash,now});
     return this.jobs.heartbeatAuthenticated(scope,jobId,worker,capability,now,leaseMs);
   }
   async release(scope:TenantScope,jobId:string,proof:WorkerRequestProof,capability:WorkerLeaseCapability,now:string){
     const bodyHash=distributedWorkerOperationBodyHash("RELEASE",{capabilityId:capability.capabilityId});
-    const worker=this.authenticator.authenticate(proof,{action:"RELEASE",targetJobId:jobId,bodyHash,now});
+    const worker=this.authenticator.authenticateForReceiptReplay(proof,{action:"RELEASE",targetJobId:jobId,bodyHash,now});
     return this.jobs.releaseForRetryAuthenticated(scope,jobId,worker,capability,now);
   }
   async complete(scope:TenantScope,jobId:string,proof:WorkerRequestProof,capability:WorkerLeaseCapability,now:string,result:ControlPlaneResult){
     const bodyHash=distributedWorkerOperationBodyHash("COMPLETE",{capabilityId:capability.capabilityId,result});
-    const worker=this.authenticator.authenticate(proof,{action:"COMPLETE",targetJobId:jobId,bodyHash,now});
+    const worker=this.authenticator.authenticateForReceiptReplay(proof,{action:"COMPLETE",targetJobId:jobId,bodyHash,now});
     return this.jobs.completeAuthenticated(scope,jobId,worker,capability,now,result);
   }
   async fail(scope:TenantScope,jobId:string,proof:WorkerRequestProof,capability:WorkerLeaseCapability,now:string,code:"STALE"|"FAILED_INTEGRITY"){
     const bodyHash=distributedWorkerOperationBodyHash("FAIL_TERMINAL",{capabilityId:capability.capabilityId,code});
-    const worker=this.authenticator.authenticate(proof,{action:"FAIL_TERMINAL",targetJobId:jobId,bodyHash,now});
+    const worker=this.authenticator.authenticateForReceiptReplay(proof,{action:"FAIL_TERMINAL",targetJobId:jobId,bodyHash,now});
     return this.jobs.failTerminalAuthenticated(scope,jobId,worker,capability,now,code);
   }
 }
