@@ -8,17 +8,30 @@
   "custody": {
     "status": "UNQUALIFIED",
     "independent_verifier_activated": false,
-    "missing": ["Direct authenticated verifier acceptance and provider identity", "MFA and recovery-admin separation", "Exclusive verifier key custody outside builder and owner-custodian reset/control", "Independent policy veto, revocation and kill authority", "Two authenticated independent evidence readback origins"]
+    "missing": [
+      "Direct authenticated verifier acceptance and provider identity",
+      "MFA and recovery-admin separation",
+      "Exclusive verifier key custody outside builder and owner-custodian reset/control",
+      "Independent policy veto, revocation and kill authority",
+      "Two authenticated independent evidence readback origins"
+    ]
   },
   "anti_rollback": {
     "status": "UNQUALIFIED_HISTORICAL_COUNTEREXAMPLE",
-    "missing": ["External atomic consume ledger and monotonic high-water state", "Current epoch and revocation enforcement", "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage", "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups", "Independent signature over exact tested artifact digest"]
+    "missing": [
+      "External atomic consume ledger and monotonic high-water state",
+      "Current epoch and revocation enforcement",
+      "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
+      "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
+      "Independent signature over exact tested artifact digest"
+    ]
   },
   "hosted_d1": {
     "status": "BLOCKED",
     "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
-    "workflow_run_id": 41277591641,
-    "artifact_sha256": "ff8ffba5c8d6352098487a7236eacf06ca156565c96b60bbf093c1045b9d9c1b"
+    "workflow_run_id": 41312188640,
+    "artifact_sha256": "43496fae672e00fcd9b8d506d0542858d06b8e20dcb9dff4db13228737918e1d",
+    "databases_listed": 11
   },
   "hosted_postgres": {
     "status": "CONFIRMED_ISOLATED_COMPONENT_SCOPE",
@@ -33,21 +46,50 @@
   "hosted_agents": {
     "status": "BLOCKED_PROVIDER_USAGE_LIMIT",
     "provider_error_code": "usage_limit_exceeded",
-    "attempts": 3,
+    "attempts": 4,
     "saved_identity_checkpoints": "CONFIRMED_REMOTE_ACKNOWLEDGMENTS",
     "recovery_to_terminal_failure": "CONFIRMED",
     "successful_output_and_completion_receipt": "UNQUALIFIED",
     "active_turn_cancellation": "UNQUALIFIED_PROBE_NOT_REACHED",
-    "session_cleanup": "DELETE_ACKNOWLEDGED_AND_GET404_ALL_THREE",
-    "further_automatic_dispatch": "DISABLED_BY_SOURCE_PIN",
-    "workflow_run_id": 41279972075,
-    "artifact_sha256": "629fb96660103074fb469c4faf8200368d03f6cc5c20450540fa216b005395b3"
+    "session_cleanup": "DELETE_ACKNOWLEDGED_AND_GET404_ALL_FOUR; ATTEMPT04_AFTER_DEDICATED_RECONCILIATION",
+    "further_automatic_dispatch": "DISABLED_BY_EXACT_SOURCE_PINS",
+    "workflow_run_id": 41312188640,
+    "artifact_sha256": "eaaafa9b021c4d925b1025d61832770cca36aa86e45ba8b2de3f8465f226e099",
+    "cleanup_workflow_run_id": 41312423265
   },
   "basis": {
     "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",
     "independent_readonly_evidence_library_file_id": "libfile_496ff973de6c8191871b8a899396dcf2",
     "independent_readonly_evidence_sha256": "fdde8fc6e0f19939a4eb7b537e6c433de523a23c84b0358fa33745643f76f2f5",
-    "protected_account_workflow_blob": "72bf6e3f07698e2a7eb6b29e9c8d5b12c8b6b177"
+    "protected_account_workflow_blob": "72bf6e3f07698e2a7eb6b29e9c8d5b12c8b6b177",
+    "b27_counterexample_source": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127:ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md"
   },
-  "limitations": ["Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.", "Current main remains separate from this draft repair candidate."]
+  "limitations": [
+    "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
+    "Current main remains separate from this draft repair candidate."
+  ],
+  "last_revalidation_source": "64a1eecadeca55b6f3ac623faae49e48d362b882",
+  "skill_expansion": {
+    "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
+    "distinct_packages": 18,
+    "new_packages": 10,
+    "reused_or_extended_packages": 8,
+    "internal_candidate_packages_total": 13,
+    "local_analytical_workflows": 15,
+    "host_model_behavior": "NOT_EXECUTED",
+    "production_acceptance": "NOT_QUALIFIED",
+    "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
+  },
+  "verification": {
+    "groups_passed": 19,
+    "source_sha": "64a1eecadeca55b6f3ac623faae49e48d362b882",
+    "tree_sha": "0f353746677face2ce33658e75133b3c361200b0",
+    "workflow_run_id": 41314566465,
+    "artifact_id": 13086519184,
+    "artifact_sha256": "1cbb2988fa5b86b7cd7ab4ee4878f3fe0419149ca63322249b0e1b3439bf6673",
+    "application_tests": 490,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "isolated_workerd_tests": 9
+  }
 }
