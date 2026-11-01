@@ -1,9 +1,9 @@
 import type { Pool, PoolClient } from "pg";
 import type { DistributedExecutionRepository } from "./repositories.ts";
 import type {
-  AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, ControlPlaneResult,
+  AuthenticatedAuthenticatedWorkerContext, ControlPlaneResult,
   DistributedExecutionIntent, DistributedExecutionIntentCore, DistributedExecutionJob,
-  DistributedExecutionLease, TenantScope, WorkerAction, WorkerLeaseCapability, WorkerLeaseCapabilityCore
+TenantScope, WorkerAction, WorkerLeaseCapability, WorkerLeaseCapabilityCore
 } from "./types.ts";
 import {
   distributedCloneJob, distributedEpoch, distributedIso, distributedMakeIntent,
@@ -75,21 +75,6 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
       ]
     );
     if(result.rowCount!==1)throw new Error("Distributed execution job update lost");
-  }
-
-  private async currentLease(
-    client:PoolClient,scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string
-  ):Promise<DistributedExecutionJob>{
-    const job=this.verified(scope,await this.row(client,scope,jobId,true));
-    const at=distributedIso(now,"now"),worker=distributedRequired(workerId,"workerId"),wanted=distributedEpoch(leaseEpoch);
-    if(
-      job.state.status!=="LEASED"||
-      job.state.leaseOwner!==worker||
-      job.state.leaseEpoch!==wanted||
-      !job.state.leaseExpiresAt||
-      Date.parse(job.state.leaseExpiresAt)<=Date.parse(at)
-    )throw new Error("Stale lease");
-    return job;
   }
 
   async create(scope:TenantScope,input:DistributedExecutionIntentCore):Promise<DistributedExecutionJob>{
