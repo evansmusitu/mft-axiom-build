@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import {cleanupHostedSession} from './cleanup-hosted-session.mjs';
+assert.equal(process.env.GITHUB_REPOSITORY,'evansmusitu/mft-axiom-build');
+assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1');
+const report=await cleanupHostedSession({sessionId:'sess_097b40b07d5cbee1006ae740c68318819c8007d172fa1d511d',apiKey:process.env.OPENAI_API_KEY});
+const out='qualification/whole-system-20261029/cleanup-results';mkdirSync(out,{recursive:true});
+writeFileSync(out+'/attempt04-cleanup.json',JSON.stringify({schema:'musitu.axiom.cleanup-reconciliation.v1',observed_at:new Date().toISOString(),source_sha:process.env.AXIOM_ACCEPTANCE_SOURCE_SHA,...report},null,2)+'\n');
+console.log(JSON.stringify({status:report.status,readback_status:report.readback_status,new_sessions:0,input_events:0}));
+if(report.status!=='VERIFIED_ABSENT')process.exitCode=1;

@@ -1,0 +1,38 @@
+name: AXIOM attempt04 cleanup only
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/reconcile-attempt04-cleanup.mjs']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-attempt04-session-cleanup
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind cleanup to the exact failed-attempt checkpoint
+        run: test "$(git rev-parse HEAD^)" = 3f9ba33e97b7cae799aa95b9039e201fe408db41
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Reconcile deletion of the saved session; no inference
+        env:
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+        run: node qualification/whole-system-20261029/reconcile-attempt04-cleanup.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: axiom-attempt04-cleanup-reconciliation
+          path: qualification/whole-system-20261029/cleanup-results/*.json
+          if-no-files-found: error
+          retention-days: 90

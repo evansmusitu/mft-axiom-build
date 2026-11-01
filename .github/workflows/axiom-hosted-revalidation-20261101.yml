@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   d1-storage:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    if: github.event.pull_request.head.sha == '3f9ba33e97b7cae799aa95b9039e201fe408db41' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -51,7 +51,7 @@ jobs:
           retention-days: 90
           if-no-files-found: error
   hosted-agents:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    if: github.event.pull_request.head.sha == '3f9ba33e97b7cae799aa95b9039e201fe408db41' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
