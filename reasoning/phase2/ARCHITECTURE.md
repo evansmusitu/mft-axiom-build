@@ -236,3 +236,39 @@ The stable signing intent is domain-separated as `AXIOM_REASONING_CERTIFICATE_SI
 Replay never invokes a signing backend. A v2 replay recomputes signer identity/key hash, signing intent, platform context, policy, provenance, certificate signature, and Phase-1 execution. A record without a platform-context version follows the pre-2.5B v1 formula for backward compatibility.
 
 The Phase-1 finalizer rechecks that the embedded replay program hashes to the program hash already committed by the signed certificate core. This prevents a signature-valid certificate from being finalized with an unrelated replay program.
+
+
+## Phase 2.5C — authenticated worker control
+
+```text
+server-registered Ed25519 worker key + policy
+    ↓
+canonical signed worker request
+    ↓
+WorkerRequestAuthenticator
+    ↓
+authenticated worker context
+    ↓
+transactional receipt lookup
+    ├─ exact prior receipt → replay same logical outcome
+    └─ no receipt → require fresh request
+                         ↓
+                 DB claim / mutation
+                         ↓
+        commit worker/key/pool + lease epoch/expiry
+        + canonical lease-capability core hash
+                         ↓
+             finalize server-signed capability
+```
+
+Worker identity is a new authority class. It is separate from API principals, fact-source keys, adapter-attestation keys, model-provider credentials, reasoning-certificate signers, and the lease-capability signer.
+
+The immutable execution intent intentionally does not contain worker identity. Workers are execution mechanisms selected after dispatch, not part of user authorization. Mutable lease state commits the authenticated worker/key/pool and exact capability-core hash while leased; these fields are cleared on retry release or terminal transition.
+
+The capability core is domain-separated under `AXIOM_WORKER_LEASE_CAPABILITY_V1` and commits the current lease signer key ID. Signing occurs after the database transaction over the already committed core so the transaction never depends on external signature I/O. The signed capability is independently verified against configured lease-signer trust before mutation.
+
+Every worker mutation is exact-bound by both a signed worker request and the current lease capability. Heartbeat rotates the capability commitment. Reclamation requires expiry and a strictly larger lease epoch. Current worker trust is rechecked for every mutation and before receipt replay.
+
+Durable worker operation receipts make response ambiguity fail closed. Exact receipt replay can survive worker-request freshness expiry because it causes no new state mutation; a stale request without a matching receipt is rejected. Receipt retention is indefinite in this increment.
+
+The execution worker keeps the Phase-2.5A reasoning path unchanged: validate immutable prepared execution when no intent record exists, then `executeBound` against the frozen snapshot and stable job/execution-intent ID. If reasoning was already persisted, recovery replay-verifies and reuses that one durable execution.

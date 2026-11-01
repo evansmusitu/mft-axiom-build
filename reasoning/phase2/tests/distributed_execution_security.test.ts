@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createDistributedWorkerTestAuthority } from "./distributed_worker_test_fixture.ts";
 
 const A={tenantId:"tenant:security-regression"};
 const H=(c:string)=>c.repeat(64);
@@ -39,7 +40,8 @@ function intent(){
 test("distributed job terminalization accepts a signed runtime DENIED execution and rejects only partial proof references",async()=>{
   const phase2:any=await import("../src/index.ts");
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-signed-denied-")),db=join(dir,"jobs.db");
-  const store:any=new phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const store:any=authority.bind(new phase2.DistributedExecutionStore(db,authority.storeOptions));
   try{
     const created=await store.create(A,intent());
     const lease=await store.claimNext("worker:denied","2026-10-08T12:00:03.000Z",5000);
@@ -79,7 +81,9 @@ test("distributed job terminalization accepts a signed runtime DENIED execution 
 test("distributed worker resamples trusted time before terminalization and cannot complete after its lease expires",async()=>{
   const phase2:any=await import("../src/index.ts");
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-worker-expiry-")),db=join(dir,"jobs.db");
-  const jobs:any=new phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const jobs:any=new phase2.DistributedExecutionStore(db,authority.storeOptions);
+  const workers=authority.bind(jobs);
   try{
     const created=await jobs.create(A,intent());
     const times=[
@@ -87,7 +91,7 @@ test("distributed worker resamples trusted time before terminalization and canno
       "2026-10-08T12:00:04.100Z"
     ];
     const worker=new phase2.DistributedModelExecutionWorker({
-      jobs,
+      ...workers.workerOptions("worker:slow"),
       leaseMs:1000,
       clock:()=>{
         const next=times.shift();
@@ -114,7 +118,7 @@ test("distributed worker resamples trusted time before terminalization and canno
       }
     });
 
-    const outcome=await worker.runOnce("worker:slow");
+    const outcome=await worker.runOnce();
     assert.deepEqual(outcome,{status:"LEASE_LOST",jobId:created.intent.jobId});
 
     const expired=await jobs.get(A,created.intent.jobId);
@@ -122,7 +126,7 @@ test("distributed worker resamples trusted time before terminalization and canno
     assert.equal(expired.state.leaseEpoch,1);
     assert.equal(expired.state.leaseOwner,"worker:slow");
 
-    const reclaimed=await jobs.claimNext("worker:new","2026-10-08T12:00:04.100Z",1000);
+    const reclaimed=await workers.claimNext("worker:new","2026-10-08T12:00:04.100Z",1000);
     assert.ok(reclaimed);
     assert.equal(reclaimed.leaseEpoch,2);
     assert.equal(reclaimed.job.state.attemptCount,2);

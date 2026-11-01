@@ -202,3 +202,20 @@ Legacy pre-2.5B platform-context records remain replayable through the exact v1 
 Because Ed25519 is deterministic for a fixed key/message, an ambiguous lost signing response can be retried with the identical request. The existing Phase-2.5A lease fencing and stable execution-intent mapping still guarantee at most one durable AXIOM execution record for one distributed intent. This is not an exactly-once external-side-effect claim.
 
 Vendor-specific AWS/GCP/Azure KMS integration, PKCS#11, hardware provisioning, key-rotation administration, mTLS/network deployment policy, external signing audit notarization, and non-Ed25519 algorithms remain deferred.
+
+
+## Phase 2.5C authenticated workers and lease-scoped capabilities
+
+Phase 2.5C removes raw worker identifiers as a distributed-execution authority. The worker runtime now requires an Ed25519 worker credential, an authenticated worker-control boundary, and a unique request ID for every logical lifecycle operation. SQLite and PostgreSQL no longer expose raw `claimNext(workerId,...)`, heartbeat, release, completion, or terminal-failure mutation methods.
+
+Worker public keys and scheduling metadata are server-owned trust records. A signed worker request is bound to protocol, worker/key identity, request ID, exact action, optional job target, body hash, and issued time. Authentication establishes worker identity only; it grants no tenant API, model-provider, evidence, or reasoning-signing authority.
+
+A successful claim returns a separately server-signed Ed25519 lease capability. Its canonical core commits worker ID/key, pool, tenant, job, immutable intent hash, lease epoch, exact expiry, allowed lease actions, and lease-signer key ID. The job state stores the capability-core hash, not signature bytes. Heartbeat atomically rotates expiry and that core commitment; an older capability becomes unusable immediately.
+
+Worker operation receipts are durable and transactionally bound to state transitions. `workerId + requestId` can replay only the same request hash/outcome; changed reuse conflicts. An exact already-receipted request may replay after its short request-freshness window expires, but a new stale request cannot mutate state. Current worker-key trust and revocation are checked before receipt replay.
+
+A revoked worker key loses active-lease mutation authority immediately. The lease may only progress after expiry/reclamation under a higher epoch by an active authenticated worker. Phase-2.5A execution-intent recovery still ensures that a crash or lost completion response after reasoning persistence recovers the same network-free verified execution rather than creating a second durable AXIOM execution.
+
+Legacy persisted `PENDING` Phase-2.5A jobs remain claimable through the new authenticated flow. A legacy `LEASED` row without authenticated lease metadata is not accepted as an active authenticated lease; after its existing expiry it can be reclaimed at a higher epoch.
+
+Remote HTTP/gRPC worker transport, mTLS/SPIFFE binding, hardware/TEE attestation, dynamic worker enrollment, tenant-specific placement, quotas/fair scheduling, broker wakeups/dead-letter policy, and lease-signer HSM/KMS deployment remain separate increments.

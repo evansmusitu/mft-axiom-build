@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import { canonicalize, createDefaultRegistry, createSigner, hashJson, type AxiomProgram } from "../../phase1/src/index.ts";
@@ -12,6 +12,7 @@ import {
 import {
   initializePostgresSchema, PostgresExecutionRepository, PostgresWorldStateRepository
 } from "../src/postgres.ts";
+import { createDistributedWorkerTestAuthority } from "./distributed_worker_test_fixture.ts";
 
 const {Pool}=pg;
 const A={tenantId:"tenant-pg-a"},B={tenantId:"tenant-pg-b"};
@@ -367,6 +368,67 @@ test("PostgreSQL advisory explanation persistence is tenant-isolated exact and t
   assert.deepEqual(await repo.get(A,record.explanationId),record);
 });
 
+
+
+test("PostgreSQL authenticated worker operations preserve receipt and capability fencing parity",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  await ready();await initializePostgresSchema(pool);
+  await pool.query("TRUNCATE axiom_worker_operation_receipts, axiom_distributed_execution_jobs");
+
+  const aKeys=generateKeyPairSync("ed25519"),bKeys=generateKeyPairSync("ed25519"),leaseKeys=generateKeyPairSync("ed25519");
+  const records=new Map<string,any>();
+  const record=(workerId:string,keyId:string,poolId:string,key:any)=>phase2.createWorkerTrustRecord({
+    workerId,keyId,poolId,publicKey:key,status:"ACTIVE",maxLeaseMs:2000,
+    allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]
+  });
+  records.set("worker:pg:a\0key:pg:a",record("worker:pg:a","key:pg:a","pool:pg:a",aKeys.publicKey));
+  records.set("worker:pg:b\0key:pg:b",record("worker:pg:b","key:pg:b","pool:pg:b",bKeys.publicKey));
+  const trustStore={get:(workerId:string,keyId:string)=>records.get(workerId+"\0"+keyId)};
+  const auth=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0});
+  const leaseSigner=phase2.createStaticWorkerLeaseSigner("lease:pg:v1",leaseKeys);
+  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool,{workerTrustStore:trustStore,leaseSigner});
+  const H=(x:string)=>x.repeat(64);
+  const core=(salt:string)=>({
+    tenantId:A.tenantId,principalId:"principal:pg-auth-worker",authorizationDecisionHash:H("a"),requestHash:H(salt),
+    compilationId:"model-compilation:"+H(salt),compilationRecordHash:H("d"),profileId:"profile:pg-auth",
+    profileVersion:"1.0.0",profileHash:H("e"),compilerManifest:{id:"axiom.phase1-compiler",version:"1.0.0",implementationHash:H("f")},
+    operationRegistryManifestHash:H("1"),
+    executionRequest:{asOf:"2026-10-10T01:00:00.000Z",issuedAt:"2026-10-10T01:00:01.000Z",
+      program:{irVersion:"0.1",objective:"pg-auth",assumptions:[],inputs:{},nodes:[{id:"decision",kind:"Decision",operation:"boolean.and",inputs:{values:{literal:{type:{kind:"array",items:{kind:"boolean"}},value:[true]}}}}],constraints:[],decisionNodeId:"decision"},
+      requirements:[],bindings:[]},
+    snapshotId:"snapshot:"+H("2"),snapshotHash:H("2"),createdAt:"2026-10-10T01:00:02.000Z"
+  });
+  const first=await repo.create(A,core("3"));
+
+  const ctx=(worker:"a"|"b",requestId:string,action:string,body:any,targetJobId?:string)=>{
+    const isB=worker==="b",privateKey=isB?bKeys.privateKey:aKeys.privateKey;
+    const unsigned={protocolVersion:"axiom.worker-request/v1",workerId:isB?"worker:pg:b":"worker:pg:a",keyId:isB?"key:pg:b":"key:pg:a",
+      requestId,action,...(targetJobId?{targetJobId}:{}),bodyHash:phase2.distributedWorkerOperationBodyHash(action,body),issuedAt:"2026-10-10T01:00:03.000Z"};
+    const proof={...unsigned,signatureBase64:sign(null,Buffer.from(canonicalize(phase2.workerRequestSigningPayload(unsigned))),privateKey).toString("base64")};
+    return auth.authenticate(proof,{action,targetJobId,bodyHash:unsigned.bodyHash,now:"2026-10-10T01:00:03.100Z"});
+  };
+  const aClaim=ctx("a","pg:claim:a","CLAIM",{leaseMs:1000}),bClaim=ctx("b","pg:claim:b","CLAIM",{leaseMs:1000});
+  const claims=await Promise.all([
+    repo.claimNextAuthenticated(aClaim,"2026-10-10T01:00:03.100Z",1000),
+    repo.claimNextAuthenticated(bClaim,"2026-10-10T01:00:03.100Z",1000)
+  ]);
+  const winner=claims.find(Boolean),winnerCtx=claims[0]?aClaim:bClaim;
+  assert.equal(claims.filter(Boolean).length,1);
+  assert.equal(winner.job.intent.jobId,first.intent.jobId);
+  assert.equal(leaseSigner.verify(winner.capability),true);
+
+  const replay=await repo.claimNextAuthenticated(winnerCtx,"2026-10-10T01:00:03.500Z",1000);
+  assert.deepEqual(replay.capability,winner.capability);
+  assert.equal(replay.job.intent.jobId,first.intent.jobId);
+
+  const heartbeat=ctx(claims[0]?"a":"b","pg:heartbeat","HEARTBEAT",{leaseMs:1500,capabilityId:winner.capability.capabilityId},first.intent.jobId);
+  const heart=await repo.heartbeatAuthenticated(A,first.intent.jobId,heartbeat,winner.capability,"2026-10-10T01:00:03.500Z",1500);
+  assert.notEqual(heart.job.state.leaseCapabilityCoreHash,winner.job.state.leaseCapabilityCoreHash);
+
+  await pool.query("UPDATE axiom_distributed_execution_jobs SET lease_pool_id=$1 WHERE tenant_id=$2 AND job_id=$3",["pool:tampered",A.tenantId,first.intent.jobId]);
+  await assert.rejects(()=>repo.get(A,first.intent.jobId),/state.*integrity|integrity.*state/i);
+});
+
 test.after(async()=>{await pool.end();});
 
 
@@ -405,7 +467,9 @@ test("PostgreSQL distributed execution jobs provide SKIP LOCKED fencing parity",
   await ready();await initializePostgresSchema(pool);
   await pool.query("TRUNCATE axiom_distributed_execution_jobs");
 
-  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool);
+  const authority=createDistributedWorkerTestAuthority();
+  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool,authority.storeOptions);
+  const workers=authority.bind(repo);
   const H=(ch:string)=>ch.repeat(64);
   const core={
     tenantId:A.tenantId,principalId:"principal:pg-worker",authorizationDecisionHash:H("a"),requestHash:H("b"),
@@ -425,42 +489,42 @@ test("PostgreSQL distributed execution jobs provide SKIP LOCKED fencing parity",
   await assert.rejects(()=>repo.get(B,created.intent.jobId),/not found.*tenant/i);
 
   const claims=await Promise.all([
-    repo.claimNext("pg-worker:a","2026-10-08T13:00:03.000Z",1000),
-    repo.claimNext("pg-worker:b","2026-10-08T13:00:03.000Z",1000)
+    workers.claimNext("pg-worker:a","2026-10-08T13:00:03.000Z",1000),
+    workers.claimNext("pg-worker:b","2026-10-08T13:00:03.000Z",1000)
   ]);
   const owned=claims.filter(Boolean);
   assert.equal(owned.length,1);
   const first=owned[0];
   assert.equal(first.leaseEpoch,1);
   assert.equal(first.job.state.attemptCount,1);
-  assert.equal(await repo.claimNext("pg-worker:c","2026-10-08T13:00:03.500Z",1000),undefined);
+  assert.equal(await workers.claimNext("pg-worker:c","2026-10-08T13:00:03.500Z",1000),undefined);
 
-  const reclaimed=await repo.claimNext("pg-worker:c","2026-10-08T13:00:04.000Z",1000);
+  const reclaimed=await workers.claimNext("pg-worker:c","2026-10-08T13:00:04.000Z",1000);
   assert.ok(reclaimed);
   assert.equal(reclaimed.leaseEpoch,2);
   assert.equal(reclaimed.job.state.attemptCount,2);
   await assert.rejects(
-    ()=>repo.complete(A,created.intent.jobId,first.workerId,1,"2026-10-08T13:00:04.100Z",{
+    ()=>workers.complete(A,created.intent.jobId,first.workerId,1,"2026-10-08T13:00:04.100Z",{
       status:"APPROVED",snapshotId:created.intent.snapshotId,
       policyDecision:{status:"ALLOW",snapshotId:created.intent.snapshotId,checks:[]},
       certificateId:"cert:stale",executionRecordId:"platform:stale"
     }),
-    /stale lease/i
+    /stale|lease|capability/i
   );
 
-  const released=await repo.releaseForRetry(A,created.intent.jobId,"pg-worker:c",2,"2026-10-08T13:00:04.200Z");
+  const released=await workers.releaseForRetry(A,created.intent.jobId,"pg-worker:c",2,"2026-10-08T13:00:04.200Z");
   assert.equal(released.state.status,"PENDING");
-  const finalLease=await repo.claimNext("pg-worker:d","2026-10-08T13:00:04.300Z",1000);
+  const finalLease=await workers.claimNext("pg-worker:d","2026-10-08T13:00:04.300Z",1000);
   assert.equal(finalLease.leaseEpoch,3);
   const result={
     status:"APPROVED",snapshotId:created.intent.snapshotId,
     policyDecision:{status:"ALLOW",snapshotId:created.intent.snapshotId,checks:[]},
     certificateId:"cert:pg",executionRecordId:"platform:pg"
   };
-  const done=await repo.complete(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.400Z",result);
+  const done=await workers.complete(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.400Z",result);
   assert.equal(done.state.status,"SUCCEEDED");
-  assert.equal(await repo.claimNext("pg-worker:e","2026-10-08T13:00:10.000Z",1000),undefined);
-  await assert.rejects(()=>repo.failTerminal(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.500Z","FAILED_INTEGRITY"),/stale lease|terminal/i);
+  assert.equal(await workers.claimNext("pg-worker:e","2026-10-08T13:00:10.000Z",1000),undefined);
+  await assert.rejects(()=>workers.failTerminal(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.500Z","FAILED_INTEGRITY"),/stale|lease|capability|terminal/i);
 
   const tamperCore={...core,requestHash:H("9"),compilationId:"model-compilation:"+H("9")};
   const tampered=await repo.create(A,tamperCore);
