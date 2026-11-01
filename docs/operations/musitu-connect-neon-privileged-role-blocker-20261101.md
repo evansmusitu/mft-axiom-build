@@ -1,3 +1,15 @@
+> **Later 2026-11-01 resolution of the role-provisioning defect:**
+> The privileged API-created staging login was removed. A new LOGIN created
+> using PostgreSQL SQL (not Neon role API), `musitu_connect_sql_invoker_20261101`,
+> passed live effective-privilege attestation, authentication, permission-denial,
+> quota/replay/revocation, expiry, suspension, rollback and parallel-admission
+> tests in the isolated hosted project. For the new evidence and exact remaining
+> deployment/customer gates, see
+> [hosted restricted-role acceptance](musitu-connect-hosted-neon-restricted-role-acceptance-20261101.md).
+> The incident analysis and remediation steps below remain as historical
+> evidence. **No deployed application, methane holdout or customer launch
+> has been authorized.**
+
 # MUSITU Connect isolated Neon role blocker — verified 2026-11-01
 
 > **Containment follow-up, verified 2026-11-01:** The exact isolated
