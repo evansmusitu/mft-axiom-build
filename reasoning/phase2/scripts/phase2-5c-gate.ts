@@ -139,9 +139,7 @@ try{
     heart.capability,"2026-10-10T03:00:03.500Z"
   );
 
-  const runtimeJob=await jobs.create(
-    tenant,intent(H("3"),H("4"),frozen.snapshotId,frozen.snapshotHash,program,"2026-10-10T03:00:04.000Z")
-  );
+  const runtimeJob=direct;
   const signer=createStaticSignerProvider("reasoning-key:phase25c",createSigner());
   const runtimes={create(scope:any){
     const plane=new ReasoningControlPlane({tenant:scope,world,executions,signer,registry});
