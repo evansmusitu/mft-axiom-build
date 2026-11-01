@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.revenueguard.contractnli.pairwise_v3_recovery_trigger.v1",
+  "source_encoder_run_id": 41330633559,
+  "source_encoder_workflow_head": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
+  "source_encoder_artifact_id": 13094882183,
+  "source_encoder_artifact_sha256": "ea7e9a0cf451ea998cd2b055df93b3a7cbde52654cc1268446e5682f7adb6916",
+  "train_partition": "ContractNLI train.json build-only",
+  "trainer": "research/revenueguard/contractnli_pairwise_v3_recovery_train.py",
+  "chunks": 4,
+  "dev_gate": "ContractNLI >=0.90 accuracy, >=0.88 macro F1, <=0.02 false grounding, >=0.85 exact span evidence recall",
+  "sealed_tests_unopened": true,
+  "certification": "NOT_CERTIFIED"
+}
