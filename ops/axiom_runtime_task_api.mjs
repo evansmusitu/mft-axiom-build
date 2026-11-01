@@ -136,7 +136,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
     try{
       const id=`task_${(await sha256Json({tenant_id:String(customer.customer_id),submission_id:submission[1]})).slice(0,48)}`;
       const result=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(id);
-      return result?json(200,result):json(404,{error:'submission_not_recorded'});
+      return result?json(result.status==='ERASED'?410:200,result):json(404,{error:'submission_not_recorded'});
     }catch{return json(503,{error:'governed_task_readback_unavailable'});}
   }
   if (url.pathname==='/vnext/api/runtime'&&request.method==='GET') {
@@ -151,7 +151,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   if (request.method==='GET'&&taskMatch[1]) {
     try{
       const task=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(taskMatch[1]);
-      return task?json(200,task):json(404,{error:'task_not_found'});
+      return task?json(task.status==='ERASED'?410:200,task):json(404,{error:'task_not_found'});
     }catch{return json(503,{error:'governed_task_readback_unavailable'});}
   }
   if (request.method!=='POST'||taskMatch[1]) return json(405,{error:'method_not_allowed'},{allow:taskMatch[1]?'GET':'POST'});

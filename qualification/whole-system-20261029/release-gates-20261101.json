@@ -1,0 +1,30 @@
+{
+  "schema": "musitu.axiom.release-gates.v1",
+  "release_authorized": false,
+  "merge_authorized_by_evidence": false,
+  "deploy_authorized_by_evidence": false,
+  "publication_authorized_by_evidence": false,
+  "user_sequence": "Close custody and anti-rollback gates, then merge, deploy and run public reviewer checks before publication.",
+  "custody": {
+    "status": "UNQUALIFIED",
+    "independent_verifier_activated": false,
+    "missing": ["Direct authenticated verifier acceptance and provider identity", "MFA and recovery-admin separation", "Exclusive verifier key custody outside builder and owner-custodian reset/control", "Independent policy veto, revocation and kill authority", "Two authenticated independent evidence readback origins"]
+  },
+  "anti_rollback": {
+    "status": "UNQUALIFIED_HISTORICAL_COUNTEREXAMPLE",
+    "missing": ["External atomic consume ledger and monotonic high-water state", "Current epoch and revocation enforcement", "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage", "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups", "Independent signature over exact tested artifact digest"]
+  },
+  "hosted_d1": {
+    "status": "BLOCKED",
+    "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
+    "workflow_run_id": 41277591641,
+    "artifact_sha256": "ff8ffba5c8d6352098487a7236eacf06ca156565c96b60bbf093c1045b9d9c1b"
+  },
+  "basis": {
+    "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",
+    "independent_readonly_evidence_library_file_id": "libfile_496ff973de6c8191871b8a899396dcf2",
+    "independent_readonly_evidence_sha256": "fdde8fc6e0f19939a4eb7b537e6c433de523a23c84b0358fa33745643f76f2f5",
+    "protected_account_workflow_blob": "72bf6e3f07698e2a7eb6b29e9c8d5b12c8b6b177"
+  },
+  "limitations": ["Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.", "Current main remains separate from this draft repair candidate."]
+}

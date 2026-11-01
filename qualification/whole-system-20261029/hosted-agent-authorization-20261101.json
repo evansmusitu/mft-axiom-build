@@ -1,0 +1,7 @@
+{
+  "authorization": "user-request-20261101-governed-hosted-one",
+  "scope": "One actual OpenAI-hosted session with one cancellation follow-up, normal five-object contract in isolated workerd, remote ID/checkpoint artifacts before consuming later events.",
+  "prior_provider_dispatches": 0,
+  "hosted_d1_qualification": "BLOCKED_CF_7406_ACCOUNT_DATABASE_LIMIT",
+  "independent_custody_or_release_authority": false
+}

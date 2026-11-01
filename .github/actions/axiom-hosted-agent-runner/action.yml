@@ -1,0 +1,5 @@
+name: AXIOM bounded hosted agent acceptance
+description: Run the one authorized session with Actions-native remote checkpoint credentials.
+runs:
+  using: node24
+  main: index.mjs

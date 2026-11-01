@@ -1,0 +1,58 @@
+name: AXIOM hosted Agents protocol acceptance
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'qualification/whole-system-20261029/hosted-agent-authorization-20261101.json'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: axiom-isolated-hosted-acceptance-20261101-01
+  cancel-in-progress: false
+jobs:
+  protocol:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned SDK
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install isolated runtime and remote checkpoint client
+        working-directory: qualification/whole-system-20261029/live-runner-deps
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check one-shot remote dispatch claim
+        run: node qualification/whole-system-20261029/runner-hosted-agent.mjs --claim
+      - name: Persist claim before any inference
+        id: remote-claim
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-dispatch-20261101-01
+          path: qualification/whole-system-20261029/runner-live-results/dispatch-claim.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Run exactly one hosted mission with durable ID checkpoints
+        uses: ./.github/actions/axiom-hosted-agent-runner
+        env:
+          AXIOM_REMOTE_CLAIM_ID: ${{ steps.remote-claim.outputs.artifact-id }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+      - name: Preserve actual output, proof, receipts and failed outcomes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-protocol-acceptance-20261101-01
+          path: |
+            qualification/whole-system-20261029/runner-live-results/*.json
+          retention-days: 90
+          if-no-files-found: error

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHostedAgentClient, HostedAgentError} from '../client.mjs';
+import OpenAI from 'openai';
 
 const sessionId = 'session_fixture', turnId = 'turn_fixture';
 const textEncoder = new TextEncoder();
@@ -358,6 +359,13 @@ test('reconciliation deadline covers stalled JSON bodies and remains read-only',
   assert.equal(cancelled, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].method, 'GET');
+});
+
+test('an SDK JSON-body timeout that wins the timer race retains timeout classification and never retries', async () => {
+  let calls=0;
+  const fetchImpl=async()=>{calls++;throw new OpenAI.APIConnectionTimeoutError();};
+  await assert.rejects(client(fetchImpl).reconcile({sessionId,turnId}),error=>safeError(error,'HOSTED_TIMEOUT'));
+  assert.equal(calls,1);
 });
 
 test('preaborted signals do not dispatch and external aborts keep caller error text private', async () => {

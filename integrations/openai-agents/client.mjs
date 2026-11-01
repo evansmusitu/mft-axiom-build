@@ -280,7 +280,9 @@ export function createHostedAgentClient({apiKey, model, fetchImpl = globalThis.f
       context.assertOpen();
       return await action(sdk(context), context, state);
     } catch (error) {
-      context.stop(context.failure?.code ?? (error instanceof HostedAgentError ? error.code : 'HOSTED_PROVIDER_ERROR'));
+      // The SDK also bounds buffered JSON parsing. Its deadline can win the
+      // timer race by a millisecond; preserve the same timeout classification.
+      context.stop(context.failure?.code ?? (error instanceof HostedAgentError ? error.code : error instanceof OpenAI.APIConnectionTimeoutError ? 'HOSTED_TIMEOUT' : 'HOSTED_PROVIDER_ERROR'));
       let cancel_attempted = false, cancel_requested = false;
       if (autoCancel && ['HOSTED_TIMEOUT', 'HOSTED_ABORTED'].includes(context.failure.code) && state.sessionId && state.turnId && !state.terminal) {
         cancel_attempted = true;

@@ -6,6 +6,7 @@
  * tasks:read/tasks:write and status is ACTIVE/REVOKED.
  */
 import executionContractSchema from '../../ops/axiom_execution_contract_schema.sql';
+import evidenceLifecycleSchema from '../../ops/axiom_evidence_lifecycle_schema.sql';
 import {handleRuntimeTaskApi} from '../../ops/axiom_runtime_task_api.mjs';
 
 const encoder=new TextEncoder();
@@ -13,7 +14,7 @@ const runPattern=/^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$/;
 const tenantPattern=/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,179}$/;
 const commonHeaders=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','content-type':'application/json; charset=utf-8'});
 const rateSchema='CREATE TABLE IF NOT EXISTS axiom_acceptance_rate_limits(run_id TEXT NOT NULL,tenant_id TEXT NOT NULL,window_start INTEGER NOT NULL,hits INTEGER NOT NULL CHECK(hits BETWEEN 1 AND 30),PRIMARY KEY(run_id,tenant_id,window_start));';
-const canonicalDDL=executionContractSchema.split('\n').filter(line=>!line.trimStart().startsWith('--')).join('\n').trim().split(/\n(?=(?:PRAGMA|CREATE (?:TABLE|TRIGGER|INDEX))\b)/u).map(sql=>sql.replace(/\s+/g,' ').trim()).join('\n')+'\n'+rateSchema;
+const canonicalDDL=[executionContractSchema,evidenceLifecycleSchema].map(schema=>schema.split('\n').filter(line=>!line.trimStart().startsWith('--')).join('\n').trim().split(/\n(?=(?:PRAGMA|INSERT|CREATE (?:TABLE|TRIGGER|INDEX))\b)/u).map(sql=>sql.replace(/\s+/g,' ').trim()).join('\n')).join('\n')+'\n'+rateSchema;
 const schemaObjects=['axiom_ec_projects','axiom_ec_agents','axiom_ec_works','axiom_ec_runs','axiom_ec_artifacts','axiom_ec_reservations','axiom_ec_evidence','axiom_ec_agent_invocations','axiom_ec_agent_completion_guards','axiom_ec_artifact_active_lease','axiom_ec_agent_completion_snapshot','axiom_acceptance_rate_limits'];
 
 class BoundaryError extends Error{

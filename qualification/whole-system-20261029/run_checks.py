@@ -24,7 +24,7 @@ CHECKS={
  'frontier_extended':['python3','-m','unittest','frontier_v5.tests.test_capability_qualification_extended','-v'],
  'decision_robustness':['python3','-m','unittest','frontier_v5.tests.test_decision_probability_robustness','-v'],
  'frontier_contracts':['python3','-m','frontier_v5.scripts.run_offline_contracts','--output',str(OUT/'frontier-contracts.json')],
- 'internal_skills':['python3','-m','frontier_v5.scripts.skill_lint','frontier_v5/skill_candidates/musitu-decision-tradeoffs','frontier_v5/skill_candidates/musitu-agent-recovery'],
+ 'internal_skills':['python3','-m','frontier_v5.scripts.skill_lint','frontier_v5/skill_candidates/musitu-decision-tradeoffs','frontier_v5/skill_candidates/musitu-agent-recovery','frontier_v5/skill_candidates/musitu-evidence-lifecycle'],
  'openai_agents':['node','--test',*files('integrations/openai-agents/tests/*.test.mjs')],
  'credential_preflight':['python3','-m','unittest','discover','-s','qualification/whole-system-20261029','-p','test_agent_credential_preflight.py','-v'],
  'hosted_acceptance_protocol':['node','--test','qualification/whole-system-20261029/live-hosted-acceptance.test.mjs'],

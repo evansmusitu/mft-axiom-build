@@ -2,6 +2,7 @@ import {ATOMIC_OPERATIONS} from '../axiom_interface/vnext/capability_registry.js
 import {canonicalJson,sha256Json,verifyTaskCommitments,verifyExecutionResultCommitment} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {EXECUTION_CONTRACT_SCHEMA,EXECUTION_AGENT_ID,EXECUTION_BUDGET_UNIT,normalizeExecutionContext,requiredExecutionOutcomes,requireExecutionId,executionRecord,validateExecutionContract} from '../axiom_interface/vnext/execution_contract.mjs';
 import {verifyAgentModelEvidence} from './axiom_agent_model_store.mjs';
+import {readD1EvidenceLifecycleErasure} from './axiom_evidence_lifecycle.mjs';
 
 const clone=v=>structuredClone(v),hex=/^[0-9a-f]{64}$/;
 const deny=message=>{throw new DOMException(message,'NotAllowedError');};
@@ -14,6 +15,8 @@ export async function readD1ExecutionRun({db,customer,taskId}={}){
   const query=(sql,...args)=>db.prepare(sql).bind(...args);
   const row=await query('SELECT r.*,w.project_id,w.agent_id,w.contract_json FROM axiom_ec_runs r JOIN axiom_ec_works w ON w.tenant_id=r.tenant_id AND w.work_id=r.work_id WHERE r.tenant_id=?1 AND r.task_id=?2',tenant,taskId).first();
   if(!row)return null;
+  const erased=await readD1EvidenceLifecycleErasure({db,customer:{customer_id:tenant},taskId});
+  if(erased)return erased;
   const result=JSON.parse(row.result_json),contract=JSON.parse(row.contract_json);await validateExecutionContract(contract);
   if(contract.tenant_id!==tenant||contract.work_id!==row.work_id||contract.project_id!==row.project_id||contract.agent_id!==row.agent_id||contract.contract_sha256!==row.contract_sha256||result.task_id!==row.task_id||result.customer_id!==tenant||result.objective!==contract.objective||result.status!==row.status)throw new DOMException('stored execution identity mismatch','DataError');
   const artifactsReply=await query('SELECT artifact_id,content_sha256,content_json FROM axiom_ec_artifacts WHERE tenant_id=?1 AND task_id=?2',tenant,taskId).all();

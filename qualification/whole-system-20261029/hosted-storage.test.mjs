@@ -9,6 +9,7 @@ import {createRemoteD1} from './hosted-storage-client.mjs';
 import {createD1ExecutionGovernance} from '../../ops/axiom_execution_contract.mjs';
 import {executeDecisionTask} from '../../axiom_interface/vnext/runtime_decision_service.mjs';
 import {sha256Json} from '../../axiom_interface/vnext/execution_integrity.mjs';
+import {createD1EvidenceLifecycle,verifyEvidenceLifecycleExport} from '../../ops/axiom_evidence_lifecycle.mjs';
 
 const {Miniflare}=await import(process.env.AXIOM_MINIFLARE_MODULE||'miniflare');
 const {build}=await import(process.env.AXIOM_ESBUILD_MODULE||'esbuild');
@@ -140,6 +141,32 @@ test('tenant rate limiting consumes an atomic, tenant-scoped D1 counter',{timeou
   await f.remote.batch([window,window+1].map(value=>f.remote.prepare('INSERT INTO axiom_acceptance_rate_limits VALUES(?1,?2,?3,30) ON CONFLICT(run_id,tenant_id,window_start) DO UPDATE SET hits=30').bind(runId,'tenant-alpha',value)));
   assert.equal((await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body:payload})).status,429);
   assert.equal((await f.request('/vnext/api/tasks',{token:betaToken,method:'POST',body:payload})).status,200);
+});
+
+test('real D1 lifecycle migrations preserve export commitments and normal authenticated HTTP reads return 410 after erasure',{timeout:30000},async t=>{
+  const f=await fixture(t);assert.equal((await f.schema()).status,200);
+  const submitted=await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body:payload});assert.equal(submitted.status,200);assert.match(await submitted.text(),/event: complete/);
+  const before=await (await f.request('/vnext/api/submissions/'+payload.submission_id,{token:alphaToken})).json();
+  const workId=payload.execution_context.work_id,tenant='tenant-alpha';
+  const actions=['plan','export','hold','dependency','delete','read'].map(action=>'lifecycle.'+action);
+  await f.remote.batch(actions.map(action=>f.remote.prepare('INSERT INTO axiom_lc_authorizations VALUES(?,?,?,?,?,?,?)').bind(tenant,'grant-'+action,'acceptance-owner',action,workId,'ACTIVE',new Date(Date.now()+3600000).toISOString())));
+  const lifecycle=createD1EvidenceLifecycle({db:f.remote,customer:{customer_id:tenant},authorize:async({action})=>({principal_id:'acceptance-owner',authorization_id:'grant-'+action})});
+  await lifecycle.placeHold({work_id:workId,hold_id:'hold-before-erasure',object_kind:'WORK',object_id:workId,reason:'Generated acceptance legal hold'});
+  const blocked=await lifecycle.planWork({work_id:workId});assert.equal(blocked.can_delete,false);
+  await lifecycle.releaseHold({work_id:workId,hold_id:'hold-before-erasure',reason:'Generated hold released by owner'});
+  const plan=await lifecycle.planWork({work_id:workId});assert.equal(plan.can_delete,true);
+  const exported=await lifecycle.exportWork({work_id:workId,request_id:'export-before-erasure'});assert.equal(await verifyEvidenceLifecycleExport(exported),true);
+  const receipt=await lifecycle.deleteWork({work_id:workId,request_id:'erase-generated-work',reason_code:'ACCEPTANCE_FIXTURE',plan_sha256:plan.plan_sha256,export_receipt_sha256:exported.receipt.receipt_sha256});
+  assert.equal((await lifecycle.verifyWorkDeletion({work_id:workId})).status,'VERIFIED_LOGICAL_ERASURE');
+  const read=await f.request('/vnext/api/submissions/'+payload.submission_id,{token:alphaToken});assert.equal(read.status,410);
+  const erased=await read.json();assert.equal(erased.status,'ERASED');assert.equal(erased.deletion_receipt.receipt_sha256,receipt.receipt_sha256);
+  assert.equal(erased.retained_commitments.artifacts[0].content_sha256,before.receipt.artifact_sha256);
+  assert.equal((await f.request('/vnext/api/tasks/'+before.task_id,{token:alphaToken})).status,410);
+  assert.equal((await f.request('/vnext/api/tasks/'+before.task_id,{token:betaToken})).status,404);
+  assert.equal(await f.remote.prepare('SELECT COUNT(*) AS n FROM axiom_lc_guards').first('n'),0,'comparison plaintext is not retained');
+  const raw=await f.remote.prepare('SELECT content_json,content_sha256 FROM axiom_ec_artifacts WHERE tenant_id=? AND task_id=?').bind(tenant,before.task_id).first();
+  assert.equal(JSON.parse(raw.content_json).schema,'musitu.axiom.evidence-erased.v1');assert.equal(raw.content_sha256,before.receipt.artifact_sha256);
+  assert.equal(await f.remote.prepare('SELECT COUNT(*) AS n FROM axiom_ec_projects WHERE tenant_id=?').bind(tenant).first('n'),1,'shared Project is retained');
 });
 
 test('RPC deadline bounds headers and body without retrying uncertain mutations',{timeout:5000},async()=>{

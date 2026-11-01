@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   live-acceptance:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    # The attempt is preserved at this exact source. Database quota blocked it
+    # before dispatch; later source changes must not create another mission.
+    if: github.event.pull_request.head.sha == '2b389925ac9626f994993ea84c6146fa0b35d10a' && github.event.pull_request.number == 55 && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
