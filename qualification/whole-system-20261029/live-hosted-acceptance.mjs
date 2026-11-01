@@ -119,9 +119,16 @@ async function main(){
   async function waitHealth(){for(let i=0;i<15;i++){try{const response=await request('/health');const health=await response.json();if(response.status===200&&health.marker_matches&&health.deployment_id===deploymentId)return;}catch{}await pause(2000);}throw new Error('current isolated Worker deployment never became healthy');}
   try{
     await record('isolated_resources',async()=>{
-      if(process.env.CLOUDFLARE_EMAIL&&process.env.CLOUDFLARE_GLOBAL_API_KEY){cfHeaders['X-Auth-Email']=process.env.CLOUDFLARE_EMAIL;cfHeaders['X-Auth-Key']=process.env.CLOUDFLARE_GLOBAL_API_KEY;}
-      else{assert.ok(process.env.CLOUDFLARE_API_TOKEN,'owner Cloudflare credential required');cfHeaders.authorization='Bearer '+process.env.CLOUDFLARE_API_TOKEN;}
-      const databases=await cf(`/accounts/${accountId}/d1/database?per_page=100`);
+      const candidates=[];
+      if(process.env.CLOUDFLARE_EMAIL&&process.env.CLOUDFLARE_GLOBAL_API_KEY)candidates.push({kind:'existing_global_key',headers:{'X-Auth-Email':process.env.CLOUDFLARE_EMAIL,'X-Auth-Key':process.env.CLOUDFLARE_GLOBAL_API_KEY}});
+      if(process.env.CLOUDFLARE_API_TOKEN)candidates.push({kind:'existing_api_token',headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
+      report.credential_preflight=[];let databases,lastError;
+      for(const candidate of candidates){
+        for(const key of Object.keys(cfHeaders))delete cfHeaders[key];Object.assign(cfHeaders,candidate.headers);
+        try{databases=await cf(`/accounts/${accountId}/d1/database?per_page=100`);report.credential_preflight.push({kind:candidate.kind,status:'READ_ACCESS_VERIFIED'});break;}
+        catch(error){lastError=error;report.credential_preflight.push({kind:candidate.kind,status:'REJECTED',error:safeError(error)});}
+      }
+      if(!databases)throw lastError||Object.assign(new Error('owner Cloudflare credential unavailable'),{code:'CF_CREDENTIAL_UNAVAILABLE'});
       const existing=databases.find(item=>item.name===runId);
       dbId=existing?.uuid||(await cf(`/accounts/${accountId}/d1/database`,{method:'POST',body:{name:runId}})).uuid;
       assert.match(dbId,/^[0-9a-f-]{36}$/);report.resources.database_id=dbId;
