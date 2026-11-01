@@ -51,7 +51,9 @@ DECLARE
  v_limit integer;v_min_limit integer;v_daily bigint;v_min_used bigint;
 BEGIN
  IF p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR p_scope IS NULL
- OR p_scope NOT IN('mining.plan','mining.risk') OR p_request_id IS NULL THEN
+ OR p_scope NOT IN('mining.plan','mining.risk') OR p_request_id IS NULL
+ OR (get_byte(uuid_send(p_request_id),6) >> 4) != 4
+ OR (get_byte(uuid_send(p_request_id),8) & 192) != 128 THEN
   RETURN QUERY SELECT false,'UNAUTHORIZED'::text,NULL::text,NULL::bigint;RETURN;
  END IF;
  v_time:=transaction_timestamp();

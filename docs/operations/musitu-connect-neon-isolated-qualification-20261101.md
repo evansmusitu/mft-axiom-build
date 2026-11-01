@@ -76,3 +76,44 @@ and legal approvals, and an explicit later deployment authorization. The
 frozen LightGBM model hashes and chronological qualification gates are
 unchanged; neither Bright Data SERP discovery nor the existing Polish public
 development dataset can replace an independent physical mine holdout.
+
+## November 1 follow-up: hosted least-privilege and UUID-v4 proof
+
+The isolated Neon project `morning-bread-51442570` was tested again using
+short-lived, explicitly bounded SQL access windows. After **each** window,
+the project was read back with `block_public_connections=true`.
+
+**Role permissions:** a new `musitu_connect_qual_runtime` PostgreSQL
+`NOLOGIN NOINHERIT` role was granted schema `USAGE` and `EXECUTE`
+on only `connect_qualification.admit(text,text,uuid)`. Live PostgreSQL
+`has_*_privilege` checks confirmed no direct tenant/credential reads,
+event inserts, or quota-counter updates. The role has no login credentials
+and is **not** an authorized customer-facing application identity.
+
+**Red/green source-integrity test:** prior to the database fix, the
+`admit` function erroneously accepted synthetic UUIDv1
+`11111111-1111-1111-8111-111111111111`, creating one immutable audit
+event. This is historical test evidence, not customer data; it was not
+deleted to manufacture a clean history. The corrected
+`infra/connect_customer_neon_qualification.sql` additionally verifies
+UUID bytes using `uuid_send` before any event write. Live repeat checks:
+a fresh v1 UUID was rejected, an invalid RFC-4122 variant was rejected,
+and a valid UUIDv4 was admitted. Only the valid request increased the
+new counter: two auditable events total for the dedicated synthetic
+`tenant_v4proof` including the earlier red-test record. The original
+request-ID failure is therefore covered at the **database** boundary,
+not merely by JavaScript prevalidation.
+
+**Automation:** `qualification/neon_pg_contract_test.py` runs against
+an **ephemeral PostgreSQL 17 CI service**; it tests SQL role grants,
+direct table denial, invalid UUIDs, 16 competing SQL clients for a
+3-request daily quota, minute-quota isolation, replay, revocation, and
+append-only audit events. The new CI evidence is separate from the
+actual hosted-Neon checks and is not by itself a hosted production
+or app-to-Neon qualification.
+
+**Still blocked:** production auth role, hosted multi-process concurrency
+on a deployed application, approved connection lifecycle, real customer
+tokens, operational revocation/rollback, disaster recovery, safety
+review, and release authorization. No existing Cloudflare Worker or D1
+binding was changed.
