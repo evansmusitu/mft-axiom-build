@@ -2,9 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import { hashJson } from "../../phase1/src/canonical.ts";
 import type { DistributedExecutionRepository } from "./repositories.ts";
 import type {
-  AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, ControlPlaneResult,
+  AuthenticatedAuthenticatedWorkerContext, ControlPlaneResult,
   DistributedExecutionIntent, DistributedExecutionIntentCore, DistributedExecutionJob,
-  DistributedExecutionLease, DistributedExecutionState, TenantScope, WorkerAction,
+DistributedExecutionState, TenantScope, WorkerAction,
   WorkerLeaseCapability, WorkerLeaseCapabilityCore
 } from "./types.ts";
 import type { WorkerTrustStore } from "./worker_authentication.ts";
@@ -251,18 +251,6 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     );
     if(Number(result.changes)!==1)throw new Error("Distributed execution job update lost");
   }
-  private currentLease(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string):DistributedExecutionJob {
-    const job=this.verified(scope,this.row(scope,jobId)),at=iso(now,"now"),worker=required(workerId,"workerId"),wanted=epoch(leaseEpoch);
-    if(
-      job.state.status!=="LEASED"||
-      job.state.leaseOwner!==worker||
-      job.state.leaseEpoch!==wanted||
-      !job.state.leaseExpiresAt||
-      Date.parse(job.state.leaseExpiresAt)<=Date.parse(at)
-    )throw new Error("Stale lease");
-    return job;
-  }
-
   async create(scope:TenantScope,input:DistributedExecutionIntentCore):Promise<DistributedExecutionJob> {
     const intent=makeIntent(scope,input);
     const initial=makeState(intent.intentHash,{status:"PENDING",leaseEpoch:0,attemptCount:0});
