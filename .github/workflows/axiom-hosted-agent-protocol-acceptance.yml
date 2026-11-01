@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   protocol:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    # Both attempted missions are preserved. Later commits cannot dispatch.
+    if: github.event.pull_request.head.sha == 'e8bc36e40d06c7361d4f5e0dfad66a99743901bc' && github.event.pull_request.number == 55 && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -57,3 +58,25 @@ jobs:
             qualification/whole-system-20261029/runner-live-results/*.json
           retention-days: 90
           if-no-files-found: error
+  read-only-diagnostics:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: GET-only model and failed-turn metadata
+        env:
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+        run: node ops/axiom_openai_hosted_diagnostics.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-readonly-diagnostics
+          path: qualification/whole-system-20261029/runner-live-results/hosted-readonly-diagnostic.json
+          if-no-files-found: error
+          retention-days: 90
