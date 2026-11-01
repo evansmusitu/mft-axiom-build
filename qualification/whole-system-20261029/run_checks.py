@@ -30,7 +30,7 @@ CHECKS={
  'credential_preflight':['python3','-m','unittest','discover','-s','qualification/whole-system-20261029','-p','test_agent_credential_preflight.py','-v'],
  'hosted_acceptance_protocol':['node','--test','qualification/whole-system-20261029/live-hosted-acceptance.test.mjs'],
  'hosted_cleanup':['node','--test','qualification/whole-system-20261029/cleanup-hosted-session.test.mjs'],
- 'workers_ai_free':['node','--test','qualification/whole-system-20261029/workers-ai-free-preflight.test.mjs','qualification/whole-system-20261029/workers-ai-free-client.test.mjs','qualification/whole-system-20261029/workers-ai-runner.test.mjs'],
+ 'workers_ai_free':['node','--test','qualification/whole-system-20261029/workers-ai-free-preflight.test.mjs','qualification/whole-system-20261029/workers-ai-free-client.test.mjs','qualification/whole-system-20261029/workers-ai-runner.test.mjs','qualification/whole-system-20261029/provider-gates-readonly.test.mjs'],
 }
 if args.with_local_d1:
  CHECKS['local_d1']=['node','--test','qualification/whole-system-20261029/d1-local.test.mjs']
