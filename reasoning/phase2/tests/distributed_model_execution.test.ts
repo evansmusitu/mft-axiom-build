@@ -8,6 +8,7 @@ import { sign } from "node:crypto";
 import {
   compileProgram, compilerManifest, createDefaultRegistry, createSigner, hashJson
 } from "../../phase1/src/index.ts";
+import { createDistributedWorkerTestAuthority } from "./distributed_worker_test_fixture.ts";
 
 const A={tenantId:"tenant:distributed-model"};
 const H=(c:string)=>c.repeat(64);
@@ -147,7 +148,9 @@ test("distributed model execution surface requires exact dispatch authority and 
 test("trusted worker executes only the frozen snapshot and never uses provider acquisition or explanation surfaces",async()=>{
   const f=await fixture();
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-worker-")),db=join(dir,"platform.db");
-  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db,authority.storeOptions);
+  const workers=authority.bind(jobs);
   try{
     await putWorld(world);
     const modelExecutor=new f.phase2.ModelExecutionService({repository:f.repository,profiles:f.profiles,registry:f.registry,plane:{execute(){throw new Error("unused");}}});
@@ -174,8 +177,11 @@ test("trusted worker executes only the frozen snapshot and never uses provider a
         modelExplainer:{explain(){throw new Error("worker must not call explanation provider");}}
       };
     }};
-    const worker=new f.phase2.DistributedModelExecutionWorker({jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")});
-    const outcome=await worker.runOnce("worker:one");
+    const worker=new f.phase2.DistributedModelExecutionWorker({
+      ...workers.workerOptions("worker:one"),runtimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
+    });
+    const outcome=await worker.runOnce();
     assert.equal(outcome.status,"COMPLETED");
     assert.equal(outcome.jobId,queued.jobId);
 
@@ -198,7 +204,9 @@ test("worker maps trusted runtime drift to STALE and snapshot corruption to FAIL
   const f=await fixture();
   for(const mode of ["stale","integrity"] as const){
     const dir=mkdtempSync(join(tmpdir(),`axiom-p25a-${mode}-`)),db=join(dir,"platform.db");
-    const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db);
+    const authority=createDistributedWorkerTestAuthority();
+    const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db,authority.storeOptions);
+    const workers=authority.bind(jobs);
     try{
       await putWorld(world);
       const submitExecutor=new f.phase2.ModelExecutionService({repository:f.repository,profiles:f.profiles,registry:f.registry,plane:{execute(){throw new Error("unused");}}});
@@ -224,8 +232,11 @@ test("worker maps trusted runtime drift to STALE and snapshot corruption to FAIL
         const modelExecutor=new f.phase2.ModelExecutionService({repository:f.repository,profiles:workerProfiles,registry:f.registry,plane});
         return {modelExecutor,executions,plane,__world:activeWorld};
       }};
-      const worker=new f.phase2.DistributedModelExecutionWorker({jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")});
-      const outcome=await worker.runOnce("worker:failure");
+      const worker=new f.phase2.DistributedModelExecutionWorker({
+        ...workers.workerOptions("worker:failure"),runtimes,leaseMs:5000,
+        clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
+      });
+      const outcome=await worker.runOnce();
       assert.equal(outcome.status,"TERMINAL");
       const job=await jobs.get(A,queued.jobId);
       assert.equal(job.state.status,mode==="stale"?"STALE":"FAILED_INTEGRITY");
@@ -242,7 +253,9 @@ test("worker maps trusted runtime drift to STALE and snapshot corruption to FAIL
 test("worker releases transient failures and recovers a crash after execution persistence without creating a second execution",async()=>{
   const f=await fixture();
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-crash-")),db=join(dir,"platform.db");
-  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),baseJobs=new f.phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),baseJobs=new f.phase2.DistributedExecutionStore(db,authority.storeOptions);
+  const workers=authority.bind(baseJobs);
   try{
     await putWorld(world);
     const submitExecutor=new f.phase2.ModelExecutionService({repository:f.repository,profiles:f.profiles,registry:f.registry,plane:{execute(){throw new Error("unused");}}});
@@ -256,12 +269,15 @@ test("worker releases transient failures and recovers a crash after execution pe
         plane:{async executeBound(){throw new Error("transient database outage");}}
       };
     }};
-    const transientWorker=new f.phase2.DistributedModelExecutionWorker({jobs:baseJobs,runtimes:transientRuntimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")});
-    const transientOutcome=await transientWorker.runOnce("worker:transient");
+    const transientWorker=new f.phase2.DistributedModelExecutionWorker({
+      ...workers.workerOptions("worker:transient"),runtimes:transientRuntimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
+    });
+    const transientOutcome=await transientWorker.runOnce();
     assert.equal(transientOutcome.status,"RETRY");
     assert.equal((await baseJobs.get(A,transient.jobId)).state.status,"PENDING");
 
-    await baseJobs.failTerminal; // keep interface exercised without mutating the pending job
+    assert.equal(typeof baseJobs.failTerminalAuthenticated,"function");
 
     const crashTiming={asOf:"2026-10-08T14:00:00.000Z",issuedAt:"2026-10-08T14:00:02.000Z"};
     const crash=await dispatcher.dispatch(context(f.record.compilationId),f.record.compilationId,crashTiming,H("0"),"2026-10-08T14:00:04.000Z");
@@ -275,26 +291,28 @@ test("worker releases transient failures and recovers a crash after execution pe
     }};
 
     let failComplete=true;
-    const crashJobs:any={
-      create:(...args:any[])=>baseJobs.create(...args),
-      get:(...args:any[])=>baseJobs.get(...args),
-      claimNext:(...args:any[])=>baseJobs.claimNext(...args),
-      heartbeat:(...args:any[])=>baseJobs.heartbeat(...args),
-      releaseForRetry:(...args:any[])=>baseJobs.releaseForRetry(...args),
-      failTerminal:(...args:any[])=>baseJobs.failTerminal(...args),
+    const baseControl=workers.control;
+    const crashControl:any={
+      claim:(...args:any[])=>baseControl.claim(...args),
+      heartbeat:(...args:any[])=>baseControl.heartbeat(...args),
+      release:(...args:any[])=>baseControl.release(...args),
+      fail:(...args:any[])=>baseControl.fail(...args),
       async complete(...args:any[]){
         if(failComplete){failComplete=false;throw new Error("simulated crash after durable execution");}
-        return baseJobs.complete(...args);
+        return baseControl.complete(...args);
       }
     };
 
     // The older transient job is still pending; terminalize it so the crash job is the next claim.
-    const oldLease=await baseJobs.claimNext("worker:cleanup","2026-10-08T14:00:04.100Z",5000);
+    const oldLease=await workers.claimNext("worker:cleanup","2026-10-08T14:00:04.100Z",5000);
     assert.equal(oldLease.job.intent.jobId,transient.jobId);
-    await baseJobs.failTerminal(A,transient.jobId,"worker:cleanup",oldLease.leaseEpoch,"2026-10-08T14:00:04.200Z","FAILED_INTEGRITY");
+    await workers.failTerminal(A,transient.jobId,"worker:cleanup",oldLease.leaseEpoch,"2026-10-08T14:00:04.200Z","FAILED_INTEGRITY");
 
-    const worker1=new f.phase2.DistributedModelExecutionWorker({jobs:crashJobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:05.000Z","2026-10-08T14:00:05.100Z","2026-10-08T14:00:05.200Z")});
-    const first=await worker1.runOnce("worker:crash");
+    const worker1=new f.phase2.DistributedModelExecutionWorker({
+      ...workers.workerOptions("worker:crash"),control:crashControl,runtimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:05.000Z","2026-10-08T14:00:05.100Z","2026-10-08T14:00:05.200Z")
+    });
+    const first=await worker1.runOnce();
     assert.equal(first.status,"RETRY");
     assert.equal((await baseJobs.get(A,crash.jobId)).state.status,"PENDING");
     assert.ok(await executions.getByIntent(A,crash.jobId));
@@ -304,8 +322,11 @@ test("worker releases transient failures and recovers a crash after execution pe
     assert.equal(Number((raw.prepare("SELECT COUNT(*) AS n FROM execution_intents WHERE tenant_id=?").get(A.tenantId) as any).n),1);
     raw.close();
 
-    const worker2=new f.phase2.DistributedModelExecutionWorker({jobs:crashJobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:06.000Z","2026-10-08T14:00:06.100Z")});
-    const second=await worker2.runOnce("worker:recovery");
+    const worker2=new f.phase2.DistributedModelExecutionWorker({
+      ...workers.workerOptions("worker:recovery"),control:crashControl,runtimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:06.000Z","2026-10-08T14:00:06.100Z")
+    });
+    const second=await worker2.runOnce();
     assert.equal(second.status,"COMPLETED");
     const recovered=await baseJobs.get(A,crash.jobId);
     assert.equal(recovered.state.status,"SUCCEEDED");
@@ -324,7 +345,9 @@ test("worker releases transient failures and recovers a crash after execution pe
 test("distributed retry repeats the identical external signing intent after a lost signer response",async()=>{
   const f=await fixture();
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25b-signer-retry-")),db=join(dir,"platform.db");
-  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const world=new f.phase2.WorldStateStore(db),executions=new f.phase2.ExecutionStore(db),jobs=new f.phase2.DistributedExecutionStore(db,authority.storeOptions);
+  const workers=authority.bind(jobs);
   try{
     await putWorld(world);
     const submitExecutor=new f.phase2.ModelExecutionService({
@@ -357,16 +380,18 @@ test("distributed retry repeats the identical external signing intent after a lo
     }};
 
     const firstWorker=new f.phase2.DistributedModelExecutionWorker({
-      jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
+      ...workers.workerOptions("worker:signer-loss"),runtimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:03.000Z","2026-10-08T14:00:03.100Z")
     });
-    assert.deepEqual(await firstWorker.runOnce("worker:signer-loss"),{status:"RETRY",jobId:queued.jobId});
+    assert.deepEqual(await firstWorker.runOnce(),{status:"RETRY",jobId:queued.jobId});
     assert.equal((await jobs.get(A,queued.jobId)).state.status,"PENDING");
     assert.equal(await executions.getByIntent(A,queued.jobId),undefined);
 
     const secondWorker=new f.phase2.DistributedModelExecutionWorker({
-      jobs,runtimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:04.000Z","2026-10-08T14:00:04.100Z")
+      ...workers.workerOptions("worker:signer-retry"),runtimes,leaseMs:5000,
+      clock:workerClock("2026-10-08T14:00:04.000Z","2026-10-08T14:00:04.100Z")
     });
-    const second=await secondWorker.runOnce("worker:signer-retry");
+    const second=await secondWorker.runOnce();
     assert.equal(second.status,"COMPLETED");
     assert.equal(calls.length,2);
     assert.deepEqual(calls[1],calls[0]);
