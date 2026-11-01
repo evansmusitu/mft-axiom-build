@@ -29,7 +29,8 @@ jobs:
           o=json.load(open('source_meta.json'))
           a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-epoch1-chunked-final' and not x['expired']]
           assert len(a)==1,a
-          assert a[0]['digest'].startswith('sha256:') and len(a[0]['digest'])==71, a[0]['digest']\n          print('retrained source digest', a[0]['digest'])
+          assert a[0]['digest'].startswith('sha256:') and len(a[0]['digest'])==71, a[0]['digest']
+          print('retrained source digest', a[0]['digest'])
           print('source artifact identity PASS')
           PY
       - name: Download exact failed epoch1 source model
