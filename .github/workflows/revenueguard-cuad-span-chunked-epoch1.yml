@@ -2,7 +2,7 @@ name: RevenueGuard CUAD Span Chunked Epoch 1
 
 on:
   push:
-    branches: [revenueguard-axiom-governor-20260911]
+    branches: [revenueguard-v41-postgate-research-20261101]
     paths:
       - '.github/workflows/revenueguard-cuad-span-chunked-epoch1.yml'
       - 'research/revenueguard/cuad_chunk_train.py'
@@ -37,7 +37,7 @@ jobs:
             cuad_state_0.pt
             CUAD_CHUNK_0.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk1:
     needs: chunk0
@@ -66,7 +66,7 @@ jobs:
             cuad_state_1.pt
             CUAD_CHUNK_1.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk2:
     needs: chunk1
@@ -95,7 +95,7 @@ jobs:
             cuad_state_2.pt
             CUAD_CHUNK_2.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk3:
     needs: chunk2
@@ -124,7 +124,7 @@ jobs:
             cuad_state_3.pt
             CUAD_CHUNK_3.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk4:
     needs: chunk3
@@ -153,7 +153,7 @@ jobs:
             cuad_state_4.pt
             CUAD_CHUNK_4.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk5:
     needs: chunk4
@@ -182,7 +182,7 @@ jobs:
             cuad_state_5.pt
             CUAD_CHUNK_5.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk6:
     needs: chunk5
@@ -211,7 +211,7 @@ jobs:
             cuad_state_6.pt
             CUAD_CHUNK_6.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   chunk7:
     needs: chunk6
@@ -240,4 +240,4 @@ jobs:
             cuad_epoch1_state.pt
             CUAD_EPOCH1_FINAL.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
