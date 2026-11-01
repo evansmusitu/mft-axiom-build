@@ -1,0 +1,33 @@
+name: RevenueGuard V3 Recovery Source and Gate Safety Preflight
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['.github/workflows/revenueguard-v3-recovery-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  syntax_and_gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile recovered source and assert unchanged locked development gate
+        run: |
+          set -euo pipefail
+          python -m py_compile research/revenueguard/contractnli_pairwise_v3_recovery_train.py research/revenueguard/contractnli_v3_recovery_dev_shard.py research/revenueguard/contractnli_v3_recovery_dev_aggregate.py research/revenueguard/cuad_matched_window_multitask_train.py
+          python - <<'PY'
+          from pathlib import Path
+          train=Path('research/revenueguard/contractnli_pairwise_v3_recovery_train.py').read_text()
+          shard=Path('research/revenueguard/contractnli_v3_recovery_dev_shard.py').read_text()
+          gate=Path('research/revenueguard/contractnli_v3_recovery_dev_aggregate.py').read_text()
+          assert "st.get('source_encoder_artifact_sha256')" in train
+          assert 'ranking_loss' in train and 'semantic_logits[positives]' in train
+          assert 'if partition(d) != \'build\'' in train
+          assert 'test.json' not in train and 'maud' not in train.lower()
+          assert 'EXPECTED_DUPLICATE_CAL_DOCS = (\'548\',)' in gate
+          assert "gate = {'accuracy_min': .90, 'macro_f1_min': .88, 'false_grounding_max': .02, 'evidence_recall_min': .85}" in gate
+          assert 'dev_metrics(devrows)' in gate
+          assert 'relevance_calibration_metrics(cal, k, th)' in gate
+          assert 'torch.sigmoid(lr)' in shard
+          print('V3 source and locked-gate preflight PASS')
+          PY
