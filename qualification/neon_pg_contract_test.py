@@ -54,7 +54,7 @@ def main():
           has_table_privilege(%s,'connect_qualification.events','INSERT'),
           has_table_privilege(%s,'connect_qualification.daily_usage','UPDATE')
           FROM pg_roles WHERE rolname=%s
-        """, (ROLE, ROLE, ROLE, ROLE, ROLE, ROLE)).fetchone()
+        """, (ROLE, ROLE, ROLE, ROLE, ROLE)).fetchone()
         require(checks == (False, True, False, False, False), "role_is_not_least_privilege")
         connection.execute("""
           INSERT INTO connect_qualification.tenants(tenant_id,status,daily_limit,minute_limit)
