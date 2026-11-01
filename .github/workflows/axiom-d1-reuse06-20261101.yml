@@ -1,0 +1,114 @@
+name: AXIOM owner-selected staging D1 reuse 06
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/d1-reuse06-authorization-20261101.json']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: axiom-owner-selected-staging-reuse-20261101-06
+  cancel-in-progress: false
+jobs:
+  reused-staging-d1:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      AXIOM_ACCEPTANCE_RUN_ID: axiom-acceptance-20261101-06
+      AXIOM_ACCEPTANCE_OUTPUT: qualification/whole-system-20261029/d1-reuse06-results
+      AXIOM_REUSE_DATABASE_ID: a7384b8a-0751-4705-ac77-0616b0885e7c
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the exact owner selection and tested code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git rev-parse HEAD^)" = 8ae4c04264faadc4f2887315c9c2e86f12f89629
+          python3 - <<'PYTHON'
+          import os,json,subprocess,urllib.request
+          from pathlib import Path
+          auth_path='qualification/whole-system-20261029/d1-reuse06-authorization-20261101.json'
+          auth=json.loads(Path(auth_path).read_text())
+          assert auth['user_instruction']=='#1 just reuse'
+          assert auth['database_id']=='a7384b8a-0751-4705-ac77-0616b0885e7c'
+          assert auth['database_name']=='mft-axiom-claude-staging-20260927'
+          assert auth['namespace']=='axiom_q06_' and auth['run_id']=='axiom-acceptance-20261101-06'
+          assert auth['inference_calls']==0 and auth['create_database'] is False and auth['delete_database'] is False and auth['replace_existing_worker'] is False
+          assert auth['tested_code_source']=='8ae4c04264faadc4f2887315c9c2e86f12f89629'
+          changes=set(subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines())
+          assert changes=={auth_path,'.github/workflows/axiom-d1-reuse06-20261101.yml'}, 'runtime code must match the tested parent'
+          url='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs?head_sha='+auth['tested_code_source']+'&event=pull_request&per_page=100'
+          request=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(request,timeout=20) as response: runs=json.load(response)['workflow_runs']
+          qualified=[r for r in runs if r['name']=='AXIOM whole-system offline qualification' and r['head_sha']==auth['tested_code_source'] and r['status']=='completed' and r['conclusion']=='success']
+          assert qualified, 'exact source qualification must pass before credentialed reuse'
+          out=Path(os.environ['AXIOM_ACCEPTANCE_OUTPUT']);out.mkdir(parents=True,exist_ok=True)
+          (out/'code-prevalidation.json').write_text(json.dumps({'source_sha':auth['tested_code_source'],'workflow_run_id':qualified[0]['id'],'conclusion':'success','selection':auth},indent=2)+'\n')
+          PYTHON
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned imports without inference credentials
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned bundler
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.25.9
+      - name: Reuse selected staging namespace and run real D1 acceptance
+        timeout-minutes: 10
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qualification/whole-system-20261029/live-hosted-acceptance.mjs --storage-only --reuse-selected-staging
+      - name: Reconcile temporary Worker cleanup while preserving the selected database
+        if: always()
+        timeout-minutes: 2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PYTHON'
+          import os,json,urllib.request,urllib.error
+          from pathlib import Path
+          account='93f395f5121954671f92fffa453d6b61';worker='axiom-acceptance-20261101-06';database='a7384b8a-0751-4705-ac77-0616b0885e7c'
+          base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+worker
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          def call(url,method='GET'):
+              request=urllib.request.Request(url,headers=headers,method=method)
+              try:
+                  with urllib.request.build_opener(NoRedirect).open(request,timeout=20) as response: value=json.load(response)
+              except urllib.error.HTTPError as e:
+                  if e.code==404: return None
+                  raise RuntimeError('cleanup provider HTTP '+str(e.code)) from None
+              assert value.get('success') is True, 'cleanup provider denied request'
+              return value.get('result')
+          result={'worker':worker,'database_id':database,'database_deleted':False,'existing_worker_changed':False}
+          try:
+              settings=call(base+'/settings')
+              if settings is not None:
+                  bindings=settings.get('bindings') or []
+                  assert any(b.get('type')=='d1' and (b.get('id') or b.get('database_id'))==database for b in bindings), 'refuse foreign Worker cleanup'
+                  assert any(b.get('name')=='ACCEPTANCE_RUN_ID' and b.get('text')==worker for b in bindings), 'refuse unowned Worker cleanup'
+                  call(base,'DELETE')
+              assert call(base+'/settings') is None, 'temporary Worker still exists'
+              result['temporary_worker_absent']=True
+          except Exception as e:
+              result['temporary_worker_absent']=False;result['error']=str(e)[:160]
+          out=Path(os.environ['AXIOM_ACCEPTANCE_OUTPUT']);out.mkdir(parents=True,exist_ok=True)
+          (out/'worker-cleanup-readback.json').write_text(json.dumps(result,indent=2)+'\n')
+          assert result['temporary_worker_absent'], 'temporary Worker cleanup requires reconciliation'
+          PYTHON
+      - name: Preserve actual D1 results and original-data commitments
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-selected-staging-d1-reuse06-20261101
+          path: qualification/whole-system-20261029/d1-reuse06-results/*.json
+          retention-days: 90
+          if-no-files-found: error

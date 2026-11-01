@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.axiom.d1-reuse-authorization.v1",
+  "user_instruction": "#1 just reuse",
+  "action": "REUSE_SELECTED_STAGING_NAMESPACE",
+  "database_name": "mft-axiom-claude-staging-20260927",
+  "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+  "account_id": "93f395f5121954671f92fffa453d6b61",
+  "namespace": "axiom_q06_",
+  "run_id": "axiom-acceptance-20261101-06",
+  "tested_code_source": "8ae4c04264faadc4f2887315c9c2e86f12f89629",
+  "inference_calls": 0,
+  "create_database": false,
+  "delete_database": false,
+  "replace_existing_worker": false,
+  "independent_custody_certified": false,
+  "release_authorized": false
+}
