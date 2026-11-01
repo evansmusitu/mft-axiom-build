@@ -1,0 +1,56 @@
+{
+  "schema": "musitu.revenueguard.posthandoff_research_pointer.v1",
+  "date": "2026-11-01",
+  "authority": {
+    "handoff_zip_sha256": "e0dc025bcc881b03e0a1c811c5bfdc651af0c9d066bb7b70788662f93ba38a40",
+    "handoff_pinned_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
+    "observed_parent_head": "5075bca08b550a29bd258108d436a9727de51437",
+    "later_commits_examined": 71
+  },
+  "frozen_v4": {
+    "archive_sha256": "16ce77c048bc39990b9fe338f3090e430b2c8d7f2767efef11369bd3013be85d",
+    "internal_manifest_files_verified": 24,
+    "regression_sha256": "b669e2756a7846fb04bf40671ed66f456917a94881fb993ceb4ad003b63f44e2",
+    "unchanged_regressions_passed": 30
+  },
+  "contractnli": {
+    "v2_locked_dev_report_sha256": "f471970e6619363b53a3d1b8981eeefa52d7eea6181728afbb105ff63f818183",
+    "checkpoint_artifact_sha256": "3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951",
+    "gate": "FAIL",
+    "metrics": {
+      "accuracy": 0.5477338476374156,
+      "macro_f1": 0.36355454245306484,
+      "exact_evidence_recall": 0.7166123778501629,
+      "notmentioned_false_grounding": 0.02127659574468085
+    },
+    "postgate_aggregate_curriculum_record_sha256": "6d74a19c157e1930ba3b5f3575afc72e6b187cae2721482757a493cb643bb9fb",
+    "aggregate_hypothesis_groups_below_evidence_recall_gate": 16,
+    "subgroup_false_grounding_above_2pct": 4,
+    "new_build_only_pairwise_curriculum_generator": "LOCAL_RESEARCH_IMPLEMENTED_AND_UNIT_TESTED_NOT_TRAINED"
+  },
+  "cuad": {
+    "training_resume_run_id": 34801041589,
+    "training_chunks_completed": 4,
+    "selected_training_windows": 61659,
+    "global_training_steps": 2571,
+    "heldout_evaluation": "NOT_RUN",
+    "final_checkpoint_artifact": "NOT_CURRENTLY_AVAILABLE",
+    "development_gate": "UNKNOWN"
+  },
+  "local_research_workpack": {
+    "name": "MUSITU_REVENUEGUARD_V41_POSTHANDOFF_RESEARCH_2026-11-01.zip",
+    "sha256": "711646ca79521d4bc9f89f50118665a325681d70560b07fb37a0a0a6baaa6cae",
+    "local_adversarial_tests": "13/13 PASS",
+    "verification_level": "LOCAL_RESEARCH_EVIDENCE_NOT_CERTIFICATION"
+  },
+  "policy": {
+    "certification": "NOT_CERTIFIED",
+    "v4_1_assembly_allowed": false,
+    "contractnli_test_opened": false,
+    "cuad_official_test_opened": false,
+    "maud_opened": false,
+    "permissioned_real_companies": 0,
+    "verified_recovered_cash_usd": 0
+  },
+  "limitation": "This append-only pointer does not substitute for the local research workpack, for missing raw dev shards, or for unavailable CUAD model artifacts. Do not infer a CUAD pass or authorize test opening."
+}
