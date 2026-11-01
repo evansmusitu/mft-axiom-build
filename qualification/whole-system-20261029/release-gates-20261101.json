@@ -30,6 +30,19 @@
     "evidence": "hosted-postgres-acceptance-20261101.json",
     "root_readback": "hosted-postgres-root-readback-20261101.json"
   },
+  "hosted_agents": {
+    "status": "BLOCKED_PROVIDER_USAGE_LIMIT",
+    "provider_error_code": "usage_limit_exceeded",
+    "attempts": 3,
+    "saved_identity_checkpoints": "CONFIRMED_REMOTE_ACKNOWLEDGMENTS",
+    "recovery_to_terminal_failure": "CONFIRMED",
+    "successful_output_and_completion_receipt": "UNQUALIFIED",
+    "active_turn_cancellation": "UNQUALIFIED_PROBE_NOT_REACHED",
+    "session_cleanup": "DELETE_ACKNOWLEDGED_AND_GET404_ALL_THREE",
+    "further_automatic_dispatch": "DISABLED_BY_SOURCE_PIN",
+    "workflow_run_id": 41279972075,
+    "artifact_sha256": "629fb96660103074fb469c4faf8200368d03f6cc5c20450540fa216b005395b3"
+  },
   "basis": {
     "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",
     "independent_readonly_evidence_library_file_id": "libfile_496ff973de6c8191871b8a899396dcf2",

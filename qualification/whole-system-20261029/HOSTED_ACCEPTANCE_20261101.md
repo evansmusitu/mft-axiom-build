@@ -81,3 +81,43 @@ resends that invocation. The isolated acceptance lease is15minutes; ordinary
 production defaults are unchanged. Provider state and safe typed observation
 errors are retained before failure cleanup. Only its actual downloaded output,
 receipt, terminal cancellation and deletion evidence can establish success.
+
+## Final diagnostic outcome and current blocker
+
+Attempt02, workflow `41279039771`, was also a failed provider turn without any
+final output or completion receipt. Its artifact SHA256 is
+`a7733bdd14615ff1f1e1c16c1bd5d981a4caaa022b6f2aaa6f3307c6a7689857`.
+GET-only diagnostics verified that the exact default model was available and
+both deleted sessions/turns returned404; no diagnostic request created a session.
+
+The final bounded diagnostic was a new Work/claim03, workflow `41279972075`, at
+source `a515bf57bf8441e6b218c1625bf17b4478a89c46`. Its interrupted creation
+observer saved and remotely acknowledged both IDs. Read-only waiting then
+observed the provider's documented **`usage_limit_exceeded`** category and
+terminal `failed` status. The normal governed failure path persisted the Run as
+FAILED, with one provider-call reservation, no successful Artifact and no
+completion receipt. Cancellation was requested during cleanup; deletion was
+acknowledged after a transient failed deletion attempt, then GET404 was verified.
+Its exact artifact SHA256 is
+`629fb96660103074fb469c4faf8200368d03f6cc5c20450540fa216b005395b3`.
+
+The final session is
+`sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538`; its saved turn is
+`turn_05e73702a5f56bd0006ae6d8c389708192805cb21cc95ae28b`.
+No session remains addressable. Provider sandbox destruction after deletion is
+asynchronous and is not independently attested. Three separate failed sessions
+were attempted in total; previous failed invocations were never resent.
+
+**Successful hosted output, Axiom completion receipt and terminal active-turn
+cancellation remain unqualified.** The acceptance never reached its follow-up
+cancellation probe. Resolving the provider usage limit is required before that
+remaining acceptance can pass. Further automatic inference dispatch is pinned
+off; remote one-shot claims and all failed outcomes are retained.
+
+These failures also supplied a concrete recovery regression: documented terminal
+failures are now reconciled once rather than repeatedly polled as unknown
+outcomes. Logical lifecycle deletion may handle such an invocation only with a
+failed governed Run, captured provider IDs, empty output and the exact terminal
+failure/cancellation observation. It still requires a verified export and an
+separately provisioned server-owned lifecycle grant. A failed Run alone cannot erase an
+uncertain provider outcome.

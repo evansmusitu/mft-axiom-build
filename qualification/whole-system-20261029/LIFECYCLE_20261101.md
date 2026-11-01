@@ -23,7 +23,7 @@ missing payload or reconstruct erased content. Cross-tenant requests remain404;
 corrupt or missing proof fails closed. Ordinary legacy rows remain readable before
 the lifecycle migration is applied, but lifecycle control operations require it.
 
-Fresh checks include 19 real SQLite authorization, race, export, replay, corruption,
+Fresh checks include 20 real SQLite authorization, race, export, replay, corruption,
 hosted-output-fixture and recovery cases. The actual workerd/D1 integration adds
 migration, hold/release, export, logical erasure and authenticated410 checks. The
 internal lifecycle skill has mapped behavioral evaluations and bounded authority;

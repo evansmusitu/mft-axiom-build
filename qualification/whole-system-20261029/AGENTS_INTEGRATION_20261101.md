@@ -1,5 +1,8 @@
 # Governed OpenAI Agents integration — 1 November 2026
 
+> Historical offline integration checkpoint. Subsequent live outcomes, recovery fixes and current release limits are recorded in HOSTED_ACCEPTANCE_20261101.md and release-gates-20261101.json. Original test counts below describe that earlier checkpoint, not the final source.
+
+
 The owner selected reuse of an existing credential. No credential was created,
 printed, copied to a sandbox or written to a local environment file. This is a
 source candidate with offline acceptance, not a live hosted-access or release

@@ -6,6 +6,7 @@ import {resolve} from 'node:path';
 const known=[
   {session:'sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c',turn:'turn_0f98359bc2ef389b006ae6d3c8ea38819db85a93fc6fb386d9'},
   {session:'sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9',turn:'turn_0511bcd34e3b2dbc006ae6d586f010819ebf2ce4b4ea7473e8'},
+  {session:'sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538',turn:'turn_05e73702a5f56bd0006ae6d8c389708192805cb21cc95ae28b'},
 ];
 const codes=new Set(['context_length_exceeded','session_budget_exceeded','usage_limit_exceeded','rate_limit_exceeded','server_overloaded','cyber_policy','connection_failed','server_error','authentication_error','invalid_request','resource_not_found','sandbox_error','executor_version_incompatible','active_turn_not_steerable','request_timeout','internal_error','model_not_found','invalid_api_key','insufficient_quota','permission_denied']);
 const report={schema:'musitu.axiom.hosted-readonly-diagnostic.v1',at:new Date().toISOString(),source_sha:process.env.AXIOM_ACCEPTANCE_SOURCE_SHA,model_inference_requested:false,sessions_created:0,checks:[]};
