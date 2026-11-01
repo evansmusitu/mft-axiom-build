@@ -1,0 +1,119 @@
+name: RevenueGuard Verified Recovery Chain Dispatch
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['.github/workflows/revenueguard-verified-recovery-chain.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  contractnli_v3_locked_dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Wait for exact source completion, attest artifact and dispatch locked successor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: '41336589127'
+          SOURCE_HEAD: 'dc4f8cae8256867d43af65cff8286fccb31ec000'
+          SOURCE_NAME: 'RevenueGuard ContractNLI V3 Pairwise Real Retraining'
+          ARTIFACT_NAME: 'revenueguard-contractnli-pairwise-v3-recovery-chunk-3'
+          NEXT_WORKFLOW: 'revenueguard-v3-pairwise-locked-dev.yml'
+        run: |
+          python - <<'PY'
+          import json,os,re,time,urllib.request,urllib.error
+          repo="evansmusitu/mft-axiom-build"
+          branch="revenueguard-v41-postgate-research-20261101"
+          api_base=f"https://api.github.com/repos/{repo}"
+          run_id=int(os.environ["SOURCE_RUN_ID"])
+          source_head=os.environ["SOURCE_HEAD"]
+          workflow_name=os.environ["SOURCE_NAME"]
+          artifact_name=os.environ["ARTIFACT_NAME"]
+          target=os.environ["NEXT_WORKFLOW"]
+          token=os.environ["GH_TOKEN"]
+          headers={"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}
+          def get(url):
+           req=urllib.request.Request(url,headers=headers)
+           with urllib.request.urlopen(req,timeout=30) as f:return json.load(f)
+          for ix in range(210):
+           run=get(f"{api_base}/actions/runs/{run_id}")
+           if run["head_sha"]!=source_head or run["name"]!=workflow_name or run["head_branch"]!=branch:
+            raise SystemExit("SOURCE_RUN_LINEAGE_DRIFT")
+           if run["status"]=="completed":
+            if run["conclusion"]!="success":raise SystemExit("SOURCE_RUN_NOT_SUCCESS:"+str(run["conclusion"]))
+            art=get(f"{api_base}/actions/runs/{run_id}/artifacts?name={artifact_name}")
+            matches=[a for a in art["artifacts"] if a["name"]==artifact_name and not a.get("expired")]
+            if len(matches)!=1 or not re.fullmatch(r"sha256:[0-9a-f]{64}",matches[0].get("digest","")):
+             raise SystemExit("SOURCE_FINAL_ARTIFACT_MISSING_OR_UNVERIFIABLE")
+            print(json.dumps({"source_run_id":run_id,"source_head":source_head,"artifact_id":matches[0]["id"],"artifact_digest":matches[0]["digest"],"next_workflow":target}),flush=True)
+            prev=get(f"{api_base}/actions/workflows/{target}/runs?per_page=50")
+            exists=any(r["head_branch"]==branch and r["event"]=="workflow_dispatch" and r["conclusion"] in (None,"success") for r in prev["workflow_runs"])
+            if exists:
+             print("ELIGIBLE_DOWNSTREAM_WORKFLOW_ALREADY_DISPATCHED",flush=True)
+            else:
+             req=urllib.request.Request(f"{api_base}/actions/workflows/{target}/dispatches",method="POST",headers={**headers,"Content-Type":"application/json"},data=json.dumps({"ref":branch}).encode())
+             with urllib.request.urlopen(req,timeout=30) as response:
+              if response.status!=204:raise SystemExit("DISPATCH_NOT_ACCEPTED:"+str(response.status))
+             print("DOWNSTREAM_WORKFLOW_DISPATCH_ACCEPTED",flush=True)
+            break
+           print(f"waiting for {run_id}: {run['status']} (check {ix+1}/210)",flush=True)
+           time.sleep(90)
+          else:
+           raise SystemExit("SOURCE_WAIT_EXPIRED_NO_GATE_ADVANCEMENT")
+          
+          PY
+  cuad_matched_window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Wait for exact source completion, attest artifact and dispatch locked successor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: '41330640096'
+          SOURCE_HEAD: '914be62c1cff332ee7c3ad5189805103e9debe3a'
+          SOURCE_NAME: 'RevenueGuard CUAD Span Chunked Epoch 1'
+          ARTIFACT_NAME: 'revenueguard-cuad-epoch1-chunked-final'
+          NEXT_WORKFLOW: 'revenueguard-cuad-matched-window-multitask-epoch2.yml'
+        run: |
+          python - <<'PY'
+          import json,os,re,time,urllib.request,urllib.error
+          repo="evansmusitu/mft-axiom-build"
+          branch="revenueguard-v41-postgate-research-20261101"
+          api_base=f"https://api.github.com/repos/{repo}"
+          run_id=int(os.environ["SOURCE_RUN_ID"])
+          source_head=os.environ["SOURCE_HEAD"]
+          workflow_name=os.environ["SOURCE_NAME"]
+          artifact_name=os.environ["ARTIFACT_NAME"]
+          target=os.environ["NEXT_WORKFLOW"]
+          token=os.environ["GH_TOKEN"]
+          headers={"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}
+          def get(url):
+           req=urllib.request.Request(url,headers=headers)
+           with urllib.request.urlopen(req,timeout=30) as f:return json.load(f)
+          for ix in range(210):
+           run=get(f"{api_base}/actions/runs/{run_id}")
+           if run["head_sha"]!=source_head or run["name"]!=workflow_name or run["head_branch"]!=branch:
+            raise SystemExit("SOURCE_RUN_LINEAGE_DRIFT")
+           if run["status"]=="completed":
+            if run["conclusion"]!="success":raise SystemExit("SOURCE_RUN_NOT_SUCCESS:"+str(run["conclusion"]))
+            art=get(f"{api_base}/actions/runs/{run_id}/artifacts?name={artifact_name}")
+            matches=[a for a in art["artifacts"] if a["name"]==artifact_name and not a.get("expired")]
+            if len(matches)!=1 or not re.fullmatch(r"sha256:[0-9a-f]{64}",matches[0].get("digest","")):
+             raise SystemExit("SOURCE_FINAL_ARTIFACT_MISSING_OR_UNVERIFIABLE")
+            print(json.dumps({"source_run_id":run_id,"source_head":source_head,"artifact_id":matches[0]["id"],"artifact_digest":matches[0]["digest"],"next_workflow":target}),flush=True)
+            prev=get(f"{api_base}/actions/workflows/{target}/runs?per_page=50")
+            exists=any(r["head_branch"]==branch and r["event"]=="workflow_dispatch" and r["conclusion"] in (None,"success") for r in prev["workflow_runs"])
+            if exists:
+             print("ELIGIBLE_DOWNSTREAM_WORKFLOW_ALREADY_DISPATCHED",flush=True)
+            else:
+             req=urllib.request.Request(f"{api_base}/actions/workflows/{target}/dispatches",method="POST",headers={**headers,"Content-Type":"application/json"},data=json.dumps({"ref":branch}).encode())
+             with urllib.request.urlopen(req,timeout=30) as response:
+              if response.status!=204:raise SystemExit("DISPATCH_NOT_ACCEPTED:"+str(response.status))
+             print("DOWNSTREAM_WORKFLOW_DISPATCH_ACCEPTED",flush=True)
+            break
+           print(f"waiting for {run_id}: {run['status']} (check {ix+1}/210)",flush=True)
+           time.sleep(90)
+          else:
+           raise SystemExit("SOURCE_WAIT_EXPIRED_NO_GATE_ADVANCEMENT")
+          
+          PY
