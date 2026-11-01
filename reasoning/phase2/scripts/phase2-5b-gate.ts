@@ -12,6 +12,7 @@ import {
   DistributedExecutionStore, DistributedModelExecutionWorker, ExecutionStore, ReasoningControlPlane,
   WorldStateStore, createExternalEd25519SignerProvider
 } from "../src/index.ts";
+import { createDistributedWorkerTestAuthority } from "../tests/distributed_worker_test_fixture.ts";
 
 const tenant={tenantId:"tenant:phase25b-gate"};
 const H=(c:string)=>c.repeat(64);
@@ -34,7 +35,9 @@ function workerClock(...values:string[]){
 }
 
 const dir=mkdtempSync(join(tmpdir(),"axiom-phase25b-gate-")),db=join(dir,"platform.db");
-const world=new WorldStateStore(db),executions=new ExecutionStore(db),jobs=new DistributedExecutionStore(db);
+const workerAuthority=createDistributedWorkerTestAuthority();
+const world=new WorldStateStore(db),executions=new ExecutionStore(db),jobs=new DistributedExecutionStore(db,workerAuthority.storeOptions);
+const workers=workerAuthority.bind(jobs);
 const registry=createDefaultRegistry();
 const remote=createSigner();
 const signerCalls:any[]=[];
@@ -96,18 +99,18 @@ try{
     };
   }};
   const firstWorker=new DistributedModelExecutionWorker({
-    jobs,runtimes,leaseMs:5000,
+    ...workers.workerOptions("worker:hsm-loss"),runtimes,leaseMs:5000,
     clock:workerClock("2026-10-09T03:30:02.000Z","2026-10-09T03:30:02.100Z")
   });
-  assert.deepEqual(await firstWorker.runOnce("worker:hsm-loss"),{status:"RETRY",jobId:intent.intent.jobId});
+  assert.deepEqual(await firstWorker.runOnce(),{status:"RETRY",jobId:intent.intent.jobId});
   assert.equal((await jobs.get(tenant,intent.intent.jobId)).state.status,"PENDING");
   assert.equal(await executions.getByIntent(tenant,intent.intent.jobId),undefined);
 
   const secondWorker=new DistributedModelExecutionWorker({
-    jobs,runtimes,leaseMs:5000,
+    ...workers.workerOptions("worker:hsm-retry"),runtimes,leaseMs:5000,
     clock:workerClock("2026-10-09T03:30:03.000Z","2026-10-09T03:30:03.100Z")
   });
-  const completed=await secondWorker.runOnce("worker:hsm-retry");
+  const completed=await secondWorker.runOnce();
   assert.deepEqual(completed,{status:"COMPLETED",jobId:intent.intent.jobId,jobStatus:"SUCCEEDED"});
   assert.equal(signerCalls.length,2);
   assert.deepEqual(signerCalls[1],signerCalls[0],"ambiguous signer retry must repeat the exact request");
