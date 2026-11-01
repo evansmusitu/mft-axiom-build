@@ -1,9 +1,9 @@
 import type { Pool, PoolClient } from "pg";
 import type { DistributedExecutionRepository } from "./repositories.ts";
 import type {
-  AuthenticatedAuthenticatedWorkerContext, ControlPlaneResult,
+  AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, ControlPlaneResult,
   DistributedExecutionIntent, DistributedExecutionIntentCore, DistributedExecutionJob,
-TenantScope, WorkerAction, WorkerLeaseCapability, WorkerLeaseCapabilityCore
+  TenantScope, WorkerAction, WorkerLeaseCapability, WorkerLeaseCapabilityCore
 } from "./types.ts";
 import {
   distributedCloneJob, distributedEpoch, distributedIso, distributedMakeIntent,
