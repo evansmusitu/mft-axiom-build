@@ -10,7 +10,7 @@ test("Phase 2.5C exposes no raw worker-id authority path",async()=>{
   const db=join(dir,"jobs.db");
   const store:any=new phase2.DistributedExecutionStore(db);
   try{
-    for(const name of ["claimNext","heartbeat","releaseForRetry","complete","failTerminal"]){
+    for(const name of ["claimNext","heartbeat","releaseForRetry","complete","failTerminal","currentLease"]){
       assert.equal(typeof store[name],"undefined",`SQLite repository must not expose raw worker mutation ${name}`);
       assert.equal(
         typeof phase2.PostgresDistributedExecutionRepository.prototype[name],
