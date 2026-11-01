@@ -12,6 +12,7 @@ import {
 import {
   initializePostgresSchema, PostgresExecutionRepository, PostgresWorldStateRepository
 } from "../src/postgres.ts";
+import { createDistributedWorkerTestAuthority } from "./distributed_worker_test_fixture.ts";
 
 const {Pool}=pg;
 const A={tenantId:"tenant-pg-a"},B={tenantId:"tenant-pg-b"};
@@ -466,7 +467,9 @@ test("PostgreSQL distributed execution jobs provide SKIP LOCKED fencing parity",
   await ready();await initializePostgresSchema(pool);
   await pool.query("TRUNCATE axiom_distributed_execution_jobs");
 
-  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool);
+  const authority=createDistributedWorkerTestAuthority();
+  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool,authority.storeOptions);
+  const workers=authority.bind(repo);
   const H=(ch:string)=>ch.repeat(64);
   const core={
     tenantId:A.tenantId,principalId:"principal:pg-worker",authorizationDecisionHash:H("a"),requestHash:H("b"),
@@ -486,42 +489,42 @@ test("PostgreSQL distributed execution jobs provide SKIP LOCKED fencing parity",
   await assert.rejects(()=>repo.get(B,created.intent.jobId),/not found.*tenant/i);
 
   const claims=await Promise.all([
-    repo.claimNext("pg-worker:a","2026-10-08T13:00:03.000Z",1000),
-    repo.claimNext("pg-worker:b","2026-10-08T13:00:03.000Z",1000)
+    workers.claimNext("pg-worker:a","2026-10-08T13:00:03.000Z",1000),
+    workers.claimNext("pg-worker:b","2026-10-08T13:00:03.000Z",1000)
   ]);
   const owned=claims.filter(Boolean);
   assert.equal(owned.length,1);
   const first=owned[0];
   assert.equal(first.leaseEpoch,1);
   assert.equal(first.job.state.attemptCount,1);
-  assert.equal(await repo.claimNext("pg-worker:c","2026-10-08T13:00:03.500Z",1000),undefined);
+  assert.equal(await workers.claimNext("pg-worker:c","2026-10-08T13:00:03.500Z",1000),undefined);
 
-  const reclaimed=await repo.claimNext("pg-worker:c","2026-10-08T13:00:04.000Z",1000);
+  const reclaimed=await workers.claimNext("pg-worker:c","2026-10-08T13:00:04.000Z",1000);
   assert.ok(reclaimed);
   assert.equal(reclaimed.leaseEpoch,2);
   assert.equal(reclaimed.job.state.attemptCount,2);
   await assert.rejects(
-    ()=>repo.complete(A,created.intent.jobId,first.workerId,1,"2026-10-08T13:00:04.100Z",{
+    ()=>workers.complete(A,created.intent.jobId,first.workerId,1,"2026-10-08T13:00:04.100Z",{
       status:"APPROVED",snapshotId:created.intent.snapshotId,
       policyDecision:{status:"ALLOW",snapshotId:created.intent.snapshotId,checks:[]},
       certificateId:"cert:stale",executionRecordId:"platform:stale"
     }),
-    /stale lease/i
+    /stale|lease|capability/i
   );
 
-  const released=await repo.releaseForRetry(A,created.intent.jobId,"pg-worker:c",2,"2026-10-08T13:00:04.200Z");
+  const released=await workers.releaseForRetry(A,created.intent.jobId,"pg-worker:c",2,"2026-10-08T13:00:04.200Z");
   assert.equal(released.state.status,"PENDING");
-  const finalLease=await repo.claimNext("pg-worker:d","2026-10-08T13:00:04.300Z",1000);
+  const finalLease=await workers.claimNext("pg-worker:d","2026-10-08T13:00:04.300Z",1000);
   assert.equal(finalLease.leaseEpoch,3);
   const result={
     status:"APPROVED",snapshotId:created.intent.snapshotId,
     policyDecision:{status:"ALLOW",snapshotId:created.intent.snapshotId,checks:[]},
     certificateId:"cert:pg",executionRecordId:"platform:pg"
   };
-  const done=await repo.complete(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.400Z",result);
+  const done=await workers.complete(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.400Z",result);
   assert.equal(done.state.status,"SUCCEEDED");
-  assert.equal(await repo.claimNext("pg-worker:e","2026-10-08T13:00:10.000Z",1000),undefined);
-  await assert.rejects(()=>repo.failTerminal(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.500Z","FAILED_INTEGRITY"),/stale lease|terminal/i);
+  assert.equal(await workers.claimNext("pg-worker:e","2026-10-08T13:00:10.000Z",1000),undefined);
+  await assert.rejects(()=>workers.failTerminal(A,created.intent.jobId,"pg-worker:d",3,"2026-10-08T13:00:04.500Z","FAILED_INTEGRITY"),/stale|lease|capability|terminal/i);
 
   const tamperCore={...core,requestHash:H("9"),compilationId:"model-compilation:"+H("9")};
   const tampered=await repo.create(A,tamperCore);
