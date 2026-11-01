@@ -44,6 +44,70 @@ export class ModelDispatchService {
   private readonly world:Pick<WorldStateRepository,"snapshot">;
   private readonly jobs:DistributedExecutionRepository;
   constructor(options:{
+    modelExecutor:Pick<ModelExecutionService,"prepareDispatch">;
+    world:Pick<WorldStateRepository,"snapshot">;
+    jobs:DistributedExecutionRepository;
+  }){
+    if(!options?.modelExecutor||typeof options.modelExecutor.prepareDispatch!=="function")throw new TypeError("model dispatch executor is required");
+    if(!options?.world||typeof options.world.snapshot!=="function")throw new TypeError("world-state repository is required");
+    if(!options?.jobs||typeof options.jobs.create!=="function")throw new TypeError("distributed execution repository is required");
+    this.modelExecutor=options.modelExecutor;this.world=options.world;this.jobs=options.jobs;
+  }
+
+  async dispatch(
+    context:AuthorizedTenantContext,compilationId:string,timing:ModelExecuteRequest,requestHash:string,now:string
+  ):Promise<ModelDispatchResult> {
+    const canonicalRequestHash=required(requestHash,"requestHash");
+    const createdAt=iso(now,"now");
+    const prepared=await this.modelExecutor.prepareDispatch(context,compilationId,timing);
+    const snapshot=await this.world.snapshot(context.tenant,prepared.executionRequest.asOf);
+    if(snapshot.tenantId!==context.tenant.tenantId)throw new Error("Distributed dispatch snapshot tenant integrity mismatch");
+    if(snapshot.asOf!==prepared.executionRequest.asOf)throw new Error("Distributed dispatch snapshot timing integrity mismatch");
+    const job=await this.jobs.create(context.tenant,{
+      tenantId:context.tenant.tenantId,
+      principalId:required(context.principal.principalId,"principalId"),
+      authorizationDecisionHash:required(context.authorization.decisionHash,"authorization decision hash"),
+      requestHash:canonicalRequestHash,
+      compilationId:prepared.compilationId,
+      compilationRecordHash:prepared.compilationRecordHash,
+      profileId:prepared.profileId,
+      profileVersion:prepared.profileVersion,
+      profileHash:prepared.profileHash,
+      compilerManifest:structuredClone(prepared.compilerManifest),
+      operationRegistryManifestHash:prepared.operationRegistryManifestHash,
+      executionRequest:structuredClone(prepared.executionRequest),
+      snapshotId:snapshot.snapshotId,
+      snapshotHash:snapshot.snapshotHash,
+      createdAt
+    });
+    return {status:"QUEUED",jobId:job.intent.jobId,snapshotId:job.intent.snapshotId};
+  }
+}
+
+export interface DistributedModelWorkerRuntime {
+  modelExecutor:Pick<ModelExecutionService,"validatePrepared">;
+  executions:Pick<ExecutionRepository,"getByIntent">;
+  plane:{executeBound(request:any,snapshotId:string,executionIntentId:string):Promise<ControlPlaneResult>};
+}
+export interface DistributedModelWorkerRuntimeFactory {
+  create(scope:TenantScope):DistributedModelWorkerRuntime;
+}
+export type DistributedWorkerOutcome=
+  | {status:"IDLE"}
+  | {status:"COMPLETED";jobId:string;jobStatus:"SUCCEEDED"|"DENIED"}
+  | {status:"TERMINAL";jobId:string;jobStatus:"STALE"|"FAILED_INTEGRITY"}
+  | {status:"RETRY";jobId:string}
+  | {status:"LEASE_LOST";jobId:string};
+
+export class DistributedModelExecutionWorker {
+  private readonly control:DistributedWorkerControl;
+  private readonly credential:DistributedWorkerCredential;
+  private readonly runtimes:DistributedModelWorkerRuntimeFactory;
+  private readonly leaseMs:number;
+  private readonly clock:()=>string;
+  private readonly requestId:()=>string;
+
+  constructor(options:{
     control:DistributedWorkerControl;
     credential:DistributedWorkerCredential;
     runtimes:DistributedModelWorkerRuntimeFactory;
@@ -62,7 +126,6 @@ export class ModelDispatchService {
   }
   private now():string{return iso(this.clock(),"worker clock");}
   private proof(action:WorkerAction,now:string,body:unknown,targetJobId?:string){
-    if(!this.credential||!this.requestId)throw new Error("Authenticated worker credential is not configured");
     return this.credential.sign({
       requestId:required(this.requestId(),"worker requestId"),action,
       ...(targetJobId===undefined?{}:{targetJobId}),
@@ -71,11 +134,7 @@ export class ModelDispatchService {
   }
 
   async runOnce():Promise<DistributedWorkerOutcome> {
-    return this.runAuthenticated();
-  }
-
-  private async runAuthenticated():Promise<DistributedWorkerOutcome> {
-    const control=this.control!;
+    const control=this.control;
     const claimNow=this.now();
     const claimProof=this.proof("CLAIM",claimNow,{leaseMs:this.leaseMs});
     const lease=await control.claim(claimProof,claimNow,this.leaseMs);
@@ -125,7 +184,4 @@ export class ModelDispatchService {
       }
     }
   }
-
-
 }
-
