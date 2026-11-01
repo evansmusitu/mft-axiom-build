@@ -2,7 +2,7 @@ name: RevenueGuard CUAD Matched-Window Post-Training Locked Heldout Gate
 
 on:
   push:
-    branches: [revenueguard-axiom-governor-20260911]
+    branches: [revenueguard-v41-postgate-research-20261101]
     paths: ['research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_POSTTRAIN_HELDOUT.json']
   workflow_dispatch:
 
@@ -21,39 +21,30 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Assert exact split training ancestry and resumed final identity
-        shell: bash
+      - name: Resolve exact completed regenerated CUAD matched-window training run
+        id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
           python - <<'PY'
-          import json,os,urllib.request
-          repo='evansmusitu/mft-axiom-build'; token=os.environ['GH_TOKEN']
-          headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'}
-          def get(url):
-              req=urllib.request.Request(url,headers=headers)
-              with urllib.request.urlopen(req) as r:return json.load(r)
-          old=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397')
-          new=get(f'https://api.github.com/repos/{repo}/actions/runs/34801041589')
-          assert old['head_sha']=='302d36e9dd26af60464d0ecf4e3d2504f9591f52' and old['conclusion']=='cancelled'
-          assert new['head_sha']=='ad142345213d26e9ba8cc868e2aa6772b154ed6e' and new['status']=='completed' and new['conclusion']=='success'
-          obj=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397/artifacts?name=revenueguard-cuad-matched-window-chunk-2')
-          a=[x for x in obj['artifacts'] if x['name']=='revenueguard-cuad-matched-window-chunk-2' and not x['expired']]
-          assert len(a)==1 and a[0]['id']==10323636532
-          assert a[0]['digest']=='sha256:2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570'
-          obj=get(f'https://api.github.com/repos/{repo}/actions/runs/34801041589/artifacts?name=revenueguard-cuad-matched-window-epoch2-final')
-          a=[x for x in obj['artifacts'] if x['name']=='revenueguard-cuad-matched-window-epoch2-final' and not x['expired']]
-          assert len(a)==1 and a[0].get('digest','').startswith('sha256:')
-          print({'resume_final_artifact_id':a[0]['id'],'resume_final_digest':a[0]['digest']})
+          import json
+          r=json.load(open('matched_runs.json'))['workflow_runs']
+          good=[x for x in r if x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success']
+          assert good,'no complete newly regenerated CUAD matched-window training'
+          x=max(good,key=lambda z:z['created_at'])
+          open('RESOLVED_RUN_ID.txt','w').write(str(x['id']))
+          print('new CUAD candidate run',x['id'],x['head_sha'])
           PY
+          echo "run_id=$(cat RESOLVED_RUN_ID.txt)" >> "$GITHUB_OUTPUT"
       - name: Download exact resumed matched-window candidate
         uses: actions/download-artifact@v4
         with:
           name: revenueguard-cuad-matched-window-epoch2-final
           path: model_bundle
           repository: evansmusitu/mft-axiom-build
-          run-id: 34801041589
+          run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install pinned runtime and fetch pinned CUAD train corpus
         run: |
@@ -107,7 +98,7 @@ jobs:
           name: revenueguard-cuad-posttrain-heldout-shard-${{ matrix.shard }}
           path: raw_shard_${{ matrix.shard }}.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   aggregate:
     needs: score
@@ -115,6 +106,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve exact completed regenerated CUAD matched-window training run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
+          python - <<'PY'
+          import json
+          r=json.load(open('matched_runs.json'))['workflow_runs']
+          good=[x for x in r if x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success']
+          assert good,'no complete newly regenerated CUAD matched-window training'
+          x=max(good,key=lambda z:z['created_at'])
+          open('RESOLVED_RUN_ID.txt','w').write(str(x['id']))
+          print('new CUAD candidate run',x['id'],x['head_sha'])
+          PY
+          echo "run_id=$(cat RESOLVED_RUN_ID.txt)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           pattern: revenueguard-cuad-posttrain-heldout-shard-*
@@ -127,15 +135,14 @@ jobs:
           python -m pip install 'transformers==4.56.2'
           curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
           unzip -q cuad-data.zip
-      - name: Bind exact resumed model artifact digest and apply unchanged heldout gate
+      - name: Bind regenerated model artifact SHA-256 and apply unchanged heldout gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          RUN_ID=34801041589
-          ART='revenueguard-cuad-matched-window-epoch2-final'
-          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
-          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
+          RUN_ID=${{ steps.resolve.outputs.run_id }}
+          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=revenueguard-cuad-matched-window-epoch2-final"
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json,re;o=json.load(sys.stdin);a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-matched-window-epoch2-final' and not x['expired']];assert len(a)==1,a;d=a[0]['digest'];assert re.fullmatch('sha256:[0-9a-f]{64}',d),d;print(d[7:])")
           TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
           python research/revenueguard/cuad_heldout_aggregate.py \
             --train-json "$TRAIN" \
@@ -148,6 +155,7 @@ jobs:
           o=json.load(open('CUAD_MATCHED_WINDOW_POSTTRAIN_LOCKED_HELDOUT_EVAL.json'))
           assert o['schema']=='musitu.revenueguard.cuad.heldout_eval.v2_sharded'
           assert o['scoring_mode']=='explicit_answerability_margin_with_bound_span_localization'
+          assert o['gate']=={'no_answer_false_positive_max':.02,'answer_detection_f1_min':.85,'localization_overlap_recall_min':.85,'answerable_token_f1_min':.80,'pass':o['gate']['pass']}
           print({'gate':o['gate'],'threshold':o['threshold'],'evaluation':o['evaluation']})
           PY
       - uses: actions/upload-artifact@v4
