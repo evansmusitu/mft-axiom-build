@@ -62,6 +62,9 @@ export function createDistributedWorkerTestAuthority(maxLeaseMs=24*60*60*1000){
       };
       return {
         control,
+        create:(...args:any[])=>jobs.create(...args),
+        get:(...args:any[])=>jobs.get(...args),
+        close:()=>typeof jobs.close==="function"?jobs.close():undefined,
         workerOptions(workerId:string){
           return {
             control,
