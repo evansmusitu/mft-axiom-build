@@ -315,6 +315,9 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
   private assertBody(worker:AuthenticatedWorkerContext,action:WorkerAction,body:unknown):void {
     if(worker.bodyHash!==distributedWorkerOperationBodyHash(action,body))throw new Error("Worker operation body hash mismatch");
   }
+  private requireFreshWorkerRequest(worker:AuthenticatedWorkerContext):void {
+    if(worker.requestFresh!==true)throw new Error("Worker credential rejected: request is too old for a new mutation");
+  }
   private receiptHashCore(row:{workerId:string;workerKeyId:string;requestId:string;action:string;requestHash:string;outcomeHash:string;createdAt:string}):string {
     return hashJson({domain:"AXIOM_WORKER_OPERATION_RECEIPT_V1",...row} as any);
   }
@@ -408,6 +411,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     if(duration>record.maxLeaseMs)throw new RangeError("Requested lease exceeds worker maximum lease");
     this.assertBody(worker,"CLAIM",{leaseMs:duration});
     const replay=this.replayReceipt(worker);if(replay.found)return replay.value as AuthenticatedDistributedExecutionLease|undefined;
+    this.requireFreshWorkerRequest(worker);
     const expires=new Date(Date.parse(at)+duration).toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try{
@@ -443,6 +447,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     if(duration>record.maxLeaseMs)throw new RangeError("Requested lease exceeds worker maximum lease");
     this.assertBody(worker,"HEARTBEAT",{leaseMs:duration,capabilityId:capability.capabilityId});
     const replay=this.replayReceipt(worker);if(replay.found)return replay.value as AuthenticatedDistributedExecutionLease;
+    this.requireFreshWorkerRequest(worker);
     const expires=new Date(Date.parse(at)+duration).toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try{
@@ -467,6 +472,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     const at=iso(now,"now");this.activeWorker(worker,"RELEASE",jobId);
     this.assertBody(worker,"RELEASE",{capabilityId:capability.capabilityId});
     const replay=this.replayReceipt(worker);if(replay.found)return replay.value as DistributedExecutionJob;
+    this.requireFreshWorkerRequest(worker);
     this.db.exec("BEGIN IMMEDIATE");
     try{
       const job=this.currentAuthenticatedLease(scope,jobId,worker,capability,at,"RELEASE");
@@ -483,6 +489,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     const at=iso(now,"now");this.activeWorker(worker,"COMPLETE",jobId);
     this.assertBody(worker,"COMPLETE",{capabilityId:capability.capabilityId,result});
     const replay=this.replayReceipt(worker);if(replay.found)return replay.value as DistributedExecutionJob;
+    this.requireFreshWorkerRequest(worker);
     this.db.exec("BEGIN IMMEDIATE");
     try{
       const job=this.currentAuthenticatedLease(scope,jobId,worker,capability,at,"COMPLETE");resultShape(job.intent,result);
@@ -501,6 +508,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     const at=iso(now,"now");this.activeWorker(worker,"FAIL_TERMINAL",jobId);
     this.assertBody(worker,"FAIL_TERMINAL",{capabilityId:capability.capabilityId,code});
     const replay=this.replayReceipt(worker);if(replay.found)return replay.value as DistributedExecutionJob;
+    this.requireFreshWorkerRequest(worker);
     this.db.exec("BEGIN IMMEDIATE");
     try{
       const job=this.currentAuthenticatedLease(scope,jobId,worker,capability,at,"FAIL_TERMINAL");
