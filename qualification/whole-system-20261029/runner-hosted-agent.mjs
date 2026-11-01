@@ -11,7 +11,7 @@ import {createHostedAgentClient,safeHostedProviderFailureCode} from '../../integ
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 
 const root=process.cwd(),out=resolve(root,'qualification/whole-system-20261029/runner-live-results');
-const attempt=process.env.AXIOM_ACCEPTANCE_ATTEMPT||'01';assert.ok(['01','02','03'].includes(attempt));
+const attempt=process.env.AXIOM_ACCEPTANCE_ATTEMPT||'01';assert.ok(['01','02','03','04'].includes(attempt));
 const repo='evansmusitu/mft-axiom-build',claimName='axiom-hosted-dispatch-20261101-'+attempt;
 assert.equal(process.env.GITHUB_REPOSITORY,repo);assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1');
 assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
@@ -30,7 +30,7 @@ if(process.argv.includes('--claim')){
   assert.match(process.env.AXIOM_REMOTE_CLAIM_ID||'',/^\d+$/);
   const claim=await github('/actions/artifacts/'+process.env.AXIOM_REMOTE_CLAIM_ID);
   assert.equal(claim.name,claimName);assert.equal(String(claim.workflow_run.id),process.env.GITHUB_RUN_ID);assert.equal(claim.expired,false);
-  if(attempt!=='01')for(const previous of ['sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c',...(attempt==='03'?['sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9']:[])]){
+  if(attempt!=='01')for(const previous of ['sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c',...(['03','04'].includes(attempt)?['sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9']:[]),...(attempt==='04'?['sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538']:[])]){
     const response=await fetch('https://api.openai.com/v1/agents/sessions/'+previous,{headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'OpenAI-Beta':'agents=v1'},redirect:'error',signal:AbortSignal.timeout(10000)});
     assert.equal(response.status,404,'the previous failed mission must be deleted; never resend uncertain input');await response.body?.cancel();
   }

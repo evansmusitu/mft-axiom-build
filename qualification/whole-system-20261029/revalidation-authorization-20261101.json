@@ -1,0 +1,14 @@
+{
+  "schema": "musitu.axiom.hosted-revalidation-authorization.v1",
+  "authorization": "user-request-20261101-governed-hosted-one",
+  "parent_checkpoint": "d71973776f24acb8089a0a5601be1da3a1c2124a",
+  "attempt": "04",
+  "provider_sessions_max": 1,
+  "cancellation_followup_turns_max": 1,
+  "hosted_d1": "fresh isolated database only; never delete or repurpose existing databases",
+  "no_billing_or_limit_changes": true,
+  "no_automatic_retries": true,
+  "independent_custody_certified": false,
+  "anti_rollback_certified": false,
+  "release_authorized_by_evidence": false
+}

@@ -13,6 +13,7 @@ import {createGovernedAgentModel,inspectAgentInvocations,reconcileAgentInvocatio
 import {createHostedAgentClient,safeHostedProviderFailureCode} from '../../integrations/openai-agents/client.mjs';
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 import {canonicalJson,sha256Json,verifyTaskCommitments} from '../../axiom_interface/vnext/execution_integrity.mjs';
+import {createD1EvidenceLifecycle,verifyEvidenceLifecycleExport} from '../../ops/axiom_evidence_lifecycle.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const runId='axiom-acceptance-20261101-01';
@@ -71,9 +72,15 @@ export async function acceptanceResult({base,contract,output,providerEvidence,co
   return {...payload,receipt:{...receiptBody,receipt_sha256:await sha256Json(receiptBody)}};
 }
 
+export function isActiveCancellationTurn(event,primaryTurnId){
+  const id=event.turn_id||event.turn?.id;
+  return !!id&&id!==primaryTurnId&&event.turn?.subagent_id==null&&
+    (event.type==='agent.session.turn.in_progress'||event.type==='agent.session.turn.created')&&event.turn?.status==='in_progress';
+}
+
 export async function runGovernedHostedTask({db,report,out,save,checkpoint=async()=>{},acceptanceRunId=runId}){
   let sessionId,turnId,controlTurnId,client;
-  const mission=acceptanceRunId;assert.match(mission,/^axiom-acceptance-20261101-0[123]$/);
+  const mission=acceptanceRunId;assert.match(mission,/^axiom-acceptance-20261101-0[1234]$/);
   const sourceSha=report.source_sha;
       // The durable claim precedes all inference. An uncertain run never resends.
       await db.exec('CREATE TABLE IF NOT EXISTS axiom_acceptance_live_claim(run_id TEXT PRIMARY KEY,claimed_at TEXT NOT NULL,source_sha TEXT NOT NULL);');
@@ -126,10 +133,9 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       await db.prepare('INSERT INTO axiom_acceptance_controls VALUES(?,?,?,NULL,?,?)').bind(mission,sessionId,turnId,'BEFORE_DISPATCH',new Date().toISOString()).run();
       const sdk=new OpenAI({apiKey:process.env.OPENAI_API_KEY,maxRetries:0,timeout:30000,logLevel:'off'}).beta.agents.sessions;
       const observer=await sdk.events.stream(sessionId,{signal:AbortSignal.timeout(45000)});
-      const controlPromise=(async()=>{for await(const event of observer){const id=event.turn_id||event.turn?.id;if(event.type==='agent.session.turn.created'&&id&&id!==turnId&&event.turn?.subagent_id==null){
+      const controlPromise=(async()=>{for await(const event of observer){const id=event.turn_id||event.turn?.id;if(isActiveCancellationTurn(event,turnId)){
         controlTurnId=id;report.resources.cancellation_turn_id=id;save();
         await db.prepare('UPDATE axiom_acceptance_controls SET control_turn_id=?,status=? WHERE run_id=?').bind(id,'CHECKPOINTED',mission).run();
-        await client.cancel({sessionId,turnId:id});
         await checkpoint({session_id:sessionId,turn_id:id,stage:'cancellation_control'});return id;
       }}throw new Error('cancellation turn ID was not observed');})();
       controlPromise.catch(()=>{});
@@ -137,13 +143,17 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       try{
         await sdk.events.create(sessionId,{'Idempotency-Key':mission+'-cancellation-control',events:[{type:'agent.session.input.message',input:[{role:'user',content:[{type:'input_text',text:'Bounded cancellation control: prepare the required plan JSON with operation null, needs_research false, and operation_args.cancellation_probe containing integers 1 through 300. Do not use tools or external actions.'}]}]}]});
         controlTurn=await controlPromise;
+        const beforeCancel=await sdk.turns.retrieve(controlTurn,{session_id:sessionId});
+        report.cancellation_before_request={turn_id:controlTurn,status:beforeCancel.status};save();
+        assert.equal(beforeCancel.status,'in_progress','only a provider-confirmed active turn qualifies');
+        await client.cancel({sessionId,turnId:controlTurn});
       }finally{observer.controller.abort();}
       report.resources.cancellation_turn_id=controlTurn;save();
       let terminal;
       for(let i=0;i<10;i++){terminal=await sdk.turns.retrieve(controlTurn,{session_id:sessionId});if(['completed','cancelled','failed'].includes(terminal.status))break;await pause(2000);}
       await db.prepare('UPDATE axiom_acceptance_controls SET status=? WHERE run_id=?').bind(terminal.status,mission).run();
       assert.equal(terminal.status,'cancelled','cancel request alone does not establish cancellation');
-      const control={session_id:sessionId,primary_turn_id:turnId,cancellation_turn_id:controlTurn,cancellation_status:terminal.status,stream_interrupted:true,recovered_from_saved_ids:true,session_creates:transport.creates,inputs_resent:false};
+      const control={session_id:sessionId,primary_turn_id:turnId,cancellation_turn_id:controlTurn,cancellation_status:terminal.status,cancellation_observed_active:true,stream_interrupted:true,recovered_from_saved_ids:true,session_creates:transport.creates,inputs_resent:false};
       const result=await acceptanceResult({base,contract:governed.contract,output,providerEvidence:evidence,control});
       await governed.complete(result);
       const restored=await createD1ExecutionGovernance({db,customer}).get(base.task_id);assert.equal(await verifyTaskCommitments(restored),true);assert.equal(restored.receipt.receipt_sha256,result.receipt.receipt_sha256);
@@ -151,16 +161,17 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       return {task_id:base.task_id,...control,oracle:{nonce_matches:true,product:391},receipt_sha256:restored.receipt.receipt_sha256,artifact_sha256:restored.receipt.artifact_sha256,provider_proof:restored.provider_evidence[0]};
 }
 
-async function main(){
+export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,storageOnly=false}={}){
+  const runId=isolatedRunId;assert.match(runId,/^axiom-acceptance-20261101-0[14]$/);
   assert.equal(process.env.GITHUB_REPOSITORY,repository,'only the authorized repository runner may execute');
   assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
   assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1','automatic reruns cannot dispatch a hosted task');
-  assert.ok(process.env.OPENAI_API_KEY?.trim(),'existing provider credential is required');
+  if(!storageOnly)assert.ok(process.env.OPENAI_API_KEY?.trim(),'existing provider credential is required');
   const out=resolve(process.env.AXIOM_ACCEPTANCE_OUTPUT||'qualification/whole-system-20261029/live-results');mkdirSync(out,{recursive:true});
   const sourceSha=process.env.AXIOM_ACCEPTANCE_SOURCE_SHA||process.env.GITHUB_SHA;
   const report={schema:'musitu.axiom.live-acceptance.v1',run_id:runId,started_at:new Date().toISOString(),source_sha:sourceSha,
     scope:'ISOLATED_OWNER_AUTHORIZED_ACCEPTANCE_ONLY',independent_custody_certified:false,anti_rollback_certified:false,release_authorized:false,
-    checks:{},resources:{account_id:accountId},cleanup:{},limits:{hosted_sessions:1,followup_cancellation_turns:1,provider_calls:2,network:'disabled',hard_token_or_currency_cap:false}};
+    checks:{},resources:{account_id:accountId},cleanup:{},limits:{hosted_sessions:storageOnly?0:1,followup_cancellation_turns:storageOnly?0:1,provider_calls:storageOnly?0:2,network:'disabled',hard_token_or_currency_cap:false}};
   const save=()=>writeFileSync(resolve(out,'acceptance.json'),JSON.stringify(report,null,2)+'\n');
   const record=async(name,action)=>{try{const value=await action();report.checks[name]={status:'CONFIRMED',value:value??true};save();return value;}catch(error){report.checks[name]={status:'FAILED',error:safeError(error)};save();throw error;}};
   const cfHeaders={};
@@ -209,6 +220,7 @@ async function main(){
         catch(error){lastError=error;report.credential_preflight.push({kind:candidate.kind,status:'REJECTED',error:safeError(error)});}
       }
       if(!databases)throw lastError||Object.assign(new Error('owner Cloudflare credential unavailable'),{code:'CF_CREDENTIAL_UNAVAILABLE'});
+      report.capacity_observation={observed_at:new Date().toISOString(),databases_listed:databases.length,inventory:databases.map(item=>({name:item.name,database_id_sha256:hash(item.uuid)})),existing_databases_deleted:0,plan_or_billing_changed:false};save();
       const existing=databases.find(item=>item.name===runId);
       dbId=existing?.uuid||(await cf(`/accounts/${accountId}/d1/database`,{method:'POST',body:{name:runId}})).uuid;
       assert.match(dbId,/^[0-9a-f-]{36}$/);report.resources.database_id=dbId;
@@ -268,7 +280,30 @@ async function main(){
       const persisted=await (await request('/vnext/api/submissions/hosted-submission-one',{token:beta})).json();assert.equal(persisted.status,'COMPLETED');
       return {...deployed,old_lease:'DENIED',new_generation_single_winner:true,revoked_credential:'DENIED',completed_result_survived:true};
     });
-    await record('governed_hosted_task',()=>runGovernedHostedTask({db,report,out,save}));
+    await record('evidence_preserving_lifecycle',async()=>{
+      // Operate only on the generated beta tenant fixture, after restart checks.
+      const tenant='acceptance-beta',workId='acceptance-decision';
+      const before=await (await request('/vnext/api/submissions/hosted-submission-one',{token:beta})).json();
+      const actions=['plan','export','hold','dependency','delete','read'].map(action=>'lifecycle.'+action);
+      await db.batch(actions.map(action=>db.prepare('INSERT INTO axiom_lc_authorizations VALUES(?,?,?,?,?,?,?)').bind(tenant,'grant-'+action,'acceptance-owner',action,workId,'ACTIVE',new Date(Date.now()+3600000).toISOString())));
+      const lifecycle=createD1EvidenceLifecycle({db,customer:{customer_id:tenant},authorize:async({action})=>({principal_id:'acceptance-owner',authorization_id:'grant-'+action})});
+      await lifecycle.placeHold({work_id:workId,hold_id:'hold-before-erasure',object_kind:'WORK',object_id:workId,reason:'Generated acceptance legal hold'});
+      assert.equal((await lifecycle.planWork({work_id:workId})).can_delete,false);
+      await lifecycle.releaseHold({work_id:workId,hold_id:'hold-before-erasure',reason:'Generated hold released by owner'});
+      const plan=await lifecycle.planWork({work_id:workId});assert.equal(plan.can_delete,true);
+      const exported=await lifecycle.exportWork({work_id:workId,request_id:'export-before-erasure'});assert.equal(await verifyEvidenceLifecycleExport(exported),true);
+      writeFileSync(resolve(out,'lifecycle-export.json'),JSON.stringify(exported,null,2)+'\n');
+      const deletion={work_id:workId,request_id:'erase-generated-work',reason_code:'ACCEPTANCE_FIXTURE',plan_sha256:plan.plan_sha256,export_receipt_sha256:exported.receipt.receipt_sha256};
+      const receipt=await lifecycle.deleteWork(deletion);assert.deepEqual(await lifecycle.deleteWork(deletion),receipt);
+      assert.equal((await lifecycle.verifyWorkDeletion({work_id:workId})).status,'VERIFIED_LOGICAL_ERASURE');
+      const read=await request('/vnext/api/submissions/hosted-submission-one',{token:beta});assert.equal(read.status,410);
+      const erased=await read.json();assert.equal(erased.deletion_receipt.receipt_sha256,receipt.receipt_sha256);
+      assert.equal(erased.retained_commitments.artifacts[0].content_sha256,before.receipt.artifact_sha256);
+      assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM axiom_lc_guards').first('n'),0);
+      writeFileSync(resolve(out,'lifecycle-receipt.json'),JSON.stringify(receipt,null,2)+'\n');
+      return {export_verified:true,legal_hold_enforced:true,logical_erasure_verified:true,http_readback:410,replay_same_receipt:true,commitments_retained:true,external_erasure_verified:false};
+    });
+    if(!storageOnly)await record('governed_hosted_task',()=>runGovernedHostedTask({db,report,out,save,acceptanceRunId:runId}));
   }catch(error){report.failure=safeError(error);process.exitCode=1;}
   finally{
     // Remove the public RPC before provider cleanup; an upstream outage must not
@@ -291,11 +326,11 @@ async function main(){
     }catch(error){report.cleanup.session_error=safeError(error);process.exitCode=1;}}
     report.cleanup.database={id:dbId||null,retained:!!dbId,reason:'ONE_SHOT_LEDGER_AND_VERIFIABLE_ACCEPTANCE_RECORDS'};
     report.completed_at=new Date().toISOString();report.status=process.exitCode?'FAILED':'CONFIRMED';save();
-    const files=['acceptance.json','hosted-output.json','hosted-task-receipt.json','decision-output.json'];
+    const files=['acceptance.json','hosted-output.json','hosted-task-receipt.json','decision-output.json','lifecycle-export.json','lifecycle-receipt.json'];
     const manifest={schema:'musitu.axiom.acceptance-files.v1',files:files.flatMap(name=>{try{const content=readFileSync(resolve(out,name));return [{name,bytes:content.length,sha256:hash(content)}];}catch{return [];}})};
     writeFileSync(resolve(out,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     process.stdout.write(JSON.stringify({status:report.status,checks:Object.fromEntries(Object.entries(report.checks).map(([k,v])=>[k,v.status])),release_authorized:false})+'\n');
   }
 }
 
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)await main();
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)await runHostedStorageAcceptance({runId:process.env.AXIOM_ACCEPTANCE_RUN_ID||runId,storageOnly:process.argv.includes('--storage-only')});

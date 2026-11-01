@@ -1,11 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {interruptedCreationFetch,acceptanceResult,runGovernedHostedTask} from './live-hosted-acceptance.mjs';
+import {interruptedCreationFetch,acceptanceResult,runGovernedHostedTask,isActiveCancellationTurn} from './live-hosted-acceptance.mjs';
 import {sha256Json,verifyTaskCommitments} from '../../axiom_interface/vnext/execution_integrity.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+
+test('active cancellation rejects queued, terminal, primary and subagent events',()=>{
+  for(const status of ['queued','waiting','completed','failed','cancelled'])assert.equal(isActiveCancellationTurn({type:'agent.session.turn.created',turn:{id:'control',status}},'primary'),false);
+  for(const turn of [{id:'primary',status:'in_progress'},{id:'child',status:'in_progress',subagent_id:'child'}])assert.equal(isActiveCancellationTurn({type:'agent.session.turn.in_progress',turn},'primary'),false);
+  assert.equal(isActiveCancellationTurn({type:'agent.session.turn.in_progress',turn:{id:'control',status:'in_progress'}},'primary'),true);
+});
 
 test('actual creation observer closes after first root turn frame, without resending or cancelling a turn',async()=>{
   const events=[
@@ -68,7 +74,10 @@ test('complete live-runner collaboration uses real transactional SQLite, persist
     if(path.endsWith('/items'))return json({object:'list',data:[{id:'message_primary',type:'message',role:'assistant',phase:'final_answer',status:'completed',turn_id:'turn_primary',content:[{type:'output_text',text:JSON.stringify(output)}]}],has_more:false});
     if(path.endsWith('/events')&&method==='GET')return new Response(new ReadableStream({start(controller){controlStream=controller;},cancel(){}}),{headers:{'content-type':'text/event-stream'}});
     if(path.endsWith('/events')&&method==='POST'){
-      const body=JSON.parse(init.body);if(body.events[0].type==='agent.session.input.message')controlStream.enqueue(sse({type:'agent.session.turn.created',turn:turn('turn_cancel','in_progress')}));
+      const body=JSON.parse(init.body);if(body.events[0].type==='agent.session.input.message'){
+        controlStream.enqueue(sse({type:'agent.session.turn.created',turn:turn('turn_cancel','queued')}));
+        controlStream.enqueue(sse({type:'agent.session.turn.in_progress',turn:turn('turn_cancel','in_progress')}));
+      }
       else{cancelRequests++;controlStatus='cancelled';}return new Response(null,{status:204});
     }
     throw new Error('unexpected local provider fixture route');

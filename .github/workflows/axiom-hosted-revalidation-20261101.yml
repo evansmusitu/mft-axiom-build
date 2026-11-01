@@ -1,0 +1,101 @@
+name: AXIOM bounded hosted revalidation 04
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'qualification/whole-system-20261029/revalidation-authorization-20261101.json'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: axiom-hosted-revalidation-20261101-04
+  cancel-in-progress: false
+jobs:
+  d1-storage:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      AXIOM_ACCEPTANCE_RUN_ID: axiom-acceptance-20261101-04
+      AXIOM_ACCEPTANCE_OUTPUT: qualification/whole-system-20261029/live-results
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Reject any source beyond the single authorized continuation
+        run: test "$(git rev-parse HEAD^)" = d71973776f24acb8089a0a5601be1da3a1c2124a
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned public SDK
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned bundler
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.25.9
+      - name: Fresh isolated D1 acceptance without inference
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qualification/whole-system-20261029/live-hosted-acceptance.mjs --storage-only
+      - name: Preserve actual capacity, migration and lifecycle observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-d1-revalidation-20261101-04
+          path: qualification/whole-system-20261029/live-results/*.json
+          retention-days: 90
+          if-no-files-found: error
+  hosted-agents:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_ATTEMPT: '04'
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Reject any source beyond the single authorized continuation
+        run: test "$(git rev-parse HEAD^)" = d71973776f24acb8089a0a5601be1da3a1c2124a
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned SDK
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned runtime and remote checkpoint client
+        working-directory: qualification/whole-system-20261029/live-runner-deps
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check one-shot remote dispatch claim
+        run: node qualification/whole-system-20261029/runner-hosted-agent.mjs --claim
+      - name: Persist immutable claim before inference
+        id: remote-claim
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-dispatch-20261101-04
+          path: qualification/whole-system-20261029/runner-live-results/dispatch-claim.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Run one governed session and require actual active cancellation
+        uses: ./.github/actions/axiom-hosted-agent-runner
+        env:
+          AXIOM_REMOTE_CLAIM_ID: ${{ steps.remote-claim.outputs.artifact-id }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+      - name: Preserve output, checkpoints, receipt, cleanup and failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-hosted-agents-revalidation-20261101-04
+          path: qualification/whole-system-20261029/runner-live-results/*.json
+          retention-days: 90
+          if-no-files-found: error
