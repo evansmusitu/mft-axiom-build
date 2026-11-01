@@ -2,7 +2,7 @@ import type {
   AcquisitionRecord, AuditEvent, AuditRecord, AuditVerificationResult, AuthorizationGrant, EvidenceArtifact,
   IdempotencyClaimInput, IdempotencyClaimResult, IdempotencyCompleteInput, PlatformExecutionRecord,
   StoredApiOutcome, TemporalFact, TenantScope, WorldSnapshot, ModelCompilationRecord, ModelExchangeArtifact, ModelExplanationRecord,
-  DistributedExecutionIntentCore, DistributedExecutionJob, DistributedExecutionLease, ControlPlaneResult,
+  DistributedExecutionIntentCore, DistributedExecutionJob, ControlPlaneResult,
   AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, WorkerLeaseCapability
 } from "./types.ts";
 
