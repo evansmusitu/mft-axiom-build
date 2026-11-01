@@ -9,6 +9,8 @@ on:
       - 'tests/connect/test_mqtt_repeatability.py'
       - 'connect/persistence.py'
       - 'connect/mining_adapter.py'
+      - 'connect/mining.py'
+      - 'tests/connect/test_contract.py'
   workflow_dispatch:
 
 permissions:

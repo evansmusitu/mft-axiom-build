@@ -46,6 +46,19 @@ class ConnectContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"unknown_fields"):
             normalize_mining_rows([dict(SCENARIO[0],unexpected="not-canonical")])
 
+    def test_required_and_unknown_fields_keep_stable_fail_closed_diagnostics(self):
+        missing=dict(SCENARIO[0]); missing.pop("severity"); missing.pop("cost")
+        with self.assertRaisesRegex(ValueError,r"^missing_fields:severity,cost$"):
+            normalize_mining_rows([missing])
+        unknown=dict(SCENARIO[0],z_extra="x",a_extra="y")
+        with self.assertRaisesRegex(ValueError,r"^unknown_fields:a_extra,z_extra$"):
+            normalize_mining_rows([unknown])
+        # Repeated fields in distinct records must not trigger duplicate-key
+        # rejection; the canonical envelope remains deterministic and complete.
+        result=normalize_mining_rows([dict(SCENARIO[0]),dict(SCENARIO[0])])
+        self.assertEqual(len(result.records),2)
+        self.assertEqual(result.records[0],result.records[1])
+
     def test_registry_is_domain_agnostic(self):
         registry=AdapterRegistry()
         registry.register(AdapterSpec(name='Mining Adapter',domain='mining',version='1.0.0'))

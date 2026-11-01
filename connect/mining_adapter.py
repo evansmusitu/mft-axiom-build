@@ -19,11 +19,9 @@ class OpcUaReader(Protocol):
 def _strict_mqtt_rows(payload: bytes) -> list[Any]:
     """Reject ambiguous MQTT JSON before canonicalization or evidence storage."""
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result={}
-        for key,value in pairs:
-            if key in result:
-                raise ValueError("duplicate_json_key")
-            result[key]=value
+        result=dict(pairs)
+        if len(result) != len(pairs):
+            raise ValueError("duplicate_json_key")
         return result
 
     def reject_constant(_value: str) -> None:

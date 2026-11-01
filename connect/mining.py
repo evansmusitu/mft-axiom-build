@@ -9,6 +9,7 @@ from .core import CanonicalEnvelope
 _REQUIRED=("hazard","exposure","severity","likelihood","cost","benefit")
 _OPTIONAL=("record_id","asset_id","site","event_time","latitude","longitude")
 _ALLOWED=set(_REQUIRED+_OPTIONAL)
+_REQUIRED_SET=frozenset(_REQUIRED)
 _EPSILON=1e-12
 
 
@@ -35,10 +36,12 @@ class InterventionPlan:
 def normalize_mining_rows(rows: Iterable[dict[str,Any]]) -> CanonicalEnvelope:
     normalized=[]
     for raw in rows:
-        missing=[k for k in _REQUIRED if k not in raw]
-        if missing: raise ValueError("missing_fields:" + ",".join(missing))
-        unknown=sorted(str(k) for k in raw if k not in _ALLOWED)
-        if unknown: raise ValueError("unknown_fields:" + ",".join(unknown))
+        if not _REQUIRED_SET.issubset(raw):
+            missing=[k for k in _REQUIRED if k not in raw]
+            raise ValueError("missing_fields:" + ",".join(missing))
+        if not raw.keys() <= _ALLOWED:
+            unknown=sorted(str(k) for k in raw if k not in _ALLOWED)
+            raise ValueError("unknown_fields:" + ",".join(unknown))
         item={k:raw[k] for k in _REQUIRED}
         item["hazard"]=str(item["hazard"]).strip()
         if not item["hazard"]: raise ValueError("hazard_required")
