@@ -26,6 +26,7 @@ CHECKS={
  'frontier_contracts':['python3','-m','frontier_v5.scripts.run_offline_contracts','--output',str(OUT/'frontier-contracts.json')],
  'internal_skills':['python3','-m','frontier_v5.scripts.skill_lint','frontier_v5/skill_candidates/musitu-decision-tradeoffs','frontier_v5/skill_candidates/musitu-agent-recovery'],
  'openai_agents':['node','--test',*files('integrations/openai-agents/tests/*.test.mjs')],
+ 'credential_preflight':['python3','-m','unittest','discover','-s','qualification/whole-system-20261029','-p','test_agent_credential_preflight.py','-v'],
 }
 if args.with_local_d1:
  CHECKS['local_d1']=['node','--test','qualification/whole-system-20261029/d1-local.test.mjs']

@@ -256,6 +256,22 @@
       "exit": 0,
       "seconds": 14.749,
       "log": "local_d1.log"
+    },
+    "credential_preflight": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "qualification/whole-system-20261029",
+        "-p",
+        "test_agent_credential_preflight.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.099,
+      "log": "credential_preflight.log"
     }
   },
   "counts": {
@@ -271,7 +287,8 @@
     "recovery_kernel": 22,
     "recovery_application": 6,
     "provider_neutral": 21,
-    "internal_skill_candidates": 2
+    "internal_skill_candidates": 2,
+    "credential_preflight_methods": 5
   },
   "source_fingerprints": {
     "ops/axiom_agent_model_store.mjs": "ca6595ffee0abae158a7145d013e538919d6c00bdd0822cdb02adfe64564c00f",
@@ -281,12 +298,15 @@
     "ops/axiom_runtime_task_api.mjs": "84345ea27c305ad2e54fedd30880033f0ab4253831a77f6580bea04cf7a362fb",
     "axiom_interface/vnext/runtime_task_service.mjs": "5ee2f47731b4c7b0d9163176c4ebffabf408e3b7840ecc74b9a4a90520ff683f",
     "integrations/openai-agents/client.mjs": "e97b9e2a1365ee8b319ea4c68943386e55e8204688f107d1372d33bb860b81d0",
-    "integrations/openai-agents/package-lock.json": "b50c6787f8bcbfa756932ee681cc8385d2ff9071a552ee0ede51461918db205f"
+    "integrations/openai-agents/package-lock.json": "b50c6787f8bcbfa756932ee681cc8385d2ff9071a552ee0ede51461918db205f",
+    "ops/axiom_openai_credential_preflight.py": "da984738d812c5caa6a17136bb9e2f6298555b52213ed66d1a7a7f815012d995",
+    ".github/workflows/axiom-whole-system-offline-qualification.yml": "60632b47a26ef3c47804e721b69107e48ba1f7425e9c7a422860fb860d8472ae"
   },
-  "real_provider_requests": 0,
   "keys_created_or_written": 0,
   "production_deployed": false,
   "public_profiles_changed": false,
   "live_hosted_access_verified": false,
-  "note": "Exact source tree and final GitHub CI/credential presence readback are reported on PR55 and the updated verification artifact."
+  "note": "Exact source tree and final GitHub CI/credential presence readback are reported on PR55 and the updated verification artifact.",
+  "local_provider_requests": 0,
+  "read_only_credential_access_check": "CI_GET_ONLY_NO_INFERENCE"
 }

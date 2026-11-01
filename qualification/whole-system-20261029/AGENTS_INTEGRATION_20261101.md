@@ -51,8 +51,8 @@ task, adopt a lease, reset a budget or create/resend input. The new internal
 
 ## Qualification and limits
 
-All 14 local command groups pass, including 367 application tests, 62 SDK
-tests using injected Fetch, 11 actual local workerd/D1 cases and the existing
+All 15 local command groups pass, including 367 application tests, 62 SDK
+tests using injected Fetch, 11 actual local workerd/D1 cases, five credential-preflight methods and the existing
 kernel/worker/frontier/recovery suites. Independent review reproduced and verified
 repairs for task-binding confusion, checkpoint replacement, provider drift,
 completion/admission races and cross-generation proof reuse. Counts overlap;
@@ -61,9 +61,11 @@ they are not independent external benchmark totals.
 Install the integration's checked-in lock with `npm ci --ignore-scripts` inside
 `integrations/openai-agents`, as well as the existing Phase2 lock and pinned
 Miniflare dependency. Then run the root portable checks with `--with-local-d1`.
-The CI credential preflight reads presence only from existing standard/MUSITU/MFT
-GitHub secret aliases. It makes no API request and proves neither validity nor
-Agents permission. The key is scoped only to that presence-check step.
+The CI credential preflight uses existing standard/MUSITU/MFT GitHub secret
+aliases. Its optional GET-only check lists at most one session; it records only
+the HTTP status and read-access verdict, discards all response bodies and
+prohibits redirects. It creates no session or inference and does not verify
+hosted write/inference permissions. The key is scoped only to that preflight step.
 
 Apply the current execution-contract SQL and qualify it in an isolated hosted
 environment before deployment. The new invocation and completion-guard tables

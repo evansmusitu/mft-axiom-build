@@ -51,10 +51,10 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run integrated offline contracts including real local D1 transactions
         run: python3 qualification/whole-system-20261029/run_checks.py --with-local-d1
-      - name: Check reused credential availability without API requests
+      - name: Check reused credential and read-only Agents access without inference
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
-        run: python3 ops/axiom_openai_credential_preflight.py > qualification/whole-system-20261029/check-results/openai-credential-presence.json
+        run: python3 ops/axiom_openai_credential_preflight.py --read-only-access > qualification/whole-system-20261029/check-results/openai-credential-presence.json
       - name: Preserve raw offline evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
