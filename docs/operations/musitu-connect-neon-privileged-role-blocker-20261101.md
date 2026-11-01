@@ -1,5 +1,15 @@
 # MUSITU Connect isolated Neon role blocker — verified 2026-11-01
 
+> **Containment follow-up, verified 2026-11-01:** The exact isolated
+> `musitu_connect_stage_invoker_20261101` test login was deleted using
+> Neon role administration and a fresh role listing confirmed its absence.
+> Remaining roles are `connect_qualification_owner` and the synthetic
+> `musitu_connect_qual_runtime` NOLOGIN executor. The project was
+> independently read back with BOTH public and VPC network access blocked.
+> This resolves the particular unused dangerous role's existence, NOT the
+> missing hosted least-privileged LOGIN / deployed application acceptance.
+
+
 ## Security disposition: BLOCKED, not release-ready
 
 The only Connect-specific Neon project is `morning-bread-51442570`
@@ -81,3 +91,13 @@ Chinese data, or an unverified report.
 **Enabling conclusion:** none. No beta customer credentials, methane
 production prediction, production database migration, hosted Worker
 deployment, or customer release authorization is permitted.
+
+## CI security attestation strengthened
+
+The synthetic PostgreSQL-17 qualification now requires proof from a
+**real authenticated restricted CI login** rather than a database-owner
+`SET ROLE` alone. It also verifies rejection of an account that
+inherits an elevated group, schema CREATE, and *any* direct privilege
+on a qualification table. All CI credentials are disposable local
+PostgreSQL fixtures; no hosted or production login credentials appear
+in GitHub. A qualified ephemeral login is not an approved hosted login.

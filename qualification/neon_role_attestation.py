@@ -17,6 +17,14 @@ SELECT r.rolname AS role_name,
        (SELECT count(*)::int FROM pg_auth_members a WHERE a.member=r.oid)
          AS inherited_role_count,
        has_schema_privilege(r.rolname,'connect_qualification','USAGE') AS schema_usage,
+       has_schema_privilege(r.rolname,'connect_qualification','CREATE') AS schema_create,
+       EXISTS(
+         SELECT 1 FROM pg_class obj JOIN pg_namespace ns ON ns.oid=obj.relnamespace
+         WHERE ns.nspname='connect_qualification'
+           AND obj.relkind IN ('r','p','v','m','f')
+           AND has_table_privilege(r.rolname,obj.oid,
+               'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+       ) AS any_table_access,
        has_function_privilege(r.rolname,
          'connect_qualification.admit(text,text,uuid)','EXECUTE') AS function_execute,
        has_table_privilege(r.rolname,'connect_qualification.tenants','SELECT') AS tenant_select,
@@ -31,11 +39,13 @@ _REQUIRED_TRUE = ("rolcanlogin", "schema_usage", "function_execute")
 _REQUIRED_FALSE = ("rolsuper", "rolcreatedb", "rolcreaterole",
                    "rolreplication", "rolbypassrls", "tenant_select",
                    "credential_select", "event_select", "event_insert",
-                   "quota_update", "database_create")
+                   "quota_update", "database_create", "schema_create",
+                   "any_table_access")
 _PRIVILEGED = ("rolsuper", "rolcreatedb", "rolcreaterole",
-               "rolreplication", "rolbypassrls", "database_create")
+               "rolreplication", "rolbypassrls", "database_create",
+               "schema_create")
 _DIRECT = ("tenant_select", "credential_select", "event_select",
-           "event_insert", "quota_update")
+           "event_insert", "quota_update", "any_table_access")
 _ROLE = re.compile(r"^[a-z][a-z0-9_]{2,62}$")
 
 

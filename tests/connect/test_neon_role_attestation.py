@@ -12,6 +12,7 @@ def safe():
       "tenant_select": False, "credential_select": False,
       "event_select": False, "event_insert": False,
       "quota_update": False, "database_create": False,
+      "schema_create": False, "any_table_access": False,
     }
 
 
@@ -25,7 +26,7 @@ class AttestationTests(unittest.TestCase):
             "rolcreatedb": True, "rolcreaterole": True,
             "rolbypassrls": True, "inherited_role_count": 1,
             "credential_select": True, "event_insert": True,
-            "quota_update": True,
+            "quota_update": True, "any_table_access": True,
         }
         result = assess_role(row, expected_role="stage_invoker")
         self.assertFalse(result["qualified"])
@@ -42,7 +43,8 @@ class AttestationTests(unittest.TestCase):
 
     def test_no_runtime_login_or_no_function_execute_fails(self):
         for change in ({"rolcanlogin": False},{"function_execute": False},
-                       {"schema_usage": False},{"database_create": True}):
+                       {"schema_usage": False},{"database_create": True},
+                       {"schema_create": True},{"any_table_access": True}):
             self.assertFalse(assess_role(safe() | change, expected_role="stage_invoker")["qualified"])
 
 

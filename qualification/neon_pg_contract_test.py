@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import os
 import psycopg
+from psycopg.rows import dict_row
+from neon_role_attestation import assess_role, ATTESTATION_SQL
 
 ROOT = Path(__file__).resolve().parents[1]
 DSN = os.environ.get("NEON_TEST_PG_DSN", "")
@@ -120,6 +122,77 @@ def main():
         pass
     require(query("SELECT count(*) FROM connect_qualification.events WHERE tenant_id='tenant_alpha'")[0][0] == 3,
             "revocation_or_rejected_update_changed_audit")
+    # A real CI-only PostgreSQL login must have narrowly scoped effective
+    # privileges; checking with SET ROLE under an owner is insufficient.
+    with psycopg.connect(DSN, autocommit=True, row_factory=dict_row) as connection:
+        connection.execute("""
+          CREATE ROLE musitu_ci_app LOGIN NOINHERIT
+          NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION
+          PASSWORD 'ci-synthetic-disposable-only'
+        """)
+        connection.execute("GRANT USAGE ON SCHEMA connect_qualification TO musitu_ci_app")
+        connection.execute("""
+          GRANT EXECUTE ON FUNCTION connect_qualification.admit(text,text,uuid)
+          TO musitu_ci_app
+        """)
+        connection.execute("""
+          INSERT INTO connect_qualification.tenants(tenant_id,status,daily_limit,minute_limit)
+          VALUES('tenant_login','active',1,1)
+        """)
+        connection.execute("""
+          INSERT INTO connect_qualification.credentials
+          (credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk)
+          VALUES('cred_login','tenant_login',%s,'active',
+                 clock_timestamp()+INTERVAL '1 day',true,false)
+        """, ("f"*64,))
+        safe=connection.execute(ATTESTATION_SQL,("musitu_ci_app",)).fetchone()
+        assert safe is not None
+        verdict=assess_role(safe,expected_role="musitu_ci_app")
+        require(verdict["qualified"] is True,"legitimate_app_role_rejected")
+        # Simulate the dangerous transitive membership observed in hosted Neon.
+        connection.execute("CREATE ROLE musitu_ci_elevated_group NOLOGIN CREATEROLE")
+        connection.execute("""
+          CREATE ROLE musitu_ci_unsafe LOGIN NOINHERIT
+          PASSWORD 'ci-synthetic-unsafe-only'
+        """)
+        connection.execute("GRANT musitu_ci_elevated_group TO musitu_ci_unsafe")
+        connection.execute("GRANT USAGE ON SCHEMA connect_qualification TO musitu_ci_unsafe")
+        connection.execute("""
+          GRANT EXECUTE ON FUNCTION connect_qualification.admit(text,text,uuid)
+          TO musitu_ci_unsafe
+        """)
+        unsafe=connection.execute(ATTESTATION_SQL,("musitu_ci_unsafe",)).fetchone()
+        assert unsafe is not None
+        reason=assess_role(unsafe,expected_role="musitu_ci_unsafe")
+        require(reason["qualified"] is False and
+                "INHERITED_ROLES" in reason["reason_codes"],
+                "privileged_membership_not_rejected")
+    with psycopg.connect(DSN, user="musitu_ci_app",
+                         password="ci-synthetic-disposable-only",
+                         autocommit=True, connect_timeout=8) as app:
+        row=app.execute("""
+          SELECT accepted,code,authorized_tenant FROM
+          connect_qualification.admit(%s,'mining.plan',%s::uuid)
+        """, ("f"*64, "abcd1234-5678-4123-8123-111111111111")).fetchone()
+        require(row == (True,"ADMITTED","tenant_login"),"real_login_cannot_admit")
+        try:
+            app.execute("SELECT token_sha256 FROM connect_qualification.credentials")
+            raise AssertionError("real_login_read_credentials")
+        except psycopg.errors.InsufficientPrivilege:
+            pass
+        try:
+            app.execute("""
+              UPDATE connect_qualification.daily_usage
+              SET used=0 WHERE tenant_id='tenant_login'
+            """)
+            raise AssertionError("real_login_changed_quota")
+        except psycopg.errors.InsufficientPrivilege:
+            pass
+    require(query("SELECT used FROM connect_qualification.daily_usage WHERE tenant_id='tenant_login'")[0][0] == 1,
+            "real_login_audit_quota_mismatch")
+    print("NEON_REAL_RESTRICTED_LOGIN=PASS")
+    print("NEON_PRIVILEGED_MEMBERSHIP_REJECTION=PASS")
+
     print("NEON_POSTGRESQL_EPHEMERAL_CONTRACT=PASS")
     print("NEON_LEAST_PRIVILEGE=PASS")
     print("NEON_UUID_V4_DATABASE_GUARD=PASS")
