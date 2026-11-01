@@ -1,0 +1,40 @@
+name: AXIOM Workers AI free admission preflight
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/workers-ai-free-authorization-20261101.json']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-workers-ai-free-preflight-20261101-01
+  cancel-in-progress: false
+jobs:
+  read-only-admission:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct authorized continuation
+        run: test "$(git rev-parse HEAD^)" = 9c443b3a518fc7edc78043b35e3cce44e46a24e6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Read plan and model access without inference
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_FREE_AUTHORIZATION: user-do-it-20261101-free-alternative
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node qualification/whole-system-20261029/workers-ai-free-preflight.mjs
+      - name: Preserve admission evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-workers-ai-free-preflight-20261101-01
+          path: qualification/whole-system-20261029/workers-ai-free-results/*.json
+          retention-days: 90
+          if-no-files-found: error
