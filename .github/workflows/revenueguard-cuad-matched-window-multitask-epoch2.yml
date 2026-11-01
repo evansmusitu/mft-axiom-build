@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 jobs:
   chunk0:
@@ -208,3 +208,37 @@ jobs:
             CUAD_MATCHED_EPOCH2_FINAL.json
           if-no-files-found: error
           retention-days: 90
+
+  dispatch_heldout:
+    needs: chunk3
+    if: ${{ needs.chunk3.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify final candidate artifact and dispatch unchanged locked heldout scoring
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json,os,re,urllib.request
+          repo="evansmusitu/mft-axiom-build"
+          run_id=os.environ["GITHUB_RUN_ID"]
+          branch="revenueguard-v41-postgate-research-20261101"
+          headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}
+          def get(url):
+           req=urllib.request.Request(url,headers=headers)
+           with urllib.request.urlopen(req,timeout=30) as f:return json.load(f)
+          run=get(f"https://api.github.com/repos/{repo}/actions/runs/{run_id}")
+          assert run["head_branch"]==branch and run["path"]==".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",run
+          jobs=get(f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs")["jobs"]
+          assert any(j["name"]=="chunk3" and j["conclusion"]=="success" for j in jobs),"TRAINING_CHUNK3_NOT_SUCCESS"
+          arts=get(f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name=revenueguard-cuad-matched-window-epoch2-final")["artifacts"]
+          valid=[a for a in arts if a["name"]=="revenueguard-cuad-matched-window-epoch2-final" and not a.get("expired")]
+          assert len(valid)==1 and re.fullmatch(r"sha256:[0-9a-f]{64}",valid[0].get("digest","")),"CUAD_CHECKPOINT_NOT_READY"
+          print(json.dumps({"trained_run":run_id,"head":run["head_sha"],"final_artifact_id":valid[0]["id"],"sha256":valid[0]["digest"]}),flush=True)
+          target=f"https://api.github.com/repos/{repo}/actions/workflows/revenueguard-cuad-matched-window-posttrain-heldout.yml/dispatches"
+          req=urllib.request.Request(target,headers={**headers,"Content-Type":"application/json"},method="POST",data=json.dumps({"ref":branch}).encode())
+          with urllib.request.urlopen(req,timeout=30) as response:
+           assert response.status==204,response.status
+          print("CUAD_LOCKED_HELDOUT_DISPATCH_ACCEPTED",flush=True)
+          PY
