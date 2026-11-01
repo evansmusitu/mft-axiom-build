@@ -78,6 +78,7 @@ class DS(Dataset):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--encoder', required=True)
+    ap.add_argument('--encoder-artifact-sha256', required=True)
     ap.add_argument('--train-json', required=True)
     ap.add_argument('--chunk-index', type=int, required=True)
     ap.add_argument('--num-chunks', type=int, default=4)
@@ -85,6 +86,8 @@ def main():
     ap.add_argument('--state-out', required=True)
     ap.add_argument('--report', required=True)
     args = ap.parse_args()
+    if not re.fullmatch('[0-9a-f]{64}', args.encoder_artifact_sha256):
+        raise SystemExit('source encoder digest missing')
     if not (0 <= args.chunk_index < args.num_chunks):
         raise SystemExit('bad chunk')
 
@@ -127,7 +130,12 @@ def main():
     trainable_names = {n for n, p in model.named_parameters() if p.requires_grad}
     params = [p for p in model.parameters() if p.requires_grad]
 
+    if Path(args.train_json).name != 'train.json':
+        raise SystemExit('build-only train.json required')
+    train_sha256 = hashlib.sha256(Path(args.train_json).read_bytes()).hexdigest()
     train_obj = json.load(open(args.train_json))
+    if len(train_obj['documents']) != 423:
+        raise SystemExit('ContractNLI train split identity changed')
     rows_all = build_samples(train_obj)
     n = len(rows_all)
     rel_counts = Counter({0: sum(1 for r in rows_all), 1: sum(r[0] is not None for r in rows_all)})
@@ -147,6 +155,8 @@ def main():
         st = torch.load(args.state_in, map_location='cpu', weights_only=False)
         if st.get('schema') != 'musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1':
             raise SystemExit('bad state schema')
+        if st.get('source_encoder_artifact_sha256') != args.encoder_artifact_sha256 or st.get('train_sha256') != train_sha256:
+            raise SystemExit('resumed source artifact/train split drift')
         if st['next_chunk'] != args.chunk_index or st['num_chunks'] != args.num_chunks:
             raise SystemExit('state continuity mismatch')
         model.load_state_dict(st['trainable_state'], strict=False)
@@ -230,7 +240,7 @@ def main():
     partial = {k: v.detach().cpu() for k, v in model.state_dict().items() if k in trainable_names}
     state = {
         'schema': 'musitu.revenueguard.contractnli.pairwise_v3_recovery_chunk_state.v1',
-        'mode': 'decoupled',
+        'mode': 'pairwise_relevance_positive_only_semantics',
         'num_chunks': args.num_chunks,
         'next_chunk': args.chunk_index + 1,
         'trainable_state': partial,
@@ -245,6 +255,8 @@ def main():
         'relevance_weights': rw.tolist(),
         'semantic_weights': sw.tolist(),
         'seed': SEED,
+        'source_encoder_artifact_sha256': args.encoder_artifact_sha256,
+        'train_sha256': train_sha256,
     }
     Path(args.state_out).parent.mkdir(parents=True, exist_ok=True)
     torch.save(state, args.state_out)
@@ -275,6 +287,9 @@ def main():
         'semantic_weights': sw.tolist(),
         'unfrozen_encoder_layers': 4,
         'state_sha256': hashlib.sha256(state_bytes).hexdigest(),
+        'source_encoder_artifact_sha256': args.encoder_artifact_sha256,
+        'train_sha256': train_sha256,
+        'sealed_policy': {'contractnli_test_opened': False, 'cuad_official_test_opened': False, 'maud_opened': False},
         'execution': 'fixed batch-aligned epoch permutation; optimizer and RNG state preserved across chunks; ContractNLI build partition only',
     }
     rep['report_sha256'] = hashlib.sha256(json.dumps(rep, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
