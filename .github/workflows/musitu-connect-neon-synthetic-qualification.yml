@@ -9,6 +9,8 @@ on:
       - 'tests/connect/test_customer_neon_admission.mjs'
       - 'infra/connect_customer_neon_qualification.sql'
       - 'qualification/neon_pg_contract_test.py'
+      - 'qualification/neon_role_attestation.py'
+      - 'tests/connect/test_neon_role_attestation.py'
   workflow_dispatch:
 
 permissions:
@@ -42,6 +44,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Fail-closed Neon effective role attestation unit tests
+        run: python -m unittest discover -s tests/connect -p 'test_neon_role_attestation.py' -v
       - name: PostgreSQL 17 least-privilege, concurrency, revocation and UUID evidence
         env:
           NEON_TEST_PG_DSN: postgresql://postgres:isolated-ci-only@127.0.0.1:5432/postgres
