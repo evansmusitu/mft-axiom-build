@@ -515,6 +515,7 @@ export interface AuthenticatedWorkerContext {
   bodyHash:string;
   issuedAt:string;
   requestHash:string;
+  requestFresh:boolean;
 }
 
 
