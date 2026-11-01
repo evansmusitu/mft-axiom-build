@@ -13,3 +13,10 @@ Read `../../shared/QUALITY.md`.
 5. Compare candidate behavior with the current promoted version and strong external baselines when legally/technically available.
 6. Reject promotion if a critical regression appears.
 7. Record evidence and version every evaluation set so improvement claims remain auditable.
+
+## Candidate deterministic adapter
+
+For this bounded subproblem, read `references/benchmark-evaluation-contract.md`.
+Compare typed results on identical sealed holdout task/oracle records while preserving contaminated or unmatched-run failures.
+Each system must cover exactly the same held-out case IDs, input digests and expected answers. The same case cannot appear in development and holdout splits. Contaminated holdout records cannot qualify. Exact typed structure matters: strings containing a correct number and booleans do not equal the corresponding numeric answer. Supplied costs and latency are record summaries, not provider-attested measurements or an authorized superiority claim.
+Keep the internal-candidate and evidence limits in that reference.

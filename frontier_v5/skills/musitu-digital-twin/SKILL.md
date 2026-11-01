@@ -13,3 +13,10 @@ Read `../../shared/QUALITY.md`.
 5. Run perturbation, stress and intervention scenarios.
 6. Track model drift, stale inputs and invalidation conditions.
 7. Version every twin update and retain prior state for replay.
+
+## Candidate deterministic adapter
+
+For this bounded subproblem, read `references/twin-validation-contract.md`.
+Compare held-out observed/predicted pairs against declared tolerances and operating range.
+All validation observations must postdate the declared calibration end. This checks supplied timestamps, not independent custody of the training process. An out-of-domain input takes precedence over a numerically small residual. Report RMSE, signed residual bias, failed observations and the declared operating range. Matching a sample does not validate extrapolation or simulator structure.
+Keep the internal-candidate and evidence limits in that reference.

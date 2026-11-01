@@ -171,7 +171,7 @@ export default {
       let forwarded=request;
       if(request.method==='POST'){
         const body=await boundedJson(request,8192);
-        if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(body,'decision'))reject(400,'acceptance_decision_required');
+        if(!body||typeof body!=='object'||Array.isArray(body)||!(Object.hasOwn(body,'decision')||Object.hasOwn(body,'analysis')))reject(400,'acceptance_deterministic_workflow_required');
         const headers=new Headers(request.headers);headers.delete('content-length');
         forwarded=new Request(request.url,{method:'POST',headers,body:JSON.stringify(body)});
       }

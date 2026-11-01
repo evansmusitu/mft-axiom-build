@@ -3,6 +3,7 @@ import {createProtectedRuntimeBridge} from './axiom_runtime_bridge.mjs';
 import {createD1ExecutionGovernance} from './axiom_execution_contract.mjs';
 import {sha256Json} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {executeDecisionTask} from '../axiom_interface/vnext/runtime_decision_service.mjs';
+import {executeAnalyticalTask} from '../axiom_interface/vnext/runtime_analytical_service.mjs';
 import {createConfiguredOpenAIAgentModel} from './axiom_openai_agent_model.mjs';
 
 const COMMON_HEADERS=Object.freeze({
@@ -167,14 +168,16 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   if (encoder.encode(raw).length>8192) return json(413,{error:'request_too_large'});
   let payload;
   try { payload=JSON.parse(raw); } catch { return json(400,{error:'invalid_json'}); }
-  if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).some(k=>!['objective','execution_context','decision','submission_id'].includes(k)))return json(400,{error:'unsupported_task_fields'});
+  if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).some(k=>!['objective','execution_context','decision','analysis','submission_id'].includes(k)))return json(400,{error:'unsupported_task_fields'});
+  if(payload.decision!==undefined&&payload.analysis!==undefined)return json(400,{error:'one_deterministic_workflow_per_task'});
+  const localWorkflow=payload.decision!==undefined||payload.analysis!==undefined;
   if(!payload.execution_context||typeof payload.execution_context!=='object')return json(400,{error:'execution_context_required'});
   if(!/^[A-Za-z0-9_-]{6,90}$/.test(payload.submission_id??'')||!payload.execution_context.work_id)return json(400,{error:'stable_submission_and_work_id_required'});
   const objective=clean(payload?.objective,2000);
   if (objective.length<3) return json(400,{error:'objective_required'});
   let governance;
   try{
-    const input_commitment=payload.decision===undefined?null:{kind:'decision',sha256:await sha256Json(payload.decision)};
+    const input_commitment=payload.analysis!==undefined?{kind:'analysis',sha256:await sha256Json(payload.analysis)}:payload.decision===undefined?null:{kind:'decision',sha256:await sha256Json(payload.decision)};
     governance=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).admit({objective,context:payload.execution_context,input_commitment});
   }catch(error){
     const status=error?.name==='TypeError'?400:error?.name==='NotAllowedError'?403:503;
@@ -189,10 +192,10 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
     return json(409,{error:'submission_already_recorded_reconcile_before_retry',task_id:taskId,status:previous.status});
   }
   try{await governance.assertBound({customer,objective});}catch(error){return json(403,{error:clean(error?.message||'execution_not_authorized',240)});}
-  const runtime=payload.decision===undefined?createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME}):null;
+  const runtime=localWorkflow?null:createProtectedRuntimeBridge({db:env.AXIOM_DB,service:env.AXIOM_RUNTIME});
   const store=governance,research=createFixedResearch(fetchImpl);
   let model;
-  try{model=payload.decision!==undefined?null:env.AXIOM_AGENT_PROVIDER==='openai_agents'
+  try{model=localWorkflow?null:env.AXIOM_AGENT_PROVIDER==='openai_agents'
     ?await createConfiguredOpenAIAgentModel(env,{db:env.AXIOM_DB,customer,taskId,governance}):createWorkersAIModel(env);
   }catch(error){return json(503,{error:'configured_agent_provider_unavailable',error_code:clean(error?.name||'ProviderError',80)});}
   let observerConnected=true;
@@ -201,7 +204,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
       const send=(event,value)=>{if(observerConnected)try{sendEvent(controller,event,value);}catch{observerConnected=false;}};
       const work=Promise.resolve().then(async()=>{
         const options={objective,customer,runtime,research,model,store,governance,idFactory:()=>taskId,emit:event=>send('phase',event)};
-        const result=payload.decision===undefined?await executeRuntimeTask(options):await executeDecisionTask({...options,problem:payload.decision});
+        const result=payload.analysis!==undefined?await executeAnalyticalTask({...options,input:payload.analysis}):payload.decision===undefined?await executeRuntimeTask(options):await executeDecisionTask({...options,problem:payload.decision});
         send('complete',result);
       }).catch(error=>{
         send('error',{schema:'musitu.axiom.runtime-task-error.v1',error_code:clean(error?.name||'TaskError',80),error_message:clean(error?.message||'Task failed',300),retryable:false});

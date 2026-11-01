@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "inventory-decisions",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "tied-orders-preserved",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "zero-demand",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "unnormalized-demand",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "feasible-grid-respected",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "duplicate-order",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "fractional-unit",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    }
+  ]
+}

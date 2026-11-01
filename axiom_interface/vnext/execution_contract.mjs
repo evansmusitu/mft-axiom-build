@@ -48,12 +48,13 @@ export async function validateExecutionContract(contract){
   for(const k of ['tenant_id','project_id','work_id','agent_id'])requireExecutionId(contract[k],k);
   if(typeof contract.objective!=='string'||contract.objective.trim().length<3||contract.objective.length>2000)throw new TypeError('contract objective is invalid');
   if(!Array.isArray(contract.success_criteria)||!contract.success_criteria.length||contract.success_criteria.length>20||contract.success_criteria.some(x=>typeof x!=='string'||x.length<3||x.length>1000))throw new TypeError('contract success criteria invalid');
-  if(!Array.isArray(contract.required_outcomes)||!contract.required_outcomes.includes('artifact')||new Set(contract.required_outcomes).size!==contract.required_outcomes.length||contract.required_outcomes.some(x=>!['artifact','research','compute','decision'].includes(x)))throw new TypeError('contract outcomes invalid');
+  if(!Array.isArray(contract.required_outcomes)||!contract.required_outcomes.includes('artifact')||new Set(contract.required_outcomes).size!==contract.required_outcomes.length||contract.required_outcomes.some(x=>!['artifact','research','compute','decision','analysis'].includes(x)))throw new TypeError('contract outcomes invalid');
   if(contract.input_commitment!==null){
     executionRecord(contract.input_commitment,['kind','sha256'],'input commitment');
-    if(contract.input_commitment.kind!=='decision'||!/^[0-9a-f]{64}$/.test(contract.input_commitment.sha256))throw new TypeError('invalid input commitment');
+    if(!['decision','analysis'].includes(contract.input_commitment.kind)||!/^[0-9a-f]{64}$/.test(contract.input_commitment.sha256))throw new TypeError('invalid input commitment');
   }
   if(contract.required_outcomes.includes('decision')!==(contract.input_commitment?.kind==='decision'))throw new TypeError('decision outcome requires a bound input commitment');
+  if(contract.required_outcomes.includes('analysis')!==(contract.input_commitment?.kind==='analysis'))throw new TypeError('analysis outcome requires a bound input commitment');
   const p=executionRecord(contract.policy,['autonomy','privacy','evidence','approval','deadline','budget_unit','max_compute_calls','max_provider_calls','allowed_operations','allowed_actions'],'execution policy');
   choice(p.approval,['Before consequential action','Every tool action','Read-only auto, writes approved'],'approval');
   if(p.deadline!==null&&(!Number.isFinite(Date.parse(p.deadline))||new Date(p.deadline).toISOString()!==p.deadline||Date.parse(contract.expires_at)>Date.parse(p.deadline)))throw new TypeError('contract deadline must bound execution expiry');
@@ -61,7 +62,8 @@ export async function validateExecutionContract(contract){
   if(p.budget_unit!==EXECUTION_BUDGET_UNIT)throw new TypeError('budget unit invalid');
   for(const k of ['max_compute_calls','max_provider_calls'])if(!Number.isSafeInteger(p[k])||p[k]<0||p[k]>1000000)throw new TypeError(`invalid ${k}`);
   if(!Array.isArray(p.allowed_operations)||new Set(p.allowed_operations).size!==p.allowed_operations.length||p.allowed_operations.some(x=>typeof x!=='string'||x.length>120))throw new TypeError('allowed operations invalid');
-  if(!Array.isArray(p.allowed_actions)||new Set(p.allowed_actions).size!==p.allowed_actions.length||p.allowed_actions.some(x=>!['compute','research','model','decision'].includes(x)))throw new TypeError('allowed actions invalid');
+  if(!Array.isArray(p.allowed_actions)||new Set(p.allowed_actions).size!==p.allowed_actions.length||p.allowed_actions.some(x=>!['compute','research','model','decision','analysis'].includes(x)))throw new TypeError('allowed actions invalid');
+  if(p.allowed_actions.includes('analysis')!==(contract.input_commitment?.kind==='analysis'))throw new TypeError('analysis action requires committed analytical input');
   const issued=Date.parse(contract.issued_at),expiry=Date.parse(contract.expires_at);
   if(!Number.isFinite(issued)||!Number.isFinite(expiry)||expiry<=issued||new Date(issued).toISOString()!==contract.issued_at||new Date(expiry).toISOString()!==contract.expires_at)throw new TypeError('normalized contract times required');
   const {contract_sha256,...body}=contract;

@@ -12,3 +12,10 @@ Read `../../shared/PROOF.md` and `../../shared/QUALITY.md`.
 4. Record contradictions, exceptions and residual uncertainty.
 5. Generate a reproducibility fingerprint using the proof-envelope utility.
 6. Attach a compact proof summary to the deliverable while preserving machine-reproducible metadata.
+
+## Candidate deterministic adapter
+
+For this bounded subproblem, read `references/claim-lineage-contract.md`.
+Track claim dependencies against complete captured source content and propagate invalidation through the dependency DAG.
+A BOUND result means the stored source content matches the declared hash and time/state requirements; it never establishes authenticity or factual entailment. Missing, changed, stale and deleted sources invalidate the dependent claim. Even a derived claim with a valid dependency graph still needs a substantive inference check.
+Keep the internal-candidate and evidence limits in that reference.

@@ -169,6 +169,23 @@ test('real D1 lifecycle migrations preserve export commitments and normal authen
   assert.equal(await f.remote.prepare('SELECT COUNT(*) AS n FROM axiom_ec_projects WHERE tenant_id=?').bind(tenant).first('n'),1,'shared Project is retained');
 });
 
+test('analytical workflows use the authenticated task API, real D1 budget reservations and committed readback',{timeout:30000},async t=>{
+  const persist=mkdtempSync(join(tmpdir(),'axiom-analytical-storage-'));t.after(()=>rmSync(persist,{recursive:true,force:true}));
+  const f=await fixture(t,{persist});assert.equal((await f.schema()).status,200);
+  const input={workflow:'bayesian-updating',data:{states:[{id:'A',prior:.5,likelihood:.8},{id:'B',prior:.5,likelihood:.2}]}};
+  const body={objective:'Compare declared analytical inputs.',submission_id:'analysis-submission',execution_context:{project_id:'project-analysis',work_id:'analysis-work',controls:{privacy:'Private',budget:1}},analysis:input};
+  const submit=await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body});assert.equal(submit.status,200);assert.match(await submit.text(),/event: complete/);
+  const saved=await (await f.request('/vnext/api/submissions/analysis-submission',{token:alphaToken})).json();
+  assert.equal(saved.execution.result.result.posterior.A,.8);assert.equal(saved.execution.operation,'analysis.evaluate');assert.equal(saved.provider_evidence,undefined);
+  assert.equal(await f.remote.prepare('SELECT compute_calls FROM axiom_ec_works WHERE tenant_id=? AND work_id=?').bind('tenant-alpha','analysis-work').first('compute_calls'),1);
+  assert.equal((await f.request('/vnext/api/tasks/'+saved.task_id,{token:betaToken})).status,404);
+  const replay=await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body});assert.ok((await replay.text()).includes(saved.receipt.receipt_sha256));
+  const ambiguous=await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body:{...body,decision:problem}});assert.equal(ambiguous.status,400);
+  const changed=structuredClone(body);changed.analysis.data.states[0].likelihood=.7;
+  assert.equal((await f.request('/vnext/api/tasks',{token:alphaToken,method:'POST',body:changed})).status,403);
+  await f.restart();const after=await (await f.request('/vnext/api/tasks/'+saved.task_id,{token:alphaToken})).json();assert.equal(after.receipt.receipt_sha256,saved.receipt.receipt_sha256);
+});
+
 test('RPC deadline bounds headers and body without retrying uncertain mutations',{timeout:5000},async()=>{
   for(const fetchImpl of [async()=>new Promise(()=>{}),async()=>new Response(new ReadableStream({pull(){return new Promise(()=>{});}}),{headers:{'content-type':'application/json'}})]){
     let calls=0;

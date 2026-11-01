@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "statement-forensics",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "balance-imbalance",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "zero-assets-not-infinity",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "zero-receivables-base",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "negative-earnings",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "declared-thresholds",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "no-fraud-accusation",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "bayesian-updating",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "impossible-evidence",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "zero-prior-not-resurrected",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "tiny-likelihoods-stable",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "prior-sensitivity",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "duplicate-states",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "nonprobabilistic-input",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    }
+  ]
+}

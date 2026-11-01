@@ -3,6 +3,7 @@ import {canonicalJson,sha256Json,verifyTaskCommitments,verifyExecutionResultComm
 import {EXECUTION_CONTRACT_SCHEMA,EXECUTION_AGENT_ID,EXECUTION_BUDGET_UNIT,normalizeExecutionContext,requiredExecutionOutcomes,requireExecutionId,executionRecord,validateExecutionContract} from '../axiom_interface/vnext/execution_contract.mjs';
 import {verifyAgentModelEvidence} from './axiom_agent_model_store.mjs';
 import {readD1EvidenceLifecycleErasure} from './axiom_evidence_lifecycle.mjs';
+import {ANALYTICAL_WORKFLOWS} from '../axiom_interface/vnext/analytical_workflows.mjs';
 
 const clone=v=>structuredClone(v),hex=/^[0-9a-f]{64}$/;
 const deny=message=>{throw new DOMException(message,'NotAllowedError');};
@@ -59,7 +60,7 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
   return Object.freeze({get:taskId=>readD1ExecutionRun({db,customer:{customer_id:tenant},taskId}),async admit({objective,context={},input_commitment=null}={}){
     if(typeof objective!=='string'||objective.trim().length<3||objective.length>2000)throw new TypeError('bounded objective required');
     objective=objective.trim();
-    if(input_commitment!==null){executionRecord(input_commitment,['kind','sha256'],'server input commitment');if(input_commitment.kind!=='decision'||!hex.test(input_commitment.sha256))throw new TypeError('server decision input commitment invalid');input_commitment=clone(input_commitment);}
+    if(input_commitment!==null){executionRecord(input_commitment,['kind','sha256'],'server input commitment');if(!['decision','analysis'].includes(input_commitment.kind)||!hex.test(input_commitment.sha256))throw new TypeError('server analytical input commitment invalid');input_commitment=clone(input_commitment);}
     const proposal=normalizeExecutionContext(context),workId=proposal.work_id??makeId('work');
     if(proposal.agent_id!==EXECUTION_AGENT_ID)deny('unregistered execution agent');
     if(proposal.controls.budget>ceiling)deny('compute call budget exceeds server policy');
@@ -73,8 +74,8 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
     }else{
       if(proposal.controls.deadline&&Date.parse(proposal.controls.deadline)<=Date.parse(created))deny('Work deadline has expired');
       const body={schema:EXECUTION_CONTRACT_SCHEMA,tenant_id:tenant,project_id:proposal.project_id,work_id:workId,agent_id:EXECUTION_AGENT_ID,objective,
-        success_criteria:proposal.success_criteria,required_outcomes:[...requiredExecutionOutcomes(objective),...(input_commitment?['decision']:[])],input_commitment,
-        policy:{autonomy:proposal.controls.autonomy,privacy:proposal.controls.privacy,evidence:proposal.controls.evidence,approval:proposal.controls.approval,deadline:proposal.controls.deadline,budget_unit:EXECUTION_BUDGET_UNIT,max_compute_calls:proposal.controls.budget,max_provider_calls:providers,allowed_operations:clone(allowed),allowed_actions:['compute','research','model','decision']},
+        success_criteria:proposal.success_criteria,required_outcomes:[...requiredExecutionOutcomes(objective),...(input_commitment?[input_commitment.kind]:[])],input_commitment,
+        policy:{autonomy:proposal.controls.autonomy,privacy:proposal.controls.privacy,evidence:proposal.controls.evidence,approval:proposal.controls.approval,deadline:proposal.controls.deadline,budget_unit:EXECUTION_BUDGET_UNIT,max_compute_calls:proposal.controls.budget,max_provider_calls:providers,allowed_operations:clone(allowed),allowed_actions:['compute','research','model','decision',...(input_commitment?.kind==='analysis'?['analysis']:[])]},
         issued_at:created,expires_at:new Date(Math.min(Date.parse(created)+ttl,proposal.controls.deadline?Date.parse(proposal.controls.deadline):Infinity)).toISOString()};
       contract={...body,contract_sha256:await sha256Json(body)};
       await db.batch([
@@ -124,11 +125,12 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         await assertBound();
         if(!contract.policy.allowed_actions.includes(action.kind))deny('unregistered execution action');
         if(action.kind==='compute'&&(!contract.policy.allowed_operations.includes(action.operation)||!allowed.includes(action.operation)))deny('compute operation is outside the registered agent scope');
+        if(action.kind==='analysis'&&(contract.input_commitment?.kind!=='analysis'||!ANALYTICAL_WORKFLOWS.includes(action.operation)))deny('analysis operation is outside the registered analytical scope');
         if(['research','model'].includes(action.kind)&&contract.policy.privacy==='Private')deny('Private work does not permit external research or model processing');
         const providerCost=integer(action.provider_calls,['research','model'].includes(action.kind)?1:0,'provider_calls');
         if(!['research','model'].includes(action.kind)&&providerCost!==0)throw new TypeError('local action cannot declare provider calls');
         if(['research','model'].includes(action.kind)&&providerCost<1)throw new TypeError('external action must reserve its provider calls');
-        const computeCost=action.kind==='compute'?1:0,time=instant();
+        const computeCost=['compute','analysis'].includes(action.kind)?1:0,time=instant();
         const results=await db.batch([
           statement(`UPDATE axiom_ec_works SET compute_calls=compute_calls+?3,provider_calls=provider_calls+?4
             WHERE tenant_id=?1 AND work_id=?2 AND contract_sha256=?5 AND state='ACTIVE' AND expires_at>?6
@@ -187,15 +189,20 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         for(const citation of task.artifact.citations??[])if(!sourceMap.has(citation.source_id)||canonicalJson(citation)!==canonicalJson(sourceMap.get(citation.source_id)))throw new DOMException('artifact citation does not match captured evidence','DataError');
         if(contract.required_outcomes.includes('research')&&(!sources.length||!task.artifact.citations?.length))throw new DOMException('required research evidence is absent','DataError');
         if(contract.required_outcomes.includes('compute')&&!task.execution)throw new DOMException('required compute outcome is absent','DataError');
-        if(contract.input_commitment&&(canonicalJson(task.input_commitment)!==canonicalJson(contract.input_commitment)||task.execution?.operation!=='decision.evaluate'))throw new DOMException('required decision input or outcome commitment mismatch','DataError');
+        if(contract.input_commitment&&(canonicalJson(task.input_commitment)!==canonicalJson(contract.input_commitment)||task.execution?.operation!==({decision:'decision.evaluate',analysis:'analysis.evaluate'}[contract.input_commitment.kind])))throw new DOMException('required analytical input or outcome commitment mismatch','DataError');
         if(task.execution?.operation==='decision.evaluate'&&(task.execution.http_status!==200||task.execution.result?.recommendation_only!==true||task.execution.result?.authority_granted!==false))throw new DOMException('decision output must remain recommendation-only','DataError');
-        if(task.execution?.operation&&task.execution.operation!=='decision.evaluate'){
+        if(task.execution?.operation&&!['decision.evaluate','analysis.evaluate'].includes(task.execution.operation)){
           if(!contract.policy.allowed_operations.includes(task.execution.operation)||task.execution.http_status!==200||task.execution.receipt?.result_commitment_verified!==true||!hex.test(task.execution.receipt.result_sha256??''))throw new DOMException('protected execution commitment has not been verified','DataError');
           if(task.execution.request_id!==task.request_id)throw new DOMException('protected execution request mismatch','DataError');
         }
         const admitted=await statement('SELECT action_kind,operation FROM axiom_ec_reservations WHERE tenant_id=?1 AND task_id=?2 AND binding_id=?3 AND generation=?4',tenant,task.task_id,bindingId,activeRun.generation).all(),actions=admitted.results??admitted;
         if(!actions.length)deny('completed task has no admitted action reservation');
-        if(task.execution?.operation&&task.execution.operation!=='decision.evaluate'&&!actions.some(a=>a.action_kind==='compute'&&a.operation===task.execution.operation))deny('compute result has no admitted action reservation');
+        if(task.execution?.operation&&!['decision.evaluate','analysis.evaluate'].includes(task.execution.operation)&&!actions.some(a=>a.action_kind==='compute'&&a.operation===task.execution.operation))deny('compute result has no admitted action reservation');
+        if(task.execution?.operation==='analysis.evaluate'){
+          const needed=[task.analysis_input.workflow,...(task.analysis_input.workflow==='analytical-pipeline'?task.analysis_input.data.stages.map(s=>s.workflow):[])];
+          const actual=actions.filter(a=>a.action_kind==='analysis').map(a=>a.operation);
+          if(canonicalJson([...needed].sort())!==canonicalJson(actual.sort()))deny('analytical result lacks exact workflow call reservations');
+        }
         if(task.execution?.operation==='decision.evaluate'&&!actions.some(a=>a.action_kind==='decision'))deny('decision result has no admitted action reservation');
         if(sources.length&&!actions.some(a=>a.action_kind==='research'))deny('captured research has no admitted action reservation');
         const artifactId=`artifact_${task.task_id}`,time=instant(),evidence=[{id:`evidence_${task.task_id}_contract`,kind:'EXECUTION_CONTRACT',content:contract},...sources.map((s,i)=>({id:`evidence_${task.task_id}_source_${i}`,kind:'CAPTURED_SOURCE_NOT_ENTAILMENT',content:s}))];

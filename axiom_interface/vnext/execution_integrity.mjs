@@ -45,6 +45,12 @@ export async function verifyTaskCommitments(result) {
 export async function verifyExecutionResultCommitment(task){
   const e=task.execution;if(!e)return task.receipt.runtime_result_sha256===null;
   if(e.request_id!==task.request_id||e.http_status!==200||task.receipt.runtime_result_sha256!==e.receipt?.result_sha256)return false;
+  if(e.operation==='analysis.evaluate'){
+    if(task.execution_contract.input_commitment?.kind!=='analysis'||!task.analysis_input||await sha256Json(task.analysis_input)!==task.execution_contract.input_commitment.sha256)return false;
+    const {evaluateAnalyticalWorkflow}=await import('./analytical_workflows.mjs');
+    const replay=await evaluateAnalyticalWorkflow(task.analysis_input);
+    return canonicalJson(replay)===canonicalJson(e.result)&&canonicalJson(task.artifact.analysis)===canonicalJson(replay)&&await sha256Json(replay)===e.receipt.result_sha256;
+  }
   if(e.operation==='decision.evaluate'){
     if(!task.decision_input||await sha256Json(task.decision_input)!==task.execution_contract.input_commitment?.sha256)return false;
     const {evaluateDecision}=await import('./decision_analysis.mjs');

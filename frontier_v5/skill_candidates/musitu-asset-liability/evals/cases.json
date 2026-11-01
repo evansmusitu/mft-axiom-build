@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "asset-liability",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "immediate-flows",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "nonzero-yield",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "no-mixed-currency",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "bucket-end-inclusive",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "negative-cashflow-rejected",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "invalid-down-shock",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    }
+  ]
+}
