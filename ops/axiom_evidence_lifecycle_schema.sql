@@ -285,3 +285,16 @@ WHEN NOT EXISTS(SELECT 1 FROM axiom_lc_guards g JOIN axiom_lc_authorizations a O
  AND g.principal_id=json_extract(NEW.receipt_json,'$.principal_id') AND g.authorization_id=json_extract(NEW.receipt_json,'$.authorization_id')
  AND g.created_at=NEW.created_at AND a.work_id=g.work_id AND a.action=g.action AND a.principal_id=g.principal_id AND a.state='ACTIVE' AND julianday(a.expires_at)>julianday(g.created_at))
 BEGIN SELECT RAISE(ABORT,'lifecycle export requires explicit atomic owner authorization'); END;
+
+-- Commitment-only external records are retained during logical payload erasure.
+CREATE TRIGGER IF NOT EXISTS axiom_lc_guard_external_snapshot BEFORE INSERT ON axiom_lc_guards
+WHEN
+ json_type(NEW.snapshot_json,'$.external_consumptions') IS NOT 'array'
+ OR (SELECT COUNT(*) FROM axiom_ec_external_consumptions r WHERE r.tenant_id=NEW.tenant_id AND r.work_id=NEW.work_id)!=json_array_length(NEW.snapshot_json,'$.external_consumptions')
+ OR EXISTS(SELECT r.tenant_id,r.reservation_id,r.work_id,r.task_id,r.ledger_id,r.grant_id,r.status,r.request_json,r.envelope_json FROM axiom_ec_external_consumptions r WHERE r.tenant_id=NEW.tenant_id AND r.work_id=NEW.work_id
+  EXCEPT SELECT json_extract(s.value,'$.tenant_id'),json_extract(s.value,'$.reservation_id'),json_extract(s.value,'$.work_id'),json_extract(s.value,'$.task_id'),json_extract(s.value,'$.ledger_id'),json_extract(s.value,'$.grant_id'),json_extract(s.value,'$.status'),json_extract(s.value,'$.request_json'),json_extract(s.value,'$.envelope_json') FROM json_each(NEW.snapshot_json,'$.external_consumptions') s)
+ OR json_type(NEW.snapshot_json,'$.external_guards') IS NOT 'array'
+ OR (SELECT COUNT(*) FROM axiom_ec_external_completion_guards r WHERE r.tenant_id=NEW.tenant_id AND EXISTS(SELECT 1 FROM axiom_ec_runs z WHERE z.tenant_id=r.tenant_id AND z.task_id=r.task_id AND z.work_id=NEW.work_id))!=json_array_length(NEW.snapshot_json,'$.external_guards')
+ OR EXISTS(SELECT r.tenant_id,r.task_id,r.snapshot_json FROM axiom_ec_external_completion_guards r WHERE r.tenant_id=NEW.tenant_id AND EXISTS(SELECT 1 FROM axiom_ec_runs z WHERE z.tenant_id=r.tenant_id AND z.task_id=r.task_id AND z.work_id=NEW.work_id)
+  EXCEPT SELECT json_extract(s.value,'$.tenant_id'),json_extract(s.value,'$.task_id'),json_extract(s.value,'$.snapshot_json') FROM json_each(NEW.snapshot_json,'$.external_guards') s)
+BEGIN SELECT RAISE(ABORT,'external authority set changed during lifecycle mutation'); END;

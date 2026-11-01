@@ -25,13 +25,14 @@
     }
   },
   "anti_rollback": {
-    "status": "UNQUALIFIED_HISTORICAL_COUNTEREXAMPLE",
+    "status": "LOCAL_EXTERNAL_LEDGER_CANDIDATE_PASS_INDEPENDENT_ACTIVATION_AND_ROOT_RESTORE_UNQUALIFIED",
     "missing": [
-      "External atomic consume ledger and monotonic high-water state",
-      "Current epoch and revocation enforcement",
+      "Independent accepted deployment of the external atomic consume ledger and an independently anchored monotonic high-water state; a deployable local candidate is now built",
+      "Live independent epoch and revocation acceptance; local component enforcement passes",
       "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
       "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
-      "Independent signature over exact tested artifact digest"
+      "Independent signature over exact tested artifact digest",
+      "Detection or prevention of restoring the authority administrator's own older ledger store; current candidate does not provide this anchor"
     ],
     "fresh_local_reproduction": {
       "source_sha": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127",
@@ -42,6 +43,18 @@
       "security_outcome": "GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED",
       "external_tests_executed": false,
       "log_sha256": "7b640d82d32381f05ffe47b9b58abe4bb6c6b56a01d77d05b30b099162329268"
+    },
+    "local_candidate": {
+      "evidence": "external-ledger-component-20261101.json",
+      "operator_package": "integrations/independent-ledger/README.md",
+      "local_tests_passed": 22,
+      "builder_restore_fenced": true,
+      "authority_root_restore_protected": false,
+      "independent_operator_accepted": false,
+      "live_external_qualification": false,
+      "deployed": false,
+      "positive_guard_checks_passed": 21,
+      "authority_admin_restore_counterexample_reproduced": true
     }
   },
   "hosted_d1": {

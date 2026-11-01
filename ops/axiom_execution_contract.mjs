@@ -4,6 +4,8 @@ import {EXECUTION_CONTRACT_SCHEMA,EXECUTION_AGENT_ID,EXECUTION_BUDGET_UNIT,norma
 import {verifyAgentModelEvidence} from './axiom_agent_model_store.mjs';
 import {readD1EvidenceLifecycleErasure} from './axiom_evidence_lifecycle.mjs';
 import {ANALYTICAL_WORKFLOWS} from '../axiom_interface/vnext/analytical_workflows.mjs';
+import {externalLedgerEvidence,reserveExternalLedger} from './axiom_external_ledger.mjs';
+import {descriptor as externalDescriptor} from '../integrations/independent-ledger/protocol.mjs';
 
 const clone=v=>structuredClone(v),hex=/^[0-9a-f]{64}$/;
 const deny=message=>{throw new DOMException(message,'NotAllowedError');};
@@ -11,7 +13,7 @@ function deepFreeze(value){if(value&&typeof value==='object'){for(const v of Obj
 function changed(result){return Number(result?.meta?.changes??result?.changes??0);}
 function integer(value,fallback,label,max=1000000){const n=value??fallback;if(!Number.isSafeInteger(n)||n<0||n>max)throw new TypeError(`${label} must be a bounded nonnegative integer`);return n;}
 
-export async function readD1ExecutionRun({db,customer,taskId}={}){
+export async function readD1ExecutionRun({db,customer,taskId,externalLedger}={}){
   const tenant=requireExecutionId(customer?.customer_id,'authenticated customer');requireExecutionId(taskId,'task id');
   const query=(sql,...args)=>db.prepare(sql).bind(...args);
   const row=await query('SELECT r.*,w.project_id,w.agent_id,w.contract_json FROM axiom_ec_runs r JOIN axiom_ec_works w ON w.tenant_id=r.tenant_id AND w.work_id=r.work_id WHERE r.tenant_id=?1 AND r.task_id=?2',tenant,taskId).first();
@@ -31,11 +33,14 @@ export async function readD1ExecutionRun({db,customer,taskId}={}){
     }
   }
   if(row.status==='COMPLETED'){
+    const external=await externalLedgerEvidence({db,tenant,workId:row.work_id,taskId,contract,client:externalLedger});
+    if(canonicalJson(external.evidence)!==canonicalJson(result.external_ledger_evidence??[]))throw new DOMException('stored external ledger evidence mismatch','DataError');
     await verifyAgentModelEvidence({db,tenant,taskId,evidence:result.provider_evidence??[]});
     if(!await verifyExecutionResultCommitment(result))throw new DOMException('stored execution result commitment mismatch','DataError');
     const snapshots=await Promise.all((result.sources??[]).map(async source=>({source_id:source.source_id,sha256:await sha256Json(source)})));
     const expected=[{kind:'EXECUTION_CONTRACT',content_sha256:await sha256Json(contract)},...snapshots.map(s=>({kind:'CAPTURED_SOURCE_NOT_ENTAILMENT',content_sha256:s.sha256})),{kind:'COMPLETION_RECEIPT',content_sha256:await sha256Json(result.receipt)}];
     for(const item of result.provider_evidence??[])expected.push({kind:'PROVIDER_MODEL_EXECUTION',content_sha256:await sha256Json(item)});
+    for(const item of result.external_ledger_evidence??[])expected.push({kind:'EXTERNAL_LEDGER_CONSUMPTION',content_sha256:await sha256Json(item)});
     if(result.execution)expected.push({kind:'EXECUTION_RECORD',content_sha256:await sha256Json(result.execution)});
     const ordered=rows=>rows.map(({kind,content_sha256})=>({kind,content_sha256})).sort((a,b)=>canonicalJson(a).localeCompare(canonicalJson(b)));
     if(!await verifyTaskCommitments(result)||result.receipt.contract_sha256!==row.contract_sha256||canonicalJson(result.execution_contract)!==canonicalJson(contract)||canonicalJson(snapshots)!==canonicalJson(result.receipt.source_commitments??[])||artifacts.length!==1||artifacts[0].content_sha256!==result.receipt.artifact_sha256||canonicalJson(ordered(expected))!==canonicalJson(ordered(evidence)))throw new DOMException('stored completion proof mismatch','DataError');
@@ -43,10 +48,13 @@ export async function readD1ExecutionRun({db,customer,taskId}={}){
   return {...result,status:row.status,object_refs:{tenant_id:tenant,project_id:row.project_id,work_id:row.work_id,agent_id:row.agent_id,contract_sha256:row.contract_sha256,artifacts:artifacts.map(({artifact_id,content_sha256})=>({artifact_id,content_sha256})),evidence}};
 }
 
-export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFactory=prefix=>`${prefix}_${crypto.randomUUID().replaceAll('-','')}`,serverPolicy={}}={}){
+export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFactory=prefix=>`${prefix}_${crypto.randomUUID().replaceAll('-','')}`,serverPolicy={},externalLedger}={}){
   if(!db?.prepare||!db?.batch)throw new TypeError('transactional D1 execution store required');
   const tenant=requireExecutionId(customer?.customer_id,'authenticated customer');
-  executionRecord(serverPolicy,['max_compute_calls','max_provider_calls','ttl_ms','lease_ms','allowed_operations'],'server execution policy');
+  executionRecord(serverPolicy,['max_compute_calls','max_provider_calls','ttl_ms','lease_ms','allowed_operations','external_ledger_required'],'server execution policy');
+  const externalRequired=serverPolicy.external_ledger_required??!!externalLedger;
+  if(typeof externalRequired!=='boolean'||externalRequired!==!!externalLedger)deny('required external ledger client unavailable or policy inconsistent');
+  const externalRef=externalRequired?deepFreeze(clone(externalDescriptor(externalLedger.reference))):null;
   const ceiling=integer(serverPolicy.max_compute_calls,100,'max_compute_calls');
   const providers=integer(serverPolicy.max_provider_calls,5,'max_provider_calls');
   const ttl=integer(serverPolicy.ttl_ms,900000,'ttl_ms',86400000),leaseMs=integer(serverPolicy.lease_ms,120000,'lease_ms',3600000);
@@ -57,14 +65,14 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
   const makeId=prefix=>requireExecutionId(idFactory(prefix),`${prefix} id`);
   const statement=(sql,...args)=>db.prepare(sql).bind(...args);
 
-  return Object.freeze({get:taskId=>readD1ExecutionRun({db,customer:{customer_id:tenant},taskId}),async admit({objective,context={},input_commitment=null}={}){
+  return Object.freeze({get:taskId=>readD1ExecutionRun({db,customer:{customer_id:tenant},taskId,externalLedger}),async admit({objective,context={},input_commitment=null}={}){
     if(typeof objective!=='string'||objective.trim().length<3||objective.length>2000)throw new TypeError('bounded objective required');
     objective=objective.trim();
     if(input_commitment!==null){executionRecord(input_commitment,['kind','sha256'],'server input commitment');if(!['decision','analysis'].includes(input_commitment.kind)||!hex.test(input_commitment.sha256))throw new TypeError('server analytical input commitment invalid');input_commitment=clone(input_commitment);}
     const proposal=normalizeExecutionContext(context),workId=proposal.work_id??makeId('work');
     if(proposal.agent_id!==EXECUTION_AGENT_ID)deny('unregistered execution agent');
     if(proposal.controls.budget>ceiling)deny('compute call budget exceeds server policy');
-    const request={tenant_id:tenant,objective,...proposal,work_id:workId,input_commitment,server_policy:{max_provider_calls:providers,allowed_operations:allowed}};
+    const request={tenant_id:tenant,objective,...proposal,work_id:workId,input_commitment,server_policy:{max_provider_calls:providers,allowed_operations:allowed,...(externalRef?{external_ledger:externalRef}:{})}};
     const requestHash=await sha256Json(request),created=instant();
     const prior=await statement('SELECT * FROM axiom_ec_works WHERE tenant_id=?1 AND work_id=?2',tenant,workId).first();
     let contract;
@@ -77,6 +85,7 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         success_criteria:proposal.success_criteria,required_outcomes:[...requiredExecutionOutcomes(objective),...(input_commitment?[input_commitment.kind]:[])],input_commitment,
         policy:{autonomy:proposal.controls.autonomy,privacy:proposal.controls.privacy,evidence:proposal.controls.evidence,approval:proposal.controls.approval,deadline:proposal.controls.deadline,budget_unit:EXECUTION_BUDGET_UNIT,max_compute_calls:proposal.controls.budget,max_provider_calls:providers,allowed_operations:clone(allowed),allowed_actions:['compute','research','model','decision',...(input_commitment?.kind==='analysis'?['analysis']:[])]},
         issued_at:created,expires_at:new Date(Math.min(Date.parse(created)+ttl,proposal.controls.deadline?Date.parse(proposal.controls.deadline):Infinity)).toISOString()};
+      if(externalRef)body.policy.external_ledger=clone(externalRef);
       contract={...body,contract_sha256:await sha256Json(body)};
       await db.batch([
         statement("INSERT OR IGNORE INTO axiom_ec_projects(tenant_id,project_id,state) VALUES(?1,?2,'ACTIVE')",tenant,contract.project_id),
@@ -95,6 +104,11 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
       if(input.objective!==undefined&&input.objective!==contract.objective)deny('execution objective mismatch');
       if(input.task_id!==undefined&&(!activeRun||activeRun.task_id!==input.task_id))deny('task does not belong to this execution binding');
       await validateExecutionContract(contract);
+      if(externalRequired){
+        if(canonicalJson(contract.policy.external_ledger)!==canonicalJson(externalRef))deny('immutable external ledger policy changed');
+        const pending=await statement("SELECT COUNT(*) AS n FROM axiom_ec_external_consumptions WHERE tenant_id=?1 AND work_id=?2 AND status!='CONFIRMED'",tenant,workId).first();
+        if(pending.n)deny('external ledger outcome unresolved; no retry or local fallback');
+      }
       const row=await statement("SELECT w.*,p.state AS project_state,a.state AS agent_state,(SELECT COALESCE(SUM(compute_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_compute,(SELECT COALESCE(SUM(provider_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=w.tenant_id AND z.work_id=w.work_id) AS used_providers FROM axiom_ec_works w JOIN axiom_ec_projects p ON p.tenant_id=w.tenant_id AND p.project_id=w.project_id JOIN axiom_ec_agents a ON a.tenant_id=w.tenant_id AND a.agent_id=w.agent_id WHERE w.tenant_id=?1 AND w.work_id=?2",tenant,workId).first();
       if(!row||row.contract_sha256!==contract.contract_sha256||row.contract_json!==canonicalJson(contract)||row.state!=='ACTIVE'||row.project_state!=='ACTIVE'||row.agent_state!=='ACTIVE'||row.expires_at<=instant())deny('execution authority expired, revoked or changed');
       if(row.project_id!==contract.project_id||row.agent_id!==contract.agent_id||row.expires_at!==contract.expires_at||row.max_compute_calls!==contract.policy.max_compute_calls||row.max_provider_calls!==contract.policy.max_provider_calls)deny('immutable Work projections changed');
@@ -112,10 +126,11 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
     }
 
     async function get(taskId){
-      return readD1ExecutionRun({db,customer:{customer_id:tenant},taskId});
+      return readD1ExecutionRun({db,customer:{customer_id:tenant},taskId,externalLedger});
     }
 
-    return Object.freeze({contract,assertBound,
+    return Object.freeze({contract,assertBound,admission_sha256:requestHash,
+      async externalEvidence(){if(!activeRun)return [];return (await externalLedgerEvidence({db,tenant,workId,taskId:activeRun.task_id,contract,client:externalLedger})).evidence;},
       async executionFence(taskId){
         requireExecutionId(taskId,'task id');await assertBound({task_id:taskId});
         return Object.freeze({task_id:activeRun.task_id,binding_id:bindingId,generation:activeRun.generation});
@@ -123,6 +138,7 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
       async reserve(action={}){
         executionRecord(action,['kind','operation','provider_calls'],'execution action');
         await assertBound();
+        if(externalRequired&&!activeRun)deny('external consumption requires an active Run');
         if(!contract.policy.allowed_actions.includes(action.kind))deny('unregistered execution action');
         if(action.kind==='compute'&&(!contract.policy.allowed_operations.includes(action.operation)||!allowed.includes(action.operation)))deny('compute operation is outside the registered agent scope');
         if(action.kind==='analysis'&&(contract.input_commitment?.kind!=='analysis'||!ANALYTICAL_WORKFLOWS.includes(action.operation)))deny('analysis operation is outside the registered analytical scope');
@@ -130,8 +146,8 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         const providerCost=integer(action.provider_calls,['research','model'].includes(action.kind)?1:0,'provider_calls');
         if(!['research','model'].includes(action.kind)&&providerCost!==0)throw new TypeError('local action cannot declare provider calls');
         if(['research','model'].includes(action.kind)&&providerCost<1)throw new TypeError('external action must reserve its provider calls');
-        const computeCost=['compute','analysis'].includes(action.kind)?1:0,time=instant();
-        const results=await db.batch([
+        const computeCost=['compute','analysis'].includes(action.kind)?1:0,time=instant(),reservationId=makeId('reservation');
+        const reservations=[
           statement(`UPDATE axiom_ec_works SET compute_calls=compute_calls+?3,provider_calls=provider_calls+?4
             WHERE tenant_id=?1 AND work_id=?2 AND contract_sha256=?5 AND state='ACTIVE' AND expires_at>?6
             AND compute_calls+?3<=?7 AND provider_calls+?4<=?8
@@ -139,15 +155,23 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
             AND compute_calls=(SELECT COALESCE(SUM(compute_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=?1 AND z.work_id=?2)
             AND provider_calls=(SELECT COALESCE(SUM(provider_calls),0) FROM axiom_ec_reservations z WHERE z.tenant_id=?1 AND z.work_id=?2)
             AND EXISTS(SELECT 1 FROM axiom_ec_projects p WHERE p.tenant_id=?1 AND p.project_id=axiom_ec_works.project_id AND p.state='ACTIVE')
-            AND EXISTS(SELECT 1 FROM axiom_ec_agents a WHERE a.tenant_id=?1 AND a.agent_id=axiom_ec_works.agent_id AND a.state='ACTIVE')`,
-            tenant,workId,computeCost,providerCost,contract.contract_sha256,time,contract.policy.max_compute_calls,contract.policy.max_provider_calls,contract.expires_at,contract.project_id,contract.agent_id),
-          statement('INSERT INTO axiom_ec_reservations(tenant_id,reservation_id,work_id,task_id,binding_id,generation,action_kind,operation,compute_calls,provider_calls,created_at) SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11 WHERE changes()=1',tenant,makeId('reservation'),workId,activeRun?.task_id??null,bindingId,activeRun?.generation??null,action.kind,action.operation??null,computeCost,providerCost,time),
-        ]);
+            AND EXISTS(SELECT 1 FROM axiom_ec_agents a WHERE a.tenant_id=?1 AND a.agent_id=axiom_ec_works.agent_id AND a.state='ACTIVE')
+            AND (?12=0 OR NOT EXISTS(SELECT 1 FROM axiom_ec_external_consumptions e WHERE e.tenant_id=?1 AND e.work_id=?2 AND e.status!='CONFIRMED'))`,
+            tenant,workId,computeCost,providerCost,contract.contract_sha256,time,contract.policy.max_compute_calls,contract.policy.max_provider_calls,contract.expires_at,contract.project_id,contract.agent_id,externalRequired?1:0),
+          statement('INSERT INTO axiom_ec_reservations(tenant_id,reservation_id,work_id,task_id,binding_id,generation,action_kind,operation,compute_calls,provider_calls,created_at) SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11 WHERE changes()=1',tenant,reservationId,workId,activeRun?.task_id??null,bindingId,activeRun?.generation??null,action.kind,action.operation??null,computeCost,providerCost,time),
+        ];
+        if(externalRequired)reservations.push(statement("INSERT INTO axiom_ec_external_consumptions(tenant_id,reservation_id,work_id,task_id,ledger_id,grant_id,status) SELECT ?1,?2,?3,?4,?5,?6,'STARTED' WHERE EXISTS(SELECT 1 FROM axiom_ec_reservations WHERE tenant_id=?1 AND reservation_id=?2)",tenant,reservationId,workId,activeRun.task_id,externalRef.ledger_id,externalRef.grant_id));
+        const results=await db.batch(reservations);
         if(changed(results[0])!==1||changed(results[1])!==1)deny('execution call budget exhausted or authority revoked');
+        if(externalRequired&&changed(results[2])!==1)deny('external consumption reservation could not be committed');
         if(activeRun){
           const until=new Date(Math.min(Date.parse(contract.expires_at),Date.parse(time)+leaseMs)).toISOString();
           const refreshed=await statement("UPDATE axiom_ec_runs SET lease_expires_at=?5 WHERE tenant_id=?1 AND task_id=?2 AND binding_id=?3 AND generation=?4 AND status='RUNNING' AND lease_expires_at>?6",tenant,activeRun.task_id,bindingId,activeRun.generation,until,time).run();
           if(changed(refreshed)!==1)deny('execution lease changed during reservation');
+        }
+        if(externalRequired){
+          await reserveExternalLedger({db,client:externalLedger,contract,admissionHash:requestHash,tenant,workId,taskId:activeRun.task_id,reservationId,action:{...action,compute_calls:computeCost,provider_calls:providerCost}});
+          await assertBound();
         }
         return {kind:action.kind,compute_calls:computeCost,provider_calls:providerCost,budget_unit:EXECUTION_BUDGET_UNIT};
       },
@@ -177,6 +201,8 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         await assertBound();
         const initial=JSON.parse(existing?.result_json??'{}');
         const modelSnapshot=await verifyAgentModelEvidence({db,tenant,taskId:task.task_id,evidence:task.provider_evidence??[],returnSnapshot:true});
+        const external=await externalLedgerEvidence({db,tenant,workId,taskId:task.task_id,contract,client:externalLedger});
+        if(canonicalJson(external.evidence)!==canonicalJson(task.external_ledger_evidence??[]))throw new DOMException('external ledger evidence does not match admitted consumption','DataError');
         if(!await verifyExecutionResultCommitment(task))throw new DOMException('execution result commitment mismatch','DataError');
         if(task.status!=='COMPLETED'||task.request_id!==initial.request_id||task.receipt?.request_id!==task.request_id||task.receipt?.task_id!==task.task_id||task.receipt?.customer_id!==tenant||task.receipt?.status!=='COMPLETED'||task.receipt?.operation!==(task.execution?.operation??null)||task.receipt?.contract_sha256!==contract.contract_sha256||canonicalJson(task.execution_contract)!==canonicalJson(contract)||!await verifyTaskCommitments(task))throw new DOMException('task, contract, artifact or receipt commitment mismatch','DataError');
         for(const key of ['project_id','work_id','agent_id','contract_sha256'])if(task.artifact[key]!==contract[key])throw new DOMException('artifact object identity mismatch','DataError');
@@ -208,8 +234,11 @@ export function createD1ExecutionGovernance({db,customer,now=()=>new Date(),idFa
         const artifactId=`artifact_${task.task_id}`,time=instant(),evidence=[{id:`evidence_${task.task_id}_contract`,kind:'EXECUTION_CONTRACT',content:contract},...sources.map((s,i)=>({id:`evidence_${task.task_id}_source_${i}`,kind:'CAPTURED_SOURCE_NOT_ENTAILMENT',content:s}))];
         if(task.execution)evidence.push({id:`evidence_${task.task_id}_execution`,kind:'EXECUTION_RECORD',content:task.execution});
         for(const [i,item] of (task.provider_evidence??[]).entries())evidence.push({id:`evidence_${task.task_id}_model_${i}`,kind:'PROVIDER_MODEL_EXECUTION',content:item});
+        for(const [i,item] of (task.external_ledger_evidence??[]).entries())evidence.push({id:`evidence_${task.task_id}_ledger_${i}`,kind:'EXTERNAL_LEDGER_CONSUMPTION',content:item});
         evidence.push({id:`evidence_${task.task_id}_receipt`,kind:'COMPLETION_RECEIPT',content:task.receipt});
-        const statements=[statement('INSERT INTO axiom_ec_agent_completion_guards(tenant_id,task_id,snapshot_json) VALUES(?1,?2,?3)',tenant,task.task_id,canonicalJson(modelSnapshot)),statement('INSERT INTO axiom_ec_artifacts(tenant_id,artifact_id,task_id,work_id,content_sha256,content_json,binding_id,generation,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)',tenant,artifactId,task.task_id,workId,task.receipt.artifact_sha256,canonicalJson(task.artifact),bindingId,activeRun.generation,time)];
+        const statements=[statement('INSERT INTO axiom_ec_agent_completion_guards(tenant_id,task_id,snapshot_json) VALUES(?1,?2,?3)',tenant,task.task_id,canonicalJson(modelSnapshot))];
+        if(externalRequired)statements.push(statement('INSERT INTO axiom_ec_external_completion_guards(tenant_id,task_id,snapshot_json) VALUES(?1,?2,?3)',tenant,task.task_id,canonicalJson(external.snapshot)));
+        statements.push(statement('INSERT INTO axiom_ec_artifacts(tenant_id,artifact_id,task_id,work_id,content_sha256,content_json,binding_id,generation,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)',tenant,artifactId,task.task_id,workId,task.receipt.artifact_sha256,canonicalJson(task.artifact),bindingId,activeRun.generation,time));
         for(const row of evidence)statements.push(statement('INSERT INTO axiom_ec_evidence(tenant_id,evidence_id,artifact_id,kind,content_sha256,content_json) VALUES(?1,?2,?3,?4,?5,?6)',tenant,row.id,artifactId,row.kind,await sha256Json(row.content),canonicalJson(row.content)));
         statements.push(statement("UPDATE axiom_ec_runs SET status='COMPLETED',completed_at=?5,result_json=?6 WHERE tenant_id=?1 AND task_id=?2 AND binding_id=?3 AND generation=?4 AND status='RUNNING'",tenant,task.task_id,bindingId,activeRun.generation,time,canonicalJson(task)));
         const results=await db.batch(statements);

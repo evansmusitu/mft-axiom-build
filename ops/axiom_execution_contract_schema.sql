@@ -60,6 +60,44 @@ WHEN NOT EXISTS (
 )
 BEGIN SELECT RAISE(ABORT,'execution lease or authority is not active'); END;
 CREATE INDEX IF NOT EXISTS axiom_ec_runs_work ON axiom_ec_runs(tenant_id,work_id,started_at);
+-- External permits are never reconstructed from local call counters or cached readback.
+CREATE TABLE IF NOT EXISTS axiom_ec_external_consumptions (
+ tenant_id TEXT NOT NULL, reservation_id TEXT NOT NULL, work_id TEXT NOT NULL, task_id TEXT NOT NULL,
+ ledger_id TEXT NOT NULL, grant_id TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN('STARTED','UNCERTAIN','DENIED','CONFIRMED')),
+ request_json TEXT, envelope_json TEXT,
+ CHECK(status!='CONFIRMED' OR (request_json IS NOT NULL AND envelope_json IS NOT NULL)),
+ PRIMARY KEY(tenant_id,reservation_id),
+ FOREIGN KEY(tenant_id,reservation_id) REFERENCES axiom_ec_reservations(tenant_id,reservation_id),
+ FOREIGN KEY(tenant_id,task_id) REFERENCES axiom_ec_runs(tenant_id,task_id)
+);
+CREATE TABLE IF NOT EXISTS axiom_ec_external_completion_guards (
+ tenant_id TEXT NOT NULL, task_id TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+ PRIMARY KEY(tenant_id,task_id), FOREIGN KEY(tenant_id,task_id) REFERENCES axiom_ec_runs(tenant_id,task_id)
+);
+CREATE TRIGGER IF NOT EXISTS axiom_ec_external_completion_snapshot BEFORE INSERT ON axiom_ec_external_completion_guards
+WHEN EXISTS (
+ SELECT 1 FROM axiom_ec_runs r JOIN axiom_ec_works w ON w.tenant_id=r.tenant_id AND w.work_id=r.work_id
+ WHERE r.tenant_id=NEW.tenant_id AND r.task_id=NEW.task_id AND json_extract(w.contract_json,'$.policy.external_ledger') IS NOT NULL
+) AND (
+ (SELECT COUNT(*) FROM json_each(NEW.snapshot_json))!=(SELECT COUNT(*) FROM axiom_ec_reservations WHERE tenant_id=NEW.tenant_id AND task_id=NEW.task_id)
+ OR EXISTS (
+  SELECT 1 FROM axiom_ec_reservations r LEFT JOIN axiom_ec_external_consumptions e ON e.tenant_id=r.tenant_id AND e.reservation_id=r.reservation_id
+  WHERE r.tenant_id=NEW.tenant_id AND r.task_id=NEW.task_id AND (e.status IS NULL OR e.status!='CONFIRMED' OR NOT EXISTS (
+   SELECT 1 FROM json_each(NEW.snapshot_json) s WHERE json_extract(s.value,'$.reservation_id')=e.reservation_id
+    AND json_extract(s.value,'$.ledger_id')=e.ledger_id AND json_extract(s.value,'$.grant_id')=e.grant_id
+    AND json_extract(s.value,'$.status')=e.status AND json_extract(s.value,'$.request_json')=e.request_json
+    AND json_extract(s.value,'$.envelope_json')=e.envelope_json
+  ))
+ )
+)
+BEGIN SELECT RAISE(ABORT,'external consumption set changed during completion'); END;
+CREATE TRIGGER IF NOT EXISTS axiom_ec_external_artifact_guard BEFORE INSERT ON axiom_ec_artifacts
+WHEN EXISTS (
+ SELECT 1 FROM axiom_ec_works w WHERE w.tenant_id=NEW.tenant_id AND w.work_id=NEW.work_id
+ AND json_extract(w.contract_json,'$.policy.external_ledger') IS NOT NULL
+) AND NOT EXISTS (SELECT 1 FROM axiom_ec_external_completion_guards g WHERE g.tenant_id=NEW.tenant_id AND g.task_id=NEW.task_id)
+BEGIN SELECT RAISE(ABORT,'external consumption proof required before artifact'); END;
 -- Hosted model invocations are linked to an existing admitted reservation.
 -- A pending/uncertain row is never permission to resend the input.
 CREATE TABLE IF NOT EXISTS axiom_ec_agent_invocations (

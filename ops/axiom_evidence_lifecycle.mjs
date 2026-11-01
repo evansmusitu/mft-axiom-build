@@ -1,11 +1,22 @@
 import {canonicalJson,sha256Json,verifyTaskCommitments,verifyExecutionResultCommitment} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {executionRecord,requireExecutionId,validateExecutionContract} from '../axiom_interface/vnext/execution_contract.mjs';
+import {validateConsume} from '../integrations/independent-ledger/protocol.mjs';
 
 // Server-only control-plane capability. There are no model/execution actions,
 // provider calls, policy defaults granting erasure, or authorization provisioning.
 // Apply the separate schema first; provision one exact tenant/action/Work grant
 // through the trusted owner. The authorize callback is server-owned, never JSON.
 const TABLES=[
+  {
+    key:'external_consumptions',table:'axiom_ec_external_consumptions',optional:true,
+    columns:['tenant_id','reservation_id','work_id','task_id','ledger_id','grant_id','status','request_json','envelope_json'],
+    where:'r.tenant_id=?1 AND r.work_id=?2',order:'reservation_id'
+  },
+  {
+    key:'external_guards',table:'axiom_ec_external_completion_guards',optional:true,
+    columns:['tenant_id','task_id','snapshot_json'],
+    where:'r.tenant_id=?1 AND EXISTS(SELECT 1 FROM axiom_ec_runs z WHERE z.tenant_id=r.tenant_id AND z.task_id=r.task_id AND z.work_id=?2)',order:'task_id'
+  },
   {
     "key": "works",
     "table": "axiom_ec_works",
@@ -247,9 +258,10 @@ function modelProof(row){
     request_sha256:row.request_sha256,output_sha256:row.output_sha256,status:'COMPLETED',
     verification_scope:'PROVIDER_OUTPUT_COMMITMENT_NOT_FACTUAL_VALIDATION'};
 }
-async function validateSnapshot(snapshot,tenant,workId){
+async function validateSnapshot(snapshot,tenant,workId,externalLedger){
   if(!snapshot||typeof snapshot!=='object')corrupt('lifecycle snapshot is invalid');
   for(const table of TABLES){
+    if(table.optional&&snapshot[table.key]===undefined)continue;
     if(!Array.isArray(snapshot[table.key]))corrupt('lifecycle snapshot table is missing');
     for(const row of snapshot[table.key])if(row.tenant_id!==tenant)corrupt('lifecycle snapshot tenant mismatch');
   }
@@ -264,6 +276,26 @@ async function validateSnapshot(snapshot,tenant,workId){
   const runs=new Map(snapshot.runs.map(row=>[row.task_id,row]));
   const artifacts=new Map(snapshot.artifacts.map(row=>[row.artifact_id,row]));
   const reservations=new Map(snapshot.reservations.map(row=>[row.reservation_id,row]));
+  const external=snapshot.external_consumptions??[],externalGuards=snapshot.external_guards??[];
+  const ref=contract.policy.external_ledger;
+  if(ref){
+    if(!externalLedger?.verifyStored||!same(externalLedger.reference,ref))deny('pinned external ledger verifier required for lifecycle');
+    if(external.length!==reservations.size)corrupt('stored lifecycle external reservation set changed');
+    const slots=new Set();
+    for(const item of external){
+      const reservation=reservations.get(item.reservation_id);
+      if(!reservation||item.work_id!==workId||item.task_id!==reservation.task_id||item.ledger_id!==ref.ledger_id||item.grant_id!==ref.grant_id)corrupt('stored lifecycle external ownership changed');
+      if(item.request_json===null){if(item.status==='CONFIRMED'||item.envelope_json!==null)corrupt('stored lifecycle external request missing');continue;}
+      const request=parse(item.request_json,'ledger request');
+      await validateConsume(request);
+      if(canonicalJson(request)!==item.request_json||request.grant_id!==ref.grant_id||request.epoch!==ref.epoch||request.execution_artifact_sha256!==ref.execution_artifact_sha256)corrupt('stored lifecycle external request policy changed');
+      if(!same(request,{...request,tenant_id:tenant,work_id:workId,task_id:item.task_id,admission_sha256:work.request_sha256,contract_sha256:work.contract_sha256,
+        kind:reservation.action_kind,operation:reservation.operation,compute_calls:reservation.compute_calls,provider_calls:reservation.provider_calls}))corrupt('stored lifecycle external binding changed');
+      if(slots.has(request.slot))corrupt('stored lifecycle external slot repeated');slots.add(request.slot);
+      if(item.status==='CONFIRMED')await externalLedger.verifyStored(request,parse(item.envelope_json,'ledger response'));
+      else if(item.envelope_json!==null)corrupt('unconfirmed lifecycle external response changed');
+    }
+  }else if(external.length||externalGuards.length)corrupt('unguarded Work has external authority records');
   const totals={compute_calls:0,provider_calls:0};
   for(const reservation of reservations.values()){
     if(reservation.work_id!==workId||(reservation.task_id!==null&&!runs.has(reservation.task_id)))corrupt('stored lifecycle reservation ownership changed');
@@ -314,6 +346,14 @@ async function validateSnapshot(snapshot,tenant,workId){
       {kind:'COMPLETION_RECEIPT',content_sha256:await sha256Json(result.receipt)}];
     if(result.execution)expected.push({kind:'EXECUTION_RECORD',content_sha256:await sha256Json(result.execution)});
     for(const item of result.provider_evidence??[])expected.push({kind:'PROVIDER_MODEL_EXECUTION',content_sha256:await sha256Json(item)});
+    const ownExternal=external.filter(row=>row.task_id===run.task_id);
+    const externalProofs=ownExternal.map(row=>({schema:'musitu.axiom.external-ledger-evidence.v1',reservation_id:row.reservation_id,request:parse(row.request_json,'ledger request'),envelope:parse(row.envelope_json,'ledger response')}));
+    if(!same(sorted(result.external_ledger_evidence??[]),sorted(externalProofs))||ownExternal.some(row=>row.status!=='CONFIRMED'))corrupt('stored lifecycle external evidence changed');
+    for(const item of result.external_ledger_evidence??[])expected.push({kind:'EXTERNAL_LEDGER_CONSUMPTION',content_sha256:await sha256Json(item)});
+    if(ref){
+      const guards=externalGuards.filter(row=>row.task_id===run.task_id),projection=ownExternal.map(({reservation_id,ledger_id,grant_id,status,request_json,envelope_json})=>({reservation_id,ledger_id,grant_id,status,request_json,envelope_json}));
+      if(guards.length!==1||!same(sorted(parse(guards[0].snapshot_json,'external completion guard')),sorted(projection)))corrupt('stored lifecycle external completion snapshot changed');
+    }
     const actual=snapshot.evidence.filter(row=>row.artifact_id===ownArtifacts[0].artifact_id).map(({kind,content_sha256})=>({kind,content_sha256}));
     if(!same(sorted(expected),sorted(actual)))corrupt('stored lifecycle Evidence set is incomplete or changed');
     const invocations=snapshot.invocations.filter(row=>row.task_id===run.task_id);
@@ -323,6 +363,7 @@ async function validateSnapshot(snapshot,tenant,workId){
     if(guards.length!==1||!same(sorted(parse(guards[0].snapshot_json,'completion guard')),sorted(invocations)))corrupt('stored lifecycle completion snapshot changed');
   }
   for(const guard of snapshot.completion_guards)if(!runs.has(guard.task_id)||runs.get(guard.task_id).status!=='COMPLETED')corrupt('stored lifecycle completion snapshot has no completed Run');
+  for(const guard of externalGuards)if(!runs.has(guard.task_id)||runs.get(guard.task_id).status!=='COMPLETED')corrupt('stored lifecycle external snapshot has no completed Run');
   for(const row of [...snapshot.holds,...snapshot.dependencies])if(row.work_id!==workId||!targetExists(snapshot,row.object_kind,row.object_id,workId))corrupt('stored lifecycle hold/dependency target mismatch');
   return contract;
 }
@@ -341,7 +382,11 @@ async function originalCommitments(snapshot){
     evidence:await Promise.all(snapshot.evidence.map(row=>committed(row,{evidence_id:row.evidence_id,artifact_id:row.artifact_id,kind:row.kind,content_sha256:row.content_sha256},['content_json']))),
     reservations:await Promise.all(snapshot.reservations.map(row=>committed(row,{reservation_id:row.reservation_id,task_id:row.task_id}))),
     invocations:await Promise.all(snapshot.invocations.map(row=>committed(row,{invocation_id:row.invocation_id,task_id:row.task_id,request_sha256:row.request_sha256,output_sha256:row.output_sha256},['output_json','session_id','turn_id','error_code','updated_at']))),
-    completion_guards:await Promise.all(snapshot.completion_guards.map(async row=>committed(row,{task_id:row.task_id,snapshot_sha256:await sha256Json(parse(row.snapshot_json,'completion guard'))},['snapshot_json'])))
+    completion_guards:await Promise.all(snapshot.completion_guards.map(async row=>committed(row,{task_id:row.task_id,snapshot_sha256:await sha256Json(parse(row.snapshot_json,'completion guard'))},['snapshot_json']))),
+    ...((snapshot.external_consumptions??[]).length|| (snapshot.external_guards??[]).length?{
+      external_consumptions:await Promise.all(snapshot.external_consumptions.map(row=>committed(row,{reservation_id:row.reservation_id,task_id:row.task_id}))),
+      external_guards:await Promise.all(snapshot.external_guards.map(row=>committed(row,{task_id:row.task_id})))
+    }:{})
   };
 }
 async function metadataCommitment(row,erased){
@@ -363,13 +408,22 @@ function resolvedProviderInvocation(row,runs){
   const capturedIdentity=/^[A-Za-z0-9_-]{1,200}$/.test(row.session_id??'')&&/^[A-Za-z0-9_-]{1,200}$/.test(row.turn_id??'');
   return knownTerminal&&capturedIdentity&&row.output_json===null&&row.output_sha256===null&&runs.some(run=>run.task_id===row.task_id&&run.status==='FAILED');
 }
-async function makePlan(snapshot,tenant,workId){
+async function makePlan(snapshot,tenant,workId,externalLedger){
   const commitments=await originalCommitments(snapshot);
+  let externalRetention=null;
+  if(parse(snapshot.works[0].contract_json,'Work contract').policy.external_ledger){
+    const status=await externalLedger.inspect({tenant_id:tenant});
+    externalRetention={ledger_id:externalLedger.reference.ledger_id,grant_id:externalLedger.reference.grant_id,
+      current_epoch:status.payload.current_epoch,grant_epoch:status.payload.grant.epoch,grant_state:status.payload.grant.state,
+      consumer_fence_retained:true,external_erasure_verified:false};
+  }
   const blockers=[
     ...snapshot.holds.filter(row=>row.state==='ACTIVE').map(row=>({kind:'LEGAL_HOLD',hold_id:row.hold_id,object_kind:row.object_kind,object_id:row.object_id})),
     ...snapshot.dependencies.filter(row=>row.state==='ACTIVE'&&row.dependent_work_id!==workId).map(row=>({kind:'DEPENDENCY',dependency_id:row.dependency_id,dependent_work_id:row.dependent_work_id,object_kind:row.object_kind,object_id:row.object_id})),
     ...snapshot.runs.filter(row=>row.status==='RUNNING').map(row=>({kind:'ACTIVE_RUN',task_id:row.task_id})),
-    ...snapshot.invocations.filter(row=>!resolvedProviderInvocation(row,snapshot.runs)).map(row=>({kind:'UNRESOLVED_PROVIDER_INVOCATION',invocation_id:row.invocation_id}))
+    ...snapshot.invocations.filter(row=>!resolvedProviderInvocation(row,snapshot.runs)).map(row=>({kind:'UNRESOLVED_PROVIDER_INVOCATION',invocation_id:row.invocation_id})),
+    ...(snapshot.external_consumptions??[]).filter(row=>row.status!=='CONFIRMED').map(row=>({kind:'UNRESOLVED_EXTERNAL_CONSUMPTION',reservation_id:row.reservation_id})),
+    ...(externalRetention&&externalRetention.grant_state!=='REVOKED'&&externalRetention.current_epoch===externalRetention.grant_epoch?[{kind:'EXTERNAL_LEDGER_GRANT_NOT_REVOKED',grant_id:externalRetention.grant_id}]:[])
   ];
   const body={schema:'musitu.axiom.evidence-impact-plan.v1',tenant_id:tenant,work_id:workId,
     snapshot_sha256:await sha256Json(snapshot),original_commitments:commitments,
@@ -378,6 +432,7 @@ async function makePlan(snapshot,tenant,workId){
     retained_shared_objects:{project_id:commitments.project.project_id,agent_id:commitments.agent.agent_id},
     payload_columns:[...payloadColumns],blockers,can_delete:blockers.length===0,requires_verified_export:true,
     required_authorization:'lifecycle.delete',erasure_scope:retainedScope,external_erasure_verified:false};
+  if(externalRetention)body.retained_external_ledger=externalRetention;
   return {...body,plan_sha256:await sha256Json(body)};
 }
 async function verifiedReceipt(row,schema){
@@ -390,7 +445,7 @@ async function verifiedReceipt(row,schema){
 
 /** Validates an exported package independently of the DB; hashes are local
  * commitments, not signatures or an external custody/rollback anchor. */
-export async function verifyEvidenceLifecycleExport({payload,receipt}={}){
+export async function verifyEvidenceLifecycleExport({payload,receipt,externalLedger}={}){
   try{
     if(payload?.schema!==EXPORT_SCHEMA||receipt?.schema!==EXPORT_RECEIPT_SCHEMA)return false;
     const {receipt_sha256,...body}=receipt;
@@ -398,7 +453,7 @@ export async function verifyEvidenceLifecycleExport({payload,receipt}={}){
       await sha256Json(payload)!==receipt.export_sha256||payload.tenant_id!==receipt.tenant_id||
       payload.work_id!==receipt.work_id||payload.exported_at!==receipt.exported_at||
       await sha256Json(payload.snapshot)!==receipt.snapshot_sha256)return false;
-    await validateSnapshot(payload.snapshot,receipt.tenant_id,receipt.work_id);
+    await validateSnapshot(payload.snapshot,receipt.tenant_id,receipt.work_id,externalLedger);
     return same(await originalCommitments(payload.snapshot),receipt.original_commitments)&&same(payload.original_commitments,receipt.original_commitments);
   }catch{return false;}
 }
@@ -464,6 +519,11 @@ const auditHead=()=>lifecycleAuditHead(db,tenant);
     const proof=committed.reservations.find(row=>row.reservation_id===reservation.reservation_id);
     if(!proof||await sha256Json(reservation)!==proof.row_sha256)corrupt('erased Work reservation commitment changed');
   }
+  for(const key of ['external_consumptions','external_guards']){
+    const table=TABLES.find(table=>table.key===key),actual=rows(await statement('SELECT r.* FROM '+table.table+' r WHERE '+table.where+' ORDER BY r.'+table.order,tenant,workId).all()),original=committed[key]??[];
+    if(actual.length!==original.length)corrupt('erased external authority record set changed');
+    for(const row of actual){const proof=original.find(item=>item[table.order]===row[table.order]);if(!proof||await sha256Json(row)!==proof.row_sha256)corrupt('erased external authority commitment changed');}
+  }
   if(await statement('SELECT 1 AS n FROM axiom_lc_guards WHERE tenant_id=?1 AND work_id=?2',tenant,workId).first())corrupt('erased Work retained a plaintext comparison snapshot');
   return {status:'VERIFIED_LOGICAL_ERASURE',tenant_id:tenant,work_id:workId,receipt_sha256:receipt.receipt_sha256,
     original_commitments:copy(committed),erasure_scope:retainedScope,external_erasure_verified:false};
@@ -512,7 +572,7 @@ export async function readD1EvidenceLifecycleErasure({db,customer,taskId,workId}
  * Erasure is logical governed-D1 payload redaction. Export recipients, provider
  * retention, replicas, physical pages and backup destruction are outside scope.
  */
-export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Date(),idFactory=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','')}={}){
+export function createD1EvidenceLifecycle({db,customer,authorize,externalLedger,now=()=>new Date(),idFactory=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','')}={}){
   if(!db?.prepare||!db?.batch)throw new TypeError('transactional D1 lifecycle store required');
   if(typeof authorize!=='function')throw new TypeError('explicit trusted server lifecycle authorizer required');
   const tenant=requireExecutionId(customer?.customer_id,'authenticated customer');
@@ -524,6 +584,7 @@ export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Dat
     try{version=await statement('SELECT version FROM axiom_lc_schema').all();}
     catch{throw new DOMException('evidence lifecycle migration is required','NotSupportedError');}
     if(!same(rows(version).map(row=>row.version),[1]))throw new DOMException('unsupported evidence lifecycle migration','NotSupportedError');
+    if(!await statement("SELECT 1 AS n FROM sqlite_master WHERE type='trigger' AND name='axiom_lc_guard_external_snapshot'").first())throw new DOMException('external authority lifecycle migration is required','NotSupportedError');
     for(const table of TABLES.filter(table=>table.table.startsWith('axiom_ec_'))){
       const columns=rows(await statement('PRAGMA table_info('+table.table+')').all()).map(row=>row.name).sort();
       if(!same(columns,[...table.columns].sort()))throw new DOMException('governed lifecycle schema changed; explicit migration required','NotSupportedError');
@@ -550,7 +611,7 @@ export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Dat
     }
     if(result.works.length===0)missing();
     if(new TextEncoder().encode(canonicalJson(result)).length>MAX_SNAPSHOT_BYTES)throw new DOMException('Work exceeds bounded lifecycle snapshot capacity','QuotaExceededError');
-    await validateSnapshot(result,tenant,workId);
+    await validateSnapshot(result,tenant,workId,externalLedger);
     return result;
   }
   const auditHead=()=>lifecycleAuditHead(db,tenant);
@@ -620,7 +681,7 @@ export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Dat
     async planWork(value={}){
       input(value,['work_id'],'lifecycle impact request');
       await begin('lifecycle.plan',value.work_id);await auditHead();
-      return makePlan(await snapshot(value.work_id),tenant,value.work_id);
+      return makePlan(await snapshot(value.work_id),tenant,value.work_id,externalLedger);
     },
     async exportWork(value={}){
       input(value,['work_id','request_id'],'lifecycle export request');
@@ -633,7 +694,7 @@ export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Dat
       const replay=async row=>{
         const receipt=await verifiedReceipt(row,EXPORT_RECEIPT_SCHEMA);
         const payload={schema:EXPORT_SCHEMA,tenant_id:tenant,work_id:workId,exported_at:receipt.exported_at,snapshot:source,original_commitments:commitments};
-        if(!await verifyEvidenceLifecycleExport({payload,receipt}))corrupt('export source changed; use a new export request');
+        if(!await verifyEvidenceLifecycleExport({payload,receipt,externalLedger}))corrupt('export source changed; use a new export request');
         await auditHead();return copy({payload,receipt});
       };
       if(prior)return replay(prior);
@@ -667,7 +728,7 @@ export function createD1EvidenceLifecycle({db,customer,authorize,now=()=>new Dat
       };
       const prior=await statement('SELECT * FROM axiom_lc_delete_requests WHERE tenant_id=?1 AND request_id=?2',tenant,requestId).first();
       if(prior)return replay(prior);
-      const source=await snapshot(workId),plan=await makePlan(source,tenant,workId);
+      const source=await snapshot(workId),plan=await makePlan(source,tenant,workId,externalLedger);
       if(plan.plan_sha256!==planSha)deny('lifecycle impact plan changed; review a new plan');
       if(!plan.can_delete)deny('lifecycle legal hold, dependency, active Run or unresolved provider invocation blocks deletion');
       const exportRow=await statement('SELECT * FROM axiom_lc_exports WHERE tenant_id=?1 AND work_id=?2 AND receipt_sha256=?3',tenant,workId,exportSha).first();

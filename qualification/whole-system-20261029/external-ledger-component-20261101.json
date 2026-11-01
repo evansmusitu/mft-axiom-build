@@ -1,0 +1,94 @@
+{
+  "schema": "musitu.axiom.external-ledger-component-qualification.v1",
+  "date": "2026-11-01",
+  "baseline_sha": "397d5d74c21924fcd8624b4cbf54965adc5a82d6",
+  "status": "LOCAL_COMPONENT_PASS_EXTERNAL_CUSTODY_AND_ROOT_RESTORE_UNQUALIFIED",
+  "full_local_groups_passed": 21,
+  "full_local_ledger_test_count_before_final_deadline_review": 20,
+  "final_focused_ledger_tests": 22,
+  "final_focused_failures": 0,
+  "application_tests": 495,
+  "synthetic_roles": true,
+  "actual_local_d1": true,
+  "actual_local_sqlite_durable_object": true,
+  "fresh_node_http_transport": true,
+  "real_inference_calls": 0,
+  "hosted_resources_created": 0,
+  "independent_custody_verified": false,
+  "authority_root_restore_protected": false,
+  "deployed": false,
+  "release_authorized": false,
+  "builder_destructive_restore": {
+    "old_builder_snapshot_restored": true,
+    "authority_restarted_separately": true,
+    "provider_callbacks_before_restore": 2,
+    "additional_provider_callbacks_after_restore": 0,
+    "replay": "DENY_HOLD"
+  },
+  "operator_bundle": {
+    "schema": "musitu.axiom.external-ledger-build.v1",
+    "execution_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "toolchain": {
+      "esbuild": "0.25.9",
+      "format": "esm",
+      "platform": "browser",
+      "target": "es2022"
+    },
+    "bundle": {
+      "path": "ledger-worker.mjs",
+      "sha256": "4a09b367553353b6f99f5b773e278b7b27a9c3aee9b49caeeca77617379f6522",
+      "bytes": 17651
+    },
+    "sources": [
+      {
+        "path": "integrations/independent-ledger/worker.mjs",
+        "sha256": "23de02aa77fc2cf7ef27df832b033513d93258e790d99ec2aea4ed35d4ad49ab",
+        "bytes": 12014
+      },
+      {
+        "path": "integrations/independent-ledger/protocol.mjs",
+        "sha256": "578efd8b5aa9954f5e8cd23e09e35ea124b8694d765d38b4be2b270dc456400a",
+        "bytes": 5409
+      },
+      {
+        "path": "axiom_interface/vnext/execution_integrity.mjs",
+        "sha256": "d7cdfd215de86fd44b6e25e8adc014ce3314e11e2529f616a5d6f066dd4884d6",
+        "bytes": 3650
+      },
+      {
+        "path": "axiom_interface/vnext/analytical_workflows.mjs",
+        "sha256": "568ebb3d629065d12825f322b9a2465a538fd548a72a6516488d685f5d233520",
+        "bytes": 29465
+      },
+      {
+        "path": "axiom_interface/vnext/decision_analysis.mjs",
+        "sha256": "e8477d71f61627c231fb31e236767cdc37485f317cc16c38f5dd24a304005d35",
+        "bytes": 15348
+      }
+    ],
+    "independent_custody_verified": false,
+    "live_external_qualification": false
+  },
+  "logs": {
+    "external-ledger-full-qualification.log": {
+      "sha256": "5c5abfd30c8242eb5885c8418d25010c9d0fa9a2d3b55a32d668cac740d0e668",
+      "bytes": 1073
+    },
+    "external-ledger-focused-final-after-review.log": {
+      "sha256": "ac02bebe1745ca68832955a0809d345006c2eff873d3cec05efc778c59d5ce67",
+      "bytes": 2475
+    },
+    "external-ledger-lifecycle-initial.log": {
+      "sha256": "cb4963d61371553eb331ae1838b2d6aa58b4f0e2f5131d00dd8a0c63049b61df",
+      "bytes": 4178
+    },
+    "external-ledger-final22.log": {
+      "sha256": "7cb7b804c9ee369740467f8a4e9fa57e0c9ce94c49e6fb4555dde5008c1fa73a",
+      "bytes": 2627
+    }
+  },
+  "operator_bundle_uses_synthetic_execution_pin": true,
+  "authority_root_restore_test": "COUNTEREXAMPLE_REPRODUCED_REPLAY_REENABLED_NOT_FIXED",
+  "positive_guard_tests_passed": 21,
+  "counterexample_regressions_passed": 1
+}

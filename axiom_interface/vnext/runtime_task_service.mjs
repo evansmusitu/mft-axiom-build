@@ -190,6 +190,8 @@ export async function executeRuntimeTask({objective,customer,runtime,research,mo
     const completedAt=now().toISOString();
     const sourceCommitments=await Promise.all(sources.map(async source=>({source_id:source.source_id,sha256:await sha256Json(source)})));
     const resultBody={...base,status:'COMPLETED',completed_at:completedAt,runtime:{build_id:catalog.build_id,operation_count:catalog.operation_count,fully_connected:true},plan:Object.freeze(clone(plan)),sources,execution:execution?Object.freeze(clone(execution)):null,artifact};
+    const ledgerEvidence=await governance.externalEvidence?.()??[];
+    if(ledgerEvidence.length)resultBody.external_ledger_evidence=clone(ledgerEvidence);
     if(typeof model?.getEvidence==='function'){
       const providerEvidence=await model.getEvidence();
       if(!Array.isArray(providerEvidence))throw new DOMException('provider evidence unavailable','DataError');

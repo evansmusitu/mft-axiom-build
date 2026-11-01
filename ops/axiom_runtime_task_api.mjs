@@ -5,6 +5,7 @@ import {sha256Json} from '../axiom_interface/vnext/execution_integrity.mjs';
 import {executeDecisionTask} from '../axiom_interface/vnext/runtime_decision_service.mjs';
 import {executeAnalyticalTask} from '../axiom_interface/vnext/runtime_analytical_service.mjs';
 import {createConfiguredOpenAIAgentModel} from './axiom_openai_agent_model.mjs';
+import {configuredExternalLedger} from '../integrations/independent-ledger/client.mjs';
 
 const COMMON_HEADERS=Object.freeze({
   'cache-control':'no-store',
@@ -151,6 +152,17 @@ function sendEvent(controller,event,data){
   controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 }
 
+async function configuredGovernance(env,customer,workId){
+  const {required,client}=await configuredExternalLedger(env,{tenant_id:String(customer.customer_id),work_id:workId});
+  return createD1ExecutionGovernance({db:env.AXIOM_DB,customer,serverPolicy:{external_ledger_required:required},externalLedger:client});
+}
+
+async function readConfiguredTask(env,customer,taskId){
+  const row=await env.AXIOM_DB.prepare('SELECT work_id FROM axiom_ec_runs WHERE tenant_id=?1 AND task_id=?2').bind(String(customer.customer_id),taskId).first();
+  if(!row)return null;
+  return (await configuredGovernance(env,customer,row.work_id)).get(taskId);
+}
+
 export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImpl=globalThis.fetch,executionCtx}={}){
   const url=new URL(request.url);
   const submission=url.pathname.match(/^\/vnext\/api\/submissions\/([A-Za-z0-9_-]{6,90})$/);
@@ -158,7 +170,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
     if(!customer?.customer_id)return json(401,{error:'authenticated_session_required'});
     try{
       const id=`task_${(await sha256Json({tenant_id:String(customer.customer_id),submission_id:submission[1]})).slice(0,48)}`;
-      const result=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(id);
+      const result=await readConfiguredTask(env,customer,id);
       return result?json(result.status==='ERASED'?410:200,result):json(404,{error:'submission_not_recorded'});
     }catch{return json(503,{error:'governed_task_readback_unavailable'});}
   }
@@ -173,7 +185,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   if (!customer?.customer_id) return json(401,{error:'authenticated_session_required',sign_in_path:'/auth/start'});
   if (request.method==='GET'&&taskMatch[1]) {
     try{
-      const task=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).get(taskMatch[1]);
+      const task=await readConfiguredTask(env,customer,taskMatch[1]);
       return task?json(task.status==='ERASED'?410:200,task):json(404,{error:'task_not_found'});
     }catch{return json(503,{error:'governed_task_readback_unavailable'});}
   }
@@ -200,7 +212,7 @@ export async function handleRuntimeTaskApi(request,env,{customer,origin,fetchImp
   let governance;
   try{
     const input_commitment=payload.analysis!==undefined?{kind:'analysis',sha256:await sha256Json(payload.analysis)}:payload.decision===undefined?null:{kind:'decision',sha256:await sha256Json(payload.decision)};
-    governance=await createD1ExecutionGovernance({db:env.AXIOM_DB,customer}).admit({objective,context:payload.execution_context,input_commitment});
+    governance=await (await configuredGovernance(env,customer,payload.execution_context.work_id)).admit({objective,context:payload.execution_context,input_commitment});
   }catch(error){
     const status=error?.name==='TypeError'?400:error?.name==='NotAllowedError'?403:503;
     return json(status,{error:clean(error?.message||'execution_contract_unavailable',240),error_code:clean(error?.name||'ContractError',80)});

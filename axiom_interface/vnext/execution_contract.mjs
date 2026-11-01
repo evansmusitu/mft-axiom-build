@@ -1,4 +1,5 @@
 import {sha256Json} from './execution_integrity.mjs';
+import {descriptor as externalDescriptor} from '../../integrations/independent-ledger/protocol.mjs';
 
 export const EXECUTION_CONTRACT_SCHEMA='musitu.axiom.execution-contract.v1';
 export const EXECUTION_AGENT_ID='axiom-runtime-v1';
@@ -55,7 +56,8 @@ export async function validateExecutionContract(contract){
   }
   if(contract.required_outcomes.includes('decision')!==(contract.input_commitment?.kind==='decision'))throw new TypeError('decision outcome requires a bound input commitment');
   if(contract.required_outcomes.includes('analysis')!==(contract.input_commitment?.kind==='analysis'))throw new TypeError('analysis outcome requires a bound input commitment');
-  const p=executionRecord(contract.policy,['autonomy','privacy','evidence','approval','deadline','budget_unit','max_compute_calls','max_provider_calls','allowed_operations','allowed_actions'],'execution policy');
+  const p=executionRecord(contract.policy,['autonomy','privacy','evidence','approval','deadline','budget_unit','max_compute_calls','max_provider_calls','allowed_operations','allowed_actions','external_ledger'],'execution policy');
+  if(p.external_ledger!==undefined)externalDescriptor(p.external_ledger);
   choice(p.approval,['Before consequential action','Every tool action','Read-only auto, writes approved'],'approval');
   if(p.deadline!==null&&(!Number.isFinite(Date.parse(p.deadline))||new Date(p.deadline).toISOString()!==p.deadline||Date.parse(contract.expires_at)>Date.parse(p.deadline)))throw new TypeError('contract deadline must bound execution expiry');
   choice(p.autonomy,['Policy-bounded','Preview only','Approval each action'],'autonomy');choice(p.privacy,['Private','Project','Organization'],'privacy');choice(p.evidence,['Verified','Standard','Independent validation'],'evidence');
