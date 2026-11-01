@@ -2,9 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import { hashJson } from "../../phase1/src/canonical.ts";
 import type { DistributedExecutionRepository } from "./repositories.ts";
 import type {
-  AuthenticatedAuthenticatedWorkerContext, ControlPlaneResult,
+  AuthenticatedDistributedExecutionLease, AuthenticatedWorkerContext, ControlPlaneResult,
   DistributedExecutionIntent, DistributedExecutionIntentCore, DistributedExecutionJob,
-DistributedExecutionState, TenantScope, WorkerAction,
+  DistributedExecutionState, TenantScope, WorkerAction,
   WorkerLeaseCapability, WorkerLeaseCapabilityCore
 } from "./types.ts";
 import type { WorkerTrustStore } from "./worker_authentication.ts";
