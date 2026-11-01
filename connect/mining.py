@@ -42,12 +42,16 @@ def normalize_mining_rows(rows: Iterable[dict[str,Any]]) -> CanonicalEnvelope:
         if not raw.keys() <= _ALLOWED:
             unknown=sorted(str(k) for k in raw if k not in _ALLOWED)
             raise ValueError("unknown_fields:" + ",".join(unknown))
-        item={k:raw[k] for k in _REQUIRED}
+        # The schema is already checked; keep the original mapping's values
+        # and normalize them in place on a fresh C-level dict copy.
+        item=dict(raw)
         item["hazard"]=str(item["hazard"]).strip()
         if not item["hazard"]: raise ValueError("hazard_required")
         item["exposure"]=float(item["exposure"]); item["severity"]=float(item["severity"])
         item["likelihood"]=float(item["likelihood"]); item["cost"]=float(item["cost"]); item["benefit"]=float(item["benefit"])
-        if not all(isfinite(item[k]) for k in ("exposure","severity","likelihood","cost","benefit")):
+        if not (isfinite(item["exposure"]) and isfinite(item["severity"])
+                and isfinite(item["likelihood"]) and isfinite(item["cost"])
+                and isfinite(item["benefit"])):
             raise ValueError("value_not_finite")
         if not 0<=item["exposure"]<=1 or not 0<=item["likelihood"]<=1 or not 0<=item["severity"]<=10 or item["cost"]<0 or not 0<=item["benefit"]<=1:
             raise ValueError("value_out_of_range")

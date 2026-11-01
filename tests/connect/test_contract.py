@@ -59,6 +59,19 @@ class ConnectContractTests(unittest.TestCase):
         self.assertEqual(len(result.records),2)
         self.assertEqual(result.records[0],result.records[1])
 
+    def test_canonical_bytes_are_independent_of_input_key_insertion_order(self):
+        from connect.security import canonical_bytes
+        row=dict(SCENARIO[0],record_id="a",event_time="2026-10-06T05:00:00Z",
+                 asset_id="truck-17",site="mine",latitude=-17.83,longitude=31.05)
+        other={key:row[key] for key in reversed(tuple(row))}
+        first=normalize_mining_rows([row]).records[0]
+        second=normalize_mining_rows([other]).records[0]
+        self.assertEqual(first,second)
+        self.assertEqual(canonical_bytes({"records":[first]}),
+                         canonical_bytes({"records":[second]}))
+        self.assertEqual(first["event_time"],"2026-10-06T05:00:00Z")
+        self.assertEqual(first["latitude"],-17.83)
+
     def test_registry_is_domain_agnostic(self):
         registry=AdapterRegistry()
         registry.register(AdapterSpec(name='Mining Adapter',domain='mining',version='1.0.0'))
