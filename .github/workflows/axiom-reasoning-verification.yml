@@ -58,6 +58,7 @@ jobs:
           npm run gate:phase24b
           npm run gate:phase25a
           if npm run | grep -q 'gate:phase25b'; then npm run gate:phase25b; fi
+          npm run gate:phase25c
 
   postgres:
     name: Phase 2 PostgreSQL integration
