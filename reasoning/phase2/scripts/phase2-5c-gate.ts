@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -15,6 +15,9 @@ import {
 const tenant={tenantId:"tenant:phase25c-gate"};
 const H=(c:string)=>c.repeat(64);
 const registry=createDefaultRegistry();
+const runtimeProgram=JSON.parse(
+  readFileSync(new URL("../../phase1/fixtures/xau-risk-program.json",import.meta.url),"utf8")
+);
 const dir=mkdtempSync(join(tmpdir(),"axiom-phase25c-gate-")),db=join(dir,"platform.db");
 
 const keysA=generateKeyPairSync("ed25519");
@@ -139,7 +142,38 @@ try{
     heart.capability,"2026-10-10T03:00:03.500Z"
   );
 
-  const runtimeJob=direct;
+  const cleanupClaimBody={leaseMs:1000};
+  const cleanupLease=await control.claim(
+    proof(credentialA,"CLAIM","2026-10-10T03:00:03.600Z",cleanupClaimBody),
+    "2026-10-10T03:00:03.600Z",1000
+  );
+  assert.equal(cleanupLease.job.intent.jobId,direct.intent.jobId);
+  await control.fail(
+    tenant,direct.intent.jobId,
+    proof(
+      credentialA,"FAIL_TERMINAL","2026-10-10T03:00:03.700Z",
+      {capabilityId:cleanupLease.capability.capabilityId,code:"FAILED_INTEGRITY"},direct.intent.jobId
+    ),
+    cleanupLease.capability,"2026-10-10T03:00:03.700Z","FAILED_INTEGRITY"
+  );
+
+  await world.putFact(tenant,{
+    id:"risk-limit:phase25c",entity:"risk:alpha",attribute:"max_vol",
+    value:{type:{kind:"number",unit:"ratio"},value:0.30},
+    validFrom:"2026-10-10T03:00:00.000Z",observedAt:"2026-10-10T03:09:30.000Z",
+    source:"risk-engine:phase25c",confidence:1
+  });
+  const runtimeAsOf="2026-10-10T03:10:00.000Z";
+  const runtimeFrozen=await world.snapshot(tenant,runtimeAsOf);
+  const runtimeRequest={
+    asOf:runtimeAsOf,issuedAt:"2026-10-10T03:10:01.000Z",program:structuredClone(runtimeProgram),
+    requirements:[{id:"fresh-risk-limit",entity:"risk:alpha",attribute:"max_vol",maxAgeMs:10*60*1000}],
+    bindings:[{inputName:"max_vol",entity:"risk:alpha",attribute:"max_vol"}]
+  };
+  const runtimeJob=await jobs.create(tenant,{
+    ...intent(H("3"),H("4"),runtimeFrozen.snapshotId,runtimeFrozen.snapshotHash,runtimeProgram,"2026-10-10T03:10:02.000Z"),
+    executionRequest:runtimeRequest
+  });
   const signer=createStaticSignerProvider("reasoning-key:phase25c",createSigner());
   const runtimes={create(scope:any){
     const plane=new ReasoningControlPlane({tenant:scope,world,executions,signer,registry});
@@ -162,7 +196,7 @@ try{
   const firstWorker=new DistributedModelExecutionWorker({
     control:crashControl,credential:credentialCrash,runtimes,leaseMs:1000,
     requestId:()=>`request:phase25c:crash:${++crashRequest}`,
-    clock:workerClock("2026-10-10T03:00:05.000Z","2026-10-10T03:00:05.100Z","2026-10-10T03:00:05.200Z")
+    clock:workerClock("2026-10-10T03:10:03.000Z","2026-10-10T03:10:03.100Z","2026-10-10T03:10:03.200Z")
   });
   assert.deepEqual(await firstWorker.runOnce(),{status:"RETRY",jobId:runtimeJob.intent.jobId});
   assert.equal((await jobs.get(tenant,runtimeJob.intent.jobId)).state.status,"PENDING");
@@ -173,7 +207,7 @@ try{
   const secondWorker=new DistributedModelExecutionWorker({
     control,credential:credentialRecovery,runtimes,leaseMs:1000,
     requestId:()=>`request:phase25c:recovery:${++recoveryRequest}`,
-    clock:workerClock("2026-10-10T03:00:06.000Z","2026-10-10T03:00:06.100Z")
+    clock:workerClock("2026-10-10T03:10:04.000Z","2026-10-10T03:10:04.100Z")
   });
   assert.deepEqual(await secondWorker.runOnce(),{status:"COMPLETED",jobId:runtimeJob.intent.jobId,jobStatus:"SUCCEEDED"});
 
