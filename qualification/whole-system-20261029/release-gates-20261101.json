@@ -55,7 +55,14 @@
     "further_automatic_dispatch": "DISABLED_BY_EXACT_SOURCE_PINS",
     "workflow_run_id": 41312188640,
     "artifact_sha256": "eaaafa9b021c4d925b1025d61832770cca36aa86e45ba8b2de3f8465f226e099",
-    "cleanup_workflow_run_id": 41312423265
+    "cleanup_workflow_run_id": 41312423265,
+    "credit_balance_confirmation": {
+      "source": "USER_STATEMENT",
+      "date": "2026-11-01",
+      "statement": "We have zero API credits left",
+      "credits_available_reported": 0,
+      "provider_billing_balance_independently_read": false
+    }
   },
   "basis": {
     "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",

@@ -40,6 +40,8 @@ historical evidence; this continuation did not rerun that deployment.
 
 ## Hosted Agents attempt 04
 
+**Owner clarification, 1 November 2026:** the user confirmed, “We have zero API credits left.” The credit balance is user-confirmed; no provider billing-balance readback was performed. Hosted output, recovery and active-cancellation acceptance remain blocked. Further automatic inference remains disabled.
+
 [Run 41312188640](https://github.com/evansmusitu/mft-axiom-build/actions/runs/41312188640)
 used the existing repository secret, one separately claimed session, remote
 checkpoint acknowledgments and no resubmission of earlier uncertain input.
