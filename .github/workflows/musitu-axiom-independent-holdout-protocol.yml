@@ -1,0 +1,29 @@
+name: MUSITU Axiom independent mine holdout preregistration contract
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-independent-holdout-protocol.yml'
+      - 'benchmarks/mining_adapter/independent_holdout_protocol.py'
+      - 'tests/connect/test_independent_holdout_protocol.py'
+      - 'docs/operations/musitu-axiom-holdout-preregistration.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preregistration-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify SHA-pinned prospective protocol never admits model
+        run: |
+          python -m py_compile benchmarks/mining_adapter/independent_holdout_protocol.py tests/connect/test_independent_holdout_protocol.py
+          python -m unittest tests.connect.test_independent_holdout_protocol -v
+          echo 'DATA_RIGHTS_PROVEN=FALSE'
+          echo 'EXTERNAL_PRELABEL_TIMESTAMP_VERIFIED=FALSE'
+          echo 'INDEPENDENT_MINE_PERFORMANCE_VERIFIED=FALSE'
+          echo 'PRODUCTION_METHANE_ADMISSION=BLOCKED'

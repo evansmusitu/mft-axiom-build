@@ -1,10 +1,6 @@
 name: MUSITU Axiom Billing Status Contract Patch
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-billing-status-contract-patch.yml'
-      - 'ops/axiom_billing_status_contract_patch.py'
   workflow_dispatch:
 
 permissions:
@@ -16,6 +12,7 @@ concurrency:
 
 jobs:
   patch:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:

@@ -1,12 +1,12 @@
 name: MUSITU Axiom Modal Adapter Exact Request Probe
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-adapter-exact-request-probe.yml']
+
 permissions:
   contents: read
 jobs:
   probe:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

@@ -1,0 +1,407 @@
+from datetime import datetime, timedelta, timezone
+import unittest
+
+import benchmarks.mining_adapter.methane_backtest as methane_module
+from benchmarks.mining_adapter.methane_backtest import (
+    MethaneBacktestSpec,
+    build_windowed_prediction_examples,
+    evaluate_backtest_gate,
+    online_recalibrated_predictions,
+    select_augmented_operating_point,
+    rolling_backtest_folds,
+)
+from benchmarks.mining_adapter.methane_prediction import PredictionExample, binary_metrics
+from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
+
+
+def row(second: int, methane: float=0.2):
+    stamp=datetime(2014,3,2,tzinfo=timezone.utc)+timedelta(seconds=second)
+    item={"event_time":stamp.isoformat(timespec="seconds").replace("+00:00","Z")}
+    for index,name in enumerate(MINING_TELEMETRY_SENSORS):
+        item[name]="right" if name=="F_SIDE" else float(index)/10.0
+    item["MM263"]=methane
+    item["MM264"]=0.2
+    item["MM256"]=0.2
+    return item
+
+
+class MethaneBacktestTests(unittest.TestCase):
+    def test_spec_locks_history_future_and_development_region(self):
+        spec=MethaneBacktestSpec()
+        self.assertEqual(spec.history_seconds,600)
+        self.assertEqual(spec.horizon_start_seconds,180)
+        self.assertEqual(spec.horizon_end_seconds,360)
+        self.assertEqual(spec.fold_count,4)
+        self.assertEqual(spec.development_fraction,0.80)
+        self.assertEqual(spec.calibration_recall_target,0.95)
+        self.assertEqual(spec.minimum_test_recall,0.90)
+        self.assertEqual(spec.required_passing_folds,3)
+        self.assertEqual(spec.threshold_update_examples,30)
+        self.assertEqual(spec.threshold_window_examples,2000)
+        self.assertEqual(spec.minimum_online_positives,20)
+
+    def test_window_features_use_only_past_and_present(self):
+        spec=MethaneBacktestSpec(sample_stride_seconds=1)
+        rows=[row(second,0.2+second/1000.0) for second in range(1200)]
+        rows[900]=row(900,1.2)
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        by_second={
+            int((item.feature_time-base).total_seconds()):item
+            for item in examples
+        }
+        item=by_second[600]
+        self.assertTrue(item.label)
+        self.assertAlmostEqual(item.features["MM263_delta_60"],0.06,places=9)
+        self.assertAlmostEqual(item.features["MM263_delta_600"],0.60,places=9)
+        self.assertLess(item.features["MM263_max_60"],1.0)
+        self.assertLess(item.features["target_current_max"],1.0)
+
+
+    def test_window_features_encode_published_f_side_direction_state(self):
+        spec=MethaneBacktestSpec(sample_stride_seconds=1)
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]="1"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertTrue(examples)
+        self.assertEqual(examples[0].features["F_SIDE_left"],1.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],0.0)
+
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]="1.000000"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertEqual(examples[0].features["F_SIDE_left"],1.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],0.0)
+
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]=".500000"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertEqual(examples[0].features["F_SIDE_left"],0.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],1.0)
+
+    def test_window_examples_fail_closed_across_timestamp_gap(self):
+        spec=MethaneBacktestSpec(sample_stride_seconds=1)
+        rows=[row(second) for second in range(1200) if second!=100]
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        feature_seconds={
+            int((item.feature_time-base).total_seconds()) for item in examples
+        }
+        self.assertNotIn(600,feature_seconds)
+
+    def test_rolling_folds_purge_train_calibration_test_boundaries(self):
+        spec=MethaneBacktestSpec()
+        rows=[row(second) for second in range(20_000)]
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        folds=rolling_backtest_folds(examples,spec)
+        self.assertEqual(len(folds),4)
+        for fold in folds:
+            self.assertTrue(fold["train"])
+            self.assertTrue(fold["calibration"])
+            self.assertTrue(fold["test"])
+            self.assertLess(
+                max(item.label_window_end for item in fold["train"]),
+                min(item.feature_time for item in fold["calibration"]),
+            )
+            self.assertLess(
+                max(item.label_window_end for item in fold["calibration"]),
+                min(item.feature_time for item in fold["test"]),
+            )
+            self.assertLess(
+                max(item.label_window_end for item in fold["test"]),
+                fold["development_end"],
+            )
+
+
+
+    def test_augmented_operating_point_never_suppresses_hard_methane_warning(self):
+        y=[1,1,1,1,0,0,0,0]
+        scores=[.1,.9,.8,.7,.6,.5,.2,.1]
+        current=[1.2,.2,.3,.4,1.1,.2,.3,.4]
+        result=select_augmented_operating_point(
+            y_true=y,
+            scores=scores,
+            current_max=current,
+            warning_threshold=1.0,
+            minimum_recall=.75,
+        )
+        self.assertGreaterEqual(result["metrics"]["recall"],.75)
+        self.assertTrue(result["predictions"][0])
+        self.assertTrue(result["predictions"][4])
+        self.assertGreaterEqual(result["metrics"]["precision"],.75)
+
+    def test_online_recalibration_uses_only_fully_resolved_prior_labels(self):
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        calibration=[
+            PredictionExample(
+                feature_time=base-timedelta(seconds=1200-index*60),
+                label_window_end=base-timedelta(seconds=840-index*60),
+                features={"x":float(index),"target_current_max":0.2},
+                label=index<4,
+            )
+            for index in range(8)
+        ]
+        calibration_scores=[.95,.9,.85,.8,.4,.3,.2,.1]
+        test=[
+            PredictionExample(
+                feature_time=base+timedelta(seconds=index*60),
+                label_window_end=base+timedelta(seconds=index*60+360),
+                features={"x":float(index),"target_current_max":0.2},
+                label=index in {0,1,2,7,8,9},
+            )
+            for index in range(12)
+        ]
+        test_scores=[.25,.22,.20,.1,.08,.07,.06,.24,.23,.21,.09,.05]
+        result=online_recalibrated_predictions(
+            calibration_examples=calibration,
+            calibration_scores=calibration_scores,
+            test_examples=test,
+            test_scores=test_scores,
+            warning_threshold=1.0,
+            minimum_recall=.90,
+            update_every_examples=1,
+            window_examples=4,
+            minimum_online_positives=1,
+        )
+        self.assertEqual(len(result["predictions"]),len(test))
+        self.assertTrue(result["leakage_safe"])
+        self.assertGreater(result["threshold_updates"],1)
+        for audit in result["update_audit"]:
+            if audit["latest_label_window_end_used"] is not None:
+                self.assertLess(
+                    datetime.fromisoformat(audit["latest_label_window_end_used"]),
+                    datetime.fromisoformat(audit["prediction_time"]),
+                )
+        self.assertLess(result["thresholds"][-1],result["thresholds"][0])
+
+    def test_initial_online_calibration_rejects_unresolved_future_label(self):
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        calibration=[
+            PredictionExample(
+                feature_time=base-timedelta(seconds=180),
+                label_window_end=base+timedelta(seconds=180),
+                features={"target_current_max":0.2},label=True,
+            ),
+            PredictionExample(
+                feature_time=base-timedelta(seconds=500),
+                label_window_end=base-timedelta(seconds=140),
+                features={"target_current_max":0.2},label=False,
+            ),
+        ]
+        test=[PredictionExample(
+            feature_time=base,label_window_end=base+timedelta(seconds=360),
+            features={"target_current_max":1.2},label=False,
+        )]
+        with self.assertRaisesRegex(ValueError,"methane_backtest_calibration_label_not_resolved"):
+            online_recalibrated_predictions(
+                calibration_examples=calibration,
+                calibration_scores=[0.8,0.3],
+                test_examples=test,test_scores=[0.1],
+                warning_threshold=1.0,minimum_recall=0.9,
+                update_every_examples=1,window_examples=2,
+                minimum_online_positives=1,
+            )
+
+    def test_causal_consensus_reduces_isolated_model_alerts_without_delaying_hard_warning(self):
+        self.assertTrue(hasattr(methane_module,"causal_consensus_predictions"))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        times=(0,30,60,180,210)
+        samples=[PredictionExample(
+            feature_time=base+timedelta(seconds=second),
+            label_window_end=base+timedelta(seconds=second+360),
+            features={"target_current_max":1.2 if second==60 else 0.2},
+            label=False,
+        ) for second in times]
+        predictions=methane_module.causal_consensus_predictions(
+            test_examples=samples,
+            test_scores=(0.8,0.9,0.1,0.9,0.91),
+            thresholds=(0.5,)*5,
+            warning_threshold=1.0,
+            consecutive_samples=2,
+            sample_stride_seconds=30,
+        )
+        self.assertEqual(predictions,[False,True,True,False,True])
+        self.assertFalse(predictions[0])  # no future score may influence t=0
+        self.assertTrue(predictions[2])   # hard warning is never suppressed
+        self.assertFalse(predictions[3])  # source gap resets consensus
+
+    def test_retrospective_oracle_diagnoses_ranking_without_affecting_safety_gate(self):
+        # These held-out labels may only be used for a clearly marked oracle
+        # diagnostic, never to choose a deployable or admitted threshold.
+        self.assertTrue(hasattr(methane_module, "retrospective_threshold_frontier"))
+        oracle=methane_module.retrospective_threshold_frontier(
+            y_true=[1,1,1,0,0,0],
+            scores=[.9,.7,.1,.8,.15,.05],
+            current_max=[.2,1.1,.2,.2,.2,.2],
+            warning_threshold=1.0,
+            minimum_recall=0.66,
+            minimum_precision=0.50,
+            minimum_f2_gain_fraction=0.05,
+        )
+        self.assertEqual(oracle["evaluation_role"],"POST_HOC_TEST_LABEL_DIAGNOSTIC_ONLY")
+        self.assertEqual(oracle["best_f2"]["threshold"],0.1)
+        self.assertEqual(oracle["best_f2"]["metrics"]["tp"],3)
+        self.assertEqual(oracle["best_f2"]["metrics"]["fp"],2)
+        self.assertTrue(oracle["performance_feasible"])
+        self.assertFalse(oracle["qualified_for_admission"])
+
+        # A forced observed hard warning can make exact precision impossible.
+        impossible=methane_module.retrospective_threshold_frontier(
+            y_true=[0,1],scores=[0.1,0.9],current_max=[1.2,0.2],
+            warning_threshold=1.0,minimum_recall=1.0,
+            minimum_precision=1.0,minimum_f2_gain_fraction=0.05,
+        )
+        self.assertFalse(impossible["performance_feasible"])
+        self.assertIsNone(impossible["best_gate_feasible"])
+        with self.assertRaisesRegex(ValueError,"retrospective_oracle_value_not_finite"):
+            methane_module.retrospective_threshold_frontier(
+                y_true=[1],scores=[float("nan")],current_max=[0.2],
+                warning_threshold=1.0,minimum_recall=0.9,
+                minimum_precision=0.1,minimum_f2_gain_fraction=0.05,
+            )
+
+    def test_positive_label_overlap_components_reveal_correlated_examples(self):
+        self.assertTrue(hasattr(methane_module, "positive_label_window_components"))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        examples=[PredictionExample(
+            feature_time=base+timedelta(seconds=t),
+            label_window_end=base+timedelta(seconds=t+360),
+            features={"target_current_max":0.2},label=positive,
+        ) for t,positive in ((0,True),(30,True),(500,True),(530,False))]
+        self.assertEqual(
+            methane_module.positive_label_window_components(
+                examples,horizon_start_seconds=180
+            ),
+            {"positive_examples":3,"overlap_connected_components":2},
+        )
+        with self.assertRaisesRegex(ValueError,"positive_window_order_invalid"):
+            methane_module.positive_label_window_components(
+                examples[::-1],horizon_start_seconds=180,
+            )
+
+    def test_backtest_gate_requires_three_of_four_strong_folds(self):
+        spec=MethaneBacktestSpec(
+            minimum_examples=100,
+            minimum_fold_test_positives=5,
+        )
+        good_model={
+            **binary_metrics([1]*20+[0]*80,[1]*19+[0]+[1]*10+[0]*70),
+            "average_precision":0.70,
+        }
+        baseline=binary_metrics([1]*20+[0]*80,[1]*7+[0]*93)
+        folds=[]
+        for index in range(4):
+            model=dict(good_model)
+            if index==3:
+                model=binary_metrics(
+                    [1]*20+[0]*80,
+                    [1]*17+[0]*3+[1]*10+[0]*70,
+                )
+                model["average_precision"]=0.70
+            folds.append({
+                "fold":index,
+                "train_examples":300,
+                "calibration_examples":100,
+                "test_examples":100,
+                "test_positives":20,
+                "test_prevalence":0.20,
+                "temporal_leakage_check":True,
+                "online_recalibration_leakage_check":True,
+                "baseline":baseline,
+                "model":model,
+            })
+        report={
+            "dataset_id":spec.dataset_id,
+            "dataset_version":1,
+            "doi":spec.doi,
+            "license":"CC BY 4.0",
+            "transport_source":"openml:42701",
+            "source_sha256":"28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc",
+            "source_rows":9_199_930,
+            "eligible_examples":1000,
+            "folds":folds,
+            "credentials_used":False,
+            "errors":[],
+        }
+        result=evaluate_backtest_gate(spec,report)
+        self.assertTrue(result["backtest_qualified"])
+        self.assertEqual(result["gate"],"REAL_MINE_METHANE_BACKTEST_QUALIFIED")
+        self.assertEqual(result["passing_folds"],3)
+
+        # A valid-looking 64-character digest from a DIFFERENT source is
+        # insufficient: admission must bind the exact qualified corpus.
+        report["source_sha256"]="a"*64
+        self.assertFalse(evaluate_backtest_gate(spec,report)["backtest_qualified"])
+        report["source_sha256"]="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
+
+        # Tamper with published metrics while leaving counts unchanged;
+        # the gate must not be satisfied by forged summaries.
+        report["folds"][0]["model"]["precision"]=1.0
+        report["folds"][0]["model"]["f2"]=1.0
+        result=evaluate_backtest_gate(spec,report)
+        self.assertFalse(result["backtest_qualified"])
+        self.assertIn("reported_metrics_mismatch",result["fold_diagnostics"][0]["blockers"])
+        report["folds"][0]["model"]=dict(good_model)
+
+        report["folds"][0]["temporal_leakage_check"]=False
+        result=evaluate_backtest_gate(spec,report)
+        self.assertFalse(result["backtest_qualified"])
+
+        report["folds"][0]["temporal_leakage_check"]=True
+        report["folds"][0]["online_recalibration_leakage_check"]=False
+        result=evaluate_backtest_gate(spec,report)
+        self.assertFalse(result["backtest_qualified"])
+
+
+    def test_gate_exposes_irrecoverable_positive_support_blocker(self):
+        spec=MethaneBacktestSpec()
+        folds=[]
+        for index, positives in enumerate((2131,475,308,919)):
+            # Performance is deliberately excellent in every fold. Two folds
+            # still cannot qualify because their positive-support floor fails.
+            truths=[1]*positives+[0]*(30648-positives)
+            predictions=[1]*(positives-1)+[0]+[1]*5+[0]*(30648-positives-5)
+            metrics=binary_metrics(truths,predictions)
+            metrics["average_precision"]=0.90
+            baseline=binary_metrics(
+                truths,
+                [1]*(positives//5)+[0]*(positives-positives//5)
+                +[1]*30+[0]*(30648-positives-30),
+            )
+            folds.append({
+                "fold":index,"test_examples":30648,
+                "test_positives":positives,"test_prevalence":positives/30648,
+                "temporal_leakage_check":True,
+                "online_recalibration_leakage_check":True,
+                "model":metrics,"baseline":baseline,
+            })
+        report={
+            "dataset_id":spec.dataset_id,"dataset_version":1,
+            "doi":spec.doi,"license":spec.license,
+            "transport_source":"openml:42701","source_sha256":"28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc",
+            "source_rows":9_199_930,"eligible_examples":306_601,
+            "folds":folds,"credentials_used":False,"errors":[],
+        }
+        q=evaluate_backtest_gate(spec,report)
+        self.assertFalse(q["backtest_qualified"])
+        self.assertEqual(q["passing_folds"],2)
+        self.assertEqual(q["maximum_support_eligible_folds"],2)
+        self.assertEqual(q["checks"]["positive_support_for_required_folds"],"FAIL")
+        self.assertEqual(
+            [f["fold"] for f in q["fold_diagnostics"] if "insufficient_test_positives" in f["blockers"]],
+            [1,2],
+        )
+
+        # Merely inflating metadata must not make this safety gate pass.
+        report["folds"][1]["test_positives"]=500
+        q=evaluate_backtest_gate(spec,report)
+        self.assertEqual(q["maximum_support_eligible_folds"],2)
+        self.assertIn("test_positive_count_mismatch",q["fold_diagnostics"][1]["blockers"])
+        self.assertFalse(q["backtest_qualified"])
+
+
+if __name__=="__main__":
+    unittest.main()

@@ -1,0 +1,37 @@
+name: MUSITU Commercial GA external evidence packet (offline non-enabling)
+on:
+  push:
+    branches: ['fix/ga-privileged-workflows-manual-only-20261029', 'main']
+    paths:
+      - 'docs/operations/musitu-connect-commercial-launch-acceptance-20261029.md'
+      - 'tests/connect/test_ga_external_acceptance.py'
+      - '.github/workflows/musitu-ga-launch-evidence-check.yml'
+      - 'qualification/musitu_connect_commercial_ga_release.json'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'docs/operations/musitu-connect-commercial-launch-acceptance-20261029.md'
+      - 'tests/connect/test_ga_external_acceptance.py'
+      - '.github/workflows/musitu-ga-launch-evidence-check.yml'
+      - 'qualification/musitu_connect_commercial_ga_release.json'
+permissions:
+  contents: read
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate external acceptance matrix without claiming approval
+        run: python -m unittest tests.connect.test_ga_external_acceptance -v
+      - name: Audit release remains explicitly blocked
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected release enabled' >&2
+            exit 1
+          fi
+          echo 'GA_CUSTOMER_ADMISSION=BLOCKED'

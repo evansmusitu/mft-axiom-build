@@ -1,0 +1,80 @@
+name: MUSITU Axiom paired development research comparison
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-challenger-comparison.yml'
+      - 'benchmarks/mining_adapter/methane_challenger_comparison.py'
+      - 'tests/connect/test_methane_challenger_comparison.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test fail-closed comparison against forged evidence
+        run: python -m unittest tests.connect.test_methane_challenger_comparison -v
+
+      - name: Retrieve exact pinned published GitHub Actions evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/axiom-methane-evidence/reference /tmp/axiom-methane-evidence/challenger
+          gh run download 37739292179 --repo "${{ github.repository }}" \
+            --name musitu-connect-methane-backtest-evidence \
+            --dir /tmp/axiom-methane-evidence/reference
+          gh run download 37757757295 --repo "${{ github.repository }}" \
+            --name musitu-axiom-lightgbm-research-evidence \
+            --dir /tmp/axiom-methane-evidence/challenger
+
+      - name: Validate exact archived bytes, not mutable reported scores
+        run: |
+          printf '%s  %s\n' \
+            'c997ada7e5e677a9cddaec62b3511d2caf45f93d9bd9dd28cf5abf42dde356cd' \
+            '/tmp/axiom-methane-evidence/reference/methane_backtest.json' \
+            'bf493245ab7bf0aa64dcc5c291c307a1edb0018ba1822f7092a8aa87a45d6351' \
+            '/tmp/axiom-methane-evidence/challenger/lightgbm_research.json' | sha256sum --check
+
+      - name: Compare on exact matched chronological folds
+        run: |
+          mkdir -p qualification/axiom_research_comparison
+          python -m benchmarks.mining_adapter.methane_challenger_comparison \
+            --reference /tmp/axiom-methane-evidence/reference/methane_backtest.json \
+            --challenger /tmp/axiom-methane-evidence/challenger/lightgbm_research.json \
+            --output qualification/axiom_research_comparison/lightgbm_vs_hgb_development.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('qualification/axiom_research_comparison/lightgbm_vs_hgb_development.json')
+          j=json.loads(p.read_text())
+          assert j['status']=='RESEARCH_ONLY_NOT_ADMITTED'
+          assert j['independent_validation'] is False
+          assert j['production_admission'] is False
+          assert j['row_level_paired_prediction_evidence'] is False
+          assert j['support_blocks_qualification'] is True
+          assert j['support_eligible_folds']==2
+          assert len(j['folds'])==4
+          print('NO_SAFETY_OR_PRODUCTION_QUALIFICATION=TRUE')
+          print('GATE_SUPPORT_BLOCKED=TRUE')
+          PY
+          sha256sum qualification/axiom_research_comparison/lightgbm_vs_hgb_development.json
+
+      - name: Publish comparison evidence (research only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-lightgbm-hgb-paired-research-comparison
+          path: qualification/axiom_research_comparison/*.json
+          retention-days: 90
+          if-no-files-found: warn

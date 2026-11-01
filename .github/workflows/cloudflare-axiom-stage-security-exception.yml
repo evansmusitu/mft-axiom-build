@@ -2,15 +2,13 @@ name: MUSITU Axiom Staging Security Exception
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/cloudflare-axiom-stage-security-exception.yml'
 
 permissions:
   contents: read
 
 jobs:
   configure-and-verify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

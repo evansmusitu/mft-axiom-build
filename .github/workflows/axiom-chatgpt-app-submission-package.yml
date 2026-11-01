@@ -2,13 +2,9 @@ name: MUSITU Axiom ChatGPT App Submission Package
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-chatgpt-app-submission-package.yml'
-      - 'scripts/generate_chatgpt_submission.py'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: musitu-axiom-chatgpt-submission-package
@@ -16,6 +12,7 @@ concurrency:
 
 jobs:
   package:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,15 +32,15 @@ jobs:
           python -m json.tool chatgpt-app-submission.json >/dev/null
           python -m json.tool submission/review-checks.json >/dev/null
 
-      - name: Commit generated review package
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add chatgpt-app-submission.json submission/REVIEWER_NOTES.md submission/review-checks.json submission/chatgpt-app-submission.sha256 SUPPORT.md
-          if git diff --cached --quiet; then
-            echo "Submission package already current"
-            exit 0
-          fi
-          git commit -m "Generate MUSITU Axiom ChatGPT submission package"
-          git push origin HEAD:main
+      - name: Upload generated review package without repository mutation
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-chatgpt-review-package-not-submitted
+          path: |
+            chatgpt-app-submission.json
+            submission/REVIEWER_NOTES.md
+            submission/review-checks.json
+            submission/chatgpt-app-submission.sha256
+            SUPPORT.md
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,39 @@
+name: MUSITU GA publication review package is non-enabling (offline)
+on:
+  push:
+    branches: ['fix/ga-reviewed-publication-no-ci-main-push-20261029', 'main']
+    paths:
+      - '.github/workflows/axiom-chatgpt-app-submission-package.yml'
+      - '.github/workflows/axiom-oauth-userinfo-v2-rollout.yml'
+      - '.github/workflows/axiom-plugin-docs-publication-fix.yml'
+      - 'tests/connect/test_ga_publication_write_guard.py'
+      - '.github/workflows/musitu-ga-publication-package-guard.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '.github/workflows/axiom-chatgpt-app-submission-package.yml'
+      - '.github/workflows/axiom-oauth-userinfo-v2-rollout.yml'
+      - '.github/workflows/axiom-plugin-docs-publication-fix.yml'
+      - 'tests/connect/test_ga_publication_write_guard.py'
+      - '.github/workflows/musitu-ga-publication-package-guard.yml'
+permissions:
+  contents: read
+jobs:
+  non-enabling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test no live writes or automatic GitHub promotion
+        run: python -m unittest tests.connect.test_ga_publication_write_guard -v
+      - name: Confirm commercial GA cannot self promote
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'GA enabled without independent evidence' >&2
+            exit 1
+          fi
+          echo 'GA=BLOCKED'

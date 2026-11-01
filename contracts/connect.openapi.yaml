@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: MUSITU Connect — Controlled Mining API
+  version: 1.0.0-beta.1
+  description: |
+    Contract for the feature-branch controlled enterprise beta. Not a public
+    customer credential issuance API, certified safety system, or general
+    industrial-control endpoint. Existing Workers.dev production is pinned to
+    an earlier deployment: newly specified guards require separate deployment
+    authorization and canary verification before becoming live behavior.
+servers:
+  - url: https://musitu-connect-production.mft-education-nexus-93f395f5.workers.dev
+    description: Existing production Worker; feature-branch changes not automatically deployed.
+security: []
+paths:
+  /health:
+    get:
+      operationId: healthConnect
+      summary: Inspect the production Worker health contract (no authorization needed)
+      responses:
+        '200':
+          description: Runtime health and release identity; not customer readiness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/mining/plan:
+    post:
+      operationId: planMiningInterventions
+      summary: Find the exact budget-constrained Mining intervention selection
+      description: |
+        Accepts nonempty validated Mining rows and a nonnegative budget. The
+        deterministic branch-and-bound planner rejects work requiring more
+        than 10,000 examined states. A rejection returns no partial selection.
+        This is planning support, not an autonomous safety intervention.
+      security:
+        - internalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows, budget]
+              properties:
+                rows:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/MiningRecord'
+                budget:
+                  type: number
+                  minimum: 0
+      responses:
+        '200':
+          description: Proven optimal for the requested budget within the configured search cap.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MiningPlan'
+        '400':
+          description: Input invalid or PLAN_SEARCH_LIMIT_EXCEEDED (no plan returned).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/mining/risk:
+    post:
+      operationId: calculateMiningRisk
+      summary: Execute an authenticated, provenance-correlated Axiom risk calculation
+      description: |
+        Only one Mining row is currently supported. Multiple rows are rejected
+        with RISK_SINGLE_ROW_REQUIRED, before any Axiom call. The operation
+        evaluates exposure * severity * likelihood, not a methane forecast.
+        Production Axiom computation is separately authorized, but this beta
+        interface does not authorize predictive methane safety decisions.
+      security:
+        - internalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, rows]
+              properties:
+                run_id:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                  pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$'
+                  description: |
+                    Safe ASCII correlation identifier starting with a letter
+                    or digit. No whitespace, control characters, Unicode,
+                    backslashes, or numeric-to-string coercion. The ID becomes
+                    part of the outbound Axiom request correlation header.
+                rows:
+                  type: array
+                  minItems: 1
+                  maxItems: 1
+                  items:
+                    $ref: '#/components/schemas/MiningRecord'
+      responses:
+        '200':
+          description: Correlated Axiom arithmetic result for one validated Mining row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MiningRisk'
+        '400':
+          description: Invalid input or RISK_SINGLE_ROW_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: Upstream Axiom transport, response or correlation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    internalBearer:
+      type: http
+      scheme: bearer
+      description: |
+        Existing controlled service-to-service authorization, NOT a customer
+        credential or registration protocol. Never distribute the internal
+        token or upstream Axiom account key to external customers. Customer-
+        scoped authentication and tenant isolation are separate release gates.
+  responses:
+    Unauthorized:
+      description: Invalid or absent internal authorization.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotConfigured:
+      description: Required upstream account configuration unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Sanitized Worker internal error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Health:
+      type: object
+      required: [ok, service, release, production, axiomIntegrationAllowed]
+      properties:
+        ok: {type: boolean}
+        service: {type: string, enum: ['MUSITU Connect']}
+        release: {type: string}
+        production: {type: boolean}
+        axiomIntegrationAllowed: {type: boolean}
+    MiningRecord:
+      type: object
+      required: [hazard, exposure, severity, likelihood, cost, benefit]
+      properties:
+        hazard: {type: string, minLength: 1}
+        exposure: {type: number, minimum: 0, maximum: 1}
+        severity: {type: number, minimum: 0, maximum: 10}
+        likelihood: {type: number, minimum: 0, maximum: 1}
+        cost: {type: number, minimum: 0}
+        benefit: {type: number, minimum: 0, maximum: 1}
+        record_id: {type: string}
+        asset_id: {type: string}
+        site: {type: string}
+        event_time: {type: string, description: ISO 8601 date-time with timezone}
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+      additionalProperties: false
+    MiningPlan:
+      type: object
+      required: [baselineRisk, residualRisk, riskReduction, spend, selected, relativeReduction, gate, trace]
+      properties:
+        baselineRisk: {type: number}
+        residualRisk: {type: number}
+        riskReduction: {type: number}
+        spend: {type: number, minimum: 0}
+        selected: {type: array, items: {type: string}}
+        relativeReduction: {type: number}
+        gate: {type: string, enum: [LOCKED]}
+        trace: {type: string, minLength: 1}
+    MiningRisk:
+      type: object
+      required: [ok, gate, operation, result, request_id, canonical_sha256]
+      properties:
+        ok: {type: boolean}
+        gate: {type: string, enum: [OPEN]}
+        operation: {type: string, enum: [arithmetic.evaluate]}
+        result: {description: Upstream numeric result; representation may be string or number.}
+        request_id: {type: string}
+        canonical_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+    Error:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: {type: boolean, enum: [false]}
+        error: {type: string}

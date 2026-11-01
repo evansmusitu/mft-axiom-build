@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.connect.non_fixture_identity_direct_compute.v1",
+  "gate": "MUSITU_CONNECT_NON_FIXTURE_IDENTITY_QUALIFIED",
+  "source_commit": "3b2593662f483f4acf4d64d4cfba43f6ab88da79",
+  "workflow_run_id": 37217196676,
+  "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37217196676",
+  "evidence_sha256": "22fd32c6213a3f1ae7acf0c1420b7808e977074e00da66e8eb30193eb958dcfe",
+  "backend_lane": "axiom_direct_compute",
+  "dedicated_account_key_matches_active_non_fixture_identity": true,
+  "authenticated_connect_compute_call": true,
+  "exact_usage_ledger_request_id_correlation": true,
+  "usage_event_persisted_as_evidence": true,
+  "result_3_348_observed": true,
+  "service_quota_units": 100,
+  "credential_values_published": false,
+  "customer_identifiers_published": false,
+  "key_identifiers_published": false,
+  "production_axiom_integration_enabled": false,
+  "artifact_available": false,
+  "artifact_note": "Successful rerun emitted the evidence digest in GitHub Actions logs and step summary; immediate artifact listing was empty."
+}

@@ -1,0 +1,74 @@
+{
+  "schema": "musitu.axiom.independent_mine_source_discovery.v1",
+  "assessed_on": "2026-10-25",
+  "purpose": "Additional independent-site leads from public primary articles. Source data and rights not obtained; no methane model evaluation or independent validation.",
+  "source_access_qualification": "PUBLIC_ARTICLE_METADATA_ONLY_NO_RAW_SOURCE",
+  "record_count": 3,
+  "sources": [
+    {
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "candidate_id": "qianyingzi-w3211-author-request",
+      "source_publication": "Research on coal mine longwall face gas state analysis and safety warning strategy based on multi-sensor forecasting models (Scientific Reports 2024)",
+      "source_url": "https://www.nature.com/articles/s41598-024-64181-7",
+      "source_lineage_identifiers": [
+        "doi:10.1038/s41598-024-64181-7"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 60,
+      "evidence_category": "AUTHOR_REQUEST_ONLY_MINUTE_STANDARDIZED_UNDERLYING_ONE_HZ_NOT_PROVEN",
+      "source_description": "The paper describes a separately studied Chinese coal-mine working face at Qianyingzi (W3211), May to July 2021, with 3,407,328 reported data points and a one-minute-standardized analysis. It says data are available by request to the corresponding author. Original full-resolution 1 Hz stream, 28 physically equivalent canonical measurements, event annotations, rights and independent provenance were not obtained; data-point counts are not treated as timestamped one-second rows.",
+      "source_access_status": "ON_REQUEST_NOT_ACQUIRED",
+      "original_source_bytes_obtained": false,
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "site_identity_independently_authenticated": false,
+      "independently_measured_canonical_sensors": [],
+      "real_mine_independent_validation": false
+    },
+    {
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "candidate_id": "xinyuan-31002-confidential-15s",
+      "source_publication": "Interpretable Graph–Temporal–Spectral Fusion for Precursor-Related Anomaly Detection in Underground Mine Sensor Networks (Sensors 2026)",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13517353/",
+      "source_lineage_identifiers": [
+        "doi:10.3390/s26165305"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 15,
+      "evidence_category": "CONFIDENTIAL_FIELD_RECORDS_15_SECOND_AVERAGES_NOT_SAFETY_HOLDOUT",
+      "source_description": "The paper describes a separately studied Xinyuan mine 31002 working face, methane/ventilation/equipment monitoring and eight annotated precursor-related abnormal intervals. Monitoring inputs were averaged into 15-second intervals and the principal comparison used 5-minute intervals. The publication explicitly states that field data are not publicly available under mine confidentiality agreements. No original 1 Hz/28-channel canonical stream or permission was acquired; precursor anomaly detection is not the frozen 3–6-minute methane exceedance task.",
+      "source_access_status": "CONFIDENTIAL_PUBLISHER_EXPLICITLY_UNAVAILABLE_PUBLICLY",
+      "original_source_bytes_obtained": false,
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "site_identity_independently_authenticated": false,
+      "independently_measured_canonical_sensors": [],
+      "real_mine_independent_validation": false
+    },
+    {
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "candidate_id": "sensors-2026-event-driven-polish-development-reuse",
+      "source_publication": "Interpretable Event-Driven Multisensor Risk-Evolution Analysis for Methane Early Warning (Sensors 2026)",
+      "source_url": "https://www.mdpi.com/1424-8220/26/13/4126",
+      "source_lineage_identifiers": [
+        "doi:10.3390/s26134126",
+        "doi:10.17632/yd7vw4c5mk.1",
+        "openml:42701"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 1,
+      "evidence_category": "PUBLICATION_REUSES_KNOWN_POLISH_DEVELOPMENT_SOURCE_NOT_EXTERNAL_INDEPENDENT_MINE",
+      "source_description": "The 2026 Sensors publication explicitly says its one-second underground-coal-mine dataset is the Mendeley Methane dataset 10.17632/yd7vw4c5mk.1, which is the 2014 Polish development/training source for the frozen MUSITU methane model. Later publication dates, model architectures, new metrics and dataset links do not make the same original sensor stream an independent mine or a prospective holdout. Original third-party source bytes and new mine rights were not obtained.",
+      "source_access_status": "PUBLISHED_MENDELEY_DEVELOPMENT_DATA_REUSE_NOT_ELIGIBLE",
+      "original_source_bytes_obtained": false,
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "site_identity_independently_authenticated": false,
+      "independently_measured_canonical_sensors": [],
+      "real_mine_independent_validation": false
+    }
+  ],
+  "independent_mine_validation": false,
+  "operator_permission_authenticated": false,
+  "production_methane_prediction_qualification": false
+}

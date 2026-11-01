@@ -2,12 +2,9 @@ name: MUSITU Axiom Plugin Docs Publication Fix
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-plugin-docs-publication-fix.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: musitu-axiom-public-plugin-cutover
@@ -15,6 +12,7 @@ concurrency:
 
 jobs:
   fix:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -73,89 +71,20 @@ jobs:
           PY
           node --check mcp/musitu_axiom_plugin_gate_v4.mjs
 
-      - name: Run full v4 certification against candidate
-        env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-          CF_API: https://api.cloudflare.com/client/v4
-          ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
-          D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
-          MCP_HOST: mcp.mftintelligence.com
-          MCP_PUBLIC_WORKER: musitu-axiom-mcp
-          MCP_CORE_WORKER: musitu-axiom-mcp-core
-          AUTH_ISSUER: https://auth.mftintelligence.com
-          EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      - name: Validate and hash MCP docs review candidate; never deploy or push
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          python /tmp/musitu-v4-docs-certification.py
-
-      - name: Prove human-facing docs contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import hashlib,json,pathlib,urllib.request
-          req=urllib.request.Request('https://mcp.mftintelligence.com/docs',headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-Docs-Publication-Verify/1.0'})
-          with urllib.request.urlopen(req,timeout=45) as r:
-              status=r.status;ctype=str(r.headers.get('Content-Type') or '');body=r.read()
-          text=body.decode('utf-8','replace')
-          if status!=200 or 'text/html' not in ctype.lower() or len(body)<500:
-              raise RuntimeError('public docs media contract failed')
-          required=['MUSITU Axiom Documentation','OAuth 2.1','axiom.execute','Privacy Policy','Terms of Use']
-          if any(x not in text for x in required):
-              raise RuntimeError('public docs content contract failed')
-          evidence={
-            'schema':'musitu.axiom.plugin_docs_publication.v1',
-            'gate':'MUSITU_AXIOM_PLUGIN_DOCS_PUBLICATION_PASS',
-            'docs_url':'https://mcp.mftintelligence.com/docs',
-            'http_status':status,
-            'content_type':ctype,
-            'html_bytes':len(body),
-            'full_v4_certification_reused':True,
-            'public_tool_count':108,
-            'operation_count':74,
-            'business_product_count':30,
-            'commerce_tools_exposed':False,
-            'trade_execution':False,
-            'money_transfer':False,
-            'production_kernel_mutated':False,
-            'billing_worker_mutated':False,
-            'raw_modal_public_exposure_added':False,
-            'wolfram_parity':'NOT_CERTIFIED',
-            'superiority':'NOT_CERTIFIED'
-          }
-          p=pathlib.Path('musitu-axiom-plugin-docs-publication.json')
-          p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
-          digest=hashlib.sha256(p.read_bytes()).hexdigest()
-          pathlib.Path('musitu-axiom-plugin-docs-publication.sha256').write_text(digest+'  '+p.name+'\n')
-          print(json.dumps({'gate':evidence['gate'],'http_status':status,'content_type':ctype,'evidence_sha256':digest},sort_keys=True))
-          PY
-
-      - name: Promote exactly the proven docs source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add mcp/musitu_axiom_plugin_gate_v4.mjs
-          git diff --cached --check
-          changed="$(git diff --cached --numstat | awk '{a+=$1;d+=$2} END{print a+0, d+0}')"
-          test "$changed" = "1 1"
-          git commit -m "Publish MUSITU Axiom MCP documentation as HTML"
-          git push origin HEAD:main
-
-      - name: Upload sealed docs-publication evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+          test -s mcp/musitu_axiom_plugin_gate_v4.mjs
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          cp mcp/musitu_axiom_plugin_gate_v4.mjs axiom-plugin-docs-review-candidate.mjs
+          sha256sum axiom-plugin-docs-review-candidate.mjs > axiom-plugin-docs-review-candidate.sha256
+          echo 'MCP_DOCUMENTATION_CANDIDATE_ONLY_NOT_DEPLOYED'
+      - uses: actions/upload-artifact@v4
         with:
-          name: musitu-axiom-plugin-docs-publication
+          name: musitu-axiom-plugin-docs-review-candidate
           path: |
-            musitu-axiom-plugin-docs-publication.json
-            musitu-axiom-plugin-docs-publication.sha256
-            musitu-axiom-public-plugin-v4-v2.json
-            musitu-axiom-public-plugin-v4-v2.sha256
-          retention-days: 30
-          if-no-files-found: warn
+            axiom-plugin-docs-review-candidate.mjs
+            axiom-plugin-docs-review-candidate.sha256
+          retention-days: 14
+          if-no-files-found: error

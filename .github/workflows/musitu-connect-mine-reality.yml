@@ -1,0 +1,141 @@
+name: MUSITU Connect mine reality qualification
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-mine-reality.yml'
+      - 'benchmarks/mining_adapter/mine_reality.py'
+      - 'benchmarks/mining_adapter/mine_reality_runner.py'
+      - 'benchmarks/mining_adapter/industrial_field.py'
+      - 'benchmarks/mining_adapter/mqtt_field_runner.py'
+      - 'tests/connect/test_mine_reality.py'
+      - 'connect/mining.py'
+      - 'connect/mining_adapter.py'
+      - 'connect/persistence.py'
+      - 'connect/fabric.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-mine-reality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      REALITY_EVENTS: '1000000'
+      REALITY_FAULTS: '3'
+      REALITY_SEED: '20261006'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install mine reality dependencies
+        run: |
+          python -m pip install --disable-pip-version-check paho-mqtt==2.1.0
+          python -m py_compile             benchmarks/mining_adapter/mine_reality.py             benchmarks/mining_adapter/mine_reality_runner.py             benchmarks/mining_adapter/industrial_field.py             benchmarks/mining_adapter/mqtt_field_runner.py
+          python benchmarks/mining_adapter/mine_reality_runner.py --help >/dev/null
+
+      - name: Verify mine reality contract
+        run: |
+          python -m unittest             tests.connect.test_mine_reality             tests.connect.test_mining_adapter             tests.connect.test_persistence -v
+
+      - name: Start qualified reference broker
+        run: |
+          docker run -d --name musitu-mine-reality-mosquitto             -p 18841:1883             -v "$PWD/infra/qualification/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"             eclipse-mosquitto:2.1.2-alpine
+          python - <<'PY'
+          import socket,time
+          for _ in range(120):
+              try:
+                  with socket.create_connection(("127.0.0.1",18841),timeout=.5):
+                      break
+              except OSError:
+                  time.sleep(.25)
+          else:
+              raise SystemExit("mine_reality_broker_not_ready")
+          PY
+
+      - name: Mine reality smoke with recovery and anomaly mix
+        run: |
+          python benchmarks/mining_adapter/mine_reality_runner.py             --port 18841             --label mine-reality-smoke             --restart-container musitu-mine-reality-mosquitto             --events 10000             --fault-count 1             --duplicate-batch-every 3             --stale-every 53             --out-of-order-every 31             --clock-drift-every 71             --output /tmp/mine_reality_smoke.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("/tmp/mine_reality_smoke.json").read_text())
+          q=report["qualification"]
+          assert q["reality_qualified"] is True
+          assert q["gate"]=="MINE_REALITY_QUALIFIED"
+          print("MINE_REALITY_SMOKE=PASS")
+          PY
+
+      - name: One million event mine reality chaos qualification
+        run: |
+          mkdir -p qualification/mine_reality
+          python benchmarks/mining_adapter/mine_reality_runner.py             --port 18841             --label mine-reality             --restart-container musitu-mine-reality-mosquitto             --events "$REALITY_EVENTS"             --fault-count "$REALITY_FAULTS"             --seed "$REALITY_SEED"             --output qualification/mine_reality/mine_reality.json
+
+      - name: Validate mine reality evidence fail closed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("qualification/mine_reality/mine_reality.json").read_text())
+          execution=report["execution"]
+          q=report["qualification"]
+          assert q["reality_qualified"] is True
+          assert q["gate"]=="MINE_REALITY_QUALIFIED"
+          assert execution["events"] >= 1_000_000
+          assert execution["received"] == execution["events"]
+          assert execution["fault_count"] >= 3
+          assert execution["recoveries_observed"] == execution["fault_count"]
+          assert len(execution["fault_recovery_seconds"]) == execution["fault_count"]
+          assert execution["duplicate_batches_expected"] > 0
+          assert execution["duplicate_batches_observed"] >= execution["duplicate_batches_expected"]
+          assert execution["scenario_profile"]["stale"] > 0
+          assert execution["scenario_profile"]["out_of_order"] > 0
+          assert execution["scenario_profile"]["clock_drift"] > 0
+          assert execution["replay_verified"] is True
+          assert execution["audit_chain_verified"] is True
+          assert execution["errors"] == []
+          assert execution["credentials_used"] is False
+          for probe in execution["negative_probes"].values():
+              assert probe["rejected"] is True
+              assert probe["error"] == probe["expected_error"]
+          print("MINE_REALITY_QUALIFICATION=PASS")
+          print(json.dumps({
+              "workload_fingerprint":execution["workload_fingerprint"],
+              "throughput_events_per_second":execution["throughput_events_per_second"],
+              "latency_ms":execution["latency_ms"],
+              "scenario_profile":execution["scenario_profile"],
+              "duplicate_batches_expected":execution["duplicate_batches_expected"],
+              "duplicate_batches_observed":execution["duplicate_batches_observed"],
+              "fault_recovery_seconds":execution["fault_recovery_seconds"],
+              "gate":q["gate"],
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/mine_reality/mine_reality.json
+          {
+            echo "## MUSITU Connect Mine Reality Qualification"
+            echo
+            cat qualification/mine_reality/mine_reality.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive mine reality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-mine-reality-evidence
+          path: qualification/mine_reality/*.json
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Cleanup mine reality broker
+        if: always()
+        run: docker rm -f musitu-mine-reality-mosquitto 2>/dev/null || true

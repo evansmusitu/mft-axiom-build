@@ -1,0 +1,122 @@
+name: MUSITU Connect real mine public data qualification
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-real-mine-public-data.yml'
+      - 'benchmarks/mining_adapter/msha_real_mine.py'
+      - 'tests/connect/test_msha_real_mine.py'
+      - 'connect/core.py'
+      - 'connect/fabric.py'
+      - 'connect/persistence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-real-mine-public-data-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MSHA_SOURCE_URL: 'https://arlweb.msha.gov/OpenGovernmentData/DataSets/Accidents.zip'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify real mine qualification contract
+        run: |
+          python -m py_compile benchmarks/mining_adapter/msha_real_mine.py
+          python -m unittest tests.connect.test_msha_real_mine -v
+          python benchmarks/mining_adapter/msha_real_mine.py --help >/dev/null
+
+      - name: Download official MSHA Accident Injuries dataset
+        run: |
+          mkdir -p /tmp/musitu-real-mine qualification/real_mine
+          curl --fail --location             --retry 5 --retry-all-errors --retry-delay 2             --connect-timeout 20 --max-time 300             "$MSHA_SOURCE_URL"             --output /tmp/musitu-real-mine/Accidents.zip
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          path=Path("/tmp/musitu-real-mine/Accidents.zip")
+          if not path.is_file() or path.stat().st_size <= 0:
+              raise SystemExit("msha_source_download_empty")
+          with zipfile.ZipFile(path) as archive:
+              members=[i.filename for i in archive.infolist() if not i.is_dir()]
+              text=[name for name in members if name.lower().endswith(".txt")]
+              if len(text)!=1:
+                  raise SystemExit(f"msha_source_text_member_count:{len(text)}")
+              bad=archive.testzip()
+              if bad is not None:
+                  raise SystemExit(f"msha_source_zip_corrupt:{bad}")
+              print("MSHA_SOURCE_ZIP_VALID=PASS")
+              print("MSHA_SOURCE_TEXT_MEMBER="+text[0])
+          PY
+          sha256sum /tmp/musitu-real-mine/Accidents.zip
+
+      - name: Run real mine public data qualification
+        run: |
+          python benchmarks/mining_adapter/msha_real_mine.py             --zip /tmp/musitu-real-mine/Accidents.zip             --store /tmp/musitu-real-mine/msha-runs.sqlite3             --min-source-records 10000             --min-latest-year 2025             --max-canonical-records 50000             --output qualification/real_mine/msha_real_mine.json
+
+      - name: Validate evidence fail closed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("qualification/real_mine/msha_real_mine.json").read_text())
+          execution=report["execution"]
+          q=report["qualification"]
+          assert q["real_mine_data_qualified"] is True
+          assert q["gate"]=="REAL_MINE_PUBLIC_DATA_QUALIFIED"
+          assert execution["source_url"]=="https://arlweb.msha.gov/OpenGovernmentData/DataSets/Accidents.zip"
+          assert execution["source_records"] >= 10000
+          assert execution["selected_records"] > 0
+          assert execution["selected_records"] <= 50000
+          assert execution["unique_document_numbers"] == execution["source_records"]
+          assert int(execution["latest_accident_date"][:4]) >= 2025
+          assert execution["signature_verified"] is True
+          assert execution["replay_verified"] is True
+          assert execution["audit_chain_verified"] is True
+          assert execution["credentials_used"] is False
+          assert execution["errors"] == []
+          assert len(execution["source_zip_sha256"]) == 64
+          assert len(execution["source_text_sha256"]) == 64
+          print("REAL_MINE_PUBLIC_DATA_QUALIFICATION=PASS")
+          print(json.dumps({
+              "gate":q["gate"],
+              "source_records":execution["source_records"],
+              "selected_records":execution["selected_records"],
+              "parse_failures":execution["parse_failures"],
+              "earliest_accident_date":execution["earliest_accident_date"],
+              "latest_accident_date":execution["latest_accident_date"],
+              "classification_count":execution["classification_count"],
+              "mining_equipment_count":execution["mining_equipment_count"],
+              "fatal_records":execution["fatal_records"],
+              "lost_day_records":execution["lost_day_records"],
+              "source_zip_sha256":execution["source_zip_sha256"],
+              "source_text_sha256":execution["source_text_sha256"],
+              "canonical_sha256":execution["canonical_sha256"],
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/real_mine/msha_real_mine.json
+          {
+            echo "## MUSITU Connect Real Mine Public Data Qualification"
+            echo
+            cat qualification/real_mine/msha_real_mine.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-real-mine-public-data-evidence
+          path: qualification/real_mine/*.json
+          retention-days: 90
+          if-no-files-found: warn

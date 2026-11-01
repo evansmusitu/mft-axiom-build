@@ -1,0 +1,121 @@
+name: MUSITU Axiom CatBoost research challenger
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-catboost-research.yml'
+      - 'benchmarks/mining_adapter/catboost_challenger.py'
+      - 'benchmarks/mining_adapter/CATBOOST_CHALLENGER_README.md'
+      - 'tests/connect/test_catboost_challenger.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-axiom-catboost-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      OPENML_SKIP_PARQUET: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            openml==0.15.1 scikit-learn==1.9.1 catboost==1.2.8
+
+      - name: Test independent classifier and immutable qualification boundaries
+        run: |
+          python -m py_compile benchmarks/mining_adapter/catboost_challenger.py
+          python -m unittest tests.connect.test_catboost_challenger -v
+          python -m unittest tests.connect.test_methane_challenger_comparison -v
+          python -m unittest tests.connect.test_methane_backtest tests.connect.test_methane_prediction -q
+
+      - name: Acquire exact public methane source and verify checksum
+        run: |
+          mkdir -p /tmp/musitu-catboost-research qualification/axiom_catboost_research
+          python - <<'PY'
+          import hashlib, openml, shutil
+          from pathlib import Path
+          dataset = openml.datasets.get_dataset(
+              42701, download_data=True, download_qualities=False,
+              download_features_meta_data=False,
+          )
+          if dataset.dataset_id != 42701 or str(dataset.name).strip().casefold() != 'methane':
+              raise SystemExit('RESEARCH_DATASET_IDENTITY_MISMATCH')
+          source = Path('/tmp/musitu-catboost-research/Methane-OpenML-42701.arff')
+          shutil.copyfile(dataset.data_file, source)
+          with source.open('rb') as f:
+              digest = hashlib.file_digest(f, 'sha256').hexdigest()
+          if digest != '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc':
+              raise SystemExit('RESEARCH_SOURCE_SHA256_MISMATCH')
+          print('RESEARCH_SOURCE_SHA256_VERIFIED=' + digest)
+          PY
+
+      - name: Run four-fold CatBoost real-mine development backtest
+        run: |
+          python benchmarks/mining_adapter/catboost_challenger.py \
+            --source /tmp/musitu-catboost-research/Methane-OpenML-42701.arff \
+            --output qualification/axiom_catboost_research/catboost_research.json
+
+      - name: Compare against immutable LightGBM experiment, without promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/musitu-catboost-research/reference
+          gh run download 37757757295 --repo "${{ github.repository }}" \
+            --name musitu-axiom-lightgbm-research-evidence \
+            --dir /tmp/musitu-catboost-research/reference
+          printf '%s  %s\n' \
+            'bf493245ab7bf0aa64dcc5c291c307a1edb0018ba1822f7092a8aa87a45d6351' \
+            '/tmp/musitu-catboost-research/reference/lightgbm_research.json' | sha256sum --check
+          python -m benchmarks.mining_adapter.methane_challenger_comparison \
+            --reference /tmp/musitu-catboost-research/reference/lightgbm_research.json \
+            --challenger qualification/axiom_catboost_research/catboost_research.json \
+            --output qualification/axiom_catboost_research/catboost_vs_lightgbm_development.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('qualification/axiom_catboost_research')
+          result=json.loads((root/'catboost_research.json').read_text())
+          comparison=json.loads((root/'catboost_vs_lightgbm_development.json').read_text())
+          assert result['status']=='RESEARCH_ONLY_NOT_ADMITTED'
+          assert result['production_admission'] is False
+          assert result['independent_validation'] is False
+          assert result['source_sha256']=='28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+          assert result['execution']['source_rows']>=9_000_000
+          assert len(result['execution']['folds'])==4
+          for fold in result['execution']['folds']:
+              assert fold['hard_observed_warning_preserved'] is True
+              assert fold['temporal_leakage_check'] is True
+              assert fold['online_recalibration_leakage_check'] is True
+          assert comparison['support_eligible_folds']==2
+          assert comparison['support_blocks_qualification'] is True
+          assert comparison['production_admission'] is False
+          assert comparison['independent_validation'] is False
+          assert comparison['row_level_paired_prediction_evidence'] is False
+          print('CATBOOST_RESEARCH_EVIDENCE_VALIDATED=PASS')
+          print('CATBOOST_VERSUS_LIGHTGBM_F2_DELTA=',comparison['median_delta_f2'])
+          print('PRODUCTION_ADMISSION=BLOCKED')
+          PY
+          sha256sum qualification/axiom_catboost_research/*.json
+
+      - name: Archive research evidence (never safety certification)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-catboost-research-evidence
+          path: qualification/axiom_catboost_research/*.json
+          retention-days: 90
+          if-no-files-found: warn

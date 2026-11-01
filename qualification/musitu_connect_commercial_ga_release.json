@@ -1,0 +1,41 @@
+{
+  "schema": "musitu.connect.commercial_ga_release.v1",
+  "recorded_date_utc": "2026-10-27",
+  "launch_mode": "FULL_COMMERCIAL_GA_NO_PILOT_NO_BETA",
+  "owner_authorization": {
+    "full_commercial_engineering_authorized": true,
+    "merge_authorized": true,
+    "staging_and_production_engineering_authorized": true,
+    "authorization_source": "Explicit owner instruction in the 2026-10-27 MUSITU Axiom project conversation; authorization is not evidence of qualification"
+  },
+  "scope": {
+    "enterprise_platform": "MUSITU Connect general-purpose adapters and authenticated enterprise integration",
+    "downstream_compute": "MUSITU Axiom quantitative/arithmetic execution",
+    "mining_adapter": "Commercial integration and planning only when validated against its documented contracts",
+    "methane_prediction": "RESEARCH_ONLY_UNTIL_INDEPENDENT_FIELD_QUALIFICATION"
+  },
+  "release": {
+    "state": "BLOCKED_PENDING_INDEPENDENT_COMMERCIAL_EVIDENCE",
+    "commercial_ga_enabled": false,
+    "new_customer_registration_open": false,
+    "production_customer_credentials_issued_by_this_release": false,
+    "public_connect_publication_authorized_by_gate": false
+  },
+  "qualifications": {
+    "hosted_isolated_cloudflare_d1_staging_concurrency": "NOT_DEMONSTRATED",
+    "hosted_customer_tenant_isolation_and_request_attribution": "NOT_DEMONSTRATED",
+    "hosted_idempotent_quota_rate_payload_enforcement": "NOT_DEMONSTRATED",
+    "production_scoped_customer_identity_and_rotation": "NOT_DEMONSTRATED",
+    "production_registration_offboarding_and_revocation": "NOT_DEMONSTRATED",
+    "commercial_checkout_billing_invoicing_and_refund_reconciliation": "NOT_DEMONSTRATED_FOR_CONNECT_GA",
+    "backup_restore_rpo_rto_and_recovery_rehearsal": "NOT_DEMONSTRATED",
+    "external_alert_delivery_and_human_acknowledgment": "NOT_DEMONSTRATED",
+    "operations_on_call_and_incident_rollback_signoff": "NOT_DEMONSTRATED",
+    "commercial_terms_privacy_data_processing_and_retention_signoff": "NOT_DEMONSTRATED",
+    "production_security_review_and_secrets_access_audit": "NOT_DEMONSTRATED",
+    "customer_support_and_service_level_readiness": "NOT_DEMONSTRATED",
+    "public_connect_mcp_and_domain_review": "NOT_DEMONSTRATED"
+  },
+  "independent_evidence_refs": {},
+  "policy": "Authorization allows engineering and merger; it does not convert offline tests into hosted qualification, permit synthetic credentials for paying customers or qualify methane safety claims. No pilot or beta requirement is imposed for full commercial GA."
+}

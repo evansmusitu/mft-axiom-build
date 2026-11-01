@@ -1,0 +1,75 @@
+name: MUSITU GA privileged deployments safety (offline non-enabling)
+on:
+  push:
+    branches: ['fix/ga-deploy-workflows-manual-only-20261029', 'main']
+    paths:
+      - '.github/workflows/axiom-mcp-production-deploy-v2.yml'
+      - '.github/workflows/axiom-mcp-production-deploy.yml'
+      - '.github/workflows/axiom-modal-production-deploy.yml'
+      - '.github/workflows/axiom-modal-musitu-parallel-deploy.yml'
+      - '.github/workflows/axiom-oauth-production-deploy.yml'
+      - '.github/workflows/axiom-d1-canonical-migration.yml'
+      - '.github/workflows/axiom-cloudflare-staging-deploy-v2.yml'
+      - '.github/workflows/axiom-cloudflare-staging-deploy.yml'
+      - '.github/workflows/axiom-modal-private-deploy.yml'
+      - '.github/workflows/axiom-modal-edge-isolated-deploy.yml'
+      - '.github/workflows/cloudflare-axiom-stage-security-exception.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover-v2.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover-v3.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover.yml'
+      - '.github/workflows/axiom-musitu-d1-live-cutover.yml'
+      - '.github/workflows/axiom-musitu-modal-backend-cutover.yml'
+      - '.github/workflows/axiom-musitu-stage-domain-cutover.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover-v2.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover.yml'
+      - '.github/workflows/axiom-production-custom-domain-cutover.yml'
+      - 'tests/connect/test_privileged_deployment_workflows.py'
+      - '.github/workflows/musitu-ga-deployment-safety.yml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '.github/workflows/axiom-mcp-production-deploy-v2.yml'
+      - '.github/workflows/axiom-mcp-production-deploy.yml'
+      - '.github/workflows/axiom-modal-production-deploy.yml'
+      - '.github/workflows/axiom-modal-musitu-parallel-deploy.yml'
+      - '.github/workflows/axiom-oauth-production-deploy.yml'
+      - '.github/workflows/axiom-d1-canonical-migration.yml'
+      - '.github/workflows/axiom-cloudflare-staging-deploy-v2.yml'
+      - '.github/workflows/axiom-cloudflare-staging-deploy.yml'
+      - '.github/workflows/axiom-modal-private-deploy.yml'
+      - '.github/workflows/axiom-modal-edge-isolated-deploy.yml'
+      - '.github/workflows/cloudflare-axiom-stage-security-exception.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover-v2.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover-v3.yml'
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover.yml'
+      - '.github/workflows/axiom-musitu-d1-live-cutover.yml'
+      - '.github/workflows/axiom-musitu-modal-backend-cutover.yml'
+      - '.github/workflows/axiom-musitu-stage-domain-cutover.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover-v2.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover.yml'
+      - '.github/workflows/axiom-production-custom-domain-cutover.yml'
+      - 'tests/connect/test_privileged_deployment_workflows.py'
+      - '.github/workflows/musitu-ga-deployment-safety.yml'
+permissions:
+  contents: read
+jobs:
+  fail-closed-deploy-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reject automatically triggered production and staging deployments
+        run: python -m unittest tests.connect.test_privileged_deployment_workflows -v
+      - name: Preserve commercial release prohibition
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected Connect GA release admission' >&2
+            exit 1
+          fi
+          echo 'CONNECT_COMMERCIAL_GA=BLOCKED'

@@ -1,0 +1,77 @@
+name: MUSITU Connect hosted D1 read-only regression (non-enabling)
+on:
+  push:
+    branches: ['fix/connect-d1-readonly-metadata-20261028', 'main']
+    paths:
+      - 'qualification/probe_connect_hosted_d1.py'
+      - 'tests/connect/test_hosted_d1_readonly.py'
+      - '.github/workflows/connect-d1-readonly-regression.yml'
+      - 'infra/connect_customer_registry.sql'
+      - 'qualification/connect_d1_staging_preflight.py'
+      - 'tests/connect/test_d1_staging_preflight.py'
+      - 'docs/operations/musitu-connect-hosted-d1-staging-preflight.md'
+      - '.github/workflows/musitu-connect-hosted-d1-readonly.yml'
+      - 'docs/operations/musitu-connect-hosted-d1-readonly.md'
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'qualification/probe_connect_hosted_d1.py'
+      - 'tests/connect/test_hosted_d1_readonly.py'
+      - '.github/workflows/connect-d1-readonly-regression.yml'
+      - 'infra/connect_customer_registry.sql'
+      - 'qualification/connect_d1_staging_preflight.py'
+      - 'tests/connect/test_d1_staging_preflight.py'
+      - 'docs/operations/musitu-connect-hosted-d1-staging-preflight.md'
+      - '.github/workflows/musitu-connect-hosted-d1-readonly.yml'
+      - 'docs/operations/musitu-connect-hosted-d1-readonly.md'
+permissions:
+  contents: read
+jobs:
+  readonly-local-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unprivileged Cloudflare D1 read-only contract tests
+        run: python -m unittest tests.connect.test_hosted_d1_readonly tests.connect.test_d1_staging_preflight -v
+      - name: Install Connect benchmark test dependency
+        run: python -m pip install --disable-pip-version-check scipy==1.18.1
+      - name: Run entire Connect Python qualification suite (non-enabling)
+        run: python -m unittest discover -s tests/connect -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run Connect production worker and customer Node suites (offline)
+        run: node --test tests/connect/test_production_worker.mjs tests/connect/test_customer_identity.mjs tests/connect/test_customer_admission.mjs tests/connect/test_customer_payload.mjs tests/connect/test_customer_ingress_canary.mjs tests/connect/test_customer_provisioning.mjs tests/connect/test_synthetic_beta_acceptance.mjs
+      - name: Enforce existing production customer admission guard
+        run: python qualification/validate_production_admission.py
+      - name: Verify existing production runtime guard
+        run: python qualification/verify_live_production_runtime.py
+      - name: Observe public Axiom MCP health without credentials or promotion
+        run: |
+          python -m unittest tests.connect.test_axiom_public_health_diagnostics -v
+          python qualification/diagnose_axiom_public_health.py --output axiom-public-health-observation.json
+          python - <<'PY'
+          import json
+          result=json.load(open('axiom-public-health-observation.json',encoding='utf-8'))
+          print('PUBLIC_AX_HEALTH_READY='+str(result['ready']))
+          print('PUBLIC_AX_HEALTH_FAILURE_FIELDS='+','.join(result['failed_checks']))
+          print('PUBLIC_AX_HEALTH_NOT_A_RELEASE_GATE=true')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-axiom-public-health-observation
+          path: axiom-public-health-observation.json
+          if-no-files-found: error
+      - name: Reconfirm separate commercial GA release remains disabled
+        run: |
+          python qualification/validate_commercial_ga.py --audit
+          if python qualification/validate_commercial_ga.py --enforce-ready; then
+            echo 'Unexpected commercial GA release readiness' >&2
+            exit 1
+          fi
+          echo 'CONNECT_COMMERCIAL_GA=STILL_BLOCKED'

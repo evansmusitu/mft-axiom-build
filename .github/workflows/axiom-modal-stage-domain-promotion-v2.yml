@@ -1,12 +1,12 @@
 name: MUSITU Axiom Modal Stage Domain Promotion V2
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-stage-domain-promotion-v2.yml']
+
 permissions:
   contents: read
 jobs:
   promote:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:

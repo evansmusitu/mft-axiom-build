@@ -1,0 +1,143 @@
+name: MUSITU Connect MQTT repeatability benchmark
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-mqtt-repeatability.yml'
+      - 'benchmarks/mining_adapter/mqtt_repeatability.py'
+      - 'tests/connect/test_mqtt_repeatability.py'
+      - 'connect/persistence.py'
+      - 'connect/mining_adapter.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-mqtt-repeatability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repeatability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      REPEAT_EVENTS: '1000000'
+      REPEAT_TRIALS: '4'
+      REPEAT_BATCH_SIZE: '3000'
+      REPEAT_SEED: '20261006'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install repeatability dependencies
+        run: |
+          python -m pip install --disable-pip-version-check paho-mqtt==2.1.0
+          python -m py_compile benchmarks/mining_adapter/mqtt_repeatability.py
+          python benchmarks/mining_adapter/mqtt_repeatability.py --help >/dev/null
+
+      - name: Verify repeatability contract
+        run: |
+          python -m unittest tests.connect.test_mqtt_repeatability -v
+
+      - name: Start both MQTT broker lanes
+        run: |
+          docker run -d --name repeat-mosquitto             -p 18831:1883             -v "$PWD/infra/qualification/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"             eclipse-mosquitto:2.1.2-alpine
+
+          docker run -d --name repeat-emqx             --hostname node1.emqx.com             --ulimit nofile=262144:262144             -e EMQX_NODE_NAME=emqx@node1.emqx.com             -e EMQX_NODE__DEFAULT_LISTENER_ADDRESS=all             -e EMQX_LISTENERS__TCP__DEFAULT__TCP_BACKEND=gen_tcp             -p 18832:1883             emqx/emqx-enterprise:6.3.1
+
+          python - <<'PY'
+          import socket,time
+          for port,name in ((18831,"mosquitto"),(18832,"emqx")):
+              for _ in range(240):
+                  try:
+                      with socket.create_connection(("127.0.0.1",port),timeout=.5):
+                          break
+                  except OSError:
+                      time.sleep(.25)
+              else:
+                  raise SystemExit(f"{name}_not_ready")
+          PY
+
+      - name: Run four counterbalanced 1M-event rounds
+        run: |
+          mkdir -p qualification/repeatability
+          python benchmarks/mining_adapter/mqtt_repeatability.py             --reference-port 18831             --emqx-port 18832             --events "$REPEAT_EVENTS"             --trials "$REPEAT_TRIALS"             --batch-size "$REPEAT_BATCH_SIZE"             --seed "$REPEAT_SEED"             --output qualification/repeatability/mqtt_repeatability.json
+
+      - name: Validate repeatability evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path("qualification/repeatability/mqtt_repeatability.json")
+          report=json.loads(path.read_text())
+          aggregate=report["aggregate"]
+          assert aggregate["trials"] >= 4
+          assert aggregate["events_per_trial"] >= 1_000_000
+          assert len(aggregate["raw_trials"]["reference"]) == aggregate["trials"]
+          assert len(aggregate["raw_trials"]["emqx"]) == aggregate["trials"]
+          for lane in ("reference","emqx"):
+              for trial in aggregate["raw_trials"][lane]:
+                  assert trial["events"] == trial["received"] == aggregate["events_per_trial"]
+                  assert trial["duplicates"] == 0
+                  assert trial["audit_chain_verified"] is True
+                  assert trial["credentials_used"] is False
+                  assert not trial["errors"]
+          assert aggregate["throughput"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
+          assert aggregate["p99_latency"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
+          frontier=report["performance_frontier"]
+          assert frontier["integrity_preserved"] is True
+          assert frontier["throughput_target_met"] is True
+          assert frontier["throughput_gain_x"] >= 2.0
+          print("MQTT_REPEATABILITY_EVIDENCE_VALID=PASS")
+          print("MQTT_PERFORMANCE_FRONTIER=PASS")
+          print(json.dumps({
+              "comparison_fingerprint":report["comparison_fingerprint"],
+              "throughput":aggregate["throughput"],
+              "p99_latency":aggregate["p99_latency"],
+              "repeatability_passed":aggregate["repeatability_passed"],
+              "performance_frontier":frontier,
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/repeatability/mqtt_repeatability.json
+
+      - name: Publish repeatability summary
+        run: |
+          {
+            echo "## MQTT repeatability benchmark"
+            echo
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("qualification/repeatability/mqtt_repeatability.json").read_text())
+          a=r["aggregate"]
+          print(f"- Fingerprint: `{r['comparison_fingerprint']}`")
+          print(f"- Trials: {a['trials']} × {a['events_per_trial']:,} events per lane")
+          print(f"- Reference throughput outcome: **{a['throughput']['reference_outcome']}**")
+          print(f"- Reference p99 outcome: **{a['p99_latency']['reference_outcome']}**")
+          print(f"- Repeatability gate: **{'PASS' if a['repeatability_passed'] else 'INCONCLUSIVE'}**")
+          frontier=r["performance_frontier"]
+          print(f"- Performance frontier: **{'PASS' if frontier['throughput_target_met'] else 'FAIL'}**")
+          print(f"- Reference throughput gain: **{frontier['throughput_gain_x']:.2f}×**")
+          print(f"- Reference p99 improvement: **{frontier['p99_improvement_x']:.2f}×**")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive raw repeatability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-mqtt-repeatability-evidence
+          path: qualification/repeatability/mqtt_repeatability.json
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Cleanup broker lanes
+        if: always()
+        run: |
+          docker rm -f repeat-mosquitto 2>/dev/null || true
+          docker rm -f repeat-emqx 2>/dev/null || true

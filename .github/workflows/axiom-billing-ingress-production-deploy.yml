@@ -1,10 +1,6 @@
 name: MUSITU Axiom Billing Ingress Production Deploy
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-billing-ingress-production-deploy.yml'
-      - 'ops/axiom_billing_ingress_deploy_v2.py'
   workflow_dispatch:
 
 permissions:
@@ -12,6 +8,7 @@ permissions:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

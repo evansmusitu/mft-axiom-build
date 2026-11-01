@@ -2,15 +2,13 @@ name: MUSITU Axiom Production D1 Provision
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-d1-production-provision.yml'
 
 permissions:
   contents: read
 
 jobs:
   provision-d1:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

@@ -1,0 +1,414 @@
+import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
+import fs from 'node:fs';
+import test from 'node:test';
+import { pathToFileURL } from 'node:url';
+
+const workerPath = new URL('../../connect/production_worker.mjs', import.meta.url);
+const accountKey = 'test-account-key';
+const internalToken = createHmac('sha256', accountKey)
+  .update('MUSITU-CONNECT-RUNTIME-INTERNAL-V1')
+  .digest('hex');
+const env = {
+  AXIOM_ACCOUNT_KEY: accountKey,
+  PRODUCTION: 'false',
+  RELEASE: 'test-release',
+};
+const scenario = [
+  { hazard: 'Ground collapse', exposure: 0.54, severity: 10, likelihood: 0.62, cost: 18000, benefit: 0.34 },
+  { hazard: 'Explosives / gases', exposure: 0.25, severity: 8, likelihood: 0.48, cost: 12000, benefit: 0.28 },
+  { hazard: 'Shaft falls', exposure: 0.15, severity: 9, likelihood: 0.4, cost: 14000, benefit: 0.24 },
+  { hazard: 'Electrocution / equipment', exposure: 0.06, severity: 7, likelihood: 0.36, cost: 9000, benefit: 0.18 },
+];
+
+async function worker() {
+  assert.equal(
+    fs.existsSync(workerPath),
+    true,
+    'production worker module must exist before the runtime can be enabled',
+  );
+  return import(pathToFileURL(workerPath.pathname).href);
+}
+
+function authHeaders() {
+  return {
+    authorization: 'Bearer ' + internalToken,
+    'content-type': 'application/json',
+  };
+}
+
+test('production worker exposes healthy pre-production canary surface', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/health'),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body, {
+    ok: true,
+    service: 'MUSITU Connect',
+    release: 'test-release',
+    production: false,
+    axiomIntegrationAllowed: true,
+  });
+});
+
+test('production worker denies unauthenticated planning fail closed', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rows: scenario, budget: 50000 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { ok: false, error: 'UNAUTHORIZED' });
+});
+
+test('production worker computes the exact constrained Mining plan when authenticated', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows: scenario, budget: 50000 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.gate, 'LOCKED');
+  assert.equal(body.spend, 44000);
+  assert.deepEqual(body.selected, ['Ground collapse', 'Explosives / gases', 'Shaft falls']);
+  assert.equal(body.baselineRisk, 4.9992);
+  assert.ok(Math.abs(body.residualRisk - 3.46248) < 1e-12);
+  assert.ok(Math.abs(body.riskReduction - 1.53672) < 1e-12);
+  assert.ok(Math.abs(body.relativeReduction - 30.74) < 1e-12);
+});
+
+
+test('production worker exact planner accepts more than twenty Mining rows', async () => {
+  const mod = await worker();
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    hazard: `Hazard ${String(index).padStart(2, '0')}`,
+    exposure: 1,
+    severity: 1,
+    likelihood: 1,
+    cost: index === 0 ? 1 : 1000,
+    benefit: index === 0 ? 1 : 0.01,
+  }));
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows, budget: 1 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.selected, ['Hazard 00']);
+  assert.equal(body.spend, 1);
+  assert.equal(body.residualRisk, 24);
+});
+
+test('production worker rejects Mining benefit above one', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        rows: [{ ...scenario[0], benefit: 1.01 }],
+        budget: 50000,
+      }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { ok: false, error: 'INVALID_REQUEST' });
+});
+
+
+test('production worker rejects incomplete spatial metadata', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows: [{ ...scenario[0], latitude: -17.83 }], budget: 50000 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
+});
+
+test('production worker sends provenance-bound risk execution to Axiom and sanitizes the response', async () => {
+  const mod = await worker();
+  const previousFetch = globalThis.fetch;
+  let observedRequestId = '';
+  let observedBody = null;
+  let observedAuthorization = '';
+  globalThis.fetch = async (url, init = {}) => {
+    assert.equal(url, 'https://axiom.mftintelligence.com/v1/compute');
+    observedAuthorization = String(init.headers?.authorization || init.headers?.Authorization || '');
+    observedRequestId = String(init.headers?.['x-musitu-request-id'] || '');
+    observedBody = JSON.parse(String(init.body || '{}'));
+    return new Response(JSON.stringify({
+      ok: true,
+      request_id: observedRequestId,
+      result: { ok: true, result: '3.348' },
+      receipt: 'must-not-leak',
+      customer_id: 'must-not-leak',
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const response = await mod.default.fetch(
+      new Request('https://canary.example/api/mining/risk', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          run_id: 'mining-prod-q1',
+          rows: [scenario[0]],
+        }),
+      }),
+      env,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(observedAuthorization, 'Bearer ' + accountKey);
+    assert.deepEqual(observedBody, {
+      operation: 'arithmetic.evaluate',
+      args: { expression: '0.54*10*0.62' },
+    });
+    assert.match(observedRequestId, /^MUSITU-CONNECT-mining-prod-q1-[a-f0-9]{16}$/);
+    assert.equal(body.ok, true);
+    assert.equal(body.gate, 'OPEN');
+    assert.equal(body.operation, 'arithmetic.evaluate');
+    assert.equal(body.result, '3.348');
+    assert.equal(body.request_id, observedRequestId);
+    assert.equal(body.canonical_sha256.length, 64);
+    assert.equal('receipt' in body, false);
+    assert.equal('customer_id' in body, false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('risk rejects multiple records before Axiom execution rather than silently ignoring records', async () => {
+  const mod = await worker();
+  const previousFetch = globalThis.fetch;
+  let outboundCalls = 0;
+  globalThis.fetch = async () => {
+    outboundCalls += 1;
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    const response = await mod.default.fetch(
+      new Request('https://canary.example/api/mining/risk', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ run_id: 'multi-record-rejected', rows: scenario.slice(0, 2) }),
+      }),
+      env,
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { ok: false, error: 'RISK_SINGLE_ROW_REQUIRED' });
+    assert.equal(outboundCalls, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('planner refuses expensive search instead of returning an unverified partial optimum', async () => {
+  const mod = await worker();
+  const rows = Array.from({ length: 18 }, (_, index) => ({
+    hazard: `Uniform hazard ${index}`,
+    exposure: 1,
+    severity: 1,
+    likelihood: 1,
+    cost: 1,
+    benefit: 1,
+  }));
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows, budget: 9 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { ok: false, error: 'PLAN_SEARCH_LIMIT_EXCEEDED' });
+});
+
+
+test('internal Mining risk refuses unsafe correlation identifiers before contacting Axiom', async () => {
+  const mod = await worker();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return Response.json({ok:true, result:{result:'3.348'}});
+  };
+  try {
+    const unsafe = [
+      'a' + String.fromCharCode(92) + 'b', // backslash
+      'abc' + String.fromCharCode(9) + 'def', // tab
+      'a' + String.fromCharCode(0) + 'b', // NUL
+      'a' + String.fromCharCode(10) + 'b', // newline
+      'a' + String.fromCharCode(127) + 'b', // DEL
+      'a b', 'méthane', ' run-with-padding', 'run-with-padding ',
+      'A'.repeat(81), '', 3,
+    ];
+    for (const run_id of unsafe) {
+      const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({run_id, rows:[scenario[0]]}),
+      }), env);
+      assert.equal(response.status, 400, 'identifier should be rejected: ' + JSON.stringify(run_id));
+      assert.deepEqual(await response.json(), {ok:false, error:'INVALID_REQUEST'});
+    }
+    assert.equal(calls, 0, 'unsafe IDs cannot reach the outbound correlation header');
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('internal Mining risk retains valid 80-character safe correlation identifiers', async () => {
+  const mod = await worker();
+  const runId = 'r' + 'a'.repeat(79);
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (_url, init) => {
+    calls++;
+    return Response.json({ok:true, request_id:init.headers['x-musitu-request-id'], result:{result:'3.348'}});
+  };
+  try {
+    const response = await mod.default.fetch(new Request('https://canary.example/api/mining/risk', {
+      method:'POST',
+      headers:authHeaders(),
+      body:JSON.stringify({run_id:runId, rows:[scenario[0]]}),
+    }),env);
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).ok,true);
+    assert.equal(calls,1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+
+test('planner never spends a positive sub-picounit cost with zero budget', async () => {
+  const mod=await worker();
+  const row={hazard:'Fractional positive cost',exposure:1,severity:1,likelihood:1,cost:5e-13,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.equal(plan.spend,0);
+  assert.deepEqual(plan.selected,[]);
+});
+
+test('planner still selects free interventions at zero budget', async () => {
+  const mod=await worker();
+  const row={hazard:'Free',exposure:1,severity:1,likelihood:1,cost:0,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.equal(plan.spend,0);
+  assert.deepEqual(plan.selected,['Free']);
+});
+
+test('planner preserves positive sub-epsilon risk reductions', async () => {
+  const mod=await worker();
+  const row={hazard:'Micro reduction',exposure:1,severity:1,likelihood:1,cost:0,benefit:5e-13};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.deepEqual(plan.selected,['Micro reduction']);
+  assert.equal(plan.riskReduction,5e-13);
+});
+
+test('planner correctly reports 100 percent reduction of a tiny nonzero baseline', async () => {
+  const mod=await worker();
+  const row={hazard:'Tiny baseline',exposure:5e-13,severity:1,likelihood:1,cost:0,benefit:1};
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows:[row],budget:0}),
+  }),env);
+  assert.equal(response.status,200);
+  const plan=await response.json();
+  assert.deepEqual(plan.selected,['Tiny baseline']);
+  assert.equal(plan.relativeReduction,100);
+  assert.equal(plan.residualRisk,0);
+});
+
+test('planner matches exhaustive integer-budget oracle in 45 deterministic cases', async () => {
+  const mod=await worker();
+  let seed=0x6c842111;
+  const next=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed;};
+  for(let trial=0;trial<45;trial++){
+    const rows=Array.from({length:7},(_,i)=>({
+      hazard:'Oracle '+i,exposure:1,severity:1,likelihood:1,
+      cost:next()%9,benefit:(next()%9)/8,
+    }));
+    const budget=next()%19;
+    const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+      method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget}),
+    }),env);
+    assert.equal(response.status,200);
+    const plan=await response.json();
+    let optimum=-1,minSpend=Infinity;
+    for(let bits=0;bits<(1<<rows.length);bits++){
+      let cost=0,benefit=0;
+      for(let i=0;i<rows.length;i++)if(bits&(1<<i)){
+        cost+=rows[i].cost;benefit+=rows[i].benefit;
+      }
+      if(cost<=budget && (benefit>optimum || (benefit===optimum && cost<minSpend))){
+        optimum=benefit;minSpend=cost;
+      }
+    }
+    assert.ok(plan.spend<=budget,'budget exceeded in trial '+trial);
+    assert.equal(plan.riskReduction,optimum,'suboptimal objective at '+trial);
+    assert.equal(plan.spend,minSpend,'nonminimum tie-spend at '+trial);
+  }
+});
+
+
+test('planner fails closed when cumulative cost loses a positive financial amount', async () => {
+  const mod=await worker();
+  const rows=[
+    {hazard:'Small exact spend',exposure:1,severity:1,likelihood:1,cost:1,benefit:1},
+    {hazard:'Large exact spend',exposure:1,severity:2,likelihood:1,cost:10000000000000000,benefit:1},
+  ];
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget:10000000000000000}),
+  }),env);
+  assert.equal(response.status,400);
+  assert.deepEqual(await response.json(),{ok:false,error:'PLAN_COST_PRECISION_UNSAFE'});
+});
+
+test('planner refuses ambiguous floating-point cumulative costs instead of falsely certifying exact currency', async () => {
+  const mod=await worker();
+  const rows=[
+    {hazard:'Decimal A',exposure:1,severity:2,likelihood:1,cost:0.1,benefit:1},
+    {hazard:'Decimal B',exposure:1,severity:1,likelihood:1,cost:0.2,benefit:1},
+  ];
+  const response=await mod.default.fetch(new Request('https://canary.example/api/mining/plan',{
+    method:'POST',headers:authHeaders(),body:JSON.stringify({rows,budget:0.5}),
+  }),env);
+  assert.equal(response.status,400);
+  assert.deepEqual(await response.json(),{ok:false,error:'PLAN_COST_PRECISION_UNSAFE'});
+});

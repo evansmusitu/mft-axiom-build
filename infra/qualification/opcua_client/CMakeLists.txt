@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(musitu_connect_opcua_qualification C)
+set(CMAKE_C_STANDARD 99)
+set(UA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(UA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(/tmp/open62541 open62541 EXCLUDE_FROM_ALL)
+add_executable(musitu_opcua_client client.c)
+target_link_libraries(musitu_opcua_client PRIVATE open62541)

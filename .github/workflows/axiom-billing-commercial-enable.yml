@@ -1,11 +1,6 @@
 name: MUSITU Axiom Billing Commercial Enable
 
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-billing-commercial-enable.yml'
-      - 'ops/axiom_billing_commercial_enable_v1.py'
-      - 'ops/axiom_billing_commercial_enable_v2.py'
   workflow_dispatch:
 
 permissions:
@@ -17,6 +12,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

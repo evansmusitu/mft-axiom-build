@@ -1,12 +1,12 @@
 name: MUSITU Axiom Modal Edge Service Compatibility Patch
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-edge-service-compat-patch.yml']
+
 permissions:
   contents: read
 jobs:
   patch-deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

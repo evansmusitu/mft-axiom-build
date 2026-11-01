@@ -1,0 +1,110 @@
+{
+  "assessed_on": "2026-10-18",
+  "independent_mine_validation": false,
+  "operator_permission_authenticated": false,
+  "production_methane_prediction_qualification": false,
+  "purpose": "Published 2025-2026 source descriptions; independent-mine candidate triage. No original external telemetry bytes or site permission obtained.",
+  "record_count": 5,
+  "schema": "musitu.axiom.independent_mine_source_discovery.v1",
+  "source_access_qualification": "PUBLIC_DESCRIPTION_ONLY_NOT_NEW_RAW_DATA",
+  "sources": [
+    {
+      "candidate_id": "china-working-face-seven-2022-2023",
+      "data_kind": "underground_operational_sensor_stream",
+      "evidence_category": "PUBLISHED_DESCRIPTION_ONLY_SEVEN_CHANNELS_60_SECONDS",
+      "independently_measured_canonical_sensors": [],
+      "original_source_bytes_obtained": false,
+      "real_mine_independent_validation": false,
+      "sampling_seconds": 60,
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "site_identity_independently_authenticated": false,
+      "source_description": "An independent Chinese longwall is described; five methane, one temperature and one wind-speed sensor; 710,367 observations recorded as one-minute averages in 2022–2023. No additional 1 Hz / 28-channel raw source established.",
+      "source_lineage_identifiers": [
+        "doi:10.1109/ICMLT65785.2025.11193369"
+      ],
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "source_publication": "Online Deep Transfer Learning and Multi-Sensor Analysis for Enhanced Underground Monitoring (ICMLT 2025)",
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_url": "https://ieeexplore.ieee.org/document/11193369/"
+    },
+    {
+      "candidate_id": "shanxi-surface-methane-2022-field",
+      "data_kind": "surface_atmospheric_methane_emissions",
+      "evidence_category": "ONE_HZ_BUT_WRONG_MEASUREMENT_DOMAIN_AND_SENSOR_TOPOLOGY",
+      "independently_measured_canonical_sensors": [],
+      "original_source_bytes_obtained": false,
+      "real_mine_independent_validation": false,
+      "sampling_seconds": 1,
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "site_identity_independently_authenticated": false,
+      "source_description": "Surface methane measured around coal mines at 5 m above ground at 1 Hz during August 2022. Not synchronized 28-channel underground methane and shearer telemetry.",
+      "source_lineage_identifiers": [
+        "doi:10.5194/acp-25-5837-2025",
+        "doi:10.6084/m9.figshare.24464149"
+      ],
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "source_publication": "Surface-observation-constrained high-frequency coal mine methane emissions in Shanxi, China (ACP 2025)",
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_url": "https://acp.copernicus.org/articles/25/5837/2025/acp-25-5837-2025.html"
+    },
+    {
+      "candidate_id": "bowen-airborne-methane-2026",
+      "data_kind": "aircraft_atmospheric_methane_emissions",
+      "evidence_category": "AIRBORNE_EMISSIONS_WRONG_DOMAIN",
+      "independently_measured_canonical_sensors": [],
+      "original_source_bytes_obtained": false,
+      "real_mine_independent_validation": false,
+      "sampling_seconds": null,
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "site_identity_independently_authenticated": false,
+      "source_description": "Aircraft atmospheric methane observations over mining facilities; not raw 28-channel one-second underground operational instrumentation.",
+      "source_lineage_identifiers": [
+        "doi:10.5194/acp-26-10043-2026",
+        "doi:10.5281/zenodo.16992959"
+      ],
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "source_publication": "Evaluation of coal mine methane inventory methods using aircraft-based approaches in the Bowen Basin, Australia (ACP 2026)",
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_url": "https://acp.copernicus.org/articles/26/10043/2026/acp-26-10043-2026.html"
+    },
+    {
+      "candidate_id": "china-monthly-mine-emissions-2018-2024",
+      "data_kind": "monthly_emissions_inventory",
+      "evidence_category": "MONTHLY_AGGREGATES_WRONG_CADENCE",
+      "independently_measured_canonical_sensors": [],
+      "original_source_bytes_obtained": false,
+      "real_mine_independent_validation": false,
+      "sampling_seconds": null,
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "site_identity_independently_authenticated": false,
+      "source_description": "Monthly mine-level emissions and capacity/inventory attributes, not one-second underground sensor streams.",
+      "source_lineage_identifiers": [
+        "doi:10.5281/zenodo.21483131"
+      ],
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "source_publication": "A Monthly Coal Mine-Level Methane Emission Dataset for China from 2018 to 2024 (Zenodo 2026)",
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_url": "https://zenodo.org/records/21483131"
+    },
+    {
+      "candidate_id": "polish-mendeley-reuse-in-2026-study",
+      "data_kind": "underground_operational_sensor_stream",
+      "evidence_category": "KNOWN_DEVELOPMENT_SOURCE_REUSED",
+      "independently_measured_canonical_sensors": [],
+      "original_source_bytes_obtained": false,
+      "real_mine_independent_validation": false,
+      "sampling_seconds": 1,
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "site_identity_independently_authenticated": false,
+      "source_description": "2026 analysis explicitly uses Mendeley 2014 Polish mine dataset previously used for the frozen MUSITU model. Not an independent data lineage.",
+      "source_lineage_identifiers": [
+        "doi:10.17632/yd7vw4c5mk.1",
+        "doi:10.3390/s26134126"
+      ],
+      "source_permission_status": "NOT_AUTHENTICATED",
+      "source_publication": "Interpretable Event-Driven Multisensor Risk-Evolution Analysis for Methane Early Warning (Sensors 2026)",
+      "source_sha256_status": "NOT_ACQUIRED_NOT_BYTE_VERIFIED",
+      "source_url": "https://www.mdpi.com/1424-8220/26/13/4126"
+    }
+  ]
+}

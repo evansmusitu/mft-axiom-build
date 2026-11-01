@@ -2,15 +2,13 @@ name: MUSITU Axiom Modal Adapter Transport Diagnostic
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml'
 
 permissions:
   contents: read
 
 jobs:
   diagnose:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

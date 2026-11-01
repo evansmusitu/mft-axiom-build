@@ -2,10 +2,6 @@ name: MUSITU Axiom OAuth Production Deploy
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'auth/musitu_axiom_oauth_worker.mjs'
-      - '.github/workflows/axiom-oauth-production-deploy.yml'
 
 permissions:
   contents: read
@@ -16,6 +12,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

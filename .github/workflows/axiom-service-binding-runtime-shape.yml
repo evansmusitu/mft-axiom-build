@@ -1,12 +1,12 @@
 name: MUSITU Axiom Service Binding Runtime Shape
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-service-binding-runtime-shape.yml']
+
 permissions:
   contents: read
 jobs:
   inspect:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

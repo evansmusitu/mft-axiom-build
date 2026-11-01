@@ -2,9 +2,6 @@ name: MUSITU Axiom Disposable Paynow Checkout E2E
 
 # Disposable unpaid provider checkout; all fixture rows are deleted in the same run.
 on:
-  push:
-    paths:
-      - '.github/workflows/axiom-billing-disposable-checkout-e2e.yml'
   workflow_dispatch:
 
 permissions:
@@ -16,6 +13,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:

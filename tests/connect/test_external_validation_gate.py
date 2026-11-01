@@ -1,0 +1,200 @@
+import copy
+import json
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+import unittest
+from benchmarks.mining_adapter.external_validation_gate import assess_external_evidence
+
+
+def metric(tp,fp,fn,tn):
+    p=tp/(tp+fp) if tp+fp else 0
+    r=tp/(tp+fn) if tp+fn else 0
+    return {'tp':tp,'fp':fp,'fn':fn,'tn':tn,'precision':p,'recall':r,
+            'specificity':tn/(tn+fp) if tn+fp else 0,
+            'f1':2*p*r/(p+r) if p+r else 0,
+            'f2':5*p*r/(4*p+r) if 4*p+r else 0}
+
+
+def report():
+    m=metric(460, 1900, 40, 7600)
+    m.update({'average_precision':.37,'prevalence':.05,
+              'f2_delta_vs_hard_warning':m['f2']-metric(200, 1100, 300, 8400)['f2']})
+    return {'schema':'musitu.axiom.frozen_external_mine_evaluation.v1',
+            'status':'RESEARCH_ONLY_NOT_ADMITTED','source_sha256':'a'*64,
+            'model_manifest_sha256':'f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf','model_sha256':'3b51f3318fb59d2555b66cbbd41e371f9f0241d2137e5166c77e685f9ab030eb','source_manifest_sha256':'d'*64,
+            'frozen_score_threshold':0.022545819099925965,'frozen_warning_threshold':1.0,
+            'source_rows':100_000,'eligible_examples':10_000,'test_positives':500,
+            'observed_hard_warnings':1300,'hard_warning_preserved':True,
+            'model':m,'baseline':metric(200,1100,300,8400),'feature_count':54,
+            'window_proxy_audit': {'schema':'musitu.axiom.external_window_proxy_audit.v1',
+               'window_count':10000,'positive_label_windows':500,
+               'hard_observed_warning_windows':1300,'false_alert_windows':1900,
+               'false_alert_prediction_streaks':175,'positive_window_overlap_groups':40,
+               'proxy_groups_detected':38,'proxy_groups_missed':2,
+               'hard_warning_proxy_groups_detected':20,'audit_trace_sha256':'e'*64,
+               'overlap_groups_are_unique_incidents':False,
+               'false_alert_streaks_are_operational_alarm_events':False,
+               'trace_digest_proves_source_authenticity':False,
+               'independent_validation':False,'production_admission':False},
+            'model_retrained':False,'threshold_recalibrated':False,
+            'preflight':{'source_integrity':'HASH_AND_SCHEMA_VERIFIED',
+                        'provenance_status':'DECLARATIONS_ONLY_NOT_INDEPENDENTLY_VERIFIED',
+                        'positive_label_examples':500},
+            'production_admission':False,'independent_validation':False,
+            'admission_gate':'NOT_EVALUATED'}
+
+
+class ExternalValidationGateTests(unittest.TestCase):
+    def test_external_gate_cli_rejects_ambiguous_duplicate_object_keys(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        original = json.dumps(report(), sort_keys=True)
+        self.assertIn('"fp": 1900', original)
+        cases = (
+            original[:-1] + ', "production_admission": false}',
+            original.replace('"fp": 1900', '"fp": 1900, "fp": 1900', 1),
+        )
+        for payload in cases:
+            with self.subTest(payload_sha=payload[-55:]):
+                with TemporaryDirectory() as directory:
+                    source = Path(directory) / 'input_evidence.json'
+                    target = Path(directory) / 'research_audit.json'
+                    source.write_text(payload, encoding='utf-8')
+                    argv = ['external_validation_gate', '--evidence', str(source),
+                            '--output', str(target)]
+                    with patch.object(sys, 'argv', argv):
+                        with self.assertRaisesRegex(ValueError, 'external_gate_duplicate_json_key'):
+                            validator.main()
+                    self.assertFalse(target.exists())
+
+    def test_external_gate_cli_rejects_nonstandard_json_nan(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        original = json.dumps(report(), sort_keys=True)
+        self.assertIn('"average_precision": 0.37', original)
+        payload = original.replace('"average_precision": 0.37',
+                                   '"average_precision": NaN', 1)
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / 'input_evidence.json'
+            target = Path(directory) / 'research_audit.json'
+            source.write_text(payload, encoding='utf-8')
+            argv = ['external_validation_gate', '--evidence', str(source),
+                    '--output', str(target)]
+            with patch.object(sys, 'argv', argv):
+                with self.assertRaisesRegex(ValueError, 'external_gate_nonstandard_json_number'):
+                    validator.main()
+            self.assertFalse(target.exists())
+
+    def test_external_gate_output_race_fails_without_overwriting(self):
+        import benchmarks.mining_adapter.external_validation_gate as validator
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / 'input_evidence.json'
+            target = Path(directory) / 'research_audit.json'
+            source.write_text('{}', encoding='utf-8')
+            marker = 'previously published evidence - must not overwrite'
+
+            def concurrent_writer(*args, **kwargs):
+                target.write_text(marker, encoding='utf-8')
+                return {'status': 'PENDING_EXTERNAL_PROVENANCE_AND_INDEPENDENT_REVIEW',
+                        'production_admission': False}
+
+            argv = ['external_validation_gate', '--evidence', str(source),
+                    '--output', str(target)]
+            with patch.object(validator, 'assess_external_evidence',
+                              side_effect=concurrent_writer), patch.object(sys, 'argv', argv):
+                with self.assertRaises(FileExistsError):
+                    validator.main()
+            self.assertEqual(target.read_text(encoding='utf-8'), marker)
+
+    def test_unpinned_model_and_modified_frozen_threshold_are_rejected(self):
+        variants = (
+            ('model_manifest_sha256', 'b' * 64),
+            ('model_sha256', 'c' * 64),
+            ('frozen_score_threshold', 0.025),
+            ('frozen_warning_threshold', 1.01),
+            ('frozen_score_threshold', '0.022545819099925965'),
+            ('frozen_warning_threshold', True),
+            ('frozen_score_threshold', None),
+            ('feature_count', 52),
+        )
+        for field, replacement in variants:
+            with self.subTest(field=field, replacement=replacement):
+                altered = report()
+                altered[field] = replacement
+                with self.assertRaisesRegex(ValueError, 'external_gate_frozen_model_pin_mismatch'):
+                    assess_external_evidence(altered)
+
+    def test_high_measured_scores_never_grant_independent_status(self):
+        result=assess_external_evidence(report())
+        self.assertTrue(result['research_performance_meets_predeclared_thresholds'])
+        self.assertFalse(result['independent_validation'])
+        self.assertFalse(result['production_admission'])
+        self.assertEqual(result['status'], 'PENDING_EXTERNAL_PROVENANCE_AND_INDEPENDENT_REVIEW')
+        self.assertEqual(result['source_support'], 'SUFFICIENT_FOR_SINGLE_DESCRIPTIVE_COHORT')
+        self.assertEqual(result['admission_gate'], 'NOT_AUTHORIZED')
+        self.assertFalse(result['original_four_fold_gate_satisfied'])
+        self.assertEqual(result['window_proxy_overlap_groups'], 40)
+        self.assertEqual(result['window_proxy_missed_groups'], 2)
+        self.assertFalse(result['window_proxy_incident_certification'])
+
+    def test_tampered_confusion_matrix_and_summary_are_rejected(self):
+        for mutation in ('fp','recall','f2'):
+            r=report()
+            r['model'][mutation] += 1
+            with self.subTest(mutation=mutation):
+                with self.assertRaisesRegex(ValueError,'confusion_or_metric_mismatch'):
+                    assess_external_evidence(r)
+
+    def test_rejects_missing_or_forged_proxy_window_statistics(self):
+        for key, value, error in (
+            ('window_count', 9999, 'proxy_count_mismatch'),
+            ('false_alert_windows', 50, 'proxy_count_mismatch'),
+            ('proxy_groups_missed', 999, 'proxy_count_mismatch'),
+            ('overlap_groups_are_unique_incidents', True, 'proxy_audit_untrusted'),
+            ('trace_digest_proves_source_authenticity', True, 'proxy_audit_untrusted'),
+            ('audit_trace_sha256', 'not-a-sha', 'proxy_trace_invalid'),
+        ):
+            case = report()
+            case['window_proxy_audit'][key] = value
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError, error):
+                    assess_external_evidence(case)
+        case = report()
+        del case['window_proxy_audit']
+        with self.assertRaisesRegex(ValueError, 'proxy_audit_untrusted'):
+            assess_external_evidence(case)
+
+    def test_negative_f2_or_insufficient_support_stays_unqualified(self):
+        r=report();r['test_positives']=300
+        r['preflight']['positive_label_examples']=300
+        r['window_proxy_audit']['positive_label_windows']=300
+        r['model']=metric(280,1900,20,7800)
+        r['baseline']=metric(200,1100,100,8600)
+        r['model'].update({'average_precision':.37,'prevalence':.03,
+                           'f2_delta_vs_hard_warning':r['model']['f2']-r['baseline']['f2']})
+        # Physical baseline/model confusion totals must still match 10k
+        r['model']['tn']=7800
+        self.assertEqual(sum(r['model'][k] for k in ('tp','fp','fn','tn')),10000)
+        result=assess_external_evidence(r)
+        self.assertFalse(result['research_performance_meets_predeclared_thresholds'])
+        self.assertEqual(result['source_support'],'INSUFFICIENT')
+        self.assertFalse(result['independent_validation'])
+
+    def test_will_not_accept_recalibration_or_a_claimed_independent_result(self):
+        for attr,value in [('threshold_recalibrated',True),('model_retrained',True),
+                           ('production_admission',True),('independent_validation',True)]:
+            r=report();r[attr]=value
+            with self.subTest(attr=attr):
+                with self.assertRaisesRegex(ValueError,'untrusted_evaluation_contract'):
+                    assess_external_evidence(r)
+
+    def test_hard_warnings_unverifiable_or_bad_preflight_fail(self):
+        for attr,value in [('hard_warning_preserved',False),('observed_hard_warnings',2000)]:
+            r=report();r[attr]=value
+            with self.subTest(attr=attr):
+                with self.assertRaisesRegex(ValueError,'hard_warning|proxy_count'):assess_external_evidence(r)
+        r=report();r['preflight']['source_integrity']='DEVELOPMENT_ONLY'
+        with self.assertRaisesRegex(ValueError,'preflight'):assess_external_evidence(r)
+
+
+if __name__=='__main__':unittest.main()
