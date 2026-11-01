@@ -20,7 +20,9 @@ export function classifySavedCancellation(rows,ray='a53c044b0eda9b36'){
     usage_scope:'EXACT_ID_PROVIDER_ANALYTICS_RECORD_NOT_INVOICE'};
 }
 
-export async function inspectProviderGates({token,fetchImpl=fetch,observe=()=>{}}={}){
+export async function inspectProviderGates({token,fetchImpl=fetch,observe=()=>{},savedWindow={start:'2026-11-01T15:42:00Z',end:'2026-11-01T15:46:00Z'}}={}){
+  const {start,end}=savedWindow;
+  if(typeof start!=='string'||typeof end!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(start)||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(end)||!Number.isFinite(Date.parse(start))||!Number.isFinite(Date.parse(end))||Date.parse(end)<=Date.parse(start)||Date.parse(end)-Date.parse(start)>86400000)throw new TypeError('bounded saved-request time window required');
   const report={schema:'musitu.axiom.provider-gates-readonly.v1',observed_at:new Date().toISOString(),source_sha:process.env.AXIOM_ACCEPTANCE_SOURCE_SHA,
     inference_calls:0,remote_resource_writes:0,existing_database_mutations:0,billing_changes:0,release_authorized:false,checks:{}};
   if(!token?.trim())throw new Error('existing Cloudflare token required');
@@ -62,10 +64,10 @@ export async function inspectProviderGates({token,fetchImpl=fetch,observe=()=>{}
     const filters=schema.find(x=>/AiInferenceAdaptiveFilter_InputObject$/i.test(x?.name??''))?.inputFields?.map(x=>x.name)??[];
     const startKey=filters.includes('datetime_geq')?'datetime_geq':'datetime_gt';
     const endKey=filters.includes('datetime_leq')?'datetime_leq':'datetime_lt';
-    const query=`query { viewer { accounts(filter: {accountTag: "${ACCOUNT_ID}"}) { aiInferenceAdaptive(limit: 100, filter: {${startKey}: "2026-11-01T15:42:00Z", ${endKey}: "2026-11-01T15:46:00Z"}) { ${fields.join(' ')} } } } }`;
+    const query=`query { viewer { accounts(filter: {accountTag: "${ACCOUNT_ID}"}) { aiInferenceAdaptive(limit: 100, filter: {${startKey}: "${start}", ${endKey}: "${end}"}) { ${fields.join(' ')} } } } }`;
     const data=await call('/graphql',{query}),accounts=data.data?.viewer?.accounts;
     if(!Array.isArray(accounts)||accounts.length!==1||!Array.isArray(accounts[0].aiInferenceAdaptive))throw new Error('per-request analytics missing');
-    return {fields,rows:accounts[0].aiInferenceAdaptive,classification:classifySavedCancellation(accounts[0].aiInferenceAdaptive),pagination_exhausted:accounts[0].aiInferenceAdaptive.length<100};
+    return {window:{start,end},fields,rows:accounts[0].aiInferenceAdaptive,classification:classifySavedCancellation(accounts[0].aiInferenceAdaptive),pagination_exhausted:accounts[0].aiInferenceAdaptive.length<100};
   });
   report.completed_at=new Date().toISOString();await observe(report);return report;
 }
