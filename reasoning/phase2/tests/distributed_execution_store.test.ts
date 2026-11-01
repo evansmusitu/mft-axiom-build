@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { hashJson } from "../../phase1/src/index.ts";
+import { createDistributedWorkerTestAuthority } from "./distributed_worker_test_fixture.ts";
 
 const A={tenantId:"tenant:jobs:a"},B={tenantId:"tenant:jobs:b"};
 const H=(ch:string)=>ch.repeat(64);
@@ -43,7 +44,8 @@ test("SQLite distributed execution store fences leases and preserves immutable t
   const phase2:any=await import("../src/index.ts");
   assert.equal(typeof phase2.DistributedExecutionStore,"function");
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-jobs-")),db=join(dir,"jobs.db");
-  const store:any=new phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const store:any=authority.bind(new phase2.DistributedExecutionStore(db,authority.storeOptions));
   try{
     const created=await store.create(A,intentCore());
     assert.equal(created.intent.tenantId,A.tenantId);
@@ -67,19 +69,19 @@ test("SQLite distributed execution store fences leases and preserves immutable t
 
     const heart=await store.heartbeat(A,created.intent.jobId,"worker:a",1,"2026-10-08T12:00:03.500Z",2000);
     assert.equal(heart.leaseExpiresAt,"2026-10-08T12:00:05.500Z");
-    await assert.rejects(()=>store.heartbeat(A,created.intent.jobId,"worker:b",1,"2026-10-08T12:00:04.000Z",1000),/stale lease/i);
+    await assert.rejects(()=>store.heartbeat(A,created.intent.jobId,"worker:b",1,"2026-10-08T12:00:04.000Z",1000),/stale|lease|capability/i);
 
     const lease2=await store.claimNext("worker:b","2026-10-08T12:00:05.500Z",1000);
     assert.ok(lease2);
     assert.equal(lease2.leaseEpoch,2);
     assert.equal(lease2.job.state.attemptCount,2);
-    await assert.rejects(()=>store.releaseForRetry(A,created.intent.jobId,"worker:a",1,"2026-10-08T12:00:05.600Z"),/stale lease/i);
+    await assert.rejects(()=>store.releaseForRetry(A,created.intent.jobId,"worker:a",1,"2026-10-08T12:00:05.600Z"),/stale|lease|capability/i);
     await assert.rejects(
       ()=>store.complete(A,created.intent.jobId,"worker:a",1,"2026-10-08T12:00:05.600Z",{
         status:"APPROVED",snapshotId:created.intent.snapshotId,policyDecision:{status:"ALLOW",snapshotId:created.intent.snapshotId,checks:[]},
         certificateId:"cert:old",executionRecordId:"platform:old"
       }),
-      /stale lease/i
+      /stale|lease|capability/i
     );
 
     const result={
@@ -91,7 +93,7 @@ test("SQLite distributed execution store fences leases and preserves immutable t
     assert.equal(completed.state.status,"SUCCEEDED");
     assert.deepEqual(completed.state.result,result);
     assert.equal(completed.state.resultHash,hashJson(result as any));
-    await assert.rejects(()=>store.complete(A,created.intent.jobId,"worker:b",2,"2026-10-08T12:00:06.100Z",result),/terminal|stale lease/i);
+    await assert.rejects(()=>store.complete(A,created.intent.jobId,"worker:b",2,"2026-10-08T12:00:06.100Z",result),/terminal|stale|lease|capability/i);
     assert.equal(await store.claimNext("worker:c","2026-10-08T12:00:10.000Z",1000),undefined);
   }finally{
     store.close();
@@ -103,7 +105,8 @@ test("SQLite distributed execution store supports fenced retry release denial an
   const phase2:any=await import("../src/index.ts");
   assert.equal(typeof phase2.DistributedExecutionStore,"function");
   const dir=mkdtempSync(join(tmpdir(),"axiom-p25a-job-transitions-")),db=join(dir,"jobs.db");
-  const store:any=new phase2.DistributedExecutionStore(db);
+  const authority=createDistributedWorkerTestAuthority();
+  const store:any=authority.bind(new phase2.DistributedExecutionStore(db,authority.storeOptions));
   try{
     const retryJob=await store.create(A,intentCore({requestHash:H("3")}));
     const lease=await store.claimNext("worker:retry","2026-10-08T12:01:00.000Z",1000);
