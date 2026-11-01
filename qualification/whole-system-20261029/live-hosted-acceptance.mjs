@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
+import {spawn} from 'node:child_process';
 import {createHash,randomBytes} from 'node:crypto';
 import {createRemoteD1} from './hosted-storage-client.mjs';
 import {createD1ExecutionGovernance} from '../../ops/axiom_execution_contract.mjs';
@@ -14,6 +15,8 @@ import {createHostedAgentClient,safeHostedProviderFailureCode} from '../../integ
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 import {canonicalJson,sha256Json,verifyTaskCommitments} from '../../axiom_interface/vnext/execution_integrity.mjs';
 import {createD1EvidenceLifecycle,verifyEvidenceLifecycleExport} from '../../ops/axiom_evidence_lifecycle.mjs';
+import {SHARED_SCOPE} from './shared-d1-scope.mjs';
+import {REUSE_DATABASE,inspectReusedD1,seedReusedNamespace} from './reused-d1-preflight.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const runId='axiom-acceptance-20261101-01';
@@ -161,9 +164,10 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       return {task_id:base.task_id,...control,oracle:{nonce_matches:true,product:391},receipt_sha256:restored.receipt.receipt_sha256,artifact_sha256:restored.receipt.artifact_sha256,provider_proof:restored.provider_evidence[0]};
 }
 
-export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,storageOnly=false}={}){
-  const runId=isolatedRunId;assert.match(runId,/^axiom-acceptance-20261101-0[145]$/);
-  if(runId.endsWith('-05'))assert.equal(storageOnly,true,'attempt05 authorizes storage only, with zero inference');
+export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,storageOnly=false,reuseSelected=false}={}){
+  const runId=isolatedRunId;assert.match(runId,/^axiom-acceptance-20261101-0[1456]$/);
+  if(runId.endsWith('-05')||runId.endsWith('-06'))assert.equal(storageOnly,true,'attempt05/06 authorizes storage only, with zero inference');
+  assert.equal(reuseSelected,runId.endsWith('-06'),'reuse requires the exact owner-selected attempt06');
   assert.equal(process.env.GITHUB_REPOSITORY,repository,'only the authorized repository runner may execute');
   assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
   assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1','automatic reruns cannot dispatch a hosted task');
@@ -171,8 +175,8 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
   const out=resolve(process.env.AXIOM_ACCEPTANCE_OUTPUT||'qualification/whole-system-20261029/live-results');mkdirSync(out,{recursive:true});
   const sourceSha=process.env.AXIOM_ACCEPTANCE_SOURCE_SHA||process.env.GITHUB_SHA;
   const report={schema:'musitu.axiom.live-acceptance.v1',run_id:runId,started_at:new Date().toISOString(),source_sha:sourceSha,
-    scope:'ISOLATED_OWNER_AUTHORIZED_ACCEPTANCE_ONLY',independent_custody_certified:false,anti_rollback_certified:false,release_authorized:false,
-    checks:{},resources:{account_id:accountId},cleanup:{},limits:{hosted_sessions:storageOnly?0:1,followup_cancellation_turns:storageOnly?0:1,provider_calls:storageOnly?0:2,network:'disabled',hard_token_or_currency_cap:false}};
+    scope:reuseSelected?SHARED_SCOPE:'ISOLATED_OWNER_AUTHORIZED_ACCEPTANCE_ONLY',isolated_database:!reuseSelected,independent_custody_certified:false,anti_rollback_certified:false,release_authorized:false,
+    checks:{},resources:{account_id:accountId},cleanup:{},limits:{hosted_sessions:storageOnly?0:1,followup_cancellation_turns:storageOnly?0:1,provider_calls:storageOnly?0:2,network:reuseSelected?'STORAGE_CONTROL_ONLY_NO_INFERENCE_PROVIDER':'disabled',hard_token_or_currency_cap:false}};
   const save=()=>writeFileSync(resolve(out,'acceptance.json'),JSON.stringify(report,null,2)+'\n');
   const record=async(name,action)=>{try{const value=await action();report.checks[name]={status:'CONFIRMED',value:value??true};save();return value;}catch(error){report.checks[name]={status:'FAILED',error:safeError(error)};save();throw error;}};
   const cfHeaders={};
@@ -190,7 +194,7 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
     [hash(beta)]:{tenant_id:'acceptance-beta',status:'ACTIVE',roles:['tasks:read','tasks:write']},
     [hash(revoked)]:{tenant_id:'acceptance-revoked',status:'REVOKED',roles:['tasks:read','tasks:write']},
   };
-  let dbId,baseUrl,deploymentId,workerOwned=false,workerUploadAttempted=false,sessionId,turnId,controlTurnId,client,db,bundle;
+  let dbId,baseUrl,deploymentId,workerOwned=false,workerUploadAttempted=false,sessionId,turnId,controlTurnId,client,db,bundle,reusePreflight;
   const ownedSettings=settings=>settings?.bindings?.some(b=>b.type==='d1'&&b.name==='AXIOM_DB'&&(b.database_id||b.id)===dbId)&&settings.bindings.some(b=>b.name==='ACCEPTANCE_RUN_ID'&&b.text===runId);
   async function deploy(){
     deploymentId=randomBytes(12).toString('hex');
@@ -198,6 +202,7 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       {type:'d1',name:'AXIOM_DB',database_id:dbId},{type:'plain_text',name:'ACCEPTANCE_RUN_ID',text:runId},
       {type:'plain_text',name:'ACCEPTANCE_DEPLOYMENT_ID',text:deploymentId},
       {type:'secret_text',name:'ACCEPTANCE_OPERATOR_TOKEN',text:operator},{type:'secret_text',name:'ACCEPTANCE_TENANTS_JSON',text:JSON.stringify(registry)},
+      ...(reuseSelected?[{type:'plain_text',name:'ACCEPTANCE_STORAGE_SCOPE',text:SHARED_SCOPE},{type:'plain_text',name:'ACCEPTANCE_NAMESPACE',text:REUSE_DATABASE.namespace},{type:'plain_text',name:'ACCEPTANCE_REUSE_DATABASE_ID',text:REUSE_DATABASE.uuid},{type:'plain_text',name:'ACCEPTANCE_LEGACY_TABLES_JSON',text:JSON.stringify(reusePreflight.legacy_table_names)}]:[]),
     ]};
     const form=new FormData();form.set('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));form.set('acceptance.mjs',new Blob([bundle],{type:'application/javascript+module'}),'acceptance.mjs');
     workerUploadAttempted=true;
@@ -210,7 +215,7 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
   }
   async function waitHealth(){for(let i=0;i<15;i++){try{const response=await request('/health');const health=await response.json();if(response.status===200&&health.marker_matches&&health.deployment_id===deploymentId)return;}catch{}await pause(2000);}throw new Error('current isolated Worker deployment never became healthy');}
   try{
-    await record('isolated_resources',async()=>{
+    await record(reuseSelected?'owner_selected_staging_namespace':'isolated_resources',async()=>{
       const candidates=[];
       if(process.env.CLOUDFLARE_EMAIL&&process.env.CLOUDFLARE_GLOBAL_API_KEY)candidates.push({kind:'existing_global_key',headers:{'X-Auth-Email':process.env.CLOUDFLARE_EMAIL,'X-Auth-Key':process.env.CLOUDFLARE_GLOBAL_API_KEY}});
       if(process.env.CLOUDFLARE_API_TOKEN)candidates.push({kind:'existing_api_token',headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
@@ -222,12 +227,21 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       }
       if(!databases)throw lastError||Object.assign(new Error('owner Cloudflare credential unavailable'),{code:'CF_CREDENTIAL_UNAVAILABLE'});
       report.capacity_observation={observed_at:new Date().toISOString(),databases_listed:databases.length,inventory:databases.map(item=>({name:item.name,database_id_sha256:hash(item.uuid)})),existing_databases_deleted:0,plan_or_billing_changed:false};save();
-      const existing=databases.find(item=>item.name===runId);
-      dbId=existing?.uuid||(await cf(`/accounts/${accountId}/d1/database`,{method:'POST',body:{name:runId}})).uuid;
-      assert.match(dbId,/^[0-9a-f-]{36}$/);report.resources.database_id=dbId;
-      const query=sql=>cf(`/accounts/${accountId}/d1/database/${dbId}/query`,{method:'POST',body:{sql,params:[]}});
-      if(!existing)await query(`CREATE TABLE axiom_acceptance_isolation(singleton INTEGER PRIMARY KEY CHECK(singleton=1),run_id TEXT NOT NULL UNIQUE,isolated INTEGER NOT NULL CHECK(isolated=1)); INSERT INTO axiom_acceptance_isolation VALUES(1,'${runId}',1);`);
-      const marker=await query('SELECT singleton,run_id,isolated FROM axiom_acceptance_isolation');assert.deepEqual(marker[0].results,[{singleton:1,run_id:runId,isolated:1}]);
+      if(reuseSelected){
+        assert.equal(process.env.AXIOM_REUSE_DATABASE_ID,REUSE_DATABASE.uuid,'exact database selection required');
+        assert.equal(databases.find(x=>x.uuid===REUSE_DATABASE.uuid)?.name,REUSE_DATABASE.name);
+        dbId=REUSE_DATABASE.uuid;report.resources.database_id=dbId;report.resources.database_name=REUSE_DATABASE.name;
+        reusePreflight=await inspectReusedD1(cf);report.reuse_preflight=reusePreflight;save();
+        report.reuse_namespace_seed_attempted=true;save();await seedReusedNamespace(cf,{runId,preflight:reusePreflight});
+        report.resources.namespace=REUSE_DATABASE.namespace;report.resources.new_database_created=false;save();
+      }else{
+        const existing=databases.find(item=>item.name===runId);
+        dbId=existing?.uuid||(await cf(`/accounts/${accountId}/d1/database`,{method:'POST',body:{name:runId}})).uuid;
+        assert.match(dbId,/^[0-9a-f-]{36}$/);report.resources.database_id=dbId;
+        const query=sql=>cf(`/accounts/${accountId}/d1/database/${dbId}/query`,{method:'POST',body:{sql,params:[]}});
+        if(!existing)await query(`CREATE TABLE axiom_acceptance_isolation(singleton INTEGER PRIMARY KEY CHECK(singleton=1),run_id TEXT NOT NULL UNIQUE,isolated INTEGER NOT NULL CHECK(isolated=1)); INSERT INTO axiom_acceptance_isolation VALUES(1,'${runId}',1);`);
+        const marker=await query('SELECT singleton,run_id,isolated FROM axiom_acceptance_isolation');assert.deepEqual(marker[0].results,[{singleton:1,run_id:runId,isolated:1}]);
+      }
       const settings=await cf(`/accounts/${accountId}/workers/scripts/${runId}/settings`,{allow404:true});
       if(settings)assert.ok(ownedSettings(settings),'refuse foreign Worker replacement');
       const {build}=await import(process.env.AXIOM_ESBUILD_MODULE||'esbuild');
@@ -241,7 +255,17 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       for(let i=0;i<15;i++){try{const response=await request('/operator/schema',{method:'POST',body:{run_id:runId}});if(response.ok){migrated=true;break;}if(response.status!==404&&response.status!==503)throw new Error('schema admission rejected');}catch(error){if(i===14)throw error;}await pause(2000);}
       assert.equal(migrated,true);await waitHealth();
       db=createRemoteD1({baseUrl,operatorToken:operator,runId,timeoutMs:30000});
-      return {database_id:dbId,worker_url:baseUrl,bundle_sha256:hash(bundle),...deployed,production_routes_modified:false,openai_key_in_worker:false};
+      return {database_id:dbId,storage_scope:reuseSelected?SHARED_SCOPE:'FRESH_ISOLATED_DATABASE',isolated_database:!reuseSelected,worker_url:baseUrl,bundle_sha256:hash(bundle),...deployed,production_routes_modified:false,existing_worker_rebound:false,openai_key_in_worker:false};
+    });
+    if(reuseSelected)await record('interrupted_observer_recovery',async()=>{
+      const problem=JSON.parse(readFileSync(resolve(root,'frontier_v5/fixtures/decision_analysis_v1.json'),'utf8')).cases[0].problem;
+      const body={objective:'Compare the declared alternatives.',submission_id:'observer-disconnect-six',execution_context:{project_id:'acceptance-project',work_id:'observer-work-six',controls:{privacy:'Private',budget:1}},decision:problem};
+      const response=await request('/vnext/api/tasks',{token:alpha,method:'POST',body});assert.equal(response.status,200);await response.body.cancel();
+      let saved;for(let i=0;i<20;i++){const read=await request('/vnext/api/submissions/'+body.submission_id,{token:alpha});if(read.ok){saved=await read.json();if(saved.status==='COMPLETED')break;}await pause(1000);}
+      assert.equal(saved?.status,'COMPLETED');assert.equal(await verifyTaskCommitments(saved),true);
+      assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM axiom_ec_reservations WHERE tenant_id=? AND work_id=?').bind('acceptance-alpha','observer-work-six').first('n'),1);
+      writeFileSync(resolve(out,'observer-recovered-output.json'),JSON.stringify(saved,null,2)+'\n');
+      return {observer_cancelled:true,status:saved.status,task_id:saved.task_id,receipt_sha256:saved.receipt.receipt_sha256,reservations:1,inference_calls:0};
     });
     await record('actual_tenant_pipeline',async()=>{
       const problem=JSON.parse(readFileSync(resolve(root,'frontier_v5/fixtures/decision_analysis_v1.json'),'utf8')).cases[0].problem;
@@ -256,6 +280,14 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       const replay=await request('/vnext/api/tasks',{token:alpha,method:'POST',body});assert.equal(replay.status,200);assert.ok((await replay.text()).includes(first.receipt.receipt_sha256));
       report.decision_receipt=first.receipt;writeFileSync(resolve(out,'decision-output.json'),JSON.stringify(first,null,2)+'\n');
       return {alpha_task_id:first.task_id,beta_task_id:second.task_id,expected_utility:28,receipt_sha256:first.receipt.receipt_sha256,cross_tenant_read:'DENIED',replay_same_receipt:true};
+    });
+    if(reuseSelected)await record('actual_d1_batch_rollback',async()=>{
+      await assert.rejects(()=>db.batch([
+        db.prepare("INSERT INTO axiom_ec_projects(tenant_id,project_id,state) VALUES(?1,?2,'ACTIVE')").bind('acceptance-atomic','rollback-project'),
+        db.prepare("INSERT INTO axiom_ec_projects(tenant_id,project_id,state) VALUES(?1,?2,'ACTIVE')").bind('acceptance-atomic','rollback-project'),
+      ]));
+      assert.equal(await db.prepare('SELECT COUNT(*) AS n FROM axiom_ec_projects WHERE tenant_id=?1 AND project_id=?2').bind('acceptance-atomic','rollback-project').first('n'),0);
+      return {forced_second_statement_failure:true,first_insert_rolled_back:true,fixture_rows_remaining:0};
     });
     await record('durable_call_budgets_and_revocation',async()=>{
       const customer={customer_id:'acceptance-budgets'},gate=createD1ExecutionGovernance({db,customer,serverPolicy:{max_compute_calls:1,max_provider_calls:1}});
@@ -279,6 +311,16 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       const winner=contenders[attempts.findIndex(x=>x.status==='fulfilled')];await winner.fail({...base,status:'FAILED',completed_at:new Date().toISOString(),error_code:'ACCEPTANCE_INTERRUPTION_FIXTURE'});
       assert.equal((await createD1ExecutionGovernance({db,customer}).get(base.task_id)).status,'FAILED');
       const persisted=await (await request('/vnext/api/submissions/hosted-submission-one',{token:beta})).json();assert.equal(persisted.status,'COMPLETED');
+      if(reuseSelected){
+        const fresh=await new Promise((resolveRead,rejectRead)=>{
+          const child=spawn(process.execPath,[resolve(root,'qualification/whole-system-20261029/fresh-d1-readback.mjs')],{env:{TZ:'UTC'},stdio:['pipe','pipe','pipe']});
+          let output='';const timer=setTimeout(()=>child.kill(),55000);
+          child.stdout.on('data',chunk=>{output+=chunk;if(output.length>65536)child.kill();});child.stderr.resume();child.on('error',rejectRead);
+          child.on('close',code=>{clearTimeout(timer);if(code!==0)rejectRead(Object.assign(new Error('fresh process readback failed'),{code:'FRESH_PROCESS_READBACK_FAILED'}));else try{resolveRead(JSON.parse(output));}catch(error){rejectRead(error);}});
+          child.stdin.end(JSON.stringify({base_url:baseUrl,operator_token:operator,run_id:runId,tenant_id:'acceptance-beta',task_id:persisted.task_id}));
+        });
+        assert.equal(fresh.receipt_sha256,persisted.receipt.receipt_sha256);report.fresh_process_readback=fresh;writeFileSync(resolve(out,'fresh-process-readback.json'),JSON.stringify(fresh,null,2)+'\n');save();
+      }
       return {...deployed,old_lease:'DENIED',new_generation_single_winner:true,revoked_credential:'DENIED',completed_result_survived:true};
     });
     await record('evidence_preserving_lifecycle',async()=>{
@@ -311,6 +353,7 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
     // keep temporary bearer credentials reachable for the rest of this job.
     if(workerUploadAttempted&&!workerOwned)try{workerOwned=ownedSettings(await cf(`/accounts/${accountId}/workers/scripts/${runId}/settings`,{allow404:true}));report.cleanup.uncertain_worker_upload_reconciled=!!workerOwned;}catch(error){report.cleanup.worker_ownership_error=safeError(error);process.exitCode=1;}
     if(workerOwned)try{await cf(`/accounts/${accountId}/workers/scripts/${runId}`,{method:'DELETE'});assert.equal(await cf(`/accounts/${accountId}/workers/scripts/${runId}/settings`,{allow404:true}),null);report.cleanup.worker={name:runId,delete_acknowledged:true,provider_readback_status:404,edge_revocation:'NOT_INDEPENDENTLY_ATTESTED'};}catch(error){report.cleanup.worker_error=safeError(error);process.exitCode=1;}
+    if(reusePreflight)try{report.reuse_preservation=await inspectReusedD1(cf,{previous:reusePreflight});save();}catch(error){report.reuse_preservation_error=safeError(error);process.exitCode=1;}
     sessionId=report.resources.session_id;turnId=report.resources.primary_turn_id;controlTurnId=report.resources.cancellation_turn_id;
     if(sessionId){try{
       // Downloaded actual text and receipt above precede deletion. Failed runs
@@ -325,13 +368,13 @@ export async function runHostedStorageAcceptance({runId:isolatedRunId=runId,stor
       const response=await fetch('https://api.openai.com/v1/agents/sessions/'+sessionId,{headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'OpenAI-Beta':'agents=v1'},redirect:'error',signal:AbortSignal.timeout(15000)});
       assert.equal(response.status,404);await response.body?.cancel();report.cleanup.session={id:sessionId,delete_acknowledged:true,readback_status:404,sandbox_destruction:'ASYNCHRONOUS_NOT_INDEPENDENTLY_ATTESTED'};
     }catch(error){report.cleanup.session_error=safeError(error);process.exitCode=1;}}
-    report.cleanup.database={id:dbId||null,retained:!!dbId,reason:'ONE_SHOT_LEDGER_AND_VERIFIABLE_ACCEPTANCE_RECORDS'};
+    report.cleanup.database={id:dbId||null,retained:!!dbId,reason:reuseSelected?'OWNER_SELECTED_STAGING_DATABASE_AND_ORIGINAL_RECORDS_RETAINED':'ONE_SHOT_LEDGER_AND_VERIFIABLE_ACCEPTANCE_RECORDS'};
     report.completed_at=new Date().toISOString();report.status=process.exitCode?'FAILED':'CONFIRMED';save();
-    const files=['acceptance.json','hosted-output.json','hosted-task-receipt.json','decision-output.json','lifecycle-export.json','lifecycle-receipt.json'];
+    const files=['acceptance.json','hosted-output.json','hosted-task-receipt.json','decision-output.json','observer-recovered-output.json','fresh-process-readback.json','lifecycle-export.json','lifecycle-receipt.json'];
     const manifest={schema:'musitu.axiom.acceptance-files.v1',files:files.flatMap(name=>{try{const content=readFileSync(resolve(out,name));return [{name,bytes:content.length,sha256:hash(content)}];}catch{return [];}})};
     writeFileSync(resolve(out,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     process.stdout.write(JSON.stringify({status:report.status,checks:Object.fromEntries(Object.entries(report.checks).map(([k,v])=>[k,v.status])),release_authorized:false})+'\n');
   }
 }
 
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)await runHostedStorageAcceptance({runId:process.env.AXIOM_ACCEPTANCE_RUN_ID||runId,storageOnly:process.argv.includes('--storage-only')});
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)await runHostedStorageAcceptance({runId:process.env.AXIOM_ACCEPTANCE_RUN_ID||runId,storageOnly:process.argv.includes('--storage-only'),reuseSelected:process.argv.includes('--reuse-selected-staging')});

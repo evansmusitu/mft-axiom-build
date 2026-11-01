@@ -1,4 +1,5 @@
-/** Operator-only D1 transport for one freshly provisioned acceptance database.
+/** Operator-only D1 transport for one marker-guarded acceptance store.
+ * The Worker enforces either fresh DB isolation or an owner-selected namespace.
  * One HTTP attempt per operation. A lost mutation response must be reconciled,
  * never automatically resent. This module needs no Node APIs or provider keys.
  */

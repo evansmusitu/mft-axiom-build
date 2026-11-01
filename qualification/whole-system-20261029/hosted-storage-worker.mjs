@@ -1,5 +1,7 @@
-/** Temporary acceptance worker. Bind only a fresh isolated D1 whose marker was
- * seeded out of band before deployment. This worker has no provider credential,
+/** Temporary acceptance worker. Requires a fresh isolated D1 marker or the exact
+ * owner-selected staging namespace marker seeded out of band before deployment.
+ * A reused staging DB is never reported as database isolation.
+ * This worker has no provider credential,
  * production runtime, kernel substitute, or claimed compute qualification.
  * Bundle with esbuild --bundle --format=esm --platform=browser --loader:.sql=text.
  * Tenant registry: SHA256(bearer) -> {tenant_id,status,roles}; roles are
@@ -8,6 +10,7 @@
 import executionContractSchema from '../../ops/axiom_execution_contract_schema.sql';
 import evidenceLifecycleSchema from '../../ops/axiom_evidence_lifecycle_schema.sql';
 import {handleRuntimeTaskApi} from '../../ops/axiom_runtime_task_api.mjs';
+import {createSharedD1Scope,SHARED_SCOPE} from './shared-d1-scope.mjs';
 
 const encoder=new TextEncoder();
 const runPattern=/^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$/;
@@ -34,11 +37,15 @@ function expectedRun(env){
 }
 async function markerMatches(db,runId){
   try{
+    if(db.acceptance_scope===SHARED_SCOPE){
+      const rows=await db.prepare('SELECT singleton,run_id,database_uuid,scope,namespace FROM axiom_acceptance_reuse_scope LIMIT 2').all();
+      return rows.results?.length===1&&rows.results[0].singleton===1&&rows.results[0].run_id===runId&&rows.results[0].database_uuid===db.database_id&&rows.results[0].scope===SHARED_SCOPE&&rows.results[0].namespace===db.namespace;
+    }
     const rows=await db.prepare('SELECT singleton,run_id,isolated FROM axiom_acceptance_isolation LIMIT 2').all();
     return rows.results?.length===1&&rows.results[0].singleton===1&&rows.results[0].run_id===runId&&rows.results[0].isolated===1;
   }catch{return false;}
 }
-async function assertMarker(env,runId){if(!await markerMatches(env.AXIOM_DB,runId))reject(503,'isolated_database_marker_required');}
+async function assertMarker(env,runId){if(!await markerMatches(env.AXIOM_DB,runId))reject(503,env.AXIOM_DB.acceptance_scope===SHARED_SCOPE?'selected_staging_namespace_marker_required':'isolated_database_marker_required');}
 function rejectBrowser(request){
   // Undici adds sec-fetch-mode:cors to server fetches. Browsers also supply
   // Sec-Fetch-Site (a forbidden script header), which we always reject.
@@ -89,7 +96,7 @@ async function boundedJson(request,maxBytes){
 }
 function checkedSql(sql){
   if(typeof sql!=='string'||!sql.trim()||encoder.encode(sql).byteLength>262144)reject(400,'bounded_sql_required');
-  if(/axiom_acceptance_isolation/i.test(sql))reject(403,'protected_isolation_marker');
+  if(/axiom_acceptance_(?:isolation|reuse_scope)/i.test(sql))reject(403,'protected_isolation_marker');
   if(/\b(?:ATTACH|DETACH)\b/i.test(sql))reject(403,'database_attachment_forbidden');
   return sql;
 }
@@ -140,14 +147,18 @@ async function health(env){
   const marker=await markerMatches(env.AXIOM_DB,runId);let schemaReady=false;
   if(marker)try{
     const rows=await env.AXIOM_DB.prepare("SELECT name FROM sqlite_master WHERE type IN('table','trigger')").all();
-    const names=new Set(rows.results.map(row=>row.name));schemaReady=schemaObjects.every(name=>names.has(name));
+    const names=new Set(rows.results.map(row=>row.name));schemaReady=schemaObjects.every(name=>names.has((env.AXIOM_DB.namespace??'')+name));
   }catch{}
-  return json(marker?200:503,{schema:'axiom.hosted-storage-acceptance.v1',run_id:runId,deployment_id:typeof env.ACCEPTANCE_DEPLOYMENT_ID==='string'?env.ACCEPTANCE_DEPLOYMENT_ID:null,marker_matches:marker,execution_schema_ready:schemaReady,production_authority:false,compute_qualified:false});
+  return json(marker?200:503,{schema:'axiom.hosted-storage-acceptance.v1',run_id:runId,deployment_id:typeof env.ACCEPTANCE_DEPLOYMENT_ID==='string'?env.ACCEPTANCE_DEPLOYMENT_ID:null,marker_matches:marker,execution_schema_ready:schemaReady,storage_scope:env.AXIOM_DB.acceptance_scope??'FRESH_ISOLATED_DATABASE',isolated_database:env.AXIOM_DB.acceptance_scope!==SHARED_SCOPE,production_authority:false,compute_qualified:false});
 }
 
 export default {
   async fetch(request,env,executionCtx){
     try{
+      if(env.ACCEPTANCE_STORAGE_SCOPE!==undefined){
+        if(env.ACCEPTANCE_STORAGE_SCOPE!==SHARED_SCOPE)reject(503,'selected_staging_scope_invalid');
+        env={...env,AXIOM_DB:createSharedD1Scope(env.AXIOM_DB,{prefix:env.ACCEPTANCE_NAMESPACE,databaseId:env.ACCEPTANCE_REUSE_DATABASE_ID,legacyTables:JSON.parse(env.ACCEPTANCE_LEGACY_TABLES_JSON)})};
+      }
       const path=new URL(request.url).pathname;
       if(path==='/health')return request.method==='GET'?health(env):fail(405,'method_not_allowed');
       const operator=path==='/rpc-d1'||path==='/operator/schema';
