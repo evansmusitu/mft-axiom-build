@@ -16,6 +16,32 @@ class OpcUaReader(Protocol):
     async def read(self, node_id: str) -> Any: ...
 
 
+def _strict_mqtt_rows(payload: bytes) -> list[Any]:
+    """Reject ambiguous MQTT JSON before canonicalization or evidence storage."""
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result={}
+        for key,value in pairs:
+            if key in result:
+                raise ValueError("duplicate_json_key")
+            result[key]=value
+        return result
+
+    def reject_constant(_value: str) -> None:
+        raise ValueError("nonstandard_json_constant")
+
+    try:
+        decoded=json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        raise ValueError("mqtt_payload_invalid") from None
+    if not isinstance(decoded,dict) or set(decoded) != {"rows"} or not isinstance(decoded["rows"],list):
+        raise ValueError("mqtt_payload_invalid")
+    return decoded["rows"]
+
+
 class MiningAdapterService:
     """Composed Mining Adapter runtime from protocol ingress through durable audit."""
 
@@ -117,17 +143,12 @@ class MiningAdapterService:
     ) -> EnterpriseRun:
         if len(payload) > self.max_mqtt_payload_bytes:
             raise ValueError("mqtt_payload_too_large")
-        try:
-            decoded=json.loads(payload.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ValueError("mqtt_payload_invalid") from None
-        if not isinstance(decoded,dict) or set(decoded) != {"rows"} or not isinstance(decoded["rows"],list):
-            raise ValueError("mqtt_payload_invalid")
+        rows=_strict_mqtt_rows(payload)
         return self._ingest_rows(
             run_id=run_id,
             connector_name=connector_name,
             protocol="mqtt",
-            rows=decoded["rows"],
+            rows=rows,
         )
 
     def ingest_telemetry_payload(
@@ -139,12 +160,7 @@ class MiningAdapterService:
     ) -> EnterpriseRun:
         if len(payload) > self.max_mqtt_payload_bytes:
             raise ValueError("mqtt_payload_too_large")
-        try:
-            decoded=json.loads(payload.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ValueError("mqtt_payload_invalid") from None
-        if not isinstance(decoded,dict) or set(decoded) != {"rows"} or not isinstance(decoded["rows"],list):
-            raise ValueError("mqtt_payload_invalid")
+        rows=_strict_mqtt_rows(payload)
         return self._ingest_domain_rows(
             run_id=run_id,
             connector_name=connector_name,
@@ -152,7 +168,7 @@ class MiningAdapterService:
             domain="mining_telemetry",
             adapter_name=self.telemetry_adapter_name,
             workflow_prefix="mining-telemetry-ingest",
-            rows=decoded["rows"],
+            rows=rows,
         )
 
     async def ingest_opcua(

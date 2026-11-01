@@ -114,6 +114,25 @@ class MiningTelemetryTests(unittest.TestCase):
             self.assertTrue(replay.verify_signature(b"telemetry-test-secret"))
             self.assertTrue(service.store.verify_audit_chain("telemetry-r1"))
 
+    def test_mqtt_telemetry_rejects_escaped_duplicate_sensor_without_audit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service=self._service(Path(directory)/"runs.sqlite3")
+            valid=json.dumps({"rows":[telemetry_row()]})
+            ambiguous=valid.replace('"MM263": 0.7',
+                '"MM263": 99, "MM\\u003263": 0.7')
+            self.assertNotEqual(ambiguous,valid)
+            with self.assertRaisesRegex(ValueError,"mqtt_payload_invalid"):
+                service.ingest_telemetry_payload(
+                    run_id="telemetry-ambiguous",connector_name="broker",
+                    payload=ambiguous.encode(),
+                )
+            self.assertFalse(service.store.connection.execute(
+                "SELECT 1 FROM connect_runs WHERE run_id='telemetry-ambiguous'"
+            ).fetchone())
+            self.assertFalse(service.store.connection.execute(
+                "SELECT 1 FROM run_audit WHERE run_id='telemetry-ambiguous'"
+            ).fetchone())
+
     def test_risk_planning_remains_blocked_for_telemetry_domain(self):
         with tempfile.TemporaryDirectory() as directory:
             service=self._service(Path(directory)/"runs.sqlite3")

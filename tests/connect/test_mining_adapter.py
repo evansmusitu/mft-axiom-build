@@ -123,6 +123,32 @@ class MiningAdapterServiceTests(unittest.TestCase):
                     run_id="mqtt-bad", connector_name="broker", payload=b'{"not_rows":true}',
                 )
 
+    def test_mqtt_rejects_duplicate_json_keys_before_signing_or_storing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service=self._service(Path(directory)/"runs.sqlite3")
+            valid=json.dumps({"rows":[ROW]})
+            # Neither last-key-wins nor escaped property aliases are permissible
+            # source evidence for an HMAC-sealed canonical Mining run.
+            ambiguous=[
+                '{"rows":[],"rows":' + valid[len('{"rows":'):-1] + '}',
+                valid.replace('"hazard": "Ground collapse"',
+                    '"hazard": "fabricated", "haz\\u0061rd": "Ground collapse"'),
+                valid.replace('"exposure": 0.54', '"exposure": NaN'),
+            ]
+            for index,raw in enumerate(ambiguous):
+                run_id=f"mqtt-ambiguous-{index}"
+                with self.subTest(case=index):
+                    with self.assertRaisesRegex(ValueError,"mqtt_payload_invalid"):
+                        service.ingest_mqtt_payload(
+                            run_id=run_id,connector_name="broker",payload=raw.encode(),
+                        )
+                    self.assertFalse(service.store.connection.execute(
+                        "SELECT 1 FROM connect_runs WHERE run_id=?",(run_id,),
+                    ).fetchone())
+                    self.assertFalse(service.store.connection.execute(
+                        "SELECT 1 FROM run_audit WHERE run_id=?",(run_id,),
+                    ).fetchone())
+
     def test_opcua_ingestion_reads_explicit_node_map_into_canonical_record(self):
         with tempfile.TemporaryDirectory() as directory:
             service=self._service(Path(directory)/"runs.sqlite3")
