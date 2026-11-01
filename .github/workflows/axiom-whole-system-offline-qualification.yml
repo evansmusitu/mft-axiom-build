@@ -13,6 +13,7 @@ on:
       - 'ops/axiom_runtime_task_api.mjs'
       - 'ops/axiom_agent_model_store.mjs'
       - 'ops/axiom_openai_*'
+      - 'ops/axiom_evidence_lifecycle*'
       - 'integrations/openai-agents/**'
       - 'qualification/whole-system-20261029/**'
       - '.github/workflows/axiom-whole-system-offline-qualification.yml'
@@ -45,7 +46,7 @@ jobs:
         working-directory: reasoning/phase2
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install pinned local D1 emulator without account credentials
-        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0 esbuild@0.25.9
       - name: Install pinned public Agents SDK
         working-directory: integrations/openai-agents
         run: npm ci --ignore-scripts --no-audit --no-fund
