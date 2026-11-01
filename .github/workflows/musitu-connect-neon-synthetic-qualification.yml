@@ -12,6 +12,9 @@ on:
       - 'qualification/neon_role_attestation.py'
       - 'tests/connect/test_neon_role_attestation.py'
       - 'tests/connect/test_neon_pg_adapter_integration.mjs'
+      - 'tests/connect/test_customer_neon_http_canary.mjs'
+      - 'tests/connect/test_neon_http_pg_integration.mjs'
+      - 'connect/customer_neon_http_canary.mjs'
   workflow_dispatch:
 
 permissions:
@@ -42,6 +45,8 @@ jobs:
         run: |
           node --check connect/customer_neon_admission.mjs
           node --test tests/connect/test_customer_neon_admission.mjs
+          node --check connect/customer_neon_http_canary.mjs
+          node --test tests/connect/test_customer_neon_http_canary.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -59,9 +64,10 @@ jobs:
         run: |
           npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
           node --test tests/connect/test_neon_pg_adapter_integration.mjs
+          node --test tests/connect/test_neon_http_pg_integration.mjs
       - name: Confirm prototype remains out of live Worker imports
         run: |
-          if grep -Fq "customer_neon_admission" connect/production_worker.mjs; then
+          if grep -Eq "customer_neon_(admission|http_canary)" connect/production_worker.mjs; then
             echo "NEON_RUNTIME_WIRING_UNAUTHORIZED" >&2
             exit 1
           fi
