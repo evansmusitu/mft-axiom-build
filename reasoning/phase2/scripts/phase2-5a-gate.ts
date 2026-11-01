@@ -13,6 +13,7 @@ import {
   createAxiomHttpServer, createStaticSignerProvider,
   type ApiAction, type ApiResource, type ModelCompilerProfile, type TenantScope
 } from "../src/index.ts";
+import { createDistributedWorkerTestAuthority } from "../tests/distributed_worker_test_fixture.ts";
 
 const AS_OF="2026-10-08T14:00:00.000Z";
 const ISSUED="2026-10-08T14:00:01.000Z";
@@ -53,9 +54,11 @@ const proposal={
 };
 
 const dir=mkdtempSync(join(tmpdir(),"axiom-phase25a-gate-")),db=join(dir,"platform.db");
+const workerAuthority=createDistributedWorkerTestAuthority();
 const world=new WorldStateStore(db);
 const executions=new ExecutionStore(db);
-const jobs=new DistributedExecutionStore(db);
+const jobs=new DistributedExecutionStore(db,workerAuthority.storeOptions);
+const workers=workerAuthority.bind(jobs);
 const security=new SecurityStore(db);
 const modelStore=new ModelCompilationStore(db);
 const registry=createDefaultRegistry();
@@ -173,19 +176,19 @@ try{
     validFrom:"2026-10-08T13:50:00.000Z",observedAt:"2026-10-08T13:59:59.000Z",source:"risk-engine:late"
   });
 
-  const leaseA=await jobs.claimNext("worker:a","2026-10-08T14:00:03.000Z",1000);
+  const leaseA=await workers.claimNext("worker:a","2026-10-08T14:00:03.000Z",1000);
   assert.ok(leaseA);assert.equal(leaseA.leaseEpoch,1);
-  const leaseB=await jobs.claimNext("worker:b","2026-10-08T14:00:04.000Z",5000);
+  const leaseB=await workers.claimNext("worker:b","2026-10-08T14:00:04.000Z",5000);
   assert.ok(leaseB);assert.equal(leaseB.leaseEpoch,2);
   assert.equal(leaseB.job.state.attemptCount,2);
 
   await assert.rejects(
-    ()=>jobs.complete(tenantA,queued.jobId,"worker:a",1,"2026-10-08T14:00:04.100Z",{
+    ()=>workers.complete(tenantA,queued.jobId,"worker:a",1,"2026-10-08T14:00:04.100Z",{
       status:"APPROVED",snapshotId:queued.snapshotId,
       policyDecision:{status:"ALLOW",snapshotId:queued.snapshotId,checks:[]},
       certificateId:"stale",executionRecordId:"platform:stale"
     }),
-    /stale lease/i
+    /stale|lease|capability/i
   );
 
   const workerRuntimes={
@@ -200,31 +203,33 @@ try{
   };
 
   let returnPreclaimed=true,crashBeforeJobCompletion=true;
-  const crashJobs:any={
-    get:(...args:any[])=>(jobs as any).get(...args),
-    create:(...args:any[])=>(jobs as any).create(...args),
-    heartbeat:(...args:any[])=>(jobs as any).heartbeat(...args),
-    releaseForRetry:(...args:any[])=>(jobs as any).releaseForRetry(...args),
-    failTerminal:(...args:any[])=>(jobs as any).failTerminal(...args),
-    async claimNext(workerId:string,_now:string,_leaseMs:number){
+  const baseControl=workers.control;
+  const crashControl:any={
+    async claim(proof:any,...args:any[]){
       if(returnPreclaimed){
         returnPreclaimed=false;
-        assert.equal(workerId,"worker:b");
+        assert.equal(proof.workerId,"worker:b");
         return structuredClone(leaseB);
       }
-      return jobs.claimNext(workerId,_now,_leaseMs);
+      return baseControl.claim(proof,...args);
     },
+    heartbeat:(...args:any[])=>baseControl.heartbeat(...args),
+    release:(...args:any[])=>baseControl.release(...args),
+    fail:(...args:any[])=>baseControl.fail(...args),
     async complete(...args:any[]){
       if(crashBeforeJobCompletion){
         crashBeforeJobCompletion=false;
         throw new Error("simulated crash after durable execution persistence");
       }
-      return (jobs as any).complete(...args);
+      return baseControl.complete(...args);
     }
   };
 
-  const workerB=new DistributedModelExecutionWorker({jobs:crashJobs,runtimes:workerRuntimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:04.100Z","2026-10-08T14:00:04.200Z","2026-10-08T14:00:04.300Z")});
-  const crashed=await workerB.runOnce("worker:b");
+  const workerB=new DistributedModelExecutionWorker({
+    ...workers.workerOptions("worker:b"),control:crashControl,runtimes:workerRuntimes,leaseMs:5000,
+    clock:workerClock("2026-10-08T14:00:04.100Z","2026-10-08T14:00:04.200Z","2026-10-08T14:00:04.300Z")
+  });
+  const crashed=await workerB.runOnce();
   assert.deepEqual(crashed,{status:"RETRY",jobId:queued.jobId});
   assert.equal((await jobs.get(tenantA,queued.jobId)).state.status,"PENDING");
   const committed=await executions.getByIntent(tenantA,queued.jobId);
@@ -239,8 +244,11 @@ try{
     assert.equal(Number((inspect.prepare("SELECT COUNT(*) AS n FROM execution_intents WHERE tenant_id=?").get(tenantA.tenantId) as any).n),1);
   }finally{inspect.close();}
 
-  const workerC=new DistributedModelExecutionWorker({jobs,runtimes:workerRuntimes,leaseMs:5000,clock:workerClock("2026-10-08T14:00:05.000Z","2026-10-08T14:00:05.100Z")});
-  const recovered=await workerC.runOnce("worker:c");
+  const workerC=new DistributedModelExecutionWorker({
+    ...workers.workerOptions("worker:c"),runtimes:workerRuntimes,leaseMs:5000,
+    clock:workerClock("2026-10-08T14:00:05.000Z","2026-10-08T14:00:05.100Z")
+  });
+  const recovered=await workerC.runOnce();
   assert.deepEqual(recovered,{status:"COMPLETED",jobId:queued.jobId,jobStatus:"SUCCEEDED"});
   const terminal=await jobs.get(tenantA,queued.jobId);
   assert.equal(terminal.state.status,"SUCCEEDED");
