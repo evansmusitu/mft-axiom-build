@@ -6,7 +6,7 @@
   "publication_authorized_by_evidence": false,
   "user_sequence": "Close custody and anti-rollback gates, then merge, deploy and run public reviewer checks before publication.",
   "custody": {
-    "status": "UNQUALIFIED",
+    "status": "BLOCKED_VISIBLE_SECURITY_ACCOUNT_IS_PRODUCTION",
     "independent_verifier_activated": false,
     "missing": [
       "Direct authenticated verifier acceptance and provider identity",
@@ -14,7 +14,15 @@
       "Exclusive verifier key custody outside builder and owner-custodian reset/control",
       "Independent policy veto, revocation and kill authority",
       "Two authenticated independent evidence readback origins"
-    ]
+    ],
+    "provider_account_readback": {
+      "workflow_run_id": 41329030634,
+      "account_matches_known_production": true,
+      "visible_accounts": 1,
+      "separate_account_visibility": "NOT_ESTABLISHED",
+      "independent_review_submissions_pr62": 0,
+      "protected_staging_secret_used": false
+    }
   },
   "anti_rollback": {
     "status": "UNQUALIFIED_HISTORICAL_COUNTEREXAMPLE",
@@ -24,14 +32,28 @@
       "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
       "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
       "Independent signature over exact tested artifact digest"
-    ]
+    ],
+    "fresh_local_reproduction": {
+      "source_sha": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127",
+      "command": "python3 ops/trackb27/VERIFY_B27_LOCAL.py",
+      "isolated_source_extraction": true,
+      "manifest_and_inherited_source_hashes_verified": true,
+      "local_tests_passed": 15,
+      "security_outcome": "GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED",
+      "external_tests_executed": false,
+      "log_sha256": "7b640d82d32381f05ffe47b9b58abe4bb6c6b56a01d77d05b30b099162329268"
+    }
   },
   "hosted_d1": {
-    "status": "BLOCKED",
+    "status": "BLOCKED_FRESH_ATTEMPT05_CF7406",
     "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
-    "workflow_run_id": 41312188640,
-    "artifact_sha256": "43496fae672e00fcd9b8d506d0542858d06b8e20dcb9dff4db13228737918e1d",
-    "databases_listed": 11
+    "workflow_run_id": 41330823895,
+    "artifact_sha256": "2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02",
+    "databases_listed": 11,
+    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+    "inference_calls": 0,
+    "migrations": "NOT_REACHED",
+    "existing_database_changes": 0
   },
   "hosted_postgres": {
     "status": "CONFIRMED_ISOLATED_COMPONENT_SCOPE",
@@ -75,7 +97,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
+  "last_revalidation_source": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -89,18 +111,19 @@
   },
   "verification": {
     "groups_passed": 20,
-    "source_sha": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
-    "tree_sha": "9b8182318fdc4b258c4d8f9abc1f6e0eda7e02fa",
-    "ci_merge_sha": "966f585f0df59c7e411075e1680306d774c80fb1",
+    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+    "tree_sha": "5682c74e2e7b0cc2ab2ada2c6380aafa48362da7",
+    "ci_merge_sha": "56c171e9bd003b345969dde1506b52144e8555c0",
     "ci_merge_same_tree_verified": true,
-    "workflow_run_id": 41322607849,
-    "artifact_id": 13090505207,
-    "artifact_sha256": "26219e9ff1fc2f59050bb6b401890f4e5165427a8ba99a18a5a1b217693a8634",
+    "workflow_run_id": 41330823629,
+    "artifact_id": 13093625859,
+    "artifact_sha256": "ebc5fd3f38b76797897f0718fc4add9be38e321fcaf9f45c254cf48182299141",
     "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
     "isolated_workerd_tests": 9,
-    "workers_ai_offline_admission_protocol_tests": 8
+    "workers_ai_offline_admission_protocol_tests": 10,
+    "hosted_acceptance_protocol_tests": 6
   },
   "workers_ai_alternative": {
     "status": "CONFIRMED_BOUNDED_COMPONENT_SCOPE",
@@ -119,7 +142,7 @@
     "inference_calls": 3,
     "completed_response_neurons": 52.20908737182617,
     "client_abort_and_work_revocation": "CONFIRMED",
-    "provider_terminal_cancellation": "UNATTESTED",
+    "provider_terminal_cancellation": "UNQUALIFIED_NO_PROVIDER_RECORD_FOR_SAVED_ABORT",
     "hosted_d1_qualified": false,
     "zero_invoice_certified": false,
     "further_automatic_dispatch": "DISABLED_BY_EXECUTED_SOURCE_PIN",
@@ -137,6 +160,17 @@
         "sha256": "7206abaf7eee1c56cb39595d85669fdb7fd3e5ab5da31b682a55f06c09cb80be",
         "download_hash_verified": true
       }
+    },
+    "aborted_request_usage_reconciliation": {
+      "status": "UNKNOWN_PROVIDER_RECORD_NOT_FOUND",
+      "neurons": null,
+      "assumed_zero": false,
+      "provider_call_reservation_retained": 1,
+      "reservation_id": "reservation_db8f45a1306a4699a9f2f1ac9ab0bd39",
+      "work_state": "REVOKED",
+      "run_state": "FAILED",
+      "budget_refunded": false,
+      "observed_completed_account_neurons": 52.20908737182617
     }
   }
 }

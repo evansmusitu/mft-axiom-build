@@ -1,0 +1,29 @@
+AXIOM_B27_B25_B26_EXACT_PARENT_SHA256_PASS
+AXIOM_B27_MANIFEST_SHA256_PASS 9
+AXIOM_B27_SYNTAX_PASS 4
+test_denies_duplicate_keys_on_protocol_boundary (test_remote.RemoteGateTests.test_denies_duplicate_keys_on_protocol_boundary) ... ok
+test_denies_wrong_path_even_with_correct_token (test_remote.RemoteGateTests.test_denies_wrong_path_even_with_correct_token) ... ok
+test_disabled_public_read_route (test_remote.RemoteGateTests.test_disabled_public_read_route) ... ok
+test_eight_separate_broker_processes_only_one_admitted (test_remote.RemoteGateTests.test_eight_separate_broker_processes_only_one_admitted) ... ok
+test_eight_simultaneous_clients_one_local_admission (test_remote.RemoteGateTests.test_eight_simultaneous_clients_one_local_admission) ... ok
+test_live_network_separate_process_audit_only (test_remote.RemoteGateTests.test_live_network_separate_process_audit_only) ... ok
+test_loopback_client_rejects_noncanonical_config (test_remote.RemoteGateTests.test_loopback_client_rejects_noncanonical_config) ... ok
+test_lost_ack_after_durable_commit_fails_closed_and_retry_denied (test_remote.RemoteGateTests.test_lost_ack_after_durable_commit_fails_closed_and_retry_denied) ... ok
+test_majority_and_witness_storage_deletion_still_reenables_attack (test_remote.RemoteGateTests.test_majority_and_witness_storage_deletion_still_reenables_attack) ... ok
+test_no_service_no_local_quorum_fallback (test_remote.RemoteGateTests.test_no_service_no_local_quorum_fallback) ... ok
+test_persisted_replay_denied_across_service_process_restart (test_remote.RemoteGateTests.test_persisted_replay_denied_across_service_process_restart) ... ok
+test_request_extra_clock_field_denied (test_remote.RemoteGateTests.test_request_extra_clock_field_denied) ... ok
+test_service_clock_cannot_be_controlled_by_client (test_remote.RemoteGateTests.test_service_clock_cannot_be_controlled_by_client) ... ok
+test_wrong_bearer_denied_before_any_durable_admission (test_remote.RemoteGateTests.test_wrong_bearer_denied_before_any_durable_admission) ... ok
+test_wrong_pinned_witness_signer_denied (test_remote.RemoteGateTests.test_wrong_pinned_witness_signer_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 1.893s
+
+OK
+
+B27_EXTERNAL_INDEPENDENCE_NOT_PROVEN_ROLLBACK_ATTACK_REPRODUCED
+
+AXIOM_B27_BOUNDARY_TESTS_PASS 15 NOT_EXTERNAL
+AXIOM_B27_GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED
+AXIOM_B27_S0_LOOPBACK_WITNESS_NETWORK_BOUNDARY_PASS_NOT_EXTERNAL
