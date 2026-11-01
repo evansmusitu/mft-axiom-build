@@ -118,11 +118,12 @@ export async function reconcileAgentInvocation({db,customer,taskId,stage,client,
     input_resubmitted:false,task_completion_authorized:false,...(item?{provider_evidence:proof(item)}:{})});
   if(row.status==='SUCCEEDED'){await verifiedOutput(row);return reply('completed',row);}
   if(!checkpointId(row.session_id)||!checkpointId(row.turn_id))throw new DOMException('provider identity is uncertain; automatic resend is forbidden','InvalidStateError');
-  if(typeof client?.reconcile!=='function')throw new TypeError('read-only Agents reconciliation client required');
+  const reconcile=client?.waitForCompletion??client?.reconcile;
+  if(typeof reconcile!=='function')throw new TypeError('read-only Agents reconciliation client required');
   const updated=await db.prepare("UPDATE axiom_ec_agent_invocations SET reconcile_reads=reconcile_reads+1 WHERE tenant_id=?1 AND invocation_id=?2 AND status IN('STARTED','UNCERTAIN') AND session_id=?3 AND turn_id=?4 AND reconcile_reads<3").bind(tenant,row.invocation_id,row.session_id,row.turn_id).run();
   if(changes(updated)!==1)throw new DOMException('bounded provider reconciliation attempts exhausted','QuotaExceededError');
   let response;
-  try{response=await client.reconcile({sessionId:row.session_id,turnId:row.turn_id});}
+  try{response=await reconcile.call(client,{sessionId:row.session_id,turnId:row.turn_id});}
   catch{throw new DOMException('provider reconciliation unavailable; input was not resent','InvalidStateError');}
   if(response?.session_id!==row.session_id||response?.turn_id!==row.turn_id)throw new DOMException('reconciled provider identity mismatch','DataError');
   if(response.status!=='completed')return reply(response.status==='failed'||response.status==='cancelled'?response.status:'pending');

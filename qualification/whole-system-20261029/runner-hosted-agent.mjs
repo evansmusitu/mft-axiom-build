@@ -11,7 +11,8 @@ import {createHostedAgentClient} from '../../integrations/openai-agents/client.m
 import OpenAI from '../../integrations/openai-agents/node_modules/openai/index.mjs';
 
 const root=process.cwd(),out=resolve(root,'qualification/whole-system-20261029/runner-live-results');
-const repo='evansmusitu/mft-axiom-build',claimName='axiom-hosted-dispatch-20261101-01';
+const attempt=process.env.AXIOM_ACCEPTANCE_ATTEMPT||'01';assert.ok(['01','02'].includes(attempt));
+const repo='evansmusitu/mft-axiom-build',claimName='axiom-hosted-dispatch-20261101-'+attempt;
 assert.equal(process.env.GITHUB_REPOSITORY,repo);assert.equal(process.env.GITHUB_RUN_ATTEMPT,'1');
 assert.equal(process.env.AXIOM_ACCEPTANCE_AUTHORIZATION,'user-request-20261101-governed-hosted-one');
 mkdirSync(out,{recursive:true});
@@ -29,6 +30,11 @@ if(process.argv.includes('--claim')){
   assert.match(process.env.AXIOM_REMOTE_CLAIM_ID||'',/^\d+$/);
   const claim=await github('/actions/artifacts/'+process.env.AXIOM_REMOTE_CLAIM_ID);
   assert.equal(claim.name,claimName);assert.equal(String(claim.workflow_run.id),process.env.GITHUB_RUN_ID);assert.equal(claim.expired,false);
+  if(attempt==='02'){
+    const previous='sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c';
+    const response=await fetch('https://api.openai.com/v1/agents/sessions/'+previous,{headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'OpenAI-Beta':'agents=v1'},redirect:'error',signal:AbortSignal.timeout(10000)});
+    assert.equal(response.status,404,'the previous failed mission must be deleted; never resend uncertain input');await response.body?.cancel();
+  }
   const dependencies=createRequire(new URL('./live-runner-deps/package.json',import.meta.url));
   const {Miniflare}=await import(dependencies.resolve('miniflare')),{build}=await import(dependencies.resolve('esbuild')),{DefaultArtifactClient}=await import(dependencies.resolve('@actions/artifact'));
   const artifactClient=new DefaultArtifactClient();
@@ -37,7 +43,7 @@ if(process.argv.includes('--claim')){
   writeFileSync(probePath,JSON.stringify({run_id:process.env.GITHUB_RUN_ID,source_sha:process.env.AXIOM_ACCEPTANCE_SOURCE_SHA,provider_dispatched:false})+'\n');
   const probe=await artifactClient.uploadArtifact('axiom-hosted-checkpoint-probe-'+process.env.GITHUB_RUN_ID,[probePath],out,{retentionDays:90});
   assert.ok(probe.id,'remote checkpoint client must ACK its pre-inference probe');
-  const runId='axiom-acceptance-20261101-01',operator=randomBytes(32).toString('hex');
+  const runId='axiom-acceptance-20261101-'+attempt,operator=randomBytes(32).toString('hex');
   process.stdout.write('::add-mask::'+operator+'\n');
   const built=await build({entryPoints:[resolve(root,'qualification/whole-system-20261029/hosted-storage-worker.mjs')],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',loader:{'.sql':'text'},logLevel:'silent'});
   const mf=new Miniflare({modules:true,compatibilityDate:'2026-07-01',compatibilityFlags:['nodejs_compat'],cf:false,script:built.outputFiles[0].text,
@@ -63,11 +69,18 @@ if(process.argv.includes('--claim')){
       const uploaded=await artifactClient.uploadArtifact(name,[path],out,{retentionDays:90});assert.ok(uploaded.id,'checkpoint must be remotely acknowledged');
       report.checkpoints.push({artifact_id:uploaded.id,name,checkpoint:update,sha256:createHash('sha256').update(readFileSync(path)).digest('hex')});save();
     };
-    const verified=await runGovernedHostedTask({db,report,out,save,checkpoint});
+    const verified=await runGovernedHostedTask({db,report,out,save,checkpoint,acceptanceRunId:runId});
     report.checks.governed_hosted_task={status:'CONFIRMED',value:verified};
     const rows={};for(const table of ['axiom_ec_works','axiom_ec_runs','axiom_ec_artifacts','axiom_ec_evidence','axiom_ec_reservations','axiom_ec_agent_invocations','axiom_ec_agent_completion_guards'])rows[table]=(await db.prepare('SELECT * FROM '+table+' WHERE tenant_id=?').bind('acceptance-hosted').all()).results;
     writeFileSync(resolve(out,'final-governance-journal.json'),JSON.stringify({schema:'musitu.axiom.local-governance-journal.v1',scope:report.scope,source_sha:report.source_sha,rows},null,2)+'\n');
-  }catch(error){report.checks.governed_hosted_task={status:'FAILED',error:safe(error)};process.exitCode=1;}
+  }catch(error){
+    report.checks.governed_hosted_task={status:'FAILED',error:safe(error)};process.exitCode=1;
+    if(report.resources.session_id&&report.resources.primary_turn_id)try{
+      const sdk=new OpenAI({apiKey:process.env.OPENAI_API_KEY,maxRetries:0,timeout:10000,logLevel:'off'}).beta.agents.sessions;
+      const turn=await sdk.turns.retrieve(report.resources.primary_turn_id,{session_id:report.resources.session_id},{signal:AbortSignal.timeout(10000)});
+      report.provider_status_before_cleanup={turn_id:turn.id,session_id:turn.session_id,status:turn.status,object:turn.object};
+    }catch(statusError){report.provider_status_error=safe(statusError);}
+  }
   finally{
     const sessionId=report.resources.session_id;
     if(sessionId)try{

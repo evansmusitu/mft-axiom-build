@@ -56,3 +56,28 @@ is explicitly **not hosted D1 qualification**. Its remote claim prevents automat
 input retries even after local runner loss. Artifacts are retained 90 days;
 expiration, privileged deletion and rollback are outside this ordinary retry guard.
 The original Cloudflare workflow is pinned to its already failed source checkpoint.
+
+## First hosted protocol outcome
+
+Workflow `41278597576`, source `b917362878757c9ad4c09b5f7ca10212d9bab46d`,
+created one hosted session and remotely acknowledged both identity checkpoints.
+No final output or Axiom completion receipt was obtained. Reconciliation remained
+unsuccessful; cleanup requested cancellation, acknowledged session deletion and
+verified GET404. This is a **failed acceptance**, not a completed governed task.
+Its exact artifact digest is
+`41cef72ff9f98ca8424fc42400012f3c56c49f6cc23216716c1ce576b199550b`.
+
+The live result exposed insufficient queued-turn waiting and insufficient safe
+provider-status diagnostics. The client now offers bounded read-only completion
+waiting, preserving exact IDs, a120-read ceiling, a single overall deadline and
+no input submission. One durable reconciliation operation can wait for queued or
+running status rather than exhausting all three logical attempts immediately.
+The original artifact did not retain the underlying provider error code, so its
+precise provider-side cause is not asserted.
+
+A separate revalidation uses a new Work/invocation and remote claim02, after
+checking the old session still returns404. It retains the old failure and never
+resends that invocation. The isolated acceptance lease is15minutes; ordinary
+production defaults are unchanged. Provider state and safe typed observation
+errors are retained before failure cleanup. Only its actual downloaded output,
+receipt, terminal cancellation and deletion evidence can establish success.

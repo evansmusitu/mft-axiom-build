@@ -381,6 +381,19 @@ export function createHostedAgentClient({apiKey, model, fetchImpl = globalThis.f
       requireId(sessionId); requireId(turnId);
       return run({signal, sessionId, turnId}, (sessions, context, state) => readCompleted(sessions, context, state));
     },
+    async waitForCompletion({sessionId,turnId,signal,pollIntervalMs=1000,maxPolls=120}={}) {
+      requireId(sessionId);requireId(turnId);
+      if(!Number.isSafeInteger(pollIntervalMs)||pollIntervalMs<1||pollIntervalMs>10000||!Number.isSafeInteger(maxPolls)||maxPolls<1||maxPolls>120)throw new TypeError('bounded read-only polling required');
+      return run({signal,sessionId,turnId},async(sessions,context,state)=>{
+        for(let poll=0;poll<maxPolls;poll++){
+          try{return await readCompleted(sessions,context,state);}
+          catch(error){if(!(error instanceof HostedAgentError)||error.code!=='HOSTED_TURN_INCOMPLETE'||poll===maxPolls-1)throw error;}
+          let timer;
+          try{await context.wait(()=>new Promise(resolve=>{timer=setTimeout(resolve,pollIntervalMs);}));}
+          finally{clearTimeout(timer);}
+        }
+      });
+    },
     async cancel({sessionId, turnId, signal} = {}) {
       requireId(sessionId); requireId(turnId);
       return run({signal, sessionId, turnId}, async (sessions, context, state) => {

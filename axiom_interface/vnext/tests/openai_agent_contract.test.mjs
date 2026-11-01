@@ -147,6 +147,16 @@ test('reconciliation attempts remain bounded and unknown provider IDs never trig
   await assert.rejects(()=>reconcileAgentInvocation(args),/exhausted/);assert.equal(reads,3);assert.equal(f.calls.length,1);
 });
 
+test('reconciliation uses bounded provider waiting as one durable read operation and never redispatches the interrupted stage',async t=>{
+  const f=await fixture(t,{create:async args=>{await args.onCheckpoint({session_id:'session_waited',turn_id:'turn_waited'});throw new Error('observer disconnected');}});
+  await f.start();await f.binding.reserve({kind:'model'});await assert.rejects(()=>f.model({stage:'planning',objective}));
+  let waits=0;
+  const client={async reconcile(){throw new Error('single-read path must not burn attempts while provider is queued');},async waitForCompletion(input){waits++;assert.deepEqual(input,{sessionId:'session_waited',turnId:'turn_waited'});return {session_id:'session_waited',turn_id:'turn_waited',status:'completed',output_text:JSON.stringify(planning)};}};
+  const recovered=await reconcileAgentInvocation({db:f.db,customer,taskId,stage:'planning',client});assert.equal(recovered.status,'completed');assert.equal(waits,1);assert.equal(f.calls.length,1);
+  assert.equal(f.db.connection.prepare('SELECT reconcile_reads FROM axiom_ec_agent_invocations').get().reconcile_reads,1);
+  assert.equal((await f.model({stage:'planning',objective})).operation,null);assert.equal(f.calls.length,1);
+});
+
 test('an invocation admitted after proof validation aborts the whole artifact transaction',async t=>{
   const chosen='Calculate 40+2.';let f;
   f=await fixture(t,{objective:chosen,execute:async input=>{

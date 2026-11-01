@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.axiom.public-baseline-smoke.v1",
+  "observed_at": "2026-11-01T05:53:54.746Z",
+  "scope": "CURRENT_CONNECTED_REVIEWER_BASELINE_NOT_UNMERGED_CANDIDATE_OR_POST_DEPLOYMENT_ACCEPTANCE",
+  "candidate_deployed": false,
+  "capabilities": {
+    "operation_count": 74,
+    "business_product_count": 30,
+    "commerce_tools_exposed": false
+  },
+  "division_by_zero": {
+    "operation": "arithmetic.evaluate",
+    "result": {
+      "ok": false,
+      "operation": "arithmetic.evaluate",
+      "result": null,
+      "verified": null,
+      "error": {
+        "code": "undefined_result",
+        "message": "The calculation is undefined. Division by zero or an indeterminate expression can produce this result; check the expression and its domain."
+      }
+    },
+    "error_code": "INVALID_ARGUMENT"
+  },
+  "arithmetic": {
+    "operation": "arithmetic.evaluate",
+    "result": {
+      "ok": true,
+      "operation": "arithmetic.evaluate",
+      "result": "5.0000000000000000000000000000000000000000000000000",
+      "verified": null
+    }
+  },
+  "post_deployment_reviewer_suite": "PENDING_RELEASE_GATES"
+}

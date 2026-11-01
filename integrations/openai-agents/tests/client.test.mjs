@@ -78,7 +78,7 @@ function safeError(error, code) {
 test('construction is offline and requires explicit credentials, model and bounded options', () => {
   const {calls, fetchImpl} = transport([]);
   const hosted = client(fetchImpl);
-  assert.deepEqual(Object.keys(hosted), ['create', 'reconcile', 'cancel', 'delete']);
+  assert.deepEqual(Object.keys(hosted), ['create', 'reconcile', 'waitForCompletion', 'cancel', 'delete']);
   assert.equal(calls.length, 0);
   for (const overrides of [{apiKey: ''}, {model: ''}, {model: 'bad model'}, {timeoutMs: 0}, {maxOutputBytes: 0}, {maxOutputBytes: Infinity}]) {
     assert.throws(() => createHostedAgentClient({apiKey: 'fixture-key', model: 'fixture-model', fetchImpl, ...overrides}), TypeError);
@@ -366,6 +366,31 @@ test('an SDK JSON-body timeout that wins the timer race retains timeout classifi
   const fetchImpl=async()=>{calls++;throw new OpenAI.APIConnectionTimeoutError();};
   await assert.rejects(client(fetchImpl).reconcile({sessionId,turnId}),error=>safeError(error,'HOSTED_TIMEOUT'));
   assert.equal(calls,1);
+});
+
+test('bounded completion waiting observes queued and running status before exact persisted output without submitting input',async()=>{
+  const {calls,fetchImpl}=transport([jsonResponse(turn('queued')),jsonResponse(turn('in_progress')),jsonResponse(turn('completed')),pageResponse([message('saved final output')])]);
+  const result=await client(fetchImpl).waitForCompletion({sessionId,turnId,pollIntervalMs:1,maxPolls:3});
+  assert.equal(result.output_text,'saved final output');assert.equal(result.turn_id,turnId);assert.equal(calls.length,4);assert.ok(calls.every(call=>call.method==='GET'));
+});
+
+test('completion waiting has a hard read-count ceiling and never treats idle or pending as completed',async()=>{
+  const {calls,fetchImpl}=transport([jsonResponse(turn('queued')),jsonResponse(turn('in_progress'))]);
+  await assert.rejects(client(fetchImpl).waitForCompletion({sessionId,turnId,pollIntervalMs:1,maxPolls:2}),error=>safeError(error,'HOSTED_TURN_INCOMPLETE'));
+  assert.equal(calls.length,2);assert.ok(calls.every(call=>call.method==='GET'));
+});
+
+test('completion waiting stops on failed, cancelled and unsupported action states without polling again',async t=>{
+  for(const [status,code]of[['failed','HOSTED_TURN_FAILED'],['cancelled','HOSTED_TURN_CANCELLED'],['waiting','HOSTED_REQUIRES_ACTION']])await t.test(status,async()=>{
+    const {calls,fetchImpl}=transport([jsonResponse(turn(status))]);
+    await assert.rejects(client(fetchImpl).waitForCompletion({sessionId,turnId,pollIntervalMs:1}),error=>safeError(error,code));assert.equal(calls.length,1);
+  });
+});
+
+test('completion-wait poll bounds reject before any provider request',async()=>{
+  const {calls,fetchImpl}=transport([]);
+  for(const options of[{maxPolls:0},{maxPolls:121},{pollIntervalMs:0},{pollIntervalMs:10001}])await assert.rejects(client(fetchImpl).waitForCompletion({sessionId,turnId,...options}),TypeError);
+  assert.equal(calls.length,0);
 });
 
 test('preaborted signals do not dispatch and external aborts keep caller error text private', async () => {

@@ -1,0 +1,151 @@
+{
+  "schema": "musitu.axiom.hosted-postgres-root-readback.v1",
+  "observed_at": "2026-11-01T05:49:56.182Z",
+  "project_id": "muddy-wildflower-85740352",
+  "branch_id": "br-jolly-moon-b4mwqht6",
+  "database_name": "atlas_axiom",
+  "source": "AUTHENTICATED_NEON_CONNECTOR_SELECT",
+  "independent_custody_certified": false,
+  "readback": [
+    {
+      "state": "COMPLETED",
+      "report": {
+        "checks": [
+          {
+            "name": "canonical_migration_idempotent_and_schema_isolated",
+            "status": "PASS"
+          },
+          {
+            "name": "actual_world_repository_tenant_isolation_equal_fact_ids",
+            "status": "PASS"
+          },
+          {
+            "name": "actual_job_repository_cross_tenant_read_denied",
+            "status": "PASS"
+          },
+          {
+            "name": "worker_max_lease_admission_bound_leaves_no_receipt",
+            "status": "PASS"
+          },
+          {
+            "name": "concurrent_authenticated_claim_has_one_durable_winner",
+            "status": "PASS"
+          },
+          {
+            "name": "authenticated_claim_receipt_replay_does_not_reclaim",
+            "status": "PASS"
+          },
+          {
+            "name": "revocation_after_authentication_denies_before_storage_mutation",
+            "status": "PASS"
+          },
+          {
+            "name": "expired_lease_reclamation_fences_stale_capability",
+            "status": "PASS"
+          },
+          {
+            "name": "real_reasoning_execution_persists_proof_and_missing_proof_rolls_back",
+            "status": "PASS"
+          },
+          {
+            "name": "durable_execution_left_leased_before_new_deployment",
+            "status": "PASS"
+          },
+          {
+            "name": "fresh_deployment_actual_worker_recovers_durable_execution",
+            "status": "PASS"
+          },
+          {
+            "name": "persisted_execution_replay_matches_after_restart",
+            "status": "PASS"
+          },
+          {
+            "name": "no_second_durable_execution_or_signing_call",
+            "status": "PASS"
+          }
+        ],
+        "run_id": "axiom-acceptance-20261101-pg-e1717b42",
+        "schema": "axiom.hosted-postgres-acceptance.v1",
+        "status": "COMPLETED",
+        "recovery": {
+          "job_id": "execution-job:ff635b46e1e270e49cae3898928e94823dc777072ba98acf16767ab78980427f",
+          "record_id": "platform:c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9",
+          "tenant_id": "tenant:hosted:alpha",
+          "prior_epoch": 2,
+          "record_hash": "957e58000ab36d2ab26647919dd9f54835d8b381a005fab6a2e4fff4c30727f3",
+          "recovery_at": "2026-11-01T05:47:26.233Z",
+          "snapshot_id": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda",
+          "signer_key_id": "signer:hosted:fixture",
+          "expected_result": {
+            "status": "APPROVED",
+            "snapshotId": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda",
+            "certificateId": "c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9",
+            "policyDecision": {
+              "checks": [],
+              "status": "ALLOW",
+              "snapshotId": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda"
+            },
+            "executionRecordId": "platform:c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9"
+          },
+          "execution_request": {
+            "asOf": "2026-11-01T05:47:23.233Z",
+            "program": {
+              "nodes": [
+                {
+                  "id": "decision",
+                  "kind": "Decision",
+                  "inputs": {
+                    "value": {
+                      "literal": {
+                        "type": {
+                          "kind": "boolean"
+                        },
+                        "value": false
+                      }
+                    }
+                  },
+                  "operation": "logic.not"
+                }
+              ],
+              "inputs": {},
+              "irVersion": "0.1",
+              "objective": "A bounded hosted storage proof",
+              "assumptions": [],
+              "constraints": [],
+              "decisionNodeId": "decision"
+            },
+            "bindings": [],
+            "issuedAt": "2026-11-01T05:47:23.233Z",
+            "requirements": []
+          },
+          "signer_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+r4nIg1sPLlb9qrAyHisKSs9BByLEmFTt17ApLeRo0U=\n-----END PUBLIC KEY-----\n"
+        },
+        "started_at": "2026-11-01T05:47:23.227Z",
+        "branch_name": "axiom-acceptance-20261101-pg-e1717b42",
+        "final_epoch": 3,
+        "instance_id": "804a2888-56d0-4438-9043-6d7609b1eaf9",
+        "schema_name": "axiom_acceptance_2814508c889643019f60",
+        "budget_scope": "worker maxLeaseMs only",
+        "completed_at": "2026-11-01T05:48:51.643Z",
+        "node_version": "v24.22.1",
+        "database_name": "atlas_axiom",
+        "source_commit": "e1717b420ae93d5101916e21711625c2357f42e3",
+        "migration_sha256": "cdcb46a1c526620032db2e090698bc67172556e37317e41215b052dc39c5b46b",
+        "prepare_instance_id": "804a2888-56d0-4438-9043-6d7609b1eaf9",
+        "terminal_state_hash": "c53a744c3db0fd2f201f331a27dfefd148d0cb6e8a20c2556e39a8ca6fef2733",
+        "production_authority": false,
+        "recovery_instance_id": "cefa7de0-8717-4d2a-bc22-0ba7bbe5e962",
+        "durable_execution_count": 1,
+        "recovery_worker_outcome": {
+          "jobId": "execution-job:ff635b46e1e270e49cae3898928e94823dc777072ba98acf16767ab78980427f",
+          "status": "COMPLETED",
+          "jobStatus": "SUCCEEDED"
+        },
+        "hosted_postgres_qualified": true,
+        "independent_custody_qualified": false,
+        "private_fixture_keys_persisted": false,
+        "compute_provider_budget_qualified": false
+      }
+    }
+  ]
+}

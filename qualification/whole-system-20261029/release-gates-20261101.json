@@ -20,6 +20,16 @@
     "workflow_run_id": 41277591641,
     "artifact_sha256": "ff8ffba5c8d6352098487a7236eacf06ca156565c96b60bbf093c1045b9d9c1b"
   },
+  "hosted_postgres": {
+    "status": "CONFIRMED_ISOLATED_COMPONENT_SCOPE",
+    "checks_passed": 13,
+    "fresh_process_recovery": true,
+    "exactly_one_durable_execution": true,
+    "resources_cleaned": true,
+    "compute_provider_budget_qualified": false,
+    "evidence": "hosted-postgres-acceptance-20261101.json",
+    "root_readback": "hosted-postgres-root-readback-20261101.json"
+  },
   "basis": {
     "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",
     "independent_readonly_evidence_library_file_id": "libfile_496ff973de6c8191871b8a899396dcf2",

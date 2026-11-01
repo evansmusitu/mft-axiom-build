@@ -71,25 +71,27 @@ export async function acceptanceResult({base,contract,output,providerEvidence,co
   return {...payload,receipt:{...receiptBody,receipt_sha256:await sha256Json(receiptBody)}};
 }
 
-export async function runGovernedHostedTask({db,report,out,save,checkpoint=async()=>{}}){
+export async function runGovernedHostedTask({db,report,out,save,checkpoint=async()=>{},acceptanceRunId=runId}){
   let sessionId,turnId,controlTurnId,client;
+  const mission=acceptanceRunId;assert.match(mission,/^axiom-acceptance-20261101-0[12]$/);
   const sourceSha=report.source_sha;
       // The durable claim precedes all inference. An uncertain run never resends.
       await db.exec('CREATE TABLE IF NOT EXISTS axiom_acceptance_live_claim(run_id TEXT PRIMARY KEY,claimed_at TEXT NOT NULL,source_sha TEXT NOT NULL);');
-      const existing=await db.prepare('SELECT * FROM axiom_acceptance_live_claim WHERE run_id=?').bind(runId).first();
+      const existing=await db.prepare('SELECT * FROM axiom_acceptance_live_claim WHERE run_id=?').bind(mission).first();
       assert.equal(existing,null,'one-shot claim already exists: reconcile saved IDs; do not create another session');
-      await db.prepare('INSERT INTO axiom_acceptance_live_claim VALUES(?,?,?)').bind(runId,new Date().toISOString(),sourceSha||'local').run();
+      await db.prepare('INSERT INTO axiom_acceptance_live_claim VALUES(?,?,?)').bind(mission,new Date().toISOString(),sourceSha||'local').run();
       const customer={customer_id:'acceptance-hosted'},objective='Verify one hosted agent acceptance protocol.';
-      const governed=await createD1ExecutionGovernance({db,customer,serverPolicy:{max_compute_calls:0,max_provider_calls:2,lease_ms:600000}}).admit({objective,context:{project_id:'acceptance-project',work_id:'hosted-one-shot',controls:{privacy:'Project',budget:0}}});
-      const base={schema:'musitu.axiom.runtime-task.v1',task_id:'task_hosted_acceptance_one',request_id:'HOSTED-ACCEPTANCE-20261101-01',customer_id:customer.customer_id,objective,execution_contract:governed.contract,status:'RUNNING',started_at:new Date().toISOString()};await governed.create(base);
+      const governed=await createD1ExecutionGovernance({db,customer,serverPolicy:{max_compute_calls:0,max_provider_calls:2,lease_ms:900000}}).admit({objective,context:{project_id:'acceptance-project',work_id:'hosted-one-shot-'+mission.slice(-2),controls:{privacy:'Project',budget:0}}});
+      const base={schema:'musitu.axiom.runtime-task.v1',task_id:'task_hosted_acceptance_'+mission.slice(-2),request_id:'HOSTED-ACCEPTANCE-'+mission,customer_id:customer.customer_id,objective,execution_contract:governed.contract,status:'RUNNING',started_at:new Date().toISOString()};await governed.create(base);
       await governed.reserve({kind:'model'});
       const transport=interruptedCreationFetch(fetch,event=>{if(event.session_id||event.session?.id)sessionId=event.session_id||event.session.id;if(event.turn_id||event.turn?.id)turnId=event.turn_id||event.turn.id;});
       const modelName=process.env.OPENAI_AGENTS_MODEL||'gpt-6-astra';
       const provider=createHostedAgentClient({apiKey:process.env.OPENAI_API_KEY,model:modelName,fetchImpl:transport.fetch,timeoutMs:180000});
-      client={...provider,create:params=>provider.create({...params,onCheckpoint:async update=>{
+      const observationError=(stage,error)=>{(report.provider_observations??=[]).push({stage,...safeError(error)});save();throw error;};
+      client={...provider,waitForCompletion:params=>provider.waitForCompletion(params).catch(error=>observationError('wait_for_completion',error)),create:params=>provider.create({...params,onCheckpoint:async update=>{
         report.resources.session_id=update.session_id;report.resources.primary_turn_id=update.turn_id;save();
         await params.onCheckpoint(update);await checkpoint(update);
-      }})};
+      }}).catch(error=>observationError('create_observer',error))};
       const invoke=createGovernedAgentModel({db,customer,taskId:base.task_id,governance:governed,client,model:modelName,admitted:true});
       const nonce=randomBytes(12).toString('hex');
       const input={stage:'planning',objective,registered_operations:[],acceptance_test:{nonce,integers:[17,23],instruction:'Return operation null and needs_research false. Put the unchanged nonce and the product of the two integers in operation_args as nonce and product. Return only the required plan JSON.'}};
@@ -111,25 +113,25 @@ export async function runGovernedHostedTask({db,report,out,save,checkpoint=async
       // separately reserved and journaled. It is never a successful model proof.
       await governed.reserve({kind:'model'});
       await db.exec('CREATE TABLE IF NOT EXISTS axiom_acceptance_controls(run_id TEXT PRIMARY KEY,session_id TEXT NOT NULL,primary_turn_id TEXT NOT NULL,control_turn_id TEXT,status TEXT NOT NULL,created_at TEXT NOT NULL);');
-      await db.prepare('INSERT INTO axiom_acceptance_controls VALUES(?,?,?,NULL,?,?)').bind(runId,sessionId,turnId,'BEFORE_DISPATCH',new Date().toISOString()).run();
+      await db.prepare('INSERT INTO axiom_acceptance_controls VALUES(?,?,?,NULL,?,?)').bind(mission,sessionId,turnId,'BEFORE_DISPATCH',new Date().toISOString()).run();
       const sdk=new OpenAI({apiKey:process.env.OPENAI_API_KEY,maxRetries:0,timeout:30000,logLevel:'off'}).beta.agents.sessions;
       const observer=await sdk.events.stream(sessionId,{signal:AbortSignal.timeout(45000)});
       const controlPromise=(async()=>{for await(const event of observer){const id=event.turn_id||event.turn?.id;if(event.type==='agent.session.turn.created'&&id&&id!==turnId&&event.turn?.subagent_id==null){
         controlTurnId=id;report.resources.cancellation_turn_id=id;save();
-        await db.prepare('UPDATE axiom_acceptance_controls SET control_turn_id=?,status=? WHERE run_id=?').bind(id,'CHECKPOINTED',runId).run();
+        await db.prepare('UPDATE axiom_acceptance_controls SET control_turn_id=?,status=? WHERE run_id=?').bind(id,'CHECKPOINTED',mission).run();
         await client.cancel({sessionId,turnId:id});
         await checkpoint({session_id:sessionId,turn_id:id,stage:'cancellation_control'});return id;
       }}throw new Error('cancellation turn ID was not observed');})();
       controlPromise.catch(()=>{});
       let controlTurn;
       try{
-        await sdk.events.create(sessionId,{'Idempotency-Key':runId+'-cancellation-control',events:[{type:'agent.session.input.message',input:[{role:'user',content:[{type:'input_text',text:'Cancellation control. Begin preparing a plan JSON and wait for cancellation. Do not use tools or external actions.'}]}]}]});
+        await sdk.events.create(sessionId,{'Idempotency-Key':mission+'-cancellation-control',events:[{type:'agent.session.input.message',input:[{role:'user',content:[{type:'input_text',text:'Bounded cancellation control: prepare the required plan JSON with operation null, needs_research false, and operation_args.cancellation_probe containing integers 1 through 300. Do not use tools or external actions.'}]}]}]});
         controlTurn=await controlPromise;
       }finally{observer.controller.abort();}
       report.resources.cancellation_turn_id=controlTurn;save();
       let terminal;
       for(let i=0;i<10;i++){terminal=await sdk.turns.retrieve(controlTurn,{session_id:sessionId});if(['completed','cancelled','failed'].includes(terminal.status))break;await pause(2000);}
-      await db.prepare('UPDATE axiom_acceptance_controls SET status=? WHERE run_id=?').bind(terminal.status,runId).run();
+      await db.prepare('UPDATE axiom_acceptance_controls SET status=? WHERE run_id=?').bind(terminal.status,mission).run();
       assert.equal(terminal.status,'cancelled','cancel request alone does not establish cancellation');
       const control={session_id:sessionId,primary_turn_id:turnId,cancellation_turn_id:controlTurn,cancellation_status:terminal.status,stream_interrupted:true,recovered_from_saved_ids:true,session_creates:transport.creates,inputs_resent:false};
       const result=await acceptanceResult({base,contract:governed.contract,output,providerEvidence:evidence,control});
