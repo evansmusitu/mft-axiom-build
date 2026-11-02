@@ -1,7 +1,7 @@
 {
   "schema": "musitu.revenueguard.v4_1.checkpoint_recovery.execution_state.v1",
-  "as_of_utc": "2026-11-01",
-  "status": "RECOVERED_CONTRACTNLI_SOURCE_AND_ACTIVE_V3_CUAD_PIPELINES_WITH_VERIFIED_ORCHESTRATION",
+  "as_of_utc": "2026-11-02",
+  "status": "REGENERATED_SOURCE_ARTIFACTS_VERIFIED_V3_DEV_AND_CUAD_MATCHED_TRAINING_RUNNING",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "revenueguard-v41-postgate-research-20261101",
   "historical_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
@@ -11,7 +11,7 @@
     "contractnli": {
       "run_id": 41330633559,
       "source_commit": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
-      "observed_state": "FRESH_ENCODER_VERIFIED_V3_CHUNKS_0_1_SUCCEEDED_CHUNK2_IN_PROGRESS",
+      "observed_state": "V3_FOUR_CHUNK_TRAINING_SUCCESS_FINAL_ARTIFACT_VERIFIED_LOCKED_DEV_SHARD_SCORING_RUNNING",
       "artifact_expected_name": "revenueguard-contractnli-adapted-model",
       "next_conditional_workflow": ".github/workflows/revenueguard-v3-pairwise-recovery.yml",
       "trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json",
@@ -45,12 +45,57 @@
         "name": "revenueguard-contractnli-pairwise-v3-recovery-chunk-0",
         "artifact_id": 13098060215,
         "artifact_sha256": "71e7903feb8afe43063a41f8e9f60c1f5a5cb556b43196b6562090b21b425b5e"
-      }
+      },
+      "v3_final_artifact_id": 13103010924,
+      "v3_final_artifact_sha256": "503d654bbb2aa7a384888f7c2959caaee15a63c6cfde6f4693f1fa08d4f75369",
+      "locked_dev_run_id": 41386143344,
+      "locked_dev_jobs": [
+        {
+          "name": "score (0)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (5)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (7)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (6)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (3)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (4)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (2)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (1)",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
     },
     "cuad": {
       "run_id": 41330640096,
       "source_commit": "914be62c1cff332ee7c3ad5189805103e9debe3a",
-      "observed_state": "CHUNKS_0_THROUGH_6_SUCCESS_CHUNK7_IN_PROGRESS",
+      "observed_state": "EIGHT_CHUNK_SOURCE_TRAINING_COMPLETE_ARTIFACT_VERIFIED_MATCHED_WINDOW_RETRAINING_RUNNING",
       "source_artifact_expected_name": "revenueguard-cuad-epoch1-chunked-final",
       "matched_workflow": ".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",
       "matched_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json",
@@ -132,7 +177,17 @@
       "chunk5": {
         "artifact_id": 13098314442,
         "artifact_sha256": "60260b2b3e9ee82fd245ef878e83a0a0778012212cb3f99fe0a7f32b6383a7f0"
-      }
+      },
+      "final_source_artifact_id": 13100531770,
+      "final_source_artifact_sha256": "56588ea336fab987c8246564dfd7ef791ead0e6e459c2bbb76af653e5b00bf19",
+      "matched_window_training_run_id": 41386175423,
+      "matched_window_jobs": [
+        {
+          "name": "chunk0",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
     }
   },
   "checks": {
@@ -144,9 +199,9 @@
     "inherited_v3_research_unit_tests": "36/36 PASS",
     "frozen_v4_structured_money_regressions": "30/30 PASS",
     "source_adapter_final_artifact_present": true,
-    "cuad_source_final_artifact_present": false,
-    "contractnli_v3_real_dev_gate": "NOT_YET_EXECUTED",
-    "cuad_matched_heldout_gate": "NOT_YET_EXECUTED",
+    "cuad_source_final_artifact_present": true,
+    "contractnli_v3_real_dev_gate": "RUNNING_NO_RESULT",
+    "cuad_matched_heldout_gate": "NOT_EXECUTED_TRAINING_IN_PROGRESS",
     "contractnli_v3_real_training": "CHUNK0_IN_PROGRESS",
     "source_encoder_drive_backup": "NOT_UPLOADED_GOOGLE_DRIVE_CONNECTOR_100_MIB_LIMIT_FOR_303_MB_ARTIFACT",
     "source_encoder_github_retention_days": 90
@@ -183,5 +238,15 @@
     "cuad_handoff_commit": "83171f5df39c3ae8e17ea717f31a5e479f9085a9",
     "cuad_gate_race_fix_commit": "0c0d19f82ced0ae7b3ed93b12b3398e0ec5ad358",
     "fail_closed": true
+  },
+  "recovery_corrections": {
+    "previous_coord_run_id": 41348218713,
+    "previous_coord_v3_job_failure": "HTTP 404 while invoking workflow_dispatch for research-branch-only workflow",
+    "v3_dev_solution": "branch-scoped push trigger at research/revenueguard/TRIGGER_V3_RECOVERY_DEV.json",
+    "v3_dev_run_id": 41386143344,
+    "previous_cuad_matched_run_id": 41349599139,
+    "previous_cuad_matched_failure": "chunk0 cancelled on hard 120-minute job timeout (~600 of 642 steps)",
+    "cuad_timeout_fix": "raise all four chunks to 240 minutes; exact final source artifact SHA-256 pinned",
+    "cuad_restart_run_id": 41386175423
   }
 }
