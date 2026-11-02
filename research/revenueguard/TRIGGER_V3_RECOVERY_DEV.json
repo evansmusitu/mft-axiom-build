@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.revenueguard.contractnli.v3_locked_dev_trigger.v1",
+  "status": "AUTHORIZED_LOCKED_DEVELOPMENT_EVALUATION_ONLY",
+  "source_encoder_run_id": 41330633559,
+  "source_encoder_artifact_sha256": "ea7e9a0cf451ea998cd2b055df93b3a7cbde52654cc1268446e5682f7adb6916",
+  "trained_v3_run_id": 41336589127,
+  "trained_v3_head_sha": "dc4f8cae8256867d43af65cff8286fccb31ec000",
+  "trained_v3_final_artifact_id": 13103010924,
+  "trained_v3_final_artifact_sha256": "503d654bbb2aa7a384888f7c2959caaee15a63c6cfde6f4693f1fa08d4f75369",
+  "checkpoint_chains": "4/4 successful",
+  "calibration": "ContractNLI hash-held train calibration; duplicate document 548 excluded",
+  "dev_gate": {
+    "accuracy_min": 0.9,
+    "macro_f1_min": 0.88,
+    "false_grounding_max": 0.02,
+    "evidence_recall_min": 0.85
+  },
+  "contractnli_test_opened": false,
+  "cuad_official_test_opened": false,
+  "maud_opened": false,
+  "certification": "NOT_CERTIFIED"
+}
