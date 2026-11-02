@@ -41,3 +41,14 @@ python -m unittest discover -s tests -p 'test_*.py' -v
 - Replayed proof across different subjects -> uniqueness error and no new tenant.
 
 Do not expose the private verifier endpoints, manufacture identity attestations or mark any system live from these tests.
+
+
+## G02 customer API session issuer admission (isolated candidate; NOT QUALIFIED)
+
+The customer API is closed unless both of these conditions are satisfied:
+- IDENTITY_VERIFIER_QUALIFIED=qualified_private_binding, set only after independently approved, provider-origin session qualification. A flag value is **not evidence** of provider qualification.
+- CUSTOMER_IDENTITY_ISSUER is explicitly configured to the independently verified exact HTTPS issuer **origin** (no path, query, fragment, embedded credentials or HTTP). The verified session's issuer must exactly match this pinned value; never infer it from request headers or a browser form.
+
+IDENTITY_VERIFIER must be an independently scoped, non-public service binding that authenticates the session and issues a truthful issuer, subject, tenant_id, audience='customer-control-plane', authenticated=true assertion. The database still independently requires an active tenant and membership. Never treat raw JSON from a public endpoint or a mock session verifier as authorization to enable the flag. Identity and owner/role claims cannot be supplied by the customer browser. No real verifier is deployed or qualified by these source changes.
+
+The negative regression evidence includes missing/unqualified verifier flag, malformed/missing HTTPS issuer, substituted issuer, and missing/revoked membership. Offline fixtures explicitly provide test-only qualification flags; they are **not** production attestations. This gate does not connect ChatGPT OAuth to the same canonical identity, mint OAuth tokens, migrate legacy keys or qualify staging D1, MFA, recovery or B27. Preserve all those blockers for external independent acceptance.
