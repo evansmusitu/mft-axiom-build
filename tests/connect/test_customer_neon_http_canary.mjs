@@ -76,6 +76,7 @@ test('unexpected database exceptions and malformed result fail closed with 503',
     const env={CONNECT_NEON_MODE:'isolated-synthetic-only',CONNECT_NEON_HTTP_ENABLED:true,CONNECT_NEON_HTTP_ORIGIN:'https://isolated.example.invalid',CONNECT_NEON_DB:db};
     const r=await handle(request(),env);
     assert.equal(r.status,503);
+    assert.equal(r.headers.get('x-musitu-admission-outcome'),'unknown');
     const payload=await body(r);
     assert.deepEqual(payload,{ok:false,error:'CUSTOMER_NEON_UNAVAILABLE'});
     assert.doesNotMatch(JSON.stringify(payload),/private|secret|SQL/);
