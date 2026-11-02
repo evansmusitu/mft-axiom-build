@@ -1,0 +1,38 @@
+{
+  "schema": "musitu.revenueguard.cuad.matched_window_posttrain_heldout_trigger.v1",
+  "status": "AUTHORIZED_DEVELOPMENT_HELDOUT_ONLY",
+  "trained_model_run_id": 41386175423,
+  "trained_model_head_sha": "1697801864e3fcbf1a6117958ee72127d52699b3",
+  "trained_chunk_jobs": {
+    "chunk0": "success",
+    "chunk1": "success",
+    "chunk2": "success",
+    "chunk3": "success"
+  },
+  "workflow_failure_cause": "dispatch_heldout HTTP 404 only, all model-training jobs succeeded",
+  "artifact_id": 13135449936,
+  "artifact_name": "revenueguard-cuad-matched-window-epoch2-final",
+  "artifact_sha256": "adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07",
+  "training_geometry": {
+    "selected_windows": 61659,
+    "positive": 12305,
+    "hard_negative": 49354,
+    "global_steps": 2571,
+    "max_length": 384,
+    "stride": 128,
+    "heldout_questions": 2461
+  },
+  "gate": {
+    "no_answer_false_positive_max": 0.02,
+    "answer_detection_f1_min": 0.85,
+    "localization_overlap_recall_min": 0.85,
+    "answerable_token_f1_min": 0.8
+  },
+  "policy": {
+    "train_source_only": true,
+    "official_cuad_test_opened": false,
+    "contractnli_test_opened": false,
+    "maud_opened": false,
+    "production_certification": "NOT_CERTIFIED"
+  }
+}
