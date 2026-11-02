@@ -26,7 +26,7 @@ also returned those two records, with sampleInterval 1 and errorCode 0.
 No aborted-request record was returned. The exposed inference schema has no
 requestId/rayId or queryable turn-cancellation status.
 
-The latest read-only reconciliation is workflow `41348310191`, source
+The earlier read-only reconciliation is workflow `41348310191`, source
 `f90e089aa8dbebd87df231805b36ea2fdb572551`, observed at
 **1 November 2026, 20:43:42 UTC (22:43:42 CAT)**. It widened the exhausted
 request-row query to **15:40:00–20:43:39 UTC**, still returning only these rows:
@@ -44,6 +44,19 @@ No request identity is exposed in these analytics rows; time proximity, absence
 of a row and account totals cannot establish cancellation or zero usage.
 Latest readback ZIP SHA256:
 `c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530`.
+
+Latest delayed readback: workflow `41389928351`, source
+`83e30800fc1f60a993e7684d30403fe2725ff23f`, at **2 November 2026,
+04:42:28 UTC / 06:42:28 CAT**, via the existing GitHub Cloudflare secret.
+The full 1 November UTC day still has two completed records and
+52.20908737182617 neurons. Per-request rows through midnight still match only
+the two saved successful response usage tuples. The current schema has no
+requestId/rayId join field, so the diagnostic is explicitly
+`PER_REQUEST_JOIN_KEY_UNAVAILABLE`; final aborted-request usage remains null.
+The separate 2 November window has zero account-wide recorded neurons as of
+04:42:23 UTC; it makes no statement about the prior day's aborted request.
+Latest readback ZIP SHA256:
+`e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce`.
 
 Please provide:
 

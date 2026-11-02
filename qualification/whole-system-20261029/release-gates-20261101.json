@@ -16,6 +16,46 @@
       "Two authenticated independent evidence readback origins"
     ],
     "provider_account_readback": {
+      "account_matches_known_production": true,
+      "accepted_members": 1,
+      "member_mfa_enabled": true,
+      "account_enforce_twofactor": false,
+      "independent_custody_proven": false,
+      "workflow_run_id": 41389928351,
+      "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+      "observed_at": "2026-11-02T04:42:28.146Z",
+      "artifact": {
+        "id": 13116971492,
+        "sha256": "e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce",
+        "download_hash_verified": true
+      },
+      "evidence": "saved-provider-readback11-20261102.json",
+      "protected_staging_secret_used": false
+    },
+    "prior_provider_account_readback": {
+      "workflow_run_id": 41329030634,
+      "account_matches_known_production": true,
+      "visible_accounts": 1,
+      "separate_account_visibility": "NOT_ESTABLISHED",
+      "independent_review_submissions_pr62": 0,
+      "protected_staging_secret_used": false
+    },
+    "owner_custodian_appointment": {
+      "status": "AUTHORIZED_DECISION_ONLY",
+      "date": "2026-10-24",
+      "carried_forward": true,
+      "external_identity_or_independence_verified": false,
+      "basis": [
+        "4_CUSTODIAN_OWNER_ONBOARDING_S0_20261024.md",
+        "2_CUSTODIAN_OWNER_ENROLLMENT_S0_20261024.md"
+      ]
+    },
+    "distinct_independent_verifier": {
+      "status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
+      "owner_custodian_may_not_self_certify": true,
+      "pr62_review_submissions": 0
+    },
+    "prior_provider_account_readback_continuation09": {
       "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
       "account_matches_known_production": true,
       "visible_accounts": 1,
@@ -43,29 +83,6 @@
         "download_hash_verified": true
       },
       "evidence": "authority-provider-reconciliation09-20261102.json"
-    },
-    "prior_provider_account_readback": {
-      "workflow_run_id": 41329030634,
-      "account_matches_known_production": true,
-      "visible_accounts": 1,
-      "separate_account_visibility": "NOT_ESTABLISHED",
-      "independent_review_submissions_pr62": 0,
-      "protected_staging_secret_used": false
-    },
-    "owner_custodian_appointment": {
-      "status": "AUTHORIZED_DECISION_ONLY",
-      "date": "2026-10-24",
-      "carried_forward": true,
-      "external_identity_or_independence_verified": false,
-      "basis": [
-        "4_CUSTODIAN_OWNER_ONBOARDING_S0_20261024.md",
-        "2_CUSTODIAN_OWNER_ENROLLMENT_S0_20261024.md"
-      ]
-    },
-    "distinct_independent_verifier": {
-      "status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
-      "owner_custodian_may_not_self_certify": true,
-      "pr62_review_submissions": 0
     }
   },
   "anti_rollback": {
@@ -178,7 +195,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+  "last_revalidation_source": "83e30800fc1f60a993e7684d30403fe2725ff23f",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -191,20 +208,20 @@
     "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
   },
   "verification": {
-    "groups_passed": 21,
-    "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
-    "tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
-    "ci_merge_sha": "26e397fa3a27070c2391be30506d0181fd0f4da9",
+    "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+    "tree_sha": "5ca9c2c14ccf4608259101c68b4265f5ec47f92c",
+    "ci_merge_sha": "d2816829d2049ce240ce7a9bd9d50f63213d4359",
     "ci_merge_same_tree_verified": true,
-    "workflow_run_id": 41348310406,
-    "artifact_id": 13100466515,
-    "artifact_sha256": "b9cd5f914c9d3155fb8b288d6bedc248c43e22f309da898bc176b5a8d7ffe1f9",
+    "workflow_run_id": 41389928197,
+    "artifact_id": 13116599646,
+    "artifact_sha256": "619c95277d8f0b368fefd6d6c0a771e2f88a82e502703e09493f354229434747",
     "download_hash_verified": true,
+    "groups_passed": 21,
     "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
     "local_workerd_storage_tests": 12,
-    "workers_ai_protocol_readback_tests": 14,
+    "workers_ai_protocol_readback_tests": 15,
     "hosted_acceptance_protocol_tests": 6,
     "external_ledger_regression_tests": 22,
     "positive_external_ledger_checks": 21,
@@ -257,21 +274,29 @@
       "budget_refunded": false,
       "observed_completed_account_neurons": 52.20908737182617,
       "latest_readback": {
-        "workflow_run_id": 41348310191,
-        "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
-        "observed_at": "2026-11-01T20:43:42.077Z",
+        "workflow_run_id": 41389928351,
+        "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+        "observed_at": "2026-11-02T04:42:28.146Z",
         "window": {
           "start": "2026-11-01T15:40:00Z",
-          "end": "2026-11-01T20:43:39Z"
+          "end": "2026-11-02T00:00:00Z"
         },
         "rows_returned": 2,
-        "rows_match_separate_completed_response_usage": true,
+        "classification": {
+          "status": "UNRESOLVED",
+          "reason": "PER_REQUEST_JOIN_KEY_UNAVAILABLE",
+          "exact_matches": 0,
+          "final_usage": null
+        },
+        "incident_day_neurons": 52.20908737182617,
+        "incident_day_completed_records": 2,
         "artifact": {
-          "id": 13100545422,
-          "sha256": "c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530",
+          "id": 13116971492,
+          "sha256": "e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce",
           "download_hash_verified": true
         },
-        "final_usage_neurons": null
+        "final_usage_neurons": null,
+        "request_join_key_exposed": false
       }
     }
   },
@@ -337,6 +362,29 @@
     "public_capability_draft_prepared": true,
     "messages_sent": 0,
     "rekor_single_use_high_water_authority_qualified": false,
-    "external_log_entries_written": 0
+    "external_log_entries_written": 0,
+    "tinyfish_paid_browser_task_authorized": true,
+    "tinyfish_authenticated_run_started": false,
+    "latest_github_secret_readback": "saved-provider-readback11-20261102.json"
+  },
+  "prior_verification_continuation09": {
+    "groups_passed": 21,
+    "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+    "tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
+    "ci_merge_sha": "26e397fa3a27070c2391be30506d0181fd0f4da9",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41348310406,
+    "artifact_id": 13100466515,
+    "artifact_sha256": "b9cd5f914c9d3155fb8b288d6bedc248c43e22f309da898bc176b5a8d7ffe1f9",
+    "download_hash_verified": true,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 14,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
   }
 }
