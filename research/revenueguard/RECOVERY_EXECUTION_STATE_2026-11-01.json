@@ -1,7 +1,7 @@
 {
   "schema": "musitu.revenueguard.v4_1.checkpoint_recovery.execution_state.v1",
   "as_of_utc": "2026-11-02",
-  "status": "REGENERATED_SOURCE_ARTIFACTS_VERIFIED_V3_DEV_AND_CUAD_MATCHED_TRAINING_RUNNING",
+  "status": "V3_LOCKED_DEV_FAILED_CUAD_MATCHED_MODEL_COMPLETED_HELDOUT_SCORING_RUNNING",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "revenueguard-v41-postgate-research-20261101",
   "historical_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
@@ -11,7 +11,7 @@
     "contractnli": {
       "run_id": 41330633559,
       "source_commit": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
-      "observed_state": "V3_FOUR_CHUNK_TRAINING_SUCCESS_FINAL_ARTIFACT_VERIFIED_LOCKED_DEV_SHARD_SCORING_RUNNING",
+      "observed_state": "FINAL_V3_TRAINED_AND_DEV_EVALUATED_GATE_FAILED",
       "artifact_expected_name": "revenueguard-contractnli-adapted-model",
       "next_conditional_workflow": ".github/workflows/revenueguard-v3-pairwise-recovery.yml",
       "trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json",
@@ -37,8 +37,13 @@
         },
         {
           "name": "chunk2",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk3",
+          "status": "completed",
+          "conclusion": "success"
         }
       ],
       "v3_completed_chunk0": {
@@ -52,50 +57,71 @@
       "locked_dev_jobs": [
         {
           "name": "score (0)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (5)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (7)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (6)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (3)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (4)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (2)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "name": "score (1)",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "aggregate",
+          "status": "completed",
+          "conclusion": "success"
         }
-      ]
+      ],
+      "locked_dev_result": {
+        "run_id": 41386143344,
+        "report_artifact_id": 13116173322,
+        "report_artifact_sha256": "edf94dc02ad691df7bf6a831dad9a126f173b2b489cef4ada0becafc0c488340",
+        "report_sha256": "4770d2cad2cdc1faa43706f93a9aa78e80e602d8921c79e5e92560a8f57e3a9f",
+        "accuracy": 0.7531340405014465,
+        "macro_f1": 0.6803224800572208,
+        "false_grounding_notmentioned": 0.3900709219858156,
+        "exact_evidence_span_recall": 0.7931596091205212,
+        "calibration_rows": 595,
+        "dev_rows": 1037,
+        "selected_k": 32,
+        "selected_threshold": 0.91,
+        "passed": false,
+        "analysis_path": "research/revenueguard/CONTRACTNLI_V3_REAL_DEV_FAILURE_2026-11-02.json"
+      }
     },
     "cuad": {
       "run_id": 41330640096,
       "source_commit": "914be62c1cff332ee7c3ad5189805103e9debe3a",
-      "observed_state": "EIGHT_CHUNK_SOURCE_TRAINING_COMPLETE_ARTIFACT_VERIFIED_MATCHED_WINDOW_RETRAINING_RUNNING",
+      "observed_state": "MATCHED_WINDOW_FOUR_CHUNKS_SUCCESS_FINAL_ARTIFACT_VERIFIED_LOCKED_HELDOUT_RUNNING",
       "source_artifact_expected_name": "revenueguard-cuad-epoch1-chunked-final",
       "matched_workflow": ".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",
       "matched_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json",
@@ -130,7 +156,8 @@
         "chunk3",
         "chunk4",
         "chunk5",
-        "chunk6"
+        "chunk6",
+        "chunk7"
       ],
       "jobs": [
         {
@@ -170,8 +197,8 @@
         },
         {
           "name": "chunk7",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         }
       ],
       "chunk5": {
@@ -184,10 +211,186 @@
       "matched_window_jobs": [
         {
           "name": "chunk0",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk1",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "chunk3",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "dispatch_heldout",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ],
+      "matched_window_final_artifact_id": 13135449936,
+      "matched_window_final_artifact_sha256": "adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07",
+      "heldout_run_id": 41437056573,
+      "heldout_jobs": [
+        {
+          "name": "score (5)",
           "status": "in_progress",
           "conclusion": null
+        },
+        {
+          "name": "score (11)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (15)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (6)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (10)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (2)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (8)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (4)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (17)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (19)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (9)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (20)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (3)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (14)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (21)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (1)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (16)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (13)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (7)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (18)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (0)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "score (12)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (22)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (23)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (24)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (28)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (26)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (27)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (25)",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "name": "score (30)",
+          "status": "queued",
+          "conclusion": null
         }
-      ]
+      ],
+      "heldout_trigger_commit": "f54b2c6ac805e1a452b4b56c6c03628685916a78"
     }
   },
   "checks": {
@@ -200,11 +403,12 @@
     "frozen_v4_structured_money_regressions": "30/30 PASS",
     "source_adapter_final_artifact_present": true,
     "cuad_source_final_artifact_present": true,
-    "contractnli_v3_real_dev_gate": "RUNNING_NO_RESULT",
-    "cuad_matched_heldout_gate": "NOT_EXECUTED_TRAINING_IN_PROGRESS",
-    "contractnli_v3_real_training": "CHUNK0_IN_PROGRESS",
+    "contractnli_v3_real_dev_gate": "FAIL_0_OF_4_THRESHOLDS",
+    "cuad_matched_heldout_gate": "IN_PROGRESS_NOT_YET_EVALUATED",
+    "contractnli_v3_real_training": "PASS_4_OF_4_CHUNKS",
     "source_encoder_drive_backup": "NOT_UPLOADED_GOOGLE_DRIVE_CONNECTOR_100_MIB_LIMIT_FOR_303_MB_ARTIFACT",
-    "source_encoder_github_retention_days": 90
+    "source_encoder_github_retention_days": 90,
+    "cuad_matched_model_training": "PASS_4_OF_4_CHUNKS"
   },
   "limits": {
     "certification": "NOT_CERTIFIED",
@@ -247,6 +451,9 @@
     "previous_cuad_matched_run_id": 41349599139,
     "previous_cuad_matched_failure": "chunk0 cancelled on hard 120-minute job timeout (~600 of 642 steps)",
     "cuad_timeout_fix": "raise all four chunks to 240 minutes; exact final source artifact SHA-256 pinned",
-    "cuad_restart_run_id": 41386175423
+    "cuad_restart_run_id": 41386175423,
+    "cuad_posttrain_dispatch_failure": "Run 41386175423 dispatch_heldout job HTTP 404; all four model training jobs were successful",
+    "cuad_heldout_repair": "Pin run 41386175423 head, four successful training jobs, dispatcher-only failure, and artifact SHA; trigger via research-branch push rather than API workflow_dispatch",
+    "cuad_heldout_run_id": 41437056573
   }
 }
