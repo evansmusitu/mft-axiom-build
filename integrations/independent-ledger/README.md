@@ -129,9 +129,13 @@ external erasure. The app cannot exercise operator revocation itself.
 
 ## Required external qualification
 
-Authenticated verifier acceptance must identify the operator, approved bundle
-and runtime hashes, account/namespace ownership, separate signing-key custody,
-recovery administrator, readback principal and revocation authority. Exercise
+The owner skipped the independent human verification/signoff requirement on
+2 November 2026; see
+`qualification/whole-system-20261029/OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md`.
+Independent verification remains unqualified and must not be claimed as passed.
+Technical qualification still requires authenticated provider/anchor evidence
+for the approved bundle and runtime hashes, account/namespace identity,
+signing-key controls, recovery, readback and revocation. Exercise
 cross-tenant denial, simultaneous consumes, dropped acknowledgements, cold
 processes, grant/epoch revocation, builder restore and authority restore/replay.
 Preserve signed readbacks, raw evidence and the previous B27 counterexample.

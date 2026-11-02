@@ -1,5 +1,12 @@
 # Independent authority activation — pending external acceptance
 
+**Current owner policy, 2 November 2026:** independent human verification is
+SKIPPED_BY_OWNER and remains UNQUALIFIED. The separate verifier appointment and
+signoff requirements below are preserved as the historical pre-waiver checklist,
+not active release requirements. The technical authority/anchor requirements
+and the observed authority-root restore failure remain unresolved. See
+`OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md` for the exact decision.
+
 The currently visible account named MUSITU AXIOM Security Authority has ID
 `93f395f5121954671f92fffa453d6b61`, identical to protected production. Its name
 does not supply administrative or key separation. A genuinely separate account

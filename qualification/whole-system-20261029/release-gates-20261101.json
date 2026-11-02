@@ -4,9 +4,9 @@
   "merge_authorized_by_evidence": false,
   "deploy_authorized_by_evidence": false,
   "publication_authorized_by_evidence": false,
-  "user_sequence": "Close custody and anti-rollback gates, then merge, deploy and run public reviewer checks before publication.",
+  "user_sequence": "Owner skipped independent verification (item 2) for eventual publication. Remaining provider evidence and anti-rollback gates are unchanged; merge, deploy and public reviewer checks precede publication.",
   "custody": {
-    "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+    "status": "INDEPENDENT_VERIFICATION_SKIPPED_BY_OWNER_CUSTODY_UNQUALIFIED",
     "independent_verifier_activated": false,
     "missing": [
       "Distinct independent verifier identity, direct authenticated acceptance and provider identity; existing owner-custodian appointment is preserved",
@@ -51,9 +51,11 @@
       ]
     },
     "distinct_independent_verifier": {
-      "status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
+      "status": "SKIPPED_BY_OWNER",
       "owner_custodian_may_not_self_certify": true,
-      "pr62_review_submissions": 0
+      "pr62_review_submissions": 0,
+      "prior_status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
+      "required_for_owner_release": false
     },
     "prior_provider_account_readback_continuation09": {
       "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
@@ -83,16 +85,28 @@
         "download_hash_verified": true
       },
       "evidence": "authority-provider-reconciliation09-20261102.json"
+    },
+    "status_before_owner_review_waiver": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+    "independent_review_requirement": {
+      "status": "SKIPPED_BY_OWNER",
+      "qualification": "UNQUALIFIED_NOT_PERFORMED",
+      "date": "2026-11-02",
+      "required_for_owner_release": false,
+      "owner_statement": "2 we are going to leave it just record it being skipped will publish without that",
+      "evidence": "OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md",
+      "independent_verifier_accepted": false,
+      "independent_custody_certified": false,
+      "runtime_guards_disabled": false
     }
   },
   "anti_rollback": {
     "status": "LOCAL_EXTERNAL_LEDGER_CANDIDATE_PASS_INDEPENDENT_ACTIVATION_AND_ROOT_RESTORE_UNQUALIFIED",
     "missing": [
-      "Independent accepted deployment of the external atomic consume ledger and an independently anchored monotonic high-water state; a deployable local candidate is now built",
+      "Deployment of the external atomic consume ledger and a non-resettable external high-water anchor, bound to the pinned client contract",
       "Live independent epoch and revocation acceptance; local component enforcement passes",
       "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
       "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
-      "Independent signature over exact tested artifact digest",
+      "Authenticated provider/anchor evidence bound to the exact tested artifact digest; independent human signoff is waived",
       "Detection or prevention of restoring the authority administrator's own older ledger store; current candidate does not provide this anchor"
     ],
     "fresh_local_reproduction": {
@@ -118,7 +132,24 @@
       "authority_admin_restore_counterexample_reproduced": true,
       "ci_evidence": "external-ledger-ci-20261101.json"
     },
-    "activation_request": "INDEPENDENT_AUTHORITY_ACTIVATION_20261101.md"
+    "activation_request": "INDEPENDENT_AUTHORITY_ACTIVATION_20261101.md",
+    "missing_before_owner_review_waiver": [
+      "Independent accepted deployment of the external atomic consume ledger and an independently anchored monotonic high-water state; a deployable local candidate is now built",
+      "Live independent epoch and revocation acceptance; local component enforcement passes",
+      "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
+      "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
+      "Independent signature over exact tested artifact digest",
+      "Detection or prevention of restoring the authority administrator's own older ledger store; current candidate does not provide this anchor"
+    ],
+    "independent_human_review_required_for_owner_release": false,
+    "candidate_qualification_plan": "GITHUB_IMMUTABLE_ANCHOR_QUALIFICATION_PLAN_20261102.md",
+    "github_immutable_anchor": {
+      "status": "PROPOSED_NOT_IMPLEMENTED_NOT_QUALIFIED",
+      "account_entitlement_verified": false,
+      "dedicated_repository_configured": false,
+      "external_releases_or_tags_created": 0,
+      "root_restore_fixed": false
+    }
   },
   "hosted_d1": {
     "status": "CONFIRMED_OWNER_SELECTED_STAGING_NAMESPACE_COMPONENT",
@@ -386,5 +417,24 @@
     "external_ledger_regression_tests": 22,
     "positive_external_ledger_checks": 21,
     "expected_authority_restore_counterexamples": 1
+  },
+  "owner_release_policy": {
+    "independent_verification": {
+      "status": "SKIPPED_BY_OWNER",
+      "qualification": "UNQUALIFIED_NOT_PERFORMED",
+      "date": "2026-11-02",
+      "required_for_owner_release": false,
+      "owner_statement": "2 we are going to leave it just record it being skipped will publish without that",
+      "evidence": "OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md",
+      "independent_verifier_accepted": false,
+      "independent_custody_certified": false,
+      "runtime_guards_disabled": false
+    },
+    "publication_without_item2_authorized_in_principle": true,
+    "publication_executed": false,
+    "remaining_items": {
+      "provider_cancellation_final_usage": "PENDING_UNQUALIFIED_NOT_WAIVED",
+      "anti_rollback": "REQUIRED_UNRESOLVED_NOT_WAIVED"
+    }
   }
 }
