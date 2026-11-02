@@ -15,11 +15,14 @@ const sha=t=>createHash('sha256').update(t).digest('hex');
 function fixture(){
  const db=openTestDB(resolve(here,'../customer_control_plane/schema.sql'));
  db._sqlite.exec("CREATE TABLE customers(id TEXT PRIMARY KEY,status TEXT NOT NULL CHECK(status IN ('active','disabled')),email TEXT,plan TEXT);");
- db._sqlite.exec("CREATE TABLE api_keys(id TEXT PRIMARY KEY,customer_id TEXT NOT NULL,key_hash TEXT NOT NULL,status TEXT NOT NULL,expires_at TEXT);");
+ db._sqlite.exec("CREATE TABLE api_keys(id TEXT PRIMARY KEY,customer_id TEXT NOT NULL,key_hash TEXT NOT NULL,key_prefix TEXT,label TEXT,status TEXT NOT NULL,created_at TEXT,last_used_at TEXT,expires_at TEXT,revoked_at TEXT);");
  db._sqlite.exec("CREATE TABLE oauth_clients(client_id TEXT PRIMARY KEY,redirect_uris_json TEXT NOT NULL,client_name TEXT NOT NULL,created_at TEXT NOT NULL);");
  db._sqlite.exec("CREATE TABLE oauth_authorization_flows(id TEXT PRIMARY KEY,client_id TEXT NOT NULL,redirect_uri TEXT NOT NULL,state TEXT NOT NULL,resource TEXT NOT NULL,scope TEXT NOT NULL,code_challenge TEXT NOT NULL,nonce_hash TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL,used_at TEXT);");
  db._sqlite.exec("CREATE TABLE oauth_authorization_codes(code_hash TEXT PRIMARY KEY,client_id TEXT NOT NULL,customer_id TEXT NOT NULL,redirect_uri TEXT NOT NULL,resource TEXT NOT NULL,scope TEXT NOT NULL,code_challenge TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL,used_at TEXT);");
  db._sqlite.exec(readFileSync(resolve(here,'../../auth/keyless_customer_link_candidate.sql'),'utf8'));
+ db._sqlite.exec("CREATE TABLE oauth_access_tokens(token_hash TEXT PRIMARY KEY,api_key_id TEXT,client_id TEXT,customer_id TEXT,issuer TEXT,resource TEXT,scope TEXT,created_at TEXT,expires_at TEXT,revoked_at TEXT);");
+ db._sqlite.exec("CREATE TABLE oauth_refresh_tokens(token_hash TEXT PRIMARY KEY,api_key_id TEXT,client_id TEXT,customer_id TEXT,resource TEXT,scope TEXT,created_at TEXT,expires_at TEXT,revoked_at TEXT);");
+ db._sqlite.exec(readFileSync(resolve(here,'../../auth/keyless_token_revocation_candidate.sql'),'utf8'));
  db._sqlite.prepare("INSERT INTO customers(id,status) VALUES(?,?)").run('legacy-verified','active');
  db._sqlite.prepare("INSERT INTO oauth_clients(client_id,redirect_uris_json,client_name,created_at) VALUES(?,?,?,?)")
   .run('chatgpt-client',JSON.stringify([redirect]),'ChatGPT','2026-11-02T00:00:00.000Z');
