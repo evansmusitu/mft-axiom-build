@@ -66,7 +66,7 @@ test('private verifier gets a bounded request digest, never client asserted iden
   assert.equal(seen.headers.get('x-role'),null);assert.equal(seen.headers.get('x-tenant-id'),null);
  }finally{db.close();}
 });
-test('verifier timeout, malformed response and outage never produce access or identity detail',async()=>{
+test('verifier exception, malformed response and outage never produce access or identity detail',async()=>{
  for(const fetch of [async()=>{throw new Error('sensitive upstream detail');},async()=>new Response('{bad'),async()=>new Response('',{status:503})]){
   const {db,env}=setup({},fetch);try{const r=await call(env);assert.notEqual(r.status,200);assert.doesNotMatch(await r.text(),/sensitive/);}finally{db.close();}
  }

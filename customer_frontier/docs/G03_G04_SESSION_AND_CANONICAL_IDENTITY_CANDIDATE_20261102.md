@@ -100,7 +100,7 @@ SQLite uniqueness error rather than the new explicit proof-conflict denial, and
 one old enrollment fixture lacked the now-required pinned/bound session. Both
 fixture changes preserve their original denial and zero-write assertions.
 
-Local Node 24: **117/117 passed**, zero failures/skips. Python 3.12: **19/19 passed**.
+Local Node 24: **117/117 passed**, zero failures/skips. Python 3.12: **20/20 passed**.
 GitHub CI must independently run the Node 22 and Python 3.12 workflow on the
 committed candidate. A separate code review is required before further integration.
 Those are source checks, not authenticated external security acceptance.
@@ -112,3 +112,15 @@ and full release remain unearned. No provider, billing, identity authority, live
 credential, main, PR1 or production change is performed by this candidate.
 B27 remains `FAILED_IN_SYNTHETIC_ATTACK`. Superiority and Wolfram parity remain
 `NOT_CERTIFIED`. Cash spend is $0; no inference or provider mutations.
+
+## Separate code-review correction
+
+The separate reviewer reproduced a Medium database-contract defect: with SQLite
+`recursive_triggers=0`, `INSERT OR REPLACE` could bypass delete triggers and
+replace a revoked mapping. A new regression failed with `IntegrityError not
+raised` before repair. A BEFORE INSERT collision guard now rejects reused
+identity, customer UUID or proof ID before implicit deletion. The red log is
+retained as `evidence/g03-g04-20261102/g04-review-replace-red.log`. This finding
+was fixed rather than dismissed because the present application uses plain
+INSERT. Hosted timeout/cancellation behavior remains unproven; the exception
+transport test was renamed to describe its actual coverage.

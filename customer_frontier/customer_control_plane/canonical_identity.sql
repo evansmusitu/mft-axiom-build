@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS canonical_customer_links (
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(tenant_id,identity_id) REFERENCES memberships(tenant_id,identity_id)
 );
+-- REPLACE may bypass implicit-delete triggers when recursive_triggers=0.
+-- Reject the collision BEFORE SQLite can remove an existing/revoked record.
+CREATE TRIGGER IF NOT EXISTS axiom_canonical_link_insert_conflict BEFORE INSERT ON canonical_customer_links
+WHEN EXISTS(SELECT 1 FROM canonical_customer_links p WHERE p.identity_id=NEW.identity_id
+ OR p.customer_id=NEW.customer_id OR p.proof_id=NEW.proof_id)
+BEGIN SELECT RAISE(ABORT,'canonical_link_insert_conflict'); END;
 CREATE TRIGGER IF NOT EXISTS axiom_canonical_link_immutable BEFORE UPDATE ON canonical_customer_links
 WHEN OLD.identity_id IS NOT NEW.identity_id OR OLD.tenant_id IS NOT NEW.tenant_id
  OR OLD.customer_id IS NOT NEW.customer_id OR OLD.link_kind IS NOT NEW.link_kind

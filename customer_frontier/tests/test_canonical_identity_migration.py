@@ -30,5 +30,14 @@ class CanonicalMigration(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 self.db.execute("INSERT INTO canonical_customer_links(identity_id,tenant_id,customer_id,link_kind,proof_id,proof_sha256,consent_id,authority_subject) VALUES(?,?,?,'legacy','proof',?,'consent','authority')", (identity, tenant, 'existing-customer', '0' * 64))
 
+    def test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity(self):
+        self.db.executescript(self.migration)
+        self.assertEqual(self.db.execute('PRAGMA recursive_triggers').fetchone()[0], 0)
+        self.db.execute("INSERT INTO canonical_customer_links(identity_id,tenant_id,customer_id,link_kind,proof_id,proof_sha256,consent_id,authority_subject) VALUES('i','t','existing-customer','legacy','proof',?,'consent','authority')", ('0' * 64,))
+        self.db.execute("UPDATE canonical_customer_links SET status='revoked'")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'canonical_link_insert_conflict'):
+            self.db.execute("INSERT OR REPLACE INTO canonical_customer_links(identity_id,tenant_id,customer_id,link_kind,proof_id,proof_sha256,consent_id,authority_subject) VALUES('i','t','replacement-customer','legacy','replacement-proof',?,'new-consent','authority')", ('1' * 64,))
+        self.assertEqual(self.db.execute('SELECT customer_id,status FROM canonical_customer_links').fetchone(), ('existing-customer', 'revoked'))
+
 if __name__ == '__main__':
     unittest.main()
