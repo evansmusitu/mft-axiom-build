@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.revenueguard.contractnli.v3_real_dev_failure_diagnosis.v1",
+  "status": "FAILED_NOT_PROMOTABLE",
+  "source": {
+    "run_id": 41386143344,
+    "report_artifact_id": 13116173322,
+    "report_zip_sha256": "edf94dc02ad691df7bf6a831dad9a126f173b2b489cef4ada0becafc0c488340",
+    "report_sha256": "4770d2cad2cdc1faa43706f93a9aa78e80e602d8921c79e5e92560a8f57e3a9f",
+    "model_artifact_id": 13103010924,
+    "model_artifact_sha256": "503d654bbb2aa7a384888f7c2959caaee15a63c6cfde6f4693f1fa08d4f75369",
+    "source_encoder_artifact_sha256": "ea7e9a0cf451ea998cd2b055df93b3a7cbde52654cc1268446e5682f7adb6916"
+  },
+  "duplicate_clean_calibration": {
+    "n": 595,
+    "excluded_doc_ids": [
+      "548"
+    ],
+    "k": 32,
+    "relevance_threshold": 0.91,
+    "candidate_settings": [
+      {
+        "calibration_relevance_only": {
+          "false_grounding_notmentioned": 0.28703703703703703,
+          "n": 595,
+          "positive_relevance_recall": 0.9155672823218998,
+          "relevance_accuracy": 0.8420168067226891,
+          "relevance_detection_f1": 0.8807106598984772,
+          "selected_evidence_exact_span_recall": 0.7862796833773087
+        },
+        "k": 24,
+        "threshold": 0.91
+      },
+      {
+        "calibration_relevance_only": {
+          "false_grounding_notmentioned": 0.33796296296296297,
+          "n": 595,
+          "positive_relevance_recall": 0.941952506596306,
+          "relevance_accuracy": 0.8403361344537815,
+          "relevance_detection_f1": 0.8825710754017305,
+          "selected_evidence_exact_span_recall": 0.7941952506596306
+        },
+        "k": 32,
+        "threshold": 0.91
+      }
+    ]
+  },
+  "locked_dev": {
+    "n": 1037,
+    "metrics": {
+      "accuracy": 0.7531340405014465,
+      "false_grounding_notmentioned": 0.3900709219858156,
+      "macro_f1": 0.6803224800572208,
+      "n": 1037,
+      "positive_semantic_accuracy": 0.8517915309446255,
+      "selected_evidence_exact_span_recall": 0.7931596091205212
+    },
+    "gate": {
+      "accuracy_min": 0.9,
+      "evidence_recall_min": 0.85,
+      "false_grounding_max": 0.02,
+      "macro_f1_min": 0.88,
+      "pass": false
+    }
+  },
+  "gap_to_gate": {
+    "accuracy_points": 14.69,
+    "macro_f1_points": 19.97,
+    "false_grounding_excess_points": 37.01,
+    "evidence_recall_points": 5.68
+  },
+  "diagnosis": [
+    "Duplicate-clean calibration already shows false grounding above 28%, and exposed dev rises to ~39%; failure is not a CI/orchestration artifact.",
+    "The false-grounding rate and evidence recall fall short simultaneously; raising an abstention threshold on exposed dev would violate locked-development evaluation methodology.",
+    "Polarity accuracy on positively mentioned examples is not enough when the candidate has high NotMentioned false grounding.",
+    "Candidate ranking selects among K=24/32 lexical spans; evidence recall remains below the required threshold.",
+    "Any successor needs a new frozen build-only training design and provenance; keep the unchanged gate, leave sealed tests closed."
+  ],
+  "invariant": {
+    "contractnli_test_opened": false,
+    "cuad_official_test_opened": false,
+    "maud_opened": false,
+    "frozen_v4_unchanged": true,
+    "certification": "NOT_CERTIFIED"
+  }
+}
