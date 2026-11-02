@@ -1,14 +1,20 @@
 {
   "schema": "musitu.revenueguard.cuad.matched_window_trigger.v1",
-  "status": "AUTHORIZED_DEV_RESEARCH_TRAINING",
-  "source_model_run_id": 34683449126,
+  "status": "AUTHORIZED_REGENERATED_SOURCE_RESEARCH_TRAINING",
+  "source_model_run_id": 41330640096,
   "source_model_artifact": "revenueguard-cuad-epoch1-chunked-final",
-  "source_model_artifact_sha256": "a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b",
+  "source_model_artifact_sha256": "56588ea336fab987c8246564dfd7ef791ead0e6e459c2bbb76af653e5b00bf19",
   "geometry_run_id": 34706691340,
   "geometry_artifact_sha256": "7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04",
   "geometry_report_sha256": "e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7",
   "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
   "num_chunks": 4,
-  "policy": "Real CUAD build-only matched-window curriculum. Frozen heldout title-hash split excluded. Official CUAD test unopened. No threshold tuning in training.",
-  "execution_nonce": "2026-09-13T11:03+02:00-handoff-resume"
+  "policy": "CUAD build partition only; 4 matched-window training chunks; 45 heldout contracts excluded from training, official test unopened. Exact new source artifact pinned and training timeout 240 minutes per chunk.",
+  "execution_nonce": "2026-11-02-retrained-source-pinned-timeout-240-run2",
+  "source_model_workflow_head": "914be62c1cff332ee7c3ad5189805103e9debe3a",
+  "previous_attempt": {
+    "run_id": 41349599139,
+    "conclusion": "cancelled",
+    "cause": "chunk0 workflow timeout-minutes 120 after ~600 training steps, final chunk0 artifact absent"
+  }
 }
