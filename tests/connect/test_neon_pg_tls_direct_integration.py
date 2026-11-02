@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-import psycopg
 
 DSN = os.environ.get("NEON_TEST_PG_DSN", "")
 CERT = Path(os.environ.get("NEON_PG_TLS_CERT_FILE", ""))
@@ -19,6 +18,7 @@ def ensure(ok, code):
         raise AssertionError(code)
 
 def connect(*, owner=False, **overrides):
+    import psycopg  # Only the isolated Neon CI step installs the driver.
     params = dict(
         autocommit=True, connect_timeout=8, sslmode="verify-full",
         sslrootcert=str(CERT), channel_binding="require",
@@ -39,6 +39,7 @@ def verify_tls_session(conn):
            "DATABASE_TLS_CIPHER_MISSING")
 
 def must_reject(code, **overrides):
+    import psycopg
     try:
         with connect(**overrides):
             pass
@@ -47,6 +48,7 @@ def must_reject(code, **overrides):
     raise AssertionError(code)
 
 def main():
+    import psycopg
     ensure(DSN == "postgresql://postgres:isolated-ci-only@127.0.0.1:5432/postgres",
            "ONLY_DISPOSABLE_CI_POSTGRES_ALLOWED")
     ensure(CERT.is_file() and BAD_CA.is_file() and CERT != BAD_CA,
