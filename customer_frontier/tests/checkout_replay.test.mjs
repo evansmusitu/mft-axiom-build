@@ -14,7 +14,7 @@ async function setup(){
  await execute(db,"INSERT INTO memberships(tenant_id,identity_id,role) VALUES('t','u','owner')");
  await execute(db,"INSERT INTO price_catalog(id,name,currency,amount_minor,grant_units,enabled) VALUES('p','Compute units','USD',2000,100,1)");
  let calls=0;
- const env={CUSTOMER_DB:db,PAYMENT_CHECKOUT_QUALIFIED:'true',IDENTITY_VERIFIER:{fetch:async()=>new Response(JSON.stringify({authenticated:true,issuer:'https://id.local',subject:'user',tenant_id:'t',audience:'customer-control-plane'}),{status:200})},CHECKOUT_SERVICE:{fetch:async()=>{calls++;return new Response(JSON.stringify({checkout_url:'https://payments.mftintelligence.com/session/qualified-test'}),{status:201});}}};
+ const env={CUSTOMER_DB:db,PAYMENT_CHECKOUT_QUALIFIED:'true',IDENTITY_VERIFIER_QUALIFIED:'qualified_private_binding',CUSTOMER_IDENTITY_ISSUER:'https://id.local',IDENTITY_VERIFIER:{fetch:async()=>new Response(JSON.stringify({authenticated:true,issuer:'https://id.local',subject:'user',tenant_id:'t',audience:'customer-control-plane'}),{status:200})},CHECKOUT_SERVICE:{fetch:async()=>{calls++;return new Response(JSON.stringify({checkout_url:'https://payments.mftintelligence.com/session/qualified-test'}),{status:201});}}};
  return {db,env,calls:()=>calls};
 }
 

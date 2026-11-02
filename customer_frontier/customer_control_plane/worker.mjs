@@ -13,12 +13,21 @@ async function auth(req,env,db){
  // A separate, qualified identity service owns OIDC, MFA, recovery, secure cookies
  // and ChatGPT OAuth PKCE. Never infer tenant identity from request parameters.
  if(!env.IDENTITY_VERIFIER?.fetch)throw new Error('identity_verifier_unavailable');
+ // A service binding alone is not a certification. The separately admitted
+ // identity authority must pin the issuer before accepting session assertions.
+ if(env.IDENTITY_VERIFIER_QUALIFIED!=='qualified_private_binding')throw new Error('identity_verifier_not_qualified');
+ const pinnedIssuer=env.CUSTOMER_IDENTITY_ISSUER;
+ let pinnedURL;try{pinnedURL=new URL(pinnedIssuer)}catch{throw new Error('identity_issuer_not_qualified');}
+ if(typeof pinnedIssuer!=='string'||pinnedURL.protocol!=='https:'||
+    pinnedURL.origin!==pinnedIssuer||pinnedURL.username||pinnedURL.password||
+    pinnedURL.search||pinnedURL.hash)throw new Error('identity_issuer_not_qualified');
  const response=await env.IDENTITY_VERIFIER.fetch(new Request('https://axiom-internal/session/verify',{
   method:'POST',headers:{cookie:req.headers.get('cookie')||'',authorization:req.headers.get('authorization')||'','x-axiom-audience':'customer-control-plane'},
   redirect:'error'
  }));
  if(response.status!==200)throw new Error('authentication_required');
  const p=await response.json();if(!valid(p.issuer,200)||!valid(p.subject,240)||!valid(p.tenant_id,150)||p.audience!=='customer-control-plane'||p.authenticated!==true)throw new Error('identity_verifier_invalid');
+ if(p.issuer!==pinnedIssuer)throw new Error('identity_issuer_mismatch');
  const match=await one(db,`SELECT i.id AS identity_id,m.role,t.id AS tenant_id FROM identities i JOIN memberships m ON m.identity_id=i.id JOIN tenants t ON t.id=m.tenant_id WHERE i.issuer=? AND i.external_sub=? AND m.tenant_id=? AND m.status='active' AND t.status='active'`,p.issuer,p.subject,p.tenant_id);
  if(!match)throw new Error('membership_not_authorized');return match;
 }
