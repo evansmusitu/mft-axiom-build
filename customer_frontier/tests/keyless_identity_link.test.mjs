@@ -69,12 +69,40 @@ test('forged issuer, tenant, audience, MFA, freshness, or flow binding cannot re
  }finally{db.close();}
 });
 
-test('unlinked, revoked, and disabled legacy accounts fail closed; link provenance cannot be rewritten',async()=>{
+test('revoked identity link stays revoked and cannot be rewritten or deleted',async()=>{
  const {db,issuer,digest}=setup();
  try{
   db._sqlite.prepare("UPDATE oauth_identity_links SET state='revoked',revoked_at=CURRENT_TIMESTAMP WHERE issuer=? AND subject_sha256=?").run(issuer,digest);
   await assert.rejects(resolveVerifiedOAuthCustomer({request:req(),env:candidate(),db,flowId,now}),/not_linked/);
   assert.throws(()=>db._sqlite.exec("DELETE FROM oauth_identity_links"),/identity_link_deletion_forbidden/);
   assert.throws(()=>db._sqlite.exec("UPDATE oauth_identity_links SET state='active',revoked_at=NULL"),/identity_link_reactivation_forbidden/);
+ }finally{db.close();}
+});
+
+test('unlinked IdP subject or disabled customer never resolves an account',async()=>{
+ const {db}=setup();
+ try{
+  await assert.rejects(resolveVerifiedOAuthCustomer({request:req(),env:candidate({...baseClaims,subject:'unlinked-user'}),db,flowId,now}),/identity_not_linked/);
+  db._sqlite.prepare("UPDATE customers SET status='disabled' WHERE id=?").run('legacy-customer-1');
+  await assert.rejects(resolveVerifiedOAuthCustomer({request:req(),env:candidate(),db,flowId,now}),/identity_not_linked/);
+ }finally{db.close();}
+});
+
+test('identity-to-customer relation requires independent immutable witness and unique canonical ownership',async()=>{
+ const {db,issuer,digest}=setup();
+ try{
+  assert.throws(()=>db._sqlite.prepare('UPDATE oauth_identity_links SET customer_id=? WHERE issuer=? AND subject_sha256=?').run('other-customer',issuer,digest),/identity_link_immutable/);
+  assert.throws(()=>db._sqlite.prepare('UPDATE oauth_identity_links SET witness_sha256=? WHERE issuer=? AND subject_sha256=?').run('f'.repeat(64),issuer,digest),/identity_link_immutable/);
+  const otherDigest=createHash('sha256').update('another verified principal').digest('hex');
+  assert.throws(()=>db._sqlite.prepare('INSERT INTO oauth_identity_links(issuer,subject_sha256,tenant_id,customer_id,witness_sha256) VALUES(?,?,?,?,?)')
+   .run(issuer,otherDigest,'tenant-verified-1','legacy-customer-1','b'.repeat(64)),/UNIQUE constraint failed/);
+ }finally{db.close();}
+});
+
+test('cookie-less OAuth request cannot be admitted even with a mocked positive private verifier',async()=>{
+ const {db}=setup();
+ try{
+  const noCookie=new Request('https://auth.mftintelligence.com/oauth/authorize',{method:'POST',body:'flow_id='+flowId});
+  await assert.rejects(resolveVerifiedOAuthCustomer({request:noCookie,env:candidate(),db,flowId,now}),/identity_session_missing/);
  }finally{db.close();}
 });
