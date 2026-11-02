@@ -14,7 +14,7 @@ const setup=()=>{
  db._sqlite.exec(readFileSync(resolve(here,'../../auth/keyless_customer_link_candidate.sql'),'utf8'));
  db._sqlite.prepare("INSERT INTO customers(id,status) VALUES(?,?)").run('legacy-customer-1','active');
  const issuer='https://id.mftintelligence.com',subject='verified-person-1';
- const digest=createHash('sha256').update(issuer+'\\n'+subject).digest('hex');
+ const digest=createHash('sha256').update(issuer+'\n'+subject).digest('hex');
  db._sqlite.prepare("INSERT INTO oauth_identity_links(issuer,subject_sha256,tenant_id,customer_id,witness_sha256) VALUES(?,?,?,?,?)")
   .run(issuer,digest,'tenant-verified-1','legacy-customer-1','a'.repeat(64));
  return {db,issuer,subject,digest};
