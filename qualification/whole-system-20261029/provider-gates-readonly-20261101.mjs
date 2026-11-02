@@ -10,7 +10,9 @@ const digest=v=>createHash('sha256').update(String(v)).digest('hex');
 const unwrap=t=>t?(t.name||unwrap(t.ofType)):null;
 const scalarNames=new Set(['datetime','date','modelId','modelName','requestId','rayId','status','statusCode','errorCode','errorDescription','responseStatus','responseStatusCode','totalNeurons','neurons','totalInputTokens','totalOutputTokens','inputTokens','outputTokens','requestSource','sampleInterval','inferenceTimeMs','requestBytesIn','requestBytesOut']);
 export function safeInferenceFields(rowType){return (rowType?.fields??[]).filter(x=>scalarNames.has(x.name)&&['String','Int','Float','Boolean','Date','DateTime','Time','string','uint64','uint32','float64','datetime'].includes(unwrap(x.type))).map(x=>x.name);}
-export function classifySavedCancellation(rows,ray='a53c044b0eda9b36'){
+export function classifySavedCancellation(rows,ray='a53c044b0eda9b36',availableFields=null){
+  if(Array.isArray(availableFields)&&!availableFields.some(field=>/^(?:rayId|requestId)$/i.test(field)))
+    return {status:'UNRESOLVED',reason:'PER_REQUEST_JOIN_KEY_UNAVAILABLE',exact_matches:0,final_usage:null};
   const exact=rows.filter(row=>Object.entries(row).some(([key,value])=>/^(?:rayId|requestId)$/i.test(key)&&String(value).split('-')[0]===ray));
   if(exact.length!==1)return {status:'UNRESOLVED',reason:exact.length?'AMBIGUOUS_REQUEST_ID':'SAVED_REQUEST_ID_NOT_FOUND',exact_matches:exact.length,final_usage:null};
   const row=exact[0],code=row.errorCode,status=String(row.status??row.responseStatus??'').toLowerCase();
@@ -68,7 +70,7 @@ export async function inspectProviderGates({token,fetchImpl=fetch,observe=()=>{}
     const query=`query { viewer { accounts(filter: {accountTag: "${ACCOUNT_ID}"}) { aiInferenceAdaptive(limit: 100, filter: {${startKey}: "${start}", ${endKey}: "${end}"}) { ${fields.join(' ')} } } } }`;
     const data=await call('/graphql',{query}),accounts=data.data?.viewer?.accounts;
     if(!Array.isArray(accounts)||accounts.length!==1||!Array.isArray(accounts[0].aiInferenceAdaptive))throw new Error('per-request analytics missing');
-    return {window:{start,end},fields,rows:accounts[0].aiInferenceAdaptive,classification:classifySavedCancellation(accounts[0].aiInferenceAdaptive),pagination_exhausted:accounts[0].aiInferenceAdaptive.length<100};
+    return {window:{start,end},fields,rows:accounts[0].aiInferenceAdaptive,classification:classifySavedCancellation(accounts[0].aiInferenceAdaptive,undefined,fields),pagination_exhausted:accounts[0].aiInferenceAdaptive.length<100};
   });
   report.completed_at=new Date().toISOString();await observe(report);return report;
 }

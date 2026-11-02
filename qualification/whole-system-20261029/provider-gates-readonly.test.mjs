@@ -14,6 +14,15 @@ test('missing request usage is unknown and cannot be converted to zero',()=>{
   assert.equal(classifySavedCancellation([{requestId:'a53c044b0eda9b36',errorCode:3008}]).final_usage,null);
   assert.equal(classifySavedCancellation([{requestId:'a53c044b0eda9b36',errorCode:3008,totalNeurons:0}]).final_usage,0);
 });
+test('a schema without a request join key cannot attest a saved abort even if a row carries an unselected identity',()=>{
+  const row={requestId:'a53c044b0eda9b36',errorCode:3008,neurons:0};
+  for(const fields of [[],['datetime','errorCode','neurons']]){
+    const value=classifySavedCancellation([row],undefined,fields);
+    assert.equal(value.status,'UNRESOLVED');assert.equal(value.reason,'PER_REQUEST_JOIN_KEY_UNAVAILABLE');assert.equal(value.final_usage,null);
+  }
+  assert.equal(classifySavedCancellation([row],undefined,['requestId','errorCode','neurons']).status,'PROVIDER_ABORT_RECORD_CONFIRMED');
+  assert.equal(classifySavedCancellation([],undefined,['requestId','errorCode']).reason,'SAVED_REQUEST_ID_NOT_FOUND');
+});
 test('authority metadata retains provider role/MFA facts while excluding private identity fields',()=>{
   const value=sanitizedMember({id:'member-one',status:'accepted',user:{id:'user-one',email:'private@example.test',first_name:'Private',two_factor_authentication_enabled:true},roles:[{id:'role-one',name:'Administrator',private_value:'sensitive'}]});
   assert.equal(value.mfa_enabled,true);assert.equal(value.status,'accepted');assert.equal(value.roles[0].name,'Administrator');
