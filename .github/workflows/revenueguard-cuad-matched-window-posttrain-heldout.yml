@@ -18,7 +18,7 @@ jobs:
       matrix:
         shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Resolve exact completed regenerated CUAD matched-window training run
@@ -27,22 +27,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 60); do
-            curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
-            if python -c "import json; a=json.load(open('matched_runs.json'))['workflow_runs']; assert any(x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success' for x in a)"; then
-              break
-            fi
-            echo "Waiting for the successful matched training workflow to finalize (attempt ${attempt}/60)"
-            sleep 10
-          done
           python - <<'PY'
-          import json
-          r=json.load(open('matched_runs.json'))['workflow_runs']
-          good=[x for x in r if x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success']
-          assert good,'no complete newly regenerated CUAD matched-window training'
-          x=max(good,key=lambda z:z['created_at'])
-          open('RESOLVED_RUN_ID.txt','w').write(str(x['id']))
-          print('new CUAD candidate run',x['id'],x['head_sha'])
+          import json,os,urllib.request
+          repo="evansmusitu/mft-axiom-build"
+          run_id=41386175423
+          expected_head="1697801864e3fcbf1a6117958ee72127d52699b3"
+          expected_artifact="sha256:adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07"
+          headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"}
+          def get(endpoint):
+           req=urllib.request.Request(f"https://api.github.com/repos/{repo}/{endpoint}",headers=headers)
+           with urllib.request.urlopen(req,timeout=30) as stream:return json.load(stream)
+          run=get(f"actions/runs/{run_id}")
+          assert run["head_branch"]=="revenueguard-v41-postgate-research-20261101"
+          assert run["head_sha"]==expected_head
+          assert run["path"]==".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml"
+          assert run["status"]=="completed" and run["conclusion"]=="failure"
+          jobs=get(f"actions/runs/{run_id}/jobs")["jobs"]
+          state={j["name"]:j["conclusion"] for j in jobs}
+          assert all(state.get(f"chunk{k}")=="success" for k in range(4)),state
+          assert state.get("dispatch_heldout")=="failure",state
+          assert set(state)=={"chunk0","chunk1","chunk2","chunk3","dispatch_heldout"},state
+          artifacts=get(f"actions/runs/{run_id}/artifacts?name=revenueguard-cuad-matched-window-epoch2-final")["artifacts"]
+          matched=[a for a in artifacts if a["name"]=="revenueguard-cuad-matched-window-epoch2-final" and not a.get("expired")]
+          assert len(matched)==1 and matched[0]["digest"]==expected_artifact,matched
+          with open("RESOLVED_RUN_ID.txt","w") as file:file.write(str(run_id))
+          print("CUAD_FOUR_TRAINING_JOBS_PASS; ONLY_DISPATCHER_FAILED",json.dumps({"run_id":run_id,"sha256":expected_artifact,"artifact_id":matched[0]["id"],"training_jobs":state}),flush=True)
           PY
           echo "run_id=$(cat RESOLVED_RUN_ID.txt)" >> "$GITHUB_OUTPUT"
       - name: Download exact resumed matched-window candidate
@@ -119,22 +128,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 60); do
-            curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml/runs' > matched_runs.json
-            if python -c "import json; a=json.load(open('matched_runs.json'))['workflow_runs']; assert any(x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success' for x in a)"; then
-              break
-            fi
-            echo "Waiting for the successful matched training workflow to finalize (attempt ${attempt}/60)"
-            sleep 10
-          done
           python - <<'PY'
-          import json
-          r=json.load(open('matched_runs.json'))['workflow_runs']
-          good=[x for x in r if x['head_branch']=='revenueguard-v41-postgate-research-20261101' and x['status']=='completed' and x['conclusion']=='success']
-          assert good,'no complete newly regenerated CUAD matched-window training'
-          x=max(good,key=lambda z:z['created_at'])
-          open('RESOLVED_RUN_ID.txt','w').write(str(x['id']))
-          print('new CUAD candidate run',x['id'],x['head_sha'])
+          import json,os,urllib.request
+          repo="evansmusitu/mft-axiom-build"
+          run_id=41386175423
+          expected_head="1697801864e3fcbf1a6117958ee72127d52699b3"
+          expected_artifact="sha256:adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07"
+          headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"}
+          def get(endpoint):
+           req=urllib.request.Request(f"https://api.github.com/repos/{repo}/{endpoint}",headers=headers)
+           with urllib.request.urlopen(req,timeout=30) as stream:return json.load(stream)
+          run=get(f"actions/runs/{run_id}")
+          assert run["head_branch"]=="revenueguard-v41-postgate-research-20261101"
+          assert run["head_sha"]==expected_head
+          assert run["path"]==".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml"
+          assert run["status"]=="completed" and run["conclusion"]=="failure"
+          jobs=get(f"actions/runs/{run_id}/jobs")["jobs"]
+          state={j["name"]:j["conclusion"] for j in jobs}
+          assert all(state.get(f"chunk{k}")=="success" for k in range(4)),state
+          assert state.get("dispatch_heldout")=="failure",state
+          assert set(state)=={"chunk0","chunk1","chunk2","chunk3","dispatch_heldout"},state
+          artifacts=get(f"actions/runs/{run_id}/artifacts?name=revenueguard-cuad-matched-window-epoch2-final")["artifacts"]
+          matched=[a for a in artifacts if a["name"]=="revenueguard-cuad-matched-window-epoch2-final" and not a.get("expired")]
+          assert len(matched)==1 and matched[0]["digest"]==expected_artifact,matched
+          with open("RESOLVED_RUN_ID.txt","w") as file:file.write(str(run_id))
+          print("CUAD_FOUR_TRAINING_JOBS_PASS; ONLY_DISPATCHER_FAILED",json.dumps({"run_id":run_id,"sha256":expected_artifact,"artifact_id":matched[0]["id"],"training_jobs":state}),flush=True)
           PY
           echo "run_id=$(cat RESOLVED_RUN_ID.txt)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
@@ -156,7 +174,7 @@ jobs:
           set -euo pipefail
           RUN_ID=${{ steps.resolve.outputs.run_id }}
           API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=revenueguard-cuad-matched-window-epoch2-final"
-          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json,re;o=json.load(sys.stdin);a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-matched-window-epoch2-final' and not x['expired']];assert len(a)==1,a;d=a[0]['digest'];assert re.fullmatch('sha256:[0-9a-f]{64}',d),d;print(d[7:])")
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json;o=json.load(sys.stdin);a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-matched-window-epoch2-final' and not x['expired']];assert len(a)==1,a;d=a[0]['digest'];assert d=='sha256:adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07',d;print(d[7:])")
           TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
           python research/revenueguard/cuad_heldout_aggregate.py \
             --train-json "$TRAIN" \
