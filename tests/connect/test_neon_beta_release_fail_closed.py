@@ -51,10 +51,12 @@ class NeonBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(e["ci_tls_certificate_validation_run_id"],41386633451)
         self.assertEqual(e["uncertain_commit_technical_acceptance"],
                          "SAME_REQUEST_ID_REPLAY_NO_DOUBLE_QUOTA_CHARGE_NOT_BUSINESS_EXACTLY_ONCE")
-        for key in ("hosted_neon_database_acceptance_document","lost_ack_semantics_document"):
+        for key in ("hosted_neon_database_acceptance_document","lost_ack_semantics_document","hosted_neon_tls_acceptance_gap_document"):
             with self.subTest(key=key):
                 path=ROOT/e[key]
                 self.assertTrue(path.is_file(),str(path))
+        self.assertIs(e["hosted_neon_mcp_sql_session_ssl_observed"],False)
+        self.assertIs(e["actual_external_client_neon_tls_hostname_verified"],False)
         self.assertEqual(e["ephemeral_http_pg_acceptance"],"PASS_NOT_DEPLOYED")
         self.assertEqual(e["ephemeral_tls_client_to_test_server_acceptance"],"PASS_NOT_HOSTED")
         self.assertEqual(e["hosted_neon_sql_login_database_checks"],"PASS_SYNTHETIC_NO_APP_DEPLOYED")

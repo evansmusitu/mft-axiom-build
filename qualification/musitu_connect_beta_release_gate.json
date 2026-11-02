@@ -185,6 +185,9 @@
     "security_operations_legal_and_release_signoffs_completed": false,
     "real_customer_credentials_issued": 0,
     "production_worker_changed": false,
-    "customer_admission_authorized": false
+    "customer_admission_authorized": false,
+    "hosted_neon_mcp_sql_session_ssl_observed": false,
+    "actual_external_client_neon_tls_hostname_verified": false,
+    "hosted_neon_tls_acceptance_gap_document": "docs/operations/musitu-connect-neon-transport-evidence-gap-20261102.md"
   }
 }
