@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.request
 from math import isfinite
 from typing import Any, Callable
@@ -47,6 +48,21 @@ def _encode_request(payload: dict[str, Any]) -> bytes:
         raise RuntimeError("AXIOM_REQUEST_INVALID") from None
 
 
+
+_OUTBOUND_REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
+
+
+def _validate_outbound_request(request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    # The same string ID travels in HTTP headers and (for MCP) JSON-RPC.
+    # Coercing non-string IDs or permitting controls breaks correlation.
+    request_id = request.get("request_id")
+    args = request.get("args", {})
+    if (not isinstance(request_id, str) or
+        not _OUTBOUND_REQUEST_ID.fullmatch(request_id) or
+        not isinstance(args, dict)):
+        raise RuntimeError("AXIOM_REQUEST_INVALID")
+    return request_id, args
+
 class AxiomComputeExecutor:
     def __init__(self, endpoint: str, bearer_token: str, timeout: float = 10.0) -> None:
         self.endpoint=endpoint
@@ -54,10 +70,10 @@ class AxiomComputeExecutor:
         self.timeout=timeout
 
     def __call__(self, request: dict[str,Any]) -> dict[str,Any]:
-        request_id=str(request["request_id"])
+        request_id, args = _validate_outbound_request(request)
         payload={
             "operation":request["operation"],
-            "args":request.get("args") or {},
+            "args":args,
         }
         body=_encode_request(payload)
         outbound=urllib.request.Request(
@@ -101,7 +117,7 @@ class AxiomMcpExecutor:
         self.timeout=timeout
 
     def __call__(self, request: dict[str,Any]) -> dict[str,Any]:
-        request_id=str(request["request_id"])
+        request_id, args = _validate_outbound_request(request)
         payload={
             "jsonrpc":"2.0",
             "id":request_id,
@@ -110,7 +126,7 @@ class AxiomMcpExecutor:
                 "name":"musitu_axiom_execute",
                 "arguments":{
                     "operation":request["operation"],
-                    "args":request.get("args") or {}
+                    "args":args
                 }
             }
         }
