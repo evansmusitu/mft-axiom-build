@@ -1,5 +1,6 @@
 /** Deploy only under the accepted independent operator. No remote deployment is performed here. */
 import {LEDGER_SCHEMA,LedgerDenied,deny,exact,id,digest,integer,bytes,b64,sha256Json,canonicalJson,validateConsume} from './protocol.mjs';
+import {anchorPin,publishGithubCheckpoint} from './github-anchor.mjs';
 const headers={'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'};
 const json=(status,value)=>new Response(JSON.stringify(value),{status,headers});
 const roles=['bootstrap','grant','consume','read','revoke'];
@@ -36,7 +37,7 @@ async function append(txn,meta,event){
   await txn.put('meta',meta);return meta;
 }
 export class MonotonicLedger{
-  constructor(ctx,env){this.ctx=ctx;this.env=env;this.config=config(env);}
+  constructor(ctx,env){this.ctx=ctx;this.env=env;this.config=config(env);this.anchor=env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON?anchorPin(JSON.parse(env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON)):null;}
   async signed(payload){
     const jwk=JSON.parse(this.env.LEDGER_SIGNING_JWK||'null');
     if(jwk?.kty!=='OKP'||jwk?.crv!=='Ed25519'||typeof jwk.d!=='string'||jwk.alg&&!['EdDSA','Ed25519'].includes(jwk.alg))deny('SIGNER_UNAVAILABLE',503);
@@ -51,7 +52,10 @@ export class MonotonicLedger{
       const role={'/v1/operator/bootstrap':'bootstrap','/v1/operator/grants':'grant','/v1/consume':'consume','/v1/inspect':'read','/v1/operator/revoke':'revoke','/v1/operator/epoch':'revoke'}[path];
       if(!role||request.method!=='POST')return json(404,{error:'ROUTE_NOT_FOUND'});
       const p=await principal(request,this.env,role),input=await body(request),now=Date.now(),at=new Date(now).toISOString(),c=this.config;
-      const payload=await this.ctx.storage.transaction(async txn=>{
+      const transition=await this.ctx.storage.transaction(async durable=>{
+        if(await durable.get('checkpoint/pending'))deny('ANCHOR_PENDING_RECONCILIATION_HOLD',503);
+        const writes=new Map(),txn={get:async key=>writes.has(key)?structuredClone(writes.get(key)):durable.get(key),put:async(key,value)=>{writes.set(key,structuredClone(value));}};
+        const payload=await (async()=>{
         let meta=await txn.get('meta');
         if(path==='/v1/operator/bootstrap'){
           if(this.env.LEDGER_ALLOW_BOOTSTRAP!=='true')deny('BOOTSTRAP_DISABLED');
@@ -90,6 +94,7 @@ export class MonotonicLedger{
         if(path==='/v1/inspect'){
           if(input.action_id!==null)digest(input.action_id,'ACTION');
           const consumed=input.action_id?await txn.get('consume/'+input.tenant_id+'/'+input.grant_id+'/'+input.action_id):null;
+          if(this.anchor)meta=await append(txn,meta,{operation:'inspect',request_sha256:await sha256Json(input),subject:p.subject,at});
           return {schema:LEDGER_SCHEMA,operation:'inspect',dispatch_allowed:false,challenge:input.challenge,ledger_id:meta.ledger_id,genesis_id:meta.genesis_id,key_id:meta.key_id,current_epoch:meta.epoch,grant,consumed:consumed?{request_sha256:consumed.request_sha256,slot:consumed.slot,grant_sequence:consumed.grant_sequence,chain_sha256:consumed.chain_sha256}:null,ledger_sequence:meta.sequence,chain_sha256:meta.head_sha256,observed_at:at};
         }
         if(path==='/v1/operator/revoke'){
@@ -110,9 +115,30 @@ export class MonotonicLedger{
         await txn.put(consumedKey,receipt);
         await txn.put(key,{...grant,contract_sha256:input.contract_sha256,sequence:grant.sequence+1,compute_calls:grant.compute_calls+input.compute_calls,provider_calls:grant.provider_calls+input.provider_calls});
         return receipt;
+        })();
+        if(this.anchor){
+          const pending={payload,writes:[...writes],commitment:await sha256Json({payload,writes:[...writes]})};
+          await durable.put('checkpoint/pending',pending);return {payload,pending};
+        }
+        for(const [key,value]of writes)await durable.put(key,value);
+        return {payload,pending:null};
       });
-      // Signing occurs after durable commit. A signing/response failure never refunds consumption.
-      await this.ctx.storage.sync();return json(200,await this.signed(payload));
+      await this.ctx.storage.sync();
+      let payload=transition.payload;
+      if(transition.pending){
+        // No external effects inside a retryable storage transaction. Never retry publication.
+        // An unknown result retains the durable pending record and blocks ALL transitions.
+        const proof=await publishGithubCheckpoint({pin:this.anchor,token:this.env.LEDGER_GITHUB_ANCHOR_TOKEN,payload});
+        await this.ctx.storage.transaction(async txn=>{
+          const pending=await txn.get('checkpoint/pending');
+          if(pending?.commitment!==transition.pending.commitment)deny('ANCHOR_PENDING_CHANGED_HOLD',503);
+          for(const [key,value]of pending.writes)await txn.put(key,value);
+          await txn.delete('checkpoint/pending');
+        });
+        await this.ctx.storage.sync();payload={...payload,anchor:proof};
+      }
+      // Signing/response failure never refunds consumption or reissues a permit.
+      return json(200,await this.signed(payload));
     }catch(error){return json(error instanceof LedgerDenied?error.status:503,{error:error instanceof LedgerDenied?error.code:'LEDGER_UNAVAILABLE_HOLD',dispatch_allowed:false});}
   }
 }

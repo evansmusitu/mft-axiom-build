@@ -35,7 +35,7 @@ CHECKS={
 if args.with_local_d1:
  CHECKS['local_d1']=['node','--test','qualification/whole-system-20261029/d1-local.test.mjs']
  CHECKS['hosted_storage_local']=['node','--test','qualification/whole-system-20261029/hosted-storage.test.mjs']
- CHECKS['external_ledger_local']=['node','--test','qualification/whole-system-20261029/external-ledger-local.test.mjs','qualification/whole-system-20261029/external-ledger-integration.test.mjs']
+ CHECKS['external_ledger_local']=['node','--test','qualification/whole-system-20261029/external-ledger-local.test.mjs','qualification/whole-system-20261029/external-ledger-integration.test.mjs','qualification/whole-system-20261029/github-anchor.test.mjs']
 results={}
 for name,command in CHECKS.items():
  start=time.monotonic()

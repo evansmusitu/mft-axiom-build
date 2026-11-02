@@ -25,15 +25,55 @@ signing failure retains the consumption. Readback returns evidence with
   deletion, refund or arbitrary SQL endpoint.
 - An authority administrator restoring an older authority store, redeploying
   modified code or re-bootstrapping the same genesis can defeat its own history.
-  This candidate has no independent anchor that detects that root-level rollback.
-  Destructive authority-store replay tests and independent recovery/key custody
-  evidence are still required. Do not represent these local tests as that proof.
+  The original unanchored mode still has this vulnerability and its attack
+  regression is retained. The optional GitHub checkpoint path below fences old
+  sequence reuse; it remains a candidate until its hosted acceptance is complete.
 - A pinned artifact hash records the operator's approved code identity. It is not
   remote attestation that every provider request ran those bytes. Direct provider
   access outside the governed artifact is outside this component's enforcement.
 - Revocation fences a new consume transaction. A permit already issued may remain
   usable for its 15-second lifetime; this service cannot cancel provider work that
   has already started. Final provider usage requires provider evidence.
+
+## Optional immutable GitHub checkpoints
+
+The authority may configure `LEDGER_GITHUB_ANCHOR_CONFIG_JSON` with exactly
+`repository` (`owner/name`), numeric `repository_id`, `namespace` (`ax-...`) and
+`target_commitish` (the fixed 40-hex baseline commit). Provision a narrowly scoped
+write credential as `LEDGER_GITHUB_ANCHOR_TOKEN`; never put it in source. The
+target repository must already enforce immutable releases. An Actions job token
+qualifies the isolated test only; it is not a durable production credential.
+
+Every transition, including bootstrap, grant, consume, revocation, epoch and
+fresh readback, stages a pending record before an external publication. Its tag
+uses the pinned namespace and global sequence, independent of the restorable
+genesis/key identity. A canonical commitment-only asset binds the complete
+response payload, including the fresh challenge. Only a newly published,
+independently read-back immutable release with the exact asset digest and fixed
+tag target permits the staged storage writes to commit and a signature to issue.
+Network effects occur outside retryable SQLite transactions. Failed/ambiguous
+publication leaves the pending record and blocks every later transition, across
+restart. There is no automatic skip, refund, reset or lost-ack permit reissue.
+
+Configure the same public pin as `github_anchor` within the trusted
+`AXIOM_EXTERNAL_LEDGER_CONFIG_JSON`, and a separate contents-read credential as
+`AXIOM_GITHUB_ANCHOR_READ_TOKEN`. The pin contributes to the immutable authority
+descriptor hash. The client checks GitHub directly for both fresh and stored
+receipts; an omitted proof, changed repository ID/namespace, mutable release,
+digest/target mismatch or unavailable readback holds execution. An old checkpoint
+is evidence only; it cannot match a fresh prepared request's challenge. Mutable
+release titles, notes, cached receipts and list ordering are not authority.
+
+This is a low-volume qualification path, not a throughput/cost guarantee. Every
+transition creates an immutable checkpoint; fresh readback also appends one.
+Pending recovery currently requires a reviewed operator procedure, with no
+automatic recovery endpoint. Removing a release may destroy readback availability
+even when GitHub continues reserving its tag. Repository resurrection,
+disabling new immutability and separate-host tests remain unqualified. This
+does not attest the authority's running code or prevent a malicious signer from
+inventing state/sequence values; approved code and durable credential controls
+remain part of the deployment trust boundary. No production deployment is enabled
+by adding this opt-in code.
 
 ## Operator review bundle
 

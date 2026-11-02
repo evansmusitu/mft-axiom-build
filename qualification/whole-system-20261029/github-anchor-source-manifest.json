@@ -1,0 +1,83 @@
+{
+  "product_base_sha": "71fac12afa9fc54519aa94701447b3a9c94c16f5",
+  "execution_artifact_sha256": "c8186cade52b1ceec9ef8264617f9ad5cc1b1bd16c369976669db62599171cdb",
+  "authority_bundle_sha256": "adab3fbb66b058488001a1eb282a3d5ec9b69b0dcdb1df447f216e41f4193903",
+  "sources": [
+    {
+      "path": "axiom_interface/vnext/analytical_workflows.mjs",
+      "sha256": "568ebb3d629065d12825f322b9a2465a538fd548a72a6516488d685f5d233520"
+    },
+    {
+      "path": "axiom_interface/vnext/decision_analysis.mjs",
+      "sha256": "e8477d71f61627c231fb31e236767cdc37485f317cc16c38f5dd24a304005d35"
+    },
+    {
+      "path": "axiom_interface/vnext/execution_integrity.mjs",
+      "sha256": "d7cdfd215de86fd44b6e25e8adc014ce3314e11e2529f616a5d6f066dd4884d6"
+    },
+    {
+      "path": "integrations/independent-ledger/protocol.mjs",
+      "sha256": "2d4d0cd28ae40e4c118a76a4eed19f2522f8e58919c01dac31178588e43b89e1"
+    },
+    {
+      "path": "integrations/independent-ledger/github-anchor.mjs",
+      "sha256": "4a6840cd5fdb83040ec17b0821010cd8bc18e6789b38ab61231cc2bb296801c3"
+    },
+    {
+      "path": "integrations/independent-ledger/client.mjs",
+      "sha256": "8978c5f658a9203d7513a5d46916217101471ca8eb50e55f1113f88d606fc682"
+    },
+    {
+      "path": "qualification/whole-system-20261029/external-ledger-fixture.mjs",
+      "sha256": "10a3a5d52346cf08090fbf235dcfe095fd786141cc7e72ae49dcfdddee2aeb33"
+    },
+    {
+      "path": "axiom_interface/vnext/capability_registry.js",
+      "sha256": "97c6e57b2831f9c8a736c7c9f8396afbbb99e611a7e1c628b977fc09466898b0"
+    },
+    {
+      "path": "axiom_interface/vnext/execution_contract.mjs",
+      "sha256": "a30292fd61c599dc4b4747838d30006bd1b8616a3f0372f43599a0ff762fb6f2"
+    },
+    {
+      "path": "ops/axiom_agent_model_store.mjs",
+      "sha256": "baeecc8472040558b8a5133607daaf07d6cab716a52758519cd11be002ad9923"
+    },
+    {
+      "path": "ops/axiom_evidence_lifecycle.mjs",
+      "sha256": "3858549bf5b2eb7860add09949b558160f04acbaa0874a1c1e543c5014f4e560"
+    },
+    {
+      "path": "ops/axiom_external_ledger.mjs",
+      "sha256": "3606d2333828b5d8940b82cc9f4fb456e6680a68bc20e836a534fb1cd5a9a4ab"
+    },
+    {
+      "path": "ops/axiom_execution_contract.mjs",
+      "sha256": "a8d790c8fa852c75cfea1c8ddd88a47601ecc2db0d957c20cb12f42ca4dbdab6"
+    },
+    {
+      "path": "axiom_interface/vnext/runtime_task_service.mjs",
+      "sha256": "4876723082b754ddc6d42433fd8e3aeddecc0053c44934f411ce6663278e1b7d"
+    },
+    {
+      "path": "qualification/whole-system-20261029/anchored-restore-case.mjs",
+      "sha256": "ab6b18106248cac5197ac7c89b834eadbfc9716b249355a8301ce1a35692ef9d"
+    },
+    {
+      "path": "qualification/whole-system-20261029/live-github-anchor.mjs",
+      "sha256": "f394f090887d2de9bf999bb3c42d9fbc2e91bf7ea6e2e6f9c86cd46ee4750819"
+    },
+    {
+      "path": "integrations/independent-ledger/worker.mjs",
+      "sha256": "37559d13cbf984577a00bd8321066689d5209c346300d442e5bd3668d929e548"
+    },
+    {
+      "path": "ops/axiom_execution_contract_schema.sql",
+      "sha256": "3f302611c615719c728a7dff55ec2178ab3728e6eb5b303ce075233a45364eb2"
+    },
+    {
+      "path": "qualification/whole-system-20261029/github-anchor-forward.mjs",
+      "sha256": "8bd6a46035f86a97346f3b643474fc8a78a0ba89f706960b8b82cd8bc4dbdc3a"
+    }
+  ]
+}

@@ -16,6 +16,8 @@ new_sqlite_classes = ["MonotonicLedger"]
 LEDGER_ALLOW_BOOTSTRAP = "false"
 # Provision LEDGER_CONFIG_JSON, LEDGER_PRINCIPALS_JSON and LEDGER_SIGNING_JWK
 # through the operator's secret manager. Never put keys or tokens in this file.
+# Optional immutable provider fence: provision LEDGER_GITHUB_ANCHOR_CONFIG_JSON
+# and LEDGER_GITHUB_ANCHOR_TOKEN there too; see README for the matching client pin.
 
 [observability]
 enabled = false

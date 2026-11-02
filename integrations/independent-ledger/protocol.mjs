@@ -52,7 +52,7 @@ export function descriptor(value){
 export async function verifyEnvelope(envelope,{jwk,reference,request,historical=false,now=Date.now()}={}){
   exact(envelope,['payload','signature'],'ENVELOPE');publicKey(jwk);descriptor(reference);
   const p=envelope.payload;
-  exact(p,['schema','operation','decision','dispatch_allowed','ledger_id','genesis_id','key_id','epoch','grant_id','tenant_id','work_id','action_id','request_sha256','challenge','slot','grant_sequence','ledger_sequence','chain_sha256','issued_at','valid_until'],'RECEIPT');
+  exact(p,['schema','operation','decision','dispatch_allowed','ledger_id','genesis_id','key_id','epoch','grant_id','tenant_id','work_id','action_id','request_sha256','challenge','slot','grant_sequence','ledger_sequence','chain_sha256','issued_at','valid_until',...(Object.hasOwn(p,'anchor')?['anchor']:[])],'RECEIPT');
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'Ed25519'},false,['verify']);
   if(!await crypto.subtle.verify('Ed25519',key,fromB64(envelope.signature),bytes(p)))deny('LEDGER_SIGNATURE_INVALID');
   for(const k of ['ledger_id','genesis_id','key_id','epoch','grant_id'])if(p[k]!==reference[k])deny('LEDGER_TRUST_PIN_MISMATCH');

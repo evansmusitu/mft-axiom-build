@@ -1,0 +1,79 @@
+{
+  "schema": "axiom.github-anchor-product-integration.v1",
+  "source_sha": "022fb6ebf6f2780401182d40e7fe745db2211015",
+  "execution_artifact_sha256": "c8186cade52b1ceec9ef8264617f9ad5cc1b1bd16c369976669db62599171cdb",
+  "repository": "evansmusitu/mft-axiom-qualification-isolated-20260913",
+  "repository_id": 1368351153,
+  "target_commitish": "43cd0f6b76a69fa539a6cec572a8b2f3719a3d82",
+  "observed_at": "2026-11-02T06:23:03.272Z",
+  "completed_at": "2026-11-02T06:24:03.676Z",
+  "checks": {
+    "dual_store_restore": {
+      "status": "PASSED",
+      "builder_store_restored": true,
+      "authority_store_restored": true,
+      "fresh_client": true,
+      "completed_before_restore": true,
+      "receipt_sha256": "2f5ad8c89ae8986782d596fd5a0dc6d000625dfe5fedf8e277309d539aede610",
+      "verified_checkpoint_count": 2,
+      "callbacks_before_restore": 2,
+      "callbacks_after_restore": 0,
+      "artifacts_after_restore": 0,
+      "denial": "ANCHOR_WRITE_UNCONFIRMED_HOLD",
+      "inference_calls": 0
+    },
+    "revoke_restore": {
+      "status": "PASSED",
+      "authority_store_restored": true,
+      "anchored_readback_verified": true,
+      "dispatch_allowed_after_restore": false,
+      "denial": "ANCHOR_WRITE_UNCONFIRMED_HOLD"
+    },
+    "epoch_restore": {
+      "status": "PASSED",
+      "authority_store_restored": true,
+      "anchored_readback_verified": true,
+      "dispatch_allowed_after_restore": false,
+      "denial": "ANCHOR_WRITE_UNCONFIRMED_HOLD"
+    },
+    "lost_ack": {
+      "status": "PASSED",
+      "restarted": true,
+      "publication_retries": 0,
+      "callbacks_after_ambiguous_publish": 0
+    }
+  },
+  "status": "REAL_GITHUB_AND_LOCAL_WORKERD_RESTORE_CHECKS_PASSED_NOT_HOSTED_ACCEPTANCE",
+  "api_requests": 153,
+  "inference_calls": 0,
+  "hosted_authority_deployments": 0,
+  "gate3_qualified": false,
+  "independent_verification": "SKIPPED_BY_OWNER_UNQUALIFIED",
+  "not_executed": [
+    "hosted authority deployment with durable narrowly scoped credentials",
+    "separate-host race",
+    "repository deletion/resurrection",
+    "disable-new-immutability test",
+    "production model dispatch",
+    "independent certification"
+  ],
+  "run_id": 41399523712,
+  "artifact_id": 13120802754,
+  "artifact_sha256": "01ea404b72a05422f0dea183670d9e71e300f01f01b10fd52b818e988a657010",
+  "authority_bundle_sha256": "adab3fbb66b058488001a1eb282a3d5ec9b69b0dcdb1df447f216e41f4193903",
+  "retained_immutable_checkpoints": 15,
+  "independent_connector_event_digest_matches": 15,
+  "failed_drafts_cleaned": 3,
+  "failed_runs_preserved": [
+    {
+      "id": 41398765311,
+      "artifact": 13120221841,
+      "sha256": "a257b4c0612cbbcf3826fa3869004df065bdee24d0dca41c5ce00e6d996d8c37"
+    },
+    {
+      "id": 41399002523,
+      "artifact": 13120657297,
+      "sha256": "2a06beea99ecfeb3d5f721e2b50bbf1d06a217f3817b0b769966d8b6d369ab9e"
+    }
+  ]
+}

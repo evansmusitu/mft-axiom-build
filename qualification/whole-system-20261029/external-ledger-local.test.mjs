@@ -85,7 +85,7 @@ test('private-key discovery, non-external endpoints and malformed bodies fail cl
 test('a network partition or stalled response body meets the deadline without retry or releasing another permit',{timeout:5000},async t=>{
   const f=await fixture(t);
   for(const transport of [async()=>new Promise(()=>{}),async()=>new Response(new ReadableStream({pull(){return new Promise(()=>{});}}),{headers:{'content-type':'application/json'}})]){
-    let calls=0;const c=await f.makeClient({timeoutMs:100,fetchImpl:async(...args)=>{calls++;assert.equal(args[1].credentials,'omit');assert.equal(args[1].redirect,'error');return transport(...args);}}),request=await f.prepare(c),start=Date.now();
+    let calls=0;const c=await f.makeClient({timeoutMs:100,fetchImpl:async(...args)=>{calls++;assert.equal(args[1].credentials,'omit');assert.equal(args[1].redirect,'manual');return transport(...args);}}),request=await f.prepare(c),start=Date.now();
     await assert.rejects(()=>c.consume(request),/TIMEOUT_AMBIGUOUS_HOLD/);assert.equal(calls,1);assert.ok(Date.now()-start<1000);
     await assert.rejects(()=>c.consume(request),/FRESH_PREPARED_REQUEST_REQUIRED/);assert.equal(calls,1);
   }
