@@ -15,6 +15,8 @@ on:
       - 'tests/connect/test_customer_neon_http_canary.mjs'
       - 'tests/connect/test_neon_http_pg_integration.mjs'
       - 'tests/connect/test_neon_tls_pg_integration.mjs'
+      - 'qualification/musitu_connect_beta_release_gate.json'
+      - 'tests/connect/test_neon_beta_release_fail_closed.py'
       - 'connect/customer_neon_http_canary.mjs'
   workflow_dispatch:
 
@@ -53,6 +55,8 @@ jobs:
           python-version: '3.12'
       - name: Fail-closed Neon effective role attestation unit tests
         run: python -m unittest discover -s tests/connect -p 'test_neon_role_attestation.py' -v
+      - name: Confirm Neon CI cannot authorize customer or methane release
+        run: python -m unittest discover -s tests/connect -p 'test_neon_beta_release_fail_closed.py' -v
       - name: PostgreSQL 17 least-privilege, concurrency, revocation and UUID evidence
         env:
           NEON_TEST_PG_DSN: postgresql://postgres:isolated-ci-only@127.0.0.1:5432/postgres

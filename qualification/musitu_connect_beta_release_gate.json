@@ -165,5 +165,26 @@
     "production_migration_executed": false,
     "actual_customer_requests_executed": 0,
     "customer_admission_authorized": false
+  },
+  "neon_engineering_evidence_20261102": {
+    "evidence_scope": "PREPARATORY_SYNTHETIC_ONLY_NON_ENABLING",
+    "selected_research_staging_backend": "NEON_POSTGRESQL_ISOLATED_NONPRODUCTION",
+    "hosted_neon_sql_login_database_checks": "PASS_SYNTHETIC_NO_APP_DEPLOYED",
+    "hosted_neon_database_acceptance_document": "docs/operations/musitu-connect-hosted-neon-restricted-role-acceptance-20261101.md",
+    "ephemeral_http_pg_acceptance": "PASS_NOT_DEPLOYED",
+    "ephemeral_tls_client_to_test_server_acceptance": "PASS_NOT_HOSTED",
+    "ci_http_lost_ack_and_credential_rotation_run_id": 41386185680,
+    "ci_tls_certificate_validation_run_id": 41386633451,
+    "uncertain_commit_technical_acceptance": "SAME_REQUEST_ID_REPLAY_NO_DOUBLE_QUOTA_CHARGE_NOT_BUSINESS_EXACTLY_ONCE",
+    "lost_ack_semantics_document": "docs/operations/musitu-connect-uncertain-admission-rotation-20261102.md",
+    "worker_to_hosted_neon_tls_staging_acceptance_completed": false,
+    "customer_facing_neon_app_deployed": false,
+    "independent_mine_holdout_qualified": false,
+    "physical_event_independently_reviewed": false,
+    "real_pilot_customer_acceptance_signed": false,
+    "security_operations_legal_and_release_signoffs_completed": false,
+    "real_customer_credentials_issued": 0,
+    "production_worker_changed": false,
+    "customer_admission_authorized": false
   }
 }
