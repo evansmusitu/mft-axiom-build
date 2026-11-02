@@ -61,5 +61,16 @@ class NeonBetaReleaseGateTests(unittest.TestCase):
         self.assertEqual(e["ephemeral_tls_client_to_test_server_acceptance"],"PASS_NOT_HOSTED")
         self.assertEqual(e["hosted_neon_sql_login_database_checks"],"PASS_SYNTHETIC_NO_APP_DEPLOYED")
 
+    def test_postgresql_tls_ci_does_not_grant_hosted_neon_or_customer_admission(self):
+        e=self.evidence
+        self.assertEqual(e["ephemeral_postgresql_direct_tls_verify_full_channel_binding"],
+                         "PASS_DISPOSABLE_POSTGRESQL17_NOT_HOSTED_NEON")
+        self.assertEqual(e["ci_ephemeral_postgresql_direct_tls_workflow_run_id"],41393989396)
+        self.assertTrue((ROOT/e["ephemeral_postgresql_direct_tls_document"]).is_file())
+        self.assertIs(e["hosted_neon_direct_external_client_tls_verified"],False)
+        self.assertIs(e["actual_external_client_neon_tls_hostname_verified"],False)
+        self.assertIs(e["worker_to_hosted_neon_tls_staging_acceptance_completed"],False)
+        self.assertIs(self.gate["new_beta_customer_admission_authorized"],False)
+
 if __name__=="__main__":
     unittest.main()
