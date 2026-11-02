@@ -14,6 +14,7 @@ on:
       - 'tests/connect/test_neon_pg_adapter_integration.mjs'
       - 'tests/connect/test_customer_neon_http_canary.mjs'
       - 'tests/connect/test_neon_http_pg_integration.mjs'
+      - 'tests/connect/test_neon_tls_pg_integration.mjs'
       - 'connect/customer_neon_http_canary.mjs'
   workflow_dispatch:
 
@@ -65,6 +66,16 @@ jobs:
           npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
           node --test tests/connect/test_neon_pg_adapter_integration.mjs
           node --test tests/connect/test_neon_http_pg_integration.mjs
+          # Disposable self-signed loopback TLS certificate, never committed.
+          openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+            -keyout /tmp/musitu_neon_tls_ci.key \
+            -out /tmp/musitu_neon_tls_ci.crt \
+            -subj '/CN=isolated-ci-only' \
+            -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          NEON_TLS_CERT_FILE=/tmp/musitu_neon_tls_ci.crt \
+          NEON_TLS_KEY_FILE=/tmp/musitu_neon_tls_ci.key \
+            node --test tests/connect/test_neon_tls_pg_integration.mjs
+          rm -f /tmp/musitu_neon_tls_ci.key /tmp/musitu_neon_tls_ci.crt
       - name: Confirm prototype remains out of live Worker imports
         run: |
           if grep -Eq "customer_neon_(admission|http_canary)" connect/production_worker.mjs; then
