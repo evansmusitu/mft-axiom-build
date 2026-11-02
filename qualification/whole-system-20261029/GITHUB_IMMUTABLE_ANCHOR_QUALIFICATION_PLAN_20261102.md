@@ -16,13 +16,18 @@ Primary sources:
 
 ## Required isolated setup
 
-Use a dedicated, non-production qualification repository, for example
-`axiom-antirollback-qualification`, initialized with a README. Make it available
-to the existing GitHub connection and enable release immutability in its
-repository settings. Confirm the feature is available without enabling a paid
-plan. No paid service, production setting or existing product release is changed.
-The current connector cannot create repositories or change administrative
-immutability settings; those are owner setup actions.
+An existing private non-production repository is available through the current
+connection: `evansmusitu/mft-axiom-qualification-isolated-20260913`, repository ID
+`1368351153`. Its main baseline is
+`43cd0f6b76a69fa539a6cec572a8b2f3719a3d82`; the current release list is empty.
+Its README and existing `isolation-smoke.yml` workflow must be preserved. No
+new repository is needed.
+
+Owner setup: open this qualification repository's Settings, find Releases and
+enable release immutability. Confirm availability without enabling a paid plan.
+The connector rejects the administrative immutability endpoint, so the current
+setting is unverified and has not been changed. No paid service, production
+setting or existing product release is changed by this proposal.
 
 The test harness can then use a repository-scoped Actions token, kept only in
 the runner, against a fixed baseline commit. This is an isolated test credential,

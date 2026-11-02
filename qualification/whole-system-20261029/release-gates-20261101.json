@@ -148,7 +148,14 @@
       "account_entitlement_verified": false,
       "dedicated_repository_configured": false,
       "external_releases_or_tags_created": 0,
-      "root_restore_fixed": false
+      "root_restore_fixed": false,
+      "existing_private_qualification_repository": "evansmusitu/mft-axiom-qualification-isolated-20260913",
+      "repository_id": 1368351153,
+      "baseline_main_sha": "43cd0f6b76a69fa539a6cec572a8b2f3719a3d82",
+      "repository_access_verified": true,
+      "existing_release_count": 0,
+      "immutability_setting": "UNVERIFIED_ADMIN_ENDPOINT_UNAVAILABLE",
+      "owner_setup_needed": "Enable release immutability in the existing private qualification repository; no paid upgrade."
     }
   },
   "hosted_d1": {
