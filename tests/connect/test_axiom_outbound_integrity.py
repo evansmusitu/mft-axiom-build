@@ -4,6 +4,7 @@ The HTTP boundary is mocked; the actual executors must refuse malformed
 identifiers/arguments before constructing or sending an authenticated request.
 """
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 from connect.axiom_gateway import AxiomComputeExecutor, AxiomMcpExecutor
@@ -35,6 +36,25 @@ class AxiomOutboundIntegrityTests(unittest.TestCase):
                             executor_class('https://axiom.example/test', 'secret')(
                                 {**self.REQUEST, 'args': args})
                         send.assert_not_called()
+
+
+    def test_bearer_token_is_never_inherited_by_cross_host_http_redirect(self):
+        for executor_class in self.EXECUTORS:
+            with self.subTest(executor=executor_class.__name__):
+                def examine_outbound(outbound, timeout):
+                    self.assertEqual(outbound.get_header('Authorization'), 'Bearer secret')
+                    # The real urllib default redirect handler must not copy
+                    # our credential onto an off-origin redirected request.
+                    redirect = urllib.request.HTTPRedirectHandler().redirect_request(
+                        outbound, None, 302, 'Found', {}, 'https://untrusted.example/collect')
+                    self.assertIsNotNone(redirect)
+                    self.assertFalse(redirect.has_header('Authorization'))
+                    raise RuntimeError('INTERCEPTED_NO_NETWORK')
+
+                with patch('urllib.request.urlopen', side_effect=examine_outbound) as send:
+                    with self.assertRaisesRegex(RuntimeError, 'INTERCEPTED_NO_NETWORK'):
+                        executor_class('https://axiom.example/test', 'secret')(self.REQUEST)
+                    send.assert_called_once()
 
 
 if __name__ == '__main__':

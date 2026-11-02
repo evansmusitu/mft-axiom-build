@@ -80,7 +80,6 @@ class AxiomComputeExecutor:
             self.endpoint,
             data=body,
             headers={
-                "Authorization":"Bearer "+self.bearer_token,
                 "Content-Type":"application/json",
                 "Accept":"application/json",
                 "X-musitu-request-id":request_id,
@@ -88,6 +87,9 @@ class AxiomComputeExecutor:
             },
             method="POST",
         )
+        # urllib redirects copy ordinary headers across origins. Keep the bearer
+        # on the initial authenticated request only, never a redirected one.
+        outbound.add_unredirected_header("Authorization", "Bearer " + self.bearer_token)
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
         decoded=_parse_remote_response(response.read())
         if not isinstance(decoded,dict):
@@ -135,7 +137,6 @@ class AxiomMcpExecutor:
             self.endpoint,
             data=body,
             headers={
-                "Authorization":"Bearer "+self.bearer_token,
                 "Content-Type":"application/json",
                 "Accept":"application/json",
                 "X-musitu-request-id":request_id,
@@ -143,6 +144,9 @@ class AxiomMcpExecutor:
             },
             method="POST"
         )
+        # urllib redirects copy ordinary headers across origins. Keep the bearer
+        # on the initial authenticated request only, never a redirected one.
+        outbound.add_unredirected_header("Authorization", "Bearer " + self.bearer_token)
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
         decoded=_parse_remote_response(response.read())
         if decoded.get("jsonrpc") != "2.0":
