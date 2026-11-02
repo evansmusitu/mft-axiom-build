@@ -83,6 +83,56 @@ test('real HTTP ingress with real restricted PostgreSQL login: quotas and failur
     assert.equal((await send(ids[8])).status,401);
     assert.deepEqual(await counts(),[2,2,2]);
     await assert.rejects(pool.query('SELECT token_sha256 FROM connect_qualification.credentials'),error=>error.code==='42501');
+    // Inject two distinct transport failures at the database seam. This is
+    // not a network partition test; it proves the HTTP/SQL retry contract.
+    const unknownToken='mct_'+'U'.repeat(43);
+    const unknownDigest=createHash('sha256').update(unknownToken).digest('hex');
+    const nextToken='mct_'+'V'.repeat(43);
+    const nextDigest=createHash('sha256').update(nextToken).digest('hex');
+    await owner.query("INSERT INTO connect_qualification.tenants(tenant_id,status,daily_limit,minute_limit) VALUES('tenant_http_unknown','active',2,2)");
+    await owner.query("INSERT INTO connect_qualification.credentials(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) VALUES('cred_http_unknown_old','tenant_http_unknown',$1,'active',clock_timestamp()+INTERVAL '1 day',true,false)",[unknownDigest]);
+    const uncertainCounts=async()=>{
+      const r=await owner.query("SELECT (SELECT count(*)::integer FROM connect_qualification.events WHERE tenant_id='tenant_http_unknown') AS events,(SELECT COALESCE(sum(used),0) FROM connect_qualification.daily_usage WHERE tenant_id='tenant_http_unknown') AS daily,(SELECT COALESCE(sum(used),0) FROM connect_qualification.minute_usage WHERE tenant_id='tenant_http_unknown') AS minute");
+      return Object.values(r.rows[0]).map(Number);
+    };
+    const sendUnknown=(id,token=unknownToken)=>send(id,PATH,{
+      headers:{...requestHeaders(id),authorization:'Bearer '+token}
+    });
+    const originalQuery=env.CONNECT_NEON_DB.query;
+    let throwBeforeCommit=true;
+    let throwAfterCommit=true;
+    env.CONNECT_NEON_DB.query=async query=>{
+      if(query.values[0]!==unknownDigest)return originalQuery(query);
+      if(throwBeforeCommit){
+        throwBeforeCommit=false;
+        throw Error('synthetic transport failure before query execution');
+      }
+      const committed=await originalQuery(query);
+      if(throwAfterCommit && committed.rows?.[0]?.accepted===true){
+        throwAfterCommit=false;
+        throw Error('synthetic transport failure AFTER committed SQL admission');
+      }
+      return committed;
+    };
+    const uncertainId=ids[9];
+    assert.deepEqual(await sendUnknown(uncertainId),
+      {status:503,data:{ok:false,error:'CUSTOMER_NEON_UNAVAILABLE'}});
+    assert.deepEqual(await uncertainCounts(),[0,0,0]); // before commit
+    assert.deepEqual(await sendUnknown(uncertainId),
+      {status:503,data:{ok:false,error:'CUSTOMER_NEON_UNAVAILABLE'}});
+    assert.deepEqual(await uncertainCounts(),[1,1,1]); // committed, lost ACK
+    assert.deepEqual(await sendUnknown(uncertainId),
+      {status:409,data:{ok:false,error:'REQUEST_ID_CONFLICT'}});
+    assert.deepEqual(await uncertainCounts(),[1,1,1]); // retry did not charge twice
+    await owner.query("UPDATE connect_qualification.credentials SET status='revoked' WHERE credential_id='cred_http_unknown_old'");
+    await owner.query("INSERT INTO connect_qualification.credentials(credential_id,tenant_id,token_sha256,status,expires_at,can_plan,can_risk) VALUES('cred_http_unknown_next','tenant_http_unknown',$1,'active',clock_timestamp()+INTERVAL '1 day',true,false)",[nextDigest]);
+    assert.equal((await sendUnknown(ids[8])).status,401); // revoked prior credential
+    assert.equal((await sendUnknown(ids[8],nextToken)).status,200); // rotated in place
+    assert.deepEqual(await uncertainCounts(),[2,2,2]); // one charge per accepted ID
+    assert.equal((await sendUnknown(ids[7],nextToken)).status,429);
+    assert.deepEqual(await uncertainCounts(),[2,2,2]);
+    console.log('NEON_HTTP_UNKNOWN_COMMIT_NO_DOUBLE_CHARGE=PASS');
+    console.log('NEON_HTTP_CREDENTIAL_ROTATION=PASS');
     await pool.end();
     assert.deepEqual(await send(ids[8]),{status:503,data:{ok:false,error:'CUSTOMER_NEON_UNAVAILABLE'}});
     console.log('NEON_LOOPBACK_HTTP_RESTRICTED_LOGIN=PASS');

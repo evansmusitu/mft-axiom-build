@@ -18,7 +18,10 @@ const HEADERS = Object.freeze({
   'referrer-policy':'no-referrer',
 });
 function response(status, body, extras={}) {
-  return new Response(JSON.stringify(body),{status,headers:{...HEADERS,...extras}});
+  // A 503 cannot distinguish pre-commit from committed-but-lost-ack.
+  // Do not imply an automatic retry with a new request ID is safe.
+  const outcome = status === 503 ? {'x-musitu-admission-outcome':'unknown'} : {};
+  return new Response(JSON.stringify(body),{status,headers:{...HEADERS,...outcome,...extras}});
 }
 const reject = (status,error,headers)=>response(status,{ok:false,error},headers);
 function allowedOrigin(origin){
