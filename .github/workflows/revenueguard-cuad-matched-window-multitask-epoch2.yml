@@ -13,7 +13,7 @@ permissions:
 jobs:
   chunk0:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - name: Assert exact source artifact identity
@@ -29,7 +29,7 @@ jobs:
           o=json.load(open('source_meta.json'))
           a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-epoch1-chunked-final' and not x['expired']]
           assert len(a)==1,a
-          assert a[0]['digest'].startswith('sha256:') and len(a[0]['digest'])==71, a[0]['digest']
+          assert a[0]['digest']=='sha256:56588ea336fab987c8246564dfd7ef791ead0e6e459c2bbb76af653e5b00bf19', a[0]['digest']
           print('retrained source digest', a[0]['digest'])
           print('source artifact identity PASS')
           PY
@@ -86,7 +86,7 @@ jobs:
   chunk1:
     needs: chunk0
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -128,7 +128,7 @@ jobs:
   chunk2:
     needs: chunk1
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
