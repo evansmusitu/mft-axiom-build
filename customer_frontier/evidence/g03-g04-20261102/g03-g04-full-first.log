@@ -1,0 +1,161 @@
+✔ canonical identity readback fails closed when no approved production customer link exists (14.229441ms)
+✔ retry enrollment never picks an arbitrary tenant for a preexisting identity (3.787904ms)
+✔ website and ChatGPT candidate resolve the same approved UUID without elevating the database role (6.784768ms)
+✔ unqualified link, absent consent and unproven legacy ownership cannot create a mapping (39.236888ms)
+✔ conflicts, proof replay and revoked mapping cannot silently relink or replace a UUID (13.145978ms)
+✔ revoked membership and suspended tenant block both surfaces after successful linkage (18.554639ms)
+✔ completed payment is never presented as a fresh checkout on customer retry (17.274225ms)
+✔ void order replay cannot trigger checkout (6.250884ms)
+✔ pending checkout can be requested through qualified standalone provider (5.294403ms)
+✔ no credits without independently verified settlement (9.613178ms)
+✔ settlement exact once and invoice exact once (6.930789ms)
+✔ settlement mismatch rejected without effects (7.930784ms)
+✔ settlement replay event collision rejected (5.038258ms)
+✔ order idempotency avoids duplicate orders (4.597354ms)
+✔ credit reservation prevents overdraft (5.973196ms)
+✔ retry held reservation / committed hold remains idempotent (4.150621ms)
+✔ released hold returns available units and cannot commit (4.821561ms)
+✔ refund request does not issue a refund or revoke credits (5.151078ms)
+✔ refund reversal only for provider pending and attested refund (16.920228ms)
+✔ consumed credits create debt on genuine refund, prevent further usage (3.783598ms)
+✔ cross-tenant project and ledger access are denied (29.420083ms)
+✔ identity verifier unavailable fails closed (4.205985ms)
+✔ public reconciliation route is inaccessible even authenticated (2.673657ms)
+✔ business account GET does not include checkout upsell or raw credentials (4.751766ms)
+✔ cross-origin write blocked (5.653805ms)
+✔ missing action intent blocked (4.234617ms)
+✔ unqualified checkout does not even create order (3.966494ms)
+✔ workspace project and work creation persist for authorized tenant (7.727058ms)
+✔ same order idempotency key cannot be reused for another product (3.068742ms)
+✔ refund outstanding amount enforced (2.950193ms)
+✔ refund idempotency key collision fails closed (2.715019ms)
+✔ unverified independent identity cannot bootstrap a new tenant (5.124247ms)
+✔ credit ledger and provider receipts cannot be edited or deleted (4.586338ms)
+✔ settled refund cannot be replayed with altered provider reference (5.728477ms)
+✔ external identity proof provisions a unique single-owner tenant without API key (6.796876ms)
+✔ replayed authenticated registration is idempotent (3.847334ms)
+✖ replayed proof cannot provision a second identity (3.491869ms)
+✔ revoked identity cannot enroll a fresh unauthorized tenant (5.593935ms)
+✔ fresh, multi-factor, verified email, qualified provider evidence is mandatory (0.49827ms)
+✔ public enrollment fails closed without qualified independent identity provider (3.905932ms)
+✖ cross-origin or forged browser JSON is never enrollment proof (5.26486ms)
+✔ OIDC login is disabled unless a private broker is qualified (3.865071ms)
+✔ OIDC broker pins client, callback, code flow, nonce, PKCE and unique parameters (5.57722ms)
+✔ tenant ownership enforced by SQLite foreign keys across Project, Work, Agent, Artifact, Evidence (3.501893ms)
+✔ credit orders cannot bind users to unrelated tenants (2.698524ms)
+✔ enrollment evidence is immutable (6.151064ms)
+✔ workspace members cannot initiate financial operations or view invoices and ledger (11.149631ms)
+✔ viewers may read workspace but cannot create projects or access billing (4.343321ms)
+✔ direct SQL settlement without provider event is prohibited (2.245401ms)
+✔ direct SQL refund settlement without verified refund event is prohibited (2.71575ms)
+✔ cross-tenant invoices cannot attach to another tenant settled order (2.482528ms)
+✔ customer case accepts only verified server principal and rejects malformed requests (7.256869ms)
+✔ request is idempotent, conflicting retry denied (5.884051ms)
+✔ tenant and principal are isolated in lists and key namespace (6.280078ms)
+✔ privacy delete only opens a governed request, never deletes projects or identities (3.865161ms)
+✔ backlog quota is enforced by conditional SQL insert (6.553741ms)
+✔ immutable origin and deletion are rejected by triggers (4.046604ms)
+✔ foreign-key prohibits a tenant identity mismatch (3.875907ms)
+✔ customer API records support case and exposes only own tenant cases (34.921989ms)
+✔ customer API rejects forged cross-origin support and unauthenticated privacy requests (7.140615ms)
+✔ privacy data-rights request remains available after ten support cases (5.492342ms)
+✔ session response must be bound to this credential, request and a fresh challenge (21.262322ms)
+✔ copied valid-looking response cannot authorize a later request or another cookie (13.547603ms)
+✔ missing and downgraded session assurance fail closed before customer reads (43.736089ms)
+✔ stale, future, inverted, overlong and incorrectly typed session times are rejected (25.182396ms)
+✔ a qualified binding cannot authenticate an absent or ambiguous browser credential (2.643742ms)
+✔ private verifier gets a bounded request digest, never client asserted identity or role (7.342328ms)
+✔ verifier timeout, malformed response and outage never produce access or identity detail (7.95497ms)
+✔ unqualified identity verifier cannot authorize a tenant even with a valid-looking principal (9.151403ms)
+✔ missing pinned issuer fails closed instead of trusting arbitrary private broker (4.303621ms)
+✔ issuer substitution is rejected even if a membership is otherwise returned (12.610141ms)
+✔ admitted exact issuer and active tenant membership preserve existing account readback (2.578423ms)
+✔ independent identity attestation does not override a revoked or missing membership (1.459949ms)
+✔ existing Paynow catalog readback cannot claim settlement or entitlement (7.159091ms)
+✔ qualification flag alone cannot grant a binding (0.735367ms)
+✔ missing private service binding rejected (0.293782ms)
+✔ price drift rejected (1.123973ms)
+✔ compute-unit and price-id drift rejected (1.794723ms)
+✔ duplicate plan and currency drift rejected (1.626059ms)
+✔ provider and authority health failures rejected (3.742817ms)
+✔ conflicting certification flags rejected (0.34533ms)
+✔ readback never calls checkout, refund or customer mutation routes (5.279541ms)
+✔ upstream HTTP and response-type failure is fail closed (0.936681ms)
+✔ valid pinned authorization-code OIDC redirect is admitted through qualified binding (6.77252ms)
+✔ private broker cannot substitute OAuth client, callback or response type (5.798563ms)
+✔ client and callback must be configured under owned HTTPS domain (2.487236ms)
+✔ ambiguous duplicated OAuth parameters are denied (4.218834ms)
+✔ weak or absent state, nonce, PKCE, code flow or openid scope is denied (3.810028ms)
+✔ private service qualification is required (0.367794ms)
+✔ owner can inspect existing Paynow pricing but no settlement claims (23.640254ms)
+✔ member cannot inspect billing catalog even with valid provider binding (7.593326ms)
+✔ missing or unqualified service binding yields 503 without orders (6.430064ms)
+✔ provider catalog mismatch blocks readback, does not enable purchase (3.681024ms)
+✔ browser adapter uses only credentialed same-origin GET with no raw tokens (0.506734ms)
+✔ standalone portal has read-only provider catalog and no checkout invocation (0.243517ms)
+✔ interleaved partial refunds debit all units without stale-balance under-reversal (10.29139ms)
+✔ small verified partial refund can reverse zero integer units; later remainder still reverses all units (5.9562ms)
+✔ database rejects forged provider transition that would refund more than captured amount (7.556531ms)
+✔ conflicting provider event in a settlement race is NEVER accepted as an idempotent replay (8.852472ms)
+✔ identical verified settlement arriving during a race is a harmless replay (4.034886ms)
+✔ same refund idempotency key with different reason is a collision (4.164382ms)
+✔ unverified constructors cannot claim cloud-backed account (1.472158ms)
+✔ missing tenant or identity binding fails before network read (0.576458ms)
+✔ reject wrong tenant even after valid authenticated account readback (2.74933ms)
+✔ reject wrong identity even for correct tenant (0.642748ms)
+✔ reject unauthenticated, disabled, and malformed account principals (1.679489ms)
+✔ reject unsafe, credentialed, mismatched, and fragment origin before network (0.673655ms)
+✔ failed or expired customer session never establishes cloud adapter (0.51097ms)
+✔ valid bound account can read its tenant projects through credentialed same-origin API (2.079471ms)
+✔ wrong browser origin cannot read account (0.466052ms)
+ℹ tests 110
+ℹ suites 0
+ℹ pass 108
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 370.282814
+
+✖ failing tests:
+
+test at customer_frontier/tests/customer.test.mjs:51:1
+✖ replayed proof cannot provision a second identity (3.491869ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /UNIQUE constraint failed/. Input:
+  
+  'Error: enrollment_proof_conflict'
+  
+      at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/customer.test.mjs:51:144)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: enrollment_proof_conflict
+        at invalid (file://<isolated-worktree>/customer_frontier/customer_control_plane/enrollment.mjs:5:29)
+        at provisionPersonalTenant (file://<isolated-worktree>/customer_frontier/customer_control_plane/enrollment.mjs:21:70)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/customer.test.mjs:51:144)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    expected: /UNIQUE constraint failed/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/customer.test.mjs:59:1
+✖ cross-origin or forged browser JSON is never enrollment proof (5.26486ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 201
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/customer.test.mjs:62:104)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 201,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

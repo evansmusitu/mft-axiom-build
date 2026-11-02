@@ -1,0 +1,106 @@
+✖ canonical identity readback fails closed when no approved production customer link exists (16.638991ms)
+✖ retry enrollment never picks an arbitrary tenant for a preexisting identity (3.448264ms)
+✖ website and ChatGPT candidate resolve the same approved UUID without elevating the database role (2.602229ms)
+✖ unqualified link, absent consent and unproven legacy ownership cannot create a mapping (2.581098ms)
+✖ conflicts, proof replay and revoked mapping cannot silently relink or replace a UUID (2.713968ms)
+✖ revoked membership and suspended tenant block both surfaces after successful linkage (2.260665ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.726912
+
+✖ failing tests:
+
+test at customer_frontier/tests/canonical_identity.test.mjs:19:1
+✖ canonical identity readback fails closed when no approved production customer link exists (16.638991ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 409
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:20:60)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/canonical_identity.test.mjs:22:1
+✖ retry enrollment never picks an arbitrary tenant for a preexisting identity (3.448264ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:25:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /existing_identity_review_required/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/canonical_identity.test.mjs:42:1
+✖ website and ChatGPT candidate resolve the same approved UUID without elevating the database role (2.602229ms)
+  AssertionError [ERR_ASSERTION]: canonical identity link contract is absent: ERR_MODULE_NOT_FOUND
+      at linkModule (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:32:122)
+      at async link (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:34:40)
+      at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:44:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/canonical_identity.test.mjs:54:1
+✖ unqualified link, absent consent and unproven legacy ownership cannot create a mapping (2.581098ms)
+  Error: no such table: canonical_customer_links
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:59:28)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    code: 'ERR_SQLITE_ERROR',
+    errcode: 1,
+    errstr: 'SQL logic error'
+  }
+
+test at customer_frontier/tests/canonical_identity.test.mjs:63:1
+✖ conflicts, proof replay and revoked mapping cannot silently relink or replace a UUID (2.713968ms)
+  AssertionError [ERR_ASSERTION]: canonical identity link contract is absent: ERR_MODULE_NOT_FOUND
+      at linkModule (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:32:122)
+      at async link (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:34:40)
+      at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:65:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/canonical_identity.test.mjs:75:1
+✖ revoked membership and suspended tenant block both surfaces after successful linkage (2.260665ms)
+  AssertionError [ERR_ASSERTION]: canonical identity link contract is absent: ERR_MODULE_NOT_FOUND
+      at linkModule (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:32:122)
+      at async link (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:34:40)
+      at async TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/canonical_identity.test.mjs:77:30)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }

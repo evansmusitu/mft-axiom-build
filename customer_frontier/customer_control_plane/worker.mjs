@@ -4,6 +4,8 @@ import {createCustomerCase,listOwnCustomerCases,listOwnMemberships} from './cust
 import {verifyAndEnroll} from './enrollment.mjs';
 import {qualifiedLoginRedirect} from './login_broker.mjs';
 import {getLiveBillingTruth} from './live_billing_truth.mjs';
+import {verifyCustomerSession} from './identity_session.mjs';
+import {canonicalCustomerForPrincipal,activeIdentityMembership} from './canonical_identity.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const error=(code,status=400)=>json({ok:false,error:code},status);
 const valid=(s,max=160)=>typeof s==='string'&&s.trim().length>0&&s.length<=max;
@@ -12,24 +14,8 @@ const clean=(e)=>{const message=String(e?.message||'');return /^([a-z_]+)$/.test
 async function auth(req,env,db){
  // A separate, qualified identity service owns OIDC, MFA, recovery, secure cookies
  // and ChatGPT OAuth PKCE. Never infer tenant identity from request parameters.
- if(!env.IDENTITY_VERIFIER?.fetch)throw new Error('identity_verifier_unavailable');
- // A service binding alone is not a certification. The separately admitted
- // identity authority must pin the issuer before accepting session assertions.
- if(env.IDENTITY_VERIFIER_QUALIFIED!=='qualified_private_binding')throw new Error('identity_verifier_not_qualified');
- const pinnedIssuer=env.CUSTOMER_IDENTITY_ISSUER;
- let pinnedURL;try{pinnedURL=new URL(pinnedIssuer)}catch{throw new Error('identity_issuer_not_qualified');}
- if(typeof pinnedIssuer!=='string'||pinnedURL.protocol!=='https:'||
-    pinnedURL.origin!==pinnedIssuer||pinnedURL.username||pinnedURL.password||
-    pinnedURL.search||pinnedURL.hash)throw new Error('identity_issuer_not_qualified');
- const response=await env.IDENTITY_VERIFIER.fetch(new Request('https://axiom-internal/session/verify',{
-  method:'POST',headers:{cookie:req.headers.get('cookie')||'',authorization:req.headers.get('authorization')||'','x-axiom-audience':'customer-control-plane'},
-  redirect:'error'
- }));
- if(response.status!==200)throw new Error('authentication_required');
- const p=await response.json();if(!valid(p.issuer,200)||!valid(p.subject,240)||!valid(p.tenant_id,150)||p.audience!=='customer-control-plane'||p.authenticated!==true)throw new Error('identity_verifier_invalid');
- if(p.issuer!==pinnedIssuer)throw new Error('identity_issuer_mismatch');
- const match=await one(db,`SELECT i.id AS identity_id,m.role,t.id AS tenant_id FROM identities i JOIN memberships m ON m.identity_id=i.id JOIN tenants t ON t.id=m.tenant_id WHERE i.issuer=? AND i.external_sub=? AND m.tenant_id=? AND m.status='active' AND t.status='active'`,p.issuer,p.subject,p.tenant_id);
- if(!match)throw new Error('membership_not_authorized');return match;
+ const p=await verifyCustomerSession(req,env);
+ const match=await activeIdentityMembership(db,p);return {...match,principal:p};
 }
 async function verifiedEvent(req,env){
  // Gateway MUST be a private service-binding ingress after independent provider verification.
@@ -60,6 +46,10 @@ export async function handle(request,env){
  if(method!=='GET'&&method!=='HEAD'){const origin=request.headers.get('origin');if(origin!==url.origin||request.headers.get('x-axiom-intent')!=='customer-action')return error('csrf_or_origin_rejected',403);}
  const {identity_id,tenant_id,role}=user;const write=role==='owner'||role==='admin'||role==='member';const billingAdmin=role==='owner'||role==='admin';
  try{
+ if(path==='/v1/customer/identity'&&method==='GET'){
+  try{return json({ok:true,...await canonicalCustomerForPrincipal(db,user.principal)});}
+  catch(e){return error(clean(e),clean(e)==='canonical_mapping_required'?409:403);}
+ }
  if(path==='/v1/customer/memberships'&&method==='GET')return json({ok:true,memberships:await listOwnMemberships(db,{tenant_id,identity_id})});
  if(path==='/v1/customer/cases'&&method==='GET')return json({ok:true,cases:await listOwnCustomerCases(db,{tenant_id,identity_id})});
  if(path==='/v1/customer/cases'&&method==='POST'){const b=await readBody(request);const recorded=await createCustomerCase(db,{tenant_id,identity_id},b,request.headers.get('idempotency-key'));return json({ok:true,case:recorded,note:'Request recorded for independent review; no irreversible action performed.'},recorded.idempotent?200:202);}

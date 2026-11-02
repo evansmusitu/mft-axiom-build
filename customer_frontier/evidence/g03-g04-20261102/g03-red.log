@@ -1,0 +1,102 @@
+✔ session response must be bound to this credential, request and a fresh challenge (8.142117ms)
+✖ copied valid-looking response cannot authorize a later request or another cookie (4.83854ms)
+✖ missing and downgraded session assurance fail closed before customer reads (5.76721ms)
+✖ stale, future, inverted, overlong and incorrectly typed session times are rejected (2.749001ms)
+✖ a qualified binding cannot authenticate an absent or ambiguous browser credential (2.364772ms)
+✖ private verifier gets a bounded request digest, never client asserted identity or role (2.474679ms)
+✔ verifier timeout, malformed response and outage never produce access or identity detail (7.12859ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 2
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 146.084283
+
+✖ failing tests:
+
+test at customer_frontier/tests/identity_session_contract.test.mjs:31:1
+✖ copied valid-looking response cannot authorize a later request or another cookie (4.83854ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/identity_session_contract.test.mjs:34:56)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/identity_session_contract.test.mjs:38:1
+✖ missing and downgraded session assurance fail closed before customer reads (5.76721ms)
+  AssertionError [ERR_ASSERTION]: {"email_verified":false}
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/identity_session_contract.test.mjs:42:45)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/identity_session_contract.test.mjs:45:1
+✖ stale, future, inverted, overlong and incorrectly typed session times are rejected (2.749001ms)
+  AssertionError [ERR_ASSERTION]: {"expires_at_ms":1793651831044}
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/identity_session_contract.test.mjs:51:45)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/identity_session_contract.test.mjs:54:1
+✖ a qualified binding cannot authenticate an absent or ambiguous browser credential (2.364772ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 401
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/identity_session_contract.test.mjs:57:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/identity_session_contract.test.mjs:60:1
+✖ private verifier gets a bounded request digest, never client asserted identity or role (2.474679ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 200
+  
+      at TestContext.<anonymous> (file://<isolated-worktree>/customer_frontier/tests/identity_session_contract.test.mjs:62:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

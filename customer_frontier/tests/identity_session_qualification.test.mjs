@@ -1,3 +1,4 @@
+import {SessionRequest as Request,sessionFixture} from './identity_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handle} from '../customer_control_plane/worker.mjs';
@@ -20,7 +21,7 @@ const env=(principal=proof(),overrides={})=>({
  CUSTOMER_DB:db(),
  IDENTITY_VERIFIER_QUALIFIED:'qualified_private_binding',
  CUSTOMER_IDENTITY_ISSUER:issuer,
- IDENTITY_VERIFIER:{fetch:async()=>new Response(JSON.stringify(principal),{status:200,headers:{'content-type':'application/json'}})},
+ IDENTITY_VERIFIER:{fetch:async request=>Response.json(await sessionFixture(request,principal))},
  ...overrides
 });
 const call=(environment)=>handle(new Request('https://portal.mftintelligence.com/v1/customer/me',{headers:{cookie:'session=opaque-browser-cookie'}}),environment);

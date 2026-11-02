@@ -1,6 +1,7 @@
 // Credentialless customer enrollment. Only accepts fresh attestation from an independently
 // qualified, private service binding. Client JSON and OAuth account keys are never proof.
 import {one,atomic} from './ledger.mjs';
+import {requestIdentityAssertion,validateSessionAssertion} from './identity_session.mjs';
 const invalid = (s)=>{throw new Error(s)};
 const string=(x,n=160)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const sha=async text=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))].map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -15,12 +16,23 @@ export function validateEnrollmentAttestation(a,now=Date.now()){
 }
 export async function provisionPersonalTenant(db,attestation,{now=Date.now()}={}){
  const a=validateEnrollmentAttestation(attestation,now);
- const existing=await one(db,'SELECT i.id,m.tenant_id,m.status FROM identities i LEFT JOIN memberships m ON m.identity_id=i.id WHERE i.issuer=? AND i.external_sub=? ORDER BY m.tenant_id LIMIT 1',a.issuer,a.subject);
+ const hash=await sha(a.issuer+'\n'+a.subject);
+ const proof=await one(db,'SELECT issuer,external_sub_hash FROM enrollment_evidence WHERE proof_id=?',a.proof_id);
+ if(proof&&(proof.issuer!==a.issuer||proof.external_sub_hash!==hash))invalid('enrollment_proof_conflict');
+ const existing=await one(db,'SELECT id FROM identities WHERE issuer=? AND external_sub=?',a.issuer,a.subject);
+ const priorHome=async identity=>{
+  // The original enrollment receipt selects the personal home. An arbitrary
+  // enterprise membership (including the lexically first tenant) is not home.
+  const result=(await db.prepare(`SELECT DISTINCT e.tenant_id,m.status,t.status AS tenant_status FROM enrollment_evidence e
+   JOIN memberships m ON m.identity_id=e.identity_id AND m.tenant_id=e.tenant_id JOIN tenants t ON t.id=e.tenant_id
+   WHERE e.identity_id=? AND e.issuer=? AND e.external_sub_hash=?`).bind(identity,a.issuer,hash).all()).results;
+  if(result.length!==1||result[0].status!=='active'||result[0].tenant_status!=='active')invalid('enrollment_existing_identity_review_required');
+  return {tenant_id:result[0].tenant_id,identity_id:identity,created:false};
+ };
  if(existing){
-  if(existing.status!=='active')invalid('enrollment_existing_identity_review_required');
-  return {tenant_id:existing.tenant_id,identity_id:existing.id,created:false};
+  return priorHome(existing.id);
  }
- const tenant=crypto.randomUUID(),identity=crypto.randomUUID();const hash=await sha(a.issuer+'\n'+a.subject);
+ const tenant=crypto.randomUUID(),identity=crypto.randomUUID();
  try{
   await atomic(db,[
    ['INSERT INTO tenants(id,name,status) VALUES(?,?,?)',tenant,'Personal workspace','active'],
@@ -31,15 +43,18 @@ export async function provisionPersonalTenant(db,attestation,{now=Date.now()}={}
  }catch(e){
   // Two genuinely concurrent qualified sessions may enroll the same principal.
   // Never override a revoked membership, conflicting proof, or another tenant.
-  const prior=await one(db,'SELECT i.id,m.tenant_id,m.status FROM identities i JOIN memberships m ON m.identity_id=i.id WHERE i.issuer=? AND i.external_sub=?',a.issuer,a.subject);
-  if(prior?.status==='active')return {tenant_id:prior.tenant_id,identity_id:prior.id,created:false};
+  const repeated=await one(db,'SELECT issuer,external_sub_hash FROM enrollment_evidence WHERE proof_id=?',a.proof_id);
+  if(repeated&&(repeated.issuer!==a.issuer||repeated.external_sub_hash!==hash))invalid('enrollment_proof_conflict');
+  const prior=await one(db,'SELECT id FROM identities WHERE issuer=? AND external_sub=?',a.issuer,a.subject);
+  if(prior)return priorHome(prior.id);
   throw e;
  }
  return {tenant_id:tenant,identity_id:identity,created:true};
 }
 export async function verifyAndEnroll(request,env,db){
  if(env.IDENTITY_ENROLLMENT_QUALIFIED!=='qualified_private_binding'||!env.IDENTITY_ENROLLMENT_VERIFIER?.fetch)invalid('enrollment_not_qualified');
- const attested=await env.IDENTITY_ENROLLMENT_VERIFIER.fetch(new Request('https://axiom-internal/identity/enrollment-proof',{method:'POST',headers:{cookie:request.headers.get('cookie')||'','x-axiom-purpose':'qualified-enrollment'},redirect:'error'}));
- if(attested.status!==200)invalid('enrollment_proof_unavailable');
- return provisionPersonalTenant(db,await attested.json());
+ const {proof,context}=await requestIdentityAssertion(request,env,{binding:env.IDENTITY_ENROLLMENT_VERIFIER,
+  qualification:env.IDENTITY_ENROLLMENT_QUALIFIED,audience:'customer-control-plane',purpose:'qualified-enrollment',path:'/identity/enrollment-proof'});
+ validateSessionAssertion(proof,{...context,requireTenant:false});
+ return provisionPersonalTenant(db,proof);
 }
