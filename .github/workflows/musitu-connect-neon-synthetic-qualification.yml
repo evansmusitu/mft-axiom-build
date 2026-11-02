@@ -96,6 +96,39 @@ jobs:
             -keyout /tmp/musitu_pg_tls_bad_ca.key \
             -out /tmp/musitu_pg_tls_bad_ca.crt \
             -subj '/CN=wrong-root-only' >/dev/null 2>&1
+          # Configure the GitHub Actions PostgreSQL-17 Docker *service only*.
+          # Never run these commands against hosted Neon or a reusable database.
+          PG_CONTAINER="$(docker ps --filter ancestor=postgres:17 --format '{{.ID}}' | head -n 1)"
+          if [ -z "$PG_CONTAINER" ]; then
+            echo "NO_DISPOSABLE_POSTGRES_CONTAINER" >&2
+            exit 1
+          fi
+          docker exec -u 0 "$PG_CONTAINER" mkdir -p /tmp/musitu_pg_tls_ci
+          docker cp /tmp/musitu_pg_tls_verified.crt "$PG_CONTAINER:/tmp/musitu_pg_tls_ci/server.crt"
+          docker cp /tmp/musitu_pg_tls_server.key "$PG_CONTAINER:/tmp/musitu_pg_tls_ci/server.key"
+          docker exec -u 0 "$PG_CONTAINER" sh -c \
+            'chown postgres:postgres /tmp/musitu_pg_tls_ci/server.* && chmod 600 /tmp/musitu_pg_tls_ci/server.key && chmod 644 /tmp/musitu_pg_tls_ci/server.crt'
+          docker exec -u postgres "$PG_CONTAINER" sh -c \
+            "sed -i '1i hostnossl all all 0.0.0.0/0 reject' \"\$PGDATA/pg_hba.conf\""
+          python - <<'PY'
+          import os
+          import time
+          import psycopg
+          dsn=os.environ["NEON_TEST_PG_DSN"]
+          assert dsn=="postgresql://postgres:isolated-ci-only@127.0.0.1:5432/postgres"
+          with psycopg.connect(dsn, autocommit=True, connect_timeout=8) as c:
+              c.execute("ALTER SYSTEM SET ssl_cert_file='/tmp/musitu_pg_tls_ci/server.crt'")
+              c.execute("ALTER SYSTEM SET ssl_key_file='/tmp/musitu_pg_tls_ci/server.key'")
+              c.execute("ALTER SYSTEM SET ssl='on'")
+              assert c.execute("SELECT pg_reload_conf()").fetchone()[0] is True
+          for _ in range(12):
+              with psycopg.connect(dsn, autocommit=True, connect_timeout=8) as c:
+                  if c.execute("SHOW ssl").fetchone()[0]=="on":
+                      break
+              time.sleep(1)
+          else:
+              raise AssertionError("DISPOSABLE_POSTGRES_TLS_DID_NOT_ENABLE")
+          PY
           python tests/connect/test_neon_pg_tls_direct_integration.py
       - name: Confirm prototype remains out of live Worker imports
         run: |
