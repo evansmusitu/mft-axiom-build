@@ -1,3 +1,4 @@
+import {SessionRequest as Request,sessionFixture} from './identity_fixture.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -24,7 +25,7 @@ async function setup(role='owner'){
 }
 const env=(db,opts={})=>({
  CUSTOMER_DB:db,
- IDENTITY_VERIFIER_QUALIFIED:'qualified_private_binding',CUSTOMER_IDENTITY_ISSUER:'https://example.invalid',IDENTITY_VERIFIER:{fetch:async()=>Response.json({authenticated:true,issuer:'https://example.invalid',subject:'subject',tenant_id:'tenant',audience:'customer-control-plane'})},
+ IDENTITY_VERIFIER_QUALIFIED:'qualified_private_binding',CUSTOMER_IDENTITY_ISSUER:'https://example.invalid',IDENTITY_VERIFIER:{fetch:async request=>Response.json(await sessionFixture(request,{authenticated:true,issuer:'https://example.invalid',subject:'subject',tenant_id:'tenant',audience:'customer-control-plane'}))},
  READONLY_BILLING_BRIDGE:'qualified_readonly',
  LIVE_AXIOM_BILLING:{fetch:async req=>{
   assert.equal(req.method,'GET');assert.equal(new URL(req.url).origin,'https://payments.mftintelligence.com');

@@ -1,0 +1,17 @@
+test_null_identity_and_cross_tenant_link_are_rejected (test_canonical_identity_migration.CanonicalMigration.test_null_identity_and_cross_tenant_link_are_rejected) ... ok
+test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity (test_canonical_identity_migration.CanonicalMigration.test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity) ... FAIL
+test_upgrade_is_additive_and_never_autolinks_legacy_rows (test_canonical_identity_migration.CanonicalMigration.test_upgrade_is_additive_and_never_autolinks_legacy_rows) ... ok
+
+======================================================================
+FAIL: test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity (test_canonical_identity_migration.CanonicalMigration.test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<isolated-worktree>/customer_frontier/tests/test_canonical_identity_migration.py", line 38, in test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity
+    with self.assertRaisesRegex(sqlite3.IntegrityError, 'canonical_link_insert_conflict'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.007s
+
+FAILED (failures=1)
