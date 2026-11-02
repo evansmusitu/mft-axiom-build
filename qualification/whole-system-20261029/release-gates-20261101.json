@@ -6,16 +6,45 @@
   "publication_authorized_by_evidence": false,
   "user_sequence": "Close custody and anti-rollback gates, then merge, deploy and run public reviewer checks before publication.",
   "custody": {
-    "status": "BLOCKED_VISIBLE_SECURITY_ACCOUNT_IS_PRODUCTION",
+    "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
     "independent_verifier_activated": false,
     "missing": [
       "Direct authenticated verifier acceptance and provider identity",
-      "MFA and recovery-admin separation",
+      "Independent MFA and recovery-admin separation; sole visible administrator MFA confirmed only",
       "Exclusive verifier key custody outside builder and owner-custodian reset/control",
       "Independent policy veto, revocation and kill authority",
       "Two authenticated independent evidence readback origins"
     ],
     "provider_account_readback": {
+      "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+      "account_matches_known_production": true,
+      "visible_accounts": 1,
+      "accepted_members": 1,
+      "member_mfa_enabled": true,
+      "account_enforce_twofactor": false,
+      "member_role": "Super Administrator - All Privileges",
+      "independent_member_or_verifier_established": false,
+      "independent_key_custody_proven": false,
+      "independent_recovery_administration_proven": false,
+      "pr62_review_submissions": 0,
+      "token_actor_lookup": {
+        "http_status": 403,
+        "codes": [
+          9109
+        ]
+      },
+      "staging_secret_boundary_bypassed": false,
+      "workflow_run_id": 41348310191,
+      "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+      "observed_at": "2026-11-01T20:43:42.077Z",
+      "artifact": {
+        "id": 13100545422,
+        "sha256": "c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530",
+        "download_hash_verified": true
+      },
+      "evidence": "authority-provider-reconciliation09-20261102.json"
+    },
+    "prior_provider_account_readback": {
       "workflow_run_id": 41329030634,
       "account_matches_known_production": true,
       "visible_accounts": 1,
@@ -56,7 +85,8 @@
       "positive_guard_checks_passed": 21,
       "authority_admin_restore_counterexample_reproduced": true,
       "ci_evidence": "external-ledger-ci-20261101.json"
-    }
+    },
+    "activation_request": "INDEPENDENT_AUTHORITY_ACTIVATION_20261101.md"
   },
   "hosted_d1": {
     "status": "CONFIRMED_OWNER_SELECTED_STAGING_NAMESPACE_COMPONENT",
@@ -133,7 +163,7 @@
     "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
     "Current main remains separate from this draft repair candidate."
   ],
-  "last_revalidation_source": "168dbaa3a04433b553847e149cc670b0efdf0317",
+  "last_revalidation_source": "f90e089aa8dbebd87df231805b36ea2fdb572551",
   "skill_expansion": {
     "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
     "distinct_packages": 18,
@@ -147,18 +177,19 @@
   },
   "verification": {
     "groups_passed": 21,
-    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
-    "tree_sha": "b2be0d2095e0104493d630b59fc9577d7c60be62",
-    "ci_merge_sha": "78c0d240b6a184d6f85bc391ae6c4a3859fc38a8",
+    "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+    "tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
+    "ci_merge_sha": "26e397fa3a27070c2391be30506d0181fd0f4da9",
     "ci_merge_same_tree_verified": true,
-    "workflow_run_id": 41343886169,
-    "artifact_id": 13097918302,
-    "artifact_sha256": "863e45cefa40eb90d02e5b5139b5ac110852bca65d20d08e1e66a0a476804640",
+    "workflow_run_id": 41348310406,
+    "artifact_id": 13100466515,
+    "artifact_sha256": "b9cd5f914c9d3155fb8b288d6bedc248c43e22f309da898bc176b5a8d7ffe1f9",
     "download_hash_verified": true,
     "application_tests": 495,
     "sdk_tests": 73,
     "local_d1_tests": 11,
     "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 14,
     "hosted_acceptance_protocol_tests": 6,
     "external_ledger_regression_tests": 22,
     "positive_external_ledger_checks": 21,
@@ -209,7 +240,24 @@
       "work_state": "REVOKED",
       "run_state": "FAILED",
       "budget_refunded": false,
-      "observed_completed_account_neurons": 52.20908737182617
+      "observed_completed_account_neurons": 52.20908737182617,
+      "latest_readback": {
+        "workflow_run_id": 41348310191,
+        "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+        "observed_at": "2026-11-01T20:43:42.077Z",
+        "window": {
+          "start": "2026-11-01T15:40:00Z",
+          "end": "2026-11-01T20:43:39Z"
+        },
+        "rows_returned": 2,
+        "rows_match_separate_completed_response_usage": true,
+        "artifact": {
+          "id": 13100545422,
+          "sha256": "c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530",
+          "download_hash_verified": true
+        },
+        "final_usage_neurons": null
+      }
     }
   },
   "prior_verification_continuation06": {
@@ -245,5 +293,25 @@
     "external_ledger_regression_tests": 22,
     "positive_external_ledger_checks": 21,
     "expected_authority_restore_counterexamples": 1
-  }
+  },
+  "prior_verification_continuation08": {
+    "groups_passed": 21,
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "tree_sha": "b2be0d2095e0104493d630b59fc9577d7c60be62",
+    "ci_merge_sha": "78c0d240b6a184d6f85bc391ae6c4a3859fc38a8",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41343886169,
+    "artifact_id": 13097918302,
+    "artifact_sha256": "863e45cefa40eb90d02e5b5139b5ac110852bca65d20d08e1e66a0a476804640",
+    "download_hash_verified": true,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "provider_reconciliation_request": "PROVIDER_RECONCILIATION_REQUEST_20261101.md"
 }

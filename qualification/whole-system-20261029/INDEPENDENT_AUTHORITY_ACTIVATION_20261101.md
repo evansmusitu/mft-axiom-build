@@ -10,6 +10,15 @@ No independent verifier acceptance, exclusive key custody, separate recovery
 administration or independently administered monotonic ledger was obtained.
 Builder-run tests and builder-generated keys cannot supply those properties.
 
+Latest provider-origin observation: workflow `41348310191`, source
+`f90e089aa8dbebd87df231805b36ea2fdb572551`, at
+**1 November 2026, 20:43:41 UTC (22:43:41 CAT)**. This visible account has one
+accepted member, role `Super Administrator - All Privileges`, with member MFA
+enabled. Account-wide `enforce_twofactor` is false. No second member is listed.
+This proves the observed member's MFA only; separate signer custody, recovery
+administration and independent acceptance remain unestablished. Token actor
+lookup returned HTTP403/code9109; no extra privileges were requested.
+
 ## Required operator and verifier evidence
 
 The independent operator must authenticate a distinct existing provider account
@@ -30,6 +39,27 @@ job is manual and main-only. The workflow states that an editable branch must
 not receive the staging credential and that independent review and merge must
 precede execution. GitHub currently records no review submissions for PR #62.
 This continuation did not bypass that restriction or access its protected secret.
+
+## Acceptance response required from the actual independent person
+
+The owner must identify the intended custodian/verifier by name and an
+authenticated GitHub identity or equivalent controlled channel. No appointment
+or acceptance is inferred from this draft. The identified person must return:
+
+| Evidence | Required concrete value or action |
+| --- | --- |
+| Role acceptance | Authenticated acceptance naming this project, duties and reviewed source/artifact digests |
+| Provider authority | Distinct account ID, accepted role and provider-origin membership/MFA evidence |
+| Key custody | Their independently generated public key and fingerprint; proof that builder/production admins cannot export, rotate or reset its private key |
+| Recovery control | Named recovery administrator, separate recovery/MFA control and an authenticated recovery exercise preserving consumption history |
+| Readback | Two authenticated independently controlled evidence origins with fresh challenge responses |
+| Veto and revocation | Exercise deny, credential/key/epoch revocation and kill authority without builder approval; retain denied stale-client results |
+| Monotonic anchor | Exact service/account/storage identity and recovery policy outside both builder and ledger-root reset paths |
+| Final decision | Their signed statement over the exact tested execution artifact and destructive-challenge report digests |
+
+Private keys, recovery codes and administrator tokens must never be posted in
+this repository, this chat or builder CI. This request contains public identity
+and evidence requirements only. It has not been sent to another person.
 
 ## External monotonic ledger and destructive challenge
 
@@ -71,7 +101,13 @@ retain this challenge against the exact tested artifact:
 5. Revoke the old client/key/epoch and verify stale signatures and restored old
    credentials remain denied. Exercise authorized independent recovery and verify
    that it preserves high-water/consume history.
-6. Read the results through two authenticated independent evidence origins and
+6. Restore the authority administrator's own pre-consume store, then repeat with
+   a replacement namespace, old genesis and old signer configuration. The
+   independently administered anchor must prevent a second authorization in
+   every case. A local counter, another same-admin journal or a removable lock
+   does not meet this criterion. Missing/unreachable anchor state must HOLD;
+   neither bootstrap nor recovery may reset its high-water value.
+7. Read the results through two authenticated independent evidence origins and
    obtain the verifier's signature over the exact artifact and challenge report
    digests. Retain raw denied and ambiguous outcomes as well as successes.
 

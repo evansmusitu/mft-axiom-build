@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   read-only-reconciliation:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    if: github.event.pull_request.head.sha == 'f90e089aa8dbebd87df231805b36ea2fdb572551' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     steps:

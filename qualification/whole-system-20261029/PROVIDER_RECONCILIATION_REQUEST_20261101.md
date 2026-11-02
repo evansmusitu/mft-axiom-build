@@ -26,6 +26,25 @@ also returned those two records, with sampleInterval 1 and errorCode 0.
 No aborted-request record was returned. The exposed inference schema has no
 requestId/rayId or queryable turn-cancellation status.
 
+The latest read-only reconciliation is workflow `41348310191`, source
+`f90e089aa8dbebd87df231805b36ea2fdb572551`, observed at
+**1 November 2026, 20:43:42 UTC (22:43:42 CAT)**. It widened the exhausted
+request-row query to **15:40:00–20:43:39 UTC**, still returning only these rows:
+
+| Provider datetime | Input tokens | Output tokens | Neurons | Matching saved completed response |
+| --- | ---: | ---: | ---: | --- |
+| 15:43:13 UTC | 592 | 414 | 16.672725677490234 | Planning, Ray `a53c0350d8059b36-IAD`, completed 15:43:13.450 UTC |
+| 15:43:43 UTC | 255 | 1218 | 35.53636169433594 | Synthesis, Ray `a53c038d1ace9b36-IAD`, completed 15:43:43.747 UTC |
+
+Both rows have errorCode 0 and sampleInterval 1. Their usage exactly matches
+the saved successful responses. The second row's time is close to the aborted
+request's start, but it is not an identity match for the aborted request.
+Please do not assign either successful response's usage to the aborted stream.
+No request identity is exposed in these analytics rows; time proximity, absence
+of a row and account totals cannot establish cancellation or zero usage.
+Latest readback ZIP SHA256:
+`c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530`.
+
 Please provide:
 
 1. The saved request's provider terminal state, including whether generation
@@ -43,16 +62,21 @@ Acceptance ZIP SHA256:
 Delayed forensic workflow: `41329030634`, ZIP SHA256:
 `259350925a35915e8cae630de4a06bfe6626e787986c74b894d17cc7a4404ca2`.
 
-## Isolated D1 capacity
+## D1 context: no capacity action requested
 
 The account lists 11 databases. Fresh isolated creation of
 `axiom-acceptance-20261101-05` returned **HTTP403 / code7406** in workflow
 `41330823895`. No database was created and migrations were not reached.
-Existing databases were not deleted, repurposed or modified.
+No database was created by that attempt. The owner subsequently selected the
+existing `mft-axiom-claude-staging-20260927` database for qualification in the
+`axiom_q06_` namespace. Seven live checks passed in workflow `41343885986`,
+with original tables and existing Worker settings preserved. The temporary
+qualification Worker was deleted and read back as absent. This later acceptance
+is shared namespace isolation, not a separate physical database.
 
-Please confirm the effective database-count entitlement and whether one
-additional isolated qualification database can be made available without a paid
-upgrade or additional charge. Do not change subscription or billing settings.
+The earlier request for additional capacity is superseded by the owner's reuse
+choice. This draft now requests only saved-request provider reconciliation.
+Do not create/delete databases or change subscription or billing settings.
 
 D1 source: `6601f2a8eb86a1d82a0002246696e27f8895ed39`.
 D1 acceptance ZIP SHA256:

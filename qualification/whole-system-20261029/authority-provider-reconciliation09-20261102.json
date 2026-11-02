@@ -1,0 +1,101 @@
+{
+  "schema": "musitu.axiom.authority-provider-reconciliation09.v1",
+  "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+  "source_tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
+  "observed_at": "2026-11-01T20:43:42.077Z",
+  "workflow_run_id": 41348310191,
+  "artifact": {
+    "id": 13100545422,
+    "sha256": "c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530",
+    "download_hash_verified": true
+  },
+  "prior_readback": {
+    "source_sha": "1a53205de55799bd99914bb129b957626c59a8b1",
+    "workflow_run_id": 41347725292,
+    "artifact_id": 13100246199,
+    "artifact_sha256": "6c900da6cd272abb9350e7bbd7aca16b1ae99f2baa4494b33920e5583a7f6b4c"
+  },
+  "custody": {
+    "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+    "account_matches_known_production": true,
+    "visible_accounts": 1,
+    "accepted_members": 1,
+    "member_mfa_enabled": true,
+    "account_enforce_twofactor": false,
+    "member_role": "Super Administrator - All Privileges",
+    "independent_member_or_verifier_established": false,
+    "independent_key_custody_proven": false,
+    "independent_recovery_administration_proven": false,
+    "pr62_review_submissions": 0,
+    "token_actor_lookup": {
+      "http_status": 403,
+      "codes": [
+        9109
+      ]
+    },
+    "staging_secret_boundary_bypassed": false
+  },
+  "provider_abort": {
+    "saved_cf_ray": "a53c044b0eda9b36-IAD",
+    "started_at": "2026-11-01T15:43:43.842Z",
+    "status": "UNRESOLVED",
+    "reason": "SAVED_REQUEST_ID_NOT_FOUND",
+    "window": {
+      "start": "2026-11-01T15:40:00Z",
+      "end": "2026-11-01T20:43:39Z"
+    },
+    "pagination_exhausted": true,
+    "rows_returned": 2,
+    "rows_match_separate_completed_response_usage": true,
+    "time_proximity_is_not_identity": true,
+    "final_usage_neurons": null,
+    "assumed_zero": false,
+    "provider_call_reservation_retained": 1,
+    "budget_refunded": false
+  },
+  "anti_rollback": {
+    "independent_operator_accepted": false,
+    "independent_monotonic_anchor_provisioned": false,
+    "positive_local_guard_checks": 21,
+    "authority_admin_old_snapshot_replay_counterexample_reproduced": true,
+    "security_outcome": "NOT_FIXED_AT_AUTHORITY_ROOT_RESTORE_BOUNDARY",
+    "live_destructive_independent_acceptance": false
+  },
+  "verification": {
+    "groups_passed": 21,
+    "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+    "tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
+    "ci_merge_sha": "26e397fa3a27070c2391be30506d0181fd0f4da9",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41348310406,
+    "artifact_id": 13100466515,
+    "artifact_sha256": "b9cd5f914c9d3155fb8b288d6bedc248c43e22f309da898bc176b5a8d7ffe1f9",
+    "download_hash_verified": true,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 14,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "inference_calls": 0,
+  "cloudflare_resource_writes": 0,
+  "billing_changes": 0,
+  "third_party_messages_sent": 0,
+  "release_authorized": false,
+  "merge_authorized_by_evidence": false,
+  "deploy_authorized_by_evidence": false,
+  "publication_authorized_by_evidence": false,
+  "requests": {
+    "custodian": "INDEPENDENT_AUTHORITY_ACTIVATION_20261101.md",
+    "provider": "PROVIDER_RECONCILIATION_REQUEST_20261101.md"
+  },
+  "raw_file_sha256": {
+    "authority-roles.json": "f4760de5a0eb8bbcbb21c0e24b5f9432f61da7f52e33feed9a7ba0eb3e58b189",
+    "provider-readback.json": "e1f65ad91929361981fb839f74d2ad341ce8a13a149ba652c8fbbc93ffd31e8b",
+    "summary.json": "eac9a542a51a212297061adcd56875a76a6ce4d80a89996917b2b86aa1fb7236"
+  }
+}
