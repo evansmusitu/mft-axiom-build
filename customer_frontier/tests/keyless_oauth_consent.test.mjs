@@ -89,3 +89,26 @@ test('existing account-key authorization remains available and isolated from ver
   assert.equal(db._sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_authorization_codes').get().n,1);
  }finally{db.close();}
 });
+
+test('two racing verified consents for one CSRF flow can issue at most one code',async()=>{
+ const {db,env}=fixture();
+ try{
+  const {flow,cookie}=await begin(env);
+  const original=env.OAUTH_SESSION_VERIFIER;
+  let arrivals=0,release;
+  const barrier=new Promise(resolve=>{release=resolve});
+  env.OAUTH_SESSION_VERIFIER={fetch:async request=>{
+   arrivals++;
+   if(arrivals===2)release();
+   await barrier;
+   return original.fetch(request);
+  }};
+  const outcomes=await Promise.all([
+   submit(env,flow,cookie,{auth_mode:'verified_session'}),
+   submit(env,flow,cookie,{auth_mode:'verified_session'})
+  ]);
+  assert.equal(arrivals,2,'both requests must have passed flow validation before issuing code');
+  assert.equal(outcomes.filter(x=>x.status===302).length,1,'only one authorization code may be returned');
+  assert.equal(db._sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_authorization_codes').get().n,1);
+ }finally{db.close();}
+});
