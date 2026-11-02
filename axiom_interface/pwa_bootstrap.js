@@ -1,0 +1,6 @@
+import {initPwaHardening} from './pwa_runtime.js';
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function installStyles(){if(document.querySelector('link[data-axiom-pwa-style]'))return;const link=document.createElement('link');link.rel='stylesheet';link.href='./styles/pwa.css';link.dataset.axiomPwaStyle='true';document.head.append(link);}
+async function dependencies(){for(let attempt=0;attempt<400;attempt++){if(window.AxiomProjects?.store&&window.AxiomEvidenceObservatory?.store)return {projects:window.AxiomProjects,evidence:window.AxiomEvidenceObservatory};await sleep(25);}throw new Error('Project and Evidence Observatory candidate APIs were not ready');}
+async function boot(){installStyles();const deps=await dependencies(),api=await initPwaHardening({emit:window.AxiomUI?.emit,...deps});window.AxiomUI?.emit?.('workspace.phase14.candidate-ready',{state:'real-device-matrix-required'});return api;}
+window.AxiomPwaHardeningBootstrap=boot().catch(error=>{window.AxiomUI?.reportError?.({errorId:'AXIOM-PWA-INIT',component:'PWA and mobile resilience',impact:'PWA resilience controls unavailable; inherited workspaces remain available',failed:error.message,recovery:'Reload the cached shell and retry Settings'});throw error;});

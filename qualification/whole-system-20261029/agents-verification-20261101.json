@@ -1,0 +1,312 @@
+{
+  "schema": "musitu.axiom.agents-integration-verification.v1",
+  "date": "2026-11-01",
+  "timezone": "Africa/Harare",
+  "base_checkpoint": "f99e0bd1072fdb61c4370540fc89c279fae9d99d",
+  "credential_choice": "REUSE_EXISTING",
+  "status": "OFFLINE_INTEGRATION_PASS_REMOTE_CI_PENDING",
+  "checks": {
+    "application": {
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=2",
+        "axiom_interface/vnext/tests/decision_analysis.test.mjs",
+        "axiom_interface/vnext/tests/decision_probability_robustness.test.mjs",
+        "axiom_interface/vnext/tests/decision_storage_acceptance.test.mjs",
+        "axiom_interface/vnext/tests/deep_context_adapters.test.mjs",
+        "axiom_interface/vnext/tests/deep_context_contract.test.mjs",
+        "axiom_interface/vnext/tests/execution_contract.test.mjs",
+        "axiom_interface/vnext/tests/fa06_foundation.test.mjs",
+        "axiom_interface/vnext/tests/fa07_router.test.mjs",
+        "axiom_interface/vnext/tests/fa08_provenance.test.mjs",
+        "axiom_interface/vnext/tests/fa11_execution_contract.test.mjs",
+        "axiom_interface/vnext/tests/fa11_execution_security.test.mjs",
+        "axiom_interface/vnext/tests/fa12_product_reality.test.mjs",
+        "axiom_interface/vnext/tests/fa12_product_reality_contract.test.mjs",
+        "axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs",
+        "axiom_interface/vnext/tests/fa13_engineering_command_center_contract.test.mjs",
+        "axiom_interface/vnext/tests/fa13_engineering_workspace_runtime.test.mjs",
+        "axiom_interface/vnext/tests/fa13_external_security_adversarial.test.mjs",
+        "axiom_interface/vnext/tests/fa14_adversarial_truth.test.mjs",
+        "axiom_interface/vnext/tests/fa14_evidence_integrity.test.mjs",
+        "axiom_interface/vnext/tests/fa14_evidence_native_engine.test.mjs",
+        "axiom_interface/vnext/tests/fa15_advanced_surfaces_engine.test.mjs",
+        "axiom_interface/vnext/tests/fa15_adversarial_authority.test.mjs",
+        "axiom_interface/vnext/tests/fa16_adversarial_truth.test.mjs",
+        "axiom_interface/vnext/tests/fa16_pwa_engine.test.mjs",
+        "axiom_interface/vnext/tests/fa17_adversarial_red_team.test.mjs",
+        "axiom_interface/vnext/tests/fa17_security_hardening.test.mjs",
+        "axiom_interface/vnext/tests/fa18_adversarial_authority.test.mjs",
+        "axiom_interface/vnext/tests/fa18_axiom_build_challenge.test.mjs",
+        "axiom_interface/vnext/tests/fa19_adversarial_claims.test.mjs",
+        "axiom_interface/vnext/tests/fa19_external_comparison.test.mjs",
+        "axiom_interface/vnext/tests/fa20_adversarial_release.test.mjs",
+        "axiom_interface/vnext/tests/fa20_release_orchestrator.test.mjs",
+        "axiom_interface/vnext/tests/final_contract_review_regressions.test.mjs",
+        "axiom_interface/vnext/tests/governed_pipeline.test.mjs",
+        "axiom_interface/vnext/tests/mission_control.test.mjs",
+        "axiom_interface/vnext/tests/openai_agent_contract.test.mjs",
+        "axiom_interface/vnext/tests/runtime_connection_security.test.mjs",
+        "axiom_interface/vnext/tests/runtime_execution_client.test.mjs",
+        "axiom_interface/vnext/tests/runtime_integrity_recovery.test.mjs",
+        "axiom_interface/vnext/tests/runtime_task_service.test.mjs",
+        "axiom_interface/vnext/tests/system_graph.test.mjs",
+        "axiom_interface/vnext/tests/vnext_static.test.mjs",
+        "axiom_interface/vnext/tests/work_execution_context.test.mjs",
+        "axiom_interface/tests/axiom_browser_application_worker.test.mjs",
+        "axiom_interface/tests/axiom_runtime_bridge.test.mjs",
+        "axiom_interface/tests/runtime_result_commitment.test.mjs"
+      ],
+      "exit": 0,
+      "seconds": 5.646,
+      "log": "application.log"
+    },
+    "phase1": {
+      "command": [
+        "node",
+        "--test",
+        "reasoning/phase1/tests/integrity-regressions.test.ts",
+        "reasoning/phase1/tests/kernel.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 0.663,
+      "log": "phase1.log"
+    },
+    "phase2": {
+      "command": [
+        "node",
+        "--disable-warning=ExperimentalWarning",
+        "--test",
+        "--test-concurrency=2",
+        "reasoning/phase2/tests/acquisition.test.ts",
+        "reasoning/phase2/tests/anthropic_model_adapter.test.ts",
+        "reasoning/phase2/tests/api_service.test.ts",
+        "reasoning/phase2/tests/authentication.test.ts",
+        "reasoning/phase2/tests/authorization.test.ts",
+        "reasoning/phase2/tests/control_plane.test.ts",
+        "reasoning/phase2/tests/distributed_execution_proof.test.ts",
+        "reasoning/phase2/tests/distributed_execution_security.test.ts",
+        "reasoning/phase2/tests/distributed_execution_store.test.ts",
+        "reasoning/phase2/tests/distributed_model_execution.test.ts",
+        "reasoning/phase2/tests/distributed_worker_capability.test.ts",
+        "reasoning/phase2/tests/distributed_worker_runtime_auth.test.ts",
+        "reasoning/phase2/tests/evidence.test.ts",
+        "reasoning/phase2/tests/evidence_persistence.test.ts",
+        "reasoning/phase2/tests/http.integration.test.ts",
+        "reasoning/phase2/tests/http_evidence_adapter.test.ts",
+        "reasoning/phase2/tests/ingestion.test.ts",
+        "reasoning/phase2/tests/ingestion_surface.test.ts",
+        "reasoning/phase2/tests/model_adapter.test.ts",
+        "reasoning/phase2/tests/model_compilation_service.test.ts",
+        "reasoning/phase2/tests/model_compiler.test.ts",
+        "reasoning/phase2/tests/model_execution_service.test.ts",
+        "reasoning/phase2/tests/model_explanation.test.ts",
+        "reasoning/phase2/tests/model_explanation_persistence.test.ts",
+        "reasoning/phase2/tests/model_persistence.test.ts",
+        "reasoning/phase2/tests/musitu_axiom_evidence_adapter.test.ts",
+        "reasoning/phase2/tests/openai_model_adapter.test.ts",
+        "reasoning/phase2/tests/policy.test.ts",
+        "reasoning/phase2/tests/protocol_invariants.test.ts",
+        "reasoning/phase2/tests/response_deadline.test.ts",
+        "reasoning/phase2/tests/security_persistence.test.ts",
+        "reasoning/phase2/tests/signer.test.ts",
+        "reasoning/phase2/tests/signer_backend.test.ts",
+        "reasoning/phase2/tests/tenant_isolation.test.ts",
+        "reasoning/phase2/tests/worker_authentication.test.ts",
+        "reasoning/phase2/tests/worker_lease_capability.test.ts",
+        "reasoning/phase2/tests/world_state.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 9.917,
+      "log": "phase2.log"
+    },
+    "frontier": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "frontier_v5.tests.test_integrity_repairs",
+        "frontier_v5.tests.test_decision_analysis",
+        "frontier_v5.tests.test_d1_memory_schema",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.467,
+      "log": "frontier.log"
+    },
+    "recovery": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "recovery/ar03_06/tests",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 3.062,
+      "log": "recovery.log"
+    },
+    "recovery_application": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "recovery/ar07_09/tests",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 2.435,
+      "log": "recovery_application.log"
+    },
+    "multiplatform": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "multiplatform/tests",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.166,
+      "log": "multiplatform.log"
+    },
+    "frontier_qualification": {
+      "command": [
+        "python3",
+        "-m",
+        "frontier_v5.scripts.qualify_local_capabilities",
+        "--output",
+        "/workspace/scratch/44ec901aee83/axiom-repair-20261029/integrated/qualification/whole-system-20261029/check-results/local-qualification.json"
+      ],
+      "exit": 0,
+      "seconds": 0.215,
+      "log": "frontier_qualification.log"
+    },
+    "frontier_extended": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "frontier_v5.tests.test_capability_qualification_extended",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.315,
+      "log": "frontier_extended.log"
+    },
+    "decision_robustness": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "frontier_v5.tests.test_decision_probability_robustness",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.165,
+      "log": "decision_robustness.log"
+    },
+    "frontier_contracts": {
+      "command": [
+        "python3",
+        "-m",
+        "frontier_v5.scripts.run_offline_contracts",
+        "--output",
+        "/workspace/scratch/44ec901aee83/axiom-repair-20261029/integrated/qualification/whole-system-20261029/check-results/frontier-contracts.json"
+      ],
+      "exit": 0,
+      "seconds": 8.828,
+      "log": "frontier_contracts.log"
+    },
+    "internal_skills": {
+      "command": [
+        "python3",
+        "-m",
+        "frontier_v5.scripts.skill_lint",
+        "frontier_v5/skill_candidates/musitu-decision-tradeoffs",
+        "frontier_v5/skill_candidates/musitu-agent-recovery"
+      ],
+      "exit": 0,
+      "seconds": 0.123,
+      "log": "internal_skills.log"
+    },
+    "openai_agents": {
+      "command": [
+        "node",
+        "--test",
+        "integrations/openai-agents/tests/client.test.mjs"
+      ],
+      "exit": 0,
+      "seconds": 0.785,
+      "log": "openai_agents.log"
+    },
+    "local_d1": {
+      "command": [
+        "node",
+        "--test",
+        "qualification/whole-system-20261029/d1-local.test.mjs"
+      ],
+      "exit": 0,
+      "seconds": 14.749,
+      "log": "local_d1.log"
+    },
+    "credential_preflight": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "qualification/whole-system-20261029",
+        "-p",
+        "test_agent_credential_preflight.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.099,
+      "log": "credential_preflight.log"
+    }
+  },
+  "counts": {
+    "application": 367,
+    "openai_sdk_tests": 62,
+    "workerd_d1": 11,
+    "phase1": 26,
+    "phase2": 189,
+    "frontier_regressions": 23,
+    "frontier_extended_methods": 31,
+    "decision_robustness_python_methods": 8,
+    "frontier_script_contracts": 35,
+    "recovery_kernel": 22,
+    "recovery_application": 6,
+    "provider_neutral": 21,
+    "internal_skill_candidates": 2,
+    "credential_preflight_methods": 5
+  },
+  "source_fingerprints": {
+    "ops/axiom_agent_model_store.mjs": "ca6595ffee0abae158a7145d013e538919d6c00bdd0822cdb02adfe64564c00f",
+    "ops/axiom_openai_agent_model.mjs": "e6b921567af939d6694b9365dba80fdbc5af3d451e85984c829061ba003138d2",
+    "ops/axiom_execution_contract.mjs": "16004b3fb408ec1268d1b85965611ee57e030e31f450d610569757aaeb462688",
+    "ops/axiom_execution_contract_schema.sql": "7ca7d5283f81dd8f562b7f5ed669d13e1de595ab93bc680fca5b1e4728345a6c",
+    "ops/axiom_runtime_task_api.mjs": "84345ea27c305ad2e54fedd30880033f0ab4253831a77f6580bea04cf7a362fb",
+    "axiom_interface/vnext/runtime_task_service.mjs": "5ee2f47731b4c7b0d9163176c4ebffabf408e3b7840ecc74b9a4a90520ff683f",
+    "integrations/openai-agents/client.mjs": "e97b9e2a1365ee8b319ea4c68943386e55e8204688f107d1372d33bb860b81d0",
+    "integrations/openai-agents/package-lock.json": "b50c6787f8bcbfa756932ee681cc8385d2ff9071a552ee0ede51461918db205f",
+    "ops/axiom_openai_credential_preflight.py": "da984738d812c5caa6a17136bb9e2f6298555b52213ed66d1a7a7f815012d995",
+    ".github/workflows/axiom-whole-system-offline-qualification.yml": "60632b47a26ef3c47804e721b69107e48ba1f7425e9c7a422860fb860d8472ae"
+  },
+  "keys_created_or_written": 0,
+  "production_deployed": false,
+  "public_profiles_changed": false,
+  "live_hosted_access_verified": false,
+  "note": "Exact source tree and final GitHub CI/credential presence readback are reported on PR55 and the updated verification artifact.",
+  "local_provider_requests": 0,
+  "read_only_credential_access_check": "CI_GET_ONLY_NO_INFERENCE"
+}

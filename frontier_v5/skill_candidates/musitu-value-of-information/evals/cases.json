@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "value-of-information",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "launch_without_signal",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    },
+    {
+      "id": "imperfect_signal_and_cost",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    },
+    {
+      "id": "independent_signal_has_zero_value",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    },
+    {
+      "id": "perfect_signal_reaches_evpi",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    },
+    {
+      "id": "negative_utility_minimax_regret",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    },
+    {
+      "id": "tied_actions_zero_probability_signal",
+      "test_file": "frontier_v5/fixtures/decision_analysis_v1.json"
+    }
+  ]
+}

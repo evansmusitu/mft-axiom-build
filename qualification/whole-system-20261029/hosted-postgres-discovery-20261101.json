@@ -1,0 +1,92 @@
+{
+  "schema": "axiom.hosted-postgres-discovery.v1",
+  "recorded_at": "2026-11-01T05:39:14Z",
+  "status": "RESOLVED_NATIVE_NEON_FUNCTIONS",
+  "hosted_postgres_qualified": true,
+  "source_commit": "e1717b420ae93d5101916e21711625c2357f42e3",
+  "matched_project": {
+    "project_id": "muddy-wildflower-85740352",
+    "name": "MUSITU ATLAS Axiom Execution Ledger - Isolated 20261020",
+    "effective_project_permission": "ADMIN",
+    "postgres_major_version": 17,
+    "region_id": "aws-us-east-2",
+    "default_branch_id": "br-orange-fog-b43zs38i",
+    "default_branch_name": "main",
+    "database_name": "atlas_axiom",
+    "database_owner": "atlas_owner",
+    "endpoint_id": "ep-billowing-breeze-b40qh4kf",
+    "endpoint_state_observed": "idle"
+  },
+  "read_only_discovery": {
+    "connector": "Neon",
+    "write_mode_advertised": true,
+    "calls": [
+      "list_branches(project_id=muddy-wildflower-85740352)",
+      "describe_project(project_id=muddy-wildflower-85740352)",
+      "list_postgres_databases(project_id=muddy-wildflower-85740352,branch_id=br-orange-fog-b43zs38i)",
+      "get_database_tables(project_id=muddy-wildflower-85740352,branch_id=br-orange-fog-b43zs38i,database_name=atlas_axiom)",
+      "list_postgres_endpoints(project_id=muddy-wildflower-85740352)"
+    ],
+    "existing_public_tables": [
+      "atlas_axiom_attempts",
+      "atlas_axiom_audit",
+      "atlas_axiom_oauth_flows",
+      "atlas_axiom_oauth_sessions",
+      "atlas_axiom_quotas"
+    ],
+    "canonical_phase2_tables_present_in_parent": false,
+    "repository_existing_neon_connection_binding_found": false,
+    "repository_postgres_ci_uses_disposable_service": true
+  },
+  "public_behavior_to_qualify": {
+    "implementation": "reasoning/phase2/src/distributed_execution_postgres.ts",
+    "implementation_sha256": "58e9c5ac192867fa80b43241abd3865c83ff4065cb9d2c9973ea404683e89fef",
+    "migration": "reasoning/phase2/sql/postgres.sql",
+    "migration_sha256": "cdcb46a1c526620032db2e090698bc67172556e37317e41215b052dc39c5b46b",
+    "reference_tests": "reasoning/phase2/tests/postgres.integration.ts",
+    "reference_tests_sha256": "d59f2c5bc02a72a5af01a25ec8db483edc3f40cf0f36b7d3ad700c6445091a59",
+    "worker": "reasoning/phase2/src/distributed_model_execution.ts",
+    "worker_sha256": "a4b407313cef3937d82fe5c39c7786742bdeca9cc6d7b8dda0b442d473f53060",
+    "required_checks": [
+      "canonical migration on a fresh acceptance branch and isolated database or schema",
+      "actual PostgresDistributedExecutionRepository tenant isolation",
+      "authenticated request and operation receipt replay",
+      "revocation rejection after authentication and before mutation",
+      "maxLeaseMs admission bound and concurrent SKIP LOCKED claims",
+      "expired lease reclamation and stale capability fencing",
+      "persisted real ReasoningControlPlane execution proof",
+      "new-process recovery without a second durable execution"
+    ],
+    "budget_scope_note": "This PostgreSQL worker store exposes maxLeaseMs, not the D1 execution-contract compute/provider budget. A passed lease bound must not be represented as hosted compute or provider budget qualification."
+  },
+  "network_preflight": {
+    "credential_free": true,
+    "method": "Node net.createConnection with a 4000ms socket deadline",
+    "host": "c-6.us-east-2.aws.neon.tech",
+    "port": 5432,
+    "result": "unavailable",
+    "error_code": "EAI_AGAIN",
+    "connection_string_retrieved": false,
+    "limitation": "The local runtime cannot resolve the Neon PostgreSQL destination. Connector run_sql calls are stateless; replacing the public repository's dynamic BEGIN/FOR UPDATE transactions with hand SQL would not establish actual application behavior."
+  },
+  "live_mutations": [
+    "Created only fresh acceptance branch br-jolly-moon-b4mwqht6 and function axiompgacceptance",
+    "Applied canonical phase2 migration and synthetic fixtures only in acceptance schema axiom_acceptance_2814508c889643019f60",
+    "Redeployed recover stage and qualified actual worker recovery from persisted execution",
+    "Deleted new function and branch after independent root readback; provider and public endpoint return 404"
+  ],
+  "created_resources": [
+    {
+      "branch_id": "br-jolly-moon-b4mwqht6",
+      "function_id": "axiompgacceptance",
+      "status": "DELETED"
+    }
+  ],
+  "cleanup_required": [],
+  "retained_resources": [],
+  "unverified": [],
+  "independent_custody_gate_changed": false,
+  "credentials_or_secrets_persisted": false,
+  "resolution_report": "qualification/whole-system-20261029/hosted-postgres-acceptance-20261101.json",
+  "resolved_at": "2026-11-01T05:51:35.954Z"
+}

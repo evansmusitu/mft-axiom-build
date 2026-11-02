@@ -176,10 +176,9 @@ export class HttpEd25519SigningBackend implements ExternalEd25519SigningBackend 
     try{
       response=await this.fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
     }catch{
+      clearTimeout(timer);
       if(controller.signal.aborted)throw new Error("Signer upstream request timed out");
       throw new Error("Signer upstream network request failed");
-    }finally{
-      clearTimeout(timer);
     }
 
     let captured;
@@ -189,12 +188,12 @@ export class HttpEd25519SigningBackend implements ExternalEd25519SigningBackend 
         allowedStatus:[200],
         allowedMediaTypes:["application/json"],
         maxResponseBytes:this.maxResponseBytes,
-        secrets
+        secrets,signal:controller.signal
       });
     }catch(error){
       if(error instanceof EvidenceAdapterError)throw new Error(`Signer upstream rejected: ${error.message}`);
       throw error;
-    }
+    }finally{clearTimeout(timer);}
     return checkedResponse(JSON.parse(captured.body),request);
   }
 }

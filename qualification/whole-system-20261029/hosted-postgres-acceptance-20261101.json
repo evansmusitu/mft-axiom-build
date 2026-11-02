@@ -1,0 +1,239 @@
+{
+  "schema": "axiom.hosted-postgres-acceptance-evidence.v1",
+  "status": "CONFIRMED_HOSTED_STORAGE_AND_RESTART_RECOVERY",
+  "recorded_at": "2026-11-01T05:50:36.984Z",
+  "project_id": "muddy-wildflower-85740352",
+  "project_name": "MUSITU ATLAS Axiom Execution Ledger - Isolated 20261020",
+  "postgres_major_version": 17,
+  "parent_branch_id": "br-orange-fog-b43zs38i",
+  "acceptance_branch_id": "br-jolly-moon-b4mwqht6",
+  "acceptance_branch_name": "axiom-acceptance-20261101-pg-e1717b42",
+  "endpoint_id": "ep-spring-resonance-b4zy221u",
+  "function_id": "axiompgacceptance",
+  "invocation_url": "https://br-jolly-moon-b4mwqht6-axiompgacceptance.compute.c-6.us-east-2.aws.neon.tech/",
+  "deployments": {
+    "prepare": {
+      "id": 1,
+      "status": "completed",
+      "created_at": "2026-11-01T05:47:20.179028Z"
+    },
+    "recover": {
+      "id": 2,
+      "status": "completed",
+      "created_at": "2026-11-01T05:48:13.011494Z"
+    }
+  },
+  "database_name": "atlas_axiom",
+  "schema_name": "axiom_acceptance_2814508c889643019f60",
+  "archive_sha256": "d9246d9e5e25d452ef556ff35920c0b0bdc5fd4d4489ef7986ba1644a534a127",
+  "source_sha256": "118e04d5f5a23848e07bb938c1971da4cb2ed416873c5181e25254e802ecf109",
+  "public_report_matches_authenticated_connector": true,
+  "repeated_public_report_matches": true,
+  "durable_state_before_repeat": {
+    "execution_count": "1",
+    "intent_count": "1",
+    "receipt_count": "5",
+    "state_hash": "c53a744c3db0fd2f201f331a27dfefd148d0cb6e8a20c2556e39a8ca6fef2733"
+  },
+  "durable_state_after_repeat": {
+    "execution_count": "1",
+    "intent_count": "1",
+    "receipt_count": "5",
+    "state_hash": "c53a744c3db0fd2f201f331a27dfefd148d0cb6e8a20c2556e39a8ca6fef2733"
+  },
+  "repeat_report_did_not_rerun_checks": true,
+  "parent_public_table_inventory_unchanged": true,
+  "parent_public_table_names": [
+    "atlas_axiom_attempts",
+    "atlas_axiom_audit",
+    "atlas_axiom_oauth_flows",
+    "atlas_axiom_oauth_sessions",
+    "atlas_axiom_quotas"
+  ],
+  "database_connection_string_retrieved": false,
+  "credentials_or_private_fixture_keys_persisted": false,
+  "independent_custody_gate_changed": false,
+  "report": {
+    "checks": [
+      {
+        "name": "canonical_migration_idempotent_and_schema_isolated",
+        "status": "PASS"
+      },
+      {
+        "name": "actual_world_repository_tenant_isolation_equal_fact_ids",
+        "status": "PASS"
+      },
+      {
+        "name": "actual_job_repository_cross_tenant_read_denied",
+        "status": "PASS"
+      },
+      {
+        "name": "worker_max_lease_admission_bound_leaves_no_receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "concurrent_authenticated_claim_has_one_durable_winner",
+        "status": "PASS"
+      },
+      {
+        "name": "authenticated_claim_receipt_replay_does_not_reclaim",
+        "status": "PASS"
+      },
+      {
+        "name": "revocation_after_authentication_denies_before_storage_mutation",
+        "status": "PASS"
+      },
+      {
+        "name": "expired_lease_reclamation_fences_stale_capability",
+        "status": "PASS"
+      },
+      {
+        "name": "real_reasoning_execution_persists_proof_and_missing_proof_rolls_back",
+        "status": "PASS"
+      },
+      {
+        "name": "durable_execution_left_leased_before_new_deployment",
+        "status": "PASS"
+      },
+      {
+        "name": "fresh_deployment_actual_worker_recovers_durable_execution",
+        "status": "PASS"
+      },
+      {
+        "name": "persisted_execution_replay_matches_after_restart",
+        "status": "PASS"
+      },
+      {
+        "name": "no_second_durable_execution_or_signing_call",
+        "status": "PASS"
+      }
+    ],
+    "run_id": "axiom-acceptance-20261101-pg-e1717b42",
+    "schema": "axiom.hosted-postgres-acceptance.v1",
+    "status": "COMPLETED",
+    "recovery": {
+      "job_id": "execution-job:ff635b46e1e270e49cae3898928e94823dc777072ba98acf16767ab78980427f",
+      "record_id": "platform:c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9",
+      "tenant_id": "tenant:hosted:alpha",
+      "prior_epoch": 2,
+      "record_hash": "957e58000ab36d2ab26647919dd9f54835d8b381a005fab6a2e4fff4c30727f3",
+      "recovery_at": "2026-11-01T05:47:26.233Z",
+      "snapshot_id": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda",
+      "signer_key_id": "signer:hosted:fixture",
+      "expected_result": {
+        "status": "APPROVED",
+        "snapshotId": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda",
+        "certificateId": "c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9",
+        "policyDecision": {
+          "checks": [],
+          "status": "ALLOW",
+          "snapshotId": "snapshot:3572fc54aa31e2a285564582e65b9f86d6dc6f55950cc1b276ca0bb442217dda"
+        },
+        "executionRecordId": "platform:c0ef681d2eb5b067212d133518a6c190b1b034140e9896347c1abeb87e5188e9"
+      },
+      "execution_request": {
+        "asOf": "2026-11-01T05:47:23.233Z",
+        "program": {
+          "nodes": [
+            {
+              "id": "decision",
+              "kind": "Decision",
+              "inputs": {
+                "value": {
+                  "literal": {
+                    "type": {
+                      "kind": "boolean"
+                    },
+                    "value": false
+                  }
+                }
+              },
+              "operation": "logic.not"
+            }
+          ],
+          "inputs": {},
+          "irVersion": "0.1",
+          "objective": "A bounded hosted storage proof",
+          "assumptions": [],
+          "constraints": [],
+          "decisionNodeId": "decision"
+        },
+        "bindings": [],
+        "issuedAt": "2026-11-01T05:47:23.233Z",
+        "requirements": []
+      },
+      "signer_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+r4nIg1sPLlb9qrAyHisKSs9BByLEmFTt17ApLeRo0U=\n-----END PUBLIC KEY-----\n"
+    },
+    "started_at": "2026-11-01T05:47:23.227Z",
+    "branch_name": "axiom-acceptance-20261101-pg-e1717b42",
+    "final_epoch": 3,
+    "instance_id": "804a2888-56d0-4438-9043-6d7609b1eaf9",
+    "schema_name": "axiom_acceptance_2814508c889643019f60",
+    "budget_scope": "worker maxLeaseMs only",
+    "completed_at": "2026-11-01T05:48:51.643Z",
+    "node_version": "v24.22.1",
+    "database_name": "atlas_axiom",
+    "source_commit": "e1717b420ae93d5101916e21711625c2357f42e3",
+    "migration_sha256": "cdcb46a1c526620032db2e090698bc67172556e37317e41215b052dc39c5b46b",
+    "prepare_instance_id": "804a2888-56d0-4438-9043-6d7609b1eaf9",
+    "terminal_state_hash": "c53a744c3db0fd2f201f331a27dfefd148d0cb6e8a20c2556e39a8ca6fef2733",
+    "production_authority": false,
+    "recovery_instance_id": "cefa7de0-8717-4d2a-bc22-0ba7bbe5e962",
+    "durable_execution_count": 1,
+    "recovery_worker_outcome": {
+      "jobId": "execution-job:ff635b46e1e270e49cae3898928e94823dc777072ba98acf16767ab78980427f",
+      "status": "COMPLETED",
+      "jobStatus": "SUCCEEDED"
+    },
+    "hosted_postgres_qualified": true,
+    "independent_custody_qualified": false,
+    "private_fixture_keys_persisted": false,
+    "compute_provider_budget_qualified": false
+  },
+  "root_independent_readback": "qualification/whole-system-20261029/hosted-postgres-root-readback-20261101.json",
+  "cleanup": {
+    "status": "COMPLETED",
+    "resources": [
+      "function axiompgacceptance on br-jolly-moon-b4mwqht6",
+      "branch br-jolly-moon-b4mwqht6 (includes only its acceptance schema and inherited branch snapshot)"
+    ],
+    "retained_resources_after_cleanup": [],
+    "evidence_retained": [
+      "hosted-postgres-acceptance-20261101.json",
+      "hosted-postgres-build-20261101.json",
+      "hosted-postgres-root-readback-20261101.json",
+      "hosted-postgres-function.mjs",
+      "build-hosted-postgres-function.mjs"
+    ],
+    "completed_at": "2026-11-01T05:51:33.779Z",
+    "function_delete_ack": {
+      "is_error": false,
+      "response": null
+    },
+    "function_get_after_delete": {
+      "http_status": 404,
+      "message": "function not visible on branch"
+    },
+    "branch_delete_ack": {
+      "is_error": false,
+      "response": null
+    },
+    "branch_get_after_delete": {
+      "http_status": 404,
+      "message": "branch not found"
+    },
+    "remaining_branch_ids": [
+      "br-orange-fog-b43zs38i"
+    ],
+    "public_report_after_delete": {
+      "http_status": 404,
+      "error": "page_not_found"
+    }
+  },
+  "limitations": [
+    "Worker maxLeaseMs admission was tested; this PostgreSQL store does not expose the D1 compute/provider-budget contract.",
+    "Fixture signer uses ephemeral test keys; independent external custody remains unqualified.",
+    "Synthetic time offsets test lease expiry and fencing; this is an isolated declared-fixture storage acceptance.",
+    "No production/default-branch data was read or modified; only public schema metadata was compared."
+  ]
+}

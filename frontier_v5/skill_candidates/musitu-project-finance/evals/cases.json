@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.skill-eval-map.v1",
+  "workflow": "project-finance",
+  "scope": "NUMERICAL_AND_EXECUTION_CONTRACTS_ONLY",
+  "host_model_behavior": "NOT_EXECUTED",
+  "public_promotion": false,
+  "families": [
+    {
+      "id": "negative-coverage",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "discount-basis",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "schedule-gap",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "zero-service-defined-status",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "working-capital-and-financing",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    },
+    {
+      "id": "overflow-fails-closed",
+      "test_file": "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs"
+    }
+  ]
+}

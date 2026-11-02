@@ -1,0 +1,39 @@
+name: AXIOM saved provider readback 11 via GitHub Secrets only
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/axiom-saved-provider-readback11-20261102.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-saved-provider-readback11-20261102
+  cancel-in-progress: false
+jobs:
+  read-only-provider:
+    if: github.event.pull_request.head.sha == '83e30800fc1f60a993e7684d30403fe2725ff23f' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind the user-authorized readback to its reviewed parent
+        run: test "$(git rev-parse HEAD^)" = 3093db9bb05181d24d0f747cd6de8a95e750a25c
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Read saved request metadata and incident-day metering without inference
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node qualification/whole-system-20261029/saved-provider-readback11.mjs
+      - name: Retain sanitized readback evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-saved-provider-readback11-20261102
+          path: qualification/whole-system-20261029/gates11-results/*.json
+          retention-days: 90
+          if-no-files-found: error

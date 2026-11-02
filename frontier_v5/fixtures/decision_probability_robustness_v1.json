@@ -1,0 +1,169 @@
+{
+  "schema": "musitu.axiom.decision-probability-robustness-oracles.v1",
+  "scope": "DECLARED_TWO_STATE_EXPECTED_UTILITY_ONLY_NO_EMPIRICAL_OR_ACTION_AUTHORITY",
+  "cases": [
+    {
+      "id": "launch_switches_at_three_eighths",
+      "problem": {
+        "states": [{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions": [{"id":"launch","utilities":{"high":100,"low":-60}},{"id":"wait","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points",
+        "assumptions":["Bounds and utilities are declared assumptions, not measured estimates."],
+        "evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0.2,"upper":0.6}
+      },
+      "expected": {
+        "state_id":"high","complement_state_id":"low","lower":0.2,"upper":0.6,
+        "utility_ranges":{"launch":{"at_lower":-28,"at_upper":36,"minimum":-28,"maximum":36},"wait":{"at_lower":0,"at_upper":0,"minimum":0,"maximum":0}},
+        "optimal_at_lower":["wait"],"optimal_at_upper":["launch"],
+        "robust_optimal_actions":[],"possible_optimal_actions":["launch","wait"],
+        "pairwise_break_even":[{"actions":["launch","wait"],"relation":"CROSSING","probability":0.375,"exact_probability":{"numerator":"3","denominator":"8"},"in_unit_interval":true,"in_range":true}]
+      },
+      "oracle":"EU(launch)=160p-60; EU(wait)=0. Equality is exactly p=60/160=3/8. The interval contains both strict preferences."
+    },
+    {
+      "id": "strict_dominance_across_unit_interval",
+      "problem": {
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"bad","utilities":{"high":1,"low":0}},{"id":"safe","utilities":{"high":4,"low":2}}],
+        "utility_unit":"declared utility points","assumptions":["Larger utility is preferred."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected": {
+        "utility_ranges":{"bad":{"at_lower":0,"at_upper":1,"minimum":0,"maximum":1},"safe":{"at_lower":2,"at_upper":4,"minimum":2,"maximum":4}},
+        "optimal_at_lower":["safe"],"optimal_at_upper":["safe"],"robust_optimal_actions":["safe"],"possible_optimal_actions":["safe"],
+        "pairwise_break_even":[{"actions":["bad","safe"],"relation":"CROSSING","probability":-2,"exact_probability":{"numerator":"-2","denominator":"1"},"in_unit_interval":false,"in_range":false}]
+      },
+      "oracle":"EU(bad)=p and EU(safe)=2+2p. Equality is p=-2, outside the probability domain."
+    },
+    {
+      "id": "parallel_unequal_lines_have_no_threshold",
+      "problem": {
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"a","utilities":{"high":3,"low":1}},{"id":"b","utilities":{"high":5,"low":3}}],
+        "utility_unit":"declared utility points","assumptions":["Declared affine utility model."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected": {
+        "robust_optimal_actions":["b"],"possible_optimal_actions":["b"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"PARALLEL","probability":null,"exact_probability":null,"in_unit_interval":false,"in_range":false}]
+      },
+      "oracle":"EU(a)=1+2p, EU(b)=3+2p; b exceeds a by 2 for all p."
+    },
+    {
+      "id": "identical_actions_remain_tied_everywhere",
+      "problem": {
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"b","utilities":{"high":2,"low":-2}},{"id":"a","utilities":{"high":2,"low":-2}}],
+        "utility_unit":"declared utility points","assumptions":["No preference distinguishes identical utilities."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected": {
+        "optimal_at_lower":["a","b"],"optimal_at_upper":["a","b"],"robust_optimal_actions":["a","b"],"possible_optimal_actions":["a","b"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"IDENTICAL","probability":null,"exact_probability":null,"in_unit_interval":true,"in_range":true}]
+      },
+      "oracle":"Both lines equal 4p-2. Equality holds throughout the interval rather than at one threshold."
+    },
+    {
+      "id": "singleton_interval_at_exact_tie",
+      "problem": {
+        "states":[{"id":"high","probability":0.375},{"id":"low","probability":0.625}],
+        "actions":[{"id":"launch","utilities":{"high":100,"low":-60}},{"id":"wait","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["The probability is fixed exactly at 3/8."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0.375,"upper":0.375}
+      },
+      "expected": {
+        "utility_ranges":{"launch":{"at_lower":0,"at_upper":0,"minimum":0,"maximum":0}},
+        "optimal_at_lower":["launch","wait"],"optimal_at_upper":["launch","wait"],"robust_optimal_actions":["launch","wait"],"possible_optimal_actions":["launch","wait"]
+      },
+      "oracle":"160*(3/8)-60=0 exactly. Both actions are optimal on the entire singleton interval."
+    },
+    {
+      "id": "closed_endpoint_tie_is_possible_but_not_robust",
+      "problem": {
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"a","utilities":{"high":2,"low":0}},{"id":"b","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["The interval is closed at probability zero."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected": {
+        "optimal_at_lower":["a","b"],"optimal_at_upper":["a"],"robust_optimal_actions":["a"],"possible_optimal_actions":["a","b"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"CROSSING","probability":0,"exact_probability":{"numerator":"0","denominator":"1"},"in_unit_interval":true,"in_range":true}]
+      },
+      "oracle":"EU(a)=2p, EU(b)=0. b is optimal only at the included lower endpoint."
+    },
+    {
+      "id": "explicit_selected_state_is_not_sort_order",
+      "problem": {
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"launch","utilities":{"high":100,"low":-60}},{"id":"wait","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["The varied probability is explicitly the low state."],"evidence_refs":[],
+        "probability_range":{"state_id":"low","lower":0.4,"upper":0.8}
+      },
+      "expected": {
+        "state_id":"low","complement_state_id":"high",
+        "utility_ranges":{"launch":{"at_lower":36,"at_upper":-28,"minimum":-28,"maximum":36}},
+        "optimal_at_lower":["launch"],"optimal_at_upper":["wait"],"robust_optimal_actions":[],"possible_optimal_actions":["launch","wait"],
+        "pairwise_break_even":[{"actions":["launch","wait"],"relation":"CROSSING","probability":0.625,"exact_probability":{"numerator":"5","denominator":"8"},"in_unit_interval":true,"in_range":true}]
+      },
+      "oracle":"EU(launch)=100-160p(low), hence equality at 5/8, with the complementary state's probability fixed to 1-p(low)."
+    },
+    {
+      "id": "binary64_bound_does_not_round_one_third_into_a_tie",
+      "problem": {
+        "states":[{"id":"high","probability":0.3333333333333333},{"id":"low","probability":0.6666666666666667}],
+        "actions":[{"id":"a","utilities":{"high":2,"low":-1}},{"id":"b","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["Binary64 inputs are interpreted exactly for affine comparisons, without a tie tolerance."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0.3333333333333333,"upper":0.3333333333333333}
+      },
+      "expected": {
+        "optimal_at_lower":["b"],"optimal_at_upper":["b"],"robust_optimal_actions":["b"],"possible_optimal_actions":["b"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"CROSSING","probability":0.3333333333333333,"exact_probability":{"numerator":"1","denominator":"3"},"in_unit_interval":true,"in_range":false}]
+      },
+      "oracle":"The binary64 value 0.3333333333333333 is strictly below exact 1/3. The rounded display matches the bound, but exact interval membership is false."
+    },
+    {
+      "id":"numeric_and_object_property_names_are_safe_action_ids",
+      "problem":{
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"2","utilities":{"high":2,"low":-2}},{"id":"10","utilities":{"high":2,"low":-2}},{"id":"__proto__","utilities":{"high":2,"low":-2}},{"id":"constructor","utilities":{"high":2,"low":-2}}],
+        "utility_unit":"declared utility points","assumptions":["Identifiers are data, not object authority or numeric sort keys."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected":{
+        "optimal_at_lower":["10","2","__proto__","constructor"],"optimal_at_upper":["10","2","__proto__","constructor"],
+        "robust_optimal_actions":["10","2","__proto__","constructor"],"possible_optimal_actions":["10","2","__proto__","constructor"],
+        "utility_ranges":{"__proto__":{"at_lower":-2,"at_upper":2,"minimum":-2,"maximum":2},"constructor":{"at_lower":-2,"at_upper":2,"minimum":-2,"maximum":2}}
+      },
+      "oracle":"All actions have exactly the same affine utility, so all remain tied in ascending ASCII identifier order; prototype-like names must remain own data keys."
+    },
+    {
+      "id":"subnormal_utility_dominance_is_not_lost_to_display_rounding",
+      "problem":{
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"a","utilities":{"high":5e-324,"low":0}},{"id":"b","utilities":{"high":0,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["Exact comparisons retain the smallest positive binary64 utility."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected":{
+        "optimal_at_lower":["a","b"],"optimal_at_upper":["a"],"robust_optimal_actions":["a"],"possible_optimal_actions":["a","b"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"CROSSING","probability":0,"exact_probability":{"numerator":"0","denominator":"1"},"in_unit_interval":true,"in_range":true}]
+      },
+      "oracle":"EU(a)=p*2^-1074, EU(b)=0. a strictly wins for every p>0 even when a rounded displayed utility underflows to zero."
+    },
+    {
+      "id":"unrepresentably_remote_crossing_keeps_an_exact_fraction",
+      "problem":{
+        "states":[{"id":"high","probability":0.5},{"id":"low","probability":0.5}],
+        "actions":[{"id":"a","utilities":{"high":1,"low":1}},{"id":"b","utilities":{"high":5e-324,"low":0}}],
+        "utility_unit":"declared utility points","assumptions":["Crossings outside [0,1] are algebraic intersections, not valid probabilities."],"evidence_refs":[],
+        "probability_range":{"state_id":"high","lower":0,"upper":1}
+      },
+      "expected":{
+        "optimal_at_lower":["a"],"optimal_at_upper":["a"],"robust_optimal_actions":["a"],"possible_optimal_actions":["a"],
+        "pairwise_break_even":[{"actions":["a","b"],"relation":"CROSSING","probability":null,"exact_probability":{"denominator":"1"},"in_unit_interval":false,"in_range":false}]
+      },
+      "oracle":"1=p*2^-1074 crosses at p=2^1074, outside the probability domain and finite binary64 range. Preserve its exact integer fraction and use null for the unavailable numeric display."
+    }
+  ]
+}

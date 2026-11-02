@@ -1,0 +1,9 @@
+{
+  "schema": "musitu.axiom.provider-gates-readonly-authorization.v1",
+  "user_instruction": "Provider-confirmed cancellation and the remaining D1, custody and anti-rollback gates. Resolve also the aborted stream's final usage.",
+  "scope": "Saved inference analytics, account entitlements, D1 inventory and visibility of the named security account",
+  "inference_calls": 0,
+  "remote_writes": 0,
+  "billing_changes": false,
+  "release_authorized": false
+}

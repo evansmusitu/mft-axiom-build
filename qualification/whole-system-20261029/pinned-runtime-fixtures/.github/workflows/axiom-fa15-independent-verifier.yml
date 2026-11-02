@@ -1,0 +1,68 @@
+name: MUSITU Axiom FA15 Independent Verifier
+
+on:
+  workflow_call:
+    inputs:
+      candidate_sha:
+        required: true
+        type: string
+      builder_run_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Independently verify frozen authority and candidate
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          BUILDER_RUN_ID: ${{ inputs.builder_run_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          git merge-base --is-ancestor 13bf88452a936a4619aafdbad445246314f72b3c HEAD
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA15_PREWRITE_INTENT.md
+          node --test axiom_interface/vnext/tests/fa15_*.test.mjs
+          mkdir -p fa15-independent-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib,re
+          matrix=json.load(open('docs/axiom_final_product/FA15_ACCEPTANCE_MATRIX.json'))
+          if matrix['candidate_state']!='IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION': raise SystemExit('candidate self-certification detected')
+          if matrix['production_authority'] is not False or matrix['external_execution_authority'] is not False: raise SystemExit('authority boundary widened')
+          if matrix['qualified_scheduler_connected'] is not False: raise SystemExit('unproven scheduler claim')
+          if matrix['legacy_phase_15_unchanged'] is not True: raise SystemExit('legacy phase truth drift')
+          engine=pathlib.Path('axiom_interface/vnext/fa15_advanced_surfaces_engine.js').read_text()
+          ui=pathlib.Path('axiom_interface/vnext/fa15_advanced_surfaces_ui.js').read_text()
+          required=['DATA_ONLY','POLICY_REQUIRED','externalExecutionAvailable:false','cloudSchedulerAvailable:false','legacyPhase15Unchanged:true','NOT_CERTIFIED']
+          missing=[x for x in required if x not in engine]
+          if missing: raise SystemExit('truth markers missing: '+repr(missing))
+          if 'NO_AUTHORITY_WIDENING_WITHOUT_POLICY' not in ui: raise SystemExit('UI authority boundary missing')
+          workflow_text='\n'.join(p.read_text() for p in pathlib.Path('.github/workflows').glob('axiom-fa15-*.yml'))
+          if re.search(r'(?m)^\s*(contents|deployments|packages|id-token):\s*write\s*$',workflow_text): raise SystemExit('write/deploy token authority found')
+          forbidden=['wrangler'+' deploy','kubectl '+'apply','terraform '+'apply','git '+'push','gh pr '+'merge']
+          found=[x for x in forbidden if x in workflow_text]
+          if found: raise SystemExit('deployment/write command found: '+repr(found))
+          files=['docs/axiom_final_product/FA15_PREWRITE_INTENT.md','docs/axiom_final_product/FA15_ACCEPTANCE_MATRIX.json','axiom_interface/vnext/fa15_advanced_surfaces_engine.js','axiom_interface/vnext/fa15_advanced_surfaces_ui.js','axiom_interface/vnext/fa15_advanced_surfaces.css','axiom_interface/vnext/tests/fa15_advanced_surfaces_engine.test.mjs','axiom_interface/vnext/tests/fa15_adversarial_authority.test.mjs','axiom_interface/vnext/index.html']
+          hashes={p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in files}
+          evidence={'schema':'musitu.axiom.fa15.independent-verifier.v1','status':'VERIFIED','candidate_commit':os.environ['CANDIDATE_SHA'],'builder_run_id':os.environ['BUILDER_RUN_ID'],'source_parent':'13bf88452a936a4619aafdbad445246314f72b3c','files_sha256':hashes,'authority_policy_gate_verified':True,'computer_preview_boundary_verified':True,'live_permission_boundary_verified':True,'automation_scheduler_truth_verified':True,'capability_truth_verified':True,'marketplace_install_gate_verified':True,'enterprise_role_separation_verified':True,'builder_and_verifier_distinct':True,'repository_write_authority_present':False,'production_credentials_present':False,'production_authority':False,'legacy_phase_15_unchanged':True,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          p=pathlib.Path('fa15-independent-evidence/fa15-independent-verifier.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          (p.parent/'fa15-independent-verifier.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          PY
+      - name: Upload independent verifier evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa15-independent-verifier
+          path: fa15-independent-evidence/
+          retention-days: 90

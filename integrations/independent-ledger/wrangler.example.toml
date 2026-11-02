@@ -1,0 +1,23 @@
+# Independent operator: copy and review in your own account. This is not deployed.
+name = "axiom-independent-monotonic-ledger"
+main = "dist/ledger-worker.mjs"
+compatibility_date = "2026-07-01"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "LEDGER_STATE"
+class_name = "MonotonicLedger"
+
+[[migrations]]
+tag = "v1-sqlite-ledger"
+new_sqlite_classes = ["MonotonicLedger"]
+
+[vars]
+LEDGER_ALLOW_BOOTSTRAP = "false"
+# Provision LEDGER_CONFIG_JSON, LEDGER_PRINCIPALS_JSON and LEDGER_SIGNING_JWK
+# through the operator's secret manager. Never put keys or tokens in this file.
+# Optional immutable provider fence: provision LEDGER_GITHUB_ANCHOR_CONFIG_JSON
+# and LEDGER_GITHUB_ANCHOR_TOKEN there too; see README for the matching client pin.
+
+[observability]
+enabled = false

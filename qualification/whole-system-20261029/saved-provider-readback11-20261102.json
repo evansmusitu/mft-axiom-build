@@ -1,0 +1,109 @@
+{
+  "schema": "musitu.axiom.saved-provider-readback11-evidence.v1",
+  "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+  "workflow_run_id": 41389928351,
+  "observed_at": "2026-11-02T04:42:28.146Z",
+  "credential_route": "GITHUB_ACTIONS_CLOUDFLARE_API_TOKEN_ENV_ONLY",
+  "artifact": {
+    "id": 13116971492,
+    "sha256": "e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce",
+    "download_hash_verified": true
+  },
+  "provider_abort": {
+    "status": "UNRESOLVED",
+    "reason": "PER_REQUEST_JOIN_KEY_UNAVAILABLE",
+    "exact_matches": 0,
+    "final_usage": null
+  },
+  "saved_cf_ray": "a53c044b0eda9b36-IAD",
+  "saved_request_window": {
+    "start": "2026-11-01T15:40:00Z",
+    "end": "2026-11-02T00:00:00Z"
+  },
+  "request_rows_returned": 2,
+  "pagination_exhausted": true,
+  "rows_match_saved_completed_usage_tuples": true,
+  "incident_day": {
+    "status": "OBSERVED",
+    "queried_at": "2026-11-02T04:42:27.472Z",
+    "window": {
+      "start": "2026-11-01T00:00:00.000Z",
+      "end": "2026-11-01T23:59:59.999Z"
+    },
+    "neurons": 52.20908737182617,
+    "rows": [
+      {
+        "count": 2,
+        "sum": {
+          "totalInputTokens": 847,
+          "totalNeurons": 52.20908737182617,
+          "totalOutputTokens": 1632
+        }
+      }
+    ],
+    "scope": "ACCOUNT_WIDE_ANALYTICS_NOT_AN_ATOMIC_BILLING_LOCK",
+    "saved_request_usage_attributed": false
+  },
+  "current_day": {
+    "observed_at": "2026-11-02T04:42:23.919Z",
+    "start": "2026-11-02T00:00:00.000Z",
+    "end": "2026-11-02T04:42:23.919Z",
+    "neurons": 0,
+    "rows": [],
+    "scope": "ACCOUNT_WIDE_ANALYTICS_NOT_AN_ATOMIC_BILLING_LOCK"
+  },
+  "request_join_key_exposed": false,
+  "final_usage_neurons": null,
+  "assumed_zero": false,
+  "provider_call_reservation_retained": 1,
+  "budget_refunded": false,
+  "authority": {
+    "account_matches_known_production": true,
+    "accepted_members": 1,
+    "member_mfa_enabled": true,
+    "account_enforce_twofactor": false,
+    "independent_custody_proven": false
+  },
+  "verification": {
+    "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+    "tree_sha": "5ca9c2c14ccf4608259101c68b4265f5ec47f92c",
+    "ci_merge_sha": "d2816829d2049ce240ce7a9bd9d50f63213d4359",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41389928197,
+    "artifact_id": 13116599646,
+    "artifact_sha256": "619c95277d8f0b368fefd6d6c0a771e2f88a82e502703e09493f354229434747",
+    "download_hash_verified": true,
+    "groups_passed": 21,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 15,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "owner_custodian_appointment_carried_forward": true,
+  "independent_verifier_accepted": false,
+  "authority_root_restore_fixed": false,
+  "tinyfish": {
+    "paid_browser_task_authorized_by_user": true,
+    "cloudflare_sign_in_established": false,
+    "wallet_funding_required": true,
+    "browser_run_started": false,
+    "payment_initiated": false
+  },
+  "trackb_diagnostic_patch_adapted_from": "TRACKB_PROVIDER_CANCELLATION_FAIL_CLOSED.patch",
+  "inference_calls": 0,
+  "cloudflare_resource_writes": 0,
+  "billing_changes": 0,
+  "external_messages_sent": 0,
+  "release_authorized": false,
+  "raw_sha256": {
+    "authority-roles.json": "f626cd77db7514239770201e607f25868922fd0777ce227c555801fedf10c1c7",
+    "incident-day-usage.json": "7d2e3a798e1d16a0f47b14dcd76f21d1da4b7af09f2d459386366120bd732306",
+    "provider-readback.json": "681abeda8bf01352bac37196a68a7b42e3db95edd45bafe2ce40061c3d131790",
+    "summary.json": "47afa0c66e25733e79035b22cda3f50096883538727c725644180e167b2412c0"
+  }
+}

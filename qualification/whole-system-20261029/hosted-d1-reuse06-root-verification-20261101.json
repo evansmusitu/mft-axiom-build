@@ -1,0 +1,28 @@
+{
+  "schema": "musitu.axiom.d1-reuse-root-verification.v1",
+  "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+  "actual_bundle_sha256": "c3792654f689fd1eda5527695be53ebf2005f867169c41934f3d4b11a34d1e34",
+  "bundle_hash_matches_rebuild": true,
+  "checks_passed": 7,
+  "outputs": {
+    "decision-output.json": {
+      "expected_utility": 28,
+      "receipt_sha256": "16908122e19e7c11bec4afcb039f2908ab9e93693b845e01b47d29a1bfc05129",
+      "verified": true
+    },
+    "observer-recovered-output.json": {
+      "expected_utility": 28,
+      "receipt_sha256": "83c27d4c6bbebca24d0c4fbca278353102c4cb1cd2ea76239bf1bc197be0065d",
+      "verified": true
+    }
+  },
+  "fresh_process_receipt_matches_exported_original": true,
+  "lifecycle_export_verified": true,
+  "lifecycle_erasure_receipt_sha256": "72d63635089879096d4dd176e322a45ae53db5696f1e0d0f706de8d6a51bfbc0",
+  "legacy_commitment_sha256": "29f40dc6a0afb5fe06b55ce7fbd42783ec3d271421e5c8a88d6cd8c27779a2fb",
+  "original_schema_records_and_worker_unchanged": true,
+  "temporary_worker_provider_readback": 404,
+  "inference_calls": 0,
+  "isolated_database": false,
+  "release_authorized": false
+}

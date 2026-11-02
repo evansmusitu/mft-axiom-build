@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MUSITU AXIOM — Local governed candidate</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <div class="app-shell">
+    <header class="topbar" aria-label="Application header">
+      <a class="brand" href="#home" aria-label="MUSITU AXIOM home">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span><strong>MUSITU AXIOM</strong><small>Local governed candidate</small></span>
+      </a>
+      <div class="authority-strip" aria-label="Authority status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Candidate only</span>
+        <span class="authority-separator" aria-hidden="true">·</span>
+        <span>Formal gate: NOT_EARNED</span>
+      </div>
+      <div class="top-actions">
+        <button class="quiet-button" id="open-command" type="button" aria-haspopup="dialog" aria-controls="command-panel">Search / command</button>
+        <button class="quiet-button" id="logout-button" type="button" hidden>Log out</button>
+      </div>
+    </header>
+
+    <aside class="sidebar" aria-label="Primary navigation">
+      <nav>
+        <a class="nav-item is-active" href="#home"><span>Home</span><small>Objective</small></a>
+        <a class="nav-item" href="#work"><span>Work</span><small>Durable tasks</small></a>
+        <a class="nav-item" href="#artifacts"><span>Artifacts</span><small>Outputs</small></a>
+        <a class="nav-item" href="#memory"><span>Knowledge</span><small>Project memory</small></a>
+        <a class="nav-item" href="#evidence"><span>Evidence</span><small>Receipts &amp; integrity</small></a>
+      </nav>
+      <div class="nav-secondary" aria-label="Additional AXIOM surfaces">
+        <span>Projects</span><span>Agents</span><span>Research</span><span>Analyze</span><span>Twin</span><span>Create</span><span>Build</span><span>Computer</span><span>Live</span><span>Automations</span><span>Trust</span><span>Developer</span>
+      </div>
+      <div class="blocked-capabilities" aria-label="Unavailable capabilities">
+        <strong>Not connected here</strong>
+        <span>Voice · Camera · Screen · Browser · External tools</span>
+      </div>
+    </aside>
+
+    <main id="main-content" class="workspace" tabindex="-1">
+      <section class="objective-zone" id="home" aria-labelledby="objective-title">
+        <div class="eyebrow">Governed execution workspace</div>
+        <h1 id="objective-title">What do you want accomplished?</h1>
+        <p class="objective-copy">This recovery candidate executes only bounded arithmetic. Every completed action must leave durable work, artifact, and evidence records.</p>
+
+        <form id="composer-form" class="composer" aria-describedby="composer-help">
+          <label for="expression">Objective / arithmetic expression</label>
+          <div class="composer-row">
+            <input id="expression" name="expression" autocomplete="off" inputmode="text" placeholder="Example: (1250 * 0.18) + 42" maxlength="500" required disabled>
+            <button class="primary-button" id="run-button" type="submit" disabled>Execute governed work</button>
+          </div>
+          <p id="composer-help" class="helper">Execution is limited to <code>arithmetic.evaluate</code>. Other operations fail closed.</p>
+        </form>
+
+        <div class="object-line" aria-label="AXIOM permanent objects">
+          <span><b>Project</b><em id="project-object">Not connected</em></span>
+          <span><b>Work</b><em id="work-object">0 tasks</em></span>
+          <span><b>Agent</b><em>Candidate runtime</em></span>
+          <span><b>Artifact</b><em id="artifact-object">0 outputs</em></span>
+          <span><b>Evidence</b><em id="evidence-object">Awaiting session</em></span>
+        </div>
+      </section>
+
+      <section class="mission-grid" aria-label="Project supervision">
+        <div class="mission-main">
+          <section class="panel work-panel" id="work" aria-labelledby="work-title">
+            <div class="panel-heading">
+              <div><span class="section-kicker">Work</span><h2 id="work-title">Durable task timeline</h2></div>
+              <button class="quiet-button" id="refresh-button" type="button" disabled>Refresh</button>
+            </div>
+            <div id="tasks-empty" class="empty-state">
+              <strong>No project work loaded.</strong>
+              <span>Connect a local candidate session, then execute an arithmetic objective.</span>
+            </div>
+            <div id="task-list" class="task-list" aria-live="polite"></div>
+          </section>
+
+          <section class="panel split-panel" aria-label="Artifacts and memory">
+            <div class="split-section" id="artifacts">
+              <div class="panel-heading compact"><div><span class="section-kicker">Artifacts</span><h2>Verified outputs</h2></div></div>
+              <div id="artifact-list" class="record-list"><p class="muted">No artifacts loaded.</p></div>
+            </div>
+            <div class="split-section" id="memory">
+              <div class="panel-heading compact"><div><span class="section-kicker">Knowledge</span><h2>Project memory</h2></div></div>
+              <form id="memory-form" class="memory-form">
+                <label for="memory-title">Memory title</label>
+                <input id="memory-title" maxlength="160" disabled required>
+                <label for="memory-content">Memory content</label>
+                <textarea id="memory-content" maxlength="4000" rows="3" disabled required></textarea>
+                <button class="secondary-button" id="memory-save" type="submit" disabled>Save project memory</button>
+              </form>
+              <div id="memory-list" class="record-list"><p class="muted">No project memory loaded.</p></div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="evidence-rail" id="evidence" aria-labelledby="evidence-title">
+          <div class="rail-heading">
+            <span class="section-kicker">Evidence</span>
+            <h2 id="evidence-title">Proof before claims</h2>
+          </div>
+          <div class="evidence-spine" aria-hidden="true"></div>
+          <div class="evidence-content">
+            <section class="rail-block">
+              <h3>Runtime truth</h3>
+              <dl id="manifest-summary" class="fact-list">
+                <div><dt>Production authority</dt><dd>No</dd></div>
+                <div><dt>Provider execution</dt><dd>No</dd></div>
+                <div><dt>Formal gate</dt><dd>NOT_EARNED</dd></div>
+              </dl>
+            </section>
+            <section class="rail-block">
+              <h3>Selected work</h3>
+              <div id="task-detail" class="task-detail"><p class="muted">Select a task to inspect persisted events, tool receipts, and integrity.</p></div>
+            </section>
+            <section class="rail-block">
+              <h3>Approvals</h3>
+              <div id="approval-list"><p class="muted">No approval cards loaded.</p></div>
+            </section>
+            <section class="rail-block limitations-block">
+              <h3>Current limitations</h3>
+              <ul id="limitations-list"><li>Local candidate evidence only; no production authority.</li></ul>
+            </section>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="auth-dialog" class="auth-dialog" aria-labelledby="auth-title">
+    <div class="dialog-header">
+      <div><span class="section-kicker">Local candidate access</span><h2 id="auth-title">Connect to governed work</h2></div>
+    </div>
+    <p class="dialog-copy">Create a fresh local evaluation identity or sign in to an existing one. Credentials remain on this local candidate service; no provider execution is enabled.</p>
+    <div class="auth-mode" role="tablist" aria-label="Authentication mode">
+      <button id="tab-create" class="auth-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="create-panel">Create local identity</button>
+      <button id="tab-login" class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="login-panel">Sign in</button>
+    </div>
+    <form id="create-panel" class="auth-form" role="tabpanel" aria-labelledby="tab-create">
+      <label for="create-email">Email</label><input id="create-email" type="email" autocomplete="username" required>
+      <label for="create-password">Password</label><input id="create-password" type="password" autocomplete="new-password" minlength="12" required>
+      <label for="create-org">Organization name</label><input id="create-org" autocomplete="organization" maxlength="160" required>
+      <button class="primary-button" type="submit">Create and enter workspace</button>
+    </form>
+    <form id="login-panel" class="auth-form" role="tabpanel" aria-labelledby="tab-login" hidden>
+      <label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" required>
+      <label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required>
+      <label for="login-project">Project ID</label><input id="login-project" autocomplete="off" placeholder="project_…" maxlength="200" required>
+      <p class="helper">The local login response does not infer a project. Enter the project ID issued when the identity was created.</p>
+      <button class="primary-button" type="submit">Sign in to project</button>
+    </form>
+    <p id="auth-status" class="form-status" role="status" aria-live="polite"></p>
+  </dialog>
+
+  <dialog id="command-panel" class="command-dialog" aria-labelledby="command-title">
+    <div class="dialog-header"><div><span class="section-kicker">Navigation</span><h2 id="command-title">Search / command</h2></div><button class="icon-button" id="close-command" type="button" aria-label="Close command panel">×</button></div>
+    <p class="dialog-copy">Jump to a connected local surface. Unconnected capabilities are listed but cannot be executed.</p>
+    <div class="command-grid">
+      <a href="#home">Home / objective</a><a href="#work">Work</a><a href="#artifacts">Artifacts</a><a href="#memory">Knowledge</a><a href="#evidence">Evidence</a>
+      <button type="button" disabled>Research — not connected</button><button type="button" disabled>Computer — not connected</button><button type="button" disabled>Voice / camera / screen — not connected</button>
+    </div>
+  </dialog>
+
+  <div id="global-status" class="status-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

@@ -1,0 +1,775 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+from http.cookies import SimpleCookie
+import hashlib
+import html
+import json
+import os
+from pathlib import Path
+import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+CF_API = "https://api.cloudflare.com/client/v4"
+ACCOUNT_ID = "93f395f5121954671f92fffa453d6b61"
+ZONE_ID = "5b56528f03948ff5917a5e0cd9f7109e"
+ZONE_NAME = "mftintelligence.com"
+D1_UUID = "504029cc-f9a5-495e-818f-63c6144b4ea4"
+SERVICE = "musitu-axiom-browser-application"
+APP_HOST = "app.mftintelligence.com"
+APP_ORIGIN = f"https://{APP_HOST}"
+PUBLIC_ENTRY = f"{APP_ORIGIN}/"
+RESERVED_API_HOST = "axiom.mftintelligence.com"
+CONFIG_RULE_REF = "musitu_axiom_browser_application_direct_browser_v1"
+CONFIG_RULE_EXPRESSION = f'http.host eq "{APP_HOST}"'
+LEGACY_APEX_CONFIG_RULE_EXPRESSION = (
+    f'(http.host eq "{APP_HOST}") or '
+    f'((http.host in {{"{ZONE_NAME}" "www.{ZONE_NAME}"}}) and '
+    '(http.request.uri.path eq "/axiom" or starts_with(http.request.uri.path, "/axiom/")))'
+)
+UNDEPLOYED_APEX_ROUTE_PATTERNS = (
+    "mftintelligence.com/axiom",
+    "mftintelligence.com/axiom/*",
+    "www.mftintelligence.com/axiom",
+    "www.mftintelligence.com/axiom/*",
+)
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+
+
+class Cloudflare:
+    def __init__(self) -> None:
+        email = os.environ.get("CLOUDFLARE_EMAIL", "")
+        key = os.environ.get("CLOUDFLARE_GLOBAL_API_KEY", "")
+        if not email or not key:
+            raise RuntimeError("Cloudflare deployment credentials are unavailable")
+        self.headers = {
+            "X-Auth-Email": email,
+            "X-Auth-Key": key,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "MUSITU-Axiom-Browser-Application-Deploy/1.0",
+        }
+
+    def call(self, path: str, method: str = "GET", body: dict | None = None):
+        data = None if body is None else json.dumps(body, separators=(",", ":")).encode()
+        request = urllib.request.Request(CF_API + path, headers=self.headers, data=data, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=40) as response:
+                status = response.status
+                raw = response.read()
+        except urllib.error.HTTPError as error:
+            status = error.code
+            raw = error.read()
+        try:
+            payload = json.loads(raw or b"{}")
+        except Exception:
+            payload = {}
+        if not 200 <= status < 300 or payload.get("success") is False:
+            raise RuntimeError(f"Cloudflare request failed: {method} {path} HTTP {status}")
+        return payload.get("result")
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):  # noqa: ANN001
+        return None
+
+
+NO_REDIRECT = urllib.request.build_opener(NoRedirect)
+
+
+def http(
+    url: str,
+    method: str = "GET",
+    body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+    follow_redirects: bool = True,
+) -> tuple[int, object, bytes]:
+    selected = urllib.request.build_opener() if follow_redirects else NO_REDIRECT
+    request_headers = {
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": BROWSER_USER_AGENT,
+        **(headers or {}),
+    }
+    request = urllib.request.Request(url, headers=request_headers, data=body, method=method)
+    try:
+        with selected.open(request, timeout=35) as response:
+            return response.status, response.headers, response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.headers, error.read()
+
+
+def records_by_name(rows: list[dict], name: str) -> list[dict]:
+    return [row for row in rows if isinstance(row, dict) and row.get("hostname") == name]
+
+
+def routes_by_pattern(rows: list[dict], pattern: str) -> list[dict]:
+    return [row for row in rows if isinstance(row, dict) and row.get("pattern") == pattern]
+
+
+def public_domain(row: dict) -> dict:
+    return {key: row.get(key) for key in ("id", "hostname", "service", "environment", "zone_id") if row.get(key) is not None}
+
+
+def public_route(row: dict) -> dict:
+    return {key: row.get(key) for key in ("id", "pattern", "script") if row.get(key) is not None}
+
+
+def public_configuration_rule(row: dict) -> dict:
+    return {
+        key: row.get(key)
+        for key in ("id", "ref", "expression", "action", "action_parameters", "description", "enabled")
+        if row.get(key) is not None
+    }
+
+
+def live_topology(client: Cloudflare) -> dict:
+    zones = client.call("/zones?" + urllib.parse.urlencode({"name": ZONE_NAME, "status": "active", "per_page": 50})) or []
+    if len(zones) != 1:
+        raise RuntimeError(f"expected one active {ZONE_NAME} zone, observed {len(zones)}")
+    zone = zones[0]
+    if zone.get("id") != ZONE_ID or (zone.get("account") or {}).get("id") != ACCOUNT_ID:
+        raise RuntimeError("canonical Cloudflare zone/account identity mismatch")
+    domains = client.call(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
+    routes = client.call(f"/zones/{ZONE_ID}/workers/routes") or []
+    dns = client.call(f"/zones/{ZONE_ID}/dns_records?per_page=500") or []
+    rulesets = client.call(f"/zones/{ZONE_ID}/rulesets") or []
+    configuration_rulesets = [
+        row
+        for row in rulesets
+        if isinstance(row, dict) and row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
+    ]
+    if len(configuration_rulesets) != 1 or not configuration_rulesets[0].get("id"):
+        raise RuntimeError("zone configuration ruleset is missing or duplicated")
+    configuration_ruleset = configuration_rulesets[0]
+    configuration_detail = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset['id']}") or {}
+    configuration_rules = configuration_detail.get("rules") or []
+    return {
+        "zone": zone,
+        "domains": domains,
+        "routes": routes,
+        "dns": dns,
+        "configuration_ruleset": configuration_ruleset,
+        "configuration_rules": configuration_rules,
+    }
+
+
+def validate_target(topology: dict) -> dict:
+    domains = topology["domains"]
+    routes = topology["routes"]
+    dns = topology["dns"]
+    configuration_ruleset = topology.get("configuration_ruleset") or {}
+    configuration_rules = topology.get("configuration_rules") or []
+    if (
+        not configuration_ruleset.get("id")
+        or configuration_ruleset.get("phase") != "http_config_settings"
+        or configuration_ruleset.get("kind") != "zone"
+    ):
+        raise RuntimeError("canonical zone configuration ruleset identity mismatch")
+    by_ref = [row for row in configuration_rules if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF]
+    if len(by_ref) > 1:
+        raise RuntimeError("duplicate browser application configuration rules")
+    scoped_expression = [
+        row
+        for row in configuration_rules
+        if isinstance(row, dict)
+        and row.get("expression") in {CONFIG_RULE_EXPRESSION, LEGACY_APEX_CONFIG_RULE_EXPRESSION}
+    ]
+    if scoped_expression and not (
+        len(scoped_expression) == 1
+        and len(by_ref) == 1
+        and scoped_expression[0].get("id") == by_ref[0].get("id")
+    ):
+        raise RuntimeError("browser application scope already has a different configuration rule")
+    if by_ref:
+        rule = by_ref[0]
+        parameters = rule.get("action_parameters") or {}
+        if (
+            rule.get("action") != "set_config"
+            or rule.get("expression") not in {CONFIG_RULE_EXPRESSION, LEGACY_APEX_CONFIG_RULE_EXPRESSION}
+            or parameters != {"security_level": "essentially_off", "bic": False}
+            or rule.get("enabled") is not True
+            or not rule.get("id")
+        ):
+            raise RuntimeError("browser application configuration rule differs from the exact direct-browser contract")
+    app_domains = records_by_name(domains, APP_HOST)
+    if len(app_domains) > 1:
+        raise RuntimeError("duplicate application custom-domain rows")
+    if app_domains and app_domains[0].get("service") != SERVICE:
+        raise RuntimeError("application hostname is already owned by another Worker")
+    app_dns = [row for row in dns if isinstance(row, dict) and row.get("name") == APP_HOST]
+    if not app_domains and app_dns:
+        raise RuntimeError("application hostname already has DNS records; refusing origin override")
+    stale_apex_routes: list[dict] = []
+    for pattern in UNDEPLOYED_APEX_ROUTE_PATTERNS:
+        matches = routes_by_pattern(routes, pattern)
+        if len(matches) > 1:
+            raise RuntimeError(f"duplicate Worker route: {pattern}")
+        stale_apex_routes.extend(row for row in matches if row.get("script") == SERVICE)
+    if stale_apex_routes:
+        raise RuntimeError("unclaimed AXIOM apex routes remain bound to the browser application Worker")
+    reserved = records_by_name(domains, RESERVED_API_HOST)
+    if len(reserved) != 1:
+        raise RuntimeError("reserved production API domain authority is missing or duplicated")
+    if reserved[0].get("service") == SERVICE:
+        raise RuntimeError("browser application Worker cannot own the reserved production API domain")
+    return {
+        "app_domain": [public_domain(row) for row in app_domains],
+        "app_dns": [
+            {key: row.get(key) for key in ("id", "name", "type", "content", "proxied") if row.get(key) is not None}
+            for row in app_dns
+        ],
+        "target_routes": [],
+        "reserved_api_domain": [public_domain(row) for row in reserved],
+        "configuration_ruleset": {
+            key: configuration_ruleset.get(key)
+            for key in ("id", "phase", "kind")
+            if configuration_ruleset.get(key) is not None
+        },
+        "application_configuration_rule": [public_configuration_rule(row) for row in by_ref],
+        "configuration_rule_migration_required": bool(
+            by_ref and by_ref[0].get("expression") == LEGACY_APEX_CONFIG_RULE_EXPRESSION
+        ),
+    }
+
+
+def preflight(output: Path, source_sha: str) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        client = Cloudflare()
+        selected = validate_target(live_topology(client))
+        result = {
+            "schema": "musitu.axiom.browser-application.production-preflight.v1",
+            "status": "PASS",
+            "source_git_sha": source_sha,
+            "zone": {"id": ZONE_ID, "name": ZONE_NAME, "account_id": ACCOUNT_ID},
+            "worker_service": SERVICE,
+            "application_hostname": APP_HOST,
+            "public_entry": PUBLIC_ENTRY,
+            "integration_route_patterns": [],
+            "apex_entry_bridge_claimed": False,
+            "application_configuration_rule_ref": CONFIG_RULE_REF,
+            "application_configuration_rule_expression": CONFIG_RULE_EXPRESSION,
+            "target_before": selected,
+            "existing_apex_origin_override_authorized": False,
+            "reserved_api_origin_repurpose_authorized": False,
+            "write_performed": False,
+        }
+        output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(json.dumps({"preflight": "PASS", "app_domain_exists": bool(selected["app_domain"]), "existing_target_routes": len(selected["target_routes"])}, sort_keys=True))
+    except Exception as error:
+        failure = {
+            "schema": "musitu.axiom.browser-application.production-preflight.failure.v1",
+            "status": "FAIL",
+            "source_git_sha": source_sha,
+            "error_type": type(error).__name__,
+            "error": str(error),
+            "write_performed": False,
+            "existing_apex_origin_override_authorized": False,
+            "reserved_api_origin_repurpose_authorized": False,
+        }
+        output.with_name("preflight-failure.json").write_text(
+            json.dumps(failure, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        raise
+
+
+def worker_settings(client: Cloudflare, source_sha: str) -> None:
+    settings = client.call(f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(SERVICE, safe='')}/settings") or {}
+    bindings = [row for row in (settings.get("bindings") or []) if isinstance(row, dict)]
+    d1 = [row for row in bindings if row.get("name") == "AXIOM_DB" and row.get("type") == "d1"]
+    if len(d1) != 1 or d1[0].get("id") != D1_UUID:
+        raise RuntimeError("browser application Worker D1 binding mismatch")
+    secret = [row for row in bindings if row.get("name") == "AXIOM_BROWSER_SESSION_SECRET" and row.get("type") in {"secret_text", "secret"}]
+    if len(secret) != 1:
+        raise RuntimeError("browser application Worker session secret binding missing")
+    limiter = [row for row in bindings if row.get("name") == "AUTH_RATE_LIMITER" and row.get("type") in {"ratelimit", "rate_limit"}]
+    if len(limiter) != 1:
+        raise RuntimeError("browser application Worker authentication rate-limit binding missing")
+    build = [row for row in bindings if row.get("name") == "BUILD_SHA" and row.get("type") == "plain_text"]
+    if len(build) != 1 or build[0].get("text") != source_sha:
+        raise RuntimeError("browser application Worker exact build SHA binding mismatch")
+
+
+def edge_failure_signal(status: int, headers, body: bytes) -> dict:  # noqa: ANN001
+    lowered = body[:10000].lower()
+    return {
+        "http_status": status,
+        "content_type": (headers.get("content-type") or "")[:160],
+        "server": (headers.get("server") or "")[:80],
+        "cf_ray_present": bool(headers.get("cf-ray")),
+        "cf_mitigated": (headers.get("cf-mitigated") or "")[:80],
+        "body_bytes": len(body),
+        "body_sha256": hashlib.sha256(body).hexdigest(),
+        "access_page": b"cloudflare access" in lowered or b"cf_access" in lowered,
+        "challenge_page": b"challenge-platform" in lowered or b"cf-chl" in lowered or b"just a moment" in lowered,
+        "access_denied": b"access denied" in lowered or b"error 1020" in lowered,
+    }
+
+
+def wait_for_application(source_sha: str) -> dict:
+    last = "unavailable"
+    for _ in range(90):
+        try:
+            status, headers, body = http(f"{APP_ORIGIN}/health")
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            last = f"{type(error).__name__}: application hostname is not reachable yet"
+            time.sleep(2)
+            continue
+        try:
+            payload = json.loads(body or b"{}")
+        except Exception:
+            payload = {}
+        if (
+            status == 200
+            and payload.get("ok") is True
+            and payload.get("build_sha") == source_sha
+            and payload.get("app_origin") == APP_ORIGIN
+            and payload.get("integration_entry") == PUBLIC_ENTRY
+            and payload.get("reserved_api_origin_preserved") is True
+            and payload.get("normal_launch_download") is False
+            and payload.get("account_session_integration") is True
+            and headers.get("x-axiom-browser-application") == "production"
+        ):
+            return payload
+        last = json.dumps(
+            {
+                **edge_failure_signal(status, headers, body),
+                "json_keys": sorted(payload) if isinstance(payload, dict) else [],
+            },
+            sort_keys=True,
+        )
+        time.sleep(2)
+    raise RuntimeError(f"application health did not reach the exact deployment contract: {last}")
+
+
+def cookie_value(headers, name: str) -> str:  # noqa: ANN001
+    for value in headers.get_all("Set-Cookie") or []:
+        parsed = SimpleCookie()
+        parsed.load(value)
+        if name in parsed:
+            return parsed[name].value
+    return ""
+
+
+def verify_static_application(source_sha: str) -> dict:
+    status, headers, body = http(f"{APP_ORIGIN}/")
+    content_type = (headers.get("content-type") or "").lower()
+    if status != 200 or "text/html" not in content_type or headers.get("content-disposition") != "inline":
+        raise RuntimeError("canonical browser application root did not return inline HTML")
+    if b"MUSITU Axiom Workspace" not in body or body.startswith(b"PK"):
+        raise RuntimeError("canonical browser application document content mismatch")
+    if headers.get("x-axiom-browser-application") != "production":
+        raise RuntimeError("canonical browser application hardening marker missing")
+    deep_status, _, deep_body = http(f"{APP_ORIGIN}/index.html", headers={"Accept": "text/html"})
+    if deep_status != 200 or b"MUSITU Axiom Workspace" not in deep_body:
+        raise RuntimeError("browser application navigation fallback mismatch")
+    manifest_status, manifest_headers, manifest_body = http(f"{APP_ORIGIN}/manifest.webmanifest", headers={"Accept": "application/manifest+json"})
+    try:
+        manifest = json.loads(manifest_body)
+    except Exception as error:
+        raise RuntimeError("production web manifest is invalid JSON") from error
+    if manifest_status != 200 or manifest.get("start_url") != "./#/home" or manifest.get("scope") != "./" or manifest.get("prefer_related_applications") is not False:
+        raise RuntimeError("production web manifest launch contract mismatch")
+    if "json" not in (manifest_headers.get("content-type") or "").lower():
+        raise RuntimeError("production web manifest content type mismatch")
+    worker_status, worker_headers, worker_body = http(f"{APP_ORIGIN}/sw.js")
+    if worker_status != 200 or worker_headers.get("service-worker-allowed") != "/" or b"/.well-known/axiom-session" not in worker_body:
+        raise RuntimeError("production service worker contract mismatch")
+    contract_status, _, contract_body = http(f"{APP_ORIGIN}/browser-app.json", headers={"Accept": "application/json"})
+    try:
+        contract = json.loads(contract_body)
+    except Exception as error:
+        raise RuntimeError("production browser application contract is invalid JSON") from error
+    deployment = contract.get("deployment") or {}
+    if (
+        contract_status != 200
+        or deployment.get("production_app_origin") != APP_ORIGIN
+        or deployment.get("reserved_api_origin") != "https://axiom.mftintelligence.com"
+        or (contract.get("actions") or {}).get("open_browser", {}).get("download") is not False
+    ):
+        raise RuntimeError("production browser application contract mismatch")
+    return {
+        "root_inline_html": True,
+        "root_body_sha256": hashlib.sha256(body).hexdigest(),
+        "navigation_fallback": True,
+        "manifest_valid": True,
+        "service_worker_valid": True,
+        "open_launch_download_absent": True,
+        "source_git_sha": source_sha,
+    }
+
+
+def verify_identity() -> dict:
+    raw_key = os.environ.get("OPENAI_REVIEWER_ACCOUNT_KEY", "")
+    normalized = re.sub(r"^[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+|[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+$", "", raw_key)
+    if len(normalized) < 48:
+        raise RuntimeError("reviewer account verification credential is unavailable")
+    start_status, start_headers, start_body = http(f"{APP_ORIGIN}/auth/start")
+    csrf_cookie = cookie_value(start_headers, "__Host-axiom_login_csrf")
+    csrf_match = re.search(rb'name="csrf" value="([^"]+)"', start_body)
+    if start_status != 200 or not csrf_cookie or not csrf_match:
+        raise RuntimeError("browser account sign-in start contract mismatch")
+    csrf = html.unescape(csrf_match.group(1).decode())
+    form = urllib.parse.urlencode({"csrf": csrf, "musitu_account_key": normalized}).encode()
+    login_status, login_headers, _ = http(
+        f"{APP_ORIGIN}/auth/session",
+        "POST",
+        form,
+        {
+            "Accept": "text/html",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": f"__Host-axiom_login_csrf={csrf_cookie}",
+            "Origin": APP_ORIGIN,
+        },
+        follow_redirects=False,
+    )
+    session_cookie = cookie_value(login_headers, "__Host-axiom_session")
+    if login_status != 303 or login_headers.get("location") != "/#/home" or not session_cookie:
+        raise RuntimeError("browser account authentication handoff mismatch")
+    session_status, session_headers, session_body = http(
+        f"{APP_ORIGIN}/.well-known/axiom-session",
+        headers={"Accept": "application/json", "Cookie": f"__Host-axiom_session={session_cookie}"},
+    )
+    try:
+        session = json.loads(session_body)
+    except Exception as error:
+        raise RuntimeError("authenticated browser session response is invalid JSON") from error
+    allowed = {"schema", "authenticated", "subject", "display_name", "session_id", "assurance", "expires_at", "sign_out_path"}
+    if (
+        session_status != 200
+        or session_headers.get("cache-control") != "no-store"
+        or session.get("schema") != "musitu.axiom.browser-session.v1"
+        or session.get("authenticated") is not True
+        or not session.get("subject")
+        or not session.get("display_name")
+        or not session.get("session_id")
+        or session.get("assurance") != "MUSITU_ACCOUNT_KEY_SERVER_SESSION"
+        or session.get("sign_out_path") != "/auth/sign-out"
+        or set(session) != allowed
+    ):
+        raise RuntimeError("authenticated browser session contract mismatch")
+    signout_status, signout_headers, _ = http(
+        f"{APP_ORIGIN}/auth/sign-out",
+        "POST",
+        b"",
+        {"Accept": "application/json", "Cookie": f"__Host-axiom_session={session_cookie}", "Origin": APP_ORIGIN},
+        follow_redirects=False,
+    )
+    if signout_status != 204 or "Max-Age=0" not in (signout_headers.get("set-cookie") or ""):
+        raise RuntimeError("browser session sign-out contract mismatch")
+    guest_status, guest_headers, guest_body = http(f"{APP_ORIGIN}/.well-known/axiom-session", headers={"Accept": "application/json"})
+    try:
+        guest = json.loads(guest_body)
+    except Exception as error:
+        raise RuntimeError("guest browser session response is invalid JSON") from error
+    if guest_status != 200 or guest_headers.get("cache-control") != "no-store" or guest != {"schema": "musitu.axiom.browser-session.v1", "authenticated": False, "sign_in_path": "/auth/start"}:
+        raise RuntimeError("guest browser session contract mismatch")
+    return {
+        "real_active_account_authentication": True,
+        "http_only_session_restore": True,
+        "account_key_returned_to_browser": False,
+        "browser_credential_storage": False,
+        "sign_out_verified": True,
+        "guest_fallback_verified": True,
+    }
+
+
+def delete_created(
+    client: Cloudflare,
+    domain_created: bool,
+    created_domain_id: str | None,
+    created_route_ids: list[str],
+    configuration_ruleset_id: str,
+    configuration_rule_created: bool,
+    created_configuration_rule_id: str | None,
+    previous_configuration_rule: dict | None,
+) -> dict:
+    result = {
+        "domain_deleted": False,
+        "routes_deleted": [],
+        "configuration_rule_deleted": False,
+        "configuration_rule_restored": False,
+        "errors": [],
+    }
+    for route_id in reversed(created_route_ids):
+        try:
+            client.call(f"/zones/{ZONE_ID}/workers/routes/{route_id}", "DELETE")
+            result["routes_deleted"].append(route_id)
+        except Exception as error:  # pragma: no cover - live failure path
+            result["errors"].append(f"route:{route_id}:{type(error).__name__}")
+    if domain_created:
+        try:
+            domains = client.call(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
+            matches = records_by_name(domains, APP_HOST)
+            if not matches:
+                result["domain_deleted"] = True
+            elif len(matches) != 1 or matches[0].get("service") != SERVICE or not matches[0].get("id"):
+                raise RuntimeError("application custom-domain rollback identity is missing, duplicated, or changed")
+            else:
+                domain_id = matches[0]["id"]
+                if created_domain_id and domain_id != created_domain_id:
+                    raise RuntimeError("application custom-domain rollback identity changed")
+                client.call(f"/accounts/{ACCOUNT_ID}/workers/domains/{domain_id}", "DELETE")
+                current = client.call(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
+                result["domain_deleted"] = not records_by_name(current, APP_HOST)
+        except Exception as error:  # pragma: no cover - live failure path
+            result["errors"].append(f"domain:{type(error).__name__}")
+    if configuration_rule_created:
+        try:
+            detail = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}") or {}
+            matches = [
+                row
+                for row in (detail.get("rules") or [])
+                if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+            ]
+            if not matches:
+                result["configuration_rule_deleted"] = True
+                return result
+            if len(matches) != 1 or not matches[0].get("id"):
+                raise RuntimeError("configuration rule rollback identity is missing or duplicated")
+            rule_id = matches[0]["id"]
+            if created_configuration_rule_id and rule_id != created_configuration_rule_id:
+                raise RuntimeError("configuration rule rollback identity changed")
+            client.call(
+                f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules/{rule_id}",
+                "DELETE",
+            )
+            current = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}") or {}
+            result["configuration_rule_deleted"] = not any(
+                isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+                for row in (current.get("rules") or [])
+            )
+        except Exception as error:  # pragma: no cover - live failure path
+            result["errors"].append(f"configuration_rule:{type(error).__name__}")
+    elif previous_configuration_rule:
+        try:
+            rule_id = previous_configuration_rule.get("id")
+            if not rule_id:
+                raise RuntimeError("configuration rule restore identity is missing")
+            restored = {
+                key: previous_configuration_rule[key]
+                for key in ("action", "action_parameters", "expression", "description", "enabled", "ref")
+                if key in previous_configuration_rule
+            }
+            client.call(
+                f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules/{rule_id}",
+                "PATCH",
+                restored,
+            )
+            current = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}") or {}
+            matches = [
+                row for row in (current.get("rules") or []) if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+            ]
+            result["configuration_rule_restored"] = len(matches) == 1 and public_configuration_rule(matches[0]) == previous_configuration_rule
+            if not result["configuration_rule_restored"]:
+                raise RuntimeError("configuration rule rollback verification mismatch")
+        except Exception as error:  # pragma: no cover - live failure path
+            result["errors"].append(f"configuration_rule_restore:{type(error).__name__}")
+    return result
+
+
+def write_evidence(directory: Path, name: str, payload: dict) -> str:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / name
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    (directory / f"{name}.sha256").write_text(f"{digest}  {name}\n", encoding="utf-8")
+    return digest
+
+
+def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
+    prior = json.loads(preflight_path.read_text(encoding="utf-8"))
+    if prior.get("status") != "PASS" or prior.get("source_git_sha") != source_sha:
+        raise RuntimeError("deployment preflight is missing or belongs to another source SHA")
+    client = Cloudflare()
+    worker_settings(client, source_sha)
+    before = validate_target(live_topology(client))
+    if before != prior.get("target_before"):
+        raise RuntimeError("Cloudflare target topology changed after preflight")
+    configuration_ruleset_id = before["configuration_ruleset"]["id"]
+    configuration_rule_created = False
+    created_configuration_rule_id: str | None = None
+    previous_configuration_rule: dict | None = None
+    domain_created = False
+    created_domain_id: str | None = None
+    created_route_ids: list[str] = []
+    try:
+        if not before["application_configuration_rule"]:
+            # Set this before the request so a transport failure after Cloudflare
+            # commits the rule still triggers ref-based cleanup.
+            configuration_rule_created = True
+            client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules", "POST", {
+                "action": "set_config",
+                "action_parameters": {"security_level": "essentially_off", "bic": False},
+                "expression": CONFIG_RULE_EXPRESSION,
+                "description": (
+                    "MUSITU Axiom direct browser application: suppress the zone interstitial only on the dedicated "
+                    "application hostname; Worker security and authentication remain fail-closed"
+                ),
+                "enabled": True,
+                "ref": CONFIG_RULE_REF,
+            })
+            current_topology = live_topology(client)
+            created_matches = [
+                row
+                for row in current_topology["configuration_rules"]
+                if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+            ]
+            if len(created_matches) == 1:
+                created_configuration_rule_id = created_matches[0].get("id")
+            current = validate_target(current_topology)
+            if len(current["application_configuration_rule"]) != 1:
+                raise RuntimeError("browser application configuration rule creation readback failed")
+            if not created_configuration_rule_id:
+                raise RuntimeError("browser application configuration rule id is missing after creation")
+        elif before["configuration_rule_migration_required"]:
+            previous_configuration_rule = before["application_configuration_rule"][0]
+            client.call(
+                f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules/{previous_configuration_rule['id']}",
+                "PATCH",
+                {
+                    "action": "set_config",
+                    "action_parameters": {"security_level": "essentially_off", "bic": False},
+                    "expression": CONFIG_RULE_EXPRESSION,
+                    "description": (
+                        "MUSITU Axiom direct browser application: suppress the zone interstitial only on the dedicated "
+                        "application hostname; Worker security and authentication remain fail-closed"
+                    ),
+                    "enabled": True,
+                    "ref": CONFIG_RULE_REF,
+                },
+            )
+            current = validate_target(live_topology(client))
+            if (
+                len(current["application_configuration_rule"]) != 1
+                or current["configuration_rule_migration_required"]
+                or current["application_configuration_rule"][0].get("expression") != CONFIG_RULE_EXPRESSION
+            ):
+                raise RuntimeError("browser application configuration rule migration readback failed")
+        if not before["app_domain"]:
+            # Mark before the write so rollback can discover a domain committed
+            # by Cloudflare even if the response is lost.
+            domain_created = True
+            created_domain = client.call(f"/accounts/{ACCOUNT_ID}/workers/domains", "PUT", {
+                "hostname": APP_HOST,
+                "service": SERVICE,
+                "zone_id": ZONE_ID,
+                "zone_name": ZONE_NAME,
+            }) or {}
+            if isinstance(created_domain, dict):
+                created_domain_id = created_domain.get("id")
+            current = validate_target(live_topology(client))
+            if len(current["app_domain"]) != 1 or not current["app_domain"][0].get("id"):
+                raise RuntimeError("application custom-domain creation readback failed")
+            readback_domain_id = current["app_domain"][0]["id"]
+            if created_domain_id and created_domain_id != readback_domain_id:
+                raise RuntimeError("application custom-domain creation identity mismatch")
+            created_domain_id = readback_domain_id
+        health = wait_for_application(source_sha)
+        static = verify_static_application(source_sha)
+        identity = verify_identity()
+        after = validate_target(live_topology(client))
+        if len(after["app_domain"]) != 1 or after["app_domain"][0].get("service") != SERVICE:
+            raise RuntimeError("application custom-domain final readback mismatch")
+        if after["target_routes"]:
+            raise RuntimeError("browser application deployment must not claim unrelated apex routes")
+        if after["reserved_api_domain"] != before["reserved_api_domain"]:
+            raise RuntimeError("reserved production API domain changed during browser deployment")
+        if (
+            len(after["application_configuration_rule"]) != 1
+            or after["application_configuration_rule"][0].get("expression") != CONFIG_RULE_EXPRESSION
+        ):
+            raise RuntimeError("browser application configuration rule final readback mismatch")
+        if after["configuration_rule_migration_required"]:
+            raise RuntimeError("legacy apex configuration-rule scope remained after deployment")
+        evidence = {
+            "schema": "musitu.axiom.browser-application.production-deployment.v1",
+            "status": "PASS",
+            "source_git_sha": source_sha,
+            "application_url": f"{APP_ORIGIN}/",
+            "application_entry_url": f"{APP_ORIGIN}/#/home",
+            "integration_entry_url": PUBLIC_ENTRY,
+            "worker_service": SERVICE,
+            "application_domain": after["app_domain"][0],
+            "integration_routes": after["target_routes"],
+            "reserved_api_domain_before": before["reserved_api_domain"],
+            "reserved_api_domain_after": after["reserved_api_domain"],
+            "reserved_api_origin_preserved": True,
+            "existing_apex_origin_overridden": False,
+            "apex_entry_bridge_deployed": False,
+            "apex_origin_preserved": True,
+            "application_configuration_rule": after["application_configuration_rule"][0],
+            "configuration_rule_scope": "EXACT_APPLICATION_HOSTNAME_ONLY",
+            "global_security_policy_mutated": False,
+            "worker_security_and_authentication_preserved": True,
+            "worker_health": health,
+            "static_application": static,
+            "identity_integration": identity,
+            "integration": {
+                "canonical_public_entry": PUBLIC_ENTRY,
+                "real_account_and_session_integration": True,
+                "unrelated_apex_origin_modified": False,
+            },
+            "production_deployment_claimed": True,
+            "production_identity_integration_claimed": True,
+            "phase13_earned_claimed": False,
+            "phase14_earned_claimed": False,
+        }
+        digest = write_evidence(evidence_dir, "axiom-browser-application-production-deployment.json", evidence)
+        print(json.dumps({"deployment": "PASS", "application_url": evidence["application_url"], "integration_entry_url": PUBLIC_ENTRY, "evidence_sha256": digest}, sort_keys=True))
+    except Exception as error:
+        rollback = delete_created(
+            client,
+            domain_created,
+            created_domain_id,
+            created_route_ids,
+            configuration_ruleset_id,
+            configuration_rule_created,
+            created_configuration_rule_id,
+            previous_configuration_rule,
+        )
+        failure = {
+            "schema": "musitu.axiom.browser-application.production-deployment.failure.v1",
+            "status": "FAIL",
+            "source_git_sha": source_sha,
+            "error_type": type(error).__name__,
+            "error": str(error),
+            "rollback": rollback,
+            "reserved_api_origin_repurpose_authorized": False,
+            "existing_apex_origin_override_authorized": False,
+        }
+        write_evidence(evidence_dir, "axiom-browser-application-production-deployment-failure.json", failure)
+        raise
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Fail-closed MUSITU Axiom browser application production deployment")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    preflight_parser = subparsers.add_parser("preflight")
+    preflight_parser.add_argument("--output", type=Path, required=True)
+    preflight_parser.add_argument("--source-sha", required=True)
+    activate_parser = subparsers.add_parser("activate")
+    activate_parser.add_argument("--preflight", type=Path, required=True)
+    activate_parser.add_argument("--evidence-dir", type=Path, required=True)
+    activate_parser.add_argument("--source-sha", required=True)
+    arguments = parser.parse_args()
+    if not re.fullmatch(r"[0-9a-f]{40}", arguments.source_sha):
+        raise SystemExit("source SHA must be an exact 40-character lowercase Git commit")
+    if arguments.command == "preflight":
+        preflight(arguments.output, arguments.source_sha)
+    else:
+        activate(arguments.preflight, arguments.evidence_dir, arguments.source_sha)
+
+
+if __name__ == "__main__":
+    main()

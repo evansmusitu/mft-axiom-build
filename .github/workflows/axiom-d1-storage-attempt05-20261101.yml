@@ -1,0 +1,48 @@
+name: AXIOM isolated D1 storage acceptance 05 without inference
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/d1-attempt05-authorization-20261101.json']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-d1-storage-acceptance-20261101-05
+  cancel-in-progress: false
+jobs:
+  isolated-d1-storage:
+    if: github.event.pull_request.head.sha == '6601f2a8eb86a1d82a0002246696e27f8895ed39' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      AXIOM_ACCEPTANCE_RUN_ID: axiom-acceptance-20261101-05
+      AXIOM_ACCEPTANCE_OUTPUT: qualification/whole-system-20261029/d1-attempt05-results
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct authorized continuation
+        run: test "$(git rev-parse HEAD^)" = beecc9507b9d8c7966df128462cb84273de61efd
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned imports without inference credentials
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned bundler
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.25.9
+      - name: Create a fresh isolated database and run storage acceptance if capacity allows
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qualification/whole-system-20261029/live-hosted-acceptance.mjs --storage-only
+      - name: Preserve real capacity or storage outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-d1-storage-acceptance-20261101-05
+          path: qualification/whole-system-20261029/d1-attempt05-results/*.json
+          retention-days: 90
+          if-no-files-found: error

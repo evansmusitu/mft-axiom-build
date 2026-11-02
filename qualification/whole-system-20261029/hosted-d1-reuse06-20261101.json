@@ -1,0 +1,211 @@
+{
+  "schema": "musitu.axiom.hosted-d1-reuse-qualification.v1",
+  "status": "CONFIRMED_OWNER_SELECTED_STAGING_NAMESPACE_COMPONENT",
+  "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+  "source_tree_sha": "b2be0d2095e0104493d630b59fc9577d7c60be62",
+  "workflow_run_id": 41343885986,
+  "artifact": {
+    "id": 13097459233,
+    "sha256": "d9df2b87cfc62798a742879173b13212a9a5d1891fb28124e36f1c1246cbcc86",
+    "download_hash_verified": true
+  },
+  "user_instruction": "#1 just reuse",
+  "database": {
+    "account_id": "93f395f5121954671f92fffa453d6b61",
+    "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+    "database_name": "mft-axiom-claude-staging-20260927",
+    "namespace": "axiom_q06_",
+    "new_database_created": false,
+    "worker_url": "https://axiom-acceptance-20261101-06.mft-education-nexus-93f395f5.workers.dev"
+  },
+  "scope": "OWNER_SELECTED_STAGING_TABLE_NAMESPACE",
+  "isolated_database": false,
+  "checks": {
+    "owner_selected_staging_namespace": {
+      "status": "CONFIRMED",
+      "value": {
+        "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+        "storage_scope": "OWNER_SELECTED_STAGING_TABLE_NAMESPACE",
+        "isolated_database": false,
+        "worker_url": "https://axiom-acceptance-20261101-06.mft-education-nexus-93f395f5.workers.dev",
+        "bundle_sha256": "c3792654f689fd1eda5527695be53ebf2005f867169c41934f3d4b11a34d1e34",
+        "version_id": "9e8a95c964f14d698d4d32cd005b2260",
+        "deployment_id": "1ad7572b013963f835f96b3e",
+        "production_routes_modified": false,
+        "existing_worker_rebound": false,
+        "openai_key_in_worker": false
+      }
+    },
+    "interrupted_observer_recovery": {
+      "status": "CONFIRMED",
+      "value": {
+        "observer_cancelled": true,
+        "status": "COMPLETED",
+        "task_id": "task_0a6912210113f581ddbb1095bd27fdc6edc4f8ce349892ba",
+        "receipt_sha256": "83c27d4c6bbebca24d0c4fbca278353102c4cb1cd2ea76239bf1bc197be0065d",
+        "reservations": 1,
+        "inference_calls": 0
+      }
+    },
+    "actual_tenant_pipeline": {
+      "status": "CONFIRMED",
+      "value": {
+        "alpha_task_id": "task_83452bb4fedba485d62b14978d34c73d4ad0d807cdec5ce3",
+        "beta_task_id": "task_d5b65cc170954e3872d940c3c035b09adcfae7c327823395",
+        "expected_utility": 28,
+        "receipt_sha256": "16908122e19e7c11bec4afcb039f2908ab9e93693b845e01b47d29a1bfc05129",
+        "cross_tenant_read": "DENIED",
+        "replay_same_receipt": true
+      }
+    },
+    "actual_d1_batch_rollback": {
+      "status": "CONFIRMED",
+      "value": {
+        "forced_second_statement_failure": true,
+        "first_insert_rolled_back": true,
+        "fixture_rows_remaining": 0
+      }
+    },
+    "durable_call_budgets_and_revocation": {
+      "status": "CONFIRMED",
+      "value": {
+        "concurrent_provider_reservations": 1,
+        "concurrent_compute_reservations": 1,
+        "revocation": "DENIED",
+        "budget_unit": "CALLS_NOT_CURRENCY"
+      }
+    },
+    "credential_revocation_and_worker_restart": {
+      "status": "CONFIRMED",
+      "value": {
+        "version_id": "8d54c4958dbc4cc9859f5fc99b02bb01",
+        "deployment_id": "5dcc802412444338b45a66d4",
+        "old_lease": "DENIED",
+        "new_generation_single_winner": true,
+        "revoked_credential": "DENIED",
+        "completed_result_survived": true
+      }
+    },
+    "evidence_preserving_lifecycle": {
+      "status": "CONFIRMED",
+      "value": {
+        "export_verified": true,
+        "legal_hold_enforced": true,
+        "logical_erasure_verified": true,
+        "http_readback": 410,
+        "replay_same_receipt": true,
+        "commitments_retained": true,
+        "external_erasure_verified": false
+      }
+    }
+  },
+  "original_data_preservation": {
+    "database_name": "mft-axiom-claude-staging-20260927",
+    "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+    "namespace": "axiom_q06_",
+    "storage_scope": "OWNER_SELECTED_STAGING_TABLE_NAMESPACE",
+    "isolated_database": false,
+    "snapshot": {
+      "objects_sha256": "3ee7650f993f7250d715f2a1aaa072e532fd1607d20dc8c882ab9b8f8f5a3f56",
+      "tables": [
+        {
+          "name": "api_keys",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "name": "billing_subscriptions",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "name": "customers",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "name": "usage_buckets",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "name": "usage_events",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "name": "webhook_events",
+          "row_count": 0,
+          "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "existing_worker_settings_sha256": "ad70fa2fd5e05bb096602844c1375aa762e29b972f999d0d789e246b1dfd3f8a"
+    },
+    "legacy_commitment_sha256": "29f40dc6a0afb5fe06b55ce7fbd42783ec3d271421e5c8a88d6cd8c27779a2fb",
+    "legacy_table_names": [
+      "api_keys",
+      "billing_subscriptions",
+      "customers",
+      "usage_buckets",
+      "usage_events",
+      "webhook_events"
+    ],
+    "row_values_logged": false,
+    "existing_worker": "mft-axiom-claude-staging-20260927",
+    "original_schema_records_and_worker_unchanged": true
+  },
+  "fresh_process_readback": {
+    "status": "COMPLETED",
+    "task_id": "task_d5b65cc170954e3872d940c3c035b09adcfae7c327823395",
+    "receipt_sha256": "c5c8cc7cf4d575cf396424ad0fdf17aae339684d9cb17b309a50ada409ecf3de",
+    "artifact_sha256": "5e3791dddcb63e2d9b1e430e2a65c85562042c81cd8aaa23a4f55c2d5c81b29c",
+    "receipt_verified": true
+  },
+  "cleanup": {
+    "worker": {
+      "name": "axiom-acceptance-20261101-06",
+      "delete_acknowledged": true,
+      "provider_readback_status": 404,
+      "edge_revocation": "NOT_INDEPENDENTLY_ATTESTED"
+    },
+    "database": {
+      "id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+      "retained": true,
+      "reason": "OWNER_SELECTED_STAGING_DATABASE_AND_ORIGINAL_RECORDS_RETAINED"
+    }
+  },
+  "root_verification": {
+    "schema": "musitu.axiom.d1-reuse-root-verification.v1",
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "actual_bundle_sha256": "c3792654f689fd1eda5527695be53ebf2005f867169c41934f3d4b11a34d1e34",
+    "bundle_hash_matches_rebuild": true,
+    "checks_passed": 7,
+    "outputs": {
+      "decision-output.json": {
+        "expected_utility": 28,
+        "receipt_sha256": "16908122e19e7c11bec4afcb039f2908ab9e93693b845e01b47d29a1bfc05129",
+        "verified": true
+      },
+      "observer-recovered-output.json": {
+        "expected_utility": 28,
+        "receipt_sha256": "83c27d4c6bbebca24d0c4fbca278353102c4cb1cd2ea76239bf1bc197be0065d",
+        "verified": true
+      }
+    },
+    "fresh_process_receipt_matches_exported_original": true,
+    "lifecycle_export_verified": true,
+    "lifecycle_erasure_receipt_sha256": "72d63635089879096d4dd176e322a45ae53db5696f1e0d0f706de8d6a51bfbc0",
+    "legacy_commitment_sha256": "29f40dc6a0afb5fe06b55ce7fbd42783ec3d271421e5c8a88d6cd8c27779a2fb",
+    "original_schema_records_and_worker_unchanged": true,
+    "temporary_worker_provider_readback": 404,
+    "inference_calls": 0,
+    "isolated_database": false,
+    "release_authorized": false
+  },
+  "inference_calls": 0,
+  "new_database_created": false,
+  "existing_databases_deleted": 0,
+  "independent_custody_certified": false,
+  "anti_rollback_certified": false,
+  "release_authorized": false
+}

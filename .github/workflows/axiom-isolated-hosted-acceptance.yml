@@ -1,0 +1,52 @@
+name: AXIOM isolated hosted acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'qualification/whole-system-20261029/live-authorization-20261101.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-isolated-hosted-acceptance-20261101-01
+  cancel-in-progress: false
+
+jobs:
+  live-acceptance:
+    # The attempt is preserved at this exact source. Database quota blocked it
+    # before dispatch; later source changes must not create another mission.
+    if: github.event.pull_request.head.sha == '2b389925ac9626f994993ea84c6146fa0b35d10a' && github.event.pull_request.number == 55 && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AXIOM_ACCEPTANCE_AUTHORIZATION: user-request-20261101-governed-hosted-one
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned public SDK
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned bundler
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.25.9
+      - name: Run authorized isolated acceptance
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MUSITU_OPENAI_API_KEY || secrets.MFT_OPENAI_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qualification/whole-system-20261029/live-hosted-acceptance.mjs
+      - name: Preserve actual output, receipts and partial failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-isolated-hosted-acceptance-20261101-01
+          path: qualification/whole-system-20261029/live-results/
+          if-no-files-found: error
+          retention-days: 30

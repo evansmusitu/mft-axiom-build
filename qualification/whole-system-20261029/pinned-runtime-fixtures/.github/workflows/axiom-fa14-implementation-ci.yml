@@ -1,0 +1,127 @@
+name: MUSITU Axiom FA14 Implementation Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa14-20260916
+    paths:
+      - 'docs/axiom_final_product/FA14_*'
+      - 'axiom_interface/vnext/fa14_*'
+      - 'axiom_interface/vnext/index.html'
+      - '.github/workflows/axiom-fa14-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-and-attack:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Freeze source authority and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=4c99c4ccbc4a9e34f4e446f30c31f4d428359818
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa14-20260916'
+          git merge-base --is-ancestor "$SOURCE" HEAD
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA14_PREWRITE_INTENT.md
+          python - <<'PY'
+          import json,subprocess
+          source='4c99c4ccbc4a9e34f4e446f30c31f4d428359818'
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA14_') or p.startswith('axiom_interface/vnext/fa14_') or p.startswith('axiom_interface/vnext/tests/fa14_') or p=='axiom_interface/vnext/index.html' or p.startswith('.github/workflows/axiom-fa14-'))
+          bad=sorted(p for p in changed if not allowed(p))
+          if bad: raise SystemExit('FA14 source drift outside bounded scope: '+repr(bad))
+          protected=[p for p in changed if p.startswith(('mcp/','auth/','submission/')) or p=='chatgpt-app-submission.json']
+          if protected: raise SystemExit('protected surface drift: '+repr(protected))
+          m=json.load(open('docs/axiom_final_product/FA14_ACCEPTANCE_MATRIX.json'))
+          if m['candidate_state']!='IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION': raise SystemExit('builder self-certification detected')
+          if m['production_authority'] is not False or m['legacy_phase_14_unchanged'] is not True: raise SystemExit('truth boundary drift')
+          PY
+      - name: Syntax and deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/fa14_evidence_native_engine.js
+          node --check axiom_interface/vnext/fa14_workspace_ui.js
+          node --test axiom_interface/vnext/tests/fa14_*.test.mjs
+      - name: Security and adversarial assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "DATA_ONLY" axiom_interface/vnext/fa14_evidence_native_engine.js
+          grep -q "publication_execution_allowed:false" axiom_interface/vnext/fa14_evidence_native_engine.js
+          grep -q "SIMULATED_SCENARIO" axiom_interface/vnext/fa14_evidence_native_engine.js
+          grep -q "legacyPhase14Unchanged:true" axiom_interface/vnext/fa14_evidence_native_engine.js
+          grep -q "fa14_workspace_ui.js" axiom_interface/vnext/index.html
+          python - <<'PY'
+          import pathlib,re
+          files=sorted(pathlib.Path('.github/workflows').glob('axiom-fa14-*.yml'))
+          text='\n'.join(p.read_text() for p in files)
+          forbidden=['wrangler'+' deploy','kubectl'+' ','terraform'+' apply','gh pr'+' merge','git'+' push']
+          found=[term for term in forbidden if term in text]
+          if found: raise SystemExit('FA14 workflow execution authority widening: '+repr(found))
+          write_patterns=[r'(?m)^\s*contents:\s*write\s*$',r'(?m)^\s*actions:\s*write\s*$',r'(?m)^\s*deployments:\s*write\s*$',r'(?m)^\s*packages:\s*write\s*$']
+          hits=[pat for pat in write_patterns if re.search(pat,text)]
+          if hits: raise SystemExit('FA14 workflow write permission detected: '+repr(hits))
+          PY
+      - name: Build candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa14-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          files=['docs/axiom_final_product/FA14_PREWRITE_INTENT.md','docs/axiom_final_product/FA14_ACCEPTANCE_MATRIX.json','axiom_interface/vnext/fa14_evidence_native_engine.js','axiom_interface/vnext/fa14_workspace_ui.js','axiom_interface/vnext/fa14_workspace.css','axiom_interface/vnext/tests/fa14_evidence_native_engine.test.mjs','axiom_interface/vnext/tests/fa14_adversarial_truth.test.mjs','axiom_interface/vnext/index.html']
+          hashes={p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in files}
+          out={'schema':'musitu.axiom.fa14.builder-evidence.v1','status':'BUILDER_TESTS_AND_ADVERSARIAL_PASS','source_parent':'4c99c4ccbc4a9e34f4e446f30c31f4d428359818','candidate_commit':os.environ['GITHUB_SHA'],'files_sha256':hashes,'production_authority':False,'independent_verification_required':True,'legacy_phase_14_unchanged':True,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          p=pathlib.Path('fa14-evidence/fa14-builder-evidence.json');p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          (p.parent/'fa14-builder-evidence.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          PY
+      - name: Upload builder evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa14-builder-evidence
+          path: fa14-evidence/
+          retention-days: 90
+
+  security-review:
+    runs-on: ubuntu-24.04
+    needs: test-and-attack
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Adversarial security review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa14_adversarial_truth.test.mjs
+          python - <<'PY'
+          import pathlib
+          engine=pathlib.Path('axiom_interface/vnext/fa14_evidence_native_engine.js').read_text()
+          ui=pathlib.Path('axiom_interface/vnext/fa14_workspace_ui.js').read_text()
+          required=['DATA_ONLY','SIMULATED_SCENARIO','NOT_CERTIFIED','publication_execution_allowed:false']
+          missing=[x for x in required if x not in engine]
+          if missing: raise SystemExit('security truth marker missing: '+repr(missing))
+          if 'external_gateway_required:true' not in ui: raise SystemExit('publication gateway boundary missing')
+          PY
+
+  independent-verifier:
+    needs: security-review
+    uses: ./.github/workflows/axiom-fa14-independent-verifier.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      builder_run_id: ${{ github.run_id }}
+    permissions:
+      contents: read
+      actions: read

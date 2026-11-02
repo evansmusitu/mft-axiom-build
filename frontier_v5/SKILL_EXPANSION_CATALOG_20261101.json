@@ -1,0 +1,408 @@
+{
+  "schema": "musitu.axiom.skill-expansion-catalog.v1",
+  "status": "INTERNAL_CANDIDATE_COMPONENT_SCOPE",
+  "planned_goals": 18,
+  "distinct_packages": 18,
+  "new_packages_this_continuation": 10,
+  "existing_packages_extended": 6,
+  "reused_internal_packages": 2,
+  "public_promotion": false,
+  "note": "The 18 goal map reuses existing capabilities. It is not 18 independent new algorithms; deterministic numerical and contract tests do not establish host-model skill behavior. Lifecycle is retained as an additional candidate outside this original 18-goal proposal.",
+  "entries": [
+    {
+      "goal": "document-reconciliation",
+      "skill": "musitu-document-reconciliation",
+      "package": "frontier_v5/skill_candidates/musitu-document-reconciliation",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "total-mismatch",
+        "uncertain-extraction",
+        "accounting-signs",
+        "unparsed-text",
+        "duplicate-rows",
+        "mixed-period-or-currency"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "claim-lineage",
+      "skill": "musitu-proof-ledger",
+      "package": "frontier_v5/skills/musitu-proof-ledger",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "nested-source-change",
+        "deleted-source",
+        "stale-source",
+        "missing-source",
+        "cyclic-lineage",
+        "unsubstantiated-claim"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "source-adjudication",
+      "skill": "musitu-research-synthesis",
+      "package": "frontier_v5/skills/musitu-research-synthesis",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "copied-origin-is-one",
+        "definition-mismatch",
+        "disagreement-preserved",
+        "restatement-cycles",
+        "foreign-restatement",
+        "no-truth-from-agreement"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "causal-policy",
+      "skill": "musitu-causal-counterfactual",
+      "package": "frontier_v5/skills/musitu-causal-counterfactual",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "intermediate-intervention",
+        "zero-input-preserved",
+        "missing-confounder-input",
+        "intervention-cannot-hide-cycle",
+        "nonfinite-coefficients",
+        "assumptions-required"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "bayesian-updating",
+      "skill": "musitu-bayesian-updating",
+      "package": "frontier_v5/skill_candidates/musitu-bayesian-updating",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "impossible-evidence",
+        "zero-prior-not-resurrected",
+        "tiny-likelihoods-stable",
+        "prior-sensitivity",
+        "duplicate-states",
+        "nonprobabilistic-input"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "monte-carlo-uncertainty",
+      "skill": "musitu-monte-carlo-uncertainty",
+      "package": "frontier_v5/skill_candidates/musitu-monte-carlo-uncertainty",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "seeded-replay",
+        "deterministic-distribution",
+        "zero-probability-tail-excluded",
+        "negative-probability-rejected",
+        "bounded-run-size",
+        "tail-definition-required"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "decision-tradeoffs",
+      "skill": "musitu-decision-tradeoffs",
+      "package": "frontier_v5/skill_candidates/musitu-decision-tradeoffs",
+      "reuse_existing_package": true,
+      "adapter": "decision.evaluate",
+      "families": [
+        "launch_without_signal",
+        "imperfect_signal_and_cost",
+        "independent_signal_has_zero_value",
+        "perfect_signal_reaches_evpi",
+        "negative_utility_minimax_regret",
+        "tied_actions_zero_probability_signal"
+      ],
+      "test_sources": [
+        "frontier_v5/fixtures/decision_analysis_v1.json",
+        "frontier_v5/tests/test_decision_analysis.py",
+        "frontier_v5/tests/test_decision_probability_robustness.py"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "value-of-information",
+      "skill": "musitu-value-of-information",
+      "package": "frontier_v5/skill_candidates/musitu-value-of-information",
+      "reuse_existing_package": false,
+      "adapter": "decision.evaluate",
+      "families": [
+        "launch_without_signal",
+        "imperfect_signal_and_cost",
+        "independent_signal_has_zero_value",
+        "perfect_signal_reaches_evpi",
+        "negative_utility_minimax_regret",
+        "tied_actions_zero_probability_signal"
+      ],
+      "test_sources": [
+        "frontier_v5/fixtures/decision_analysis_v1.json",
+        "frontier_v5/tests/test_decision_analysis.py",
+        "frontier_v5/tests/test_decision_probability_robustness.py"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "forecast-calibration",
+      "skill": "musitu-uncertainty-calibration",
+      "package": "frontier_v5/skills/musitu-uncertainty-calibration",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "prediction-leakage",
+        "future-outcomes",
+        "perfect-forecasts",
+        "empty-evaluation",
+        "nonbinary-outcome",
+        "duplicated-observation"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "statement-forensics",
+      "skill": "musitu-statement-forensics",
+      "package": "frontier_v5/skill_candidates/musitu-statement-forensics",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "balance-imbalance",
+        "zero-assets-not-infinity",
+        "zero-receivables-base",
+        "negative-earnings",
+        "declared-thresholds",
+        "no-fraud-accusation"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "project-finance",
+      "skill": "musitu-project-finance",
+      "package": "frontier_v5/skill_candidates/musitu-project-finance",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "negative-coverage",
+        "discount-basis",
+        "schedule-gap",
+        "zero-service-defined-status",
+        "working-capital-and-financing",
+        "overflow-fails-closed"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "asset-liability",
+      "skill": "musitu-asset-liability",
+      "package": "frontier_v5/skill_candidates/musitu-asset-liability",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "immediate-flows",
+        "nonzero-yield",
+        "no-mixed-currency",
+        "bucket-end-inclusive",
+        "negative-cashflow-rejected",
+        "invalid-down-shock"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "inventory-decisions",
+      "skill": "musitu-inventory-decisions",
+      "package": "frontier_v5/skill_candidates/musitu-inventory-decisions",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "tied-orders-preserved",
+        "zero-demand",
+        "unnormalized-demand",
+        "feasible-grid-respected",
+        "duplicate-order",
+        "fractional-unit"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "reliability-investigation",
+      "skill": "musitu-reliability-investigation",
+      "package": "frontier_v5/skill_candidates/musitu-reliability-investigation",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "one-survivor-is-not-proof",
+        "all-hypotheses-contradicted",
+        "unknown-observation-is-not-false",
+        "unmodeled-observation",
+        "diagnostic-cost-tie-break",
+        "contradiction-provenance"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "twin-validation",
+      "skill": "musitu-digital-twin",
+      "package": "frontier_v5/skills/musitu-digital-twin",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "out-of-domain",
+        "calibration-leakage",
+        "combined-error-tolerance",
+        "structural-mismatch",
+        "duplicate-observation",
+        "nonfinite-residual"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "analytical-pipeline",
+      "skill": "musitu-analytical-pipeline",
+      "package": "frontier_v5/skill_candidates/musitu-analytical-pipeline",
+      "reuse_existing_package": false,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "empty-checks-cannot-pass",
+        "cyclic-dependencies",
+        "failed-oracle-preserved",
+        "recursive-workflow-rejected",
+        "prototype-path-rejected",
+        "binding-cannot-overwrite-data"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "benchmark-evaluation",
+      "skill": "musitu-self-evolving-evals",
+      "package": "frontier_v5/skills/musitu-self-evolving-evals",
+      "reuse_existing_package": true,
+      "adapter": "analysis.evaluate",
+      "families": [
+        "missing-comparator-case",
+        "contaminated-holdout",
+        "development-holdout-leak",
+        "mismatched-input-snapshot",
+        "no-substring-scoring",
+        "no-self-certified-superiority"
+      ],
+      "test_sources": [
+        "axiom_interface/vnext/tests/analytical_workflow_boundaries.test.mjs",
+        "axiom_interface/vnext/tests/analytical_workflows.test.mjs",
+        "axiom_interface/vnext/tests/runtime_analytical_service.test.mjs"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    },
+    {
+      "goal": "mission-recovery",
+      "skill": "musitu-agent-recovery",
+      "package": "frontier_v5/skill_candidates/musitu-agent-recovery",
+      "reuse_existing_package": true,
+      "adapter": "durable-task-store",
+      "families": [
+        "test_restart_retry_uses_stable_invocation_and_no_duplicate_side_effect",
+        "test_stale_error_cannot_overwrite_reclaimed_success",
+        "test_same_worker_name_does_not_reuse_expired_generation",
+        "test_same_worker_name_cannot_commit_success_from_previous_generation",
+        "test_expired_success_is_discarded_and_recovered_after_reopen",
+        "test_cancellation_invalidates_pending_success_and_failure"
+      ],
+      "test_sources": [
+        "recovery/ar03_06/tests/test_kernel.py",
+        "recovery/ar03_06/tests/test_lease_fencing.py"
+      ],
+      "host_model_behavior": "NOT_EXECUTED",
+      "production_acceptance": "NOT_QUALIFIED"
+    }
+  ]
+}

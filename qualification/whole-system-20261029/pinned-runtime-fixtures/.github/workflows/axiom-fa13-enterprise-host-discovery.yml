@@ -1,0 +1,176 @@
+name: MUSITU Axiom FA-13 Enterprise Host Discovery
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-enterprise-host-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-existing-access-hosts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ZONE_NAME: mftintelligence.com
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert frozen FA-13 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Do not invent SSO/organization provider integration' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+
+      - name: Enumerate existing Cloudflare hostnames and probe Access redirects read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.error,urllib.parse,urllib.request
+
+          API=os.environ['CF_API']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Host-Discovery/1.0'}
+          def cf(path):
+              req=urllib.request.Request(API+path,headers=H,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+              try:data=json.loads(raw or b'{}')
+              except Exception:data={}
+              return code,data,hashlib.sha256(raw).hexdigest()
+
+          zcode,zones,zsha=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active')
+          rows=(zones or {}).get('result') or []
+          if zcode!=200 or len(rows)!=1: raise SystemExit('Fail-closed: zone resolution failed')
+          zone=rows[0]; zid=str(zone.get('id') or ''); aid=str((zone.get('account') or {}).get('id') or '')
+          if aid!=os.environ['EXPECTED_ACCOUNT_ID']: raise SystemExit('Fail-closed: Cloudflare account mismatch')
+
+          hosts=set()
+          dns_meta=[]
+          for page in range(1,6):
+              code,data,_=cf(f'/zones/{zid}/dns_records?per_page=100&page={page}')
+              if code!=200: break
+              result=(data or {}).get('result') or []
+              for rec in result:
+                  name=str(rec.get('name') or '').lower().rstrip('.')
+                  if name==os.environ['ZONE_NAME'] or name.endswith('.'+os.environ['ZONE_NAME']):
+                      if rec.get('proxied') is True and rec.get('type') in {'A','AAAA','CNAME'}:
+                          hosts.add(name)
+                          dns_meta.append({'name':name,'type':rec.get('type'),'proxied':True})
+              info=(data or {}).get('result_info') or {}
+              if page>=int(info.get('total_pages') or page): break
+
+          wcode,wbody,wsha=cf(f'/accounts/{aid}/workers/domains')
+          worker_domains=[]
+          if wcode==200:
+              for x in (wbody or {}).get('result') or []:
+                  h=str(x.get('hostname') or '').lower().rstrip('.')
+                  if h==os.environ['ZONE_NAME'] or h.endswith('.'+os.environ['ZONE_NAME']):
+                      hosts.add(h)
+                      worker_domains.append({'hostname':h,'service':str(x.get('service') or '')})
+
+          # Always include established AXIOM external surfaces, without inventing new DNS names.
+          for h in ['axiom-stage.mftintelligence.com','auth.mftintelligence.com','mcp.mftintelligence.com']:
+              hosts.add(h)
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          opener=urllib.request.build_opener(NoRedirect)
+          provider_terms=['github','google','microsoft','azure','okta','onelogin','saml','oidc','one-time pin']
+          def probe(host):
+              url='https://'+host+'/'
+              req=urllib.request.Request(url,headers={'Accept':'text/html,application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Host-Discovery/1.0'},method='GET')
+              try:
+                  with opener.open(req,timeout=15) as r: body=r.read(32768); code=r.status; headers=r.headers
+              except urllib.error.HTTPError as e: body=e.read(32768); code=e.code; headers=e.headers
+              except Exception as e: return {'host':host,'status':'TRANSPORT_ERROR','error_type':type(e).__name__}
+              loc=str(headers.get('Location') or '')
+              access=bool(loc and ('cloudflareaccess.com' in loc.lower() or '/cdn-cgi/access/' in loc.lower()))
+              row={'host':host,'http_status':code,'access_redirect_observed':access,'location_host':urllib.parse.urlparse(loc).hostname if loc else None,'cf_ray_present':bool(headers.get('CF-Ray'))}
+              if access:
+                  req2=urllib.request.Request(loc,headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Host-Discovery/1.0'},method='GET')
+                  try:
+                      with opener.open(req2,timeout=15) as r2: b2=r2.read(65536); h2=r2.headers; c2=r2.status
+                  except urllib.error.HTTPError as e2: b2=e2.read(65536); h2=e2.headers; c2=e2.code
+                  except Exception as e2:
+                      row['access_login_error_type']=type(e2).__name__; return row
+                  t=b2.decode('utf-8','replace').lower(); l2=str(h2.get('Location') or '')
+                  row['access_login_http']=c2
+                  row['access_login_redirect_host']=urllib.parse.urlparse(l2).hostname if l2 else None
+                  row['provider_markers']=sorted([x for x in provider_terms if x in t or x in l2.lower()])
+              return row
+
+          host_list=sorted(hosts)[:75]
+          probes=[probe(h) for h in host_list]
+          access_rows=[p for p in probes if p.get('access_redirect_observed')]
+          out={
+            'schema':'musitu.axiom.fa13.enterprise-host-discovery.v1',
+            'source_commit':os.environ['GITHUB_SHA'],
+            'zone':{'name':zone.get('name'),'status':zone.get('status'),'account_id':aid,'lookup_http':zcode,'lookup_body_sha256':zsha},
+            'dns_candidate_count':len(set(x['name'] for x in dns_meta)),
+            'worker_domain_count':len(worker_domains),
+            'host_count_probed':len(probes),
+            'worker_domains':worker_domains,
+            'probes':probes,
+            'access_protected_host_count':len(access_rows),
+            'access_protected_hosts':[{'host':p.get('host'),'provider_markers':p.get('provider_markers') or [],'location_host':p.get('location_host')} for p in access_rows],
+            'existing_enterprise_sso_candidate_found':any((p.get('provider_markers') or []) for p in access_rows),
+            'interactive_sso_login_proven':False,
+            'enterprise_row_promoted':False,
+            'write_performed':False,
+            'production_authority':False,
+            'workers_domains_http':wcode,
+            'workers_domains_body_sha256':wsha,
+          }
+          pathlib.Path('fa13-enterprise-host-discovery.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'host_count_probed':len(probes),'access_protected_host_count':len(access_rows),'existing_enterprise_sso_candidate_found':out['existing_enterprise_sso_candidate_found'],'enterprise_row_promoted':False},sort_keys=True))
+          PY
+
+      - name: Prove evidence contains no configured secret material
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,pathlib
+          data=pathlib.Path('fa13-enterprise-host-discovery.json').read_bytes()
+          for value in (os.environ.get('CLOUDFLARE_EMAIL',''),os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')):
+              if value and value.encode() in data: raise SystemExit('Fail-closed: configured secret material present in evidence')
+          PY
+
+      - name: Seal evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum fa13-enterprise-host-discovery.json > fa13-enterprise-host-discovery.sha256
+          git diff --check
+
+      - name: Upload sanitized discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-enterprise-host-discovery
+          path: |
+            fa13-enterprise-host-discovery.json
+            fa13-enterprise-host-discovery.sha256
+          if-no-files-found: error
+          retention-days: 14

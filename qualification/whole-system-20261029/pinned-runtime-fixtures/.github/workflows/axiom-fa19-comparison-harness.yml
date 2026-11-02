@@ -1,0 +1,153 @@
+name: MUSITU Axiom FA19 Comparison Harness
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa19-20260916
+    paths:
+      - 'docs/axiom_final_product/FA19_*'
+      - 'axiom_interface/vnext/fa19_*'
+      - 'axiom_interface/vnext/tests/fa19_*'
+      - '.github/scripts/axiom_fa19_*'
+      - '.github/workflows/axiom-fa19-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  harness-test-and-attack:
+    runs-on: ubuntu-24.04
+    outputs:
+      harness_evidence_sha256: ${{ steps.harness-evidence.outputs.harness_evidence_sha256 }}
+      harness_evidence_b64: ${{ steps.harness-evidence.outputs.harness_evidence_b64 }}
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Freeze source scope and comparison truth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=2ddd7b8604d5a40e3c83818f6f90bd82c5c4a963
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa19-20260916'
+          test "$(git merge-base "$SOURCE" HEAD)" = "$SOURCE"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_HARNESS_QUALIFICATION' docs/axiom_final_product/FA19_PREWRITE_INTENT.md
+          python - <<'PY'
+          import json,subprocess
+          source='2ddd7b8604d5a40e3c83818f6f90bd82c5c4a963'
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA19_') or p.startswith('axiom_interface/vnext/fa19_') or p.startswith('axiom_interface/vnext/tests/fa19_') or p.startswith('.github/scripts/axiom_fa19_') or p.startswith('.github/workflows/axiom-fa19-'))
+          bad=sorted(path for path in changed if not allowed(path))
+          if bad: raise SystemExit('FA19 change escaped frozen scope: '+repr(bad))
+          matrix=json.load(open('docs/axiom_final_product/FA19_COMPARISON_PROTOCOL.json'))
+          expected={
+            'source_commit':source,
+            'protocol_sha256':'eea8c3a4d3c85ca762201fcb5b06fd338ba0f9d3c2cc3ed280949cb138d4a465',
+            'candidate_state':'HARNESS_IMPLEMENTATION_PENDING_INDEPENDENT_QUALIFICATION',
+            'baseline_snapshot_documentation_only':True,
+            'comparative_score_authorized_from_documentation':False,
+            'required_external_run_receipts':20,
+            'external_run_receipts_present':0,
+            'external_trust_root_status':'PENDING_DISTINCT_EXTERNAL_EVALUATOR_REGISTRATION',
+            'trusted_evaluator_key_count':0,
+            'level_5_earned':False,
+            'level_6_earned':False,
+            'level_7_earned':False,
+            'phase_exit_earned':False,
+            'general_superiority_authorized':False,
+            'world_best_authorized':False,
+            'repository_write_authority_present':False,
+            'production_credentials_present':False,
+            'production_authority':False,
+            'fa16_tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER',
+            'fa16_phase_exit_earned':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+          }
+          drift={key:(matrix.get(key),value) for key,value in expected.items() if matrix.get(key)!=value}
+          if drift: raise SystemExit('FA19 truth boundary drift: '+repr(drift))
+          PY
+      - name: Full final-app regression and FA19 adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/fa19_external_comparison.mjs
+          node --check .github/scripts/axiom_fa19_evaluate.mjs
+          node --test axiom_interface/vnext/tests/*.test.mjs
+      - name: Prove fail-closed comparison harness boundary
+        id: harness-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa19-harness-evidence
+          node .github/scripts/axiom_fa19_evaluate.mjs \
+            --role builder \
+            --candidate-commit "$GITHUB_SHA" \
+            --output fa19-harness-evidence/fa19-harness-evidence.json
+          (cd fa19-harness-evidence && sha256sum fa19-harness-evidence.json > fa19-harness-evidence.sha256)
+          test "$(jq -r .status fa19-harness-evidence/fa19-harness-evidence.json)" = FA19_HARNESS_VERIFIED_EXTERNAL_COMPARISON_PENDING
+          test "$(jq -r .protocol_integrity_verified fa19-harness-evidence/fa19-harness-evidence.json)" = true
+          test "$(jq -r .external_run_receipts_present fa19-harness-evidence/fa19-harness-evidence.json)" = 0
+          test "$(jq -r .required_external_run_receipts fa19-harness-evidence/fa19-harness-evidence.json)" = 20
+          test "$(jq -r .level_5_earned fa19-harness-evidence/fa19-harness-evidence.json)" = false
+          test "$(jq -r .level_6_earned fa19-harness-evidence/fa19-harness-evidence.json)" = false
+          test "$(jq -r .level_7_earned fa19-harness-evidence/fa19-harness-evidence.json)" = false
+          test "$(jq -r .phase_exit_earned fa19-harness-evidence/fa19-harness-evidence.json)" = false
+          test "$(jq -r .production_authority fa19-harness-evidence/fa19-harness-evidence.json)" = false
+          echo "harness_evidence_sha256=$(sha256sum fa19-harness-evidence/fa19-harness-evidence.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "harness_evidence_b64=$(base64 -w0 fa19-harness-evidence/fa19-harness-evidence.json)" >> "$GITHUB_OUTPUT"
+      - name: Credential-free security review
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa19-security-scan.json
+          test "$(jq -r .status /tmp/fa19-security-scan.json)" = PASS_NO_OPEN_HIGH_SEVERITY
+          test "$(jq -r .high_or_critical_open /tmp/fa19-security-scan.json)" = 0
+          python .github/scripts/axiom_fa17_isolated_dast.py --self-test
+          python - <<'PY'
+          import pathlib,re
+          text='\n'.join(path.read_text() for path in pathlib.Path('.github/workflows').glob('axiom-fa19-*.yml'))
+          if re.search(r'(?m)^\s*(?:contents|actions|deployments|packages|id-token):\s*write\s*$',text): raise SystemExit('FA19 workflow has write authority')
+          if re.search(r'uses:\s*[^\s#]+@(?![0-9a-f]{40}(?:\s|$))',text): raise SystemExit('FA19 workflow action is not immutable')
+          for token in ['wrangler '+'deploy','kubectl '+'apply','terraform '+'apply','git '+'push','gh pr '+'merge']:
+              if token in text: raise SystemExit('FA19 workflow contains deploy/write command')
+          PY
+      - name: Upload harness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa19-comparison-harness-evidence
+          path: fa19-harness-evidence/
+          retention-days: 90
+
+  separate-security-review:
+    runs-on: ubuntu-24.04
+    needs: harness-test-and-attack
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Comparison-specific adversarial review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa19_*.test.mjs
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa19-security-review.json
+          test "$(jq -r .high_or_critical_open /tmp/fa19-security-review.json)" = 0
+
+  independent-verifier:
+    needs: [harness-test-and-attack, separate-security-review]
+    uses: ./.github/workflows/axiom-fa19-independent-verifier.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      builder_run_id: ${{ github.run_id }}
+      harness_evidence_sha256: ${{ needs.harness-test-and-attack.outputs.harness_evidence_sha256 }}
+      harness_evidence_b64: ${{ needs.harness-test-and-attack.outputs.harness_evidence_b64 }}
+    permissions:
+      contents: read
+      actions: read

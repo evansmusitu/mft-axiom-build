@@ -1,0 +1,167 @@
+{
+  "schema": "musitu.axiom.continuation06.v1",
+  "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+  "provider_readback": {
+    "source_sha": "beecc9507b9d8c7966df128462cb84273de61efd",
+    "workflow_run_id": 41329030634,
+    "artifact_id": 13092925262,
+    "artifact_sha256": "259350925a35915e8cae630de4a06bfe6626e787986c74b894d17cc7a4404ca2"
+  },
+  "provider_cancellation": {
+    "status": "UNRESOLVED",
+    "reason": "SAVED_REQUEST_ID_NOT_FOUND",
+    "exact_matches": 0,
+    "final_usage": null
+  },
+  "aborted_request_usage": {
+    "status": "UNKNOWN_PROVIDER_RECORD_NOT_FOUND",
+    "neurons": null,
+    "assumed_zero": false,
+    "provider_call_reservation_retained": 1,
+    "reservation_id": "reservation_db8f45a1306a4699a9f2f1ac9ab0bd39",
+    "work_state": "REVOKED",
+    "run_state": "FAILED",
+    "budget_refunded": false,
+    "observed_completed_account_neurons": 52.20908737182617
+  },
+  "custody": {
+    "accounts_visible": 1,
+    "result_info": {
+      "page": 1,
+      "per_page": 50,
+      "total_pages": 1,
+      "count": 1,
+      "total_count": 1
+    },
+    "production_account_visible": true,
+    "security_account_matches": [
+      {
+        "name": "MUSITU AXIOM Security Authority",
+        "id": "93f395f5121954671f92fffa453d6b61",
+        "id_sha256": "68d517b5b40ac48a42707ecc6bdec18e28a12255efc450857f297b3c91e2b6f2",
+        "is_production": true
+      }
+    ],
+    "independent_custody_proven": false
+  },
+  "d1": {
+    "workflow_run_id": 41330823895,
+    "artifact_id": 13093245882,
+    "artifact_sha256": "2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02",
+    "result": {
+      "schema": "musitu.axiom.live-acceptance.v1",
+      "run_id": "axiom-acceptance-20261101-05",
+      "started_at": "2026-11-01T17:18:59.737Z",
+      "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+      "scope": "ISOLATED_OWNER_AUTHORIZED_ACCEPTANCE_ONLY",
+      "independent_custody_certified": false,
+      "anti_rollback_certified": false,
+      "release_authorized": false,
+      "checks": {
+        "isolated_resources": {
+          "status": "FAILED",
+          "error": {
+            "name": "Error",
+            "code": "CF_7406",
+            "status": 403
+          }
+        }
+      },
+      "resources": {
+        "account_id": "93f395f5121954671f92fffa453d6b61"
+      },
+      "cleanup": {
+        "database": {
+          "id": null,
+          "retained": false,
+          "reason": "ONE_SHOT_LEDGER_AND_VERIFIABLE_ACCEPTANCE_RECORDS"
+        }
+      },
+      "limits": {
+        "hosted_sessions": 0,
+        "followup_cancellation_turns": 0,
+        "provider_calls": 0,
+        "network": "disabled",
+        "hard_token_or_currency_cap": false
+      },
+      "credential_preflight": [
+        {
+          "kind": "existing_api_token",
+          "status": "READ_ACCESS_VERIFIED"
+        }
+      ],
+      "capacity_observation": {
+        "observed_at": "2026-11-01T17:18:59.942Z",
+        "databases_listed": 11,
+        "inventory": [
+          {
+            "name": "musitu-axiom-operator-reviewer-20261006",
+            "database_id_sha256": "1d9dab38f0ef652f64578d6da13aaf2e59534ad7f474572587e10f67b89eb5f3"
+          },
+          {
+            "name": "musitu-axiom-support",
+            "database_id_sha256": "13ab2c98742f6a05ba20259d8a40da4c981d477d3f2a7f2e8df32ab160c6f932"
+          },
+          {
+            "name": "mft-axiom-claude-staging-20260927",
+            "database_id_sha256": "8814af703c5596f86408957b985564fc3faabae2c35acb608c6bb7cf9e870c73"
+          },
+          {
+            "name": "musitu-forge-edge",
+            "database_id_sha256": "7876536815763397a337f22e85b396776cff4788c3d17133305e4b2f42c85850"
+          },
+          {
+            "name": "musitu-forge-transport-20260913-2e824e7a",
+            "database_id_sha256": "a4b212f6848e1b1a3e83df5e23d589f4f9266657badef34ab525758fd12d383b"
+          },
+          {
+            "name": "musitu-fmi-global",
+            "database_id_sha256": "0a58cec8a69896bbea9c24cc5fb39b7ffa8b3be2924cf5ec49c12594db6406ab"
+          },
+          {
+            "name": "musitu-chemistry-commerce",
+            "database_id_sha256": "1052688d2a5156c8ee4139bdf174a02c0cde7513cd315ee75c86fb72bf60201f"
+          },
+          {
+            "name": "musitu-axiom-frontier-v5",
+            "database_id_sha256": "ef4e4341df61b458ef4c3a485de1434abd0dd242a218df3b4a719e069fd822c5"
+          },
+          {
+            "name": "musitu-axiom-prod",
+            "database_id_sha256": "7319454e5b52a48599ec321a07904ebb5f68bcafcd7ec5f456590061b55eae37"
+          },
+          {
+            "name": "mft-axiom-prod",
+            "database_id_sha256": "20ea477693a32cc54c96e00332fecf0dd0567b7933af52774676a8085105a4db"
+          },
+          {
+            "name": "mft-axiom-staging",
+            "database_id_sha256": "ddd8a6a8c7120ae7f90d93579d175c7b0d6326e0414774df3b2cdfb3e5b8bbb1"
+          }
+        ],
+        "existing_databases_deleted": 0,
+        "plan_or_billing_changed": false
+      },
+      "failure": {
+        "name": "Error",
+        "code": "CF_7406",
+        "status": 403
+      },
+      "completed_at": "2026-11-01T17:19:00.148Z",
+      "status": "FAILED"
+    }
+  },
+  "anti_rollback": {
+    "source_sha": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127",
+    "command": "python3 ops/trackb27/VERIFY_B27_LOCAL.py",
+    "isolated_source_extraction": true,
+    "manifest_and_inherited_source_hashes_verified": true,
+    "local_tests_passed": 15,
+    "security_outcome": "GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED",
+    "external_tests_executed": false,
+    "log_sha256": "7b640d82d32381f05ffe47b9b58abe4bb6c6b56a01d77d05b30b099162329268"
+  },
+  "inference_calls_this_continuation": 0,
+  "existing_database_mutations": 0,
+  "release_authorized": false
+}

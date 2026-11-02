@@ -1,0 +1,312 @@
+{
+  "schema": "musitu.axiom.hosted-agents-acceptance-evidence.v1",
+  "status": "BLOCKED_PROVIDER_USAGE_LIMIT",
+  "provider_error_code": "usage_limit_exceeded",
+  "successful_output_and_completion_receipt_qualified": false,
+  "active_turn_cancellation_qualified": false,
+  "saved_identity_and_remote_checkpoint_qualified": true,
+  "terminal_failure_recovery_qualified": true,
+  "all_sessions_delete_acknowledged_and_get404": true,
+  "governance_scope": "LOCAL_WORKERD_WITH_REMOTE_ARTIFACT_CHECKPOINTS_NOT_HOSTED_D1",
+  "further_automatic_dispatch": "PINNED_OFF",
+  "final_governed_state": {
+    "run_status": "FAILED",
+    "provider_call_reservations": 1,
+    "provider_calls": 1,
+    "successful_artifacts": 0,
+    "evidence_records": 0,
+    "invocation_error_code": "HOSTED_TURN_FAILED"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "artifact_sha256": "41cef72ff9f98ca8424fc42400012f3c56c49f6cc23216716c1ce576b199550b",
+      "report": {
+        "schema": "musitu.axiom.runner-hosted-acceptance.v1",
+        "run_id": "axiom-acceptance-20261101-01",
+        "source_sha": "b917362878757c9ad4c09b5f7ca10212d9bab46d",
+        "started_at": "2026-11-01T05:53:07.104Z",
+        "scope": "OPENAI_HOSTED_MODEL_WITH_LOCAL_WORKERD_GOVERNANCE",
+        "hosted_storage_qualified": false,
+        "hosted_d1_blocker": "CF_7406_ACCOUNT_DATABASE_LIMIT",
+        "remote_claim_artifact_id": 13071913598,
+        "resources": {
+          "session_id": "sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c",
+          "primary_turn_id": "turn_0f98359bc2ef389b006ae6d3c8ea38819db85a93fc6fb386d9"
+        },
+        "checkpoint_probe_artifact_id": 13071798885,
+        "checkpoints": [
+          {
+            "artifact_id": 13072282416,
+            "name": "axiom-hosted-checkpoint-41278597576-1",
+            "checkpoint": {
+              "session_id": "sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c",
+              "turn_id": null
+            },
+            "sha256": "b23a3a27c566436c9581795920900e45450035d96e22da89b5f46c2b5b2fe7f3"
+          },
+          {
+            "artifact_id": 13071998249,
+            "name": "axiom-hosted-checkpoint-41278597576-2",
+            "checkpoint": {
+              "session_id": "sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c",
+              "turn_id": "turn_0f98359bc2ef389b006ae6d3c8ea38819db85a93fc6fb386d9"
+            },
+            "sha256": "e3bc0842e8316cf7afff2212b1cd0950f021ee960eb8ca539fef911508353d1b"
+          }
+        ],
+        "checks": {
+          "governed_hosted_task": {
+            "status": "FAILED",
+            "error": {
+              "name": "InvalidStateError",
+              "code": "11",
+              "status": null
+            }
+          }
+        },
+        "cleanup": {
+          "active_turn_cancel_requested": true,
+          "session": {
+            "id": "sess_0f98359bc2ef389b006ae6d3c45d90819da04de8d14d057f1c",
+            "delete_acknowledged": true,
+            "readback_status": 404,
+            "sandbox_destruction": "ASYNCHRONOUS_NOT_INDEPENDENTLY_ATTESTED"
+          }
+        },
+        "independent_custody_certified": false,
+        "anti_rollback_certified": false,
+        "release_authorized": false,
+        "limits": {
+          "sessions": 1,
+          "cancellation_followup_turns": 1,
+          "hard_token_or_currency_cap": false
+        },
+        "initial_observation_error": {
+          "name": "InvalidStateError",
+          "code": "11",
+          "status": null
+        },
+        "reconciliation_error": {
+          "name": "InvalidStateError",
+          "code": "11",
+          "status": null
+        },
+        "completed_at": "2026-11-01T05:53:49.350Z",
+        "status": "FAILED"
+      }
+    },
+    {
+      "attempt": 2,
+      "artifact_sha256": "a7733bdd14615ff1f1e1c16c1bd5d981a4caaa022b6f2aaa6f3307c6a7689857",
+      "report": {
+        "schema": "musitu.axiom.runner-hosted-acceptance.v1",
+        "run_id": "axiom-acceptance-20261101-02",
+        "source_sha": "e8bc36e40d06c7361d4f5e0dfad66a99743901bc",
+        "started_at": "2026-11-01T06:00:33.057Z",
+        "scope": "OPENAI_HOSTED_MODEL_WITH_LOCAL_WORKERD_GOVERNANCE",
+        "hosted_storage_qualified": false,
+        "hosted_d1_blocker": "CF_7406_ACCOUNT_DATABASE_LIMIT",
+        "remote_claim_artifact_id": 13072283172,
+        "resources": {
+          "session_id": "sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9",
+          "primary_turn_id": "turn_0511bcd34e3b2dbc006ae6d586f010819ebf2ce4b4ea7473e8"
+        },
+        "checkpoint_probe_artifact_id": 13072248234,
+        "checkpoints": [
+          {
+            "artifact_id": 13072198573,
+            "name": "axiom-hosted-checkpoint-41279039771-1",
+            "checkpoint": {
+              "session_id": "sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9",
+              "turn_id": null
+            },
+            "sha256": "e9ef1dd435f7110b2a6eea820c6990dbc5e6d6135c486af6313ea60468029ed1"
+          },
+          {
+            "artifact_id": 13072466623,
+            "name": "axiom-hosted-checkpoint-41279039771-2",
+            "checkpoint": {
+              "session_id": "sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9",
+              "turn_id": "turn_0511bcd34e3b2dbc006ae6d586f010819ebf2ce4b4ea7473e8"
+            },
+            "sha256": "8c4bd058a17e643b8ab1c1df5d854f836c99315ce7b501b4b080f63ededea6bc"
+          }
+        ],
+        "checks": {
+          "governed_hosted_task": {
+            "status": "FAILED",
+            "error": {
+              "name": "InvalidStateError",
+              "code": "11",
+              "status": null
+            }
+          }
+        },
+        "cleanup": {
+          "active_turn_cancel_requested": true,
+          "session": {
+            "id": "sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9",
+            "delete_acknowledged": true,
+            "readback_status": 404,
+            "sandbox_destruction": "ASYNCHRONOUS_NOT_INDEPENDENTLY_ATTESTED"
+          }
+        },
+        "independent_custody_certified": false,
+        "anti_rollback_certified": false,
+        "release_authorized": false,
+        "limits": {
+          "sessions": 1,
+          "cancellation_followup_turns": 1,
+          "hard_token_or_currency_cap": false
+        },
+        "provider_observations": [
+          {
+            "stage": "create_observer",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_FAILED",
+            "status": null
+          },
+          {
+            "stage": "wait_for_completion",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_FAILED",
+            "status": null
+          },
+          {
+            "stage": "wait_for_completion",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_FAILED",
+            "status": null
+          },
+          {
+            "stage": "wait_for_completion",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_FAILED",
+            "status": null
+          }
+        ],
+        "initial_observation_error": {
+          "name": "InvalidStateError",
+          "code": "11",
+          "status": null
+        },
+        "reconciliation_error": {
+          "name": "InvalidStateError",
+          "code": "11",
+          "status": null
+        },
+        "provider_status_before_cleanup": {
+          "turn_id": "turn_0511bcd34e3b2dbc006ae6d586f010819ebf2ce4b4ea7473e8",
+          "session_id": "sess_0511bcd34e3b2dbc006ae6d582055c819e84a5078d8ca685c9",
+          "status": "failed",
+          "object": "agent.session.turn"
+        },
+        "completed_at": "2026-11-01T06:01:14.156Z",
+        "status": "FAILED"
+      }
+    },
+    {
+      "attempt": 3,
+      "artifact_sha256": "629fb96660103074fb469c4faf8200368d03f6cc5c20450540fa216b005395b3",
+      "report": {
+        "schema": "musitu.axiom.runner-hosted-acceptance.v1",
+        "run_id": "axiom-acceptance-20261101-03",
+        "source_sha": "a515bf57bf8441e6b218c1625bf17b4478a89c46",
+        "started_at": "2026-11-01T06:14:21.003Z",
+        "scope": "OPENAI_HOSTED_MODEL_WITH_LOCAL_WORKERD_GOVERNANCE",
+        "hosted_storage_qualified": false,
+        "hosted_d1_blocker": "CF_7406_ACCOUNT_DATABASE_LIMIT",
+        "remote_claim_artifact_id": 13072454403,
+        "resources": {
+          "session_id": "sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538",
+          "primary_turn_id": "turn_05e73702a5f56bd0006ae6d8c389708192805cb21cc95ae28b"
+        },
+        "checkpoint_probe_artifact_id": 13072956477,
+        "checkpoints": [
+          {
+            "artifact_id": 13073150988,
+            "name": "axiom-hosted-checkpoint-41279972075-1",
+            "checkpoint": {
+              "session_id": "sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538",
+              "turn_id": null
+            },
+            "sha256": "dfb02e34e9a0a514be28908b4f92dfd0044039e3bc1f4108584f9104ac3bd7e5"
+          },
+          {
+            "artifact_id": 13072956491,
+            "name": "axiom-hosted-checkpoint-41279972075-2",
+            "checkpoint": {
+              "session_id": "sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538",
+              "turn_id": "turn_05e73702a5f56bd0006ae6d8c389708192805cb21cc95ae28b"
+            },
+            "sha256": "f276271ecb0eab72969c48792ef6c1a750ad51af18ea5f3c39c840813d2e6bea"
+          }
+        ],
+        "checks": {
+          "governed_hosted_task": {
+            "status": "FAILED",
+            "error": {
+              "name": "InvalidStateError",
+              "code": "11",
+              "status": null
+            }
+          }
+        },
+        "cleanup": {
+          "active_turn_cancel_requested": true,
+          "delete_error": {
+            "name": "HostedAgentError",
+            "code": "HOSTED_PROVIDER_ERROR",
+            "status": null
+          },
+          "session": {
+            "id": "sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538",
+            "delete_acknowledged": true,
+            "readback_status": 404,
+            "sandbox_destruction": "ASYNCHRONOUS_NOT_INDEPENDENTLY_ATTESTED"
+          }
+        },
+        "independent_custody_certified": false,
+        "anti_rollback_certified": false,
+        "release_authorized": false,
+        "limits": {
+          "sessions": 1,
+          "cancellation_followup_turns": 1,
+          "hard_token_or_currency_cap": false
+        },
+        "provider_observations": [
+          {
+            "stage": "create_observer",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_INCOMPLETE",
+            "status": null
+          },
+          {
+            "stage": "wait_for_completion",
+            "name": "HostedAgentError",
+            "code": "HOSTED_TURN_FAILED",
+            "status": null,
+            "provider_error_code": "usage_limit_exceeded"
+          }
+        ],
+        "initial_observation_error": {
+          "name": "InvalidStateError",
+          "code": "11",
+          "status": null
+        },
+        "reconciled_terminal_status": "failed",
+        "provider_status_before_cleanup": {
+          "turn_id": "turn_05e73702a5f56bd0006ae6d8c389708192805cb21cc95ae28b",
+          "session_id": "sess_05e73702a5f56bd0006ae6d8bdd54c8192997871f2c6ef9538",
+          "status": "failed",
+          "object": "agent.session.turn",
+          "provider_error_code": "usage_limit_exceeded"
+        },
+        "completed_at": "2026-11-01T06:14:36.335Z",
+        "status": "FAILED"
+      }
+    }
+  ],
+  "release_authorized": false
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "musitu.axiom.fa19.comparison-matrix.v1",
+  "phase": "FA-19",
+  "name": "External Comparative Evaluation",
+  "source_commit": "2ddd7b8604d5a40e3c83818f6f90bd82c5c4a963",
+  "protocol_sha256": "eea8c3a4d3c85ca762201fcb5b06fd338ba0f9d3c2cc3ed280949cb138d4a465",
+  "candidate_state": "HARNESS_IMPLEMENTATION_PENDING_INDEPENDENT_QUALIFICATION",
+  "baseline_snapshot_checked_at": "2026-09-16",
+  "baseline_snapshot_documentation_only": true,
+  "comparative_score_authorized_from_documentation": false,
+  "required_systems": [
+    "MUSITU_AXIOM",
+    "OPENAI_CODEX",
+    "ANTHROPIC_CLAUDE_CODE",
+    "COGNITION_DEVIN",
+    "WINDSURF_CASCADE"
+  ],
+  "required_tasks": [
+    "BUG_REPRO_MINIMAL_REPAIR",
+    "CROSS_FILE_FEATURE_REGRESSION",
+    "SECURITY_FAIL_CLOSED_REPAIR",
+    "ROLLBACK_EXACT_RESTORE"
+  ],
+  "required_external_run_receipts": 20,
+  "external_run_receipts_present": 0,
+  "external_trust_root_status": "PENDING_DISTINCT_EXTERNAL_EVALUATOR_REGISTRATION",
+  "trusted_evaluator_key_count": 0,
+  "level_5_earned": false,
+  "level_6_earned": false,
+  "level_7_earned": false,
+  "phase_exit_earned": false,
+  "matched_task_set_result_authorized": false,
+  "general_superiority_authorized": false,
+  "world_best_authorized": false,
+  "repository_write_authority_present": false,
+  "production_credentials_present": false,
+  "production_authority": false,
+  "fa16_tablet_evidence": "DEFERRED_PENDING_FUTURE_CUSTOMER",
+  "fa16_phase_exit_earned": false,
+  "wolfram_parity": "NOT_CERTIFIED",
+  "superiority": "NOT_CERTIFIED"
+}

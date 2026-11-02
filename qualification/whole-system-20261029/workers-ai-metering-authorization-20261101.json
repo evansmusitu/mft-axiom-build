@@ -1,0 +1,9 @@
+{
+  "schema": "musitu.axiom.workers-ai-metering-authorization.v1",
+  "user_instruction": "Just use that account",
+  "purpose": "Reconcile delayed account-wide usage after the completed bounded acceptance",
+  "inference_calls": 0,
+  "billing_changes": false,
+  "production_changes": false,
+  "release_authorized": false
+}

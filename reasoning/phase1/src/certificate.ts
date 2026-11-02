@@ -56,7 +56,7 @@ export function prepareReasoningCertificate(
 
   const core=json({
     certificateVersion:"0.1",programHash:execution.programHash,inputMerkleRoot:execution.inputMerkleRoot,
-    runtimeVersion:AxiomRuntime.VERSION,irVersion:program.irVersion,operationManifest:execution.operationManifest,
+    runtimeVersion:AxiomRuntime.VERSION,irVersion:program.irVersion,operationManifest:execution.operationManifest,compilerManifest:execution.compilerManifest,
     traceHash:hashJson(json(execution.trace)),assumptions:program.assumptions,verificationResults:execution.verifications,
     outputs:execution.outputs,outputsHash:hashJson(json(execution.outputs)),executionHash:execution.executionHash,decisionStatus:execution.decisionStatus
   });

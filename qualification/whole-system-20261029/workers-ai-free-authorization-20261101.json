@@ -1,0 +1,12 @@
+{
+  "schema": "musitu.axiom.workers-ai-free-authorization.v1",
+  "user_instruction": "Do it",
+  "context": "Qualify the existing Workers AI path within its free allowance; preserve release gates.",
+  "invocation": "workers-ai-free-preflight-20261101-01",
+  "preflight_only": true,
+  "max_inference_calls": 0,
+  "billing_or_plan_changes": false,
+  "existing_database_changes": false,
+  "production_changes": false,
+  "release_authorized": false
+}

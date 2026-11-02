@@ -1,0 +1,114 @@
+name: AXIOM current D1 inventory read only
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/axiom-d1-inventory-20261101.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-current-d1-inventory-20261101
+  cancel-in-progress: false
+jobs:
+  inventory:
+    if: github.event.pull_request.head.sha == '685d52ff9f59fc5d467c3477057aacb2d362340c' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct authorized read-only inventory
+        run: test "$(git rev-parse HEAD^)" = 443ceb3c3f11367ccf3372f23bd20104231d9037
+      - name: Read database identifiers sizes and existing bindings without data queries
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PYTHON'
+          import os,json,re,hashlib,datetime,urllib.request,urllib.error,urllib.parse,concurrent.futures
+          from pathlib import Path
+          account='93f395f5121954671f92fffa453d6b61'
+          prefix='/accounts/'+account
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          assert token.strip(), 'existing Cloudflare credential missing'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          def get(path):
+              assert path.startswith(prefix+'/') and not any(c in path for c in ['\n','\r','#']), 'fixed account required'
+              request=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'},method='GET')
+              try:
+                  with urllib.request.build_opener(NoRedirect).open(request,timeout=20) as response:
+                      raw=response.read(2000001)
+                      assert len(raw)<=2000000, 'metadata response exceeds bound'
+                      data=json.loads(raw)
+              except urllib.error.HTTPError as e: raise RuntimeError('provider HTTP '+str(e.code)) from None
+              if data.get('success') is False: raise RuntimeError('provider denied metadata request')
+              return data
+          def listing(resource):
+              all_rows=[]
+              for page in range(1,11):
+                  data=get(prefix+resource+'?per_page=100&page='+str(page))
+                  current=data.get('result');assert isinstance(current,list), 'metadata list missing'
+                  all_rows.extend(current);info=data.get('result_info') or {}
+                  if not current: return all_rows
+                  if info.get('total_pages') is not None:
+                      if page>=int(info['total_pages']): return all_rows
+                  elif info.get('total_count') is not None:
+                      if len(all_rows)>=int(info['total_count']): return all_rows
+                  elif len(current)<int(info.get('per_page') or 100): return all_rows
+              raise RuntimeError('metadata pagination limit reached')
+          report={'schema':'musitu.axiom.current-d1-inventory.v1','observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_sha':os.environ['SOURCE_SHA'],'account_id':account,'remote_writes':0,'sql_queries':0,'inference_calls':0,'databases':[],'bindings':[],'coverage':{},'errors':[]}
+          def capture(label,fn):
+              try: return fn()
+              except Exception as e: report['errors'].append({'scope':label,'error':str(e)[:120]});return None
+          databases=capture('database_list',lambda:listing('/d1/database'))
+          if databases is None: raise RuntimeError('cannot obtain current database list')
+          def db_metadata(row):
+              identifier=row.get('uuid');assert re.fullmatch('[0-9a-fA-F-]{36}',identifier or ''), 'database identifier invalid'
+              detail=get(prefix+'/d1/database/'+identifier).get('result') or {}
+              return {'name':detail.get('name',row.get('name')),'uuid':identifier,'created_at':detail.get('created_at',row.get('created_at')),'file_size_bytes':detail.get('file_size'),'num_tables_provider_metadata':detail.get('num_tables'),'version':detail.get('version'),'jurisdiction':detail.get('jurisdiction',row.get('jurisdiction'))}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+              futures={pool.submit(db_metadata,row):row for row in databases}
+              for future in concurrent.futures.as_completed(futures):
+                  row=futures[future]
+                  try: report['databases'].append(future.result())
+                  except Exception as e:
+                      report['databases'].append({'name':row.get('name'),'uuid':row.get('uuid'),'metadata_error':str(e)[:120]})
+          scripts=capture('worker_list',lambda:listing('/workers/scripts'))
+          def worker_bindings(row):
+              name=row.get('id') or row.get('name');assert isinstance(name,str), 'worker identity missing'
+              settings=get(prefix+'/workers/scripts/'+urllib.parse.quote(name,safe='')+'/settings').get('result') or {}
+              return [{'kind':'worker','worker':name,'binding':b.get('name'),'database_id':b.get('id') or b.get('database_id')} for b in settings.get('bindings',[]) if b.get('type')=='d1']
+          if scripts is not None:
+              report['coverage']['workers_listed']=len(scripts);report['coverage']['worker_settings_read']=0
+              with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+                  futures={pool.submit(worker_bindings,row):row for row in scripts}
+                  for future in concurrent.futures.as_completed(futures):
+                      try: report['bindings'].extend(future.result());report['coverage']['worker_settings_read']+=1
+                      except Exception as e: report['errors'].append({'scope':'worker_settings','worker':futures[future].get('id'),'error':str(e)[:120]})
+          pages=capture('pages_projects',lambda:listing('/pages/projects'))
+          if pages is not None:
+              report['coverage']['pages_projects_listed']=len(pages)
+              for project in pages:
+                  for environment,config in (project.get('deployment_configs') or {}).items():
+                      for name,binding in (config.get('d1_databases') or {}).items():
+                          report['bindings'].append({'kind':'pages','project':project.get('name'),'environment':environment,'binding':name,'database_id':binding.get('id') or binding.get('database_id')})
+          report['databases'].sort(key=lambda x:x['name']);report['bindings'].sort(key=lambda x:json.dumps(x,sort_keys=True))
+          for database in report['databases']:
+              database['observed_bindings']=[b for b in report['bindings'] if b['database_id']==database['uuid']]
+          report['database_count']=len(report['databases']);report['completed_at']=datetime.datetime.now(datetime.timezone.utc).isoformat();report['binding_coverage_scope']='CURRENT_LISTED_WORKER_SCRIPT_SETTINGS_AND_PAGES_DEPLOYMENT_CONFIGS_NOT_ALL_EXTERNAL_CLIENTS'
+          raw=(json.dumps(report,indent=2,sort_keys=True)+'\n').encode();Path('d1-inventory.json').write_bytes(raw);Path('d1-inventory.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  d1-inventory.json\n')
+          print(json.dumps({'database_count':len(report['databases']),'remote_writes':0,'sql_queries':0,'inference_calls':0,'errors':report['errors'],'artifact_sha256':hashlib.sha256(raw).hexdigest()}))
+          PYTHON
+      - name: Preserve only selected metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-current-d1-inventory-20261101
+          path: |
+            d1-inventory.json
+            d1-inventory.sha256
+          retention-days: 30
+          if-no-files-found: error

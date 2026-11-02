@@ -1,0 +1,23 @@
+.evidence-observatory-space{display:grid;gap:var(--space-5);padding-bottom:var(--space-8)}
+.evidence-observatory-space[hidden]{display:none}
+.evidence-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3)}
+.evidence-summary article{display:grid;gap:.25rem;padding:var(--space-4);border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-raised)}
+.evidence-summary strong{font-size:1.35rem;color:var(--text-strong)}
+.evidence-summary span{font-size:.82rem;color:var(--text-muted)}
+.evidence-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(18rem,.8fr);gap:var(--space-4);align-items:start}
+.evidence-ledger,.trust-document-list{display:grid;gap:var(--space-3)}
+.evidence-entry,.trust-document{padding:var(--space-4);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
+.evidence-entry[data-status="FAIL"],.evidence-entry[data-status="CONTAMINATED"]{border-inline-start:4px solid var(--danger)}
+.evidence-entry[data-status="NOT_RUN"],.evidence-entry[data-status="RETIRED"]{border-inline-start:4px solid var(--warning)}
+.evidence-entry h4,.trust-document a{margin:0;color:var(--text-strong);font-weight:700}
+.evidence-entry p,.trust-document p{margin:.45rem 0;color:var(--text-muted)}
+.evidence-entry details{margin-top:var(--space-3)}
+.evidence-entry li{margin:.45rem 0;overflow-wrap:anywhere}
+.evidence-policy,.evidence-digest{font:var(--font-mono);font-size:.76rem;overflow-wrap:anywhere}
+.evidence-policy-list{display:grid;gap:var(--space-2)}
+.evidence-policy-list div{display:grid;grid-template-columns:minmax(8rem,.35fr) 1fr;gap:var(--space-3)}
+.evidence-policy-list dt{font-weight:700}.evidence-policy-list dd{margin:0;overflow-wrap:anywhere}
+#evidence-claim-result{max-height:28rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:980px){.evidence-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.evidence-layout{grid-template-columns:1fr}}
+@media(max-width:560px){.evidence-summary{grid-template-columns:1fr}.evidence-observatory-space .section-heading{align-items:flex-start}.evidence-policy-list div{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.evidence-observatory-space *{scroll-behavior:auto!important}}

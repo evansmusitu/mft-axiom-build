@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.axiom.workers-ai-live-authorization.v1",
+  "user_instruction": "Just use that account",
+  "account_id": "93f395f5121954671f92fffa453d6b61",
+  "invocation": "workers-ai-acceptance-20261101-01",
+  "parent_source": "07326ca9aef2d498027bd19dd35150b1a3013e82",
+  "max_inference_calls": 3,
+  "max_output_tokens_per_call": 1800,
+  "max_input_bytes_per_call": 8000,
+  "required_current_daily_neurons_at_most": 500,
+  "target": "Existing account's 10000-neuron daily free allowance",
+  "limitation": "Account-wide analytics are not an atomic billing cap or an invoice readback.",
+  "automatic_inference_retries": false,
+  "billing_or_plan_changes": false,
+  "production_changes": false,
+  "release_authorized": false
+}

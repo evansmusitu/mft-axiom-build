@@ -95,6 +95,7 @@ export async function captureBoundedJsonResponse(input:{
   allowedMediaTypes:string[];
   maxResponseBytes:number;
   secrets?:string[];
+  signal?:AbortSignal;
 }):Promise<CapturedEvidence> {
   const {response}=input;
   if(response.status>=300&&response.status<400)throw new EvidenceAdapterError("UPSTREAM_REDIRECT","Upstream redirects are not allowed",502);
@@ -105,19 +106,29 @@ export async function captureBoundedJsonResponse(input:{
   const chunks:Uint8Array[]=[];let total=0;
   const reader=response.body?.getReader();
   if(reader){
+    const timeout=()=>new EvidenceAdapterError("UPSTREAM_TIMEOUT","Upstream response body timed out",504);
+    let rejectAbort:(error:Error)=>void=()=>{};
+    const aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;});
+    const onAbort=()=>{
+      rejectAbort(timeout());
+      void reader.cancel().catch(()=>{});
+    };
+    if(input.signal?.aborted){void reader.cancel().catch(()=>{});throw timeout();}
+    input.signal?.addEventListener("abort",onAbort,{once:true});
     try{
       while(true){
-        const next=await reader.read();
+        const next=await Promise.race([reader.read(),aborted]);
+        if(input.signal?.aborted)throw timeout();
         if(next.done)break;
         const chunk=next.value;
         total+=chunk.byteLength;
         if(total>input.maxResponseBytes){
-          try{await reader.cancel();}catch{}
+          void reader.cancel().catch(()=>{});
           throw new EvidenceAdapterError("UPSTREAM_TOO_LARGE","Upstream response size exceeds configured byte limit",413);
         }
         chunks.push(chunk);
       }
-    }finally{try{reader.releaseLock();}catch{}}
+    }finally{input.signal?.removeEventListener("abort",onAbort);try{reader.releaseLock();}catch{}}
   }
   const bytes=Buffer.concat(chunks.map(x=>Buffer.from(x)),total);
   let body:string;
@@ -193,12 +204,13 @@ export class HttpJsonEvidenceAdapter implements EvidenceAdapter {
     try{
       response=await this.fetchFn(url,{method:op.method,headers,body,redirect:"manual",signal:controller.signal});
     }catch(error){
+      clearTimeout(timer);
       if(controller.signal.aborted)throw new EvidenceAdapterError("UPSTREAM_TIMEOUT","Upstream request timed out",504);
       throw new EvidenceAdapterError("UPSTREAM_NETWORK","Upstream request failed",502);
-    }finally{clearTimeout(timer);}
-    return captureBoundedJsonResponse({
+    }
+    try{return await captureBoundedJsonResponse({
       response,allowedStatus:op.allowedStatus,allowedMediaTypes:op.manifest.responseMediaTypes,
-      maxResponseBytes:op.manifest.maxResponseBytes,secrets
-    });
+      maxResponseBytes:op.manifest.maxResponseBytes,secrets,signal:controller.signal
+    });}finally{clearTimeout(timer);}
   }
 }

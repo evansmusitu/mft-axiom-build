@@ -1,0 +1,11 @@
+{
+  "run_id": "axiom-acceptance-20261101-01",
+  "checkpoint": 2,
+  "prior_attempt": "Cloudflare rejected the first configured credential before resource creation or hosted inference; check the other existing credential using GET only before proceeding.",
+  "authorization": "user-request-20261101-governed-hosted-one",
+  "source": "Explicit user request: one governed hosted task, isolated storage migrations, tenant isolation, revocation, budgets, recovery and cleanup.",
+  "hosted_session_limit": 1,
+  "followup_cancellation_turn_limit": 1,
+  "production_routes": false,
+  "independent_custody_or_release_authority": false
+}

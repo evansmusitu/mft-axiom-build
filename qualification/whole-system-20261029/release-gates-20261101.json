@@ -1,0 +1,491 @@
+{
+  "schema": "musitu.axiom.release-gates.v1",
+  "release_authorized": false,
+  "merge_authorized_by_evidence": false,
+  "deploy_authorized_by_evidence": false,
+  "publication_authorized_by_evidence": false,
+  "user_sequence": "Owner skipped independent verification (item 2) for eventual publication. Remaining provider evidence and anti-rollback gates are unchanged; merge, deploy and public reviewer checks precede publication.",
+  "custody": {
+    "status": "INDEPENDENT_VERIFICATION_SKIPPED_BY_OWNER_CUSTODY_UNQUALIFIED",
+    "independent_verifier_activated": false,
+    "missing": [
+      "Distinct independent verifier identity, direct authenticated acceptance and provider identity; existing owner-custodian appointment is preserved",
+      "Independent MFA and recovery-admin separation; sole visible administrator MFA confirmed only",
+      "Exclusive verifier key custody outside builder and owner-custodian reset/control",
+      "Independent policy veto, revocation and kill authority",
+      "Two authenticated independent evidence readback origins"
+    ],
+    "provider_account_readback": {
+      "account_matches_known_production": true,
+      "accepted_members": 1,
+      "member_mfa_enabled": true,
+      "account_enforce_twofactor": false,
+      "independent_custody_proven": false,
+      "workflow_run_id": 41389928351,
+      "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+      "observed_at": "2026-11-02T04:42:28.146Z",
+      "artifact": {
+        "id": 13116971492,
+        "sha256": "e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce",
+        "download_hash_verified": true
+      },
+      "evidence": "saved-provider-readback11-20261102.json",
+      "protected_staging_secret_used": false
+    },
+    "prior_provider_account_readback": {
+      "workflow_run_id": 41329030634,
+      "account_matches_known_production": true,
+      "visible_accounts": 1,
+      "separate_account_visibility": "NOT_ESTABLISHED",
+      "independent_review_submissions_pr62": 0,
+      "protected_staging_secret_used": false
+    },
+    "owner_custodian_appointment": {
+      "status": "AUTHORIZED_DECISION_ONLY",
+      "date": "2026-10-24",
+      "carried_forward": true,
+      "external_identity_or_independence_verified": false,
+      "basis": [
+        "4_CUSTODIAN_OWNER_ONBOARDING_S0_20261024.md",
+        "2_CUSTODIAN_OWNER_ENROLLMENT_S0_20261024.md"
+      ]
+    },
+    "distinct_independent_verifier": {
+      "status": "SKIPPED_BY_OWNER",
+      "owner_custodian_may_not_self_certify": true,
+      "pr62_review_submissions": 0,
+      "prior_status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
+      "required_for_owner_release": false
+    },
+    "prior_provider_account_readback_continuation09": {
+      "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+      "account_matches_known_production": true,
+      "visible_accounts": 1,
+      "accepted_members": 1,
+      "member_mfa_enabled": true,
+      "account_enforce_twofactor": false,
+      "member_role": "Super Administrator - All Privileges",
+      "independent_member_or_verifier_established": false,
+      "independent_key_custody_proven": false,
+      "independent_recovery_administration_proven": false,
+      "pr62_review_submissions": 0,
+      "token_actor_lookup": {
+        "http_status": 403,
+        "codes": [
+          9109
+        ]
+      },
+      "staging_secret_boundary_bypassed": false,
+      "workflow_run_id": 41348310191,
+      "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+      "observed_at": "2026-11-01T20:43:42.077Z",
+      "artifact": {
+        "id": 13100545422,
+        "sha256": "c76c3f05c51915de42a76b613e65bc24c50a084c30280d26ebfff8c119e25530",
+        "download_hash_verified": true
+      },
+      "evidence": "authority-provider-reconciliation09-20261102.json"
+    },
+    "status_before_owner_review_waiver": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
+    "independent_review_requirement": {
+      "status": "SKIPPED_BY_OWNER",
+      "qualification": "UNQUALIFIED_NOT_PERFORMED",
+      "date": "2026-11-02",
+      "required_for_owner_release": false,
+      "owner_statement": "2 we are going to leave it just record it being skipped will publish without that",
+      "evidence": "OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md",
+      "independent_verifier_accepted": false,
+      "independent_custody_certified": false,
+      "runtime_guards_disabled": false
+    }
+  },
+  "anti_rollback": {
+    "status": "OPT_IN_GITHUB_ANCHOR_REAL_PROVIDER_LOCAL_RESTORE_PASS_HOSTED_ACCEPTANCE_UNQUALIFIED",
+    "missing": [
+      "Hosted deployment of the anchor-integrated authority with approved production artifact pins, using the now-qualified scoped credentials",
+      "Separate-host destructive recovery/race qualification, including restored builder and authority stores",
+      "Disposable-repository deletion/resurrection and disabling-new-immutability tests with authenticated evidence",
+      "Reviewed pending-checkpoint recovery and durable credential/key administration; no local fallback or automatic refund",
+      "Production deployment evidence; immutable checkpoints do not attest the running signer or protect against arbitrary malicious state/sequence fabrication"
+    ],
+    "fresh_local_reproduction": {
+      "source_sha": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127",
+      "command": "python3 ops/trackb27/VERIFY_B27_LOCAL.py",
+      "isolated_source_extraction": true,
+      "manifest_and_inherited_source_hashes_verified": true,
+      "local_tests_passed": 15,
+      "security_outcome": "GLOBAL_ROLLBACK_COUNTEREXAMPLE_REPRODUCED_NOT_FIXED",
+      "external_tests_executed": false,
+      "log_sha256": "7b640d82d32381f05ffe47b9b58abe4bb6c6b56a01d77d05b30b099162329268"
+    },
+    "local_candidate": {
+      "evidence": "external-ledger-component-20261101.json",
+      "operator_package": "integrations/independent-ledger/README.md",
+      "local_tests_passed": 22,
+      "builder_restore_fenced": true,
+      "authority_root_restore_protected": false,
+      "independent_operator_accepted": false,
+      "live_external_qualification": false,
+      "deployed": false,
+      "positive_guard_checks_passed": 21,
+      "authority_admin_restore_counterexample_reproduced": true,
+      "ci_evidence": "external-ledger-ci-20261101.json"
+    },
+    "activation_request": "INDEPENDENT_AUTHORITY_ACTIVATION_20261101.md",
+    "missing_before_owner_review_waiver": [
+      "Independent accepted deployment of the external atomic consume ledger and an independently anchored monotonic high-water state; a deployable local candidate is now built",
+      "Live independent epoch and revocation acceptance; local component enforcement passes",
+      "Cross-host destructive recovery challenge with concurrent replay, lost acknowledgments, partitions and restored builder-controlled storage",
+      "Consumed requests remain DENY/HOLD without local fallback after destruction of all builder-controlled journals and backups",
+      "Independent signature over exact tested artifact digest",
+      "Detection or prevention of restoring the authority administrator's own older ledger store; current candidate does not provide this anchor"
+    ],
+    "independent_human_review_required_for_owner_release": false,
+    "candidate_qualification_plan": "GITHUB_IMMUTABLE_ANCHOR_QUALIFICATION_PLAN_20261102.md",
+    "github_immutable_anchor": {
+      "status": "OPT_IN_IMPLEMENTED_REAL_GITHUB_LOCAL_WORKERD_RESTORE_PASS_HOSTED_UNQUALIFIED",
+      "account_entitlement_verified": true,
+      "dedicated_repository_configured": true,
+      "root_restore_fixed": false,
+      "existing_private_qualification_repository": "evansmusitu/mft-axiom-qualification-isolated-20260913",
+      "repository_id": 1368351153,
+      "baseline_main_sha": "43cd0f6b76a69fa539a6cec572a8b2f3719a3d82",
+      "repository_access_verified": true,
+      "immutability_setting": "OWNER_ENABLED_TESTED_PUBLICATIONS_IMMUTABLE_TRUE",
+      "owner_setup_needed": "Approved scoped writer/reader credentials are saved and qualified; hosted authority/artifact/recovery acceptance remains required",
+      "initial_release_count": 0,
+      "root_restore_fixed_scope": "Real GitHub with local workerd/D1 restore passes; hosted acceptance and malicious-signer protection are not established",
+      "primitive_run_id": 41396834587,
+      "primitive_source_sha": "888b5bc150478b576eb3c41d3ecd5e3b10a985ca",
+      "primitive_published_immutable_checkpoints": 4,
+      "primitive_retained_immutable_checkpoints": 3,
+      "integrated_run_id": 41399523712,
+      "integrated_source_sha": "022fb6ebf6f2780401182d40e7fe745db2211015",
+      "integrated_artifact_id": 13120802754,
+      "integrated_artifact_sha256": "01ea404b72a05422f0dea183670d9e71e300f01f01b10fd52b818e988a657010",
+      "execution_artifact_sha256": "c8186cade52b1ceec9ef8264617f9ad5cc1b1bd16c369976669db62599171cdb",
+      "authority_bundle_sha256": "adab3fbb66b058488001a1eb282a3d5ec9b69b0dcdb1df447f216e41f4193903",
+      "integrated_retained_immutable_checkpoints": 15,
+      "independent_connector_event_digest_matches": 15,
+      "integrated_failed_drafts_removed": 3,
+      "api_requests": 153,
+      "inference_calls": 0,
+      "builder_and_authority_local_restore_fenced": true,
+      "revocation_and_epoch_local_restore_fenced": true,
+      "lost_ack_restart_holds_without_retry": true,
+      "hosted_authority_deployed": false,
+      "separate_host_qualified": false,
+      "independent_custody_verified": false,
+      "gate3_qualified": false,
+      "workflows_sealed": true,
+      "evidence": "github-anchor-qualification-20261102.json",
+      "scoped_credentials": {
+        "status": "OWNER_APPROVED_SAVED_PROVIDER_QUALIFIED",
+        "expires_on": "2026-11-09",
+        "writer_scope": "contents:write",
+        "reader_scope": "contents:read",
+        "selected_private_repository_only": true,
+        "workflow_run_id": 41420214301,
+        "artifact_sha256": "62a1cd4255e24c7d602b3c55ae143fc4f1c74133bcfbbaab5f7502d83a99de9d",
+        "evidence": "github-anchor-credentials-20261102.json",
+        "initial_writer_rotation_completed_before_use": true,
+        "credential_values_recorded": false
+      }
+    },
+    "checkpoint_candidate_local_tests": {
+      "total": 33,
+      "positive_checks": 32,
+      "unanchored_attack_counterexamples": 1,
+      "original_unanchored_vulnerability_retained": true,
+      "all_exit_zero": true,
+      "new_anchor_checks": 11,
+      "external_provider_claim": "Only separate live report is provider evidence"
+    }
+  },
+  "hosted_d1": {
+    "status": "CONFIRMED_OWNER_SELECTED_STAGING_NAMESPACE_COMPONENT",
+    "owner_selected_database_name": "mft-axiom-claude-staging-20260927",
+    "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+    "namespace": "axiom_q06_",
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "workflow_run_id": 41343885986,
+    "artifact_sha256": "d9df2b87cfc62798a742879173b13212a9a5d1891fb28124e36f1c1246cbcc86",
+    "checks_passed": 7,
+    "migrations": "CONFIRMED_IN_SELECTED_TABLE_NAMESPACE",
+    "physical_database_isolation_qualified": false,
+    "new_database_created": false,
+    "existing_databases_deleted": 0,
+    "original_schema_records_and_worker_unchanged": true,
+    "durable_call_reservations_qualified": true,
+    "budget_unit": "CALLS_NOT_CURRENCY",
+    "actual_model_inference_budget_qualification": "NO_NEW_INFERENCE_PERFORMED",
+    "fresh_process_receipt_verified": true,
+    "temporary_worker_provider_readback": 404,
+    "inference_calls": 0,
+    "evidence": "hosted-d1-reuse06-20261101.json",
+    "prior_attempt05_capacity_failure": {
+      "status": "BLOCKED_FRESH_ATTEMPT05_CF7406",
+      "reason": "CF_7406 account database limit after alternate existing API token read-access verification",
+      "workflow_run_id": 41330823895,
+      "artifact_sha256": "2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02",
+      "databases_listed": 11,
+      "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+      "inference_calls": 0,
+      "migrations": "NOT_REACHED",
+      "existing_database_changes": 0
+    }
+  },
+  "hosted_postgres": {
+    "status": "CONFIRMED_ISOLATED_COMPONENT_SCOPE",
+    "checks_passed": 13,
+    "fresh_process_recovery": true,
+    "exactly_one_durable_execution": true,
+    "resources_cleaned": true,
+    "compute_provider_budget_qualified": false,
+    "evidence": "hosted-postgres-acceptance-20261101.json",
+    "root_readback": "hosted-postgres-root-readback-20261101.json"
+  },
+  "hosted_agents": {
+    "status": "BLOCKED_PROVIDER_USAGE_LIMIT",
+    "provider_error_code": "usage_limit_exceeded",
+    "attempts": 4,
+    "saved_identity_checkpoints": "CONFIRMED_REMOTE_ACKNOWLEDGMENTS",
+    "recovery_to_terminal_failure": "CONFIRMED",
+    "successful_output_and_completion_receipt": "UNQUALIFIED",
+    "active_turn_cancellation": "UNQUALIFIED_PROBE_NOT_REACHED",
+    "session_cleanup": "DELETE_ACKNOWLEDGED_AND_GET404_ALL_FOUR; ATTEMPT04_AFTER_DEDICATED_RECONCILIATION",
+    "further_automatic_dispatch": "DISABLED_BY_EXACT_SOURCE_PINS",
+    "workflow_run_id": 41312188640,
+    "artifact_sha256": "eaaafa9b021c4d925b1025d61832770cca36aa86e45ba8b2de3f8465f226e099",
+    "cleanup_workflow_run_id": 41312423265,
+    "credit_balance_confirmation": {
+      "source": "USER_STATEMENT",
+      "date": "2026-11-01",
+      "statement": "We have zero API credits left",
+      "credits_available_reported": 0,
+      "provider_billing_balance_independently_read": false
+    }
+  },
+  "basis": {
+    "independent_release_decision_library_file_id": "libfile_161b9577f3448191be2e13ec15c95026",
+    "independent_readonly_evidence_library_file_id": "libfile_496ff973de6c8191871b8a899396dcf2",
+    "independent_readonly_evidence_sha256": "fdde8fc6e0f19939a4eb7b537e6c433de523a23c84b0358fa33745643f76f2f5",
+    "protected_account_workflow_blob": "72bf6e3f07698e2a7eb6b29e9c8d5b12c8b6b177",
+    "b27_counterexample_source": "c57cf8505ceee91a6b9b93ae6368f54c6b9ae127:ops/trackb27/EVIDENCE_GLOBAL_ROLLBACK_COUNTEREXAMPLE.md"
+  },
+  "limitations": [
+    "Application tests, an owner-authorized live task, provider metadata or same-owner resources cannot establish independent custody or anti-rollback acceptance.",
+    "Current main remains separate from this draft repair candidate."
+  ],
+  "last_revalidation_source": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+  "skill_expansion": {
+    "status": "18_GOALS_LOCAL_COMPONENT_CHECKS_PASS",
+    "distinct_packages": 18,
+    "new_packages": 10,
+    "reused_or_extended_packages": 8,
+    "internal_candidate_packages_total": 13,
+    "local_analytical_workflows": 15,
+    "host_model_behavior": "NOT_EXECUTED",
+    "production_acceptance": "NOT_QUALIFIED",
+    "catalog": "frontier_v5/SKILL_EXPANSION_CATALOG_20261101.json"
+  },
+  "verification": {
+    "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+    "tree_sha": "5ca9c2c14ccf4608259101c68b4265f5ec47f92c",
+    "ci_merge_sha": "d2816829d2049ce240ce7a9bd9d50f63213d4359",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41389928197,
+    "artifact_id": 13116599646,
+    "artifact_sha256": "619c95277d8f0b368fefd6d6c0a771e2f88a82e502703e09493f354229434747",
+    "download_hash_verified": true,
+    "groups_passed": 21,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 15,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "workers_ai_alternative": {
+    "status": "CONFIRMED_BOUNDED_COMPONENT_SCOPE",
+    "model": "@cf/google/gemma-4-26b-a4b-it",
+    "source_sha": "5273169f6f5ba8f9e595b6a2024022198ea660ea",
+    "workflow_run_id": 41322607931,
+    "artifact": {
+      "id": 13089544814,
+      "sha256": "52f4e67808a1f2b85c2e2cd74fd66dd3b72a7025d43ba6ea7c3bba973533cc50",
+      "download_hash_verified": true
+    },
+    "real_output_and_receipt": true,
+    "observer_disconnect_recovery": true,
+    "fresh_process_readback": true,
+    "replay_extra_calls": 0,
+    "inference_calls": 3,
+    "completed_response_neurons": 52.20908737182617,
+    "client_abort_and_work_revocation": "CONFIRMED",
+    "provider_terminal_cancellation": "UNQUALIFIED_NO_PROVIDER_RECORD_FOR_SAVED_ABORT",
+    "hosted_d1_qualified": false,
+    "zero_invoice_certified": false,
+    "further_automatic_dispatch": "DISABLED_BY_EXECUTED_SOURCE_PIN",
+    "delayed_account_metering": {
+      "status": "PROVIDER_USAGE_VISIBLE",
+      "workflow_run_id": 41323058278,
+      "recorded_completed_neurons": 52.20908737182617,
+      "recorded_completed_requests": 2,
+      "observed_free_allowance_remaining": 9947.790912628174,
+      "cancelled_stream_final_usage": "UNAVAILABLE",
+      "zero_invoice_certified": false,
+      "evidence": "workers-ai-metering-readback-20261101.json",
+      "artifact": {
+        "id": 13090645500,
+        "sha256": "7206abaf7eee1c56cb39595d85669fdb7fd3e5ab5da31b682a55f06c09cb80be",
+        "download_hash_verified": true
+      }
+    },
+    "aborted_request_usage_reconciliation": {
+      "status": "UNKNOWN_PROVIDER_RECORD_NOT_FOUND",
+      "neurons": null,
+      "assumed_zero": false,
+      "provider_call_reservation_retained": 1,
+      "reservation_id": "reservation_db8f45a1306a4699a9f2f1ac9ab0bd39",
+      "work_state": "REVOKED",
+      "run_state": "FAILED",
+      "budget_refunded": false,
+      "observed_completed_account_neurons": 52.20908737182617,
+      "latest_readback": {
+        "workflow_run_id": 41389928351,
+        "source_sha": "83e30800fc1f60a993e7684d30403fe2725ff23f",
+        "observed_at": "2026-11-02T04:42:28.146Z",
+        "window": {
+          "start": "2026-11-01T15:40:00Z",
+          "end": "2026-11-02T00:00:00Z"
+        },
+        "rows_returned": 2,
+        "classification": {
+          "status": "UNRESOLVED",
+          "reason": "PER_REQUEST_JOIN_KEY_UNAVAILABLE",
+          "exact_matches": 0,
+          "final_usage": null
+        },
+        "incident_day_neurons": 52.20908737182617,
+        "incident_day_completed_records": 2,
+        "artifact": {
+          "id": 13116971492,
+          "sha256": "e1b0dda507247a80c2461a94a6f2527f5516544cbfc1b33676e083072e76f6ce",
+          "download_hash_verified": true
+        },
+        "final_usage_neurons": null,
+        "request_join_key_exposed": false
+      }
+    }
+  },
+  "prior_verification_continuation06": {
+    "groups_passed": 20,
+    "source_sha": "6601f2a8eb86a1d82a0002246696e27f8895ed39",
+    "tree_sha": "5682c74e2e7b0cc2ab2ada2c6380aafa48362da7",
+    "ci_merge_sha": "56c171e9bd003b345969dde1506b52144e8555c0",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41330823629,
+    "artifact_id": 13093625859,
+    "artifact_sha256": "ebc5fd3f38b76797897f0718fc4add9be38e321fcaf9f45c254cf48182299141",
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "isolated_workerd_tests": 9,
+    "workers_ai_offline_admission_protocol_tests": 10,
+    "hosted_acceptance_protocol_tests": 6
+  },
+  "prior_verification_continuation07": {
+    "source_sha": "f2a0de932118c9c87720bf846aea885177e32ca5",
+    "tree_sha": "0590dc387a6991d8adfc1fce1657e5f6451f6f7b",
+    "ci_merge_sha": "6c9c2c23121deaf73ec6792c9def15525a1df657",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41339624792,
+    "artifact_id": 13096837258,
+    "artifact_sha256": "9559d4654612fe629f001a29dec493d0b0f6431e638fe412739640158530ba84",
+    "download_hash_verified": true,
+    "groups_passed": 21,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "isolated_workerd_tests": 9,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "prior_verification_continuation08": {
+    "groups_passed": 21,
+    "source_sha": "168dbaa3a04433b553847e149cc670b0efdf0317",
+    "tree_sha": "b2be0d2095e0104493d630b59fc9577d7c60be62",
+    "ci_merge_sha": "78c0d240b6a184d6f85bc391ae6c4a3859fc38a8",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41343886169,
+    "artifact_id": 13097918302,
+    "artifact_sha256": "863e45cefa40eb90d02e5b5139b5ac110852bca65d20d08e1e66a0a476804640",
+    "download_hash_verified": true,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "provider_reconciliation_request": "PROVIDER_RECONCILIATION_REQUEST_20261101.md",
+  "external_evidence_routing": {
+    "evidence": "CONTINUATION10_OWNER_ROLE_AND_PROVIDER_ROUTING_20261102.md",
+    "provider_packet": "PROVIDER_RECONCILIATION_REQUEST_20261101.md",
+    "free_technical_support_ticket_entitlement": "NOT_ESTABLISHED_FREE_PLAN_POLICY_EXCLUDES_GENERAL_TECHNICAL_CASES",
+    "private_usage_case_eligibility": "PROVIDER_DETERMINED",
+    "public_capability_draft_prepared": true,
+    "messages_sent": 0,
+    "rekor_single_use_high_water_authority_qualified": false,
+    "external_log_entries_written": 0,
+    "tinyfish_paid_browser_task_authorized": true,
+    "tinyfish_authenticated_run_started": false,
+    "latest_github_secret_readback": "saved-provider-readback11-20261102.json"
+  },
+  "prior_verification_continuation09": {
+    "groups_passed": 21,
+    "source_sha": "f90e089aa8dbebd87df231805b36ea2fdb572551",
+    "tree_sha": "d66680cf3a3db9da3a9b261247f28dd9c043921b",
+    "ci_merge_sha": "26e397fa3a27070c2391be30506d0181fd0f4da9",
+    "ci_merge_same_tree_verified": true,
+    "workflow_run_id": 41348310406,
+    "artifact_id": 13100466515,
+    "artifact_sha256": "b9cd5f914c9d3155fb8b288d6bedc248c43e22f309da898bc176b5a8d7ffe1f9",
+    "download_hash_verified": true,
+    "application_tests": 495,
+    "sdk_tests": 73,
+    "local_d1_tests": 11,
+    "local_workerd_storage_tests": 12,
+    "workers_ai_protocol_readback_tests": 14,
+    "hosted_acceptance_protocol_tests": 6,
+    "external_ledger_regression_tests": 22,
+    "positive_external_ledger_checks": 21,
+    "expected_authority_restore_counterexamples": 1
+  },
+  "owner_release_policy": {
+    "independent_verification": {
+      "status": "SKIPPED_BY_OWNER",
+      "qualification": "UNQUALIFIED_NOT_PERFORMED",
+      "date": "2026-11-02",
+      "required_for_owner_release": false,
+      "owner_statement": "2 we are going to leave it just record it being skipped will publish without that",
+      "evidence": "OWNER_INDEPENDENT_VERIFICATION_WAIVER_20261102.md",
+      "independent_verifier_accepted": false,
+      "independent_custody_certified": false,
+      "runtime_guards_disabled": false
+    },
+    "publication_without_item2_authorized_in_principle": true,
+    "publication_executed": false,
+    "remaining_items": {
+      "provider_cancellation_final_usage": "PENDING_UNQUALIFIED_NOT_WAIVED",
+      "anti_rollback": "REQUIRED_UNRESOLVED_NOT_WAIVED"
+    }
+  }
+}

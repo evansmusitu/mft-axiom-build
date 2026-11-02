@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
-import { canonicalize, createDefaultRegistry, createSigner, hashJson, type AxiomProgram } from "../../phase1/src/index.ts";
+import { canonicalize, compilerManifest, createDefaultRegistry, createSigner, hashJson, type AxiomProgram } from "../../phase1/src/index.ts";
 import {
   AuthenticatedFactIngestor, ReasoningControlPlane, createEvidenceArtifact, createIngestionKeyring,
   createStaticSignerProvider, mapEvidenceArtifact, verifyEvidenceArtifact,
@@ -367,7 +367,98 @@ test("PostgreSQL advisory explanation persistence is tenant-isolated exact and t
   assert.deepEqual(await repo.get(A,record.explanationId),record);
 });
 
+
+
+test("PostgreSQL authenticated worker operations preserve receipt and capability fencing parity",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  await ready();await initializePostgresSchema(pool);
+  await pool.query("TRUNCATE axiom_worker_operation_receipts, axiom_distributed_execution_jobs");
+
+  const aKeys=generateKeyPairSync("ed25519"),bKeys=generateKeyPairSync("ed25519"),leaseKeys=generateKeyPairSync("ed25519");
+  const records=new Map<string,any>();
+  const record=(workerId:string,keyId:string,poolId:string,key:any)=>phase2.createWorkerTrustRecord({
+    workerId,keyId,poolId,publicKey:key,status:"ACTIVE",maxLeaseMs:2000,
+    allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]
+  });
+  records.set("worker:pg:a\0key:pg:a",record("worker:pg:a","key:pg:a","pool:pg:a",aKeys.publicKey));
+  records.set("worker:pg:b\0key:pg:b",record("worker:pg:b","key:pg:b","pool:pg:b",bKeys.publicKey));
+  const trustStore={get:(workerId:string,keyId:string)=>records.get(workerId+"\0"+keyId)};
+  const auth=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0});
+  const leaseSigner=phase2.createStaticWorkerLeaseSigner("lease:pg:v1",leaseKeys);
+  const repo:any=new phase2.PostgresDistributedExecutionRepository(pool,{workerTrustStore:trustStore,leaseSigner});
+  const H=(x:string)=>x.repeat(64);
+  const core=(salt:string)=>({
+    tenantId:A.tenantId,principalId:"principal:pg-auth-worker",authorizationDecisionHash:H("a"),requestHash:H(salt),
+    compilationId:"model-compilation:"+H(salt),compilationRecordHash:H("d"),profileId:"profile:pg-auth",
+    profileVersion:"1.0.0",profileHash:H("e"),compilerManifest:{id:"axiom.phase1-compiler",version:"1.0.0",implementationHash:H("f")},
+    operationRegistryManifestHash:H("1"),
+    executionRequest:{asOf:"2026-10-10T01:00:00.000Z",issuedAt:"2026-10-10T01:00:01.000Z",
+      program:{irVersion:"0.1",objective:"pg-auth",assumptions:[],inputs:{},nodes:[{id:"decision",kind:"Decision",operation:"boolean.and",inputs:{values:{literal:{type:{kind:"array",items:{kind:"boolean"}},value:[true]}}}}],constraints:[],decisionNodeId:"decision"},
+      requirements:[],bindings:[]},
+    snapshotId:"snapshot:"+H("2"),snapshotHash:H("2"),createdAt:"2026-10-10T01:00:02.000Z"
+  });
+  const first=await repo.create(A,core("3"));
+
+  const ctx=(worker:"a"|"b",requestId:string,action:string,body:any,targetJobId?:string)=>{
+    const isB=worker==="b",privateKey=isB?bKeys.privateKey:aKeys.privateKey;
+    const unsigned={protocolVersion:"axiom.worker-request/v1",workerId:isB?"worker:pg:b":"worker:pg:a",keyId:isB?"key:pg:b":"key:pg:a",
+      requestId,action,...(targetJobId?{targetJobId}:{}),bodyHash:phase2.distributedWorkerOperationBodyHash(action,body),issuedAt:"2026-10-10T01:00:03.000Z"};
+    const proof={...unsigned,signatureBase64:sign(null,Buffer.from(canonicalize(phase2.workerRequestSigningPayload(unsigned))),privateKey).toString("base64")};
+    return auth.authenticate(proof,{action,targetJobId,bodyHash:unsigned.bodyHash,now:"2026-10-10T01:00:03.100Z"});
+  };
+  const aClaim=ctx("a","pg:claim:a","CLAIM",{leaseMs:1000}),bClaim=ctx("b","pg:claim:b","CLAIM",{leaseMs:1000});
+  const claims=await Promise.all([
+    repo.claimNextAuthenticated(aClaim,"2026-10-10T01:00:03.100Z",1000),
+    repo.claimNextAuthenticated(bClaim,"2026-10-10T01:00:03.100Z",1000)
+  ]);
+  const winner=claims.find(Boolean),winnerCtx=claims[0]?aClaim:bClaim;
+  assert.equal(claims.filter(Boolean).length,1);
+  assert.equal(winner.job.intent.jobId,first.intent.jobId);
+  assert.equal(leaseSigner.verify(winner.capability),true);
+
+  const replay=await repo.claimNextAuthenticated(winnerCtx,"2026-10-10T01:00:03.500Z",1000);
+  assert.deepEqual(replay.capability,winner.capability);
+  assert.equal(replay.job.intent.jobId,first.intent.jobId);
+
+  const heartbeat=ctx(claims[0]?"a":"b","pg:heartbeat","HEARTBEAT",{leaseMs:1500,capabilityId:winner.capability.capabilityId},first.intent.jobId);
+  const heart=await repo.heartbeatAuthenticated(A,first.intent.jobId,heartbeat,winner.capability,"2026-10-10T01:00:03.500Z",1500);
+  assert.notEqual(heart.job.state.leaseCapabilityCoreHash,winner.job.state.leaseCapabilityCoreHash);
+
+  await pool.query("UPDATE axiom_distributed_execution_jobs SET lease_pool_id=$1 WHERE tenant_id=$2 AND job_id=$3",["pool:tampered",A.tenantId,first.intent.jobId]);
+  await assert.rejects(()=>repo.get(A,first.intent.jobId),/state.*integrity|integrity.*state/i);
+});
+
 test.after(async()=>{await pool.end();});
+
+test("PostgreSQL authenticated completion resolves and replays real persisted execution proof",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  await ready();await initializePostgresSchema(pool);
+  await pool.query("TRUNCATE axiom_worker_operation_receipts, axiom_distributed_execution_jobs, axiom_platform_executions, axiom_world_snapshots, axiom_temporal_facts");
+  const at="2026-10-30T06:00:00.000Z",H="a".repeat(64),workerKeys=generateKeyPairSync("ed25519"),leaseKeys=generateKeyPairSync("ed25519");
+  const trust=phase2.createWorkerTrustRecord({workerId:"pg-proof-worker",keyId:"pg-proof-key",poolId:"pg-proof-pool",publicKey:workerKeys.publicKey,status:"ACTIVE",maxLeaseMs:5000,allowedActions:["CLAIM","COMPLETE"]});
+  const trustStore={get:(w:string,k:string)=>w===trust.identity.workerId&&k===trust.identity.keyId?trust:undefined};
+  const authenticator=new phase2.WorkerRequestAuthenticator({trustStore,maxRequestAgeMs:60000,maxFutureSkewMs:0}),credential=phase2.createStaticWorkerCredential(trust.identity.workerId,trust.identity.keyId,workerKeys.privateKey);
+  const world=new PostgresWorldStateRepository(pool),executions=new PostgresExecutionRepository(pool),registry=createDefaultRegistry(),signer=createStaticSignerProvider("pg-proof-signer",createSigner());
+  const verifier=new phase2.PersistedDistributedCompletionVerifier({world,executions,registry,signer});
+  const jobs=new phase2.PostgresDistributedExecutionRepository(pool,{workerTrustStore:trustStore,leaseSigner:phase2.createStaticWorkerLeaseSigner("pg-proof-lease",leaseKeys),completionVerifier:verifier});
+  const program={irVersion:"0.1",objective:"A bounded proof integration decision",assumptions:[],inputs:{},nodes:[{id:"decision",kind:"Decision",operation:"logic.not",inputs:{value:{literal:{type:{kind:"boolean"},value:false}}}}],constraints:[],decisionNodeId:"decision"};
+  const executionRequest={asOf:at,issuedAt:at,program,requirements:[],bindings:[]},snapshot=await world.snapshot(A,at);
+  const created=await jobs.create(A,{tenantId:A.tenantId,principalId:"pg-proof-principal",authorizationDecisionHash:H,requestHash:H,compilationId:"pg-proof-compilation",compilationRecordHash:H,profileId:"pg-proof-profile",profileVersion:"1",profileHash:H,compilerManifest:compilerManifest(),operationRegistryManifestHash:hashJson(registry.manifest()),executionRequest,snapshotId:snapshot.snapshotId,snapshotHash:snapshot.snapshotHash,createdAt:at});
+  function ctx(action:string,body:any,id:string,targetJobId?:string){
+    const proof=credential.sign({requestId:id,action,...(targetJobId?{targetJobId}:{}),bodyHash:phase2.distributedWorkerOperationBodyHash(action,body),issuedAt:at});
+    return authenticator.authenticate(proof,{action,targetJobId,bodyHash:proof.bodyHash,now:at});
+  }
+  const lease=await jobs.claimNextAuthenticated(ctx("CLAIM",{leaseMs:5000},"pg-proof-claim"),at,5000);assert.ok(lease);assert.equal(lease.job.intent.jobId,created.intent.jobId);
+  const plane=new ReasoningControlPlane({tenant:A,world,executions,registry,signer}),result=await plane.executeBound(executionRequest as any,snapshot.snapshotId,created.intent.jobId);
+  const missing={...result,certificateId:"missing",executionRecordId:"missing"};
+  await assert.rejects(()=>jobs.completeAuthenticated(A,created.intent.jobId,ctx("COMPLETE",{capabilityId:lease.capability.capabilityId,result:missing},"pg-proof-missing",created.intent.jobId),lease.capability,at,missing),/not found/i);
+  assert.equal((await jobs.get(A,created.intent.jobId)).state.status,"LEASED");
+  const valid=ctx("COMPLETE",{capabilityId:lease.capability.capabilityId,result},"pg-proof-valid",created.intent.jobId);
+  const done=await jobs.completeAuthenticated(A,created.intent.jobId,valid,lease.capability,at,result);
+  assert.equal(done.state.status,"SUCCEEDED");assert.deepEqual(done.state.result,result);
+  assert.equal((await plane.replayStored(result.executionRecordId!)).status,"MATCH");
+  assert.deepEqual((await jobs.completeAuthenticated(A,created.intent.jobId,valid,lease.capability,at,result)).state.result,result);
+});
 
 
 test("PostgreSQL execution-intent mapping is tenant-scoped and exact-idempotent",async()=>{

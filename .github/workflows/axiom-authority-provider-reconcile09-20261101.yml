@@ -1,0 +1,39 @@
+name: AXIOM authority and saved provider reconciliation 09 read only
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/axiom-authority-provider-reconcile09-20261101.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-authority-provider-reconcile09-20261101
+  cancel-in-progress: false
+jobs:
+  read-only-reconciliation:
+    if: github.event.pull_request.head.sha == 'f90e089aa8dbebd87df231805b36ea2fdb572551' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'repair/axiom-whole-system-20261029' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct user-authorized gate reconciliation
+        run: test "$(git rev-parse HEAD^)" = 1a53205de55799bd99914bb129b957626c59a8b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Read saved request records and current account roles without inference
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node qualification/whole-system-20261029/authority-provider-reconcile09.mjs
+      - name: Preserve sanitized provider evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-authority-provider-reconcile09-20261101
+          path: qualification/whole-system-20261029/gates09-results/*.json
+          retention-days: 90
+          if-no-files-found: error

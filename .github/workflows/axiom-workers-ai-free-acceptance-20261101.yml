@@ -1,0 +1,57 @@
+name: AXIOM bounded Workers AI acceptance
+on:
+  pull_request:
+    branches: [main]
+    paths: ['qualification/whole-system-20261029/workers-ai-live-authorization-20261101.json']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: axiom-workers-ai-acceptance-20261101-01
+  cancel-in-progress: false
+jobs:
+  bounded-acceptance:
+    if: github.event.pull_request.head.sha == '5273169f6f5ba8f9e595b6a2024022198ea660ea' && github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 55 && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      AXIOM_FREE_AUTHORIZATION: user-just-use-that-account-20261101
+      AXIOM_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit only the direct authorized continuation
+        run: test "$(git rev-parse HEAD^)" = 07326ca9aef2d498027bd19dd35150b1a3013e82
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install pinned SDK imports without provider credentials
+        working-directory: integrations/openai-agents
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Claim this bounded invocation before inference
+        run: node qualification/whole-system-20261029/runner-workers-ai-free.mjs --claim
+      - name: Persist immutable dispatch claim
+        id: claim
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-workers-ai-dispatch-20261101-01
+          path: qualification/whole-system-20261029/workers-ai-free-results/dispatch-claim.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Check usage and execute the bounded real provider acceptance
+        env:
+          AXIOM_REMOTE_CLAIM_ID: ${{ steps.claim.outputs.artifact-id }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qualification/whole-system-20261029/runner-workers-ai-free.mjs
+      - name: Preserve actual output, receipts, recovery and cancellation scope
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-workers-ai-acceptance-20261101-01
+          path: qualification/whole-system-20261029/workers-ai-free-results/*.json
+          retention-days: 90
+          if-no-files-found: error

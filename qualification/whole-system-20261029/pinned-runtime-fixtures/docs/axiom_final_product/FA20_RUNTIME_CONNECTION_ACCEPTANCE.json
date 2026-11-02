@@ -1,0 +1,32 @@
+{
+  "schema": "musitu.axiom.fa20.runtime-connection-acceptance.v1",
+  "source_authority_commit": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+  "candidate_branch": "frontier/axiom-runtime-connection-20260916",
+  "acceptance_contract": {
+    "authenticated_same_origin_session": true,
+    "protected_runtime_service_binding": true,
+    "exact_runtime_operation_count": 74,
+    "partial_catalog_accepted": false,
+    "customer_bound_metered_compute": true,
+    "browser_receives_credentials": false,
+    "one_request_delegated_credential": true,
+    "fixed_research_provider_hosts": [
+      "en.wikipedia.org",
+      "api.gdeltproject.org"
+    ],
+    "workers_ai_binding_without_customer_api_key": true,
+    "streamed_execution_progress": true,
+    "persistent_task_artifact_and_receipt": true,
+    "visible_failure_and_retry": true
+  },
+  "local_implementation_tests": "PASS",
+  "isolated_staging": "PENDING_EXTERNAL_EXECUTION",
+  "isolated_canary": "PENDING_EXTERNAL_EXECUTION",
+  "production_executed": false,
+  "production_authority": false,
+  "prior_fa20_s4_approval_reused": false,
+  "new_exact_sha_s4_approval_required": true,
+  "tablet_evidence": "DEFERRED_PENDING_FUTURE_CUSTOMER",
+  "wolfram_parity": "NOT_CERTIFIED",
+  "superiority": "NOT_CERTIFIED"
+}

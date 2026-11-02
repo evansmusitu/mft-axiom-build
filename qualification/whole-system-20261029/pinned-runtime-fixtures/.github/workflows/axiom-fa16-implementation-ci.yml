@@ -1,0 +1,134 @@
+name: MUSITU Axiom FA16 Software Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa16-20260916
+    paths:
+      - 'docs/axiom_final_product/FA16_*'
+      - 'axiom_interface/vnext/fa16_*'
+      - 'axiom_interface/vnext/tests/fa16_*'
+      - 'axiom_interface/vnext/manifest.webmanifest'
+      - 'axiom_interface/vnext/axiom-icon.svg'
+      - 'axiom_interface/vnext/index.html'
+      - '.github/workflows/axiom-fa16-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-and-attack:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Freeze source authority and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=ab96c4347cd8ffd2a694c791d40932f175eb880d
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa16-20260916'
+          test "$(git merge-base "$SOURCE" HEAD)" = "$SOURCE"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA16_PREWRITE_INTENT.md
+          python - <<'PY'
+          import json,subprocess
+          source='ab96c4347cd8ffd2a694c791d40932f175eb880d'
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA16_') or p.startswith('axiom_interface/vnext/fa16_') or p.startswith('axiom_interface/vnext/tests/fa16_') or p in {'axiom_interface/vnext/manifest.webmanifest','axiom_interface/vnext/axiom-icon.svg','axiom_interface/vnext/index.html'} or p.startswith('.github/workflows/axiom-fa16-'))
+          bad=sorted(p for p in changed if not allowed(p))
+          if bad: raise SystemExit('FA16 source drift outside bounded scope: '+repr(bad))
+          protected=[p for p in changed if p.startswith(('mcp/','auth/','submission/')) or p=='chatgpt-app-submission.json']
+          if protected: raise SystemExit('protected surface drift: '+repr(protected))
+          matrix=json.load(open('docs/axiom_final_product/FA16_ACCEPTANCE_MATRIX.json'))
+          expected={'candidate_state':'RECONCILED_PENDING_INDEPENDENT_VERIFICATION','software_implementation_verified':False,'phase_exit_earned':False,'phase_progression_authorized':True,'production_authority':False,'external_offline_execution':False,'real_device':'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER','real_phone_evidence':'EVIDENCED','tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','phone_evidence_sha256':'03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6','legacy_phase_14_unchanged':True}
+          drift={key:(matrix.get(key),value) for key,value in expected.items() if matrix.get(key)!=value}
+          if drift: raise SystemExit('FA16 truth boundary drift: '+repr(drift))
+          PY
+      - name: Syntax, manifest and deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/fa16_pwa_engine.js
+          node --check axiom_interface/vnext/fa16_mobile_pwa_ui.js
+          node --check axiom_interface/vnext/fa16_service_worker.js
+          python -m json.tool axiom_interface/vnext/manifest.webmanifest >/dev/null
+          node --test axiom_interface/vnext/tests/fa16_*.test.mjs
+      - name: Security and adversarial assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,re
+          engine=pathlib.Path('axiom_interface/vnext/fa16_pwa_engine.js').read_text()
+          worker=pathlib.Path('axiom_interface/vnext/fa16_service_worker.js').read_text()
+          index=pathlib.Path('axiom_interface/vnext/index.html').read_text()
+          intent=pathlib.Path('docs/axiom_final_product/FA16_PREWRITE_INTENT.md').read_text()
+          for marker in ['externalOfflineExecution:false',"realDeviceStatus:'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER'","tabletEvidence:'DEFERRED_PENDING_FUTURE_CUSTOMER'",'phaseProgressionAuthorized:true','phaseExitEarned:false','emulation_may_substitute:false']:
+              if marker not in engine: raise SystemExit('missing FA16 truth marker: '+marker)
+          for marker in ['api','mcp','auth','session','billing','health','Set-Cookie','no-store']:
+              if marker not in worker: raise SystemExit('missing service-worker exclusion: '+marker)
+          for marker in ['manifest.webmanifest','fa16_mobile_pwa.css','fa16_mobile_pwa_ui.js','fa16-mobile-you']:
+              if marker not in index: raise SystemExit('missing application-shell integration: '+marker)
+          if 'Never fake tablet' not in intent: raise SystemExit('frozen FA16 gate missing')
+          texts='\n'.join(p.read_text() for p in pathlib.Path('.github/workflows').glob('axiom-fa16-*.yml'))
+          if re.search(r'(?m)^\s*(contents|deployments|packages|id-token):\s*write\s*$',texts): raise SystemExit('write/deploy token authority found')
+          forbidden=['wrangler'+' deploy','kubectl '+'apply','terraform '+'apply','git '+'push','gh pr '+'merge']
+          found=[item for item in forbidden if item in texts]
+          if found: raise SystemExit('deployment/write command found: '+repr(found))
+          PY
+      - name: Build software evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa16-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          files=['docs/axiom_final_product/FA16_PREWRITE_INTENT.md','docs/axiom_final_product/FA16_ACCEPTANCE_MATRIX.json','docs/axiom_final_product/FA16_DEVICE_EVIDENCE_RECONCILIATION.md','axiom_interface/vnext/fa16_pwa_engine.js','axiom_interface/vnext/fa16_mobile_pwa_ui.js','axiom_interface/vnext/fa16_mobile_pwa.css','axiom_interface/vnext/fa16_service_worker.js','axiom_interface/vnext/manifest.webmanifest','axiom_interface/vnext/axiom-icon.svg','axiom_interface/vnext/tests/fa16_pwa_engine.test.mjs','axiom_interface/vnext/tests/fa16_adversarial_truth.test.mjs','axiom_interface/vnext/index.html']
+          hashes={path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest() for path in files}
+          evidence={'schema':'musitu.axiom.fa16.builder-evidence.v2','status':'BUILDER_TESTS_AND_ADVERSARIAL_PASS_PHONE_EVIDENCE_PRESERVED','candidate_commit':os.environ['GITHUB_SHA'],'source_parent':'ab96c4347cd8ffd2a694c791d40932f175eb880d','files_sha256':hashes,'pwa_software_implemented':True,'offline_reconnect_software_implemented':True,'real_device':'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER','real_phone_evidence':'EVIDENCED','phone_evidence_sha256':'03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6','tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','software_implementation_verified':False,'phase_progression_authorized':True,'phase_exit_earned':False,'independent_verification_required':True,'production_authority':False,'legacy_phase_14_unchanged':True,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          path=pathlib.Path('fa16-evidence/fa16-builder-evidence.json');path.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          (path.parent/'fa16-builder-evidence.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest()+'  '+path.name+'\n')
+          PY
+      - name: Upload builder evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa16-builder-evidence
+          path: fa16-evidence/
+          retention-days: 90
+
+  security-review:
+    runs-on: ubuntu-24.04
+    needs: test-and-attack
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Adversarial offline and device-truth review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa16_adversarial_truth.test.mjs axiom_interface/vnext/tests/fa16_pwa_engine.test.mjs
+          python - <<'PY'
+          import pathlib
+          all_text='\n'.join(path.read_text() for path in [pathlib.Path('axiom_interface/vnext/fa16_pwa_engine.js'),pathlib.Path('axiom_interface/vnext/fa16_service_worker.js'),pathlib.Path('docs/axiom_final_product/FA16_ACCEPTANCE_MATRIX.json')])
+          forbidden=['"tablet_evidence": "EVIDENCED"','"phase_exit_earned": true','"production_authority": true','"external_offline_execution": true']
+          found=[marker for marker in forbidden if marker in all_text]
+          if found: raise SystemExit('false qualification or authority marker: '+repr(found))
+          PY
+
+  independent-verifier:
+    needs: security-review
+    uses: ./.github/workflows/axiom-fa16-independent-verifier.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      builder_run_id: ${{ github.run_id }}
+    permissions:
+      contents: read
+      actions: read

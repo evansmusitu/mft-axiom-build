@@ -1,0 +1,11 @@
+{
+  "name": "axiom-live-acceptance-deps",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {"node": ">=24"},
+  "dependencies": {
+    "@actions/artifact": "2.3.2",
+    "esbuild": "0.25.9",
+    "miniflare": "4.20260730.0"
+  }
+}

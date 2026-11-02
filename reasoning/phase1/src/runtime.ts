@@ -1,7 +1,7 @@
 import { hashJson, merkleRoot } from "./canonical.ts";
-import { compileProgram } from "./compiler.ts";
+import { compileProgram, compilerManifest } from "./compiler.ts";
 import type { OperationRegistry } from "./registry.ts";
-import type { AxiomProgram, ExecutionResult, JsonValue, TraceEntry, TypedValue, VerificationResult } from "./types.ts";
+import type { AxiomProgram, ExecutionResult, JsonValue, TraceEntry, TypedValue, VerificationResult, OperationManifestEntry } from "./types.ts";
 
 function json(value:unknown):JsonValue { return value as JsonValue; }
 function resolveValue(ref:any,program:AxiomProgram,outputs:Record<string,TypedValue>):TypedValue {
@@ -15,18 +15,21 @@ export class AxiomRuntime {
   private readonly registry:OperationRegistry;
   constructor(registry:OperationRegistry){this.registry=registry;}
   execute(program:AxiomProgram):ExecutionResult {
-    const p=compileProgram(program,this.registry), outputs:Record<string,TypedValue>={},trace:TraceEntry[]=[];
-    const used=new Map<string,{id:string;version:string;implementationHash:string}>();
+    const p=compileProgram(program,this.registry), outputs:Record<string,TypedValue>=Object.create(null),trace:TraceEntry[]=[];
+    const used=new Map<string,OperationManifestEntry>();
+    const registered=new Map(this.registry.manifest().map(entry=>[entry.id,entry]));
     const verifications:VerificationResult[]=[];
     for(const node of p.nodes){
-      const def=this.registry.get(node.operation), resolved:Record<string,TypedValue>={};
+      const def=this.registry.get(node.operation), resolved:Record<string,TypedValue>=Object.create(null);
       for(const [name,ref] of Object.entries(node.inputs))resolved[name]=resolveValue(ref,p,outputs);
       const expected=def.inferOutput(Object.fromEntries(Object.entries(resolved).map(([k,v])=>[k,v.type])),node.params??{});
       const output=def.execute({inputs:resolved,params:node.params??{}});
       const typeOk=JSON.stringify(expected)===JSON.stringify(output.type);
       verifications.push({id:`type:${node.id}`,kind:"type",ok:typeOk,severity:"error",message:typeOk?`Node ${node.id} output type verified`:`Node ${node.id} output type mismatch`});
       if(!typeOk)throw new Error(`Operation ${def.id} violated its output contract`);
-      outputs[node.id]=output; used.set(def.id,{id:def.id,version:def.version,implementationHash:def.implementationHash});
+      const manifest=registered.get(def.id);
+      if(!manifest?.moduleHash)throw new Error(`Operation ${def.id} has no module identity`);
+      outputs[node.id]=output; used.set(def.id,{...manifest});
       trace.push({nodeId:node.id,operation:def.id,operationVersion:def.version,implementationHash:def.implementationHash,inputHash:hashJson(json({inputs:resolved,params:node.params??{}})),outputHash:hashJson(json(output))});
     }
     for(const constraint of p.constraints){
@@ -38,7 +41,7 @@ export class AxiomRuntime {
     const inputHashes=Object.entries(p.inputs).sort(([a],[b])=>a.localeCompare(b)).map(([name,value])=>hashJson(json({name,value})));
     const inputMerkleRoot=merkleRoot(inputHashes);
     const operationManifest=[...used.values()].sort((a,b)=>a.id.localeCompare(b.id));
-    const base={status:"COMPLETED" as const,decisionStatus:(decision?"APPROVED":"DENIED") as "APPROVED"|"DENIED",programHash,inputMerkleRoot,outputs,trace,operationManifest,verifications};
+    const base={status:"COMPLETED" as const,decisionStatus:(decision?"APPROVED":"DENIED") as "APPROVED"|"DENIED",programHash,inputMerkleRoot,outputs,trace,operationManifest,compilerManifest:compilerManifest(),verifications};
     const executionHash=hashJson(json(base));
     return {...base,executionHash};
   }
