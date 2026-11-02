@@ -14,7 +14,7 @@ const redirect='https://chatgpt.com/connector/oauth/musitu-candidate';
 const sha=t=>createHash('sha256').update(t).digest('hex');
 function fixture(){
  const db=openTestDB(resolve(here,'../customer_control_plane/schema.sql'));
- db._sqlite.exec("CREATE TABLE customers(id TEXT PRIMARY KEY,status TEXT NOT NULL CHECK(status IN ('active','disabled')));");
+ db._sqlite.exec("CREATE TABLE customers(id TEXT PRIMARY KEY,status TEXT NOT NULL CHECK(status IN ('active','disabled')),email TEXT,plan TEXT);");
  db._sqlite.exec("CREATE TABLE api_keys(id TEXT PRIMARY KEY,customer_id TEXT NOT NULL,key_hash TEXT NOT NULL,status TEXT NOT NULL,expires_at TEXT);");
  db._sqlite.exec("CREATE TABLE oauth_clients(client_id TEXT PRIMARY KEY,redirect_uris_json TEXT NOT NULL,client_name TEXT NOT NULL,created_at TEXT NOT NULL);");
  db._sqlite.exec("CREATE TABLE oauth_authorization_flows(id TEXT PRIMARY KEY,client_id TEXT NOT NULL,redirect_uri TEXT NOT NULL,state TEXT NOT NULL,resource TEXT NOT NULL,scope TEXT NOT NULL,code_challenge TEXT NOT NULL,nonce_hash TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL,used_at TEXT);");
