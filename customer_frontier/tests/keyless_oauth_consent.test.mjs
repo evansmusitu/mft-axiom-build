@@ -112,3 +112,31 @@ test('two racing verified consents for one CSRF flow can issue at most one code'
   assert.equal(db._sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_authorization_codes').get().n,1);
  }finally{db.close();}
 });
+
+test('valid legacy key can be used only once for the same consent flow',async()=>{
+ const {db,env}=fixture();
+ try{
+  db._sqlite.prepare('INSERT INTO api_keys(id,customer_id,key_hash,status) VALUES(?,?,?,?)')
+   .run('old-key-once','legacy-verified',sha('owner-existing-key-test'),'active');
+  const {flow,cookie}=await begin({...env,OAUTH_KEYLESS_QUALIFIED:'disabled'});
+  const first=await submit(env,flow,cookie,{musitu_account_key:'owner-existing-key-test'});
+  const replay=await submit(env,flow,cookie,{musitu_account_key:'owner-existing-key-test'});
+  assert.equal(first.status,302);
+  assert.notEqual(replay.status,302);
+  assert.equal(db._sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_authorization_codes').get().n,1);
+ }finally{db.close();}
+});
+
+test('failed verified-session mode cannot downgrade into legacy-key authorization',async()=>{
+ const {db,env}=fixture();
+ try{
+  db._sqlite.prepare('INSERT INTO api_keys(id,customer_id,key_hash,status) VALUES(?,?,?,?)')
+   .run('old-key-nodowngrade','legacy-verified',sha('owner-valid-key-test'),'active');
+  const {flow,cookie}=await begin(env);
+  const badEnv={...env,OAUTH_SESSION_VERIFIER:undefined};
+  const res=await submit(badEnv,flow,cookie,{auth_mode:'verified_session',musitu_account_key:'owner-valid-key-test'});
+  assert.notEqual(res.status,302);
+  assert.notEqual((await submit(env,flow,cookie,{auth_mode:'invalid',musitu_account_key:'owner-valid-key-test'})).status,302);
+  assert.equal(db._sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_authorization_codes').get().n,0);
+ }finally{db.close();}
+});
