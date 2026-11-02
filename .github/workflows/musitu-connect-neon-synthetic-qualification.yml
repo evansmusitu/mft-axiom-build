@@ -15,6 +15,7 @@ on:
       - 'tests/connect/test_customer_neon_http_canary.mjs'
       - 'tests/connect/test_neon_http_pg_integration.mjs'
       - 'tests/connect/test_neon_tls_pg_integration.mjs'
+      - 'tests/connect/test_neon_pg_tls_direct_integration.py'
       - 'qualification/musitu_connect_beta_release_gate.json'
       - 'tests/connect/test_neon_beta_release_fail_closed.py'
       - 'connect/customer_neon_http_canary.mjs'
@@ -80,6 +81,22 @@ jobs:
           NEON_TLS_KEY_FILE=/tmp/musitu_neon_tls_ci.key \
             node --test tests/connect/test_neon_tls_pg_integration.mjs
           rm -f /tmp/musitu_neon_tls_ci.key /tmp/musitu_neon_tls_ci.crt
+      - name: Real PostgreSQL transport TLS, verify-full, channel binding (disposable CI)
+        env:
+          NEON_TEST_PG_DSN: postgresql://postgres:isolated-ci-only@127.0.0.1:5432/postgres
+          NEON_PG_TLS_CERT_FILE: /tmp/musitu_pg_tls_verified.crt
+          NEON_PG_TLS_BAD_CA_FILE: /tmp/musitu_pg_tls_bad_ca.crt
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+            -keyout /tmp/musitu_pg_tls_server.key \
+            -out /tmp/musitu_pg_tls_verified.crt \
+            -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+            -keyout /tmp/musitu_pg_tls_bad_ca.key \
+            -out /tmp/musitu_pg_tls_bad_ca.crt \
+            -subj '/CN=wrong-root-only' >/dev/null 2>&1
+          python tests/connect/test_neon_pg_tls_direct_integration.py
       - name: Confirm prototype remains out of live Worker imports
         run: |
           if grep -Eq "customer_neon_(admission|http_canary)" connect/production_worker.mjs; then
