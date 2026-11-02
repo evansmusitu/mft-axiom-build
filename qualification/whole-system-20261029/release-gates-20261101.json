@@ -102,7 +102,7 @@
   "anti_rollback": {
     "status": "OPT_IN_GITHUB_ANCHOR_REAL_PROVIDER_LOCAL_RESTORE_PASS_HOSTED_ACCEPTANCE_UNQUALIFIED",
     "missing": [
-      "Hosted deployment of the anchor-integrated authority with approved production artifact pins and narrowly scoped durable credentials",
+      "Hosted deployment of the anchor-integrated authority with approved production artifact pins, using the now-qualified scoped credentials",
       "Separate-host destructive recovery/race qualification, including restored builder and authority stores",
       "Disposable-repository deletion/resurrection and disabling-new-immutability tests with authenticated evidence",
       "Reviewed pending-checkpoint recovery and durable credential/key administration; no local fallback or automatic refund",
@@ -152,7 +152,7 @@
       "baseline_main_sha": "43cd0f6b76a69fa539a6cec572a8b2f3719a3d82",
       "repository_access_verified": true,
       "immutability_setting": "OWNER_ENABLED_TESTED_PUBLICATIONS_IMMUTABLE_TRUE",
-      "owner_setup_needed": "Durable narrowly scoped GitHub write/read credentials for hosted acceptance; native Actions token is temporary",
+      "owner_setup_needed": "Approved scoped writer/reader credentials are saved and qualified; hosted authority/artifact/recovery acceptance remains required",
       "initial_release_count": 0,
       "root_restore_fixed_scope": "Real GitHub with local workerd/D1 restore passes; hosted acceptance and malicious-signer protection are not established",
       "primitive_run_id": 41396834587,
@@ -178,7 +178,19 @@
       "independent_custody_verified": false,
       "gate3_qualified": false,
       "workflows_sealed": true,
-      "evidence": "github-anchor-qualification-20261102.json"
+      "evidence": "github-anchor-qualification-20261102.json",
+      "scoped_credentials": {
+        "status": "OWNER_APPROVED_SAVED_PROVIDER_QUALIFIED",
+        "expires_on": "2026-11-09",
+        "writer_scope": "contents:write",
+        "reader_scope": "contents:read",
+        "selected_private_repository_only": true,
+        "workflow_run_id": 41420214301,
+        "artifact_sha256": "62a1cd4255e24c7d602b3c55ae143fc4f1c74133bcfbbaab5f7502d83a99de9d",
+        "evidence": "github-anchor-credentials-20261102.json",
+        "initial_writer_rotation_completed_before_use": true,
+        "credential_values_recorded": false
+      }
     },
     "checkpoint_candidate_local_tests": {
       "total": 33,
