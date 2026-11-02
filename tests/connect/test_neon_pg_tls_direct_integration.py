@@ -3,6 +3,7 @@
 from __future__ import annotations
 import hashlib
 import os
+import re
 from pathlib import Path
 
 DSN = os.environ.get("NEON_TEST_PG_DSN", "")
@@ -38,12 +39,15 @@ def verify_tls_session(conn):
     ensure(isinstance(row[2], str) and len(row[2]) > 0,
            "DATABASE_TLS_CIPHER_MISSING")
 
-def must_reject(code, **overrides):
+def must_reject(code, expected_cause, **overrides):
     import psycopg
     try:
         with connect(**overrides):
             pass
-    except psycopg.OperationalError:
+    except psycopg.OperationalError as exc:
+        # Unexpected failures (network, expired credentials) cannot qualify TLS.
+        ensure(re.search(expected_cause, str(exc), re.IGNORECASE) is not None,
+               code + "_REJECTED_FOR_UNRELATED_REASON")
         return
     raise AssertionError(code)
 
@@ -54,11 +58,12 @@ def main():
     ensure(CERT.is_file() and BAD_CA.is_file() and CERT != BAD_CA,
            "DISPOSABLE_TLS_TRUST_FIXTURES_MISSING")
     # hostaddr resolves transport to loopback while host enforces cert identity.
-    must_reject("UNTRUSTED_CA_ACCEPTED", sslrootcert=str(BAD_CA))
-    must_reject("WRONG_HOSTNAME_ACCEPTED",
+    must_reject("UNTRUSTED_CA_ACCEPTED", r"certificate.*(?:verify|trust|signed)|SSL error.*certificate",
+                sslrootcert=str(BAD_CA))
+    must_reject("WRONG_HOSTNAME_ACCEPTED", r"certificate.*(?:does not match|hostname|host name)|host name.*(?:match|mismatch)",
                 host="wrong.musitu.invalid", hostaddr="127.0.0.1")
-    must_reject("PLAINTEXT_POSTGRES_ACCEPTED", sslmode="disable",
-                channel_binding="disable")
+    must_reject("PLAINTEXT_POSTGRES_ACCEPTED", r"pg_hba\.conf.*reject|no encryption",
+                sslmode="disable", channel_binding="disable")
     with connect(owner=True) as owner:
         verify_tls_session(owner)
         owner.execute(
