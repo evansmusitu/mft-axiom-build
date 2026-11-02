@@ -10,6 +10,13 @@ No independent verifier acceptance, exclusive key custody, separate recovery
 administration or independently administered monotonic ledger was obtained.
 Builder-run tests and builder-generated keys cannot supply those properties.
 
+The 24 October owner-enrollment and onboarding records already preserve the
+owner's appointment as proposed custodian: **AUTHORIZED_DECISION_ONLY**. Carry
+that appointment forward. It does not establish independent provider control.
+The missing appointment is a **distinct independent verifier**, who must not be
+the sole person certifying their own custody. Do not ask the owner to appoint
+the custodian role again or replace the existing decision with a new nominee.
+
 Latest provider-origin observation: workflow `41348310191`, source
 `f90e089aa8dbebd87df231805b36ea2fdb572551`, at
 **1 November 2026, 20:43:41 UTC (22:43:41 CAT)**. This visible account has one
@@ -42,9 +49,12 @@ This continuation did not bypass that restriction or access its protected secret
 
 ## Acceptance response required from the actual independent person
 
-The owner must identify the intended custodian/verifier by name and an
-authenticated GitHub identity or equivalent controlled channel. No appointment
-or acceptance is inferred from this draft. The identified person must return:
+The owner-custodian appointment is already recorded. Identify the distinct
+independent verifier by authenticated GitHub identity or equivalent controlled
+channel, and obtain that person's own acceptance. The owner-custodian and
+verifier must supply their respective evidence below; neither role's appointment
+alone proves the required separation. No new appointment or acceptance is
+inferred from this draft.
 
 | Evidence | Required concrete value or action |
 | --- | --- |

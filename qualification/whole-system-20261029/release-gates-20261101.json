@@ -9,7 +9,7 @@
     "status": "BLOCKED_NO_AUTHENTICATED_INDEPENDENT_ACCEPTANCE",
     "independent_verifier_activated": false,
     "missing": [
-      "Direct authenticated verifier acceptance and provider identity",
+      "Distinct independent verifier identity, direct authenticated acceptance and provider identity; existing owner-custodian appointment is preserved",
       "Independent MFA and recovery-admin separation; sole visible administrator MFA confirmed only",
       "Exclusive verifier key custody outside builder and owner-custodian reset/control",
       "Independent policy veto, revocation and kill authority",
@@ -51,6 +51,21 @@
       "separate_account_visibility": "NOT_ESTABLISHED",
       "independent_review_submissions_pr62": 0,
       "protected_staging_secret_used": false
+    },
+    "owner_custodian_appointment": {
+      "status": "AUTHORIZED_DECISION_ONLY",
+      "date": "2026-10-24",
+      "carried_forward": true,
+      "external_identity_or_independence_verified": false,
+      "basis": [
+        "4_CUSTODIAN_OWNER_ONBOARDING_S0_20261024.md",
+        "2_CUSTODIAN_OWNER_ENROLLMENT_S0_20261024.md"
+      ]
+    },
+    "distinct_independent_verifier": {
+      "status": "NOT_IDENTIFIED_OR_AUTHENTICATED",
+      "owner_custodian_may_not_self_certify": true,
+      "pr62_review_submissions": 0
     }
   },
   "anti_rollback": {
@@ -313,5 +328,15 @@
     "positive_external_ledger_checks": 21,
     "expected_authority_restore_counterexamples": 1
   },
-  "provider_reconciliation_request": "PROVIDER_RECONCILIATION_REQUEST_20261101.md"
+  "provider_reconciliation_request": "PROVIDER_RECONCILIATION_REQUEST_20261101.md",
+  "external_evidence_routing": {
+    "evidence": "CONTINUATION10_OWNER_ROLE_AND_PROVIDER_ROUTING_20261102.md",
+    "provider_packet": "PROVIDER_RECONCILIATION_REQUEST_20261101.md",
+    "free_technical_support_ticket_entitlement": "NOT_ESTABLISHED_FREE_PLAN_POLICY_EXCLUDES_GENERAL_TECHNICAL_CASES",
+    "private_usage_case_eligibility": "PROVIDER_DETERMINED",
+    "public_capability_draft_prepared": true,
+    "messages_sent": 0,
+    "rekor_single_use_high_water_authority_qualified": false,
+    "external_log_entries_written": 0
+  }
 }

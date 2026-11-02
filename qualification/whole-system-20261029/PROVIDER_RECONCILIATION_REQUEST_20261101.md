@@ -1,4 +1,4 @@
-# Cloudflare reconciliation request — draft, not submitted
+# Cloudflare reconciliation packet — drafts, not submitted
 
 Account: `93f395f5121954671f92fffa453d6b61`.
 Provider-observed account name: MUSITU AXIOM Security Authority. This is the same
@@ -62,26 +62,43 @@ Acceptance ZIP SHA256:
 Delayed forensic workflow: `41329030634`, ZIP SHA256:
 `259350925a35915e8cae630de4a06bfe6626e787986c74b894d17cc7a4404ca2`.
 
-## D1 context: no capacity action requested
+## Channel routing and Free-plan entitlement
 
-The account lists 11 databases. Fresh isolated creation of
-`axiom-acceptance-20261101-05` returned **HTTP403 / code7406** in workflow
-`41330823895`. No database was created and migrations were not reached.
-No database was created by that attempt. The owner subsequently selected the
-existing `mft-axiom-claude-staging-20260927` database for qualification in the
-`axiom_q06_` namespace. Seven live checks passed in workflow `41343885986`,
-with original tables and existing Worker settings preserved. The temporary
-qualification Worker was deleted and read back as absent. This later acceptance
-is shared namespace isolation, not a separate physical database.
+Cloudflare's published support policy limits Free-plan cases to billing,
+account and registrar issues. The private account/request details above belong
+in an authenticated usage/billing inquiry where Cloudflare permits it. No
+charge or billing dispute is asserted, and case eligibility for this specific
+question has not been established. Technical cancellation API questions belong
+in the Community or Developer Discord; do not reclassify a technical issue to
+bypass support entitlement. No paid upgrade is requested.
 
-The earlier request for additional capacity is superseded by the owner's reuse
-choice. This draft now requests only saved-request provider reconciliation.
-Do not create/delete databases or change subscription or billing settings.
+Source: https://developers.cloudflare.com/support/contacting-cloudflare-support/
 
-D1 source: `6601f2a8eb86a1d82a0002246696e27f8895ed39`.
-D1 acceptance ZIP SHA256:
-`2179ce317f629c98dd9916bc4a37e79ec4e6350485618dbf3d63652204885e02`.
+## Public developer-channel draft — general capability question only
 
-This draft requests provider evidence and capacity clarification. It does not
-authorize production deployment, publication, deletion of an existing database,
-payment, a subscription upgrade or any release attestation.
+Subject: Workers AI native REST streaming: terminal cancellation and final usage
+
+Is there a supported way to obtain an authenticated provider-terminal
+cancellation acknowledgement and final usage after aborting a native Workers
+AI REST stream for `@cf/google/gemma-4-26b-a4b-it`?
+
+A bounded synthetic test observed a real content delta before AbortController
+and reader cancellation. Application revocation succeeded, but that does not
+confirm whether generation stopped on the provider. The inference analytics
+schema available to the test exposes timing/error/usage fields and no
+requestId/rayId field for correlating the aborted request. The two successful
+responses have matching usage records; final usage for the aborted stream is
+unresolved.
+
+Please point to the supported cancellation/readback API, or confirm the
+endpoint's limitation. In particular, can errorCode 3008 or final metering be
+read back for the exact stream after disconnection? No new inference is needed
+to answer the capability question.
+
+This public draft contains no account ID, saved Ray, credential, customer input
+or project artifact digest. It requests technical guidance; a general response
+cannot establish the private saved request's terminal outcome. The private
+usage inquiry and public capability question are separate drafts, neither sent.
+
+The packet requests provider reconciliation only. It does not authorize
+resource, identity, subscription or billing changes, deployment or release.
