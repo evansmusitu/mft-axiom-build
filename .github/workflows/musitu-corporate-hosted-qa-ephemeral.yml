@@ -1,0 +1,155 @@
+name: MUSITU Corporate V3 Hosted QA via Expiring Access Identity
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-hosted-qa-ephemeral.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-hosted-qa
+  cancel-in-progress: false
+jobs:
+  hosted-qa:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Run hosted smoke behind Access using 15-minute service token and revoke it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,io,tarfile,base64,hashlib,time,statistics,urllib.request,urllib.error,urllib.parse
+          account='93f395f5121954671f92fffa453d6b61'
+          project='musitu-corporate'
+          domain='*.musitu-corporate.pages.dev'
+          origin='https://corporate-private-20261103.musitu-corporate.pages.dev'
+          api_base='https://api.cloudflare.com/client/v4/accounts/'+account
+          token=os.environ.get('CF_TOKEN') or ''
+          if not token:raise SystemExit('Cloudflare secret unavailable')
+          auth={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'}
+          def cf(method,path,body=None):
+            allowed=(
+              method=='GET' and path in ('/access/apps?per_page=100','/pages/projects/'+project)
+              or method=='POST' and path=='/access/service_tokens'
+              or method=='DELETE' and path.startswith('/access/service_tokens/')
+              or method in ('POST','DELETE') and '/access/apps/' in path and '/policies' in path
+            )
+            if not allowed:raise RuntimeError('Rejected Cloudflare API operation')
+            data=None if body is None else json.dumps(body).encode()
+            req=urllib.request.Request(api_base+path,data=data,method=method,headers=auth)
+            try:
+              with urllib.request.urlopen(req,timeout=25) as response:
+                return response.status,json.load(response)
+            except urllib.error.HTTPError as e:
+              try:
+                result=json.load(e)
+                codes=[d.get('code') for d in result.get('errors') or [] if isinstance(d,dict) and isinstance(d.get('code'),int)]
+              except Exception:codes=[]
+              return e.code,{'error_codes':codes}
+          pcode,p=cf('GET','/pages/projects/'+project)
+          assert pcode==200 and p.get('success') is True and (p['result'] or {}).get('production_branch')=='main','Project not verified'
+          astatus,allapps=cf('GET','/access/apps?per_page=100')
+          assert astatus==200 and allapps.get('success') is True,'Access inventory unavailable'
+          matches=[a for a in allapps.get('result') or [] if a.get('domain')==domain]
+          assert len(matches)==1 and matches[0].get('type')=='self_hosted','Wildcard Access app missing'
+          access_app=matches[0]
+          current=access_app.get('policies') or []
+          assert current and not any(v.get('decision')=='bypass' for v in current if isinstance(v,dict)),'Unsafe preview policy'
+          appid=access_app.get('id')
+          assert appid and isinstance(appid,str),'Invalid Access application identity'
+          print('restricted_preview_access: VERIFIED')
+          service_id=None
+          policy_id=None
+          test_success=False
+          cleanup_success=True
+          try:
+            status,resp=cf('POST','/access/service_tokens',{'name':'MUSITU Corporate V3 ephemeral hosted QA 20261103','duration':'15m','enabled':True})
+            if status not in (200,201) or resp.get('success') is not True:
+              print('ephemeral_service_token_create_http:',status)
+              print('ephemeral_service_token_error_codes:',resp.get('error_codes') or [])
+              raise RuntimeError('Insufficient service-token permission; hosted QA not run')
+            service=resp['result']
+            service_id=service.get('id')
+            cid=service.get('client_id')
+            secret=service.get('client_secret')
+            assert all(isinstance(v,str) and v for v in (service_id,cid,secret)),'Service-token create response incomplete'
+            policy={'name':'MUSITU V3 one-run hosted QA service authentication','decision':'non_identity','include':[{'service_token':{'token_id':service_id}}]}
+            status,resp=cf('POST','/access/apps/'+appid+'/policies',policy)
+            if status not in (200,201) or resp.get('success') is not True:
+              print('ephemeral_app_policy_create_http:',status)
+              print('ephemeral_app_policy_error_codes:',resp.get('error_codes') or [])
+              raise RuntimeError('Service Auth policy not available; hosted QA not run')
+            policy_id=(resp.get('result') or {}).get('id')
+            assert isinstance(policy_id,str) and policy_id,'Service Auth policy response incomplete'
+            headers={'CF-Access-Client-Id':cid,'CF-Access-Client-Secret':secret,'User-Agent':'MUSITU-Corporate-Hosted-QA/1.0'}
+            def fetch(path):
+              req=urllib.request.Request(origin+path,headers=headers)
+              start=time.monotonic()
+              try:
+                with urllib.request.urlopen(req,timeout=18) as r:
+                  b=r.read(300000); c=r.status; h=dict(r.headers)
+              except urllib.error.HTTPError as e:
+                b=e.read(300000);c=e.code;h=dict(e.headers)
+              return c,h,b,round((time.monotonic()-start)*1000,2)
+            routes=[
+             '/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/',
+             '/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/',
+             '/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/',
+             '/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/',
+             '/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/','/404/'
+            ]
+            latencies=[]
+            failures=[]
+            verified_headers=0
+            for path in routes:
+              code,h,body,ms=fetch(path)
+              latencies.append(ms)
+              hl={k.lower():v for k,v in h.items()}
+              ok=(code==200 and b'MUSITU' in body and 'noindex' in hl.get('x-robots-tag','').lower()
+                 and 'default-src' in hl.get('content-security-policy','')
+                 and 'max-age=' in hl.get('strict-transport-security','')
+                 and hl.get('x-content-type-options','').lower()=='nosniff')
+              if not ok:failures.append({'path':path,'http':code,'missing':[
+                  name for name,passed in {
+                    'expected_html':code==200 and b'MUSITU' in body,
+                    'noindex':'noindex' in hl.get('x-robots-tag','').lower(),
+                    'csp':'default-src' in hl.get('content-security-policy',''),
+                    'hsts':'max-age=' in hl.get('strict-transport-security',''),
+                    'nosniff':hl.get('x-content-type-options','').lower()=='nosniff'
+                  }.items() if not passed]})
+              else:verified_headers+=1
+            for path in ['/assets/site.js','/assets/site.css','/assets/site-enhancements.js','/assets/site-enhancements.css','/robots.txt','/route-register.json']:
+              code,h,body,ms=fetch(path)
+              latencies.append(ms)
+              if code!=200 or not body:failures.append({'path':path,'http':code,'missing':['expected asset']})
+              if path=='/robots.txt' and b'Disallow: /' not in body:failures.append({'path':path,'http':code,'missing':['staging robots denial']})
+            code,h,body,ms=fetch('/this-route-must-never-exist-20261103/')
+            latencies.append(ms)
+            if code!=404:failures.append({'path':'/this-route-must-never-exist-20261103/','http':code,'missing':['404']})
+            print('hosted_routes_checked:',len(routes))
+            print('hosted_full_policy_header_pass:',verified_headers)
+            print('hosted_assets_checked: 6')
+            print('hosted_404_http:',code)
+            print('hosted_median_request_ms:',round(statistics.median(latencies),1))
+            print('hosted_p95_request_ms:',round(sorted(latencies)[int(len(latencies)*0.95)],1))
+            print('hosted_failures:',json.dumps(failures,sort_keys=True))
+            test_success=not failures
+            if not test_success:raise RuntimeError('Hosted content/header regression failed')
+          finally:
+            if policy_id:
+              code,response=cf('DELETE','/access/apps/'+appid+'/policies/'+policy_id)
+              cleanup_success=cleanup_success and (code in (200,202,204) and response.get('success') is not False)
+              print('temporary_policy_revoked:',code in (200,202,204))
+            if service_id:
+              code,response=cf('DELETE','/access/service_tokens/'+service_id)
+              cleanup_success=cleanup_success and (code in (200,202,204) and response.get('success') is not False)
+              print('temporary_service_token_revoked:',code in (200,202,204))
+          if not cleanup_success:raise SystemExit('Cleanup failure — verify Access control plane immediately')
+          if not test_success:raise SystemExit('Hosted tests not passed')
+          print('restricted_preview_hosted_QA: PASSED')
+          print('protected_site_publication: NOT AUTHORIZED')
+          PY
