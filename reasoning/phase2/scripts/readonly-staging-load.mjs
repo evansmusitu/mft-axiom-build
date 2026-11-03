@@ -52,8 +52,14 @@ async function checkedBody(response,maxBytes){
 }
 async function main(){
   if(process.env.AXIOM_STAGING_LOAD!=="AUTHORIZED")fail("AUTHORIZATION_REQUIRED");
-  const p=realpathSync(process.env.AXIOM_STAGING_CONFIG_PATH??"");
-  const source=readFileSync(p),claimed=process.env.AXIOM_STAGING_CONFIG_SHA256;
+  // Missing or inaccessible operator manifests are invalid configuration,
+  // not an uncategorized failure. Never disclose the filesystem path.
+  let source;
+  try{
+    const p=realpathSync(process.env.AXIOM_STAGING_CONFIG_PATH??"");
+    source=readFileSync(p);
+  }catch{fail("CONFIG_INVALID");}
+  const claimed=process.env.AXIOM_STAGING_CONFIG_SHA256;
   if(!HASH.test(claimed??"")||digest(source)!==claimed)fail("CONFIG_INVALID");
   let c;
   try{c=JSON.parse(source.toString("utf8"));}catch{fail("CONFIG_INVALID");}
