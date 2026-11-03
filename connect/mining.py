@@ -47,8 +47,15 @@ def normalize_mining_rows(rows: Iterable[dict[str,Any]]) -> CanonicalEnvelope:
         item=dict(raw)
         # Python treats bool as int; do not turn MQTT/OPC-UA true/false into
         # numeric mining exposure, cost, risk or spatial coordinates.
-        if any(isinstance(raw.get(field), bool)
-               for field in (*_REQUIRED[1:], "latitude", "longitude")):
+        # Direct short-circuit validation avoids allocating a generator for
+        # every MQTT/OPC-UA record. Keep the original seven-field rejection.
+        if (isinstance(raw.get("exposure"), bool)
+                or isinstance(raw.get("severity"), bool)
+                or isinstance(raw.get("likelihood"), bool)
+                or isinstance(raw.get("cost"), bool)
+                or isinstance(raw.get("benefit"), bool)
+                or isinstance(raw.get("latitude"), bool)
+                or isinstance(raw.get("longitude"), bool)):
             raise ValueError("numeric_boolean_forbidden")
         item["hazard"]=str(item["hazard"]).strip()
         if not item["hazard"]: raise ValueError("hazard_required")
