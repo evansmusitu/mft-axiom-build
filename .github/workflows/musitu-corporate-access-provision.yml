@@ -1,0 +1,80 @@
+name: MUSITU Corporate Private Staging Access Provision
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-access-provision.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-access-provision
+  cancel-in-progress: false
+jobs:
+  protect-staging-domains:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Restrict only musitu-corporate Pages domains to Cloudflare-account reviewers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.error,urllib.request
+          token=os.environ.get('CF_TOKEN') or ''
+          if not token:raise SystemExit('Token unavailable')
+          aid='93f395f5121954671f92fffa453d6b61'
+          base='https://api.cloudflare.com/client/v4/accounts/'+aid
+          domains=['musitu-corporate.pages.dev','*.musitu-corporate.pages.dev']
+          headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Corporate-Private-Access/1.0'}
+          def api(method,path,payload=None):
+              allowed=path=='/access/apps?per_page=100' and method=='GET' or path=='/access/apps' and method=='POST'
+              if not allowed:raise SystemExit('Refusing non-allowlisted Cloudflare operation')
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=json.dumps(payload).encode() if payload else None)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as err:
+                  try:
+                      detail=json.load(err)
+                      codes=[e.get('code') for e in (detail.get('errors') or []) if isinstance(e,dict) and isinstance(e.get('code'),int)]
+                  except Exception:codes=[]
+                  return err.code,{'error_codes':codes}
+          code,out=api('GET','/access/apps?per_page=100')
+          assert code==200 and out.get('success') is True,'Cannot audit Access applications'
+          rows=out.get('result') or []
+          info=out.get('result_info') or {}
+          assert (info.get('total_pages') or 1)==1,'Access inventory pagination must be reviewed'
+          for host in domains:
+              found=[x for x in rows if x.get('domain')==host]
+              if len(found)>1:raise SystemExit('Duplicate Access applications for protected host')
+              if found:
+                  app=found[0]
+                  pol=app.get('policies') or []
+                  assert app.get('type')=='self_hosted' and len(pol)>=1,'Existing Access application has no verified protection policy'
+                  assert not any(x.get('decision')=='bypass' for x in pol if isinstance(x,dict)),'Unsafe bypass policy'
+                  print('access_app_exists_for:',host)
+                  continue
+              rule={'name':'MUSITU Corporate Cloudflare Members Only','decision':'allow','include':[{'cloudflare_account_member':{'account_id':aid}}]}
+              payload={'name':'MUSITU Corporate Staging '+('Base' if not host.startswith('*') else 'Previews'),'domain':host,'type':'self_hosted','session_duration':'1h','app_launcher_visible':False,'policies':[rule]}
+              sc,r=api('POST','/access/apps',payload)
+              if sc not in (200,201) or r.get('success') is not True:
+                  print('access_create_http:',sc,'codes:',r.get('error_codes') or [])
+                  raise SystemExit('Private staging Access setup failed')
+              result=r.get('result') or {}
+              assert result.get('domain')==host,'Created Access app domain mismatch'
+              assert result.get('type')=='self_hosted','Created Access app type mismatch'
+              assert (result.get('policies') or []),'Created Access app has no policies'
+              print('access_app_created_for:',host)
+          sc,final=api('GET','/access/apps?per_page=100')
+          assert sc==200 and final.get('success') is True,'Access post-write readback failed'
+          for host in domains:
+              matches=[a for a in (final.get('result') or []) if a.get('domain')==host]
+              assert len(matches)==1 and matches[0].get('type')=='self_hosted','Access host verification failed'
+              policies=matches[0].get('policies') or []
+              assert policies and all(p.get('decision')!='bypass' for p in policies if isinstance(p,dict)),'No Access policy or unsafe bypass'
+          print('corporate_base_and_preview_access_configured: VERIFIED')
+          print('apex_www_mx_intelligence_changes: 0')
+          print('corporate_site_deployments: 0')
+          PY
