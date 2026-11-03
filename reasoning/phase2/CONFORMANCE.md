@@ -149,3 +149,67 @@ Phase 2.5B additionally requires:
 20. Every prior Phase-1 and Phase-2 gate remains green.
 
 No acceptance criterion asserts guaranteed profit, investment return, model truth, exactly-once external effects, valuation, or commercial success.
+
+
+## Phase 2.5C acceptance
+
+Run the complete Phase 1 and Phase 2 matrices, including `npm run gate:phase25c`, plus `npm run test:postgres`. The Phase-2.5C gate requires an authenticated signed claim, exact retry, independent lease signing, heartbeat rotation, stale token denial, worker revocation and secure-mode raw mutation denial. SQLite tests additionally exercise revoked keys, legacy lease migration, signed-receipt tamper denial and replay past request freshness. PostgreSQL integration asserts authenticated claims, receipt replay, capability rotation and legacy raw API shutdown.
+
+A feature pipeline alone is not merge evidence: require a fresh exact-source-head pipeline, an MR-native pipeline, a non-squash merge retaining the source branch, and a fresh exact-merge-main pipeline before claiming Phase 2.5C complete.
+
+## Phase 2.6 acceptance
+
+Run `npm run gate:phase26` alongside the existing Phase-1 and all Phase-2 gates. The fixed offline gate checks exact compatibility identity; policy freshness, missing, conflicting, future and superseded evidence; strict model proposal rejection; hard Phase-1 constraints; bounded repair; deterministic resource unit accounting; and stable evaluation/corpus/report hashes. CI runs the gate after P2.5C. Phase 1, other Phase 2 tests, all gates and PostgreSQL 17 integration must remain green on the exact feature, MR and post-merge main commits. This is offline conformance evidence, not a model performance or profitability guarantee.
+
+
+## Phase 2.7A conformance
+
+The offline tenant admission gate `npm run gate:phase27a` checks enabled per-tenant capacity, repeated-intent idempotency, missing-tenant denial, immutable policy configuration, cross-tenant isolation, lease-capacity retention, and terminal capacity release. SQLite tests exercise independent repository connections, while PostgreSQL integration creates competing tenant requests and verifies serialized admission. The complete Phase-1, Phase-2 and PostgreSQL acceptance matrices remain mandatory; this gate does not assert fairness or provider cost limits.
+
+
+## Phase 2.7B acceptance
+
+Run `npm run gate:phase27b` in addition to all existing Phase 1 and Phase 2 gates and PostgreSQL integration. Tests cover durable A/B/A/B service order despite older A backlog, restart persistence, disabled-mode FIFO, authenticated signed claim receipt replay with unchanged cursor, and cross-store PostgreSQL fairness. No profit, throughput or latency guarantee is asserted.
+
+
+## Phase 2.8A acceptance
+
+The `npm run gate:phase28a` gate verifies the bound file source, exact tenant and mapper registry selection, bounded JSON capture, deterministic artifact/fact provenance, caller-path denial, cross-tenant denial, source/body tamper detection, file content updates producing new evidence, overlarge data rejection and final symlink denial. Focused tests additionally cover malformed UTF-8 and JSON, invalid/duplicate filenames, unsafe roots, and redacted missing-source/root errors. Existing gates through P2.7B, Phase 1 and PostgreSQL integration must pass. External-file truth, time-of-check races against privileged local operators and profit are not guaranteed.
+
+
+## Phase 2.8B acceptance
+
+`npm run gate:phase28b` validates strict registered view identifiers, exact server-owned tenant SQL binding, read-only execution, local query limits, rollback/release, immutable evidence artifact/fact provenance, and caller-SQL/tenant/tamper denial. Unit tests cover malformed identifiers, duplicate columns, row/byte bounds, malformed or empty JSON, unauthorized parameters, secret-free connection/query/release errors, and registry restrictions. The PostgreSQL integration suite uses a real multi-tenant view to verify tenant isolation, deterministic output order, read-only acquisition, row overflow denial, and byte bounds. All earlier Phase-1/Phase-2 gates remain mandatory. No DB truth, operational SLA, remote deployment or trading-result guarantee.
+
+
+## Phase 2.8C acceptance
+
+The `gate:phase28c` must pass on the integrated file + PostgreSQL + object adapter branch, and the source-anchored compatibility matrix must commit `objectEvidenceAdapter`. Unit tests cover immutable version and SHA-256 enforcement, exact request parameter refusal, cross-tenant refusal before reader access, malformed paths, noncanonical version, invalid media/UTF-8/JSON, oversized content, abortable timeout, and signed authorized object acquisition. The gate composes the object checks with existing Phase-2.3A evidence/replay acceptance. All earlier Phase1/Phase2 gates and PostgreSQL integration remain required; no object-store SDK network or cloud IAM certification is claimed.
+
+
+## Phase 2.8D — MCP evidence conformance
+
+The `gate:phase28d` checks fixed HTTPS `tools/call`, approved tool identity, exact single argument and tenant, server-side credential-only header, bounded JSON-RPC response and the prior signed evidence ingress/replay gate. Unit/adversarial tests additionally enforce wrong tenant/operation before secret resolution, blocked side-effect-like tools and origins, incorrect response ID, version, errors, multi-content/binary responses, extra fields, malformed/oversized/secret-echoed JSON, redirects and wrong MIME. The full-response streaming timeout regression rejects delayed response bodies even when HTTP headers have arrived.
+
+`mcpEvidenceAdapter` is source-fingerprinted in the current compatibility matrix. Complete Phase-1/Phase-2 tests, P2.1 through P2.8D acceptance gates and PostgreSQL integration must pass on exact source head, MR-native and postmerge main pipelines. Passing proves a narrowly defined transport contract, not general MCP protocol conformance or remote provider truth.
+
+
+## Phase 2.9A — remote worker control acceptance
+
+The dedicated P2.9A gate proves the server constructor fails without trusted ingress, denied transport reaches no repository operation, only the claim/heartbeat/retry-release route surface exists, and worker-supplied tenant/time and remote terminal mutation routes are refused. End-to-end HTTP tests with the **real SQLite authenticated repository** prove Ed25519 request proof, signed lease rotation, exact retry receipts, stale capability fencing and fail-closed legacy worker-ID access. PostgreSQL integration exercises the same HTTP boundary against the activated authenticated PostgreSQL store and database-persisted signed receipts. `workerControlHttp` is source-fingerprinted in the fail-closed compatibility matrix.
+
+All P1/P2 gates and real PostgreSQL integration remain mandatory, including feature, MR-native and exact postmerge-main pipelines. Passing does not certify reverse proxy TLS/mTLS, remote execution-result truth, worker attestation hardware, broker transaction safety or profit.
+
+
+## Phase 2.9B — verified completion acceptance
+
+The Phase 2.9B acceptance gate requires active worker authentication before tenant record access and the original Phase 2.5C signed receipt/lease gate. Unit tests cover signed exact successful completion, one immutable signed receipt replay, denied forged worker before repository read, missing/tampered/cross-tenant/changed-request/snapshot/intent/certificate references, divergent worker result and replay MISMATCH. A separate real control-plane test generates a Phase-1 certificate from a frozen world snapshot, persists it by the job's immutable execution intent, verifies network-free replay MATCH and only then completes through the authenticated job store. A source fingerprint `workerCompletionVerifier` enters the strict compatibility matrix.
+
+No unaudited remote terminal HTTP endpoint exists. Full P1, P2 and PostgreSQL CI, exact-head feature and MR-native pipeline and exact merge-main verification are mandatory. These do not establish hardware attestation, production TLS or financial results.
+
+
+## Phase 2.9C — verified terminal HTTP acceptance
+
+P2.9C's acceptance gate verifies the route remains 404 when no verified completion service is injected, becomes available only by opt-in, keeps strict `{proof,capability,result}` shape, uses server time, and never exposes `FAIL_TERMINAL`. End-to-end conformance uses a real frozen world snapshot, authoritative Phase-1 certificate issuance, independently persisted execution record, network-free signed replay MATCH, and the remote HTTP completion route with a signed Ed25519 worker request. It then checks exact receipt replay and denies forged result status over the same endpoint, leaving the authoritative job unchanged.
+
+The `workerControlHttp` compatibility component advances to protocol version `axiom.worker-control-http/v2` with the updated implementation hash. All prior gates and PostgreSQL tests remain mandatory; exact feature-head, MR-native and merge-main verification are required before claiming completion.

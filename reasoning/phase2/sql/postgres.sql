@@ -182,3 +182,43 @@ CREATE TABLE IF NOT EXISTS axiom_distributed_execution_jobs (
 
 CREATE INDEX IF NOT EXISTS axiom_distributed_execution_claim
   ON axiom_distributed_execution_jobs(status, lease_expires_at, created_at, job_id);
+
+-- Phase 2.5C additive authenticated-worker migrations.
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_worker_key_id TEXT;
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_pool_id TEXT;
+ALTER TABLE axiom_distributed_execution_jobs ADD COLUMN IF NOT EXISTS lease_capability_hash TEXT;
+CREATE TABLE IF NOT EXISTS axiom_worker_operation_receipts(
+ worker_id TEXT NOT NULL,worker_key_id TEXT NOT NULL,request_id TEXT NOT NULL,
+ action TEXT NOT NULL,request_hash TEXT NOT NULL,outcome_json JSONB NOT NULL,
+ outcome_hash TEXT NOT NULL,created_at TEXT NOT NULL,receipt_hash TEXT NOT NULL,
+ receipt_signer_key_id TEXT NOT NULL,receipt_signature_base64 TEXT NOT NULL,
+ PRIMARY KEY(worker_id,request_id));
+CREATE TABLE IF NOT EXISTS axiom_worker_security_mode(
+ singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton=TRUE),
+ enabled BOOLEAN NOT NULL CHECK(enabled=TRUE));
+
+ALTER TABLE axiom_worker_operation_receipts ADD COLUMN IF NOT EXISTS receipt_signer_key_id TEXT;
+ALTER TABLE axiom_worker_operation_receipts ADD COLUMN IF NOT EXISTS receipt_signature_base64 TEXT;
+
+-- Phase 2.7A: operator-owned tenant admission quota registry.
+CREATE TABLE IF NOT EXISTS axiom_tenant_admission_quota_mode(
+ singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton=TRUE)
+);
+CREATE TABLE IF NOT EXISTS axiom_tenant_admission_quotas(
+ tenant_id TEXT PRIMARY KEY,
+ max_outstanding_jobs BIGINT NOT NULL CHECK(max_outstanding_jobs BETWEEN 1 AND 1000000),
+ policy_hash TEXT NOT NULL
+);
+
+-- Phase 2.7B opt-in durable tenant service rotation.
+CREATE TABLE IF NOT EXISTS axiom_tenant_fair_mode(
+ singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton=TRUE)
+);
+CREATE TABLE IF NOT EXISTS axiom_tenant_fair_cursor(
+ singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton=TRUE),
+ ordinal BIGINT NOT NULL CHECK(ordinal>=0)
+);
+CREATE TABLE IF NOT EXISTS axiom_tenant_fair_served(
+ tenant_id TEXT PRIMARY KEY,
+ last_ordinal BIGINT NOT NULL CHECK(last_ordinal>0)
+);

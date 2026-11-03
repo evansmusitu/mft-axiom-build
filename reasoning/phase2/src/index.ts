@@ -19,6 +19,8 @@ export * from "./evidence.ts";
 export * from "./acquisition.ts";
 
 export * from "./http_evidence_adapter.ts";
+export * from "./file_json_evidence_adapter.ts";
+export * from "./postgres_view_evidence_adapter.ts";
 export * from "./musitu_axiom_evidence_adapter.ts";
 
 export * from "./model_compiler.ts";
@@ -44,3 +46,25 @@ export * from "./distributed_execution_store.ts";
 export * from "./distributed_execution_postgres.ts";
 
 export * from "./distributed_model_execution.ts";
+
+export * from "./worker_authentication.ts";
+
+export * from "./worker_lease_capability.ts";
+
+export * from "./authenticated_distributed_store.ts";
+
+export * from "./authenticated_distributed_postgres.ts";
+
+export * from "./authenticated_worker_runtime.ts";
+
+export * from "./compatibility_matrix.ts";
+
+export * from "./evaluation.ts";
+
+export * from "./version_pinned_object_evidence_adapter.ts";
+
+export * from "./fixed_mcp_evidence_adapter.ts";
+
+export * from "./worker_control_http.ts";
+
+export * from "./verified_remote_completion.ts";

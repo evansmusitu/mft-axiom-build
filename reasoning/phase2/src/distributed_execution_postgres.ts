@@ -11,12 +11,62 @@ import {
   distributedVerifyIntent, distributedVerifyState
 } from "./distributed_execution_store.ts";
 import { hashJson } from "../../phase1/src/canonical.ts";
+import {enableFairPostgres,lockFairPostgres,selectFairPostgres,recordFairPostgres} from "./tenant_fair_scheduling_postgres.ts";
+import {tenantAdmissionPolicyHash,validateTenantAdmissionQuotas,type TenantAdmissionQuotaPolicy} from "./tenant_admission_quotas.ts";
 
 function jsonValue<T>(value:unknown):T{return (typeof value==="string"?JSON.parse(value):value) as T;}
 
 export class PostgresDistributedExecutionRepository implements DistributedExecutionRepository {
   private readonly pool:Pool;
   constructor(pool:Pool){this.pool=pool;}
+  async enableTenantFairScheduling():Promise<void>{await enableFairPostgres(this.pool);}
+
+  async installTenantAdmissionQuotas(policies:readonly TenantAdmissionQuotaPolicy[]):Promise<void>{
+    const canonical=validateTenantAdmissionQuotas(policies);
+    const client=await this.pool.connect();
+    try{
+      await client.query("BEGIN");
+      await client.query("LOCK TABLE axiom_tenant_admission_quota_mode IN EXCLUSIVE MODE");
+      const enabled=await client.query("SELECT singleton FROM axiom_tenant_admission_quota_mode WHERE singleton=TRUE");
+      const stored=await client.query("SELECT * FROM axiom_tenant_admission_quotas ORDER BY tenant_id");
+      if(enabled.rowCount){
+        if(stored.rows.length!==canonical.length)throw new Error("Tenant quota immutable registry mismatch");
+        for(let i=0;i<canonical.length;i++){
+          const row=stored.rows[i],p=canonical[i];
+          if(row.tenant_id!==p.tenantId||Number(row.max_outstanding_jobs)!==p.maxOutstandingJobs
+            ||row.policy_hash!==p.policyHash)throw new Error("Tenant quota immutable registry mismatch");
+        }
+      }else{
+        if(stored.rows.length)throw new Error("Tenant quota partial registry state");
+        for(const policy of canonical)await client.query(
+          "INSERT INTO axiom_tenant_admission_quotas(tenant_id,max_outstanding_jobs,policy_hash) VALUES($1,$2,$3)",
+          [policy.tenantId,policy.maxOutstandingJobs,policy.policyHash]
+        );
+        await client.query("INSERT INTO axiom_tenant_admission_quota_mode(singleton) VALUES(TRUE)");
+      }
+      await client.query("COMMIT");
+    }catch(e){try{await client.query("ROLLBACK");}catch{}throw e;}
+    finally{client.release();}
+  }
+
+  private async lockTenantAdmissionPolicy(client:PoolClient,tenant:string):Promise<number|undefined>{
+    const enabled=await client.query("SELECT 1 FROM axiom_tenant_admission_quota_mode WHERE singleton=TRUE");
+    if(!enabled.rowCount)return undefined;
+    const policy=await client.query("SELECT * FROM axiom_tenant_admission_quotas WHERE tenant_id=$1 FOR UPDATE",[tenant]);
+    if(!policy.rowCount)throw new Error("TENANT_QUOTA_UNCONFIGURED");
+    const p=policy.rows[0],limit=Number(p.max_outstanding_jobs);
+    if(p.policy_hash!==tenantAdmissionPolicyHash({tenantId:tenant,maxOutstandingJobs:limit}))
+      throw new Error("Tenant quota policy integrity mismatch");
+    return limit;
+  }
+  private async assertTenantAdmissionQuota(client:PoolClient,tenant:string,limit:number|undefined):Promise<void>{
+    if(limit===undefined)return;
+    const count=await client.query(
+      "SELECT COUNT(*)::int AS n FROM axiom_distributed_execution_jobs WHERE tenant_id=$1 AND status IN ('PENDING','LEASED')",
+      [tenant]
+    );
+    if(Number(count.rows[0].n)>=limit)throw new Error("TENANT_QUOTA_EXCEEDED");
+  }
 
   private async row(client:PoolClient,scope:TenantScope,jobId:string,lock=false):Promise<any>{
     const tenant=distributedTenantId(scope),id=distributedRequired(jobId,"jobId");
@@ -46,20 +96,27 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     const result=await client.query(
       `UPDATE axiom_distributed_execution_jobs SET
         status=$1,lease_epoch=$2,attempt_count=$3,lease_owner=$4,lease_expires_at=$5,terminal_at=$6,
-        result_json=$7::jsonb,result_hash=$8,failure_code=$9,state_hash=$10
-       WHERE tenant_id=$11 AND job_id=$12`,
+        result_json=$7::jsonb,result_hash=$8,failure_code=$9,state_hash=$10,
+        lease_worker_key_id=$11,lease_pool_id=$12,lease_capability_hash=$13
+       WHERE tenant_id=$14 AND job_id=$15`,
       [
         s.status,s.leaseEpoch,s.attemptCount,s.leaseOwner??null,s.leaseExpiresAt??null,s.terminalAt??null,
         s.result===undefined?null:JSON.stringify(s.result),s.resultHash??null,s.failureCode??null,s.stateHash,
+        s.leaseWorkerKeyId??null,s.leasePoolId??null,s.leaseCapabilityCoreHash??null,
         tenant,job.intent.jobId
       ]
     );
     if(result.rowCount!==1)throw new Error("Distributed execution job update lost");
   }
 
+  private async assertLegacyWorkerAllowed(client:PoolClient):Promise<void>{
+    const state=await client.query("SELECT 1 FROM axiom_worker_security_mode WHERE enabled=TRUE LIMIT 1");
+    if(state.rowCount)throw new Error("WORKER_AUTH_REQUIRED");
+  }
   private async currentLease(
     client:PoolClient,scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string
   ):Promise<DistributedExecutionJob>{
+    await this.assertLegacyWorkerAllowed(client);
     const job=this.verified(scope,await this.row(client,scope,jobId,true));
     const at=distributedIso(now,"now"),worker=distributedRequired(workerId,"workerId"),wanted=distributedEpoch(leaseEpoch);
     if(
@@ -78,6 +135,8 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     const client=await this.pool.connect();
     try{
       await client.query("BEGIN");
+      await client.query("LOCK TABLE axiom_tenant_admission_quota_mode IN SHARE MODE");
+      const limit=await this.lockTenantAdmissionPolicy(client,intent.tenantId);
       const existing=await client.query(
         "SELECT * FROM axiom_distributed_execution_jobs WHERE tenant_id=$1 AND job_id=$2 FOR UPDATE",
         [intent.tenantId,intent.jobId]
@@ -88,6 +147,7 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
         await client.query("COMMIT");
         return distributedCloneJob(job);
       }
+      await this.assertTenantAdmissionQuota(client,intent.tenantId,limit);
       await client.query(
         `INSERT INTO axiom_distributed_execution_jobs(
           tenant_id,job_id,intent_hash,intent_json,status,lease_epoch,attempt_count,state_hash,created_at
@@ -113,23 +173,19 @@ export class PostgresDistributedExecutionRepository implements DistributedExecut
     const duration=distributedPositiveLease(leaseMs),expires=new Date(Date.parse(at)+duration).toISOString();
     const client=await this.pool.connect();
     try{
+      await this.assertLegacyWorkerAllowed(client);
       await client.query("BEGIN");
-      const selected=await client.query(
-        `SELECT * FROM axiom_distributed_execution_jobs
-         WHERE status='PENDING' OR (status='LEASED' AND lease_expires_at<=$1)
-         ORDER BY created_at ASC,job_id ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED`,
-        [at]
-      );
-      if(selected.rowCount===0){await client.query("COMMIT");return undefined;}
-      const row=selected.rows[0],scope={tenantId:String(row.tenant_id)},job=this.verified(scope,row);
+      const fair=await lockFairPostgres(client);
+      const row=await selectFairPostgres(client,at,fair);
+      if(!row){await client.query("COMMIT");return undefined;}
+      const scope={tenantId:String(row.tenant_id)},job=this.verified(scope,row);
       const nextState=distributedMakeState(job.intent.intentHash,{
         status:"LEASED",leaseEpoch:job.state.leaseEpoch+1,attemptCount:job.state.attemptCount+1,
         leaseOwner:worker,leaseExpiresAt:expires
       });
       const next={intent:job.intent,state:nextState};
       await this.update(client,scope,next);
+      await recordFairPostgres(client,scope.tenantId,fair);
       await client.query("COMMIT");
       return {job:distributedCloneJob(next),workerId:worker,leaseEpoch:nextState.leaseEpoch,leaseExpiresAt:expires};
     }catch(error){

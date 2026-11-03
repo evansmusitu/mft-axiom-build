@@ -1,0 +1,14 @@
+# Phase 2.9A: authenticated remote worker-control HTTP ingress
+
+Canonical baseline: GitLab main `2433415fd44252e756557dc8791ab4c502e337e3`. Issue #21.
+
+## Scope
+Operator-injected `createAxiomWorkerControlHttpServer` exposes only `POST /v1/worker/claims`, `POST /v1/worker/jobs/:jobId/heartbeat`, and `POST /v1/worker/jobs/:jobId/release`. This is an optional dedicated worker listener, **not** the bearer-token public execution API. It delegates every action to the existing authenticated SQLite/PostgreSQL worker repository, Ed25519 identity trust store, independently signed lease capabilities, monotonic lease epochs, atomic signed operation receipts and fair-claim scheduler. It does not accept arbitrary worker strings, caller credentials or tenant selection.
+
+The transport requires a synchronous operator-supplied `trustedIngress(req)` function. No trusted ingress means no server is constructed; a refused connection returns a generic denial without reading request body, and no spoofable X-Forwarded or user header grants trust. Deploy behind mTLS or a properly configured trusted ingress proxy, bound to private network, with `trustedIngress` checking actual connection/authentication metadata. The supplied callback is security critical; testing it with `()=>true` is appropriate *only* for loopback tests, not deployment.
+
+All request bodies are JSON with exact top-level fields, max 32KiB and strict content type. The request-specific signed `WorkerRequestProof` commits action, body hash, target job and issuance time. Server samples its own trusted clock; worker-supplied time is rejected. Claim returns either IDLE or the exact server-issued signed lease. Heartbeat renews and rotates that capability; retry release returns PENDING. Idempotent repeats are verified by the repository's signed receipt store, not a process-local cache. Disallow response leakage of worker keys or internal errors.
+
+**No remote COMPLETE or FAIL_TERMINAL** in this increment. Remote result acceptance requires a separately designed and tested server-side persisted execution-record/certificate replay-verification boundary. Worker proof alone cannot establish an honest result, and a malicious authenticated worker must not be able to forge a terminal success/denial through this transport. Existing trusted in-process worker completion is retained.
+
+Tests: RED route/module missing, GREEN HTTP positive claim/heartbeat/release and receipt exact retry, transport-denial and bounds, invalid route/body, signed action/body/target mismatch, forged lease and stale capability, isolated SQLite parity with already shared PostgreSQL methods, CI gate Phase 2.9A, source compatibility component, entire Phase1/Phase2/PostgreSQL suite, source-branch+MR+postmerge pipelines and bounded security review. No TLS/mTLS termination, network isolation, signed remote execution proof, remote broker/cost billing, vendor HSM/KMS deployment, guaranteed performance or profit claim.

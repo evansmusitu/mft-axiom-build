@@ -202,3 +202,77 @@ Legacy pre-2.5B platform-context records remain replayable through the exact v1 
 Because Ed25519 is deterministic for a fixed key/message, an ambiguous lost signing response can be retried with the identical request. The existing Phase-2.5A lease fencing and stable execution-intent mapping still guarantee at most one durable AXIOM execution record for one distributed intent. This is not an exactly-once external-side-effect claim.
 
 Vendor-specific AWS/GCP/Azure KMS integration, PKCS#11, hardware provisioning, key-rotation administration, mTLS/network deployment policy, external signing audit notarization, and non-Ed25519 algorithms remain deferred.
+
+
+## Phase 2.5C — Authenticated Worker Control
+
+A worker proof-of-possession boundary now sits above Phase-2.5A distributed execution jobs. Registered Ed25519 worker keys authenticate exact action/body/target/request identity; server-side trust records select the worker pool, allowed operations and maximum lease length. A separate lease-signing key attests lease capability scope and each durable operation receipt. The authenticated SQLite and PostgreSQL paths persist request receipts atomically with each job transition, including exact lost-response replay. Use `AuthenticatedDistributedExecutionStore` for SQLite or await `createAuthenticatedPostgresDistributedExecutionStore(...)` before accepting PostgreSQL worker requests. Do not expose the legacy raw-worker API once secure-mode repositories are initialized. The authenticated worker runtime receives only a worker credential, server clock and trusted bound runtime factory, never tenant bearer grants or provider authority.
+
+Run `npm run conformance && npm run gate && npm run test:postgres` from `reasoning/phase2`. The acceptance matrix includes `gate:phase25c`.
+
+## Phase 2.6 — Deterministic Evaluation and Compatibility
+
+The platform now exposes `compatibilityMatrix()` and fail-closed `verifyCompatibility(expected,observed)`, plus `evaluateCorpus(cases)` for bounded, network-free conformance. The matrix source-fingerprints Phase-1 IR/runtime/compiler/operation registry, Phase-2 evidence policy, fixed evidence/model adapters, model provider transport, reasoning signer/certificate, worker protocols and receipt persistence. Its canonical hash is embedded in every evaluation report.
+
+The evaluation suite contains fixed evidence freshness/conflict/supersession cases, Phase-1 hard-constraint approval/denial, strict proposal authority-injection rejection, bounded repair counts, and deterministic resource consumption units. Resource units are explicit fixture weights—not market prices, realized spend, performance forecasts or profit. Run `npm run gate:phase26`, included in aggregate `npm run gate` and GitLab CI.
+
+
+## Phase 2.7A tenant admission quotas
+
+Operator provisioned `installTenantAdmissionQuotas([{tenantId,maxOutstandingJobs}])` on the SQLite or PostgreSQL distributed execution repository before exposing dispatch. Once quota mode is enabled, every job creation rejects unknown tenants and new requests exceeding that tenant's outstanding PENDING+LEASED budget. Existing exact jobs replay without consuming another slot. Verification: `npm run gate:phase27a`, `npm run conformance`, and `npm run test:postgres`. This is an admission cap, not weighted-fair scheduling, cost metering or production deployment hardening.
+
+
+## Phase 2.7B tenant-fair claims
+
+Operator activation: `await distributedJobs.enableTenantFairScheduling()`. An explicitly enabled repository persists a monotonic tenant service cursor, selecting the oldest eligible job from the least-recently-served tenant. Both legacy and Ed25519-authenticated SQLite/PostgreSQL worker claim paths share the same durable order. Gate: `npm run gate:phase27b`. No activation retains legacy FIFO order. No SLA, weighted fairness or profit guarantee.
+
+
+## Phase 2.8A local JSON file evidence
+
+Use `FileJsonEvidenceAdapter` to bind a registered READ-only evidence operation to one operator-selected flat `.json` filename in a trusted root. The caller cannot supply a path or select a different file. The root must be controlled by the operator and non-group/world-writable. Acquisition reads bounded bytes, rejects final symlinks and invalid UTF-8/JSON, and feeds the existing authorized adapter registry, mapper and signed provenance pipeline. Set `maxResponseBytes` conservatively, and expose no arbitrary local path lookup to clients. Gate: `npm run gate:phase28a`. This is not a general object-storage, SQL or MCP adapter.
+
+
+## Phase 2.8B tenant-bound PostgreSQL view evidence
+
+`PostgresViewEvidenceAdapter` binds an operator provisioned connection pool, schema/view, selected columns, mandatory tenant-id column, stable order column, and a row count cap to one registered `READ` evidence operation. Callers cannot submit SQL, source identifiers, filters or result limits. The connector uses an explicit `BEGIN READ ONLY` transaction, local statement/lock timeouts, mandatory parameterized tenant predicate, an SQL-side bounded JSON response, `ROLLBACK`, and pool release. Configure a least-privilege SELECT-only database user and vetted views with a unique stable ordering key. Gate: `npm run gate:phase28b`; real PostgreSQL integration is part of `npm run test:postgres`. This is not arbitrary SQL execution, credential provisioning or proven data truth.
+
+
+## Phase 2.8C immutable JSON object evidence
+
+Register `VersionPinnedObjectEvidenceAdapter` under an ordinary `AdapterRegistry` evidence source. Each operation binds a fixed `bucket`, relative `key`, immutable `versionId`, expected lower-case `expectedSha256`, permitted `tenantIds`, and JSON size/deadline policy. Requests must provide `parameters: {}`; arbitrary object paths or versions are not supported. Supply an operator-controlled `ImmutableObjectReader` using read-only object-storage credentials and SDK/network limits. The adapter checks the returned version and hash and captures exact JSON bytes for the existing authorized acquisition, mapper, attestor and persisted replay path.
+
+Verify with `npm run gate:phase28c`, `npm run conformance`, and `npm run test:postgres`. Vendor SDK/IAM provisioning and source-truth validation remain outside this portable reader contract; no guaranteed returns.
+
+
+## Phase 2.8D — fixed MCP read-only evidence
+
+Register `FixedMcpEvidenceAdapter` with `AdapterRegistry`. Supply a server-owned HTTPS `origin`, one vetted read-only `toolName`, `parameterName`, `tenantIds`, exact operation manifest, and `secretRef` resolved server-side. The only caller-controlled argument is one bounded string value matching the predeclared parameter name. The adapter sends one stateless JSON-RPC `tools/call` to the fixed `/mcp` path, denies redirects and unexpected/multiple/error results, and captures only bounded JSON text as untrusted evidence.
+
+Keep MCP credentials in the secret resolver, not the request body, evidence record or provider output. Provision a remote read-only MCP tool account and inspect the registered tool's actual behavior; name validation alone cannot prove it is non-mutating. Full MCP negotiation, tool discovery, remote worker transport, production egress controls and SDK credentials are not implemented here. Verify with `npm run gate:phase28d`, `npm run conformance` and `npm run test:postgres`. No return/profit guarantees.
+
+
+## Phase 2.9A — remote signed worker-control listener
+
+Construct `createAxiomWorkerControlHttpServer({jobs,clock,trustedIngress})` with an already activated `AuthenticatedDistributedExecutionStore` or `createAuthenticatedPostgresDistributedExecutionStore`. `clock` must be server-controlled. The required `trustedIngress(req)` callback must check real private TLS/mTLS gateway authentication, **not** user-provided headers. Only three JSON POST routes are supported:
+
+- `/v1/worker/claims`: `{proof,leaseMs}` → `{status:"IDLE"}` or `{status:"LEASED",lease}`.
+- `/v1/worker/jobs/:jobId/heartbeat`: `{proof,capability,leaseMs}` → renewed signed `{status:"LEASED",lease}`.
+- `/v1/worker/jobs/:jobId/release`: `{proof,capability}` → `{status:"RELEASED",jobStatus:"PENDING"}`.
+
+Signed proof binds exact route action, target job, body hash, registered worker key, request ID and issue time. Signed leases are independently issued and validated by the existing repository; exact retries replay signed durable receipts. Raw worker IDs cannot control jobs.
+
+No remote completion or terminal-failure endpoint exists because worker-supplied outcomes must not be accepted without additional server-side persisted-proof verification. Bind the listener to private networking and supply a genuine validated ingress predicate before deployment; this package does not configure TLS, cert issuance or worker credentials. Acceptance: `npm run gate:phase29a`, `npm run conformance`, `npm run test:postgres`.
+
+
+## Phase 2.9B — trusted remote completion gate
+
+Use `VerifiedRemoteCompletionService({jobs,auth,leaseSigner,jobReader,executions,replayFactory})` within the trusted server, not a remote client. `jobs` is the authenticated receipt-backed SQLite/PostgreSQL store; `auth` is ACTIVE Ed25519 worker verification; `leaseSigner` is the server public-key ring for independent lease capabilities; `jobReader.get` is tenant-scoped durable jobs; `executions.getByIntent` is the immutable verified execution repository; `replayFactory.create(scope)` must return the real trusted reasoning control plane.
+
+Call `.complete(proof,capability,result,serverNow)` only after an execution record was independently persisted with the bound job ID. The service rejects any worker-invented result, untrusted certificate reference, wrong snapshot/intent/request, missing or invalid record, failed replay or stale lease, before `jobs.complete`. Exact recorded signed receipt retries work after terminal state. No public COMPLETE endpoint is exposed, and no remote result can claim guaranteed returns. Gate: `npm run gate:phase29b`, full conformance and PostgreSQL matrix.
+
+
+## Phase 2.9C — enable remote verified terminalization
+
+`createAxiomWorkerControlHttpServer({jobs,clock,trustedIngress,verifiedCompletion})` supports an optional `verifiedCompletion` object implementing the trusted `VerifiedRemoteCompletionService.complete` method. Without it, `POST /v1/worker/jobs/:jobId/complete` returns 404. With it, send `{proof,capability,result}` where proof is the registered worker Ed25519 request signed for action COMPLETE, exact job ID and `hashJson({capabilityId,result})`. The server independently looks up the already committed execution, replays the certificate under trusted server keys, compares the result and delegates to its existing signed receipt/fenced terminal repository.
+
+Success returns `{status:"COMPLETED",jobId,jobStatus:"SUCCEEDED"|"DENIED"}`. Exact retries replay the durable signed outcome. Incorrect certificates, tenant/snapshot/intent drift, unknown keys, stale leases or forged result claims fail. No remote `FAIL_TERMINAL` route exists. Configure true mTLS/private network enforcement and the actual trusted replay plane before external deployment. Run `npm run gate:phase29c`, full conformance and PostgreSQL tests. No profit guarantee.
