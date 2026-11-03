@@ -102,6 +102,13 @@ jobs:
              '/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/',
              '/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/','/404/'
             ]
+            # Cloudflare Access service-auth policies can take a few seconds to become stable across edges.
+            # Warm up authentication before recording 34-route acceptance, without relaxing header assertions.
+            for warmup in range(7):
+              wcode,wh,wb,wms=fetch('/')
+              robots=wh.get('X-Robots-Tag','')
+              print('access_warmup:',json.dumps({'try':warmup+1,'http':wcode,'noindex':'noindex' in robots.lower(),'meta_noindex':b'noindex' in wb[:1800]}))
+              time.sleep(2)
             latencies=[]
             failures=[]
             verified_headers=0
