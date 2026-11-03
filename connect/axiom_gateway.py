@@ -63,6 +63,22 @@ def _validate_outbound_request(request: dict[str, Any]) -> tuple[str, dict[str, 
         raise RuntimeError("AXIOM_REQUEST_INVALID")
     return request_id, args
 
+# Match the existing production Worker response ceiling; never buffer an
+# unbounded remote response while holding an authenticated Axiom connection.
+_MAX_AXIOM_RESPONSE_BYTES = 65_536
+
+
+def _read_bounded_remote_response(response: Any) -> bytes:
+    try:
+        raw = response.read(_MAX_AXIOM_RESPONSE_BYTES + 1)
+    finally:
+        close = getattr(response, "close", None)
+        if callable(close):
+            close()
+    if len(raw) > _MAX_AXIOM_RESPONSE_BYTES:
+        raise RuntimeError("AXIOM_REMOTE_RESPONSE_TOO_LARGE")
+    return raw
+
 class AxiomComputeExecutor:
     def __init__(self, endpoint: str, bearer_token: str, timeout: float = 10.0) -> None:
         self.endpoint=endpoint
@@ -91,7 +107,7 @@ class AxiomComputeExecutor:
         # on the initial authenticated request only, never a redirected one.
         outbound.add_unredirected_header("Authorization", "Bearer " + self.bearer_token)
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
-        decoded=_parse_remote_response(response.read())
+        decoded=_parse_remote_response(_read_bounded_remote_response(response))
         if not isinstance(decoded,dict):
             raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         returned_request_id=decoded.get("request_id")
@@ -148,7 +164,7 @@ class AxiomMcpExecutor:
         # on the initial authenticated request only, never a redirected one.
         outbound.add_unredirected_header("Authorization", "Bearer " + self.bearer_token)
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
-        decoded=_parse_remote_response(response.read())
+        decoded=_parse_remote_response(_read_bounded_remote_response(response))
         if decoded.get("jsonrpc") != "2.0":
             raise RuntimeError("AXIOM_REMOTE_RESPONSE_INVALID")
         if decoded.get("id") != request_id:

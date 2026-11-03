@@ -13,8 +13,8 @@ class _RawHttpResponse:
     def __init__(self, content):
         self.content = content.encode('utf-8')
 
-    def read(self):
-        return self.content
+    def read(self, size=-1):
+        return self.content if size < 0 else self.content[:size]
 
 
 class AxiomResponseIntegrityTests(unittest.TestCase):

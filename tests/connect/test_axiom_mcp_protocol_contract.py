@@ -13,8 +13,8 @@ class _Response:
     def __init__(self, raw):
         self.raw = raw.encode('utf-8')
 
-    def read(self):
-        return self.raw
+    def read(self, size=-1):
+        return self.raw if size < 0 else self.raw[:size]
 
 
 class AxiomMcpProtocolContractTests(unittest.TestCase):

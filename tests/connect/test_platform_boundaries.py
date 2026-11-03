@@ -12,8 +12,9 @@ class _FakeHttpResponse:
     def __init__(self, payload, status=200):
         self.payload=payload
         self.status=status
-    def read(self):
-        return json.dumps(self.payload).encode("utf-8")
+    def read(self, size=-1):
+        raw=json.dumps(self.payload).encode("utf-8")
+        return raw if size < 0 else raw[:size]
 
 class PlatformBoundaryTests(unittest.TestCase):
     def test_signed_canonical_payload_roundtrips(self):
