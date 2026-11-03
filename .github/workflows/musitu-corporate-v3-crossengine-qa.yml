@@ -1,0 +1,122 @@
+name: MUSITU Corporate V3 34-Route Cross-Engine Acceptance
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-v3-crossengine-qa.yml'
+permissions:
+  contents: read
+jobs:
+  real-browser-qa:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            corporate/staging
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify immutable archive, safely unpack 34 route site
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,tarfile,pathlib
+          src=pathlib.Path('corporate/staging/musitu-corporate-v3-static.tar.xz.b64')
+          raw=base64.b64decode(src.read_text().strip(),validate=True)
+          assert hashlib.sha256(raw).hexdigest()=='c8829d2d03ba54c7a22f16b1e91cdd29a69faba3550f60d00295df6f3e5f6623'
+          out=pathlib.Path('candidate');out.mkdir()
+          tmp=pathlib.Path('/tmp/site.tar.xz');tmp.write_bytes(raw)
+          with tarfile.open(tmp,'r:xz') as tar:
+              assert len(tar.getmembers())==45
+              assert all(m.isfile() and not m.name.startswith('/') and '..' not in pathlib.PurePosixPath(m.name).parts for m in tar.getmembers())
+              tar.extractall(out,filter='data')
+          print('verified_static_archive_bytes:',len(raw))
+          PY
+      - name: Install pinned Chromium Firefox and WebKit Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check playwright==1.55.0
+          python -m playwright install --with-deps chromium firefox webkit
+      - name: Browser acceptance for all routes, accessible names and mobile reflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,threading,http.server,pathlib,urllib.parse
+          from playwright.sync_api import sync_playwright
+          root=pathlib.Path('candidate').resolve()
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def __init__(self,*args,**kwargs):super().__init__(*args,directory=str(root),**kwargs)
+              def log_message(self,*args):pass
+          srv=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+          t=threading.Thread(target=srv.serve_forever,daemon=True);t.start()
+          origin='http://127.0.0.1:'+str(srv.server_port)
+          routes=['/'+f.parent.relative_to(root).as_posix().strip('./')+'/' if f.parent!=root else '/' for f in root.rglob('index.html')]
+          routes=sorted(set(x.replace('//','/') for x in routes))
+          assert len(routes)==34,('route count',len(routes),routes)
+          results={}
+          try:
+              with sync_playwright() as playwright:
+                  for engine in ('chromium','firefox','webkit'):
+                      browser=getattr(playwright,engine).launch(headless=True)
+                      context=browser.new_context(viewport={'width':1440,'height':900},color_scheme='dark',java_script_enabled=True)
+                      page=context.new_page()
+                      js_errors=[]
+                      page.on('pageerror',lambda error:js_errors.append(str(error)))
+                      for route in routes:
+                          response=page.goto(origin+route,wait_until='domcontentloaded',timeout=25000)
+                          assert response and response.status==200,(engine,route,'HTTP',response.status if response else None)
+                          assert page.title().strip(),(engine,route,'title')
+                          assert page.locator('main').count()==1,(engine,route,'main')
+                          assert page.locator('h1').count()==1,(engine,route,'h1')
+                          assert page.locator('a[href]').count()>=5,(engine,route,'links')
+                          assert page.locator('link[rel=stylesheet]').count()>=1,(engine,route,'styles')
+                      overflow=[]
+                      for width in [320,390,768,1440]:
+                          page.set_viewport_size({'width':width,'height':840})
+                          for route in ['/', '/products/','/products/axiom/','/experiences/lab/','/ecosystem/','/contact/']:
+                              page.goto(origin+route,wait_until='domcontentloaded',timeout=25000)
+                              dims=page.evaluate('({sw:document.documentElement.scrollWidth,cw:document.documentElement.clientWidth})')
+                              if dims['sw']>dims['cw']+1:overflow.append({'path':route,'width':width,'dims':dims})
+                      assert not overflow,(engine,'overflow',overflow)
+                      page.goto(origin+'/',wait_until='domcontentloaded')
+                      page.keyboard.press('Tab')
+                      active=page.evaluate('document.activeElement && document.activeElement.tagName')
+                      assert active in ('A','BUTTON','INPUT'),(engine,'keyboard tab',active)
+                      assert not js_errors,(engine,'javascript errors',js_errors[:5])
+                      results[engine]={'http_routes_200':34,'reflow_checks':24,'keyboard_focus':'passed','page_errors':0}
+                      browser.close()
+              pathlib.Path('crossengine.json').write_text(json.dumps(results,indent=2)+'\n')
+              print('cross_engine_acceptance:',json.dumps(results,sort_keys=True))
+          finally:
+              srv.shutdown()
+          PY
+      - name: Verify private staging URLs challenge unauthenticated visitors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request,urllib.error
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          for host in ['review-v3.musitu-corporate.pages.dev','89700ab3.musitu-corporate.pages.dev','musitu-corporate.pages.dev']:
+              try:
+                  with opener.open('https://'+host+'/',timeout=25) as r:status=r.status
+              except urllib.error.HTTPError as e:status=e.code
+              assert status in (302,303,401,403,404),(host,'UNPROTECTED',status)
+              print('staging_access_host:',host,'unauthenticated_status:',status)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-corporate-v3-crossengine-acceptance
+          path: crossengine.json
+          retention-days: 14
