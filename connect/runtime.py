@@ -53,6 +53,8 @@ class ConnectRuntime:
                 raise ValueError("seal_mismatch")
         except (TypeError, ValueError, AttributeError, UnicodeError):
             raise RuntimeError("CONNECT_SEALED_RUN_INTEGRITY_FAILED") from None
+        if type(record_index) is not int or not 0 <= record_index < len(rows):
+            raise ValueError("record_index_invalid")
         row=rows[record_index]
         expression=f'{row["exposure"]}*{row["severity"]}*{row["likelihood"]}'
         return self.execute_downstream({
