@@ -1,0 +1,117 @@
+✔ website and actual candidate consent/code/token/UserInfo use the same preapproved customer UUID (41.17618ms)
+✖ OAuth consent cannot bypass missing, mismatched, revoked or unavailable website canonical mapping (10.751143ms)
+✖ canonical revocation after code issuance blocks code exchange without issuing credentials (9.293851ms)
+✖ canonical membership revocation blocks existing UserInfo and refresh without deleting evidence (9.147329ms)
+✖ REPLACE cannot reactivate a revoked OAuth identity mapping (6.035729ms)
+✖ copied OAuth verifier assertion cannot be reused for another request, even on the same flow (6.82356ms)
+✖ canonical revocation during token persistence never returns or leaves active unexposed credentials (8.263375ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 1
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 229.466918
+
+✖ failing tests:
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:17:1
+✖ OAuth consent cannot bypass missing, mismatched, revoked or unavailable website canonical mapping (10.751143ms)
+  AssertionError [ERR_ASSERTION]: missing
+  
+  302 !== 401
+  
+      at TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:23:65)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 302,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:28:1
+✖ canonical revocation after code issuance blocks code exchange without issuing credentials (9.293851ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 400
+  
+      at TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:32:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:36:1
+✖ canonical membership revocation blocks existing UserInfo and refresh without deleting evidence (9.147329ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 401
+  
+      at TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:40:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:45:1
+✖ REPLACE cannot reactivate a revoked OAuth identity mapping (6.035729ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:48:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /identity_link_insert_conflict/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:52:1
+✖ copied OAuth verifier assertion cannot be reused for another request, even on the same flow (6.82356ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:58:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /identity_session_binding_mismatch/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_canonical_continuity.test.mjs:61:1
+✖ canonical revocation during token persistence never returns or leaves active unexposed credentials (8.263375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 400
+  
+      at TestContext.<anonymous> (file://<baseline-worktree>/customer_frontier/tests/oauth_canonical_continuity.test.mjs:66:52)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

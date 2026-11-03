@@ -30,16 +30,17 @@ export function validateSessionAssertion(p,{issuer,audience,challenge,request_sh
  return {issuer:p.issuer,subject:p.subject,tenant_id:p.tenant_id,audience:p.audience,
   session_id:p.session_id,session_version:p.session_version};
 }
-export async function requestIdentityAssertion(request,env,{binding,qualification,audience,purpose,path}){
+export async function requestIdentityAssertion(request,env,{binding,qualification,audience,purpose,path,bindingContext}){
  if(!binding?.fetch)fail('identity_verifier_unavailable');
  if(qualification!=='qualified_private_binding')fail('identity_verifier_not_qualified');
  const issuer=pinnedIdentityIssuer(env),credential=credentials(request);
  const challenge=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
- const request_sha256=await sha256(JSON.stringify({audience,purpose,method:request.method,url:request.url,...credential}));
+ const request_sha256=await sha256(JSON.stringify({audience,purpose,method:request.method,url:request.url,...credential,
+  ...(bindingContext?{binding_context:bindingContext}:{})}));
  let response;
  try{response=await binding.fetch(new Request('https://axiom-internal'+path,{
   method:'POST',headers:{...credential,'content-type':'application/json','x-axiom-audience':audience},
-  body:JSON.stringify({audience,purpose,challenge,request_sha256}),redirect:'error',signal:AbortSignal.timeout(5000)
+  body:JSON.stringify({audience,purpose,challenge,request_sha256,...bindingContext}),redirect:'error',signal:AbortSignal.timeout(5000)
  }));}catch{fail('identity_verifier_unavailable');}
  if(response.status!==200)fail('authentication_required');
  let p;try{const raw=await response.text();if(raw.length>16000)fail('identity_verifier_invalid');p=JSON.parse(raw);}catch{fail('identity_verifier_invalid');}

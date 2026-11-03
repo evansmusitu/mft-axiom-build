@@ -1,0 +1,42 @@
+✖ immutable token linkage cannot attach another customer key to an approved identity (7.38385ms)
+✖ immutable code linkage cannot attach another customer code to an approved identity (18.059454ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 100.289103
+
+✖ failing tests:
+
+test at customer_frontier/tests/oauth_link_pairing.test.mjs:4:1
+✖ immutable token linkage cannot attach another customer key to an approved identity (7.38385ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_link_pairing.test.mjs:8:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /identity_token_link_not_active/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_link_pairing.test.mjs:14:1
+✖ immutable code linkage cannot attach another customer code to an approved identity (18.059454ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_link_pairing.test.mjs:20:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /identity_code_link_not_active/,
+    operator: 'throws',
+    diff: 'simple'
+  }

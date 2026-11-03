@@ -1,0 +1,43 @@
+{
+  "schema": "axiom.customer-external-acceptance-readback.v1",
+  "observed_at": "2026-11-03T04:25:44.694871+00:00",
+  "issuer": "https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud",
+  "classification": "PUBLIC_PROVIDER_METADATA_ONLY_NOT_AXIOM_AUTHENTICATION",
+  "axiom_application_authentication": "NOT_PROVEN",
+  "account_ownership": "NOT_PROVEN",
+  "hosted_customer_migration": "NOT_EXECUTED",
+  "physical_device_acceptance": "NOT_PROVEN",
+  "payment_acceptance": "NOT_EXECUTED",
+  "independent_custody": "NOT_PROVEN",
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release": "BLOCKED",
+  "discovery": {
+    "http_status": 200,
+    "sha256": "cc38ef685987ea05c9b87e208f3dd7f508f29c62edbb668857f0bfde576176af",
+    "s256": true,
+    "rs256": true
+  },
+  "jwks": {
+    "http_status": 200,
+    "sha256": "8dfbeb9dc0870953a8179589423ee529c3f80fa56ac150b5ebd7fe4d11c8d856",
+    "public_key_count": 2
+  },
+  "existing_connection_compute_observation": {
+    "observed_on": "2026-11-03",
+    "operation": "arithmetic.evaluate",
+    "input": {
+      "expression": "7+5"
+    },
+    "actual_result": "12.000000000000000000000000000000000000000000000000",
+    "provider_verified_field": null,
+    "usage_receipt_available": false,
+    "five_object_receipt_available": false,
+    "first_customer_acceptance": false
+  },
+  "operator_provider_status": {
+    "status": "UNAVAILABLE",
+    "external_provider_execution_authority": false,
+    "provider_admission_required": true,
+    "production_authority": false
+  }
+}
