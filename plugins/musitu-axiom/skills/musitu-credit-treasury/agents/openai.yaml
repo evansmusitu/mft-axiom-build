@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Credit Treasury"
+  short_description: "Analyze credit, debt capacity, liquidity, covenants, refinancing, interest/FX stress, a..."
+  default_prompt: "Use MUSITU Axiom's Credit Treasury workflow for this task."

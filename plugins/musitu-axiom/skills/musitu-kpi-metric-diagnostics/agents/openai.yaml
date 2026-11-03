@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Kpi Metric Diagnostics"
+  short_description: "Design, validate, diagnose, and explain KPIs and business metrics"
+  default_prompt: "Use MUSITU Axiom's Kpi Metric Diagnostics workflow for this task."

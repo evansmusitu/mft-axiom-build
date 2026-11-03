@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Report Builder"
+  short_description: "Turn MUSITU analysis into durable executive, board, investment-committee, lender, or te..."
+  default_prompt: "Use MUSITU Axiom's Report Builder workflow for this task."

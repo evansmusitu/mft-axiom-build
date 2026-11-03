@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Model Verifier"
+  short_description: "Independently verify calculations, models, forecasts, risk outputs, and quantitative cl..."
+  default_prompt: "Use MUSITU Axiom's Model Verifier workflow for this task."

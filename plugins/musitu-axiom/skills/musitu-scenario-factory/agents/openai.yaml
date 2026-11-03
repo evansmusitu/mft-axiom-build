@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Scenario Factory"
+  short_description: "Generate and evaluate structured base, upside, downside, stress, and counterfactual sce..."
+  default_prompt: "Use MUSITU Axiom's Scenario Factory workflow for this task."
