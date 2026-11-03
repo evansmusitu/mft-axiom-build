@@ -1,4 +1,4 @@
-name: MUSITU Corporate Cloudflare Read-Only Access Probe
+name: MUSITU Corporate Cloudflare Token-Only Read-Only Audit
 on:
   push:
     branches:
@@ -15,70 +15,52 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Validate supported auth modes with GET-only requests, without outputting credentials
+      - name: Verify intended Cloudflare zone, DNS and Pages without any writes
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os, json, urllib.error, urllib.parse, urllib.request
-          z_id='5b56528f03948ff5917a5e0cd9f7109e'
-          a_id='93f395f5121954671f92fffa453d6b61'
-          base='https://api.cloudflare.com/client/v4'
-          email=os.environ.get('CF_EMAIL') or ''
-          key=os.environ.get('CF_GLOBAL_KEY') or ''
+          import os,json,urllib.error,urllib.parse,urllib.request
           token=os.environ.get('CF_TOKEN') or ''
-          print('cloudflare_secret_presence:', json.dumps({'global_pair':bool(email and key),'api_token':bool(token)},sort_keys=True))
-          def get(path,headers):
-              if not (path.startswith('/zones?') or path.startswith('/zones/'+z_id+'/dns_records?') or path.startswith('/accounts/'+a_id+'/pages/projects') or path in ('/user','/user/tokens/verify')):
-                  raise SystemExit('Refused API path outside read-only allowlist')
-              req=urllib.request.Request(base+path,headers={**headers,'Accept':'application/json','User-Agent':'MUSITU-Corporate-ReadOnly/2.0'},method='GET')
+          if not token:
+              raise SystemExit('Cloudflare API token secret unavailable')
+          account='93f395f5121954671f92fffa453d6b61'
+          zone='5b56528f03948ff5917a5e0cd9f7109e'
+          allowed=['/zones?','/zones/'+zone+'/dns_records?','/accounts/'+account+'/pages/projects']
+          base='https://api.cloudflare.com/client/v4'
+          def read(path):
+              if not any(path.startswith(p) for p in allowed):
+                  raise SystemExit('Refused unapproved Cloudflare endpoint')
+              req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'},method='GET')
               try:
                   with urllib.request.urlopen(req,timeout=20) as r:
-                      status=r.status
-                      data=json.load(r)
+                      return r.status,json.load(r)
               except urllib.error.HTTPError as exc:
-                  try:
-                      problem=json.load(exc)
-                      codes=[str(e.get('code')) for e in (problem.get('errors') or []) if isinstance(e,dict) and isinstance(e.get('code'),int)]
-                  except Exception:
-                      codes=[]
-                  return exc.code,{'error_codes':codes}
+                  return exc.code,{}
               except Exception as exc:
-                  print('transport_exception_type:',type(exc).__name__)
-                  return 0,{}
-              if data.get('success') is not True:
-                  return status,{}
-              return status,data
-          modes=[]
-          if token: modes.append(('api_token',{'Authorization':'Bearer '+token},'/user/tokens/verify'))
-          if email and key: modes.append(('global_key',{'X-Auth-Email':email,'X-Auth-Key':key},'/user'))
-          verified=False
-          for label,headers,verify_path in modes:
-              s_verify,d_verify=get(verify_path,headers)
-              s_zone,d_zone=get('/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}),headers)
-              zs=(d_zone.get('result') or []) if s_zone==200 else []
-              target=[z for z in zs if z.get('id')==z_id and z.get('name')=='mftintelligence.com' and (z.get('account') or {}).get('id')==a_id]
-              if len(target)==1:
-                  q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
-                  s_dns,d_dns=get('/zones/'+z_id+'/dns_records?'+q,headers)
-                  print(label+'_dns_read_http:',s_dns)
-                  if s_dns==200:
-                      print(label+'_corporate_dns_record_count:',len(d_dns.get('result') or []))
-              s_pages,d_pages=get('/accounts/'+a_id+'/pages/projects',headers)
-              print(label+'_status:',json.dumps({'credential_check_http':s_verify,'zone_list_http':s_zone,'zone_verified':len(target)==1,'pages_list_http':s_pages,'pages_api_verified':s_pages==200,'pages_error_codes':d_pages.get('error_codes',[])},sort_keys=True))
-              if len(target)==1 and s_pages==200:
-                  q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
-                  s_dns,d_dns=get('/zones/'+z_id+'/dns_records?'+q,headers)
-                  print(label+'_corporate_dns:',json.dumps({'http':s_dns,'record_count':len(d_dns.get('result') or []) if s_dns==200 else None}))
-                  projects=d_pages.get('result') or []
-                  print(label+'_target_pages_project_exists:',any(p.get('name')=='musitu-corporate' for p in projects))
-                  verified=verified or s_dns==200
-          print('cloudflare_mutations: NONE')
-          if not verified:
-              raise SystemExit('Cloudflare credential access not verified for required zone and Pages APIs')
-          print('cloudflare_corporate_readonly_access: VERIFIED')
+                  raise SystemExit('Cloudflare read transport failed: '+type(exc).__name__)
+          zcode,zbody=read('/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}))
+          zs=zbody.get('result') or []
+          assert zcode==200 and zbody.get('success') is True and len(zs)==1, 'Canonical Cloudflare zone check failed'
+          info=zs[0]
+          assert info.get('id')==zone and info.get('name')=='mftintelligence.com', 'Zone identity mismatch'
+          assert (info.get('account') or {}).get('id')==account, 'Account identity mismatch'
+          print('cloudflare_account_and_zone: VERIFIED')
+          dcode,dbody=read('/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100}))
+          assert dcode==200 and dbody.get('success') is True, 'Corporate DNS read denied'
+          records=dbody.get('result') or []
+          print('corporate_dns_records:',len(records))
+          pcode,pbody=read('/accounts/'+account+'/pages/projects')
+          assert pcode==200 and pbody.get('success') is True, 'Cloudflare Pages account read denied'
+          print('cloudflare_pages_read: VERIFIED')
+          ccode,cbody=read('/accounts/'+account+'/pages/projects/musitu-corporate')
+          assert ccode in (200,404), 'Target Pages project status not safely determined'
+          if ccode==200:
+              assert cbody.get('success') is True, 'Target Pages project read failed'
+          print('musitu_corporate_pages_project_exists:',str(ccode==200).lower())
+          print('cloudflare_write_operations: 0')
+          print('global_api_key_binding: NONE')
+          print('cloudflare_secret_values_output: NONE')
           PY
