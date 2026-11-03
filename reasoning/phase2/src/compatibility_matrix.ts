@@ -35,6 +35,8 @@ const COMPAT={
  musituComputeAdapter:{version:"axiom.musitu-compute-adapter/v1",implementationHash:source("./musitu_axiom_evidence_adapter.ts")},
  modelAdapter:{version:"axiom.model-adapter/v1",implementationHash:source("./model_adapter.ts")},
  modelProviderTransport:{version:"axiom.model-transport/v1",implementationHash:source("./model_provider_transport.ts")},
+ providerUsageBudget:{version:"axiom.provider-usage-budget/v1",implementationHash:source("./provider_budget.ts")},
+ providerUsageBudgetPostgres:{version:"axiom.provider-usage-budget-pg/v1",implementationHash:source("./provider_budget_postgres.ts")},
  executionApi:{version:"axiom.execution-api/v1",implementationHash:source("./api_service.ts")},
  reasoningSigner:{version:"axiom.signer/v1",implementationHash:source("./signer.ts")},
  workerReceiptStore:{version:"axiom.worker-receipts/v1",implementationHash:hashJson({
