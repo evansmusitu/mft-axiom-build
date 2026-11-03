@@ -13,3 +13,16 @@ export async function sessionFixture(request,principal){
   state_verified:true,nonce_verified:true,pkce_method:'S256',issued_at_ms:now-1000,
   auth_time_ms:now-2000,verified_at_ms:now,expires_at_ms:now+60000,challenge,request_sha256};
 }
+export async function oauthProofFixture(request,principal){
+ const baseline=await sessionFixture(request,principal);
+ const auth=principal.auth_at_ms??baseline.auth_time_ms;
+ return {...baseline,...principal,auth_time_ms:auth,issued_at_ms:Math.max(baseline.issued_at_ms,auth)};
+}
+export function seedCanonicalFixture(db,{issuer,subject,tenant,customer,witness='a'.repeat(64)}){
+ const identity=tenant+'-identity';
+ db._sqlite.prepare('INSERT INTO tenants(id,name) VALUES(?,?)').run(tenant,'Offline fixture');
+ db._sqlite.prepare('INSERT INTO identities(id,issuer,external_sub) VALUES(?,?,?)').run(identity,issuer,subject);
+ db._sqlite.prepare("INSERT INTO memberships(tenant_id,identity_id,role) VALUES(?,?,'viewer')").run(tenant,identity);
+ db._sqlite.prepare("INSERT INTO canonical_customer_links(identity_id,tenant_id,customer_id,link_kind,proof_id,proof_sha256,consent_id,authority_subject) VALUES(?,?,?,'legacy',?,?,?,?)")
+  .run(identity,tenant,customer,'proof-'+identity,witness,'consent-'+identity,'authority-offline');
+}
