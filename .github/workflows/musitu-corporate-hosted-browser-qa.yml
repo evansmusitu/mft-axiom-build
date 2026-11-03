@@ -1,0 +1,199 @@
+name: MUSITU Corporate Hosted Browser Acceptance Behind Access
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-hosted-browser-qa.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-hosted-browser-qa
+  cancel-in-progress: false
+jobs:
+  chromium-hosted:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Install pinned Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet playwright==1.57.0
+          python3 -m playwright install --with-deps chromium
+      - name: Run browser on Cloudflare-protected preview using revoked-after-use Access identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error,urllib.parse
+          from playwright.sync_api import sync_playwright
+          acct='93f395f5121954671f92fffa453d6b61'
+          domain='*.musitu-corporate.pages.dev'
+          host='corporate-private-20261103.musitu-corporate.pages.dev'
+          origin='https://'+host
+          token=os.environ.get('CF_TOKEN') or ''
+          assert token,'Cloudflare API token unavailable'
+          base='https://api.cloudflare.com/client/v4/accounts/'+acct
+          headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'}
+          def cf(method,path,data=None):
+            allowed=(
+              method=='GET' and path=='/access/apps?per_page=100'
+              or method=='POST' and path=='/access/service_tokens'
+              or method=='POST' and path.startswith('/access/apps/') and path.endswith('/policies')
+              or method=='DELETE' and path.startswith('/access/service_tokens/')
+              or method=='DELETE' and path.startswith('/access/apps/') and '/policies/' in path
+            )
+            if not allowed:raise RuntimeError('Cloudflare request not allowlisted')
+            req=urllib.request.Request(base+path,headers=headers,method=method,data=None if data is None else json.dumps(data).encode())
+            try:
+              with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as exc:
+              return exc.code,{}
+          code,apps=cf('GET','/access/apps?per_page=100')
+          assert code==200 and apps.get('success') is True,'Cloudflare Access list unavailable'
+          matched=[a for a in apps.get('result') or [] if a.get('domain')==domain]
+          assert len(matched)==1 and matched[0].get('type')=='self_hosted','Target preview Access app not unique'
+          app=matched[0]
+          assert app.get('policies') and not any(p.get('decision')=='bypass' for p in app['policies'] if isinstance(p,dict)),'Unsafe Access app policy'
+          appid=app.get('id')
+          assert appid and isinstance(appid,str)
+          service_id=None;policy_id=None
+          cleanup=True
+          try:
+            status,response=cf('POST','/access/service_tokens',{'name':'MUSITU V3 temporary browser QA 20261103','duration':'15m','enabled':True})
+            assert status in (200,201) and response.get('success') is True,'Temporary service token unavailable'
+            info=response['result']
+            service_id=info.get('id');cid=info.get('client_id');secret=info.get('client_secret')
+            assert all(isinstance(x,str) and x for x in (service_id,cid,secret)),'Service token missing required fields'
+            p={'name':'MUSITU V3 temporary browser acceptance','decision':'non_identity','include':[{'service_token':{'token_id':service_id}}]}
+            status,response=cf('POST','/access/apps/'+appid+'/policies',p)
+            assert status in (200,201) and response.get('success') is True,'Temporary browser policy unavailable'
+            policy_id=(response['result'] or {}).get('id')
+            assert policy_id,'Temporary policy id unavailable'
+            print('temporary_service_auth_scope: CORPORATE_PREVIEW_ONLY')
+            errors=[];route_failures=[];reflow_failures=[];interactions=[];metrics=[]
+            route_paths=[
+             '/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/',
+             '/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/',
+             '/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/',
+             '/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/',
+             '/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/','/404/'
+            ]
+            with sync_playwright() as pw:
+              browser=pw.chromium.launch(headless=True,args=['--no-sandbox'])
+              context=browser.new_context(viewport={'width':1440,'height':900},reduced_motion='reduce')
+              def request_guard(route):
+                parsed=urllib.parse.urlparse(route.request.url)
+                if parsed.scheme!='https' or parsed.hostname!=host:
+                  route.abort()
+                  return
+                h=dict(route.request.headers)
+                h['CF-Access-Client-Id']=cid
+                h['CF-Access-Client-Secret']=secret
+                route.continue_(headers=h)
+              context.route('**/*',request_guard)
+              context.add_init_script('''(() => {
+                window.__musituVitals = {cls:0,lcp:0};
+                try { new PerformanceObserver(list => { for (const x of list.getEntries()) if (!x.hadRecentInput) window.__musituVitals.cls += x.value; }).observe({type:"layout-shift", buffered:true}); } catch(e) {}
+                try { new PerformanceObserver(list => { for (const x of list.getEntries()) window.__musituVitals.lcp = x.startTime; }).observe({type:"largest-contentful-paint", buffered:true}); } catch(e) {}
+              })()''')
+              page=context.new_page()
+              page.on('pageerror',lambda err: errors.append(str(err)[:160]))
+              def navigate(path):
+                res=page.goto(origin+path,wait_until='domcontentloaded',timeout=25000)
+                page.wait_for_load_state('load',timeout=25000)
+                assert res and res.status==200,'Hosted page did not return 200: '+path
+              for route in route_paths:
+                try:
+                  navigate(route)
+                  assert page.locator('main h1').count()==1 and len(page.locator('main').inner_text().strip())>20
+                  w=page.evaluate('document.documentElement.scrollWidth')
+                  assert w<=1442,'Desktop overflow'
+                except Exception as e:route_failures.append({'route':route,'error':type(e).__name__,'message':str(e)[:95]})
+              shortlist=['/','/products/','/products/axiom/','/solutions/','/experiences/lab/','/ecosystem/','/company/','/legal/privacy/','/sitemap/']
+              for width in (320,375,390,768,1024,1440):
+                page.set_viewport_size({'width':width,'height':900})
+                for route in shortlist:
+                  try:
+                    navigate(route)
+                    overflow=page.evaluate('document.documentElement.scrollWidth')
+                    assert overflow<=width+2,'Browser viewport overflow'
+                  except Exception as e:reflow_failures.append({'route':route,'width':width,'error':str(e)[:90]})
+              page.set_viewport_size({'width':1440,'height':900})
+              def interaction(name,fn):
+                try:
+                  fn();interactions.append({'name':name,'pass':True})
+                except Exception as e:interactions.append({'name':name,'pass':False,'reason':str(e)[:125]})
+              def navigator():
+                navigate('/solutions/')
+                page.locator('[data-navigate="foundry"]').click()
+                assert page.locator('[data-navigator-title]').inner_text()=='MUSITU Foundry'
+              interaction('Navigator',navigator)
+              def atlas():
+                navigate('/ecosystem/')
+                page.locator('[data-atlas="worldfabric"]').click()
+                assert page.locator('[data-atlas-title]').inner_text()=='MUSITU WorldFabric'
+              interaction('Ecosystem Atlas',atlas)
+              def npv():
+                navigate('/experiences/lab/')
+                before=page.locator('#npv-output').inner_text()
+                page.locator('#npv-rate').fill('20')
+                assert page.locator('#npv-output').inner_text()!=before
+              interaction('Quantitative Lab',npv)
+              def guide():
+                navigate('/')
+                page.locator('#ask-trigger').click()
+                assert page.locator('#corporate-guide').is_visible()
+                page.locator('#guide-input').fill('chemistry')
+                page.locator('#guide-form button').click()
+                assert page.locator('#guide-results a').count()>0
+                page.locator('#guide-close').click()
+              interaction('Local Ask guide',guide)
+              def search():
+                navigate('/')
+                page.locator('#search-toggle').click()
+                page.locator('#site-search-query').fill('Studio')
+                assert page.locator('.search-result').count()>0
+                page.locator('#search-close').click()
+              interaction('Local website search',search)
+              def skip():
+                navigate('/')
+                page.keyboard.press('Tab')
+                assert page.evaluate('document.activeElement.tagName.toLowerCase()')=='a'
+                assert page.evaluate('document.activeElement.getAttribute("href")')=='#main'
+              interaction('Keyboard skip link',skip)
+              for route,width in [('/',390),('/',1440),('/products/',390),('/products/',1440),('/ecosystem/',390),('/experiences/lab/',390)]:
+                page.set_viewport_size({'width':width,'height':900})
+                try:
+                  navigate(route);page.wait_for_timeout(150)
+                  v=page.evaluate('window.__musituVitals || {}')
+                  metrics.append({'route':route,'width':width,'lcp_ms':round(float(v.get('lcp') or 0),1),'cls':round(float(v.get('cls') or 0),5)})
+                except Exception as e:metrics.append({'route':route,'width':width,'error':type(e).__name__})
+              context.close();browser.close()
+            print('chromium_rendered_routes_checked:',len(route_paths))
+            print('chromium_rendered_route_failures:',json.dumps(route_failures))
+            print('chromium_reflow_checks:',len(shortlist)*6)
+            print('chromium_reflow_failures:',json.dumps(reflow_failures))
+            print('chromium_interactions:',json.dumps(interactions))
+            print('chromium_page_errors_count:',len(errors))
+            print('hosted_lab_metrics:',json.dumps(metrics))
+            passed=(not route_failures and not reflow_failures and not errors and all(x['pass'] for x in interactions) and all('error' not in m and m['cls']<=0.10 and (m['lcp_ms']==0 or m['lcp_ms']<2500) for m in metrics))
+            print('hosted_chromium_acceptance_pass:',passed)
+            if not passed:raise RuntimeError('Hosted Chromium acceptance failed')
+          finally:
+            if policy_id:
+              code,data=cf('DELETE','/access/apps/'+appid+'/policies/'+policy_id)
+              good=code in (200,202,204) and data.get('success') is not False
+              cleanup=cleanup and good
+              print('temporary_browser_policy_revoked:',good)
+            if service_id:
+              code,data=cf('DELETE','/access/service_tokens/'+service_id)
+              good=code in (200,202,204) and data.get('success') is not False
+              cleanup=cleanup and good
+              print('temporary_browser_service_token_revoked:',good)
+          assert cleanup,'Cleanup failed; verify Access Service Tokens and policies'
+          print('browser_QA_release_boundary: STAGING_ONLY')
+          PY
