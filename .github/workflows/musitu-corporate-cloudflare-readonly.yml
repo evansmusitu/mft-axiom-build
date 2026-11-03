@@ -17,56 +17,57 @@ jobs:
     env:
       CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Verify corporate Cloudflare account and Pages API without writes or secret output
+      - name: Validate supported auth modes with GET-only requests, without outputting credentials
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, urllib.error, urllib.parse, urllib.request
-          zone_id='5b56528f03948ff5917a5e0cd9f7109e'
-          account_id='93f395f5121954671f92fffa453d6b61'
-          email=os.environ.get('CF_EMAIL','')
-          key=os.environ.get('CF_GLOBAL_KEY','')
-          if not email or not key:
-              raise SystemExit('Access failed: required repository secrets are not configured for this workflow')
-          headers={'X-Auth-Email':email,'X-Auth-Key':key,'Accept':'application/json','User-Agent':'MUSITU-Corporate-ReadOnly-Probe/1.0'}
-          def get(path):
-              if not path.startswith(('/zones/'+zone_id,'/accounts/'+account_id+'/pages/projects')):
-                  raise SystemExit('Unapproved Cloudflare API target')
-              req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=headers,method='GET')
+          import os, json, urllib.error, urllib.parse, urllib.request
+          z_id='5b56528f03948ff5917a5e0cd9f7109e'
+          a_id='93f395f5121954671f92fffa453d6b61'
+          base='https://api.cloudflare.com/client/v4'
+          email=os.environ.get('CF_EMAIL') or ''
+          key=os.environ.get('CF_GLOBAL_KEY') or ''
+          token=os.environ.get('CF_TOKEN') or ''
+          print('cloudflare_secret_presence:', json.dumps({'global_pair':bool(email and key),'api_token':bool(token)},sort_keys=True))
+          def get(path,headers):
+              if not (path.startswith('/zones?') or path.startswith('/zones/'+z_id+'/dns_records?') or path.startswith('/accounts/'+a_id+'/pages/projects?') or path in ('/user','/user/tokens/verify')):
+                  raise SystemExit('Refused API path outside read-only allowlist')
+              req=urllib.request.Request(base+path,headers={**headers,'Accept':'application/json','User-Agent':'MUSITU-Corporate-ReadOnly/2.0'},method='GET')
               try:
                   with urllib.request.urlopen(req,timeout=20) as r:
                       status=r.status
                       data=json.load(r)
               except urllib.error.HTTPError as exc:
-                  raise SystemExit('Cloudflare read-only API HTTP '+str(exc.code))
+                  return exc.code,{}
               except Exception as exc:
-                  raise SystemExit('Cloudflare read-only API unavailable: '+type(exc).__name__)
-              if status!=200 or data.get('success') is not True:
-                  raise SystemExit('Cloudflare API read rejected')
-              return data
-          zone=get('/zones/'+zone_id).get('result') or {}
-          if zone.get('id')!=zone_id or zone.get('name')!='mftintelligence.com' or (zone.get('account') or {}).get('id')!=account_id:
-              raise SystemExit('Cloudflare zone/account identity mismatch')
-          print('zone_and_account_identity: VERIFIED')
-          q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
-          records=get('/zones/'+zone_id+'/dns_records?'+q).get('result') or []
-          print('corporate_dns_record_count:',len(records))
-          if records:
-              print('corporate_record_preexists: YES — manual review required before any creation')
-          else:
-              print('corporate_record_preexists: NO')
-          resp=get('/accounts/'+account_id+'/pages/projects?per_page=100')
-          projects=resp.get('result') or []
-          names=[p.get('name') for p in projects if isinstance(p,dict)]
-          print('cloudflare_pages_api: VERIFIED')
-          print('musitu_corporate_project_exists:', 'YES' if 'musitu-corporate' in names else 'NO')
-          info=resp.get('result_info') or {}
-          if (info.get('total_pages') or 1)>1:
-              print('pages_inventory: PARTIAL — requires pagination')
-          else:
-              print('pages_inventory: COMPLETE')
+                  print('transport_exception_type:',type(exc).__name__)
+                  return 0,{}
+              if data.get('success') is not True:
+                  return status,{}
+              return status,data
+          modes=[]
+          if token: modes.append(('api_token',{'Authorization':'Bearer '+token},'/user/tokens/verify'))
+          if email and key: modes.append(('global_key',{'X-Auth-Email':email,'X-Auth-Key':key},'/user'))
+          verified=False
+          for label,headers,verify_path in modes:
+              s_verify,d_verify=get(verify_path,headers)
+              s_zone,d_zone=get('/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}),headers)
+              zs=(d_zone.get('result') or []) if s_zone==200 else []
+              target=[z for z in zs if z.get('id')==z_id and z.get('name')=='mftintelligence.com' and (z.get('account') or {}).get('id')==a_id]
+              s_pages,d_pages=get('/accounts/'+a_id+'/pages/projects?per_page=100',headers)
+              print(label+'_status:',json.dumps({'credential_check_http':s_verify,'zone_list_http':s_zone,'zone_verified':len(target)==1,'pages_list_http':s_pages,'pages_api_verified':s_pages==200},sort_keys=True))
+              if len(target)==1 and s_pages==200:
+                  q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
+                  s_dns,d_dns=get('/zones/'+z_id+'/dns_records?'+q,headers)
+                  print(label+'_corporate_dns:',json.dumps({'http':s_dns,'record_count':len(d_dns.get('result') or []) if s_dns==200 else None}))
+                  projects=d_pages.get('result') or []
+                  print(label+'_target_pages_project_exists:',any(p.get('name')=='musitu-corporate' for p in projects))
+                  verified=verified or s_dns==200
           print('cloudflare_mutations: NONE')
-          print('credentials_logged: NONE')
+          if not verified:
+              raise SystemExit('Cloudflare credential access not verified for required zone and Pages APIs')
+          print('cloudflare_corporate_readonly_access: VERIFIED')
           PY
