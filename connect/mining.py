@@ -45,6 +45,11 @@ def normalize_mining_rows(rows: Iterable[dict[str,Any]]) -> CanonicalEnvelope:
         # The schema is already checked; keep the original mapping's values
         # and normalize them in place on a fresh C-level dict copy.
         item=dict(raw)
+        # Python treats bool as int; do not turn MQTT/OPC-UA true/false into
+        # numeric mining exposure, cost, risk or spatial coordinates.
+        if any(isinstance(raw.get(field), bool)
+               for field in (*_REQUIRED[1:], "latitude", "longitude")):
+            raise ValueError("numeric_boolean_forbidden")
         item["hazard"]=str(item["hazard"]).strip()
         if not item["hazard"]: raise ValueError("hazard_required")
         item["exposure"]=float(item["exposure"]); item["severity"]=float(item["severity"])
