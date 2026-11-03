@@ -1,0 +1,72 @@
+name: MUSITU Corporate Cloudflare Read-Only Access Probe
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-cloudflare-readonly.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-cf-readonly-probe
+  cancel-in-progress: false
+jobs:
+  cloudflare-readonly:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Verify corporate Cloudflare account and Pages API without writes or secret output
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.parse, urllib.request
+          zone_id='5b56528f03948ff5917a5e0cd9f7109e'
+          account_id='93f395f5121954671f92fffa453d6b61'
+          email=os.environ.get('CF_EMAIL','')
+          key=os.environ.get('CF_GLOBAL_KEY','')
+          if not email or not key:
+              raise SystemExit('Access failed: required repository secrets are not configured for this workflow')
+          headers={'X-Auth-Email':email,'X-Auth-Key':key,'Accept':'application/json','User-Agent':'MUSITU-Corporate-ReadOnly-Probe/1.0'}
+          def get(path):
+              if not path.startswith(('/zones/'+zone_id,'/accounts/'+account_id+'/pages/projects')):
+                  raise SystemExit('Unapproved Cloudflare API target')
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=headers,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      status=r.status
+                      data=json.load(r)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit('Cloudflare read-only API HTTP '+str(exc.code))
+              except Exception as exc:
+                  raise SystemExit('Cloudflare read-only API unavailable: '+type(exc).__name__)
+              if status!=200 or data.get('success') is not True:
+                  raise SystemExit('Cloudflare API read rejected')
+              return data
+          zone=get('/zones/'+zone_id).get('result') or {}
+          if zone.get('id')!=zone_id or zone.get('name')!='mftintelligence.com' or (zone.get('account') or {}).get('id')!=account_id:
+              raise SystemExit('Cloudflare zone/account identity mismatch')
+          print('zone_and_account_identity: VERIFIED')
+          q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
+          records=get('/zones/'+zone_id+'/dns_records?'+q).get('result') or []
+          print('corporate_dns_record_count:',len(records))
+          if records:
+              print('corporate_record_preexists: YES — manual review required before any creation')
+          else:
+              print('corporate_record_preexists: NO')
+          resp=get('/accounts/'+account_id+'/pages/projects?per_page=100')
+          projects=resp.get('result') or []
+          names=[p.get('name') for p in projects if isinstance(p,dict)]
+          print('cloudflare_pages_api: VERIFIED')
+          print('musitu_corporate_project_exists:', 'YES' if 'musitu-corporate' in names else 'NO')
+          info=resp.get('result_info') or {}
+          if (info.get('total_pages') or 1)>1:
+              print('pages_inventory: PARTIAL — requires pagination')
+          else:
+              print('pages_inventory: COMPLETE')
+          print('cloudflare_mutations: NONE')
+          print('credentials_logged: NONE')
+          PY
