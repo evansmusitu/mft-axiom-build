@@ -1,0 +1,54 @@
+name: AXIOM customer Cloudflare metadata readback 20261103
+on:
+  pull_request:
+    paths: ['.github/workflows/axiom-customer-cloudflare-metadata-20261103.yml', 'customer_frontier/qualification/cloudflare_customer_inventory.py']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-cloudflare-readback-20261103
+  cancel-in-progress: false
+jobs:
+  read-only-metadata:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 71 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-customer-oauth-continuity-20261103' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Admit exact reviewed parent and bounded audit source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 15acacc0ca3d0e473528c58bb73b93c574140d55
+          python3 - <<'PY'
+          import hashlib,subprocess
+          from pathlib import Path
+          script='customer_frontier/qualification/cloudflare_customer_inventory.py'
+          assert hashlib.sha256(Path(script).read_bytes()).hexdigest()=='8c46aa3a826aafeda740483735d19807b9b16195c03f05165aaea06f84e8bf38'
+          assert set(subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines())=={
+            script,
+            '.github/workflows/axiom-customer-cloudflare-metadata-20261103.yml',
+            'customer_frontier/docs/IDP_OWNER_READBACK_20261103_NOT_RELEASE.md',
+            'customer_frontier/tests/test_cloudflare_metadata_readback.py',
+          }
+          PY
+      - name: Verify malformed provider responses fail closed without network
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_cloudflare_metadata_readback.py -v
+      - name: Read provider metadata using protected existing API token
+        env:
+          AXIOM_CHECKOUT_SHA: ${{ github.event.pull_request.head.sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/cloudflare_customer_inventory.py
+      - name: Preserve actual metadata observation including incomplete results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-cloudflare-metadata-20261103
+          path: |
+            customer-cloudflare-readback.json
+            customer-cloudflare-readback.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
