@@ -20,7 +20,7 @@ class MetadataReadback(unittest.TestCase):
         spec.loader.exec_module(module)
         payload = [
             {"success": True, "result": [{"uuid": module.DATABASE, "name": module.DATABASE_NAME}],
-             "result_info": {"page": 1, "total_pages": 1, "total_count": 1}},
+             "result_info": {"page": 1, "per_page": 100, "count": 1, "total_count": 1}},
             {"success": True, "result": {"uuid": module.DATABASE, "name": module.DATABASE_NAME}},
             {"success": True, "result": [{"id": "axiom-customer-staging"}]},
             {"success": True, "result": {"subdomain": "owned-account"}},
@@ -97,10 +97,20 @@ class MetadataReadback(unittest.TestCase):
         def mutate(p):
             p[0]["result"] = []
             p[0]["result_info"]["total_count"] = 0
+            p[0]["result_info"]["count"] = 0
         self.assert_incomplete(mutate)
 
     def test_subdomain_cannot_supply_an_external_url(self):
         self.assert_incomplete(lambda p: p[3]["result"].update(subdomain="https://foreign.example"))
+
+    def test_inconsistent_provider_count_is_not_complete(self):
+        self.assert_incomplete(lambda p: p[0]["result_info"].update(count=0, total_count=0))
+
+    def test_more_pages_are_not_a_complete_inventory(self):
+        self.assert_incomplete(lambda p: p[0]["result_info"].update(total_count=2))
+
+    def test_boolean_count_is_not_an_integer_count(self):
+        self.assert_incomplete(lambda p: p[0]["result_info"].update(count=True))
 
     def test_checkout_and_event_provenance_are_distinct(self):
         _, result = self.run_subject()

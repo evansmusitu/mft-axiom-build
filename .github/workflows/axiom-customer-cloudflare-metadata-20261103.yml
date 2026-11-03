@@ -22,12 +22,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 15acacc0ca3d0e473528c58bb73b93c574140d55
+          test "$(git rev-parse HEAD^)" = 9e752a1ea2ada01dc85fd9575d7dba104d02c291
           python3 - <<'PY'
           import hashlib,subprocess
           from pathlib import Path
           script='customer_frontier/qualification/cloudflare_customer_inventory.py'
-          assert hashlib.sha256(Path(script).read_bytes()).hexdigest()=='8c46aa3a826aafeda740483735d19807b9b16195c03f05165aaea06f84e8bf38'
+          assert hashlib.sha256(Path(script).read_bytes()).hexdigest()=='a2c11686d3d0a5f26f7a07b457474a735c07349e2c00a08a7959d321fb7002ad'
           assert set(subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines())=={
             script,
             '.github/workflows/axiom-customer-cloudflare-metadata-20261103.yml',

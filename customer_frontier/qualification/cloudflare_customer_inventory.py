@@ -84,16 +84,21 @@ def inventory():
     ) if workers_valid else []
     db_rows = (dbs or {}).get("result")
     pagination = (dbs or {}).get("result_info")
-    complete = bool(dbs) and isinstance(db_rows, list) and all(
+    rows_valid = bool(dbs) and isinstance(db_rows, list) and all(
         isinstance(row, dict) and isinstance(row.get("uuid"), str)
         and isinstance(row.get("name"), str) for row in db_rows
-    ) and isinstance(pagination, dict) and (
-        type(pagination.get("total_pages")) is int and pagination["total_pages"] == 1
-        and type(pagination.get("page")) is int and pagination["page"] == 1
+    )
+    # D1 documents count/page/per_page/total_count, not total_pages.
+    # Missing or inconsistent counts remain unknown; never infer completeness.
+    complete = rows_valid and isinstance(pagination, dict) and (
+        type(pagination.get("page")) is int and pagination["page"] == 1
+        and type(pagination.get("count")) is int and pagination["count"] == len(db_rows)
+        and type(pagination.get("per_page")) is int and pagination["per_page"] >= len(db_rows)
+        and 10 <= pagination["per_page"] <= 10000
         and type(pagination.get("total_count")) is int
         and pagination["total_count"] == len(db_rows)
     )
-    selected_listed = complete and any(
+    selected_listed = rows_valid and any(
         row["uuid"] == DATABASE and row["name"] == DATABASE_NAME for row in db_rows
     )
     sub_result = (subdomain or {}).get("result")
@@ -113,6 +118,11 @@ def inventory():
             "file_size": selected_result.get("file_size") if selected_verified else None,
         },
         "database_inventory_complete": complete,
+        "database_returned_count": len(db_rows) if rows_valid else None,
+        "database_pagination": {
+            key: pagination[key] for key in ("count", "page", "per_page", "total_count")
+            if isinstance(pagination, dict) and type(pagination.get(key)) is int
+        },
         "selected_database_listed": selected_listed,
         "database_count": len(db_rows) if complete else None,
         "axiom_worker_names": axiom_workers,
@@ -125,7 +135,7 @@ def inventory():
         "customer_records_read": 0,
         "hosted_migration_qualified": False,
         "release_authority": False,
-        "status": "METADATA_OBSERVED" if all(t["success"] for t in transport) and selected_verified and selected_listed and workers_valid and sub_valid else "INCOMPLETE",
+        "status": "METADATA_OBSERVED" if all(t["success"] for t in transport) and selected_verified and complete and selected_listed and workers_valid and sub_valid else "INCOMPLETE",
     }
     out = Path("customer-cloudflare-readback.json")
     raw = (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode()

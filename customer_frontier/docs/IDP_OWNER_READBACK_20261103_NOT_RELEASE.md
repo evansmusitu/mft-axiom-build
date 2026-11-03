@@ -61,3 +61,26 @@ Cloudflare acceptance. The workflow repeats them before injecting the credential
 
 B27 remains `FAILED_IN_SYNTHETIC_ATTACK`. Superiority and Wolfram parity remain
 `NOT_CERTIFIED`. Production remains the rollback origin.
+
+## Actual API-token readback and contract correction
+
+Guarded run `41582380966`, source `9e752a1ea2ada01dc85fd9575d7dba104d02c291`,
+completed all four GETs with HTTP200. It verified the selected D1 UUID/name and
+reported 28 tables (provider metadata only), valid Worker metadata and the
+Workers subdomain `mft-education-nexus-93f395f5`. No SQL or resource mutation ran.
+It returned `INCOMPLETE`, preserving its actual evidence artifact: completeness
+required `total_pages`, which is not in the documented D1 pagination contract.
+This is not a credential failure and does not qualify a customer schema.
+
+Cloudflare's primary contract is
+https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/list/
+and describes optional `count`, `page`, `per_page`, `total_count`. The corrected
+candidate requires all those explicit counts to be consistent before declaring
+inventory completeness. Missing, malformed, boolean or inconsistent counts still
+fail closed. Selected-database presence is reported independently of completeness.
+Only the bounded numeric pagination fields and returned row count are added to
+the metadata artifact. No API path or authority is expanded.
+
+Source CI `41582380867` passed 149 Node and 30 Python tests on the previous
+readback source; new provider-contract fixtures and fresh CI are required for
+this correction. An incomplete metadata run is never promoted to a live gate.
