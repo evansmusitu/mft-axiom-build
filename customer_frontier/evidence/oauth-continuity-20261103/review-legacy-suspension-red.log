@@ -1,0 +1,47 @@
+✖ legacy code retained across customer suspension cannot mint new credentials (19.146743ms)
+✖ suspension during legacy mint is rejected by the database transaction (9.586066ms)
+✔ active legacy account still mints, then suspension denies access and refresh (10.717786ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 117.644884
+
+✖ failing tests:
+
+test at customer_frontier/tests/oauth_legacy_suspension.test.mjs:14:1
+✖ legacy code retained across customer suspension cannot mint new credentials (19.146743ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 400
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_legacy_suspension.test.mjs:17:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_legacy_suspension.test.mjs:21:1
+✖ suspension during legacy mint is rejected by the database transaction (9.586066ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 400
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_legacy_suspension.test.mjs:25:45)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

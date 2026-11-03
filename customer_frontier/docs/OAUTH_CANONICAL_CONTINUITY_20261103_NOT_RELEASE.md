@@ -92,7 +92,7 @@ authority false. No provider inference was requested.
 
 ## Verification and the next real gates
 
-Local verification: 141/141 Node, 20/20 Python, JavaScript syntax. Includes two
+Local verification after separate review: 149/149 Node, 20/20 Python, JavaScript syntax. Includes two
 databases, canonical mismatch/revocation/unavailability, copied assertions,
 revocation after code and during mint, token refresh/UserInfo, REPLACE defense
 and all preserved financial/tenant tests. Separate source review and exact-tree
@@ -120,3 +120,19 @@ The remaining real acceptance actions are:
 B27 remains `FAILED_IN_SYNTHETIC_ATTACK`. Wolfram parity and superiority remain
 `NOT_CERTIFIED`. Whole-product breadth and all previous failure evidence remain.
 No main write, PR1 merge, public release, hosted mutation or security grant.
+
+## Separate review and repairs
+
+The reviewer independently reproduced a High inherited legacy-suspension defect:
+an unredeemed legacy code could mint credentials after customer disablement.
+All grant/mint/UserInfo paths now independently require an active customer;
+database eligibility guards prevent suspension racing with token persistence.
+The legacy compatibility case still passes for active customers.
+
+A separate Medium database-contract defect paired identity A with customer B's
+code/key and then allowed linked parent reassignment. Exact parent/customer
+matching, linked-parent identity immutability, parent REPLACE guards and terminal
+linked-key revocation repair it. Red logs and the review accumulator are retained.
+The reviewer re-ran 149 Node and 20 Python tests and found no unresolved material
+source-review blocker. These are fresh-fixture source results, not an upgrade
+approval or replacement for dirty-row/previous-schema/hosted migration testing.

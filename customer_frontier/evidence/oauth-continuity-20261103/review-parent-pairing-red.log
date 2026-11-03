@@ -1,0 +1,57 @@
+✔ immutable token linkage cannot attach another customer key to an approved identity (7.354472ms)
+✖ linked parent key and code cannot be reassigned to a different customer or identity (23.880885ms)
+✖ REPLACE of a linked parent cannot silently rewrite its binding (12.591265ms)
+✖ revoked identity family cannot reactivate its linked API key (9.930835ms)
+✔ immutable code linkage cannot attach another customer code to an approved identity (7.331468ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 144.853238
+
+✖ failing tests:
+
+test at customer_frontier/tests/oauth_link_pairing.test.mjs:14:1
+✖ linked parent key and code cannot be reassigned to a different customer or identity (23.880885ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception: UPDATE api_keys SET customer_id='other-customer'
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_link_pairing.test.mjs:21:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /oauth_linked_parent_immutable/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_link_pairing.test.mjs:25:1
+✖ REPLACE of a linked parent cannot silently rewrite its binding (12.591265ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_link_pairing.test.mjs:29:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /oauth_linked_parent_immutable/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/oauth_link_pairing.test.mjs:33:1
+✖ revoked identity family cannot reactivate its linked API key (9.930835ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///workspace/scratch/9ed3a47a5ebe/axiom-customer-continuity/customer_frontier/tests/oauth_link_pairing.test.mjs:38:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /oauth_linked_key_revocation_terminal/,
+    operator: 'throws',
+    diff: 'simple'
+  }
