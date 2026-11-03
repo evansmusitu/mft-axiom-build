@@ -76,10 +76,17 @@ def normalize_mining_rows(rows: Iterable[dict[str,Any]]) -> CanonicalEnvelope:
             value=str(raw["event_time"]).strip()
             if not value: raise ValueError("event_time_required")
             try:
-                parsed=datetime.fromisoformat(value.replace("Z","+00:00"))
+                # Canonical trailing-Z UTC is native on pinned Python 3.12.
+                # Keep the prior parser for noncanonical Z placement so this
+                # performance change does not widen the accepted grammar.
+                if value.endswith("Z") and value.find("Z") == len(value) - 1:
+                    parsed=datetime.fromisoformat(value)
+                else:
+                    parsed=datetime.fromisoformat(value.replace("Z","+00:00"))
             except ValueError:
                 raise ValueError("event_time_invalid") from None
-            if parsed.tzinfo is None or parsed.utcoffset() is None:
+            # fromisoformat constructs a real fixed offset for aware inputs.
+            if parsed.tzinfo is None:
                 raise ValueError("event_time_timezone_required")
             item["event_time"]=value
         has_lat="latitude" in raw

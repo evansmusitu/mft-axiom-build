@@ -36,3 +36,26 @@ OpenML 42701 endpoint failed its published source MD5 verification twice. Do
 not disable hash checks or substitute synthetic/reused data as independent mine
 validation. No source bytes, external mine approvals, hosted D1, credentials,
 production changes or methane prediction have been promoted by this refactor.
+
+## 3 November 2026 prospective frontier diagnosis and next source change
+
+Eight counterbalanced million-event reference/EMQX rounds on GitHub Actions run
+`41711767201` showed `repeatability_passed=true`, lossless reference intake,
+`integrity_preserved=true`, and median reference throughput
+`30475.82680126727` events/s. The locked original 2x gain requires
+`30556.74445580264` events/s; the observed gain `1.9947037777763001x`
+therefore **failed** qualification. Preserve raw evidence and this failure.
+
+The subsequent source-only timestamp optimization uses Python 3.12's native
+UTC parsing of the exact single trailing-Z timestamp case, falling back to
+the original parsing rule for noncanonical Z placement. The original
+timezone-aware requirement remains. Before the change, 38 focused tests
+passed; after it, the same 38 tests passed. A separate deterministic 500-case
+timestamp parity check showed no behavior differences. Local diagnostics
+suggest a small per-record reduction, but are **not** a substitute for a new
+complete broker benchmark and do not establish external mine qualification.
+
+The pinned baseline, required 2.0x threshold, eight counterbalanced rounds,
+million-event integrity, QoS 1, 3000-row batch size, frozen model, staging
+boundaries and customer-admission restrictions remain unchanged. Do not claim
+success without the next source-commit-specific benchmark evidence.
