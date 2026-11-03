@@ -1,5 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { hashJson } from "../../phase1/src/canonical.ts";
+import {initializeFairSQLite,enableFairSQLite,selectFairSQLite,recordFairSQLite} from "./tenant_fair_scheduling_sqlite.ts";
+import {validateTenantAdmissionQuotas,tenantAdmissionPolicyHash,type TenantAdmissionQuotaPolicy} from "./tenant_admission_quotas.ts";
 import type { DistributedExecutionRepository } from "./repositories.ts";
 import type {
   ControlPlaneResult, DistributedExecutionIntent, DistributedExecutionIntentCore,
@@ -79,7 +81,12 @@ function stateHash(intentHash:string,state:Omit<DistributedExecutionState,"state
     terminalAt:state.terminalAt??null,
     result:state.result??null,
     resultHash:state.resultHash??null,
-    failureCode:state.failureCode??null
+    failureCode:state.failureCode??null,
+    ...(state.leaseCapabilityCoreHash===undefined?{}:{
+      leaseWorkerKeyId:state.leaseWorkerKeyId,
+      leasePoolId:state.leasePoolId,
+      leaseCapabilityCoreHash:state.leaseCapabilityCoreHash
+    })
   } as any);
 }
 function makeState(intentHash:string,state:Omit<DistributedExecutionState,"stateHash">):DistributedExecutionState {
@@ -96,6 +103,9 @@ function rowState(row:any):DistributedExecutionState {
   };
   if(row.lease_owner!==null)state.leaseOwner=String(row.lease_owner);
   if(row.lease_expires_at!==null)state.leaseExpiresAt=String(row.lease_expires_at);
+  if(row.lease_worker_key_id!==undefined&&row.lease_worker_key_id!==null)state.leaseWorkerKeyId=String(row.lease_worker_key_id);
+  if(row.lease_pool_id!==undefined&&row.lease_pool_id!==null)state.leasePoolId=String(row.lease_pool_id);
+  if(row.lease_capability_hash!==undefined&&row.lease_capability_hash!==null)state.leaseCapabilityCoreHash=String(row.lease_capability_hash);
   if(row.terminal_at!==null)state.terminalAt=String(row.terminal_at);
   if(row.result_json!==null)state.result=decodedJson<ControlPlaneResult>(row.result_json);
   if(row.result_hash!==null)state.resultHash=String(row.result_hash);
@@ -106,6 +116,12 @@ function verifyState(intent:DistributedExecutionIntent,state:DistributedExecutio
   const {stateHash:_,...core}=state,expected=stateHash(intent.intentHash,core);
   if(state.stateHash!==expected||storedHash!==expected)throw new Error("Stored distributed execution state integrity mismatch");
   if(!Number.isInteger(state.leaseEpoch)||state.leaseEpoch<0||!Number.isInteger(state.attemptCount)||state.attemptCount<0)throw new Error("Stored distributed execution state integrity mismatch");
+  const authenticatedFields=[state.leaseWorkerKeyId,state.leasePoolId,state.leaseCapabilityCoreHash];
+  if(authenticatedFields.some(x=>x!==undefined)&&(
+    authenticatedFields.some(x=>typeof x!=="string"||!x)
+    ||!/^[0-9a-f]{64}$/.test(state.leaseCapabilityCoreHash??"")
+    ||state.status!=="LEASED"
+  ))throw new Error("Stored authenticated lease integrity mismatch");
   if(state.status==="PENDING"){
     if(state.leaseOwner||state.leaseExpiresAt||state.terminalAt||state.result||state.failureCode)throw new Error("Stored distributed execution state integrity mismatch");
   }else if(state.status==="LEASED"){
@@ -144,6 +160,14 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     this.db=new DatabaseSync(databasePath);
     this.db.exec(`
       PRAGMA journal_mode=WAL;
+      CREATE TABLE IF NOT EXISTS axiom_tenant_admission_quota_mode(
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1)
+      );
+      CREATE TABLE IF NOT EXISTS axiom_tenant_admission_quotas(
+        tenant_id TEXT PRIMARY KEY,
+        max_outstanding_jobs INTEGER NOT NULL CHECK(max_outstanding_jobs>=1),
+        policy_hash TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS distributed_execution_jobs(
         tenant_id TEXT NOT NULL,
         job_id TEXT NOT NULL,
@@ -154,6 +178,9 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
         attempt_count INTEGER NOT NULL,
         lease_owner TEXT,
         lease_expires_at TEXT,
+        lease_worker_key_id TEXT,
+        lease_pool_id TEXT,
+        lease_capability_hash TEXT,
         terminal_at TEXT,
         result_json TEXT,
         result_hash TEXT,
@@ -167,8 +194,49 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
       CREATE INDEX IF NOT EXISTS distributed_execution_claim
         ON distributed_execution_jobs(status,lease_expires_at,created_at,job_id);
     `);
+    initializeFairSQLite(this.db);
+    const columns=new Set((this.db.prepare("PRAGMA table_info(distributed_execution_jobs)").all() as any[]).map(x=>String(x.name)));
+    for(const [field,type] of [
+      ["lease_worker_key_id","TEXT"],["lease_pool_id","TEXT"],["lease_capability_hash","TEXT"]
+    ])if(!columns.has(field))this.db.exec(`ALTER TABLE distributed_execution_jobs ADD COLUMN ${field} ${type}`);
   }
   close():void{this.db.close();}
+  async enableTenantFairScheduling():Promise<void>{enableFairSQLite(this.db);}
+
+  async installTenantAdmissionQuotas(policies:readonly TenantAdmissionQuotaPolicy[]):Promise<void>{
+    const canonical=validateTenantAdmissionQuotas(policies);
+    this.db.exec("BEGIN IMMEDIATE");
+    try{
+      const enabled=Boolean(this.db.prepare("SELECT singleton FROM axiom_tenant_admission_quota_mode WHERE singleton=1").get());
+      const stored=this.db.prepare("SELECT * FROM axiom_tenant_admission_quotas ORDER BY tenant_id").all() as any[];
+      if(enabled){
+        if(stored.length!==canonical.length)throw new Error("Tenant quota immutable registry mismatch");
+        for(let i=0;i<canonical.length;i++){
+          const p=canonical[i],row=stored[i];
+          if(!row||row.tenant_id!==p.tenantId||Number(row.max_outstanding_jobs)!==p.maxOutstandingJobs
+            ||row.policy_hash!==p.policyHash)throw new Error("Tenant quota immutable registry mismatch");
+        }
+      }else{
+        if(stored.length)throw new Error("Tenant quota partial registry state");
+        const insert=this.db.prepare("INSERT INTO axiom_tenant_admission_quotas(tenant_id,max_outstanding_jobs,policy_hash) VALUES(?,?,?)");
+        for(const p of canonical)insert.run(p.tenantId,p.maxOutstandingJobs,p.policyHash);
+        this.db.prepare("INSERT INTO axiom_tenant_admission_quota_mode(singleton) VALUES(1)").run();
+      }
+      this.db.exec("COMMIT");
+    }catch(e){try{this.db.exec("ROLLBACK");}catch{}throw e;}
+  }
+
+  private assertTenantAdmissionQuota(tenant:string):void{
+    const on=this.db.prepare("SELECT singleton FROM axiom_tenant_admission_quota_mode WHERE singleton=1").get();
+    if(!on)return;
+    const p=this.db.prepare("SELECT * FROM axiom_tenant_admission_quotas WHERE tenant_id=?").get(tenant) as any;
+    if(!p)throw new Error("TENANT_QUOTA_UNCONFIGURED");
+    if(p.policy_hash!==tenantAdmissionPolicyHash({tenantId:tenant,maxOutstandingJobs:Number(p.max_outstanding_jobs)}))
+      throw new Error("Tenant quota policy integrity mismatch");
+    const count=this.db.prepare("SELECT COUNT(*) AS n FROM distributed_execution_jobs WHERE tenant_id=? AND status IN ('PENDING','LEASED')")
+      .get(tenant) as any;
+    if(Number(count.n)>=Number(p.max_outstanding_jobs))throw new Error("TENANT_QUOTA_EXCEEDED");
+  }
 
   private row(scope:TenantScope,jobId:string):any {
     const tenant=tenantId(scope),id=required(jobId,"jobId");
@@ -187,16 +255,22 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
     const result=this.db.prepare(`
       UPDATE distributed_execution_jobs SET
         status=?,lease_epoch=?,attempt_count=?,lease_owner=?,lease_expires_at=?,terminal_at=?,
-        result_json=?,result_hash=?,failure_code=?,state_hash=?
+        result_json=?,result_hash=?,failure_code=?,state_hash=?,
+        lease_worker_key_id=?,lease_pool_id=?,lease_capability_hash=?
       WHERE tenant_id=? AND job_id=?
     `).run(
       s.status,s.leaseEpoch,s.attemptCount,s.leaseOwner??null,s.leaseExpiresAt??null,s.terminalAt??null,
       s.result===undefined?null:JSON.stringify(s.result),s.resultHash??null,s.failureCode??null,s.stateHash,
+      s.leaseWorkerKeyId??null,s.leasePoolId??null,s.leaseCapabilityCoreHash??null,
       tenant,job.intent.jobId
     );
     if(Number(result.changes)!==1)throw new Error("Distributed execution job update lost");
   }
+  private rawWorkersDisabled():boolean {
+    return Boolean(this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='axiom_worker_operation_receipts'").get());
+  }
   private currentLease(scope:TenantScope,jobId:string,workerId:string,leaseEpoch:number,now:string):DistributedExecutionJob {
+    if(this.rawWorkersDisabled())throw new Error("WORKER_AUTH_REQUIRED");
     const job=this.verified(scope,this.row(scope,jobId)),at=iso(now,"now"),worker=required(workerId,"workerId"),wanted=epoch(leaseEpoch);
     if(
       job.state.status!=="LEASED"||
@@ -220,6 +294,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
         this.db.exec("COMMIT");
         return cloneJob(job);
       }
+      this.assertTenantAdmissionQuota(intent.tenantId);
       this.db.prepare(`
         INSERT INTO distributed_execution_jobs(
           tenant_id,job_id,intent_hash,intent_json,status,lease_epoch,attempt_count,state_hash,created_at
@@ -238,15 +313,11 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
   }
 
   async claimNext(workerId:string,now:string,leaseMs:number):Promise<DistributedExecutionLease|undefined> {
+    if(this.rawWorkersDisabled())throw new Error("WORKER_AUTH_REQUIRED");
     const worker=required(workerId,"workerId"),at=iso(now,"now"),duration=positiveLease(leaseMs),expires=new Date(Date.parse(at)+duration).toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try{
-      const row=this.db.prepare(`
-        SELECT * FROM distributed_execution_jobs
-        WHERE status='PENDING' OR (status='LEASED' AND lease_expires_at<=?)
-        ORDER BY created_at ASC,job_id ASC
-        LIMIT 1
-      `).get(at) as any;
+      const row=selectFairSQLite(this.db,at) as any;
       if(!row){this.db.exec("COMMIT");return undefined;}
       const scope={tenantId:String(row.tenant_id)},job=this.verified(scope,row);
       if(terminal(job.state.status))throw new Error("Terminal distributed execution job is not claimable");
@@ -259,6 +330,7 @@ export class DistributedExecutionStore implements DistributedExecutionRepository
       });
       const next={intent:job.intent,state:nextState};
       this.update(scope,next);
+      recordFairSQLite(this.db,scope.tenantId);
       this.db.exec("COMMIT");
       return {job:cloneJob(next),workerId:worker,leaseEpoch:nextState.leaseEpoch,leaseExpiresAt:expires};
     }catch(error){

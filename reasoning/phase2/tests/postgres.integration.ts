@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash, sign } from "node:crypto";
+import { createHash, sign, generateKeyPairSync } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import { canonicalize, createDefaultRegistry, createSigner, hashJson, type AxiomProgram } from "../../phase1/src/index.ts";
@@ -466,4 +466,255 @@ test("PostgreSQL distributed execution jobs provide SKIP LOCKED fencing parity",
   const tampered=await repo.create(A,tamperCore);
   await pool.query("UPDATE axiom_distributed_execution_jobs SET attempt_count=77 WHERE tenant_id=$1 AND job_id=$2",[A.tenantId,tampered.intent.jobId]);
   await assert.rejects(()=>repo.get(A,tampered.intent.jobId),/state.*integrity|integrity.*state/i);
+});
+
+
+test("PostgreSQL tenant capacity serializes racing dispatch and preserves replay and isolation",async()=>{
+ const ax:any=await import("../src/index.ts");
+ await ready();await initializePostgresSchema(pool);
+ await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_tenant_admission_quotas, axiom_tenant_admission_quota_mode");
+ const repo:any=new ax.PostgresDistributedExecutionRepository(pool);
+ const H=(ch:string)=>ch.repeat(64);
+ const quotaA={tenantId:"tenant:quota-pg-a"},quotaB={tenantId:"tenant:quota-pg-b"};
+ const core=(tenantId:string,requestHash:string)=>({
+  tenantId,principalId:"principal:pg-quota",authorizationDecisionHash:H("a"),requestHash,
+  compilationId:"model-compilation:"+H("b"),compilationRecordHash:H("c"),
+  profileId:"profile:pg-quota",profileVersion:"1",profileHash:H("d"),
+  compilerManifest:{id:"axiom.phase1-compiler",version:"1",implementationHash:H("e")},
+  operationRegistryManifestHash:H("f"),
+  executionRequest:{asOf:"2026-11-01T10:00:00.000Z",issuedAt:"2026-11-01T10:00:01.000Z",
+   program:{irVersion:"0.1",objective:"pg capacity",assumptions:[],inputs:{},nodes:[],constraints:[],decisionNodeId:"decision"},
+   requirements:[],bindings:[]},snapshotId:"snapshot:"+H("1"),snapshotHash:H("2"),
+   createdAt:tenantId===quotaB.tenantId?"2026-11-01T10:00:02.200Z":"2026-11-01T10:00:02.000Z"
+ });
+ try{
+  await repo.installTenantAdmissionQuotas([{tenantId:quotaA.tenantId,maxOutstandingJobs:1},
+   {tenantId:quotaB.tenantId,maxOutstandingJobs:1},
+   {tenantId:"tenant:quota-pg-repeat",maxOutstandingJobs:1}]);
+  const repeating={tenantId:"tenant:quota-pg-repeat"};
+  const held=await pool.connect();
+  await held.query("BEGIN");
+  await held.query("SELECT 1 FROM axiom_tenant_admission_quotas WHERE tenant_id=$1 FOR UPDATE",[repeating.tenantId]);
+  const exact=core(repeating.tenantId,H("7"));
+  const firstPending=repo.create(repeating,exact);
+  const secondPending=repo.create(repeating,exact);
+  await new Promise(r=>setTimeout(r,50));
+  await held.query("COMMIT");
+  held.release();
+  const both=await Promise.all([firstPending,secondPending]);
+  assert.equal(both[0].intent.jobId,both[1].intent.jobId);
+  const submissions=await Promise.allSettled([
+   repo.create(quotaA,core(quotaA.tenantId,H("3"))),
+   repo.create(quotaA,core(quotaA.tenantId,H("4")))
+  ]);
+  assert.equal(submissions.filter(x=>x.status==="fulfilled").length,1);
+  const denied=submissions.find(x=>x.status==="rejected") as PromiseRejectedResult;
+  assert.match(String(denied.reason),/TENANT_QUOTA_EXCEEDED/);
+  const admitted=(submissions.find(x=>x.status==="fulfilled") as PromiseFulfilledResult<any>).value;
+  assert.equal((await repo.create(quotaA,core(quotaA.tenantId,admitted.intent.requestHash))).intent.jobId,
+   admitted.intent.jobId);
+  await assert.rejects(()=>repo.create({tenantId:"tenant:missing"},core("tenant:missing",H("5"))),
+   /TENANT_QUOTA_UNCONFIGURED/);
+  await repo.create(quotaB,core(quotaB.tenantId,H("6")));
+  await assert.rejects(()=>repo.installTenantAdmissionQuotas([{tenantId:quotaA.tenantId,maxOutstandingJobs:2}]),
+   /immutable|mismatch/);
+  const lease=await repo.claimNext("pg-worker:capacity","2026-11-01T10:00:03.000Z",1000);
+  assert.equal(lease.job.intent.jobId,admitted.intent.jobId);
+  await repo.failTerminal(quotaA,admitted.intent.jobId,"pg-worker:capacity",lease.leaseEpoch,
+   "2026-11-01T10:00:03.100Z","STALE");
+  const another=await repo.create(quotaA,core(quotaA.tenantId,H("9")));
+  assert.equal(another.state.status,"PENDING");
+ }finally{
+  await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_tenant_admission_quotas, axiom_tenant_admission_quota_mode");
+ }
+});
+
+test("PostgreSQL tenant-fair claims rotate durable service order for legacy and authenticated workers",async()=>{
+ const ax:any=await import("../src/index.ts");
+ await ready();await initializePostgresSchema(pool);
+ await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_tenant_fair_mode, axiom_tenant_fair_cursor, axiom_tenant_fair_served");
+ const repo:any=new ax.PostgresDistributedExecutionRepository(pool);
+ const TA={tenantId:"tenant:fair-pg-a"},TB={tenantId:"tenant:fair-pg-b"};
+ const H=(ch:string)=>ch.repeat(64);
+ const core=(tenantId:string,requestHash:string,createdAt:string)=>({
+  tenantId,principalId:"principal:pg-fair",authorizationDecisionHash:H("a"),requestHash,
+  compilationId:"model-compilation:"+H("b"),compilationRecordHash:H("c"),profileId:"p",
+  profileVersion:"1",profileHash:H("d"),compilerManifest:{id:"axiom.phase1-compiler",version:"1",implementationHash:H("e")},
+  operationRegistryManifestHash:H("f"),executionRequest:{asOf:"2026-11-01T10:00:00.000Z",
+  issuedAt:"2026-11-01T10:00:01.000Z",program:{irVersion:"0.1",objective:"pg fair",assumptions:[],inputs:{},
+  nodes:[],constraints:[],decisionNodeId:"decision"},requirements:[],bindings:[]},
+  snapshotId:"snapshot:"+H("1"),snapshotHash:H("2"),createdAt
+ });
+ await repo.enableTenantFairScheduling();
+ await repo.enableTenantFairScheduling();
+ const a1=await repo.create(TA,core(TA.tenantId,H("1"),"2026-11-01T10:00:02.000Z"));
+ const a2=await repo.create(TA,core(TA.tenantId,H("2"),"2026-11-01T10:00:02.100Z"));
+ const b1=await repo.create(TB,core(TB.tenantId,H("3"),"2026-11-01T10:00:02.200Z"));
+ assert.equal((await repo.claimNext("fair-pg:first","2026-11-01T10:00:03.000Z",5000)).job.intent.jobId,a1.intent.jobId);
+ assert.equal((await repo.claimNext("fair-pg:second","2026-11-01T10:00:03.001Z",5000)).job.intent.jobId,b1.intent.jobId);
+ assert.equal((await repo.claimNext("fair-pg:third","2026-11-01T10:00:03.002Z",5000)).job.intent.jobId,a2.intent.jobId);
+ const a3=await repo.create(TA,core(TA.tenantId,H("4"),"2026-11-01T10:00:02.300Z"));
+ const b2=await repo.create(TB,core(TB.tenantId,H("5"),"2026-11-01T10:00:02.400Z"));
+ const wk=generateKeyPairSync("ed25519"),lk=generateKeyPairSync("ed25519");
+ const trust=ax.createWorkerTrustRecord({workerId:"pg-worker:fair",keyId:"wk:fair",poolId:"pool:fair",
+  publicKeyPem:wk.publicKey.export({type:"spki",format:"pem"}).toString(),status:"ACTIVE",
+  maxLeaseMs:5000,allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]});
+ const auth=new ax.WorkerRequestAuthenticator(new ax.StaticWorkerTrustStore([trust]),{maxAgeMs:30000,futureSkewMs:5000});
+ const secure=await ax.createAuthenticatedPostgresDistributedExecutionStore(pool,auth,ax.createStaticWorkerLeaseSigner("lease:fair",lk));
+ let count=0;
+ const at="2026-11-01T10:00:03.100Z";
+ const proof=()=>{
+  const base={protocolVersion:"axiom.worker-request/v1",workerId:"pg-worker:fair",keyId:"wk:fair",
+   requestId:"fair-pg-req:"+(++count),action:"CLAIM",bodyHash:hashJson({leaseMs:1000}),issuedAt:at};
+  return {...base,signatureBase64:sign(null,Buffer.from(canonicalize(ax.workerRequestSigningPayload(base))),wk.privateKey).toString("base64")};
+ };
+ const p=proof(),first=await secure.claimNext(p,1000,at);
+ assert.equal(first.job.intent.jobId,b2.intent.jobId);
+ assert.deepEqual(await secure.claimNext(p,1000,"2026-11-01T10:00:03.200Z"),first);
+ assert.equal((await pool.query("SELECT ordinal FROM axiom_tenant_fair_cursor WHERE singleton=TRUE")).rows[0].ordinal,"4");
+ assert.equal((await secure.claimNext(proof(),1000,at)).job.intent.jobId,a3.intent.jobId);
+ assert.equal((await pool.query("SELECT ordinal FROM axiom_tenant_fair_cursor WHERE singleton=TRUE")).rows[0].ordinal,"5");
+ await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_tenant_fair_mode, axiom_tenant_fair_cursor, axiom_tenant_fair_served");
+});
+
+test("PostgreSQL authenticated workers enforce signed claim, durable receipt replay and lease fencing",async()=>{
+  const ax:any=await import("../src/index.ts");
+  assert.equal(typeof ax.AuthenticatedPostgresDistributedExecutionStore,"function");
+  await ready();await initializePostgresSchema(pool);
+  await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_worker_operation_receipts");
+  const original=new ax.PostgresDistributedExecutionRepository(pool);
+  const H=(x:string)=>x.repeat(64);
+  const intent={tenantId:A.tenantId,principalId:"p:pg-secure",authorizationDecisionHash:H("a"),requestHash:H("b"),
+    compilationId:"model-compilation:"+H("c"),compilationRecordHash:H("d"),profileId:"p",
+    profileVersion:"1",profileHash:H("e"),compilerManifest:{id:"axiom.phase1-compiler",version:"1",implementationHash:H("f")},
+    operationRegistryManifestHash:H("1"),executionRequest:{asOf:"2026-10-09T16:00:00.000Z",
+    issuedAt:"2026-10-09T16:00:01.000Z",program:{irVersion:"0.1",objective:"pg worker test",assumptions:[],inputs:{},
+    nodes:[],constraints:[],decisionNodeId:"decision"},requirements:[],bindings:[]},
+    snapshotId:"snapshot:"+H("2"),snapshotHash:H("3"),createdAt:"2026-10-09T16:00:02.000Z"};
+  const created=await original.create(A,intent);
+  const wk=generateKeyPairSync("ed25519"),lk=generateKeyPairSync("ed25519");
+  const record=ax.createWorkerTrustRecord({workerId:"pg-worker:one",keyId:"wk:one",poolId:"pool:one",
+    publicKeyPem:wk.publicKey.export({type:"spki",format:"pem"}).toString(),
+    status:"ACTIVE",maxLeaseMs:5000,allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]});
+  const auth=new ax.WorkerRequestAuthenticator(new ax.StaticWorkerTrustStore([record]),{maxAgeMs:30000,futureSkewMs:5000});
+  const signer=ax.createStaticWorkerLeaseSigner("lease:pg",lk);
+  const secure=await ax.createAuthenticatedPostgresDistributedExecutionStore(pool,auth,signer);
+  await assert.rejects(()=>original.claimNext("raw:early","2026-10-09T16:00:02.500Z",1000),/WORKER_AUTH_REQUIRED/);
+  let n=0;
+  function proof(action:string,body:any,targetJobId?:string,issuedAt="2026-10-09T16:00:03.000Z"){
+    const base={protocolVersion:"axiom.worker-request/v1",workerId:"pg-worker:one",keyId:"wk:one",
+      requestId:"pg-req:"+(++n),action,bodyHash:hashJson(body),issuedAt,...targetJobId?{targetJobId}:{}};
+    return {...base,signatureBase64:sign(null,Buffer.from(canonicalize(ax.workerRequestSigningPayload(base))),wk.privateKey).toString("base64")};
+  }
+  const claimProof=proof("CLAIM",{leaseMs:1000});
+  const claim=await secure.claimNext(claimProof,1000,"2026-10-09T16:00:03.000Z");
+  assert.equal(claim.job.intent.jobId,created.intent.jobId);
+  assert.equal(claim.job.state.leaseWorkerKeyId,"wk:one");
+  const retry=await secure.claimNext(claimProof,1000,"2026-10-09T16:00:03.100Z");
+  assert.deepEqual(retry,claim);
+  const cid=claim.capability.capabilityId;
+  const changed=await secure.heartbeat(
+    proof("HEARTBEAT",{leaseMs:2000,capabilityId:cid},created.intent.jobId),
+    claim.capability,2000,"2026-10-09T16:00:03.300Z");
+  assert.notEqual(changed.capability.capabilityId,cid);
+  await assert.rejects(()=>secure.releaseForRetry(
+    proof("RELEASE",{capabilityId:cid},created.intent.jobId),claim.capability,"2026-10-09T16:00:03.400Z"));
+  const done=await secure.releaseForRetry(
+    proof("RELEASE",{capabilityId:changed.capability.capabilityId},created.intent.jobId),
+    changed.capability,"2026-10-09T16:00:03.500Z");
+  assert.equal(done.state.status,"PENDING");
+  await assert.rejects(()=>original.claimNext("raw-id","2026-10-09T16:00:04.000Z",1000),/WORKER_AUTH_REQUIRED/);
+});
+
+test("PostgreSQL view evidence enforces tenant predicate, read-only bounded rows and rollback",async()=>{
+ await ready();
+ const ax:any=await import("../src/index.ts");
+ await pool.query(`CREATE TABLE IF NOT EXISTS axiom_p28b_source(
+  tenant_id TEXT NOT NULL,id TEXT NOT NULL,risk DOUBLE PRECISION NOT NULL)`);
+ await pool.query("TRUNCATE axiom_p28b_source");
+ await pool.query("INSERT INTO axiom_p28b_source(tenant_id,id,risk) VALUES($1,$2,$3),($4,$5,$6),($7,$8,$9)",
+  [A.tenantId,"row:a1",0.2,B.tenantId,"row:b1",0.8,A.tenantId,"row:a2",0.3]);
+ await pool.query("CREATE OR REPLACE VIEW axiom_p28b_view AS SELECT tenant_id,id,risk FROM axiom_p28b_source");
+ const op={operationId:"risk:pg:read",parameterSchemaHash:"a".repeat(64),
+  responseMediaTypes:["application/json"],maxResponseBytes:1024,timeoutMs:3000,mappingIds:["risk:pg:map"]};
+ const make=(maxRows:number,maxResponseBytes=1024)=>new ax.PostgresViewEvidenceAdapter({
+  adapterId:"adapter:pg-view",version:"1",implementationHash:"b".repeat(64),pool,
+  operations:[{manifest:{...op,maxResponseBytes},schemaName:"public",
+   viewName:"axiom_p28b_view",tenantColumn:"tenant_id",columns:["id","risk"],orderColumn:"id",maxRows}]
+ });
+ try{
+  const adapter=make(3);
+  const actual=await adapter.acquire({tenant:A,operation:op,parameters:{}});
+  const rows=JSON.parse(actual.body);
+  assert.deepEqual(rows,[{id:"row:a1",risk:0.2},{id:"row:a2",risk:0.3}]);
+  const isolated=await adapter.acquire({tenant:B,operation:op,parameters:{}});
+  assert.deepEqual(JSON.parse(isolated.body),[{id:"row:b1",risk:0.8}]);
+  await assert.rejects(()=>make(1).acquire({tenant:A,operation:op,parameters:{}}),/row limit/i);
+  const tiny=make(3,12);
+  await assert.rejects(()=>tiny.acquire({tenant:A,operation:{...op,maxResponseBytes:12},parameters:{}}),/byte limit/i);
+  await assert.rejects(()=>adapter.acquire({tenant:A,operation:op,parameters:{query:"DELETE FROM axiom_p28b_source"}}),/parameters/i);
+  assert.equal(Number((await pool.query("SELECT COUNT(*) AS n FROM axiom_p28b_source")).rows[0].n),3);
+ }finally{
+  await pool.query("DROP VIEW IF EXISTS axiom_p28b_view");
+  await pool.query("DROP TABLE IF EXISTS axiom_p28b_source");
+ }
+});
+
+
+test("PostgreSQL remote worker HTTP control preserves signed durable claim receipts and release fencing",async()=>{
+ const ax:any=await import("../src/index.ts");
+ const {createAxiomWorkerControlHttpServer}=await import("../src/worker_control_http.ts");
+ await ready();await initializePostgresSchema(pool);
+ await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_worker_operation_receipts");
+ const original=new ax.PostgresDistributedExecutionRepository(pool);
+ const H=(x:string)=>x.repeat(64),tenant={tenantId:"tenant:pg-remote-control"};
+ const created=await original.create(tenant,{
+  tenantId:tenant.tenantId,principalId:"principal:pg-http",authorizationDecisionHash:H("a"),requestHash:H("b"),
+  compilationId:"model-compilation:"+H("c"),compilationRecordHash:H("d"),profileId:"profile",
+  profileVersion:"1",profileHash:H("e"),compilerManifest:{id:"axiom.phase1-compiler",version:"1",implementationHash:H("f")},
+  operationRegistryManifestHash:H("1"),executionRequest:{asOf:"2026-11-02T08:00:00.000Z",
+   issuedAt:"2026-11-02T08:00:01.000Z",program:{irVersion:"0.1",objective:"pg remote",
+   assumptions:[],inputs:{},nodes:[],constraints:[],decisionNodeId:"decision"},requirements:[],bindings:[]},
+  snapshotId:"snapshot:"+H("2"),snapshotHash:H("3"),createdAt:"2026-11-02T08:00:02.000Z"});
+ const wk=generateKeyPairSync("ed25519"),lk=generateKeyPairSync("ed25519");
+ const trust=ax.createWorkerTrustRecord({workerId:"worker:pg-remote",keyId:"wk:pg-remote",poolId:"pool:pg-remote",
+  publicKeyPem:wk.publicKey.export({type:"spki",format:"pem"}).toString(),status:"ACTIVE",
+  maxLeaseMs:5000,allowedActions:["CLAIM","HEARTBEAT","RELEASE","COMPLETE","FAIL_TERMINAL"]});
+ const auth=new ax.WorkerRequestAuthenticator(new ax.StaticWorkerTrustStore([trust]),
+  {maxAgeMs:30000,futureSkewMs:5000});
+ const secure=await ax.createAuthenticatedPostgresDistributedExecutionStore(pool,auth,
+  ax.createStaticWorkerLeaseSigner("lease:pg-http",lk));
+ const now="2026-11-02T08:00:03.000Z";
+ const signProof=(action:string,body:any,targetJobId?:string)=>{
+  const core={protocolVersion:"axiom.worker-request/v1",workerId:"worker:pg-remote",keyId:"wk:pg-remote",
+   requestId:"pg-http-"+Math.random().toString(36).slice(2),action,bodyHash:hashJson(body),issuedAt:now,
+   ...targetJobId?{targetJobId}:{}};
+  return {...core,signatureBase64:sign(null,Buffer.from(canonicalize(ax.workerRequestSigningPayload(core))),wk.privateKey).toString("base64")};
+ };
+ const server=createAxiomWorkerControlHttpServer({jobs:secure,clock:()=>now,trustedIngress:()=>true});
+ await new Promise<void>((resolve,reject)=>server.once("error",reject).listen(0,"127.0.0.1",resolve));
+ try{
+  const addr=server.address() as {port:number},base="http://127.0.0.1:"+addr.port;
+  async function request(path:string,data:unknown){
+   const res=await fetch(base+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(data)});
+   return {status:res.status,data:await res.json()};
+  }
+  const proof=signProof("CLAIM",{leaseMs:1000});
+  const claim=await request("/v1/worker/claims",{proof,leaseMs:1000});
+  assert.equal(claim.status,200);assert.equal(claim.data.status,"LEASED");
+  assert.equal(claim.data.lease.job.intent.jobId,created.intent.jobId);
+  assert.deepEqual(await request("/v1/worker/claims",{proof,leaseMs:1000}),claim);
+  const cap=claim.data.lease.capability;
+  const releaseProof=signProof("RELEASE",{capabilityId:cap.capabilityId},created.intent.jobId);
+  const route="/v1/worker/jobs/"+encodeURIComponent(created.intent.jobId)+"/release";
+  const released=await request(route,{proof:releaseProof,capability:cap});
+  assert.deepEqual(released,{status:200,data:{status:"RELEASED",jobStatus:"PENDING"}});
+  assert.deepEqual(await request(route,{proof:releaseProof,capability:cap}),released);
+  assert.equal((await original.get(tenant,created.intent.jobId)).state.status,"PENDING");
+  assert.equal((await request("/v1/worker/jobs/"+encodeURIComponent(created.intent.jobId)+"/complete",
+   {proof:signProof("COMPLETE",{})})).status,404);
+ }finally{
+  await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_worker_operation_receipts");
+ }
 });

@@ -454,6 +454,9 @@ export interface DistributedExecutionState {
   attemptCount:number;
   leaseOwner?:string;
   leaseExpiresAt?:string;
+  leaseWorkerKeyId?:string;
+  leasePoolId?:string;
+  leaseCapabilityCoreHash?:string;
   terminalAt?:string;
   result?:ControlPlaneResult;
   resultHash?:string;

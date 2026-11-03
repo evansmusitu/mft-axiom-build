@@ -1,0 +1,88 @@
+name: AXIOM reasoning conformance (no production credentials)
+on:
+  pull_request:
+    paths:
+      - 'reasoning/phase1/**'
+      - 'reasoning/phase2/**'
+      - 'docs/specs/**'
+      - 'docs/plans/**'
+      - '.github/workflows/axiom-reasoning-conformance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'reasoning/phase1/**'
+      - 'reasoning/phase2/**'
+      - '.github/workflows/axiom-reasoning-conformance.yml'
+permissions:
+  contents: read
+concurrency:
+  group: axiom-reasoning-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  phase1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - name: Phase 1 tests and trust gate
+        working-directory: reasoning/phase1
+        run: |
+          npm run conformance
+          npm run gate
+  phase2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+          cache: npm
+          cache-dependency-path: reasoning/phase2/package-lock.json
+      - name: Install locked dependencies without scripts
+        working-directory: reasoning/phase2
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Phase 2 tests and all gates through 2.9C
+        working-directory: reasoning/phase2
+        run: |
+          npm run conformance
+          npm run gate
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: axiom_test
+          POSTGRES_USER: axiom
+          POSTGRES_PASSWORD: test-only-ephemeral-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U axiom -d axiom_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: axiom_test
+      PGUSER: axiom
+      PGPASSWORD: test-only-ephemeral-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+          cache: npm
+          cache-dependency-path: reasoning/phase2/package-lock.json
+      - name: Install locked dependencies without scripts
+        working-directory: reasoning/phase2
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: PostgreSQL integration tests
+        working-directory: reasoning/phase2
+        run: npm run test:postgres

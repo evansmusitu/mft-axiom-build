@@ -165,3 +165,87 @@ Two Important proof-integrity findings were fixed before merge eligibility:
 The execution record uses the already validated signer identity/key ID rather than rereading mutable provider metadata at persistence time.
 
 No Critical or Important finding remains unresolved in the bounded Phase-2.5B source diff after these fixes. Vendor SDK security, HSM provisioning, operator key rotation, mTLS, DNS/network perimeter policy, and hardware attestation are deployment/future-increment concerns, not properties claimed here.
+
+
+## Phase 2.5C authenticated worker boundary
+
+**Independent key classes.** Worker Ed25519 proof keys authenticate registered worker identities only. They cannot act as API callers, fact-source attesters, model providers, reasoning certificate signers or lease-capability signers. Worker trust status, pool, action grants and maximum lease duration are server-configured. Unknown, revoked, wrong-key, malformed, stale, future or noncanonical worker proofs fail closed.
+
+**Signed scope and replay.** Each post-claim request signs the exact capability ID plus operation parameters and job target. The server-signed capability binds worker key, pool, tenant, job, intent hash, epoch, lease expiry, allowed mutations and lease-signer key ID. Stale-epoch, expired, rotated, cross-worker and cross-job capabilities cannot mutate a lease. Completed request IDs have durable receipts retained without garbage collection. An exact signed request can replay its persisted outcome without repeating a transition; conflicting request IDs fail.
+
+**Proof against DB hash forgery.** Worker operation receipts carry a separate domain-separated Ed25519 signature over the committed receipt hash. The immutable signed lease response is captured in the receipt and verified against the configured historical lease-signing public key. Mutating a receipt and recomputing unkeyed record hashes does not create signer authority. Job-state integrity and receipt signature checks are independent.
+
+**Startup and migration.** The authenticated SQLite repository creates its receipt schema and disables raw worker mutation on that database. PostgreSQL must be initialized via the async `createAuthenticatedPostgresDistributedExecutionStore` factory before worker transport exposure, which commits secure mode before any claim. Existing pending jobs remain claimable and old leased jobs can only be reclaimed after expiry at a higher epoch. Legacy terminal jobs remain readable. Historical P2.5A tests retain a legacy repository path in databases without secure-worker activation; this path is not production worker authorization.
+
+**Trust assumptions.** Server time and tenant runtime factory are trusted service-side injections; a future HTTP/gRPC adapter MUST NOT forward an untrusted worker timestamp to these repository operations. Worker private keys do not sign reasoning certificates, and independently verified Phase-1 execution replay remains authoritative. Revocation relies on the currently configured ACTIVE/REVOKED trust-store record. Transport authentication, enrollment/rotation administration, vendor HSM/KMS for lease keys, workload attestation, cloud network policy, broker authority, quotas, external side effects and profit guarantees are not provided.
+
+## Phase 2.6 evaluation/security boundary
+
+The compatibility matrix makes version drift observable; it does not replace signer verification, policy evaluation, tenant authentication, immutable facts, capability checks, model-provider credential isolation or network-free replay. All component fingerprints are computed server-side from static source and actual manifests; untrusted callers/model outputs cannot select expected versions. Unknown/extra/missing component fields and changed implementation hashes produce INCOMPATIBLE diagnostics.
+
+Offline evaluation uses the same authoritative Phase-1 runtime, evidence policy and strict model proposal parser. The adversarial corpus includes stale/conflicting/future/missing/superseded provenance, authority injection, constraint denial and repair overflow. Results are sorted and committed with the current compatibility matrix hash; an unexpected outcome records a failing case and fails CI. Resource units are bounded integers with checked arithmetic and are not claims about external provider cost or market results. This test-only evaluator does not access network, credentials or tenant repositories.
+
+Deferred operational capabilities such as vendor KMS provisioning, mTLS worker transport, quotas, billing, external execution and commercial guarantees remain out of scope and must have separate trusted implementations.
+
+
+## Phase 2.7A quota admission containment
+
+A tenant's authorized dispatch action does not override operator-installed outstanding-job capacity. Quota mode must be initialized before production dispatch; missing tenant policy denies and exact request replay does not consume another slot. SQLite and PostgreSQL enforce admission in one transaction and avoid cross-tenant counts. Operator-controlled SQL and bootstrap credentials remain trusted; policy hashes alone are not adversarial database-admin protection. Not covered: fair scheduling, rate limiting, provider spending caps, broker-side controls, deployment secrets or profit guarantees. See `phase2_7a_security_review.md`.
+
+
+## Phase 2.7B scheduling trust boundary
+
+The operator activates durable fair tenant selection; no worker/caller/model-supplied field controls tenant ordering. All authenticated claim proof checks, signed capabilities and receipts remain in place. Rotation advances only with the lease within a transaction. PostgreSQL fair claim service is serialized and intentionally sacrifices parallel dequeue throughput. The SQL administrator is trusted. This is not weighted fairness, isolation of resource consumption or performance assurance. See `phase2_7b_security_review.md`.
+
+
+## Phase 2.8A file evidence boundary
+
+Only operator-configured roots and flat basenames are allowed. Caller-supplied parameters cannot change the file selection. Group/world-writable roots, final-component symlinks, nonregular sources, invalid JSON or UTF-8, oversized sources and changed file metadata fail closed. Native file errors are redacted to prevent disclosure of absolute paths. Tenant eligibility is enforced by the adapter registry; source content never becomes authorization or proof by itself. File roots and parents must be controlled by the operator and not mutable by an adversary; this does not provide a malicious-local-user filesystem sandbox, cross-process openat2 path guarantees, remote object storage, credential enrollment or verified upstream truth. See `phase2_8a_security_review.md`.
+
+
+## Phase 2.8B SQL view acquisition trust boundary
+
+The adapter cannot execute client-provided SQL. Server-owned schema/view/column bindings are strict and quoted; the authorized tenant identity becomes the only parameter of a mandatory tenant-column predicate. PostgreSQL executes in `BEGIN READ ONLY` with statement and lock timeout, and a bounded select/JSON aggregate limits exposed rows and bytes. Native query/connection/release errors are redacted so pool secrets or SQL diagnostics do not enter API outcomes. This protects against user-supplied SQL injection but not hostile operator-controlled views, privileged SQL functions, SQL database administrator compromise, query-plan resource exhaustion, unsafe source-role grants, or objective source-data falsity. A SELECT-only database role, audited deterministic view, and trusted network/TLS connection are deployment requirements. See `phase2_8b_security_review.md`.
+
+
+## Phase 2.8C object-store authority and deployment assumptions
+
+The object identity is entirely operator-defined and cannot be influenced by a caller/model/worker or request body: acquisition parameters are exactly empty. The returned object must exactly match both the configured immutable version and SHA-256 raw bytes, with strict JSON/UTF-8 and size enforcement before provenance mapping. The object store is not trusted to authorize a tenant or sign facts. Server-owned mapping and Ed25519 ingress are independently checked.
+
+The injected object-storage reader and its credentials require a **read-only IAM role**, endpoint/network allowlisting, transport TLS and SDK streaming/maxBytes controls in deployment. The adapter checks returned Uint8Array bytes after the reader resolves; a client that ignores abort or preloads unbounded bytes requires separate controls. Hash agreement is not external source truth, data freshness, valuation, or any trading-profit guarantee. Object-store writes, object listing, IAM administration, broker execution and remote worker control are not implemented here.
+
+
+## Phase 2.8D — MCP tool trust and containment
+
+The operator owns the allowed tool name, fixed HTTPS origin, exact registered manifest, tenant allowlist, permitted argument name, response/time budgets and optional server-side credential reference. Caller/model/worker cannot select MCP tools, methods, discovery, arbitrary URLs, headers, tenants or additional arguments. Dynamic tools/list and resource/prompt access are not exposed. A static side-effect naming denylist rejects obvious mutating operations, **but a tool with a benign name may still have side effects**. Operator verification of actual remote behavior and read-only remote credentials remains mandatory. Therefore this is a read-only **contract**, not a remote side-effect guarantee.
+
+Response authority is checked independently: canonical request-ID echo, JSON-RPC version, single non-error text output, exact schemas, JSON media type and UTF-8, bounded bytes, manual redirect refusal, upstream secret-echo rejection, full-stream deadline/abort. Raw tool output cannot become AXIOM policy, certificate or trusted tenant authorization. Existing mapper/attestor/source provenance are still required.
+
+Deployment must enforce outbound endpoint allowlisting, DNS/network controls, TLS trust, MCP server configuration, remote rate budgets, credential scoping and audit. Origin validation alone does not defend DNS rebinding, internal routing or malicious registered servers. This does not establish model factual truth, broker authority, automated trades, operator key management, production SLA or guaranteed financial returns.
+
+
+## Phase 2.9A — worker-control ingress security
+
+Do not mount the worker-control listener as a public bearer-token endpoint. Construct it only with a trusted `trustedIngress(req)` implementation that verifies the actual connection or trusted gateway context, ideally mTLS with independently validated client identity and a private listener. A caller-supplied `X-Forwarded-*` header is **never** proof of trusted transport; `()=>true` must be used only for loopback tests, never production. Absence of the predicate prevents constructing the server, and failure denies the request before body processing/repository access.
+
+The only exposed actions are signed claim, heartbeat and retry release. Exact top-level request keys, body cap, media type, server-owned time and route target are enforced before delegation. The database continues to verify active Ed25519 worker identity and grants, independent server-signed lease capabilities, monotonic epochs, replay receipts and operation-specific payload commitments. HTTP errors return only generic codes, not stored job/certificate/key/tenant details. No remote terminal success/denial or arbitrary failure is permitted.
+
+Production TLS termination, private routing/firewalls, proxy request timeouts, rate limiting, security log retention, worker key provisioning/revocation and operational certificate rotation are deployment obligations. The trusted ingress callback is an explicit high-trust seam, not a substitute for an mTLS server. This is not a remote execution-result verifier or a guarantee of platform safety, uptime or trading outcomes.
+
+
+## Phase 2.9B — verified remote result boundary
+
+Authentication (ACTIVE worker, Ed25519 request signature, exact COMPETE body and target) is **before** reading any tenant job or platform execution record. Independently signed lease capability, worker/key/pool, tenant, job, epoch, expiration, state and intent commitment must match. Terminal retry is allowed only if the already terminal persisted result hash and signed worker operation receipt match; the worker cannot force a fresh terminal mutation on a terminal job.
+
+Server-owned execution lookup must return a hash-verified immutable record for the exact tenant+intent, exact executionRequestHash and frozen snapshot. A certificate must be present. Server constructs the expected outcome from that record rather than allowing worker-chosen status/certificate/policy fields. Only an operator-provided trusted `ReasoningControlPlane.replayStored` result with zero diagnostics and status MATCH is accepted before the underlying store verifies and commits again. The included real control-plane acceptance test issues a Phase-1 certificate and replays it on the frozen world-state snapshot.
+
+**Do not supply a mock/fake replay factory in production.** Inject the actual server-side plane with historical signer trust keyring, pinned registry and trusted world/execution stores. This is a service-level gate only, not a remote terminal endpoint or claim about mTLS deployment. Policy-only denial without certificate, forged results, failed replays and record drift fail closed.
+
+
+## Phase 2.9C — remote verified terminal HTTP security
+
+The new terminal route is **disabled by default**. An operator must provide both an actual production `VerifiedRemoteCompletionService` and a genuine connection-validated `trustedIngress` function; setting `()=>true` or using untrusted forwarding headers on a public listener is unsafe. Before any terminal mutation, the verifier reauthenticates Ed25519 worker identity, checks server-signed lease capability and epoch, compares the exact stored tenant execution proof, and invokes network-free signed replay of the frozen snapshot and certificate. A signed but fabricated worker success or denial fails closed.
+
+Exact request shape, fixed route job ID, body-byte budget, server-owned clock and generic error codes remain enforced at ingress. A stale/forged result returns the opaque `WORKER_COMPLETION_UNVERIFIED` error rather than leaking certificate or tenant details. Remote `FAIL_TERMINAL` remains unimplemented; server must not allow an untrusted worker to label platform corruption.
+
+Remote worker network TLS/mTLS, client certificate issuance, infrastructure audit trails, credential provisioning, rate limiting, connection timeouts and production signer custody remain operator deployment obligations. This transport is not a permission to trade or a guarantee of profitable outcomes.

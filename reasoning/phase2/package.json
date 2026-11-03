@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "conformance": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
-    "gate": "npm run gate:phase21 && npm run gate:phase22 && npm run gate:phase23a && npm run gate:phase24a && npm run gate:phase24b && npm run gate:phase25a && npm run gate:phase25b",
+    "gate": "npm run gate:phase21 && npm run gate:phase22 && npm run gate:phase23a && npm run gate:phase24a && npm run gate:phase24b && npm run gate:phase25a && npm run gate:phase25b && npm run gate:phase25c && npm run gate:phase26 && npm run gate:phase27a && npm run gate:phase27b && npm run gate:phase28a && npm run gate:phase28b && npm run gate:phase28c && npm run gate:phase28d && npm run gate:phase29a && npm run gate:phase29b && npm run gate:phase29c",
     "test:postgres": "node --disable-warning=ExperimentalWarning --test tests/postgres.integration.ts",
     "gate:phase21": "node --disable-warning=ExperimentalWarning scripts/phase2-gate.ts",
     "gate:phase22": "node --disable-warning=ExperimentalWarning scripts/phase2-2-gate.ts",
@@ -14,7 +14,18 @@
     "gate:phase24a": "node --disable-warning=ExperimentalWarning scripts/phase2-4a-gate.ts",
     "gate:phase24b": "node --disable-warning=ExperimentalWarning scripts/phase2-4b-gate.ts",
     "gate:phase25a": "node --disable-warning=ExperimentalWarning scripts/phase2-5a-gate.ts",
-    "gate:phase25b": "node --disable-warning=ExperimentalWarning scripts/phase2-5b-gate.ts"
+    "gate:phase25b": "node --disable-warning=ExperimentalWarning scripts/phase2-5b-gate.ts",
+    "gate:phase25c": "node --disable-warning=ExperimentalWarning scripts/phase2-5c-gate.ts",
+    "gate:phase26": "node --disable-warning=ExperimentalWarning scripts/phase2-6-gate.ts",
+    "gate:phase27a": "node --disable-warning=ExperimentalWarning scripts/phase2-7a-gate.ts",
+    "gate:phase28b": "node --disable-warning=ExperimentalWarning scripts/phase2-8b-gate.ts",
+    "gate:phase28a": "node --disable-warning=ExperimentalWarning scripts/phase2-8a-gate.ts",
+    "gate:phase27b": "node --disable-warning=ExperimentalWarning scripts/phase2-7b-gate.ts",
+    "gate:phase28c": "node --disable-warning=ExperimentalWarning scripts/phase2-8c-gate.ts",
+    "gate:phase28d": "node --disable-warning=ExperimentalWarning scripts/phase2-8d-gate.ts",
+    "gate:phase29a": "node --disable-warning=ExperimentalWarning scripts/phase2-9a-gate.ts",
+    "gate:phase29b": "node --disable-warning=ExperimentalWarning scripts/phase2-9b-gate.ts",
+    "gate:phase29c": "node --disable-warning=ExperimentalWarning scripts/phase2-9c-gate.ts"
   },
   "dependencies": {
     "jose": "6.2.12",

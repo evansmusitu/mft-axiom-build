@@ -236,3 +236,71 @@ The stable signing intent is domain-separated as `AXIOM_REASONING_CERTIFICATE_SI
 Replay never invokes a signing backend. A v2 replay recomputes signer identity/key hash, signing intent, platform context, policy, provenance, certificate signature, and Phase-1 execution. A record without a platform-context version follows the pre-2.5B v1 formula for backward compatibility.
 
 The Phase-1 finalizer rechecks that the embedded replay program hashes to the program hash already committed by the signed certificate core. This prevents a signature-valid certificate from being finalized with an unrelated replay program.
+
+
+## Phase 2.5C — Separate Worker and Lease Authorities
+
+A worker key proves identity under a server-owned trust record, not API caller/tenant or reasoning-signer authority. Every canonical worker request commits action, target job, body hash, request ID, issuance time and registered worker key. Claims perform server-owned global queue selection. An authenticated claim commits worker key, pool, signed capability core hash, monotonic epoch and lease expiry to separately hashed job state. Mutations verify the independently signed lease capability, active worker key, exact job/tenant/intent, allowed action, current epoch and active capability core hash. Heartbeat replaces the capability commitment. Revocation blocks mutation until expiry/reclaim under a higher epoch.
+
+SQLite `AuthenticatedJobTransactions` uses an immediate transaction and PostgreSQL `PgAuthenticatedJobTransactions` uses a transaction with `FOR UPDATE SKIP LOCKED` to write a job transition and replay receipt together. The receipt is independently domain-signed with the dedicated lease-signing authority; ordinary database hash recomputation cannot invent a prior worker outcome. Stored signed lease capabilities are verified with the historical public-key ring on receipt replay, without reissuing signatures. Exact retries may replay after proof freshness expiry only if an existing receipt is found, and current worker ACTIVE status and signature verification still pass.
+
+The legacy Phase-2.5A worker-ID path is automatically disabled in SQLite as soon as the authenticated receipt schema exists and in PostgreSQL when secure-worker mode is activated. The PostgreSQL async factory activates protection before handing out a repository. Callers must supply server-owned time; an out-of-process transport may not permit worker-supplied time or raw SQL credentials to establish identity. This increment does not add a remote transport.
+
+## Phase 2.6 Compatibility and Evaluation Control
+
+The machine-readable compatibility matrix is a pinned, source-anchored manifest with an exact current identity. Verification performs a strict schema, component-key, version, implementation-fingerprint and total-hash check; an unknown component, downgrade, missing component, code drift or hash rewrite cannot silently negotiate trust. A compatibility MATCH never authorizes a caller, tenant, evidence source, worker, signer or reasoning certificate; the existing boundaries remain independent.
+
+The evaluation engine is deterministic and offline. Cases are sorted by unique IDs, bounded, evaluated with the authoritative Phase-1 runtime or Phase-2 policy/compiler parser, and hashed into one report. Each report commits the exact live compatibility-matrix identity. Incorrect expectations are recorded as FAIL rather than passed; unknown cases, duplicate IDs, missing expected fields, nonfinite/unbounded costs and unsafe arithmetic fail closed. Resource costs are explicitly supplied test units, with token counts aggregated externally; this is not a provider pricing oracle or billing service.
+
+
+## Phase 2.7A — transactional admission capacity
+
+The server-owned immutable tenant quota registry is enabled through an explicit transactional bootstrap marker. SQLite admission runs inside BEGIN IMMEDIATE; PostgreSQL locks the quota-mode table in SHARE mode and the tenant policy row FOR UPDATE before counting and inserting. A capacity check never trusts worker/model/body-provided limits. Missing tenant configuration fails closed in quota-enabled mode; legacy mode must not be exposed as production quota enforcement. Terminalization frees capacity without deleting immutable job history.
+
+
+## Phase 2.7B queue sequencing
+
+Tenant fair-mode is explicitly activated, not inferred from schema. Successful claim transitions record a monotonically increasing integer tenant-service ordinal. SQLite uses BEGIN IMMEDIATE; PostgreSQL serializes mode/tenant decisions using the global cursor row lock and selects jobs FOR UPDATE SKIP LOCKED. No-job or exact signed receipt retry leaves the cursor unchanged. Job lease fences and authorization remain independent of scheduler order.
+
+
+## Phase 2.8A source-bound read-only file adapter
+
+A registered operation maps to exactly one immutable server-owned flat filename. File data is treated as **untrusted evidence**, never as an instruction or authorization grant. The adapter checks a trusted operator-managed root identity, uses final-component O_NOFOLLOW, validates a regular file, reads at most `maxResponseBytes+1`, enforces JSON/UTF-8 validation, and returns exactly captured bytes to the existing evidence/mapper pipeline. Compatibility matrices source-fingerprint this adapter independently. Snapshots commit the content, not the path; replay remains network-free. The root and its parent directories are deployment-trusted, not security-hardened against privileged local filesystem races or hostile NFS mounts. The timeout is a cooperative local-file deadline, not cancellation of a stuck kernel syscall.
+
+
+## Phase 2.8B PostgreSQL evidence adapter
+
+The server configures a fixed read-only view and exact selected/order/tenant-predicate identifiers, validated as safe SQL identifiers and quoted. The read transaction combines `WHERE tenant_column = $1` with a trusted tenant ID and `LIMIT $2` row bound. A PostgreSQL JSON aggregate returns a single result only when row and UTF-8 byte limits fit; no caller SQL is interpolated. The server validates the JSON row array and permitted fields before handing captured bytes to the existing evidence acquisition/mapper/attestor and immutable storage. All operations roll back and release their pooled client. Source-bound compatibility manifests fingerprint the connector. The database role and view definitions remain operator-trusted and must be independently audited. The SQL query can allocate resources internally before its output-size guard, so do not attach hostile expensive views or superuser credentials.
+
+
+## Phase 2.8C — version-pinned object storage evidence
+
+The object adapter is a strict READ-only source with no caller-supplied object identity. Server registration binds a tenant allowlist, an exact bucket, relative key, opaque immutable version, expected SHA-256 of exact UTF-8 JSON bytes, and response byte/deadline limits. A configured `ImmutableObjectReader.readVersion` receives only those identifiers and an abort signal. The adapter validates the returned version, media type, finite byte bound, strict UTF-8, JSON parseability, and SHA-256 before returning the exact raw bytes as captured evidence. Registered deterministic mapping, Ed25519 fact attestation, atomic acquisition+fact commit and network-free replay remain separate and authoritative.
+
+
+## Phase 2.8D — fixed-tool MCP evidence ingress
+
+`FixedMcpEvidenceAdapter` is a strictly registered READ evidence transport. Operators pin the origin (HTTPS only), the stateless `/mcp` endpoint, one tool name, one bounded string argument name, an exact manifest and tenant allowlist. The implementation emits exactly one `tools/call` JSON-RPC 2.0 request and deterministic request ID committing tenant, operation, tool and arguments. The response must echo the exact ID and protocol and contain one non-error text item with bounded parseable JSON; no MCP discovery or tool negotiation changes an allowed operation.
+
+This is not an MCP work-execution authority: the existing `evidence:acquire` check precedes adapter use, and tool JSON becomes only an external evidence artifact. Registered mapping, Ed25519 fact attestation, atomic acquisition persistence and network-free signed reasoning replay are unchanged. The adapter does not supply a general-purpose MCP client/session; it intentionally supports only one stateless fixed `tools/call` profile.
+
+
+## Phase 2.9A — authenticated remote worker control
+
+`createAxiomWorkerControlHttpServer` provides a **dedicated**, opt-in HTTP listener that forwards only `CLAIM`, `HEARTBEAT` and `RELEASE` to the existing `AuthenticatedWorkerJobRepository` contract. A required operator `trustedIngress(req)` function checks connection-level transport trust before parsing body or calling the database. Server-owned clock, Ed25519 request signature, fixed action/job target, independent lease-signing authority, epoch fences, signed durable operation receipts, and tenant-fair queue selection remain unchanged in the SQLite/PostgreSQL repositories. The listener itself cannot grant a tenant, key, job or execution outcome.
+
+**No remote COMPLETE/FAIL_TERMINAL endpoints** exist. A valid worker signature and signed lease are insufficient to prove the truth of a remote execution result or terminal error. A future increment must verify a stored exact execution/certificate and network-free replay at the server boundary before remote result terminalization. The existing in-process trusted worker path remains available.
+
+
+## Phase 2.9B — independently verified stored completion
+
+`VerifiedRemoteCompletionService` is a server-trusted completion gate, **not a new remote HTTP endpoint**. It receives an Ed25519-signed worker COMPLETE request and existing server-signed capability; authenticates the worker before tenant data access; verifies the lease under the server public-key ring and current job state/epoch; then loads the exact immutable tenant execution by job intent. Stored record hashes, intent and execution-request hashes, snapshot hashes and certificate references must match the claim. A trusted `ReasoningControlPlane.replayStored` independently replays the certificate/policy/snapshot before the server-derived exact result can enter `jobs.complete`. The existing signed receipt store enforces one atomic terminal outcome, with exact retry replay.
+
+The caller cannot forge a result status or certificate reference merely by signing one as a worker. A missing or policy-denied-without-certificate result cannot be completed remotely. Phase 2.9A HTTP exposes no COMPLETE route; a future separate protocol may use this gate after it is independently integrated with production replay keys.
+
+
+## Phase 2.9C — opt-in replay-verified remote completion HTTP
+
+The dedicated worker listener can optionally expose `POST /v1/worker/jobs/:jobId/complete` only when the operator injects a `VerifiedRemoteCompletionService` instance. If absent, the route is not registered and returns 404. With the service configured, the same mandatory trusted-ingress boundary and server clock apply; the request body must be exactly `{proof,capability,result}`. Signed worker request identity, signed lease, durable job/record hash and tenant/intent/snapshot binding, and full certificate/policy replay are proven by the server-side completion verifier before the authenticated store terminalizes atomically. Responses disclose only the job ID and terminal job status.
+
+The HTTP transport never has a direct path to `jobs.complete`. It cannot invent a terminal result or bypass the verifier, and it exposes no `FAIL_TERMINAL` route. This remains a dedicated optional listener, distinct from the normal caller-bearer API.
