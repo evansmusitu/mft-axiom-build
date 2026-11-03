@@ -102,6 +102,20 @@ jobs:
               })()''')
               page=context.new_page()
               page.on('pageerror',lambda err: errors.append(str(err)[:160]))
+              # New Cloudflare Access service-auth policy must become effective before recorded acceptance.
+              auth_ready=False
+              for attempt in range(18):
+                try:
+                  probe=page.goto(origin+'/',wait_until='domcontentloaded',timeout=25000)
+                  count=page.locator('main h1').count()
+                  heading=page.locator('main h1').first.inner_text() if count else ''
+                  auth_ready=bool(probe and probe.status==200 and count==1 and heading.startswith('Intelligence with evidence.'))
+                  print('hosted_browser_access_warmup:',json.dumps({'attempt':attempt+1,'http':probe.status if probe else None,'corporate_home_verified':auth_ready}))
+                  if auth_ready:break
+                except Exception as e:
+                  print('hosted_browser_access_warmup:',json.dumps({'attempt':attempt+1,'error':type(e).__name__}))
+                time.sleep(2)
+              assert auth_ready,'Access service-auth policy did not admit the verified corporate site'
               def navigate(path):
                 res=page.goto(origin+path,wait_until='domcontentloaded',timeout=25000)
                 page.wait_for_load_state('load',timeout=25000)
@@ -109,7 +123,10 @@ jobs:
               for route in route_paths:
                 try:
                   navigate(route)
-                  assert page.locator('main h1').count()==1 and len(page.locator('main').inner_text().strip())>20
+                  count=page.locator('main h1').count()
+                  assert count==1,'h1 count='+str(count)
+                  bodytext=page.locator('main').inner_text().strip()
+                  assert len(bodytext)>20,'main text too short, bytes='+str(len(bodytext))
                   w=page.evaluate('document.documentElement.scrollWidth')
                   assert w<=1442,'Desktop overflow'
                 except Exception as e:route_failures.append({'route':route,'error':type(e).__name__,'message':str(e)[:95]})
