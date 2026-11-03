@@ -33,7 +33,7 @@ jobs:
           token=os.environ.get('CF_TOKEN') or ''
           print('cloudflare_secret_presence:', json.dumps({'global_pair':bool(email and key),'api_token':bool(token)},sort_keys=True))
           def get(path,headers):
-              if not (path.startswith('/zones?') or path.startswith('/zones/'+z_id+'/dns_records?') or path.startswith('/accounts/'+a_id+'/pages/projects?') or path in ('/user','/user/tokens/verify')):
+              if not (path.startswith('/zones?') or path.startswith('/zones/'+z_id+'/dns_records?') or path.startswith('/accounts/'+a_id+'/pages/projects') or path in ('/user','/user/tokens/verify')):
                   raise SystemExit('Refused API path outside read-only allowlist')
               req=urllib.request.Request(base+path,headers={**headers,'Accept':'application/json','User-Agent':'MUSITU-Corporate-ReadOnly/2.0'},method='GET')
               try:
@@ -41,7 +41,12 @@ jobs:
                       status=r.status
                       data=json.load(r)
               except urllib.error.HTTPError as exc:
-                  return exc.code,{}
+                  try:
+                      problem=json.load(exc)
+                      codes=[str(e.get('code')) for e in (problem.get('errors') or []) if isinstance(e,dict) and isinstance(e.get('code'),int)]
+                  except Exception:
+                      codes=[]
+                  return exc.code,{'error_codes':codes}
               except Exception as exc:
                   print('transport_exception_type:',type(exc).__name__)
                   return 0,{}
@@ -57,8 +62,14 @@ jobs:
               s_zone,d_zone=get('/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}),headers)
               zs=(d_zone.get('result') or []) if s_zone==200 else []
               target=[z for z in zs if z.get('id')==z_id and z.get('name')=='mftintelligence.com' and (z.get('account') or {}).get('id')==a_id]
-              s_pages,d_pages=get('/accounts/'+a_id+'/pages/projects?per_page=100',headers)
-              print(label+'_status:',json.dumps({'credential_check_http':s_verify,'zone_list_http':s_zone,'zone_verified':len(target)==1,'pages_list_http':s_pages,'pages_api_verified':s_pages==200},sort_keys=True))
+              if len(target)==1:
+                  q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
+                  s_dns,d_dns=get('/zones/'+z_id+'/dns_records?'+q,headers)
+                  print(label+'_dns_read_http:',s_dns)
+                  if s_dns==200:
+                      print(label+'_corporate_dns_record_count:',len(d_dns.get('result') or []))
+              s_pages,d_pages=get('/accounts/'+a_id+'/pages/projects',headers)
+              print(label+'_status:',json.dumps({'credential_check_http':s_verify,'zone_list_http':s_zone,'zone_verified':len(target)==1,'pages_list_http':s_pages,'pages_api_verified':s_pages==200,'pages_error_codes':d_pages.get('error_codes',[])},sort_keys=True))
               if len(target)==1 and s_pages==200:
                   q=urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100})
                   s_dns,d_dns=get('/zones/'+z_id+'/dns_records?'+q,headers)
