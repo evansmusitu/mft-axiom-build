@@ -1,0 +1,78 @@
+name: MUSITU Corporate Pages Project Provision (No Deploy)
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-pages-project-create.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-pages-project-create
+  cancel-in-progress: false
+jobs:
+  provision-empty-project:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Create ONLY empty isolated Pages project after exact zone and account readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.parse,urllib.request,urllib.error
+          tok=os.environ.get('CF_TOKEN') or ''
+          if not tok: raise SystemExit('Dedicated token secret is missing')
+          account='93f395f5121954671f92fffa453d6b61'
+          zone='5b56528f03948ff5917a5e0cd9f7109e'
+          name='musitu-corporate'
+          api='https://api.cloudflare.com/client/v4'
+          headers={'Authorization':'Bearer '+tok,'Accept':'application/json','Content-Type':'application/json','User-Agent':'MUSITU-Corporate-Empty-Project/1.0'}
+          def call(method,path,payload=None):
+              safe_get=path.startswith('/zones?') or path in ('/accounts/'+account+'/pages/projects/'+name,)
+              safe_post=path=='/accounts/'+account+'/pages/projects'
+              if not ((method=='GET' and safe_get) or (method=='POST' and safe_post)):
+                  raise SystemExit('Refusing operation outside allowlist')
+              data=None if payload is None else json.dumps(payload).encode('utf-8')
+              req=urllib.request.Request(api+path,headers=headers,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:
+                      p=json.load(e)
+                      codes=[str(x.get('code')) for x in p.get('errors',[]) if isinstance(x,dict) and isinstance(x.get('code'),int)]
+                  except Exception: codes=[]
+                  return e.code,{'error_codes':codes}
+          sc,z=call('GET','/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}))
+          assert sc==200 and z.get('success') is True and len(z.get('result') or [])==1,'Zone unavailable'
+          rec=z['result'][0]
+          assert rec.get('id')==zone and (rec.get('account') or {}).get('id')==account,'Wrong Cloudflare zone or account'
+          print('cloudflare_account_zone: VERIFIED')
+          status,body=call('GET','/accounts/'+account+'/pages/projects/'+name)
+          if status==404:
+              print('empty_project_preexists: false')
+              status,body=call('POST','/accounts/'+account+'/pages/projects',{'name':name,'production_branch':'main'})
+              if status not in (200,201) or body.get('success') is not True:
+                  print('project_create_http:',status)
+                  print('project_create_error_codes:',','.join(body.get('error_codes') or []))
+                  raise SystemExit('Cloudflare Pages project could not be created')
+              print('empty_project_created: true')
+          elif status==200 and body.get('success') is True:
+              print('empty_project_preexists: true')
+              print('empty_project_created: false')
+          else:
+              print('project_read_http:',status)
+              raise SystemExit('Cannot safely determine existing project')
+          sc,verify=call('GET','/accounts/'+account+'/pages/projects/'+name)
+          assert sc==200 and verify.get('success') is True,'Project readback failed'
+          project=verify['result']
+          assert project.get('name')==name,'Project name mismatch'
+          print('project_readback: VERIFIED')
+          print('production_branch:',project.get('production_branch'))
+          print('deployments_created_by_workflow: 0')
+          print('dns_changes: 0')
+          print('existing_app_operations: 0')
+          PY
