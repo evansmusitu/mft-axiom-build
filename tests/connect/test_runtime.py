@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from connect.runtime import ConnectRuntime
 from connect.adapters import AdapterCatalog, AdapterContract
 from connect.mining import normalize_mining_rows
@@ -49,6 +50,39 @@ class RuntimeTests(unittest.TestCase):
             "run_id":run.fabric.run_id,
         })
         self.assertTrue(verify(SignedEnvelope(payload,run.fabric.signature), b"secret"))
+
+    def test_mining_risk_rejects_post_seal_record_mutation_without_calling_axiom(self):
+        sent=[]
+        runtime=self._runtime(allowed=True,executor=lambda request: sent.append(request))
+        run=runtime.ingest(
+            run_id="sealed-1", connector_name="source-1", domain="mining",
+            adapter_name="Mining Adapter",
+            records=[{"hazard":"Ground collapse","exposure":.5,"severity":10,
+                      "likelihood":.4,"cost":1000,"benefit":.1}],
+        )
+        # CanonicalEnvelope is frozen but its per-row dictionaries are mutable.
+        # Recomputing a fresh hash at execution must not silently bless edits.
+        run.canonical.records[0]["exposure"]=.9
+        with self.assertRaisesRegex(RuntimeError,"CONNECT_SEALED_RUN_INTEGRITY_FAILED"):
+            runtime.execute_mining_risk(run)
+        self.assertEqual(sent,[])
+
+    def test_mining_risk_rejects_forged_signature_or_detached_envelope(self):
+        sent=[]
+        runtime=self._runtime(allowed=True,executor=lambda request: sent.append(request))
+        run=runtime.ingest(
+            run_id="sealed-2", connector_name="source-2", domain="mining",
+            adapter_name="Mining Adapter",
+            records=[{"hazard":"Ground collapse","exposure":.5,"severity":10,
+                      "likelihood":.4,"cost":1000,"benefit":.1}],
+        )
+        forged=replace(run, fabric=replace(run.fabric, signature="0"*64))
+        swapped=replace(run, canonical=replace(run.canonical, source="unverified-source"))
+        for candidate in (forged, swapped):
+            with self.subTest(candidate=candidate):
+                with self.assertRaisesRegex(RuntimeError,"CONNECT_SEALED_RUN_INTEGRITY_FAILED"):
+                    runtime.execute_mining_risk(candidate)
+        self.assertEqual(sent,[])
 
     def test_mining_risk_execution_derives_axiom_request_from_canonical_run(self):
         seen=[]
