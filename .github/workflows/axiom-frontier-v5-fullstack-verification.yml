@@ -195,3 +195,46 @@ jobs:
             /tmp/musitu-frontier-final-objective.json
             /tmp/musitu-screen.png
           if-no-files-found: error
+
+      # Independent of failed live-adapter gate: retain only allowlisted
+      # prequalification evidence. Must NOT change this job's failed status.
+      - name: Test non-release evidence collector
+        id: prequalification_tests
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s frontier_v5/tests -p test_prequalification_evidence.py -v
+
+      - name: Seal partial prequalification evidence without live provider credentials
+        id: prequalification_seal
+        if: ${{ always() && steps.prequalification_tests.outcome == 'success' }}
+        shell: bash
+        env:
+          FRONTIER_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/seal_prequalification_evidence.py \
+            --root /tmp \
+            --output /tmp/musitu-frontier-prequalification.json \
+            --head-sha "$FRONTIER_SOURCE_HEAD" \
+            --run-id "$GITHUB_RUN_ID"
+          test -s /tmp/musitu-frontier-prequalification.json
+          grep -q '"status": "PARTIAL_NOT_RELEASE"' /tmp/musitu-frontier-prequalification.json
+          grep -q '"full_stack": "NOT_CERTIFIED"' /tmp/musitu-frontier-prequalification.json
+
+      - name: Upload retained prequalification evidence (NOT RELEASE)
+        if: ${{ always() && steps.prequalification_tests.outcome == 'success' && steps.prequalification_seal.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-frontier-prequalification-not-release
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            /tmp/musitu-frontier-prequalification.json
+            /tmp/musitu-frontier-multimodal.json
+            /tmp/musitu-frontier-adversarial.json
+            /tmp/musitu-frontier-independent-validation.json
+            /tmp/musitu-frontier-market-cache.json
+            /tmp/musitu-frontier-supply-chain.json
+            /tmp/musitu-screen.png
