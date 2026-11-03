@@ -91,9 +91,9 @@ jobs:
               start=time.monotonic()
               try:
                 with urllib.request.urlopen(req,timeout=18) as r:
-                  b=r.read(300000); c=r.status; h=dict(r.headers)
+                  b=r.read(300000); c=r.status; h={'_robots_all':r.headers.get_all('X-Robots-Tag'),**dict(r.headers)}
               except urllib.error.HTTPError as e:
-                b=e.read(300000);c=e.code;h=dict(e.headers)
+                b=e.read(300000);c=e.code;h={'_robots_all':e.headers.get_all('X-Robots-Tag'),**dict(e.headers)}
               return c,h,b,round((time.monotonic()-start)*1000,2)
             routes=[
              '/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/',
@@ -113,6 +113,8 @@ jobs:
                  and 'default-src' in hl.get('content-security-policy','')
                  and 'max-age=' in hl.get('strict-transport-security','')
                  and hl.get('x-content-type-options','').lower()=='nosniff')
+              if not ok or path=='/products/fmi/':
+                print('qa_header_diagnostic:',json.dumps({'route':path,'http':code,'robots_values':h.get('_robots_all'),'robots_dict':hl.get('x-robots-tag'),'cf_cache_status':hl.get('cf-cache-status'),'age':hl.get('age'),'meta_noindex':b'noindex' in body[:1800]},sort_keys=True))
               if not ok:failures.append({'path':path,'http':code,'missing':[
                   name for name,passed in {
                     'expected_html':code==200 and b'MUSITU' in body,
