@@ -93,6 +93,7 @@ def _risk(row: dict[str, Any]) -> float:
 def optimize_interventions(envelope: CanonicalEnvelope, budget: float) -> InterventionPlan:
     if envelope.domain!="mining": raise ValueError("domain_mismatch")
     if budget<0: raise ValueError("budget_must_be_nonnegative")
+    if not isfinite(budget): raise ValueError("budget_must_be_finite")
     rows=list(envelope.records)
     baseline=sum(_risk(r) for r in rows)
 
