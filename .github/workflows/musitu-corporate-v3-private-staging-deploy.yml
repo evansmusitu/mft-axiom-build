@@ -1,0 +1,122 @@
+name: MUSITU Corporate V3 Protected Staging Only
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-v3-private-staging-deploy.yml'
+permissions:
+  contents: read
+concurrency:
+  group: musitu-corporate-private-staging
+  cancel-in-progress: false
+jobs:
+  private-staging:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/musitu-corporate-cloudflare-readonly-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            corporate/staging
+          fetch-depth: 1
+      - name: Refuse deployment unless exact Cloudflare account and BOTH Access policies qualify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.parse,urllib.request,urllib.error
+          aid='93f395f5121954671f92fffa453d6b61'
+          zid='5b56528f03948ff5917a5e0cd9f7109e'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or ''
+          assert token,'Cloudflare token not available'
+          base='https://api.cloudflare.com/client/v4'
+          def get(path):
+              assert path.startswith(('/zones?','/zones/'+zid+'/dns_records?','/accounts/'+aid+'/access/apps','/accounts/'+aid+'/pages/projects/musitu-corporate'))
+              req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'},method='GET')
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  assert r.status==200
+                  j=json.load(r)
+              assert j.get('success') is True,'Cloudflare API unsuccessful'
+              return j.get('result')
+          z=get('/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active'}))
+          assert len(z)==1 and z[0].get('id')==zid and (z[0].get('account') or {}).get('id')==aid,'Zone-account invariant violated'
+          records=get('/zones/'+zid+'/dns_records?'+urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100}))
+          assert len(records)==0,'Corporate hostname must remain unconfigured at private staging stage'
+          project=get('/accounts/'+aid+'/pages/projects/musitu-corporate')
+          assert project.get('name')=='musitu-corporate' and project.get('production_branch')=='main','Pages project mismatch'
+          apps=get('/accounts/'+aid+'/access/apps?per_page=100')
+          required=('musitu-corporate.pages.dev','*.musitu-corporate.pages.dev')
+          for host in required:
+              matches=[a for a in apps if a.get('domain')==host]
+              assert len(matches)==1 and matches[0].get('type')=='self_hosted','Access application not unique for '+host
+              app_id=matches[0]['id']
+              policies=get('/accounts/'+aid+'/access/apps/'+app_id+'/policies')
+              assert policies and all(p.get('decision') not in ('bypass','non_identity') for p in policies),'Unsafe Access policies'
+              assert any(p.get('decision')=='allow' and any((rule.get('cloudflare_account_member') or {}).get('account_id')==aid for rule in p.get('include') or [] if isinstance(rule,dict)) for p in policies),'Cloudflare member restricted allow policy not verified for '+host
+          print('cloudflare_pages_zone_and_access_protection: VERIFIED')
+          print('protected_apps_verified: 2')
+          print('domain_dns_changes: 0')
+          PY
+      - name: Decode and verify the exact reviewed noindex 34-route artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,pathlib,tarfile
+          src=pathlib.Path('corporate/staging/musitu-corporate-v3-static.tar.xz.b64')
+          data=base64.b64decode(src.read_text().strip(),validate=True)
+          assert hashlib.sha256(data).hexdigest()=='c8829d2d03ba54c7a22f16b1e91cdd29a69faba3550f60d00295df6f3e5f6623','Staging package hash mismatch'
+          tmp=pathlib.Path('/tmp/musitu-corporate-v3.tar.xz');tmp.write_bytes(data)
+          dest=pathlib.Path('private_site');dest.mkdir()
+          with tarfile.open(tmp,'r:xz') as tf:
+              ms=tf.getmembers()
+              assert len(ms)==45 and all(m.isfile() and not m.name.startswith('/') and '..' not in pathlib.PurePosixPath(m.name).parts for m in ms),'Unsafe staging tar members'
+              tf.extractall(dest,filter='data')
+          required=['index.html','_headers','robots.txt','legal/privacy/index.html','legal/terms/index.html','products/axiom/index.html','404.html']
+          assert all((dest/r).is_file() for r in required),'Required routes missing'
+          assert len(list(dest.rglob('index.html')))==34,'Expected 34 static routes'
+          assert 'noindex' in (dest/'robots.txt').read_text().lower() or 'Disallow: /' in (dest/'robots.txt').read_text(),'Staging robots must be closed'
+          assert 'X-Robots-Tag: noindex' in (dest/'_headers').read_text(),'Staging HTTP noindex must remain'
+          for path in ['legal/privacy/index.html','legal/terms/index.html']:
+              assert 'exact signed text is not present' in (dest/path).read_text(),'Unexpected policy candidate—must review before deploying'
+          print('static_route_count: 34')
+          print('staging_static_file_count: 45')
+          print('private_staging_sha256: VERIFIED')
+          print('robots_and_legal_review_gates: PRESERVED')
+          PY
+      - name: Install pinned Cloudflare Wrangler
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/musitu-corporate-wrangler --no-audit --no-fund --ignore-scripts wrangler@4.129.0
+          /tmp/musitu-corporate-wrangler/node_modules/.bin/wrangler --version
+      - name: Deploy only to non-production review-v3 branch (not the custom hostname)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/musitu-corporate-wrangler/node_modules/.bin/wrangler pages deploy private_site --project-name=musitu-corporate --branch=review-v3 --commit-hash=${GITHUB_SHA} --commit-message='MUSITU private V3 staging, noindex, pre-publication'
+      - name: Verify unauthenticated visitors are challenged, never served draft site
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          for url in ('https://review-v3.musitu-corporate.pages.dev/','https://musitu-corporate.pages.dev/'):
+              try:
+                  with opener.open(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Access-Unauthenticated-QA/1.0'}),timeout=25) as r:
+                      code=r.status
+              except urllib.error.HTTPError as e:code=e.code
+              if code not in (302,303,401,403,404):
+                  raise SystemExit('UNSAFE: Unauthenticated protected staging response HTTP '+str(code)+' for '+url)
+              print('protected_hostname_unauth_http:',str(code),'type:', 'preview' if 'review-v3.' in url else 'base')
+          print('production_custom_domain_operations: 0')
+          PY
