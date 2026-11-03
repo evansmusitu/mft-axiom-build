@@ -1,0 +1,185 @@
+name: MUSITU Corporate V4 Protected Preview Deployment
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-private-staging-v4-deploy.yml'
+permissions:
+  contents: read
+concurrency:
+  group: musitu-corporate-restricted-v4-stage
+  cancel-in-progress: false
+jobs:
+  protected-preview:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      CF_PAGES_NAME: musitu-corporate
+      CF_PREVIEW_BRANCH: corporate-private-20261103
+      EXPECTED_ARCHIVE_SHA256: 3462413cbfa02f0d74319e9636b8a5cf6cd1d8253def14bc749741747a6dd724
+    steps:
+      - name: Preflight two Cloudflare Access gates and empty isolated Pages project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or ''
+          assert token,'Cloudflare API token unavailable'
+          account=os.environ['CF_ACCOUNT_ID']; project=os.environ['CF_PAGES_NAME']
+          base='https://api.cloudflare.com/client/v4/accounts/'+account
+          head={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def get(p):
+            assert p in ['/access/apps?per_page=100','/pages/projects/'+project],'Unapproved API request'
+            req=urllib.request.Request(base+p,headers=head,method='GET')
+            with urllib.request.urlopen(req,timeout=25) as r:
+              assert r.status==200
+              body=json.load(r)
+            assert body.get('success') is True,'Cloudflare API result failed'
+            return body
+          proj=get('/pages/projects/'+project)['result']
+          assert proj.get('name')==project and proj.get('production_branch')=='main','Pages identity/branch drift'
+          apps=get('/access/apps?per_page=100')
+          assert (apps.get('result_info') or {}).get('total_pages',1)==1,'Access inventory pagination not audited'
+          for domain in [project+'.pages.dev','*.'+project+'.pages.dev']:
+            matching=[a for a in (apps['result'] or []) if a.get('domain')==domain]
+            assert len(matching)==1,'Missing or duplicate Access application for '+domain
+            a=matching[0]
+            assert a.get('type')=='self_hosted','Unexpected Access application type'
+            policies=a.get('policies') or []
+            assert policies,'Access application has no policies'
+            assert all(p.get('decision')!='bypass' for p in policies if isinstance(p,dict)),'Access bypass exists'
+            allow=[p for p in policies if isinstance(p,dict) and p.get('decision')=='allow']
+            assert allow and any(
+              any((item.get('cloudflare_account_member') or {}).get('account_id')==account
+                  for item in (p.get('include') or []) if isinstance(item,dict))
+              for p in allow),'Account-member allow policy not verified'
+          print('corporate_access_base_and_preview: VERIFIED')
+          print('corporate_pages_project: VERIFIED')
+          print('cloudflare_production_branch_untouched:',proj.get('production_branch'))
+          PY
+      - name: Retrieve immutable reviewed public-safe archive and validate every file
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,hashlib,urllib.request,base64,io,tarfile,json
+          sha=os.environ['GITHUB_SHA']
+          url='https://raw.githubusercontent.com/evansmusitu/mft-axiom-build/'+sha+'/corporate/staging/musitu-corporate-v4-static.tar.xz.b64'
+          req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-Corporate-Staging/1.0'})
+          with urllib.request.urlopen(req,timeout=35) as res:
+            encoded=res.read()
+          assert len(encoded)<100000,'Unexpected archive wrapper length'
+          raw=base64.b64decode(encoded.strip(),validate=True)
+          digest=hashlib.sha256(raw).hexdigest()
+          assert digest==os.environ['EXPECTED_ARCHIVE_SHA256'],'Archive integrity mismatch'
+          dest=Path(os.environ['RUNNER_TEMP'])/'musitu-corporate-v4'
+          dest.mkdir(exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(raw),mode='r:xz') as archive:
+            members=archive.getmembers()
+            names=set()
+            assert len(members)==45,'Unexpected file count'
+            for entry in members:
+              name=entry.name
+              p=Path(name)
+              assert entry.isfile() and not p.is_absolute() and '..' not in p.parts and not name.startswith('.'),'Unsafe archive member'
+              assert name not in names,'Duplicate archive member'
+              names.add(name)
+              out=dest/p
+              out.parent.mkdir(parents=True,exist_ok=True)
+              with archive.extractfile(entry) as inp:
+                out.write_bytes(inp.read())
+          manifest=json.loads((dest/'build-manifest.json').read_text())
+          assert manifest.get('review_mode')=='NOINDEX_STAGING_ONLY','Unexpected release mode'
+          asserted={row['path'] for row in manifest['files']}
+          assert asserted==names-{'build-manifest.json'},'Manifest/file mismatch'
+          for row in manifest['files']:
+            data=(dest/row['path']).read_bytes()
+            assert hashlib.sha256(data).hexdigest()==row['sha256'] and len(data)==row['bytes'],'Manifest hash/size mismatch'
+          headers=(dest/'_headers').read_text().lower()
+          robots=(dest/'robots.txt').read_text().lower()
+          assert 'x-robots-tag: noindex' in headers and 'content-security-policy:' in headers,'Noindex/CSP header missing'
+          assert 'disallow: /' in robots,'Staging robots file missing'
+          for route in ['legal/privacy/index.html','legal/terms/index.html']:
+            legal=(dest/route).read_text().lower()
+            assert 'working draft' in legal and 'not approved' in legal,'Legal draft state drift: public publishing forbidden'
+          assert len(list(dest.rglob('index.html')))==34,'34-route site requirement failed'
+          print('verified_archive_sha256:',digest)
+          print('staging_files_and_hashes: VERIFIED')
+          print('staging_noindex_and_draft_disclosures: VERIFIED')
+          print('public_release_authorized_by_archive: false')
+          PY
+      - name: Install pinned Pages deploy CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/musitu-wrangler" --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" --version
+      - name: Deploy harmless no-data Access guard probe to preview branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/musitu-guard"
+          printf '%s\n' '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>Restricted corporate review</title><p>Restricted corporate release verification.</p></html>' > "$RUNNER_TEMP/musitu-guard/index.html"
+          printf '%s\n' '/*' '  X-Robots-Tag: noindex, nofollow' '  X-Content-Type-Options: nosniff' > "$RUNNER_TEMP/musitu-guard/_headers"
+          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/musitu-guard" --project-name "$CF_PAGES_NAME" --branch "$CF_PREVIEW_BRANCH" --commit-hash "$GITHUB_SHA"
+      - name: Refuse full site if anonymous browser can access guard probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,urllib.request,urllib.error,time
+          url='https://'+os.environ['CF_PREVIEW_BRANCH']+'.'+os.environ['CF_PAGES_NAME']+'.pages.dev/'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          protected=False
+          for attempt in range(9):
+            try:
+              with opener.open(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Anonymous-Access-Probe/1.0'}),timeout=12) as r:
+                status=r.status;loc=r.headers.get('Location','')
+            except urllib.error.HTTPError as exc:
+              status=exc.code;loc=exc.headers.get('Location','')
+            except Exception as exc:
+              status=0;loc=''
+            if status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc):
+              protected=True;break
+            if status==200:
+              raise SystemExit('FAIL CLOSED: Guard probe is anonymously accessible — full site not deployed')
+            time.sleep(4)
+          print('anonymous_guard_status:',status)
+          print('anonymous_guard_redirect_to_access:',protected)
+          assert protected,'Access challenge not proven; the full website MUST NOT deploy'
+          PY
+      - name: Deploy 34-route NOINDEX staging only behind verified Access
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/musitu-corporate-v4" --project-name "$CF_PAGES_NAME" --branch "$CF_PREVIEW_BRANCH" --commit-hash "$GITHUB_SHA"
+      - name: Verify private preview stays Access protected; no public/domain changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,urllib.request,urllib.error
+          u='https://'+os.environ['CF_PREVIEW_BRANCH']+'.'+os.environ['CF_PAGES_NAME']+'.pages.dev/'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NoRedirect)
+          try:
+            with op.open(urllib.request.Request(u,headers={'User-Agent':'MUSITU-Anonymous-Postdeploy/1.0'}),timeout=20) as r: status=r.status;loc=r.headers.get('Location','')
+          except urllib.error.HTTPError as e:status=e.code;loc=e.headers.get('Location','')
+          ok=status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc)
+          assert ok,'Postdeploy private preview Access protection missing'
+          print('restricted_preview_url:',u)
+          print('postdeploy_anonymous_access_blocked: VERIFIED')
+          print('domain_and_dns_writes: 0')
+          print('existing_intelligence_writes: 0')
+          print('public_release_completed: false')
+          PY
