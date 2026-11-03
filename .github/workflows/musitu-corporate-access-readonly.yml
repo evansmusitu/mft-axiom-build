@@ -1,0 +1,63 @@
+name: MUSITU Corporate Access Protection Readiness (GET only)
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-access-readonly.yml'
+permissions: {}
+jobs:
+  check-pages-access:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify pages project and inspect Access-app permission status without changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.error,urllib.request
+          tok=os.environ.get('CF_TOKEN') or ''
+          if not tok:raise SystemExit('Token missing')
+          acct='93f395f5121954671f92fffa453d6b61'
+          pre='https://api.cloudflare.com/client/v4'
+          def get(p):
+              if p not in ['/accounts/'+acct+'/pages/projects/musitu-corporate','/accounts/'+acct+'/access/apps?per_page=100']:
+                  raise SystemExit('Disallowed endpoint')
+              req=urllib.request.Request(pre+p,headers={'Authorization':'Bearer '+tok,'Accept':'application/json'},method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:
+                      x=json.load(e)
+                      codes=[z.get('code') for z in x.get('errors') or [] if isinstance(z,dict) and isinstance(z.get('code'),int)]
+                  except Exception:codes=[]
+                  return e.code,{'error_codes':codes}
+          status,data=get('/accounts/'+acct+'/pages/projects/musitu-corporate')
+          assert status==200 and data.get('success') is True, 'New corporate Pages project cannot be verified'
+          proj=data['result']
+          print('corporate_pages_project_verified:',proj.get('name')=='musitu-corporate')
+          print('deployment_currently_present:',bool(proj.get('canonical_deployment') or proj.get('latest_deployment')))
+          print('production_branch:',proj.get('production_branch'))
+          code,body=get('/accounts/'+acct+'/access/apps?per_page=100')
+          print('access_apps_read_http:',code)
+          if code==200 and body.get('success') is True:
+              apps=body.get('result') or []
+              domains=['musitu-corporate.pages.dev','*.musitu-corporate.pages.dev','corporate.mftintelligence.com']
+              relevant=[]
+              for app in apps:
+                  if not isinstance(app,dict):continue
+                  domain=str(app.get('domain') or '')
+                  if domain in domains or any(h in str(app.get('name') or '').lower() for h in ('musitu-corporate','musitu corporate')):
+                      relevant.append({'domain':domain,'type':app.get('type'),'policy_count':len(app.get('policies') or [])})
+              print('access_relevant_app_count:',len(relevant))
+              print('access_relevant_app_summaries:',json.dumps(relevant,sort_keys=True))
+              info=body.get('result_info') or {}
+              print('access_app_list_paginated:',bool((info.get('total_pages') or 1)>1))
+          else:
+              print('access_error_codes:',body.get('error_codes') or [])
+          print('cloudflare_write_operations: 0')
+          PY
