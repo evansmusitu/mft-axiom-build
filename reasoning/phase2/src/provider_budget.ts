@@ -3,6 +3,7 @@ import { sha256Hex } from "../../phase1/src/canonical.ts";
 import type { ModelAdapter, ModelAdapterInput, CapturedModelExchange } from "./model_adapter.ts";
 import type { ModelExplanationAdapter, ModelExplanationAdapterInput, CapturedModelExplanationExchange } from "./model_explanation.ts";
 import type { ModelAdapterManifest, TenantScope } from "./types.ts";
+import { PostgresProviderSpendLedger } from "./provider_budget_postgres.ts";
 
 /** Operational usage and charge records are NOT signed AXIOM proof inputs. */
 export interface ProviderTokenPrices {
@@ -216,8 +217,11 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
       throw new TypeError("Provider compile and explain adapter is required");
     if(config.adapter.manifest.provider!=="openai"&&config.adapter.manifest.provider!=="anthropic")
       throw new TypeError("Unsupported budgeted provider");
-    if(!config.ledger||typeof config.ledger.reserve!=="function"||typeof config.ledger.settle!=="function")
-      throw new TypeError("Durable provider ledger is required");
+    // Never accept structural duck-typing for the accounting authority:
+    // an arbitrary reserve/settle object could silently do nothing.
+    if(!(config.ledger instanceof SqliteProviderSpendLedger) &&
+       !(config.ledger instanceof PostgresProviderSpendLedger))
+      throw new TypeError("Trusted SQLite or PostgreSQL provider budget ledger is required");
     this.adapter=config.adapter;this.manifest=config.adapter.manifest;
     this.provider=config.adapter.manifest.provider;this.tenantId=named(config.tenantId,"tenantId");
     this.prices=checkedPrices(config.prices);
