@@ -141,3 +141,18 @@ test("trusted compile and explanation services reject unbudgeted OpenAI and Anth
   assert.doesNotThrow(()=>makeCompiler(fixture));
   assert.doesNotThrow(()=>makeExplainer(fixture));
 });
+
+
+test("budgeted explanation registration denies a different tenant without spending",()=>{
+  const x=setup("openai");
+  try{
+    assert.throws(()=>new phase2.ModelExplanationService({
+      tenant:scope("tenant:b"),
+      profiles:{} as any,repository:{} as any,executions:{} as any,
+      plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+      adapters:[x.wrapped]
+    }),/tenant mismatch/i);
+    assert.equal(x.calls,0);
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
+  }finally{x.ledger.close();}
+});
