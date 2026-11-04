@@ -178,3 +178,28 @@ test("paid provider decorators reject user-supplied no-op spend ledgers before a
     assert.equal(attemptedAccounting,0);
   }
 });
+
+
+test("forged ledger prototypes and patched reservation methods cannot impersonate trusted billing",()=>{
+  let calls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+    async explain(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+  };
+  const register=(ledger:any)=>new phase2.BudgetedModelProviderAdapter({
+    adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+
+  const impersonator=Object.create(phase2.PostgresProviderSpendLedger.prototype);
+  impersonator.reserve=()=>{};
+  impersonator.settle=()=>{};
+  assert.throws(()=>register(impersonator),/trusted|budget|ledger/i);
+
+  const real=new phase2.SqliteProviderSpendLedger(":memory:");
+  try{
+    real.reserve=()=>{};
+    assert.throws(()=>register(real),/trusted|budget|ledger/i);
+  }finally{real.close();}
+  assert.equal(calls,0);
+});
