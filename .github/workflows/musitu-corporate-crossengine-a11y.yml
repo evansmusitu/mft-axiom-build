@@ -1,0 +1,288 @@
+name: MUSITU Corporate Cross-Engine Browser and axe Accessibility Audit
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-crossengine-a11y.yml'
+permissions: {}
+concurrency:
+  group: musitu-corporate-crossengine-a11y
+  cancel-in-progress: false
+jobs:
+  crossengine-hosted:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Install pinned Playwright Chromium Firefox WebKit and axe-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet playwright==1.57.0
+          python3 -m playwright install --with-deps chromium firefox webkit
+          npm install --prefix "$RUNNER_TEMP/musitu-axe" --no-audit --no-fund --ignore-scripts axe-core@4.10.3
+      - name: Run browser on Cloudflare-protected preview using revoked-after-use Access identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error,urllib.parse
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          acct='93f395f5121954671f92fffa453d6b61'
+          domain='*.musitu-corporate.pages.dev'
+          host='corporate-private-20261103.musitu-corporate.pages.dev'
+          origin='https://'+host
+          token=os.environ.get('CF_TOKEN') or ''
+          assert token,'Cloudflare API token unavailable'
+          base='https://api.cloudflare.com/client/v4/accounts/'+acct
+          headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'}
+          def cf(method,path,data=None):
+            allowed=(
+              method=='GET' and path=='/access/apps?per_page=100'
+              or method=='POST' and path=='/access/service_tokens'
+              or method=='POST' and path.startswith('/access/apps/') and path.endswith('/policies')
+              or method=='DELETE' and path.startswith('/access/service_tokens/')
+              or method=='DELETE' and path.startswith('/access/apps/') and '/policies/' in path
+            )
+            if not allowed:raise RuntimeError('Cloudflare request not allowlisted')
+            req=urllib.request.Request(base+path,headers=headers,method=method,data=None if data is None else json.dumps(data).encode())
+            try:
+              with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as exc:
+              return exc.code,{}
+          code,apps=cf('GET','/access/apps?per_page=100')
+          assert code==200 and apps.get('success') is True,'Cloudflare Access list unavailable'
+          matched=[a for a in apps.get('result') or [] if a.get('domain')==domain]
+          assert len(matched)==1 and matched[0].get('type')=='self_hosted','Target preview Access app not unique'
+          app=matched[0]
+          assert app.get('policies') and not any(p.get('decision')=='bypass' for p in app['policies'] if isinstance(p,dict)),'Unsafe Access app policy'
+          appid=app.get('id')
+          assert appid and isinstance(appid,str)
+          service_id=None;policy_id=None
+          cleanup=True
+          try:
+            status,response=cf('POST','/access/service_tokens',{'name':'MUSITU V3 temporary browser QA 20261103','duration':'15m','enabled':True})
+            assert status in (200,201) and response.get('success') is True,'Temporary service token unavailable'
+            info=response['result']
+            service_id=info.get('id');cid=info.get('client_id');secret=info.get('client_secret')
+            assert all(isinstance(x,str) and x for x in (service_id,cid,secret)),'Service token missing required fields'
+            p={'name':'MUSITU V3 temporary browser acceptance','decision':'non_identity','include':[{'service_token':{'token_id':service_id}}]}
+            status,response=cf('POST','/access/apps/'+appid+'/policies',p)
+            assert status in (200,201) and response.get('success') is True,'Temporary browser policy unavailable'
+            policy_id=(response['result'] or {}).get('id')
+            assert policy_id,'Temporary policy id unavailable'
+            print('temporary_service_auth_scope: CORPORATE_PREVIEW_ONLY')
+            errors=[];route_failures=[];reflow_failures=[];interactions=[];metrics=[]
+            route_paths=[
+             '/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/',
+             '/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/',
+             '/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/',
+             '/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/',
+             '/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/','/404/'
+            ]
+            with sync_playwright() as pw:
+              browser=pw.chromium.launch(headless=True,args=['--no-sandbox'])
+              context=browser.new_context(viewport={'width':1440,'height':900},reduced_motion='reduce')
+              def request_guard(route):
+                parsed=urllib.parse.urlparse(route.request.url)
+                if parsed.scheme!='https' or parsed.hostname!=host:
+                  route.abort()
+                  return
+                h=dict(route.request.headers)
+                h['CF-Access-Client-Id']=cid
+                h['CF-Access-Client-Secret']=secret
+                route.continue_(headers=h)
+              context.route('**/*',request_guard)
+              context.add_init_script('''(() => {
+                window.__musituVitals = {cls:0,lcp:0};
+                try { new PerformanceObserver(list => { for (const x of list.getEntries()) if (!x.hadRecentInput) window.__musituVitals.cls += x.value; }).observe({type:"layout-shift", buffered:true}); } catch(e) {}
+                try { new PerformanceObserver(list => { for (const x of list.getEntries()) window.__musituVitals.lcp = x.startTime; }).observe({type:"largest-contentful-paint", buffered:true}); } catch(e) {}
+              })()''')
+              page=context.new_page()
+              page.on('pageerror',lambda err: errors.append(str(err)[:160]))
+              # New Cloudflare Access service-auth policy must become effective before recorded acceptance.
+              auth_ready=False
+              for attempt in range(18):
+                try:
+                  probe=page.goto(origin+'/',wait_until='domcontentloaded',timeout=25000)
+                  count=page.locator('main h1').count()
+                  heading=page.locator('main h1').first.inner_text() if count else ''
+                  auth_ready=bool(probe and probe.status==200 and count==1 and heading.startswith('Intelligence with evidence.'))
+                  print('hosted_browser_access_warmup:',json.dumps({'attempt':attempt+1,'http':probe.status if probe else None,'corporate_home_verified':auth_ready}))
+                  if auth_ready:break
+                except Exception as e:
+                  print('hosted_browser_access_warmup:',json.dumps({'attempt':attempt+1,'error':type(e).__name__}))
+                time.sleep(2)
+              assert auth_ready,'Access service-auth policy did not admit the verified corporate site'
+              def navigate(path):
+                res=page.goto(origin+path,wait_until='domcontentloaded',timeout=25000)
+                page.wait_for_load_state('load',timeout=25000)
+                assert res and res.status==200,'Hosted page did not return 200: '+path
+              for route in route_paths:
+                try:
+                  navigate(route)
+                  count=page.locator('main h1').count()
+                  assert count==1,'h1 count='+str(count)
+                  bodytext=page.locator('main').inner_text().strip()
+                  assert len(bodytext)>20,'main text too short, bytes='+str(len(bodytext))
+                  w=page.evaluate('document.documentElement.scrollWidth')
+                  assert w<=1442,'Desktop overflow'
+                except Exception as e:route_failures.append({'route':route,'error':type(e).__name__,'message':str(e)[:95]})
+              shortlist=['/','/products/','/products/axiom/','/solutions/','/experiences/lab/','/ecosystem/','/company/','/legal/privacy/','/sitemap/']
+              for width in (320,375,390,768,1024,1440):
+                page.set_viewport_size({'width':width,'height':900})
+                for route in shortlist:
+                  try:
+                    navigate(route)
+                    overflow=page.evaluate('document.documentElement.scrollWidth')
+                    assert overflow<=width+2,'Browser viewport overflow'
+                  except Exception as e:reflow_failures.append({'route':route,'width':width,'error':str(e)[:90]})
+              page.set_viewport_size({'width':1440,'height':900})
+              def interaction(name,fn):
+                try:
+                  fn();interactions.append({'name':name,'pass':True})
+                except Exception as e:interactions.append({'name':name,'pass':False,'reason':str(e)[:125]})
+              def navigator():
+                navigate('/solutions/')
+                page.locator('[data-navigate="foundry"]').click()
+                assert page.locator('[data-navigator-title]').inner_text()=='MUSITU Foundry'
+              interaction('Navigator',navigator)
+              def atlas():
+                navigate('/ecosystem/')
+                page.locator('[data-atlas="worldfabric"]').click()
+                assert page.locator('[data-atlas-title]').inner_text()=='MUSITU WorldFabric'
+              interaction('Ecosystem Atlas',atlas)
+              def npv():
+                navigate('/experiences/lab/')
+                before=page.locator('#npv-output').inner_text()
+                page.locator('#npv-rate').fill('20')
+                assert page.locator('#npv-output').inner_text()!=before
+              interaction('Quantitative Lab',npv)
+              def guide():
+                navigate('/')
+                page.locator('#ask-trigger').click()
+                assert page.locator('#corporate-guide').is_visible()
+                page.locator('#guide-input').fill('chemistry')
+                page.locator('#guide-form button').click()
+                assert page.locator('#guide-results a').count()>0
+                page.locator('#guide-close').click()
+              interaction('Local Ask guide',guide)
+              def search():
+                navigate('/')
+                page.locator('#search-toggle').click()
+                page.locator('#site-search-query').fill('Studio')
+                assert page.locator('.search-result').count()>0
+                page.locator('#search-close').click()
+              interaction('Local website search',search)
+              def skip():
+                navigate('/')
+                page.keyboard.press('Tab')
+                assert page.evaluate('document.activeElement.tagName.toLowerCase()')=='a'
+                assert page.evaluate('document.activeElement.getAttribute("href")')=='#main'
+              interaction('Keyboard skip link',skip)
+              for route,width in [('/',390),('/',1440),('/products/',390),('/products/',1440),('/ecosystem/',390),('/experiences/lab/',390)]:
+                page.set_viewport_size({'width':width,'height':900})
+                try:
+                  navigate(route);page.wait_for_timeout(150)
+                  v=page.evaluate('window.__musituVitals || {}')
+                  metrics.append({'route':route,'width':width,'lcp_ms':round(float(v.get('lcp') or 0),1),'cls':round(float(v.get('cls') or 0),5)})
+                except Exception as e:metrics.append({'route':route,'width':width,'error':type(e).__name__})
+              # Automated accessibility scan of real hosted production-representative markup.
+              axe_file=Path(os.environ['RUNNER_TEMP'])/'musitu-axe/node_modules/axe-core/axe.min.js'
+              assert axe_file.is_file(),'Pinned axe-core installation missing'
+              axe_source=axe_file.read_text()
+              axe_routes=['/','/products/','/company/','/ecosystem/','/experiences/lab/','/contact/','/legal/privacy/','/solutions/']
+              axe_failures=[]
+              axe_passed=0
+              page.set_viewport_size({'width':390,'height':900})
+              for axe_route in axe_routes:
+                try:
+                  navigate(axe_route)
+                  page.add_script_tag(content=axe_source)
+                  result=page.evaluate("""async () => {
+                    const out = await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'] } });
+                    return {violations: out.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,nodes:v.nodes.length,targets:v.nodes.slice(0,3).map(x=>x.target)})),incomplete:out.incomplete.length,passes:out.passes.length};
+                  }""")
+                  axe_passed+=1
+                  if result['violations']:
+                    axe_failures.append({'route':axe_route,'violations':result['violations']})
+                except Exception as e:
+                  axe_failures.append({'route':axe_route,'error':type(e).__name__,'message':str(e)[:130]})
+              context.close();browser.close()
+              crossengine_failures=[]
+              crossengine_checks=0
+              crossengines=['firefox','webkit']
+              cross_routes=['/','/company/','/products/','/products/axiom/','/ecosystem/','/experiences/lab/','/legal/privacy/','/sitemap/']
+              for engine in crossengines:
+                b=getattr(pw,engine).launch(headless=True)
+                c=b.new_context(viewport={'width':390,'height':850},reduced_motion='reduce')
+                c.route('**/*',request_guard)
+                p=c.new_page()
+                for warmup in range(15):
+                  try:
+                    res=p.goto(origin+'/',wait_until='domcontentloaded',timeout=25000)
+                    if res and res.status==200 and p.locator('main h1').count()==1 and p.locator('main h1').first.inner_text().startswith('Intelligence with evidence.'):
+                      break
+                  except Exception: pass
+                  time.sleep(2)
+                else:
+                  crossengine_failures.append({'engine':engine,'phase':'Access policy not ready'})
+                  c.close();b.close()
+                  continue
+                for width in [320,390,768,1440]:
+                  p.set_viewport_size({'width':width,'height':850})
+                  for path in cross_routes:
+                    crossengine_checks+=1
+                    try:
+                      res=p.goto(origin+path,wait_until='load',timeout=25000)
+                      assert res and res.status==200,'HTTP not 200'
+                      assert p.locator('main h1').count()==1,'Missing unique main heading'
+                      w=p.evaluate('document.documentElement.scrollWidth')
+                      assert w<=width+2,'Overflow '+str(w)+' > '+str(width)
+                      assert p.locator('body').is_visible(),'Invisible page'
+                    except Exception as e:
+                      crossengine_failures.append({'engine':engine,'route':path,'width':width,'error':str(e)[:125]})
+                # One keyboard and interactive test in each independent engine.
+                try:
+                  p.set_viewport_size({'width':390,'height':850})
+                  p.goto(origin+'/',wait_until='load',timeout=25000)
+                  p.locator('#ask-trigger').click(timeout=8000)
+                  assert p.locator('#corporate-guide').is_visible(),'Ask dialog did not open'
+                  p.locator('#guide-close').click(timeout=8000)
+                except Exception as e:
+                  crossengine_failures.append({'engine':engine,'phase':'interactive','error':str(e)[:140]})
+                c.close();b.close()
+            print('hosted_axe_routes_scanned:',axe_passed)
+            print('hosted_axe_violations:',json.dumps(axe_failures))
+            print('crossengine_engines:',','.join(crossengines))
+            print('crossengine_responsive_checks:',crossengine_checks)
+            print('crossengine_failures:',json.dumps(crossengine_failures))
+            assert not axe_failures and not crossengine_failures,'Hosted cross-engine or automated WCAG violations'
+            print('chromium_rendered_routes_checked:',len(route_paths))
+            print('chromium_rendered_route_failures:',json.dumps(route_failures))
+            print('chromium_reflow_checks:',len(shortlist)*6)
+            print('chromium_reflow_failures:',json.dumps(reflow_failures))
+            print('chromium_interactions:',json.dumps(interactions))
+            print('chromium_page_errors_count:',len(errors))
+            print('hosted_lab_metrics:',json.dumps(metrics))
+            passed=(not route_failures and not reflow_failures and not errors and all(x['pass'] for x in interactions) and all('error' not in m and m['cls']<=0.10 and (m['lcp_ms']==0 or m['lcp_ms']<2500) for m in metrics))
+            print('hosted_chromium_acceptance_pass:',passed)
+            if not passed:raise RuntimeError('Hosted Chromium acceptance failed')
+          finally:
+            if policy_id:
+              code,data=cf('DELETE','/access/apps/'+appid+'/policies/'+policy_id)
+              good=code in (200,202,204) and data.get('success') is not False
+              cleanup=cleanup and good
+              print('temporary_browser_policy_revoked:',good)
+            if service_id:
+              code,data=cf('DELETE','/access/service_tokens/'+service_id)
+              good=code in (200,202,204) and data.get('success') is not False
+              cleanup=cleanup and good
+              print('temporary_browser_service_token_revoked:',good)
+          assert cleanup,'Cleanup failed; verify Access Service Tokens and policies'
+          print('browser_QA_release_boundary: STAGING_ONLY')
+          PY
