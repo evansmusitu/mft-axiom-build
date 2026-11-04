@@ -1,0 +1,77 @@
+name: MUSITU Corporate Provider Inventory (Read-Only)
+on:
+  push:
+    branches:
+      - 'audit/musitu-corporate-cloudflare-readonly-20261103'
+    paths:
+      - '.github/workflows/musitu-corporate-provider-readonly-inventory.yml'
+permissions: {}
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read only exact Cloudflare Pages, Access, DNS and optional email-route metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          account='93f395f5121954671f92fffa453d6b61'
+          zone='5b56528f03948ff5917a5e0cd9f7109e'
+          token=os.environ.get('CF_TOKEN') or ''
+          assert token,'Cloudflare token absent'
+          base='https://api.cloudflare.com/client/v4'
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          allowed=[
+            '/accounts/'+account+'/pages/projects/musitu-corporate',
+            '/accounts/'+account+'/pages/projects/musitu-corporate/deployments',
+            '/accounts/'+account+'/access/apps?per_page=100',
+            '/zones/'+zone+'/dns_records?name=corporate.mftintelligence.com',
+            '/zones/'+zone+'/email/routing/rules'
+          ]
+          def get(path):
+            assert path in allowed,'unapproved endpoint'
+            try:
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers,method='GET'),timeout=23) as r:
+                return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              try: data=json.load(e)
+              except Exception:data={}
+              return e.code,data
+          s,p=get(allowed[0]);assert s==200 and p.get('success') is True,'Corporate Pages project inaccessible'
+          proj=p['result']
+          assert proj.get('name')=='musitu-corporate' and proj.get('production_branch')=='main','Project configuration drift'
+          print('pages_project_name: VERIFIED')
+          print('pages_production_branch: main')
+          print('pages_web_analytics_enabled:',json.dumps(proj.get('web_analytics',None)))
+          print('pages_git_source_configured:',bool(proj.get('source')))
+          print('pages_custom_domains:',[v for v in (proj.get('domains') or []) if isinstance(v,str) and v=='corporate.mftintelligence.com'])
+          s,d=get(allowed[1]);assert s==200 and d.get('success') is True,'Pages deployments read failed'
+          deployments=d.get('result') or []
+          interesting=[r for r in deployments if isinstance(r,dict) and r.get('project_name')=='musitu-corporate' or isinstance(r,dict) and r.get('deployment_trigger')]
+          print('pages_deployments_returned:',len(deployments))
+          print('pages_latest_deployment_environment:',(deployments[0].get('environment') if deployments else None))
+          print('pages_production_deployments_returned:',sum(v.get('environment')=='production' for v in deployments if isinstance(v,dict)))
+          s,a=get(allowed[2]);assert s==200 and a.get('success') is True,'Access applications unavailable'
+          targets=['musitu-corporate.pages.dev','*.musitu-corporate.pages.dev']
+          for target in targets:
+            matches=[r for r in (a.get('result') or []) if r.get('domain')==target]
+            assert len(matches)==1 and matches[0].get('type')=='self_hosted' and (matches[0].get('policies') or []),'Pages Access missing'
+          print('base_and_preview_cloudflare_access: VERIFIED')
+          s,z=get(allowed[3]);assert s==200 and z.get('success') is True,'Corporate DNS check unavailable'
+          print('corporate_custom_dns_records:',len(z.get('result') or []))
+          s,e=get(allowed[4])
+          print('email_routing_rules_read_http:',s)
+          if s==200 and e.get('success') is True:
+            matching=[]
+            for rule in e.get('result') or []:
+              if not isinstance(rule,dict):continue
+              if any(isinstance(m,dict) and 'support@mftintelligence.com' in str(m.get('value','')).lower() for m in (rule.get('matchers') or [])):
+                matching.append({'enabled':rule.get('enabled'),'actions_count':len(rule.get('actions') or [])})
+            print('support_alias_route_matches:',json.dumps(matching))
+          print('all_api_requests_get_only: true')
+          print('credentials_reported: NONE')
+          PY
