@@ -105,3 +105,39 @@ test("unexpected higher provider charge is recorded, flagged, and prevents addit
   await assert.rejects(()=>x.wrapped.invoke({tenant:scope(),compilationRequestHash:"e".repeat(64),attempt:0,mode:"INITIAL"}),/overage|suspended/i);
   assert.equal(x.calls,1);
 });
+
+
+test("trusted compile and explanation services reject unbudgeted OpenAI and Anthropic adapters",()=>{
+  const makeCompiler=(adapter:any)=>new phase2.ModelCompilationService({
+    profiles:{resolve(){throw new Error("not used");}} as any,
+    repository:{commitCompilation(){throw new Error("not used");}} as any,
+    registry:{manifest(){return [];}} as any,adapter
+  });
+  const makeExplainer=(adapter:any)=>new phase2.ModelExplanationService({
+    tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
+    plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+    adapters:[adapter]
+  });
+  for(const provider of ["openai","anthropic"] as const){
+    let calls=0;
+    const unbudgeted={
+      manifest:manifest(provider),
+      async invoke(){calls++;throw new Error("network must not be invoked");},
+      async explain(){calls++;throw new Error("network must not be invoked");}
+    };
+    assert.throws(()=>makeCompiler(unbudgeted),/budget|metered/i);
+    assert.throws(()=>makeExplainer(unbudgeted),/budget|metered/i);
+    assert.equal(calls,0);
+  }
+  const x=setup("openai");
+  assert.doesNotThrow(()=>makeCompiler(x.wrapped));
+  assert.doesNotThrow(()=>makeExplainer(x.wrapped));
+  x.ledger.close();
+  const fixture={
+    manifest:{...manifest("openai"),provider:"fixture"},
+    async invoke(){throw new Error("not called");},
+    async explain(){throw new Error("not called");}
+  };
+  assert.doesNotThrow(()=>makeCompiler(fixture));
+  assert.doesNotThrow(()=>makeExplainer(fixture));
+});
