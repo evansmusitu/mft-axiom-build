@@ -718,3 +718,64 @@ test("PostgreSQL remote worker HTTP control preserves signed durable claim recei
   await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_worker_operation_receipts");
  }
 });
+
+
+test("PostgreSQL provider spend reservations serialize across competing workers and isolate tenants",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ assert.equal(typeof ax.PostgresProviderSpendLedger,"function");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-cost-concurrent"},other={tenantId:"tenant:pg-cost-other"};
+ const provider="model:pg-cost",modelId="billing:test-model";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE provider=$1 AND model_id=$2",[provider,modelId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE provider=$1 AND model_id=$2",[provider,modelId]);
+ await ledger.provision(tenant,provider,modelId,1000);
+ await ledger.provision(other,provider,modelId,1000);
+ const reservation=(id:string,tenantId=tenant.tenantId)=>({
+  tenantId,provider,modelId,requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
+ });
+ const [first,second]=await Promise.allSettled([
+  ledger.reserve(reservation("pg-cost-1")),ledger.reserve(reservation("pg-cost-2"))
+ ]);
+ assert.equal([first,second].filter(x=>x.status==="fulfilled").length,1);
+ assert.equal([first,second].filter(x=>x.status==="rejected").length,1);
+ const winner=first.status==="fulfilled"?"pg-cost-1":"pg-cost-2";
+ const loser=winner==="pg-cost-1"?"pg-cost-2":"pg-cost-1";
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+ });
+ assert.deepEqual(await ledger.status(other,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
+ });
+ await assert.rejects(()=>ledger.reserve(reservation(winner)),/reserved|duplicate|reconciliation/i);
+ await assert.rejects(()=>ledger.reserve(reservation(loser)),/budget|limit/i);
+ await ledger.reserve(reservation("pg-cost-other",other.tenantId));
+ await ledger.settle({...reservation(winner),chargeMicroUsd:200,responseHash:"b".repeat(64)});
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:800
+ });
+ await assert.rejects(()=>ledger.settle({...reservation(winner),chargeMicroUsd:200,responseHash:"b".repeat(64)}),/already|settle|reservation|matching/i);
+ await ledger.reserve(reservation(loser));
+ assert.equal((await ledger.status(tenant,provider,modelId)).reservedMicroUsd,700);
+});
+
+test("PostgreSQL billing records overages, suspends further calls and fails closed on unknown receipts",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-cost-overage"},provider="model:pg-cost",modelId="billing:test-model";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
+ await ledger.provision(tenant,provider,modelId,1000);
+ const reservation={tenantId:tenant.tenantId,provider,modelId,requestId:"pg-overage",
+  requestHash:"e".repeat(64),reserveMicroUsd:100};
+ await ledger.reserve(reservation);
+ await assert.rejects(()=>ledger.settle({...reservation,requestHash:"f".repeat(64),chargeMicroUsd:600,responseHash:"b".repeat(64)}),/matching|reservation|forbidden/i);
+ assert.equal((await ledger.status(tenant,provider,modelId)).reservedMicroUsd,100);
+ await assert.rejects(()=>ledger.settle({...reservation,chargeMicroUsd:600,responseHash:"c".repeat(64)}),/overage|reserved/i);
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:0,availableMicroUsd:400
+ });
+ await assert.rejects(()=>ledger.reserve({...reservation,requestId:"pg-new",requestHash:"d".repeat(64)}),/suspended|overage/i);
+ await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999),/immutable|existing|differs/i);
+});

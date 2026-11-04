@@ -188,17 +188,30 @@ export class HttpJsonEvidenceAdapter implements EvidenceAdapter {
       headers["content-type"]="application/json";
       body=JSON.stringify(input.parameters);
     }
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),op.manifest.timeoutMs);
-    let response:Response;
-    try{
-      response=await this.fetchFn(url,{method:op.method,headers,body,redirect:"manual",signal:controller.signal});
-    }catch(error){
-      if(controller.signal.aborted)throw new EvidenceAdapterError("UPSTREAM_TIMEOUT","Upstream request timed out",504);
-      throw new EvidenceAdapterError("UPSTREAM_NETWORK","Upstream request failed",502);
-    }finally{clearTimeout(timer);}
-    return captureBoundedJsonResponse({
-      response,allowedStatus:op.allowedStatus,allowedMediaTypes:op.manifest.responseMediaTypes,
-      maxResponseBytes:op.manifest.maxResponseBytes,secrets
+    const controller=new AbortController();
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const timeout=()=>new EvidenceAdapterError("UPSTREAM_TIMEOUT","Upstream request timed out",504);
+    const deadline=new Promise<never>((_resolve,reject)=>{
+      timer=setTimeout(()=>{controller.abort();reject(timeout());},op.manifest.timeoutMs);
     });
+    const operation=(async()=>{
+      let response:Response;
+      try{
+        response=await this.fetchFn(url,{method:op.method,headers,body,redirect:"manual",signal:controller.signal});
+      }catch{
+        if(controller.signal.aborted)throw timeout();
+        throw new EvidenceAdapterError("UPSTREAM_NETWORK","Upstream request failed",502);
+      }
+      return captureBoundedJsonResponse({
+        response,allowedStatus:op.allowedStatus,allowedMediaTypes:op.manifest.responseMediaTypes,
+        maxResponseBytes:op.manifest.maxResponseBytes,secrets
+      });
+    })();
+    try{
+      return await Promise.race([operation,deadline]);
+    }catch(error){
+      if(controller.signal.aborted)throw timeout();
+      throw error;
+    }finally{if(timer!==undefined)clearTimeout(timer);}
   }
 }

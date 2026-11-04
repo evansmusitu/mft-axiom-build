@@ -271,3 +271,21 @@ test("OpenAI adapter rejects a completed response attributed to a different mode
     (e:any)=>e?.httpStatus===502&&/model/i.test(e?.message??"")
   );
 });
+
+
+test("OpenAI model provider deadline covers an HTTP 200 response body that never finishes",async()=>{
+  const ax:any=await import("../src/index.ts");
+  const stream=new ReadableStream<Uint8Array>({
+    start(controller){controller.enqueue(new TextEncoder().encode('{"partial":'));}
+  });
+  const adapter=new ax.OpenAiResponsesModelAdapter({
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:25,maxResponseBytes:16384,
+    secretResolver:{async resolve(){return "test-token";}},
+    fetchFn:async()=>new Response(stream,{status:200,headers:{"content-type":"application/json"}})
+  });
+  const result=await Promise.race([
+    adapter.invoke(adapterInput()).then(()=>({status:"unexpected-success"}),e=>({status:"error",code:e?.code,httpStatus:e?.httpStatus})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:"stalled"}),300))
+  ]) as any;
+  assert.deepEqual(result,{status:"error",code:"MODEL_UPSTREAM_TIMEOUT",httpStatus:504});
+});

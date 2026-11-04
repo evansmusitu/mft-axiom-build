@@ -98,21 +98,33 @@ export class BoundedModelProviderTransport {
     }
     const url=new URL(this.path,this.origin);
     if(url.origin!==this.origin.origin)throw new Error("Model provider path escaped configured origin");
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),this.timeoutMs);
-    let response:Response;
-    try{
-      response=await this.fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
-    }catch{
-      if(controller.signal.aborted)throw new ModelAdapterError("MODEL_UPSTREAM_TIMEOUT","Model provider request timed out",504);
-      throw new ModelAdapterError("MODEL_UPSTREAM_NETWORK","Model provider request failed",502);
-    }finally{clearTimeout(timer);}
-    try{
+    const controller=new AbortController();
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const timeout=()=>new ModelAdapterError("MODEL_UPSTREAM_TIMEOUT","Model provider request timed out",504);
+    // The deadline spans both headers and the entire streamed body.
+    const deadline=new Promise<never>((_resolve,reject)=>{
+      timer=setTimeout(()=>{controller.abort();reject(timeout());},this.timeoutMs);
+    });
+    const operation=(async()=>{
+      let response:Response;
+      try{
+        response=await this.fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
+      }catch{
+        if(controller.signal.aborted)throw timeout();
+        throw new ModelAdapterError("MODEL_UPSTREAM_NETWORK","Model provider request failed",502);
+      }
       const cap=Number.isInteger(maxResponseBytes)&&Number(maxResponseBytes)>0
         ?Math.min(this.maxResponseBytes,Number(maxResponseBytes)):this.maxResponseBytes;
       const captured=await captureBoundedJsonResponse({
         response,allowedStatus:this.allowedStatus,allowedMediaTypes:["application/json"],maxResponseBytes:cap,secrets
       });
       return captured.body;
-    }catch(error){translate(error);}
+    })();
+    try{
+      return await Promise.race([operation,deadline]);
+    }catch(error){
+      if(controller.signal.aborted)throw timeout();
+      translate(error);
+    }finally{if(timer!==undefined)clearTimeout(timer);}
   }
 }
