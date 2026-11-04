@@ -5,10 +5,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDefaultRegistry, createSigner, hashJson } from "../../phase1/src/index.ts";
 import {
-  AnthropicMessagesModelAdapter, AxiomApiService, DeterministicAuthorizer, ExecutionStore,
+  AnthropicMessagesModelAdapter, AxiomApiService, BudgetedModelProviderAdapter,
+  DeterministicAuthorizer, ExecutionStore,
   ModelCompilationService, ModelCompilationStore, ModelCompilerRegistry, ModelExecutionService,
   ModelExplanationError, ModelExplanationRegistry, ModelExplanationService, ModelExplanationStore,
-  OpenAiResponsesModelAdapter, ReasoningControlPlane, SecurityStore, StaticSecretResolver,
+  OpenAiResponsesModelAdapter, ReasoningControlPlane, SecurityStore, SqliteProviderSpendLedger,
+  StaticSecretResolver,
   WorldStateStore, createAuthorizedTenantContext, createAxiomHttpServer, createStaticSignerProvider,
   type ApiAction, type ApiResource, type ModelCompilerProfile, type TenantScope
 } from "../src/index.ts";
@@ -55,6 +57,7 @@ function normalizedProposal(){
 function openAiResponse(text:string):string{
   return JSON.stringify({
     id:"resp_phase24b",object:"response",status:"completed",error:null,model:openAiManifest.modelId,
+    usage:{input_tokens:10,output_tokens:20,total_tokens:30,input_tokens_details:{cached_tokens:0}},
     output:[{id:"msg_phase24b",type:"message",role:"assistant",status:"completed",content:[{type:"output_text",text,annotations:[]}]}]
   });
 }
@@ -122,6 +125,24 @@ const anthropicAdapter=new AnthropicMessagesModelAdapter({
 });
 
 const dir=mkdtempSync(join(tmpdir(),"axiom-phase24b-gate-")),db=join(dir,"platform.db");
+// The conformance gate exercises REAL trusted metered service registration using
+// deterministic fake network responses; no live vendor or production credentials.
+const budgetLedger=new SqliteProviderSpendLedger(":memory:");
+const testPrices={
+  inputMicrosPerMillionTokens:1000000,outputMicrosPerMillionTokens:2000000,
+  cacheReadMicrosPerMillionTokens:250000,cacheWriteMicrosPerMillionTokens:1250000
+};
+for(const m of [openAiManifest,anthropicManifest]){
+  budgetLedger.provision(tenantA,m.adapterId,m.modelId,10000);
+}
+const meteredOpenAi=new BudgetedModelProviderAdapter({
+  adapter:openAiAdapter,ledger:budgetLedger,tenantId:tenantA.tenantId,
+  prices:testPrices,requestReserveMicroUsd:1000
+});
+const meteredAnthropic=new BudgetedModelProviderAdapter({
+  adapter:anthropicAdapter,ledger:budgetLedger,tenantId:tenantA.tenantId,
+  prices:testPrices,requestReserveMicroUsd:1000
+});
 const world=new WorldStateStore(db);
 const executions=new ExecutionStore(db);
 const security=new SecurityStore(db);
@@ -139,7 +160,7 @@ const explainerProfiles=new ModelExplanationRegistry([{
   tenantIds:[tenantA.tenantId]
 }]);
 const explainer=new ModelExplanationService({
-  tenant:tenantA,profiles:explainerProfiles,repository:explanations,executions,plane,adapters:[openAiAdapter],
+  tenant:tenantA,profiles:explainerProfiles,repository:explanations,executions,plane,adapters:[meteredOpenAi],
   now:()=>new Date("2026-10-08T10:00:02.000Z")
 });
 
@@ -198,10 +219,10 @@ try{
   }
 
   const openAiCompiler=new ModelCompilationService({
-    profiles,repository:compilations,registry,adapter:openAiAdapter,now:()=>"2026-10-08T10:00:00.100Z"
+    profiles,repository:compilations,registry,adapter:meteredOpenAi,now:()=>"2026-10-08T10:00:00.100Z"
   });
   const anthropicCompiler=new ModelCompilationService({
-    profiles,repository:compilations,registry,adapter:anthropicAdapter,now:()=>"2026-10-08T10:00:00.200Z"
+    profiles,repository:compilations,registry,adapter:meteredAnthropic,now:()=>"2026-10-08T10:00:00.200Z"
   });
   const objective="Approve only when observed risk is no greater than the trusted maximum";
   const openAiRequest={profileId:openAiProfile.profileId,objective,inputContracts};
@@ -268,7 +289,7 @@ try{
   const mismatchService=new ModelExplanationService({
     tenant:tenantA,profiles:explainerProfiles,repository:explanations,executions,
     plane:{async replayStored(){return {status:"MISMATCH" as const,diagnostics:["forced mismatch"]};}},
-    adapters:[openAiAdapter],now:()=>new Date("2026-10-08T10:00:03.000Z")
+    adapters:[meteredOpenAi],now:()=>new Date("2026-10-08T10:00:03.000Z")
   });
   const callsBeforeMismatch=openAiExplainCalls;
   await assert.rejects(
@@ -320,6 +341,6 @@ try{
   },null,2));
 }finally{
   await close(server).catch(()=>{});
-  explanations.close();compilations.close();security.close();executions.close();world.close();
+  budgetLedger.close();explanations.close();compilations.close();security.close();executions.close();world.close();
   rmSync(dir,{recursive:true,force:true});
 }
