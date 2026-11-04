@@ -177,6 +177,28 @@ export function pricedProviderUsage(responseBody:string,provider:"openai"|"anthr
   return Number(billed);
 }
 
+// Membership is recorded only by the trusted budget decorator constructor.
+// Caller-supplied manifest flags cannot impersonate budget enforcement.
+const trustedMeteredAdapters=new WeakMap<object,{tenantId:string;adapterId:string;modelId:string;provider:string}>();
+
+/** Reject unmetered first-party paid model adapters at trusted service registration. */
+export function requireMeteredProviderAdapter(adapter:{manifest:ModelAdapterManifest},tenantId?:string):void{
+  const manifest=adapter?.manifest;
+  if(manifest?.provider!=="openai"&&manifest?.provider!=="anthropic")return;
+  const registration=trustedMeteredAdapters.get(adapter);
+  if(!registration||
+    registration.adapterId!==manifest.adapterId||
+    registration.modelId!==manifest.modelId||
+    registration.provider!==manifest.provider){
+    throw new ProviderBudgetError("BUDGET_ENFORCEMENT_REQUIRED",
+      "Paid model provider requires a trusted metered budget adapter",403);
+  }
+  if(tenantId!==undefined&&registration.tenantId!==tenantId){
+    throw new ProviderBudgetError("BUDGET_TENANT_MISMATCH",
+      "Model explanation provider budget tenant mismatch",403);
+  }
+}
+
 /** Register this decorator as BOTH compile and explain provider; do not register raw adapters. */
 export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanationAdapter {
   readonly manifest:ModelAdapterManifest;
@@ -201,6 +223,10 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     this.prices=checkedPrices(config.prices);
     this.requestReserveMicroUsd=money(config.requestReserveMicroUsd,"requestReserveMicroUsd",true);
     this.ledger=config.ledger;
+    trustedMeteredAdapters.set(this,{
+      tenantId:this.tenantId,adapterId:this.manifest.adapterId,
+      modelId:this.manifest.modelId,provider:this.provider
+    });
   }
   private async metered<T extends {responseBody:string}>(intent:string,run:()=>Promise<T>):Promise<T>{
     const requestHash=sha(intent),requestId=requestHash;
