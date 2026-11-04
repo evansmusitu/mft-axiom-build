@@ -202,7 +202,7 @@ jobs:
               for axe_route in axe_routes:
                 try:
                   navigate(axe_route)
-                  page.add_script_tag(content=axe_source)
+                  page.evaluate(axe_source)  # Playwright protocol instrumentation; does not relax the site's CSP
                   result=page.evaluate("""async () => {
                     const out = await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'] } });
                     return {violations: out.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,nodes:v.nodes.length,targets:v.nodes.slice(0,3).map(x=>x.target)})),incomplete:out.incomplete.length,passes:out.passes.length};
