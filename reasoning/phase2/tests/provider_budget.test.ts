@@ -156,3 +156,25 @@ test("budgeted explanation registration denies a different tenant without spendi
     assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
   }finally{x.ledger.close();}
 });
+
+
+test("paid provider decorators reject user-supplied no-op spend ledgers before any provider call",()=>{
+  for(const provider of ["openai","anthropic"] as const){
+    let calls=0,attemptedAccounting=0;
+    const adapter={
+      manifest:manifest(provider),
+      async invoke(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+      async explain(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+    };
+    const fakeLedger={
+      reserve(){attemptedAccounting++;},
+      settle(){attemptedAccounting++;}
+    };
+    assert.throws(()=>new phase2.BudgetedModelProviderAdapter({
+      adapter,ledger:fakeLedger,tenantId:"tenant:a",
+      prices,requestReserveMicroUsd:700
+    }),/trusted|ledger|budget/i);
+    assert.equal(calls,0);
+    assert.equal(attemptedAccounting,0);
+  }
+});
