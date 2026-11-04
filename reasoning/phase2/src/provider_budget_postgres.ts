@@ -53,7 +53,14 @@ const budgetWhere="tenant_id=$1 AND provider=$2 AND model_id=$3";
 const budgetValues=(input:Key)=>[input.tenantId,input.provider,input.modelId];
 
 export class PostgresProviderSpendLedger implements ProviderSpendLedger {
+  #authenticBudgetLedger=true;
   private readonly pool:Pick<Pool,"connect">;
+  static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
+    return typeof value==="object"&&value!==null&&
+      #authenticBudgetLedger in value&&
+      (value as PostgresProviderSpendLedger).reserve===PostgresProviderSpendLedger.prototype.reserve&&
+      (value as PostgresProviderSpendLedger).settle===PostgresProviderSpendLedger.prototype.settle;
+  }
   constructor(pool:Pick<Pool,"connect">){
     if(!pool||typeof pool.connect!=="function")throw new TypeError("Operator-owned PostgreSQL pool required");
     this.pool=pool;

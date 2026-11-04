@@ -50,7 +50,14 @@ function validateRequest(input:ProviderReservation|ProviderSettlement):void{
 function sha(value:string):string{return sha256Hex(Buffer.from(value,"utf8"));}
 
 export class SqliteProviderSpendLedger implements ProviderSpendLedger {
+  #authenticBudgetLedger=true;
   private readonly db:DatabaseSync;
+  static isAuthenticLedger(value:unknown):value is SqliteProviderSpendLedger {
+    return typeof value==="object"&&value!==null&&
+      #authenticBudgetLedger in value&&
+      (value as SqliteProviderSpendLedger).reserve===SqliteProviderSpendLedger.prototype.reserve&&
+      (value as SqliteProviderSpendLedger).settle===SqliteProviderSpendLedger.prototype.settle;
+  }
   constructor(databasePath:string){
     this.db=new DatabaseSync(named(databasePath,"databasePath"));
     this.db.exec([
@@ -219,9 +226,9 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
       throw new TypeError("Unsupported budgeted provider");
     // Never accept structural duck-typing for the accounting authority:
     // an arbitrary reserve/settle object could silently do nothing.
-    if(!(config.ledger instanceof SqliteProviderSpendLedger) &&
-       !(config.ledger instanceof PostgresProviderSpendLedger))
-      throw new TypeError("Trusted SQLite or PostgreSQL provider budget ledger is required");
+    if(!SqliteProviderSpendLedger.isAuthenticLedger(config.ledger) &&
+       !PostgresProviderSpendLedger.isAuthenticLedger(config.ledger))
+      throw new TypeError("Trusted, unmodified SQLite or PostgreSQL budget ledger is required");
     this.adapter=config.adapter;this.manifest=config.adapter.manifest;
     this.provider=config.adapter.manifest.provider;this.tenantId=named(config.tenantId,"tenantId");
     this.prices=checkedPrices(config.prices);
