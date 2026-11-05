@@ -184,13 +184,15 @@ class RunStore:
         digest: str,
         created_at: str,
     ) -> None:
-        envelope_json=self._json({
+        # Storage JSON does not participate in the canonical signed digest.
+        # Keep its values lossless, but avoid sorting each MQTT row twice.
+        envelope_json=json.dumps({
             "contract": envelope.contract,
             "domain": envelope.domain,
             "records": [dict(item) for item in envelope.records],
             "source": envelope.source,
             "provenance": envelope.provenance,
-        })
+        }, separators=(",", ":"), ensure_ascii=False)
         lineage_json=self._json(lineage)
         self.connection.execute(
             """INSERT INTO connect_runs
