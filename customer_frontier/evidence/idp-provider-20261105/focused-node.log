@@ -1,0 +1,28 @@
+✔ real RSA verification accepts matching signed MFA identity and subject-bound verified UserInfo (28.841915ms)
+✔ signature forgery and payload mutation fail before UserInfo (6.428065ms)
+✔ unsigned and algorithm-confused tokens are denied (4.297365ms)
+✔ embedded keys and token-selected key URLs cannot change the trust root (9.662418ms)
+✔ unknown kid and duplicate kid are denied (5.567397ms)
+✔ key algorithm, use, operations and private fields are checked (11.390966ms)
+✔ issuer, audience and authorized-party substitution fail closed (14.017584ms)
+✔ one exact audience is supported and any provided azp must agree (5.778986ms)
+✔ missing, weak and substituted expected nonce cannot authenticate (2.786458ms)
+✔ expired, future, stale-auth and malformed numeric claims are denied (13.155889ms)
+✔ unverified email or missing MFA stays denied (11.877022ms)
+✔ UserInfo must refer to the identical signed subject even when email matches (2.692366ms)
+✔ duplicate JSON claims and nested duplicate fields are denied (2.530714ms)
+✔ malformed and noncanonical base64, oversized tokens and malformed payloads are denied (1.198672ms)
+✔ optional at_hash is bound to the exact access token (5.401353ms)
+✔ provider HTTP failures and malformed responses never qualify identity (6.586575ms)
+✔ provider response size is bounded and streams are cancelled (2.980844ms)
+✔ expiry and authentication age are rechecked after UserInfo completes (4.981122ms)
+✔ 2047-bit RSA key is rejected despite having a 256-byte modulus (85.460533ms)
+✔ a clock moving backward between provider checks fails closed (2.482187ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 467.081487

@@ -1,0 +1,2 @@
+{"case":"sub-2048-RSA","actualBits":2047,"modulusBytes":256,"accepted":true}
+{"case":"expiry-during-UserInfo","expiredAtReturn":true,"accepted":true}
