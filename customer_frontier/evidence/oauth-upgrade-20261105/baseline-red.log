@@ -1,0 +1,90 @@
+test_clean_rows_and_unrelated_trigger_preserved_on_idempotent_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_clean_rows_and_unrelated_trigger_preserved_on_idempotent_upgrade) ... ok
+test_dirty_null_primary_key_is_rejected_without_mutation (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_null_primary_key_is_rejected_without_mutation) ... FAIL
+test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) ... 
+  test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) (kind='token') ... FAIL
+  test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) (kind='code') ... FAIL
+test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied) ... FAIL
+test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied) ... FAIL
+test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) ... 
+  test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) (kind='token') ... FAIL
+  test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) (kind='code') ... FAIL
+test_legitimate_revoked_history_survives_and_cannot_be_reactivated (test_oauth_identity_upgrade.OAuthUpgrade.test_legitimate_revoked_history_survives_and_cannot_be_reactivated) ... ok
+test_upgrade_rejects_active_credential_belonging_to_disabled_customer (test_oauth_identity_upgrade.OAuthUpgrade.test_upgrade_rejects_active_credential_belonging_to_disabled_customer) ... FAIL
+test_upgraded_revocation_updates_both_families_and_key_atomically (test_oauth_identity_upgrade.OAuthUpgrade.test_upgraded_revocation_updates_both_families_and_key_atomically) ... ok
+
+======================================================================
+FAIL: test_dirty_null_primary_key_is_rejected_without_mutation (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_null_primary_key_is_rejected_without_mutation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 86, in test_dirty_null_primary_key_is_rejected_without_mutation
+    with self.assertRaises(sqlite3.IntegrityError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) (kind='token')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 71, in test_dirty_pairing_is_rejected_without_any_schema_or_data_change
+    with self.assertRaises(sqlite3.IntegrityError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) (kind='code')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 71, in test_dirty_pairing_is_rejected_without_any_schema_or_data_change
+    with self.assertRaises(sqlite3.IntegrityError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 63, in test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied
+    with self.assertRaisesRegex(sqlite3.IntegrityError, 'identity_code_link_not_active'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 57, in test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied
+    with self.assertRaisesRegex(sqlite3.IntegrityError, 'identity_token_link_not_active'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) (kind='token')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 79, in test_legacy_nullable_primary_key_is_rejected_after_upgrade
+    with self.subTest(kind=kind), self.assertRaises(sqlite3.IntegrityError):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) (kind='code')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 79, in test_legacy_nullable_primary_key_is_rejected_after_upgrade
+    with self.subTest(kind=kind), self.assertRaises(sqlite3.IntegrityError):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+======================================================================
+FAIL: test_upgrade_rejects_active_credential_belonging_to_disabled_customer (test_oauth_identity_upgrade.OAuthUpgrade.test_upgrade_rejects_active_credential_belonging_to_disabled_customer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/cf664c251767/axiom-source/customer_frontier/tests/test_oauth_identity_upgrade.py", line 121, in test_upgrade_rejects_active_credential_belonging_to_disabled_customer
+    with self.assertRaises(sqlite3.IntegrityError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: IntegrityError not raised
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.028s
+
+FAILED (failures=8)

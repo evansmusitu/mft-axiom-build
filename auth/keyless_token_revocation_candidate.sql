@@ -18,13 +18,13 @@ CREATE TABLE IF NOT EXISTS oauth_identity_token_links (
 );
 CREATE INDEX IF NOT EXISTS oauth_identity_token_links_customer ON oauth_identity_token_links(customer_id);
 CREATE TRIGGER IF NOT EXISTS oauth_code_link_requires_active_identity BEFORE INSERT ON oauth_identity_code_links
-WHEN NOT EXISTS (SELECT 1 FROM oauth_identity_links l JOIN customers c ON c.id=l.customer_id
+WHEN NEW.code_hash IS NULL OR NOT EXISTS (SELECT 1 FROM oauth_identity_links l JOIN customers c ON c.id=l.customer_id
  JOIN oauth_authorization_codes a ON a.code_hash=NEW.code_hash AND a.customer_id=l.customer_id
  WHERE l.issuer=NEW.issuer AND l.subject_sha256=NEW.subject_sha256 AND l.customer_id=NEW.customer_id
  AND l.tenant_id=NEW.tenant_id AND l.state='active' AND c.status='active')
 BEGIN SELECT RAISE(ABORT,'identity_code_link_not_active'); END;
 CREATE TRIGGER IF NOT EXISTS oauth_token_link_requires_active_identity BEFORE INSERT ON oauth_identity_token_links
-WHEN NOT EXISTS (SELECT 1 FROM oauth_identity_links l JOIN customers c ON c.id=l.customer_id
+WHEN NEW.api_key_id IS NULL OR NOT EXISTS (SELECT 1 FROM oauth_identity_links l JOIN customers c ON c.id=l.customer_id
  JOIN api_keys k ON k.id=NEW.api_key_id AND k.customer_id=l.customer_id AND k.status='active'
  WHERE l.issuer=NEW.issuer AND l.subject_sha256=NEW.subject_sha256 AND l.customer_id=NEW.customer_id
  AND l.tenant_id=NEW.tenant_id AND l.state='active' AND c.status='active')
