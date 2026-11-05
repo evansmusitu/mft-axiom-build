@@ -1,0 +1,43 @@
+name: LIFELINE MT5 Native MetaEditor Compile
+on:
+  workflow_dispatch:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/windows/Invoke-MT5Native.ps1'
+      - 'products/lifeline-mt5-ai-studio/windows/LifelineSmoke.mq5'
+      - '.github/workflows/lifeline-mt5-native-compile.yml'
+permissions:
+  contents: read
+jobs:
+  vendor-signed-native-compile:
+    runs-on: windows-2022
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Official MetaQuotes install, native compile and optional offline tester
+        shell: pwsh
+        run: |
+          & ./products/lifeline-mt5-ai-studio/windows/Invoke-MT5Native.ps1 -ResultDir "$env:RUNNER_TEMP/lifeline-native-proof"
+      - name: Publish status summary
+        if: always()
+        shell: pwsh
+        run: |
+          $proof=Join-Path $env:RUNNER_TEMP "lifeline-native-proof/native-proof.json"
+          if(Test-Path $proof){
+            $p=Get-Content $proof -Raw | ConvertFrom-Json
+            "### LIFELINE MT5 native evidence" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "Official signed installer: $($p.installer_authenticode_valid)" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "Real MetaEditor EX5 compile: $($p.compiled)" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "Strategy Tester: $($p.strategy_tester_status)" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "No broker login or live trading." | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifeline-mt5-native-evidence
+          path: ${{ runner.temp }}/lifeline-native-proof
+          retention-days: 3
+          if-no-files-found: warn

@@ -1,0 +1,31 @@
+name: LIFELINE Access Private Deny-All Qualification
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-access-deny-stage.yml'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/access_deny_stage.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  access-deny-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Create deny-all scoped Access application or verify existing
+        run: python products/lifeline-mt5-ai-studio/infra/cloudflare/access_deny_stage.py
+      - name: Preserve proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-access-deny-qualification
+          path: lifeline-access-qualification.json
+          retention-days: 3
+          if-no-files-found: ignore

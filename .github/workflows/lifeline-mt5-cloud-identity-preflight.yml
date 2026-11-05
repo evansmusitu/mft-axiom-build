@@ -1,0 +1,56 @@
+name: LIFELINE MT5 Existing Token Exact Account Preflight
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: ['.github/workflows/lifeline-mt5-cloud-identity-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cloudflare-token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify exact account and separated permissions (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error
+          token=os.environ.get('CF_TOKEN') or ''
+          if len(token)<15:raise SystemExit('missing_existing_cloudflare_api_token')
+          aid='93f395f5121954671f92fffa453d6b61'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'LIFELINE-Stage/ReadOnly'}
+          root='https://api.cloudflare.com/client/v4'
+          def get(path):
+              try:
+                  req=urllib.request.Request(root+path,headers=h,method='GET')
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      payload=json.loads(r.read(250000))
+                      return r.status,payload.get('result') if payload.get('success') is True else None
+              except urllib.error.HTTPError as e:return e.code,None
+              except Exception:return 0,None
+          a_code,a=get('/accounts/'+aid)
+          z_code,z=get('/zones?name=mftintelligence.com&per_page=2')
+          if a_code!=200 or not isinstance(a,dict) or a.get('id')!=aid or z_code!=200 or not any(
+              x.get('name')=='mftintelligence.com' and (x.get('account') or {}).get('id')==aid for x in z or []):
+              raise SystemExit('exact_cloudflare_account_not_qualified')
+          w_code,w=get('/accounts/'+aid+'/workers/scripts?per_page=1')
+          access_code,apps=get('/accounts/'+aid+'/access/apps?per_page=1')
+          record={'schema':'lifeline.existing-cloudflare-token-preflight.v1','exact_account_qualified':True,
+              'zone_qualified':True,'worker_read_qualified':w_code==200,'access_apps_read_qualified':access_code==200,
+              'workers_http':w_code,'access_apps_http':access_code,'write_performed':False,
+              'account_id':aid}
+          with open('lifeline-exact-cloudflare-preflight.json','w') as f:json.dump(record,f,indent=2)
+          print(json.dumps(record,sort_keys=True))
+          if w_code!=200:raise SystemExit('workers_scope_missing')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifeline-exact-cloudflare-token-preflight
+          path: lifeline-exact-cloudflare-preflight.json
+          retention-days: 3
+          if-no-files-found: warn

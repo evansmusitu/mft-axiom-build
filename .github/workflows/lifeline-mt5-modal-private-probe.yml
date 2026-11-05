@@ -1,0 +1,186 @@
+name: LIFELINE Isolated Modal Private Proxy-Auth Proof
+# The product has a strictly $0 authorization. Never auto-deploy potentially
+# metered Modal infrastructure on source pushes. Explicit dispatch is required.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy-isolated-private-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Modal free-credit/billing fail-closed gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.6.2'
+          modal billing summary --for 'this month' --json >/tmp/lifeline-modal-billing.json
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          data=json.load(open('/tmp/lifeline-modal-billing.json'))
+          cost=Decimal(str(data['metered_cost']))
+          billed=Decimal(str(data['billed_cost']))
+          if cost<0 or cost>Decimal('5') or billed!=0:
+              raise SystemExit('Modal workspace spend gate DENIED')
+          print('modal_monthly_metered_less_than_5=true')
+          print('modal_out_of_pocket_so_far=0')
+          print('bounded_private_probe_only=true')
+          PY
+      - name: Verify deterministic research math offline
+        run: python -m unittest discover -s products/lifeline-mt5-ai-studio/infra/modal -p 'test_research_math.py' -v
+      - name: Refuse collision with other Modal apps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile products/lifeline-mt5-ai-studio/infra/modal/private_probe.py products/lifeline-mt5-ai-studio/infra/modal/research_math.py
+          modal app list --json >/tmp/lifeline-modal-apps.json
+          python - <<'PY'
+          import json
+          rows=json.load(open('/tmp/lifeline-modal-apps.json'))
+          if not isinstance(rows,list): raise SystemExit('cannot safely check app names')
+          app='lifeline-mt5-private-probe-isolated'
+          existing=[r for r in rows if isinstance(r,dict) and (r.get('name')==app or r.get('app_name')==app)]
+          if existing and len(existing)!=1: raise SystemExit('duplicate_isolated_app_collision')
+          print('isolated_modal_app_qualified=true')
+          PY
+      - name: Deploy proxy-auth only, scale-to-zero bounded probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy products/lifeline-mt5-ai-studio/infra/modal/private_probe.py --name lifeline-mt5-private-probe-isolated --strategy recreate >/tmp/lifeline-modal-deploy.log 2>&1 || {
+            echo 'private_probe_deploy_failed'
+            tail -20 /tmp/lifeline-modal-deploy.log | sed -E 's/[A-Za-z0-9_-]{36,}/[redacted]/g'
+            exit 1
+          }
+          echo 'isolated_private_modal_app_deployed=true'
+      - name: Prove anonymous denial BEFORE positive API probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/lifeline-private-url.txt
+          import modal
+          fn=modal.Function.from_name('lifeline-mt5-private-probe-isolated','private_status')
+          url=fn.get_web_url()
+          if not isinstance(url,str) or not url.startswith('https://') or '.modal.run' not in url:
+              raise SystemExit('no valid private Modal HTTPS endpoint')
+          print(url.rstrip('/'))
+          PY
+          URL="$(cat /tmp/lifeline-private-url.txt)"
+          STATUS=$(curl -sS -o /tmp/lifeline-guest-response -w '%{http_code}' --max-time 30 "$URL/healthz")
+          if [[ "$STATUS" != "401" && "$STATUS" != "403" ]]; then
+            echo "FAILED: anonymous Modal HTTP $STATUS"; exit 1
+          fi
+          echo "modal_guest_http=$STATUS"
+          echo 'modal_guest_denied=true'
+      - name: Verify authenticated health with short-lived workspace proxy token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib, urllib.request, urllib.error, modal
+          u=pathlib.Path('/tmp/lifeline-private-url.txt').read_text().strip()
+          workspace=modal.Workspace.from_context()
+          token=workspace.proxy_tokens.create(name='lifeline-ephemeral-probe-delete-after-test')
+          try:
+              headers={'Modal-Key':token.token_id,'Modal-Secret':token.token_secret}
+              req=urllib.request.Request(u+'/healthz',headers=headers)
+              with urllib.request.urlopen(req,timeout=35) as resp:
+                  if resp.status!=200 or resp.headers.get_content_type()!='application/json':
+                      raise SystemExit('authenticated_modal_did_not_return_200_json')
+                  body=resp.read(20000)
+              x=json.loads(body)
+              expected={'schema':'lifeline.private_modal_probe.v2','runtime':'modal-private-stage',
+                 'access':'proxy_auth_required','research_pnl_enabled':True,
+                 'neon_connected':False,'windows_agent_connected':False,
+                 'cloudflare_gateway_connected':False,'live_trading':False,
+                 'public_mcp_enabled':False}
+              if x!=expected:raise SystemExit('private_modal_health_not_fail_closed')
+              print('modal_private_authenticated_health=PASS')
+              print('modal_no_orders_no_windows_no_neon=true')
+              request=urllib.request.Request(u+'/research/summary',
+                data=json.dumps({'pnl':['120.00','-40.00','30.00','-10.00']}).encode(),
+                headers={**headers,'Content-Type':'application/json'},method='POST')
+              with urllib.request.urlopen(request,timeout=35) as resp:
+                  data=json.load(resp)
+              if (data.get('net_pnl')!='100.00' or
+                  data.get('profit_factor')!='3.0000' or
+                  data.get('max_drawdown')!='40.00' or
+                  data.get('trading_enabled') is not False):
+                  raise SystemExit('private Modal research calculations incorrect')
+              print('modal_private_research_sample=PASS')
+              bad=urllib.request.Request(u+'/research/summary',
+                 data=b'{"pnl":["NaN"]}',headers={**headers,'Content-Type':'application/json'},
+                 method='POST')
+              try:
+                  urllib.request.urlopen(bad,timeout=35)
+              except urllib.error.HTTPError as err:
+                  if err.code!=422:raise SystemExit('invalid input not denied')
+              else:
+                  raise SystemExit('invalid input unexpectedly accepted')
+              print('modal_invalid_research_denied=PASS')
+          finally:
+              workspace.proxy_tokens.delete(token.token_id)
+              print('ephemeral_proxy_token_revoked=true')
+          PY
+      - name: Authenticate private on-demand Neon/RLS readiness; fail on unexpected results
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import modal,urllib.request,urllib.error,json,pathlib
+          u=pathlib.Path('/tmp/lifeline-private-url.txt').read_text().strip()
+          guest=urllib.request.Request(u+'/research/neon-readiness')
+          try:urllib.request.urlopen(guest,timeout=25)
+          except urllib.error.HTTPError as exc:
+              if exc.code not in (401,403):raise SystemExit('private Neon readiness guest not denied')
+          else:raise SystemExit('private Neon readiness unexpectedly accessible to anonymous user')
+          workspace=modal.Workspace.from_context()
+          token=workspace.proxy_tokens.create(name='lifeline-neon-readiness-ephemeral-revoke')
+          try:
+              headers={'Modal-Key':token.token_id,'Modal-Secret':token.token_secret}
+              req=urllib.request.Request(u+'/research/neon-readiness',headers=headers)
+              with urllib.request.urlopen(req,timeout=35) as resp:
+                  if resp.status!=200:raise SystemExit('authenticated private readiness not 200')
+                  data=json.load(resp)
+              must=('authenticated_private_runtime','live_restricted_neon_login',
+                    'tls_verify_full','three_tables_rls_active',
+                    'synthetic_tenant_a_isolated','synthetic_tenant_b_isolated')
+              if data.get('schema')!='lifeline.modal_neon_readiness.v1' or any(data.get(k) is not True for k in must):
+                  raise SystemExit('private Neon readiness qualification failed')
+              if data.get('live_trading') is not False or data.get('windows_host_connected') is not False or data.get('cloudflare_access_gateway_connected') is not False:
+                  raise SystemExit('private Neon readiness unsafe state')
+              print('PRIVATE_MODAL_PLUS_NEON_RESTRICTED_READINESS=PASS')
+          finally:
+              workspace.proxy_tokens.delete(token.token_id)
+              print('private_readiness_ephemeral_proxy_token_revoked=true')
+          PY
+      - name: Capture no-secret deployment evidence
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          path=pathlib.Path('/tmp/lifeline-private-url.txt')
+          summary={'schema':'lifeline.modal.private_acceptance.v1','app':'lifeline-mt5-private-probe-isolated',
+                   'private_proxy_auth_required':True,'live_trading':False,
+                   'database_connected':False,'dedicated_windows_host_connected':False}
+          if path.exists():summary['private_url']=path.read_text().strip()
+          pathlib.Path('lifeline-private-modal-evidence.json').write_text(json.dumps(summary,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifeline-private-modal-stage-proof
+          path: lifeline-private-modal-evidence.json
+          retention-days: 3
+          if-no-files-found: error

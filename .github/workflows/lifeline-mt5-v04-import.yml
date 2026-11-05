@@ -1,0 +1,84 @@
+name: LIFELINE v0.4 Isolated Source Import and Acceptance
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - '.github/workflows/lifeline-mt5-v04-import.yml'
+      - 'products/lifeline-mt5-ai-studio/launch-packages/v0.4-stage-source.zip'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-only-verified-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned ZIP checksum and extract LIFELINE-only source safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib,shutil,stat
+          source=Path('products/lifeline-mt5-ai-studio/launch-packages/v0.4-stage-source.zip')
+          expected='757b21f67a3102a5a5bd22be29201f3c8ca98509d93c1686b17e0f36d225ec5a'
+          assert hashlib.sha256(source.read_bytes()).hexdigest()==expected,'source SHA256 mismatch'
+          staging=Path('/tmp/lifeline-v04-import')
+          with ZipFile(source) as archive:
+              files=[x for x in archive.infolist() if not x.is_dir()]
+              assert 16<=len(files)<=100, 'unexpected file count'
+              for item in files:
+                  p=Path(item.filename)
+                  assert item.filename.startswith(('lifeline-mt5-ai-studio/','.github/workflows/')),'unexpected archive root'
+                  assert not p.is_absolute() and '..' not in p.parts, 'archive traversal'
+                  assert not stat.S_ISLNK(item.external_attr>>16),'archive symlink forbidden'
+                  assert item.file_size < 1000000,'oversized file'
+              archive.extractall(staging)
+          source_dir=staging/'lifeline-mt5-ai-studio'
+          assert (source_dir/'windows/test_poller.py').is_file()
+          assert (source_dir/'infra/cloudflare/test.mjs').is_file()
+          dest=Path('products/lifeline-mt5-ai-studio')
+          for relative in ['README.md','infra','windows','validation']:
+              src=source_dir/relative
+              tgt=dest/relative
+              if src.is_dir():shutil.copytree(src,tgt,dirs_exist_ok=True)
+              else:shutil.copy2(src,tgt)
+          print('verified_lifeline_only_source_import=true files=',len(files))
+          PY
+      - name: Verify signed agent bridge (Python)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'fastapi>=0.115,<1' 'httpx>=0.28,<1'
+          (cd products/lifeline-mt5-ai-studio/windows && python -m unittest -q test_agent.py test_poller.py)
+      - name: Verify Cloudflare worker (JavaScript)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm install --omit=dev --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --test test.mjs
+      - name: Commit only isolated source to the existing draft PR branch
+        shell: bash
+        env:
+          TARGET_BRANCH: product/lifeline-mt5-fivecloud-isolated-20261020
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- products/lifeline-mt5-ai-studio/README.md products/lifeline-mt5-ai-studio/infra products/lifeline-mt5-ai-studio/windows products/lifeline-mt5-ai-studio/validation
+          if git diff --cached --quiet; then echo 'source_already_imported=true'; exit 0; fi
+          git commit -m 'feat(lifeline): verified v0.4 signed Windows+Neon+Modal+Cloudflare bridge'
+          git push origin "HEAD:$TARGET_BRANCH"
+          echo 'isolated_source_committed=true'

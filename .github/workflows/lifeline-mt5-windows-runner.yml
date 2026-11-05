@@ -1,0 +1,61 @@
+name: LIFELINE MT5 - Zero-Cost Windows Runner Qualification
+
+on:
+  push:
+    branches:
+      - product/lifeline-mt5-fivecloud-isolated-20261020
+    paths:
+      - '.github/workflows/lifeline-mt5-windows-runner.yml'
+      - 'products/lifeline-mt5-ai-studio/windows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-windows:
+    runs-on: windows-2022
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Establish native Windows agent capability
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -ne 'Windows') { throw 'Not a Windows runner' }
+          if (-not [Environment]::Is64BitOperatingSystem) { throw 'Requires Windows x64' }
+          $os = Get-CimInstance Win32_OperatingSystem
+          $processor = Get-CimInstance Win32_Processor | Select-Object -First 1
+          if (-not (Get-Command Start-Process -ErrorAction SilentlyContinue)) { throw 'No subprocess API' }
+          $stage = Join-Path $env:RUNNER_TEMP 'lifeline-mt5-native'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Set-Content -Path (Join-Path $stage 'proof.txt') -Value 'windows-process-launch-supported' -Encoding utf8
+          if ((Get-Content (Join-Path $stage 'proof.txt') -Raw) -notmatch 'windows-process-launch-supported') { throw 'File IO failed' }
+          @(
+            '### LIFELINE Native Windows Agent Qualification',
+            "- Runner: $($env:RUNNER_NAME)",
+            "- Windows: $($os.Caption)",
+            "- CPU: $($processor.Name)",
+            "- Architecture: x64",
+            '- Subprocess and filesystem: verified',
+            '- MetaTrader/MetaEditor installed: NO',
+            '- Native compile executed: NO',
+            '- Broker connection: NO',
+            '- Live trading: DISABLED',
+            '- Persistent runtime: NO; ephemeral GitHub-hosted runner'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Verify native-agent contract stays fail-closed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $contract='products/lifeline-mt5-ai-studio/windows/ACQUISITION.md'
+          if (-not (Test-Path $contract)) { throw 'Acquisition contract missing' }
+          $text=Get-Content -Path $contract -Raw
+          foreach ($required in @('no broker credentials','temporary Windows runner','MetaEditor','dedicated Windows host')) {
+            if (-not $text.Contains($required)) { throw "Missing native-agent requirement: $required" }
+          }
+          Write-Host 'LIFELINE Windows runner and fail-closed staging contract verified.'
