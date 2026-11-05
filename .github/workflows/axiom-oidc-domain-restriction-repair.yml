@@ -1,0 +1,142 @@
+name: MUSITU Axiom OIDC Domain Restriction Repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-oidc-domain-restriction-repair.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-publication-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+          fetch-depth: 0
+
+      - name: Add OIDC discovery and strengthen permanent production proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+
+          worker=Path('auth/musitu_axiom_oauth_worker.mjs')
+          s=worker.read_text()
+          if '/.well-known/openid-configuration' in s:
+              raise SystemExit('OIDC discovery route already present; refusing ambiguous repair')
+          marker='async function register(req, c) {'
+          if marker not in s:
+              raise SystemExit('OAuth register marker missing')
+          oidc='''async function oidcDiscovery(c) {
+            return j(200, {
+              issuer: c.issuer,
+              authorization_endpoint: c.issuer + "/oauth/authorize",
+              token_endpoint: c.issuer + "/oauth/token",
+              registration_endpoint: c.issuer + "/oauth/register",
+              revocation_endpoint: c.issuer + "/oauth/revoke",
+              userinfo_endpoint: c.issuer + "/oauth/userinfo",
+              response_types_supported: ["code"],
+              grant_types_supported: ["authorization_code", "refresh_token"],
+              token_endpoint_auth_methods_supported: ["none"],
+              code_challenge_methods_supported: ["S256"],
+              scopes_supported: [...SCOPES],
+              subject_types_supported: ["public"],
+              claims_supported: ["sub", "email", "email_verified"],
+              client_id_metadata_document_supported: false,
+            });
+          }
+
+          '''
+          s=s.replace(marker,oidc+marker,1)
+          route='    if (u.pathname === "/.well-known/oauth-authorization-server" && req.method === "GET") return discovery(c);'
+          if route not in s:
+              raise SystemExit('OAuth discovery router marker missing')
+          s=s.replace(route,'    if (u.pathname === "/.well-known/openid-configuration" && req.method === "GET") return oidcDiscovery(c);\n'+route,1)
+          worker.write_text(s)
+
+          gate=Path('.github/workflows/axiom-frontier-v5-skill-gate.yml')
+          g=gate.read_text()
+          old="          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- mcp/ chatgpt-app-submission.json submission/"
+          new="""          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- mcp/ ':(exclude)mcp/musitu_axiom_plugin_gate_v4.mjs' chatgpt-app-submission.json submission/
+          test "$(git rev-parse HEAD:mcp/musitu_axiom_plugin_gate_v4.mjs)" = '4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'"""
+          if old not in g:
+              raise SystemExit('sealed MCP guard marker missing')
+          g=g.replace(old,new,1)
+          new_blob=subprocess.check_output(['git','hash-object',str(worker)],text=True).strip()
+          g,n=re.subn(r'''          test "\$\(git rev-parse HEAD:auth/musitu_axiom_oauth_worker\.mjs\)" = '[0-9a-f]{40}' ''',f'''          test "$(git rev-parse HEAD:auth/musitu_axiom_oauth_worker.mjs)" = '{new_blob}' ''',g,count=1)
+          if n!=1:
+              raise SystemExit('auth worker pin marker missing')
+          gate.write_text(g)
+
+          prod=Path('.github/workflows/axiom-oauth-production-deploy.yml')
+          p=prod.read_text()
+          disc="          if dc!=200 or any(disc.get(k)!=v for k,v in expected.items()) or 'S256' not in (disc.get('code_challenge_methods_supported') or []) or 'none' not in (disc.get('token_endpoint_auth_methods_supported') or []):raise RuntimeError('OAuth discovery metadata contract mismatch')"
+          if disc not in p:
+              raise SystemExit('production OAuth metadata assertion marker missing')
+          oidcproof=disc+'''\n          oc,_,oidc,_=http_json(issuer+'/.well-known/openid-configuration')
+          oidc_scopes=set(oidc.get('scopes_supported') or [])
+          if oc!=200 or any(oidc.get(k)!=v for k,v in expected.items()) or oidc.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or not {'openid','email'}.issubset(oidc_scopes) or 'S256' not in (oidc.get('code_challenge_methods_supported') or []) or 'none' not in (oidc.get('token_endpoint_auth_methods_supported') or []) or not {'sub','email','email_verified'}.issubset(set(oidc.get('claims_supported') or [])):raise RuntimeError('OIDC discovery metadata contract mismatch')'''
+          p=p.replace(disc,oidcproof,1)
+          p=p.replace("scope':'axiom.execute billing.read'","scope':'openid email axiom.execute billing.read'",1)
+
+          keyend="[source_key_id,customer,account_hash,account_prefix,'oauth-e2e-source-key','active',created,source_expires]);inserted=True"
+          if keyend not in p:
+              raise SystemExit('fixture source key marker missing')
+          p=p.replace(keyend,keyend+"\n              d1('INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2)',[customer,created])",1)
+
+          ledger="              if len(ar)!=1 or ar[0].get('customer_id')!=customer or ar[0].get('issuer')!=issuer or ar[0].get('resource')!=resource or ar[0].get('status')!='active' or ar[0].get('revoked_at'):raise RuntimeError('OAuth access-token ledger mismatch')"
+          if ledger not in p:
+              raise SystemExit('access ledger assertion marker missing')
+          p=p.replace(ledger,ledger+'''\n              uc,_,uo,_=http_json(issuer+'/oauth/userinfo',headers={'Authorization':'Bearer '+access})
+              if uc!=200 or not uo.get('email') or uo.get('email_verified') is not True or len(str(uo.get('sub') or ''))!=64:raise RuntimeError('OIDC verified UserInfo contract mismatch')''',1)
+
+          refreshed="              if not access2 or not refresh2 or access2==access or refresh2==refresh:raise RuntimeError('refresh rotation contract mismatch')"
+          if refreshed not in p:
+              raise SystemExit('refresh assertion marker missing')
+          p=p.replace(refreshed,refreshed+'''\n              u2c,_,u2o,_=http_json(issuer+'/oauth/userinfo',headers={'Authorization':'Bearer '+access2})
+              if u2c!=200 or u2o.get('email_verified') is not True or u2o.get('sub')!=uo.get('sub'):raise RuntimeError('OIDC identity did not survive refresh rotation')''',1)
+
+          revoked="              if len(rev)!=1 or not rev[0].get('revoked_at') or rev[0].get('status')!='revoked' or not rev[0].get('refresh_revoked'):raise RuntimeError('OAuth revocation ledger mismatch')"
+          if revoked not in p:
+              raise SystemExit('revocation assertion marker missing')
+          p=p.replace(revoked,revoked+'''\n              puc,_,puo,_=http_json(issuer+'/oauth/userinfo',headers={'Authorization':'Bearer '+access2})
+              if puc!=401 or puo.get('error')!='invalid_token':raise RuntimeError('revoked OIDC access remained valid at UserInfo')''',1)
+
+          cleanup="d1('DELETE FROM oauth_clients WHERE client_id=?1',[client_id or '']);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])"
+          if cleanup not in p:
+              raise SystemExit('fixture cleanup marker missing')
+          p=p.replace(cleanup,"d1('DELETE FROM oauth_clients WHERE client_id=?1',[client_id or '']);d1('DELETE FROM oauth_identity_claims WHERE customer_id=?1',[customer]);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])",1)
+          count="+(SELECT count(*) FROM oauth_clients WHERE client_id=?2) AS n"
+          if count not in p:
+              raise SystemExit('fixture residue count marker missing')
+          p=p.replace(count,"+(SELECT count(*) FROM oauth_clients WHERE client_id=?2)+(SELECT count(*) FROM oauth_identity_claims WHERE customer_id=?1) AS n",1)
+
+          ev="'resource_parameter_preserved':True"
+          if ev not in p:
+              raise SystemExit('evidence marker missing')
+          p=p.replace(ev,"'oidc_discovery_verified':True,'openid_email_scopes_verified':True,'userinfo_verified_email_proven':True,'userinfo_refresh_identity_preserved':True,'userinfo_revocation_verified':True,"+ev,1)
+          prod.write_text(p)
+
+          print('new_auth_blob='+new_blob)
+          PY
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          git diff --check
+          grep -q '/.well-known/openid-configuration' auth/musitu_axiom_oauth_worker.mjs
+          grep -q 'oidc_discovery_verified' .github/workflows/axiom-oauth-production-deploy.yml
+          git config user.name 'evansmusitu'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add auth/musitu_axiom_oauth_worker.mjs .github/workflows/axiom-oauth-production-deploy.yml .github/workflows/axiom-frontier-v5-skill-gate.yml
+          git commit -m 'Enable OIDC discovery for enterprise domain restrictions'
+          git push origin HEAD:frontier/axiom-v5-skill-fabric

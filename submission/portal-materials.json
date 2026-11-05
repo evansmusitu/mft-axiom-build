@@ -17,14 +17,23 @@
     "production_url": "https://mcp.mftintelligence.com/mcp",
     "oauth_issuer": "https://auth.mftintelligence.com",
     "protected_resource_metadata": "https://mcp.mftintelligence.com/.well-known/oauth-protected-resource",
+    "openid_configuration": "https://auth.mftintelligence.com/.well-known/openid-configuration",
+    "jwks_uri": "https://auth.mftintelligence.com/.well-known/jwks.json",
     "userinfo_endpoint": "https://auth.mftintelligence.com/oauth/userinfo",
     "execution_scope": "axiom.execute",
     "identity_scopes": [
       "openid",
       "email"
     ],
+    "reviewer_requested_scopes": [
+      "openid",
+      "email",
+      "axiom.execute"
+    ],
     "dynamic_client_registration": true,
     "pkce_s256": true,
+    "id_token_signing_alg": "RS256",
+    "authorization_handoff": "HTTP_200_MOBILE_SAFE_CHATGPT_CALLBACK_DOCUMENT",
     "ui_resources_exposed": false,
     "screenshots_required": false,
     "widget_csp": "NOT_APPLICABLE_NO_WIDGET_RESOURCES_EXPOSED"
@@ -36,14 +45,17 @@
     "Use MUSITU Axiom to verify this quantitative result independently and show the calculation.",
     "Use MUSITU Axiom to evaluate the risk and return characteristics of these cash flows."
   ],
-  "release_notes": "Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, UserInfo support for explicitly verified email identities, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.",
+  "release_notes": "Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, OpenID Connect RS256 ID tokens, JWKS and UserInfo support for explicitly verified email identities, mobile-safe ChatGPT callback handoff, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.",
   "review": {
     "import_file": "chatgpt-app-submission.json",
     "positive_test_cases": 5,
     "negative_test_cases": 3,
-    "reviewer_demo_account": "PRIVATE_PORTAL_CREDENTIAL_REQUIRED",
+    "reviewer_demo_account": "PROVISIONED_PERSISTENT_PRIVATE_PORTAL_CREDENTIAL_REQUIRED",
+    "reviewer_credential_expires": false,
+    "reviewer_sample_data_only": true,
     "reviewer_mfa_required": false,
     "reviewer_email_or_sms_setup_required": false,
+    "reviewer_private_network_required": false,
     "domain_verification": "PORTAL_TOKEN_REQUIRED",
     "publisher_identity_verification": "PORTAL_VERIFICATION_REQUIRED",
     "country_availability": "PORTAL_SELECTION_REQUIRED",
@@ -56,6 +68,10 @@
     "submission_json_sha256": "e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d",
     "oauth_userinfo_gate": "MUSITU_AXIOM_OAUTH_USERINFO_V2_PASS",
     "oauth_userinfo_evidence_sha256": "55af99a2b0cc7ed9f61a6d0a9590ee42effc1e7a223a6f73c0f7b27e364b316a",
+    "reviewer_demo_gate": "MUSITU_AXIOM_OPENAI_REVIEWER_DEMO_READY",
+    "reviewer_demo_verified_commit": "a15b5bee0d319fc9d462ab7846e114ea44a69c68",
+    "reviewer_demo_workflow_run": 34244742718,
+    "reviewer_demo_evidence_sha256": "25b2acfa9f5811bab4e18a50793cf1c2383176156e93831280dff17557d12ed6",
     "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   }

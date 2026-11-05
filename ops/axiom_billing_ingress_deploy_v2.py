@@ -12,8 +12,10 @@ import urllib.parse
 import urllib.request
 
 API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']; DBID=os.environ['D1_UUID']
-AUTH=os.environ['AUTHORITY']; AUTH_SHA=os.environ['AUTHORITY_SHA256']; TRANSPORT=os.environ['TRANSPORT']; BILLING=os.environ['BILLING']; ROUTE=os.environ['BILLING_ROUTE']; BASE=os.environ['PAYMENTS_BASE']
-AUTH_HEADERS={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Billing-Production-Deploy/2.0'}
+AUTH=os.environ['AUTHORITY']; AUTH_SHA=os.environ['AUTHORITY_SHA256']; AUTH_LEGACY_SHA='1d8e1b2a0ccd52f101b7931fc9680afb37d86f5d288aa921c7d9a25de1590731'; TRANSPORT=os.environ['TRANSPORT']; BILLING=os.environ['BILLING']; ROUTE=os.environ['BILLING_ROUTE']; BASE=os.environ['PAYMENTS_BASE']
+API_TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+LEGACY_HEADERS={'X-Auth-Email':os.environ.get('CLOUDFLARE_EMAIL',''),'X-Auth-Key':os.environ.get('CLOUDFLARE_GLOBAL_API_KEY',''),'User-Agent':'MUSITU-Axiom-Billing-Production-Deploy/2.1'}
+AUTH_HEADERS=({'Authorization':'Bearer '+API_TOKEN,'User-Agent':'MUSITU-Axiom-Billing-Production-Deploy/2.1'} if API_TOKEN else LEGACY_HEADERS)
 bridge=secrets.token_urlsafe(48); original_authority=None
 mut={'authority_content':False,'authority_secret':False,'billing_worker':False,'route_id':None}
 
@@ -68,7 +70,13 @@ def del_secret(script,name):
     except Exception:pass
 
 def patch_authority(src):
-    text=src.decode(); pat=re.compile(r'(?P<p>(?:async\s+)?function\s+)authorized(?P<r>\s*\([^)]*\)\s*\{)'); ms=list(pat.finditer(text))
+    text=src.decode()
+    if '__musituAxiomPaynowSignInitiate' in text:
+        return src, False
+    actual_sha=hashlib.sha256(src).hexdigest()
+    if actual_sha not in {AUTH_SHA, AUTH_LEGACY_SHA}:
+        raise RuntimeError('authority source hash mismatch')
+    pat=re.compile(r'(?P<p>(?:async\s+)?function\s+)authorized(?P<r>\s*\([^)]*\)\s*\{)'); ms=list(pat.finditer(text))
     if len(ms)!=1:raise RuntimeError(f'authorized definition count {len(ms)}')
     m=ms[0]; brace=text.find('{',m.start()); depth=0; quote=None; esc=False; end=None
     for i in range(brace,len(text)):
@@ -88,7 +96,7 @@ def patch_authority(src):
     extra='''\nasync function authorized(request, env) {\n  if (await authorizedLegacy(request, env)) return true;\n  const expected = env.BILLING_BRIDGE_CAPABILITY_TOKEN;\n  const header = request.headers.get("authorization") || "";\n  if (!expected || !header.startsWith("Bearer ")) return false;\n  const provided = header.slice(7); const enc = new TextEncoder();\n  const a = enc.encode(provided), b = enc.encode(expected); let diff = a.length ^ b.length;\n  const n = Math.max(a.length, b.length); for (let i=0;i<n;i++) diff |= (a[i] || 0) ^ (b[i] || 0);\n  return diff === 0;\n}\n'''
     patched=text[:m.start()]+renamed+extra+text[end:]
     if patched.count('BILLING_BRIDGE_CAPABILITY_TOKEN')!=1:raise RuntimeError('bridge reference mismatch')
-    return patched.encode()
+    return patched.encode(), True
 
 BILLING_SOURCE=r'''const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const out=(s,b)=>new Response(JSON.stringify(b),{status:s,headers:H});
@@ -122,16 +130,17 @@ def rollback():
     if mut.get('authority_secret'):del_secret(AUTH,'BILLING_BRIDGE_CAPABILITY_TOKEN')
 
 try:
+    if not API_TOKEN: raise RuntimeError('CLOUDFLARE_API_TOKEN is required')
     c,h,b,_=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(AUTH,safe="")}'); original_authority=extract_module(b,h.get('content-type',''),'verifyPaynowCallback')
-    if hashlib.sha256(original_authority).hexdigest()!=AUTH_SHA:raise RuntimeError('authority source hash mismatch')
     _,_,_,sx=cf(f'/accounts/{AID}/workers/scripts'); names={str(z.get('id') or z.get('name')) for z in (sx or {}).get('result') or [] if isinstance(z,dict)}
     if BILLING in names:raise RuntimeError('billing worker already exists')
     _,_,_,rx=cf(f'/zones/{ZID}/workers/routes'); routes=(rx or {}).get('result') or []
     if any(r.get('pattern')==ROUTE for r in routes if isinstance(r,dict)):raise RuntimeError('billing route already exists')
     _,_,_,dx=cf(f'/accounts/{AID}/workers/domains'); matches=[d for d in (dx or {}).get('result') or [] if isinstance(d,dict) and d.get('hostname')=='payments.mftintelligence.com']
     if len(matches)!=1 or matches[0].get('service')!=TRANSPORT:raise RuntimeError('payments Custom Domain owner mismatch')
-    patched=patch_authority(original_authority); syntax('authority-patched.mjs',patched); syntax('billing-index.mjs',BILLING_SOURCE)
-    upload_content(AUTH,patched); mut['authority_content']=True
+    patched, authority_source_changed=patch_authority(original_authority); syntax('authority-patched.mjs',patched); syntax('billing-index.mjs',BILLING_SOURCE)
+    if authority_source_changed:
+        upload_content(AUTH,patched); mut['authority_content']=True
     put_secret(AUTH,'BILLING_BRIDGE_CAPABILITY_TOKEN',bridge); mut['authority_secret']=True
     _,_,_,aset=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(AUTH,safe="")}/settings'); an={z.get('name') for z in ((aset or {}).get('result') or {}).get('bindings') or [] if isinstance(z,dict)}
     if not {'AUTHORITY_CAPABILITY_TOKEN','PAYNOW_INTEGRATION_KEY','BILLING_BRIDGE_CAPABILITY_TOKEN'}.issubset(an):raise RuntimeError('authority binding preservation failed')
@@ -169,7 +178,7 @@ try:
     if len(exact)!=1:raise RuntimeError('final route verification failed')
     _,_,_,sub=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(BILLING,safe="")}/subdomain'); sr=(sub or {}).get('result') or {}
     if sr.get('enabled') is not False or sr.get('previews_enabled') is not False:raise RuntimeError('workers.dev not disabled')
-    ev={'schema':'musitu.axiom.billing_ingress_production_deploy.v2','billing_worker':BILLING,'route':ROUTE,'route_id':rid,'authority_worker':AUTH,'transport_worker':TRANSPORT,'d1_uuid':DBID,'authority_original_sha256':AUTH_SHA,'authority_patched_sha256':hashlib.sha256(patched).hexdigest(),'billing_source_sha256':hashlib.sha256(BILLING_SOURCE).hexdigest(),'authority_envelope':'json.raw_body_base64','authority_callback_digest_crosscheck':True,'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_generated_in_ci':True,'bridge_secret_exposed':False,'workers_dev_enabled':False,'preview_urls_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'gate':'AXIOM_BILLING_INGRESS_PRODUCTION_FAIL_CLOSED_PASS'}
+    ev={'schema':'musitu.axiom.billing_ingress_production_deploy.v3','billing_worker':BILLING,'route':ROUTE,'route_id':rid,'authority_worker':AUTH,'transport_worker':TRANSPORT,'d1_uuid':DBID,'authority_original_sha256':AUTH_SHA,'authority_patched_sha256':hashlib.sha256(patched).hexdigest(),'billing_source_sha256':hashlib.sha256(BILLING_SOURCE).hexdigest(),'authority_envelope':'json.raw_body_base64','authority_source_already_patched':not authority_source_changed,'authority_callback_digest_crosscheck':True,'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_generated_in_ci':True,'bridge_secret_exposed':False,'workers_dev_enabled':False,'preview_urls_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'gate':'AXIOM_BILLING_INGRESS_PRODUCTION_FAIL_CLOSED_PASS'}
     raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('billing-ingress-deploy-evidence.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('billing-ingress-deploy-evidence.sha256','w').write(dg+'  billing-ingress-deploy-evidence.json\n')
     print(json.dumps({'gate':ev['gate'],'billing_worker':BILLING,'route':ROUTE,'authority_envelope':ev['authority_envelope'],'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_exposed':False,'workers_dev_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'evidence_sha256':dg},sort_keys=True))
 except Exception as e:

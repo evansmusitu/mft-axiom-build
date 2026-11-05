@@ -1,0 +1,162 @@
+name: MUSITU Axiom OAuth Mobile Session Production Verify
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-oauth-mobile-session-production-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-mobile-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OAUTH_ISSUER: https://auth.mftintelligence.com
+      MCP_RESOURCE: https://mcp.mftintelligence.com
+      MCP_BASE: https://mcp.mftintelligence.com
+      REVIEWER_KEY: ${{ secrets.OPENAI_REVIEWER_ACCOUNT_KEY }}
+    steps:
+      - name: Prove cookie-independent mobile OAuth reviewer flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$REVIEWER_KEY"
+          echo "::add-mask::$REVIEWER_KEY"
+          python - <<'PY'
+          import base64, hashlib, json, os, pathlib, re, secrets, urllib.error, urllib.parse, urllib.request, uuid
+
+          issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']; reviewer=os.environ['REVIEWER_KEY']
+          callback='https://chatgpt.com/connector/oauth/musitu-mobile-e2e'
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          def raw(url,method='GET',headers=None,body=None,follow=True):
+              req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              opener=urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect())
+              try:
+                  with opener.open(req,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+
+          def http_json(url,method='GET',obj=None,headers=None,follow=True):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Mobile-OAuth-Verify/1.0'}
+              if headers:h.update(headers)
+              body=None
+              if obj is not None:
+                  h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(url,method,h,body,follow)
+              try:o=json.loads(b or b'{}')
+              except Exception:o={}
+              return c,hh,o,b
+
+          def form(url,data,headers=None,follow=True):
+              h={'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-Mobile-OAuth-Verify/1.0'}
+              if headers:h.update(headers)
+              return raw(url,'POST',h,urllib.parse.urlencode(data).encode(),follow)
+
+          def b64url(b):return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+
+          verifier=b64url(secrets.token_bytes(48)); print('::add-mask::'+verifier)
+          challenge=b64url(hashlib.sha256(verifier.encode()).digest()); state='mobile_'+secrets.token_urlsafe(18)
+
+          rc,_,reg,_=http_json(issuer+'/oauth/register','POST',{
+              'redirect_uris':[callback],
+              'client_name':'MUSITU OAuth Mobile Production Verify',
+              'token_endpoint_auth_method':'none',
+              'grant_types':['authorization_code','refresh_token'],
+              'response_types':['code']
+          })
+          if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed HTTP '+str(rc))
+          client_id=str(reg['client_id']); print('::add-mask::'+client_id)
+
+          aq={
+              'response_type':'code','client_id':client_id,'redirect_uri':callback,
+              'scope':'axiom.execute','state':state,'code_challenge':challenge,
+              'code_challenge_method':'S256','resource':resource
+          }
+          ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-Mobile-OAuth-Verify/1.0'})
+          if ac!=200:raise RuntimeError('authorization GET HTTP '+str(ac))
+          page=ab.decode('utf-8','replace')
+          fm=re.search(r'name="flow_id" value="([^"]+)"',page)
+          nm=re.search(r'name="flow_nonce" value="([^"]+)"',page)
+          if not fm or not nm:raise RuntimeError('mobile authorization hidden session fields missing')
+          flow_id=fm.group(1); flow_nonce=nm.group(1)
+          print('::add-mask::'+flow_id); print('::add-mask::'+flow_nonce)
+          if 'musitu_oauth_flow=' not in str(ah.get('Set-Cookie') or ''):raise RuntimeError('defense-in-depth OAuth cookie missing')
+
+          # Critical mobile-webview proof: deliberately DO NOT send the cookie.
+          pc,ph,pb=form(issuer+'/oauth/authorize',{
+              'flow_id':flow_id,
+              'flow_nonce':flow_nonce,
+              'musitu_account_key':reviewer
+          },headers={'Accept':'text/html'},follow=False)
+          if pc!=302:
+              raise RuntimeError('cookie-independent mobile authorization expected 302 got '+str(pc)+' '+pb[:220].decode('utf-8','ignore'))
+          loc=str(ph.get('Location') or ''); qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query)
+          code=(qp.get('code') or [''])[0]
+          if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')
+          print('::add-mask::'+code)
+
+          tc,_,tb=form(issuer+'/oauth/token',{
+              'grant_type':'authorization_code','code':code,'code_verifier':verifier,
+              'client_id':client_id,'redirect_uri':callback,'resource':resource
+          })
+          if tc!=200:raise RuntimeError('token exchange HTTP '+str(tc)+' '+tb[:220].decode('utf-8','ignore'))
+          tok=json.loads(tb or b'{}'); access=str(tok.get('access_token') or '')
+          if not access or tok.get('token_type')!='Bearer':raise RuntimeError('access token contract mismatch')
+          print('::add-mask::'+access)
+
+          rid='MUSITU-MOBILE-OAUTH-'+uuid.uuid4().hex.upper()
+          mc,_,mo,_=http_json(mcp+'/mcp','POST',{
+              'jsonrpc':'2.0','id':1,'method':'tools/call','params':{
+                  'name':'musitu_axiom_execute','arguments':{
+                      'operation':'arithmetic.evaluate','args':{'expression':'40+2'}
+                  }
+              }
+          },{'Authorization':'Bearer '+access,'x-musitu-request-id':rid})
+          ser=json.dumps(mo,separators=(',',':'),sort_keys=True)
+          if mc!=200 or (mo.get('result') or {}).get('isError') is True or not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',ser):
+              raise RuntimeError('reviewer OAuth token failed MCP compute')
+
+          vc,_,vb=form(issuer+'/oauth/revoke',{'token':access,'client_id':client_id})
+          if vc!=200:raise RuntimeError('revocation HTTP '+str(vc))
+
+          evidence={
+              'schema':'musitu.axiom.oauth.mobile_session.production_verify.v1',
+              'gate':'MUSITU_AXIOM_OAUTH_MOBILE_SESSION_PASS',
+              'issuer':issuer,
+              'resource':resource,
+              'reviewer_account_authenticated':True,
+              'cookie_present_on_get':True,
+              'cookie_deliberately_omitted_on_post':True,
+              'hidden_nonce_present':True,
+              'hidden_nonce_validated_by_live_worker':True,
+              'authorization_redirect_http':302,
+              'token_exchange_http':200,
+              'oauth_to_mcp_authenticated_compute_http':200,
+              'result_42_observed':True,
+              'revocation_http':200,
+              'raw_reviewer_key_published':False,
+              'raw_access_token_published':False,
+              'raw_authorization_code_published':False
+          }
+          p=pathlib.Path('musitu-axiom-oauth-mobile-session-production-verify.json')
+          p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          dg=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('musitu-axiom-oauth-mobile-session-production-verify.sha256').write_text(dg+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'result_42_observed':True,'cookie_omitted_on_post':True,'evidence_sha256':dg},sort_keys=True))
+          PY
+
+      - name: Upload mobile OAuth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-oauth-mobile-session-production-verify
+          path: |
+            musitu-axiom-oauth-mobile-session-production-verify.json
+            musitu-axiom-oauth-mobile-session-production-verify.sha256
+          retention-days: 30
