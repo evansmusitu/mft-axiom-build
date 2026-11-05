@@ -203,3 +203,43 @@ test("forged ledger prototypes and patched reservation methods cannot impersonat
   }finally{real.close();}
   assert.equal(calls,0);
 });
+
+
+test("metered provider rejects accounting-method replacement after registration before issuing a vendor request",async()=>{
+  const x=setup();
+  try{
+    (x.ledger as any).reserve=()=>{};
+    await assert.rejects(()=>x.wrapped.invoke({
+      tenant:scope(),compilationRequestHash:"d".repeat(64),attempt:0,mode:"INITIAL"
+    }),/trusted|ledger|budget/i);
+    assert.equal(x.calls,0);
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
+  }finally{x.ledger.close();}
+});
+
+test("metered provider detects settlement-method replacement during a vendor call and retains its reservation",async()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  ledger.provision(scope(),"test:openai","test-model",1000);
+  let calls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){
+      calls++;
+      (ledger as any).settle=()=>{};
+      return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));
+    },
+    async explain(){throw new Error("not called");}
+  };
+  const wrapped=new phase2.BudgetedModelProviderAdapter({
+    adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+  try{
+    await assert.rejects(()=>wrapped.invoke({
+      tenant:scope(),compilationRequestHash:"e".repeat(64),attempt:0,mode:"INITIAL"
+    }),/trusted|ledger|budget/i);
+    assert.equal(calls,1);
+    assert.deepEqual(ledger.status(scope(),"test:openai","test-model"),{
+      limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+    });
+  }finally{ledger.close();}
+});
