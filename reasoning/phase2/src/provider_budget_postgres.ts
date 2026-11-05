@@ -58,8 +58,8 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
-      (value as PostgresProviderSpendLedger).reserve===PostgresProviderSpendLedger.prototype.reserve&&
-      (value as PostgresProviderSpendLedger).settle===PostgresProviderSpendLedger.prototype.settle;
+      (value as PostgresProviderSpendLedger).reserve===trustedPostgresReserve&&
+      (value as PostgresProviderSpendLedger).settle===trustedPostgresSettle;
   }
   constructor(pool:Pick<Pool,"connect">){
     if(!pool||typeof pool.connect!=="function")throw new TypeError("Operator-owned PostgreSQL pool required");
@@ -153,3 +153,9 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
     if(overage)throw new ProviderBudgetError("BUDGET_PROVIDER_OVERAGE","Provider usage overage exceeded reserved spend; spending suspended for reconciliation",502);
   }
 }
+
+ 
+// Original, module-initialized methods are the accounting authority. Runtime
+// modification of the class prototype must not redefine trust.
+const trustedPostgresReserve=PostgresProviderSpendLedger.prototype.reserve;
+const trustedPostgresSettle=PostgresProviderSpendLedger.prototype.settle;
