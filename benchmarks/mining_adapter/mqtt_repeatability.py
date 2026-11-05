@@ -210,6 +210,27 @@ def aggregate_repeatability(
     }
 
 
+def _process_runtime_diagnostics(start: Any, finish: Any, wall_seconds: float) -> dict[str, Any]:
+    """Read-only process counters; never influence the benchmark acceptance gate.
+
+    Counters cover Python's publisher and MQTT subscriber worker threads during
+    the measured stress interval, but not separately hosted broker containers.
+    """
+    user=max(0.0,finish.ru_utime-start.ru_utime)
+    system=max(0.0,finish.ru_stime-start.ru_stime)
+    return {
+        "schema":"musitu.connect.mqtt.process_diagnostics.v1",
+        "process_user_cpu_seconds":user,
+        "process_system_cpu_seconds":system,
+        "process_cpu_to_wall_ratio":(user+system)/wall_seconds,
+        "voluntary_context_switches":max(0,finish.ru_nvcsw-start.ru_nvcsw),
+        "involuntary_context_switches":max(0,finish.ru_nivcsw-start.ru_nivcsw),
+        "block_input_operations":max(0,finish.ru_inblock-start.ru_inblock),
+        "block_output_operations":max(0,finish.ru_oublock-start.ru_oublock),
+        "major_page_faults":max(0,finish.ru_majflt-start.ru_majflt),
+    }
+
+
 def run_stress_lane(
     *,
     host: str,
@@ -236,6 +257,7 @@ def run_stress_lane(
         )
         try:
             session.start()
+            stress_resource_start=resource.getrusage(resource.RUSAGE_SELF)
             started=time.perf_counter()
             cursor=0
             for batch_index in range(stress_batches):
@@ -246,6 +268,9 @@ def run_stress_lane(
             publish_seconds=time.perf_counter()-started
             session.wait_rows("stress",spec.events,drain_timeout)
             stress_seconds=time.perf_counter()-started
+            stress_resource_end=resource.getrusage(resource.RUSAGE_SELF)
+            diagnostics=_process_runtime_diagnostics(
+                stress_resource_start,stress_resource_end,stress_seconds)
             latencies=list(session.latency_ms["stress"])
             if not latencies:
                 raise RuntimeError("repeatability_latency_evidence_missing")
@@ -280,6 +305,7 @@ def run_stress_lane(
                 "adapter_replay_records":len(replay.envelope.records),
                 "audit_chain_verified":True,
                 "peak_rss_kib":usage.ru_maxrss,
+                "runtime_diagnostics":diagnostics,
                 "errors":list(session.errors),
                 "credentials_used":False,
             }

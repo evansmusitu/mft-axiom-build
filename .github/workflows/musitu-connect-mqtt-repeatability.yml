@@ -7,6 +7,7 @@ on:
       - '.github/workflows/musitu-connect-mqtt-repeatability.yml'
       - 'benchmarks/mining_adapter/mqtt_repeatability.py'
       - 'tests/connect/test_mqtt_repeatability.py'
+      - 'tests/connect/test_mqtt_resource_diagnostics.py'
       - 'connect/persistence.py'
       - 'connect/mining_adapter.py'
       - 'connect/mining.py'
@@ -44,7 +45,7 @@ jobs:
 
       - name: Verify repeatability contract
         run: |
-          python -m unittest tests.connect.test_mqtt_repeatability -v
+          python -m unittest tests.connect.test_mqtt_repeatability tests.connect.test_mqtt_resource_diagnostics -v
 
       - name: Start both MQTT broker lanes
         run: |
@@ -69,6 +70,36 @@ jobs:
         run: |
           mkdir -p qualification/repeatability
           python benchmarks/mining_adapter/mqtt_repeatability.py             --reference-port 18831             --emqx-port 18832             --events "$REPEAT_EVENTS"             --trials "$REPEAT_TRIALS"             --batch-size "$REPEAT_BATCH_SIZE"             --seed "$REPEAT_SEED"             --output qualification/repeatability/mqtt_repeatability.json
+
+      - name: Summarize runtime diagnostics (non-enabling)
+        run: |
+          {
+            echo "## MQTT runtime diagnostics (non-enabling; locked gates unchanged)"
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("qualification/repeatability/mqtt_repeatability.json").read_text())
+          a=report["aggregate"]
+          print("- Comparison fingerprint: "+report["comparison_fingerprint"])
+          for lane in ("reference","emqx"):
+              for trial in sorted(a["raw_trials"][lane],key=lambda item:item["round"]):
+                  d=trial.get("runtime_diagnostics")
+                  if not isinstance(d,dict) or d.get("schema") != "musitu.connect.mqtt.process_diagnostics.v1":
+                      raise SystemExit("MQTT_RUNTIME_DIAGNOSTICS_MISSING")
+                  print(f"- {lane} round {trial['round']} position {trial['position']}: "
+                        f"throughput {trial['throughput_events_per_second']:.0f}/s, "
+                        f"p99 {trial['p99_ms']:.0f}ms, "
+                        f"process CPU/wall {d['process_cpu_to_wall_ratio']:.3f}, "
+                        f"voluntary switches {d['voluntary_context_switches']}, "
+                        f"involuntary switches {d['involuntary_context_switches']}, "
+                        f"block writes {d['block_output_operations']}")
+          print(f"- Throughput consistency: {a['throughput']['consistent_rounds']}/"+
+                f"{a['trials']} (minimum {a['throughput']['minimum_consistent_rounds']})")
+          print(f"- p99 consistency: {a['p99_latency']['consistent_rounds']}/"+
+                f"{a['trials']} (minimum {a['p99_latency']['minimum_consistent_rounds']})")
+          print("- This is diagnostic evidence, not an acceptance override.")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate repeatability evidence
         run: |
