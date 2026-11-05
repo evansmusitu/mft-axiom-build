@@ -243,3 +243,23 @@ test("metered provider detects settlement-method replacement during a vendor cal
     });
   }finally{ledger.close();}
 });
+
+
+test("prototype-wide accounting hook replacement cannot bypass an already registered paid provider ledger",async()=>{
+  const x=setup();
+  const prototype=phase2.SqliteProviderSpendLedger.prototype as any;
+  const originalReserve=prototype.reserve,originalSettle=prototype.settle;
+  try{
+    prototype.reserve=()=>{};
+    prototype.settle=()=>{};
+    await assert.rejects(()=>x.wrapped.invoke({
+      tenant:scope(),compilationRequestHash:"f".repeat(64),attempt:0,mode:"INITIAL"
+    }),/trusted|ledger|budget/i);
+    assert.equal(x.calls,0);
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
+  }finally{
+    prototype.reserve=originalReserve;
+    prototype.settle=originalSettle;
+    x.ledger.close();
+  }
+});
