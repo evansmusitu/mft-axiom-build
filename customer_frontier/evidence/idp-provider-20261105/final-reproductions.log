@@ -1,0 +1,4 @@
+weak-denied idp_key_invalid
+{"case":"sub-2048-RSA","actualBits":2047,"modulusBytes":256,"accepted":false}
+expired-denied idp_claims_invalid
+{"case":"expiry-during-UserInfo","expiredAtReturn":true,"accepted":false}
