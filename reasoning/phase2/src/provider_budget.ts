@@ -239,13 +239,26 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
       modelId:this.manifest.modelId,provider:this.provider
     });
   }
+  private assertUntamperedLedger():void{
+    // Registration-only verification is insufficient: callers may still retain
+    // a mutable ledger reference and replace reserve/settle after construction.
+    if(!SqliteProviderSpendLedger.isAuthenticLedger(this.ledger)&&
+       !PostgresProviderSpendLedger.isAuthenticLedger(this.ledger))
+      throw new ProviderBudgetError("BUDGET_ACCOUNTING_TAMPERED",
+        "Trusted provider ledger accounting methods changed; provider call denied",503);
+  }
   private async metered<T extends {responseBody:string}>(intent:string,run:()=>Promise<T>):Promise<T>{
     const requestHash=sha(intent),requestId=requestHash;
     const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,requestId,requestHash};
+    this.assertUntamperedLedger();
     await this.ledger.reserve({...identity,reserveMicroUsd:this.requestReserveMicroUsd});
+    // A patched ledger after reservation must never authorize a vendor call.
+    this.assertUntamperedLedger();
     // Ambiguous errors deliberately leave a durable reservation: never auto-refetch.
     const result=await run();
     const chargeMicroUsd=pricedProviderUsage(result.responseBody,this.provider,this.prices);
+    // A patched settlement hook cannot turn billable usage into a successful call.
+    this.assertUntamperedLedger();
     await this.ledger.settle({...identity,chargeMicroUsd,responseHash:sha(result.responseBody)});
     return result;
   }
