@@ -55,8 +55,8 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
   static isAuthenticLedger(value:unknown):value is SqliteProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
-      (value as SqliteProviderSpendLedger).reserve===SqliteProviderSpendLedger.prototype.reserve&&
-      (value as SqliteProviderSpendLedger).settle===SqliteProviderSpendLedger.prototype.settle;
+      (value as SqliteProviderSpendLedger).reserve===trustedSqliteReserve&&
+      (value as SqliteProviderSpendLedger).settle===trustedSqliteSettle;
   }
   constructor(databasePath:string){
     this.db=new DatabaseSync(named(databasePath,"databasePath"));
@@ -144,6 +144,10 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
     if(overage)throw new ProviderBudgetError("BUDGET_PROVIDER_OVERAGE","Provider usage overage exceeded reserved spend; spending suspended for reconciliation",502);
   }
 }
+// Pin the genuine methods once at module initialization: looking up the
+// mutable prototype at validation time would bless a later global patch.
+const trustedSqliteReserve=SqliteProviderSpendLedger.prototype.reserve;
+const trustedSqliteSettle=SqliteProviderSpendLedger.prototype.settle;
 function checkedPrices(value:ProviderTokenPrices):ProviderTokenPrices{
   if(!value||typeof value!=="object")throw new TypeError("Explicit vendor model price configuration is required");
   return {
