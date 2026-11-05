@@ -8,6 +8,8 @@ on:
       - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
       - 'benchmarks/mining_adapter/polish_longwall_telemetry_runner.py'
       - 'tests/connect/test_polish_longwall_telemetry.py'
+      - 'qualification/telemetry_source_failure.py'
+      - 'tests/connect/test_telemetry_source_failure.py'
       - 'tests/connect/test_mining_telemetry.py'
       - 'connect/mining_telemetry.py'
       - 'connect/mining_adapter.py'
@@ -38,8 +40,8 @@ jobs:
 
       - name: Verify telemetry contract
         run: |
-          python -m py_compile             connect/mining_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry_runner.py
-          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry -v
+          python -m py_compile             connect/mining_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry_runner.py qualification/telemetry_source_failure.py
+          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry             tests.connect.test_telemetry_source_failure -v
           python benchmarks/mining_adapter/polish_longwall_telemetry_runner.py --help >/dev/null
 
       - name: Bind public dataset identity and CC BY 4.0 license
@@ -60,28 +62,47 @@ jobs:
       - name: Acquire public telemetry bytes without credentials
         run: |
           set -euo pipefail
+          # A failed download or OpenML integrity check always leaves a
+          # sanitized immutable artifact for provenance review. It never
+          # converts a failed workflow into a successful qualification.
+          trap 'python -m qualification.telemetry_source_failure \
+              --output qualification/real_telemetry/source_acquisition_failure.json \
+              --mendeley-http-status "$(cat /tmp/musitu-longwall/mendeley-http-status.txt 2>/dev/null || printf 000)" \
+              --reason PUBLIC_SOURCE_ACQUISITION_INCOMPLETE >/dev/null 2>&1 || true' ERR
           if curl --fail --location \
               --connect-timeout 20 --max-time 120 \
+              --write-out '%{http_code}' \
               "$DATASET_ZIP_ENDPOINT" \
-              --output /tmp/musitu-longwall/Methane.zip; then
+              --output /tmp/musitu-longwall/Methane.zip \
+              > /tmp/musitu-longwall/mendeley-http-status.txt; then
             printf '%s\n' 'mendeley' > /tmp/musitu-longwall/transport.txt
             printf '%s\n' '/tmp/musitu-longwall/Methane.zip' > /tmp/musitu-longwall/source-path.txt
             echo "TELEMETRY_TRANSPORT=MENDELEY_DIRECT"
           else
-            echo "Mendeley anonymous file API is auth-gated; using verified OpenML mirror 42701."
+            echo "Mendeley anonymous download unavailable; attempting checksum-verified OpenML mirror 42701."
             python -m pip install --disable-pip-version-check openml==0.15.1
             OPENML_SKIP_PARQUET=true python - <<'PY'
           from pathlib import Path
           import json
           import shutil
           import openml
+          from qualification.telemetry_source_failure import write_failure_report
 
-          dataset=openml.datasets.get_dataset(
-              42701,
-              download_data=True,
-              download_qualities=False,
-              download_features_meta_data=False,
-          )
+          try:
+              dataset=openml.datasets.get_dataset(
+                  42701,
+                  download_data=True,
+                  download_qualities=False,
+                  download_features_meta_data=False,
+              )
+          except openml.exceptions.OpenMLHashException:
+              # The provider checksum MUST NOT be skipped or replaced.
+              write_failure_report(
+                  Path("qualification/real_telemetry/source_acquisition_failure.json"),
+                  mendeley_http_status=Path("/tmp/musitu-longwall/mendeley-http-status.txt").read_text().strip(),
+                  reason="OPENML_CHECKSUM_MISMATCH",
+              )
+              raise SystemExit("OPENML_PUBLIC_MIRROR_CHECKSUM_MISMATCH") from None
           if int(dataset.dataset_id) != 42701:
               raise SystemExit("openml_dataset_id_mismatch")
           if str(dataset.name).strip().casefold() != "methane":
@@ -196,6 +217,8 @@ jobs:
           assert e["credentials_used"] is False
           assert e["errors"] == []
           print("REAL_MINE_TELEMETRY_QUALIFICATION=PASS")
+          print("CUSTOMER_RELEASE_AUTHORIZED=false")
+          print("INDEPENDENT_MINE_VALIDATION=false")
           print(json.dumps({
               "source_rows":e["source_rows"],
               "sensor_count":e["sensor_count"],
