@@ -16,10 +16,10 @@ export interface ProviderSpendStatus {
   limitMicroUsd:number;chargedMicroUsd:number;reservedMicroUsd:number;availableMicroUsd:number;
 }
 export interface ProviderReservation {
-  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;reserveMicroUsd:number;
+  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;reserveMicroUsd:number;billingProvider?:"openai"|"anthropic";
 }
 export interface ProviderSettlement {
-  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;chargeMicroUsd:number;responseHash:string;
+  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;chargeMicroUsd:number;responseHash:string;billingProvider?:"openai"|"anthropic";
 }
 export interface ProviderSpendLedger {
   reserve(input:ProviderReservation):void|Promise<void>;
@@ -265,7 +265,7 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
   }
   private async metered<T extends {responseBody:string}>(intent:string,run:()=>Promise<T>):Promise<T>{
     const requestHash=sha(intent),requestId=requestHash;
-    const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,requestId,requestHash};
+    const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,billingProvider:this.provider,requestId,requestHash};
     this.assertUntamperedLedger();
     await this.ledger.reserve({...identity,reserveMicroUsd:this.requestReserveMicroUsd});
     // A patched ledger after reservation must never authorize a vendor call.

@@ -26,6 +26,10 @@ function sha(value:unknown,label:string):string{
     throw new TypeError(label+" must be a lowercase SHA-256 digest");
   return value;
 }
+function vendorProvider(value:unknown):"openai"|"anthropic"{
+ if(value!=="openai"&&value!=="anthropic")throw new TypeError("billingProvider must be the pinned upstream vendor");
+ return value;
+}
 function context(input:ProviderReservation|ProviderSettlement):void{
   id(input.tenantId,"tenantId");id(input.provider,"provider");
   id(input.modelId,"modelId");id(input.requestId,"requestId");
@@ -85,19 +89,47 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
     }
   }
   private async lockedBudget(client:PoolClient,key:Key):Promise<any>{
-    const q=await client.query("SELECT limit_micro_usd,charged_micro_usd,reserved_micro_usd,suspended FROM axiom_provider_spend_budgets WHERE "+budgetWhere+" FOR UPDATE",budgetValues(key));
+    const q=await client.query("SELECT limit_micro_usd,charged_micro_usd,reserved_micro_usd,suspended,billing_provider FROM axiom_provider_spend_budgets WHERE "+budgetWhere+" FOR UPDATE",budgetValues(key));
     if(q.rowCount!==1)throw new ProviderBudgetError("BUDGET_NOT_PROVISIONED","No tenant provider budget is provisioned",403);
     return q.rows[0];
   }
-  /** Trusted administrator-only immutable provisioning; changes need audited migration. */
-  async provision(scope:TenantScope,provider:string,modelId:string,limitMicroUsd:number):Promise<void>{
-    const tenantId=id(scope?.tenantId,"tenantId");
+  private async checkTenantVendor(client:PoolClient,key:Key,v:"openai"|"anthropic"):Promise<void>{
+    // Read immutable vendor without taking the tenant row lock first.
+    const row=await client.query("SELECT billing_provider FROM axiom_provider_spend_budgets WHERE "+budgetWhere,budgetValues(key));
+    if(row.rowCount!==1)throw new ProviderBudgetError("BUDGET_NOT_PROVISIONED","No tenant provider budget is provisioned",403);
+    if(row.rows[0].billing_provider!==v)throw new ProviderBudgetError("BUDGET_ORGANIZATION_MISMATCH","Tenant budget vendor does not match billed upstream provider",403);
+  }
+  private async lockedOrganization(client:PoolClient,v:"openai"|"anthropic"):Promise<any>{
+    const r=await client.query("SELECT limit_micro_usd,charged_micro_usd,reserved_micro_usd,suspended FROM axiom_provider_spend_organizations WHERE billing_provider=$1 FOR UPDATE",[v]);
+    if(r.rowCount!==1)throw new ProviderBudgetError("BUDGET_ORGANIZATION_NOT_PROVISIONED","No vendor organization cap is provisioned",403);
+    return r.rows[0];
+  }
+  /** Operator-only, immutable vendor organization cap. */
+  async provisionOrganization(billingProviderInput:"openai"|"anthropic",limitMicroUsd:number):Promise<void>{
+    const v=vendorProvider(billingProviderInput);amount(limitMicroUsd,"organization limitMicroUsd");
+    await this.tx(async client=>{
+      await client.query("INSERT INTO axiom_provider_spend_organizations(billing_provider,limit_micro_usd) VALUES($1,$2) ON CONFLICT(billing_provider) DO NOTHING",[v,limitMicroUsd]);
+      const row=await this.lockedOrganization(client,v);
+      if(big(row,"limit_micro_usd")!==limitMicroUsd)throw new ProviderBudgetError("BUDGET_POLICY_IMMUTABLE","Organization cap changes require audited administration",409);
+    });
+  }
+  async organizationStatus(billingProviderInput:"openai"|"anthropic"):Promise<ProviderSpendStatus>{
+    const v=vendorProvider(billingProviderInput);
+    return this.tx(async client=>{
+      const r=await client.query("SELECT limit_micro_usd,charged_micro_usd,reserved_micro_usd FROM axiom_provider_spend_organizations WHERE billing_provider=$1",[v]);
+      if(r.rowCount!==1)throw new ProviderBudgetError("BUDGET_ORGANIZATION_NOT_PROVISIONED","No vendor organization cap is provisioned",403);
+      return report(r.rows[0]);
+    });
+  }
+  /** Immutable tenant budget and vendor binding; historical NULL vendors must be audited. */
+  async provision(scope:TenantScope,provider:string,modelId:string,limitMicroUsd:number,billingProviderInput:"openai"|"anthropic"):Promise<void>{
+    const tenantId=id(scope?.tenantId,"tenantId"),v=vendorProvider(billingProviderInput);
     id(provider,"provider");id(modelId,"modelId");amount(limitMicroUsd,"limitMicroUsd");
     await this.tx(async client=>{
-      await client.query("INSERT INTO axiom_provider_spend_budgets(tenant_id,provider,model_id,limit_micro_usd) VALUES($1,$2,$3,$4) ON CONFLICT(tenant_id,provider,model_id) DO NOTHING",
-        [tenantId,provider,modelId,limitMicroUsd]);
+      await client.query("INSERT INTO axiom_provider_spend_budgets(tenant_id,provider,model_id,limit_micro_usd,billing_provider) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,provider,model_id) DO NOTHING",[tenantId,provider,modelId,limitMicroUsd,v]);
       const row=await this.lockedBudget(client,{tenantId,provider,modelId});
-      if(big(row,"limit_micro_usd")!==limitMicroUsd)throw new ProviderBudgetError("BUDGET_POLICY_IMMUTABLE","Existing budget policy differs; audited administrator migration required",409);
+      if(big(row,"limit_micro_usd")!==limitMicroUsd||row.billing_provider!==v)
+        throw new ProviderBudgetError("BUDGET_POLICY_IMMUTABLE","Existing tenant or vendor budget policy differs; audited administration required",409);
     });
   }
   async status(scope:TenantScope,provider:string,modelId:string):Promise<ProviderSpendStatus>{
@@ -109,49 +141,66 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   }
   async reserve(input:ProviderReservation):Promise<void>{
     context(input);amount(input.reserveMicroUsd,"reserveMicroUsd",true);
+    const v=vendorProvider(input.billingProvider);
     await this.tx(async client=>{
+      // Lock the common vendor row before the tenant row on every writer.
+      await this.checkTenantVendor(client,input,v);
+      const organization=await this.lockedOrganization(client,v);
       const row=await this.lockedBudget(client,input);
+      if(row.billing_provider!==v)throw new ProviderBudgetError("BUDGET_ORGANIZATION_MISMATCH","Tenant vendor binding changed",403);
+      if(organization.suspended===true)throw new ProviderBudgetError("BUDGET_ORGANIZATION_SUSPENDED","Vendor spending suspended for reconciliation");
       if(row.suspended===true)throw new ProviderBudgetError("BUDGET_SUSPENDED","Provider spending suspended; reconciliation required");
       const old=await client.query("SELECT request_hash,status FROM axiom_provider_spend_requests WHERE "+budgetWhere+" AND request_id=$4",
         [...budgetValues(input),input.requestId]);
       if(old.rowCount){
-        if(old.rows[0].request_hash!==input.requestHash)
-          throw new ProviderBudgetError("BUDGET_IDENTITY_COLLISION","Provider billing intent identity collision",409);
+        if(old.rows[0].request_hash!==input.requestHash)throw new ProviderBudgetError("BUDGET_IDENTITY_COLLISION","Provider billing identity collision",409);
         const pending=old.rows[0].status==="RESERVED";
         throw new ProviderBudgetError(pending?"BUDGET_PENDING_RECONCILIATION":"BUDGET_ALREADY_SETTLED",
-          pending?"Provider request already reserved; reconciliation required":"Provider request already settled; duplicate provider call denied",409);
+          pending?"Provider request already reserved; reconciliation required":"Provider request already settled; duplicate denied",409);
       }
-      const available=report(row);
-      if(input.reserveMicroUsd>available.availableMicroUsd)
+      if(input.reserveMicroUsd>report(organization).availableMicroUsd)
+        throw new ProviderBudgetError("BUDGET_ORGANIZATION_EXCEEDED","Vendor organization spending cap would be exceeded");
+      if(input.reserveMicroUsd>report(row).availableMicroUsd)
         throw new ProviderBudgetError("BUDGET_EXCEEDED","Tenant provider spending limit would be exceeded");
       await client.query("INSERT INTO axiom_provider_spend_requests(tenant_id,provider,model_id,request_id,request_hash,reserve_micro_usd,status) VALUES($1,$2,$3,$4,$5,$6,'RESERVED')",
         [input.tenantId,input.provider,input.modelId,input.requestId,input.requestHash,input.reserveMicroUsd]);
       await client.query("UPDATE axiom_provider_spend_budgets SET reserved_micro_usd=reserved_micro_usd+$4 WHERE "+budgetWhere,
         [...budgetValues(input),input.reserveMicroUsd]);
+      await client.query("UPDATE axiom_provider_spend_organizations SET reserved_micro_usd=reserved_micro_usd+$2 WHERE billing_provider=$1",[v,input.reserveMicroUsd]);
     });
   }
   async settle(input:ProviderSettlement):Promise<void>{
     context(input);amount(input.chargeMicroUsd,"chargeMicroUsd");sha(input.responseHash,"responseHash");
+    const v=vendorProvider(input.billingProvider);
     const overage=await this.tx(async client=>{
+      await this.checkTenantVendor(client,input,v);
+      const organization=await this.lockedOrganization(client,v);
       const row=await this.lockedBudget(client,input);
+      if(row.billing_provider!==v)throw new ProviderBudgetError("BUDGET_ORGANIZATION_MISMATCH","Tenant vendor binding changed",403);
       const old=await client.query("SELECT request_hash,status,reserve_micro_usd FROM axiom_provider_spend_requests WHERE "+budgetWhere+" AND request_id=$4 FOR UPDATE",
         [...budgetValues(input),input.requestId]);
       if(old.rowCount!==1||old.rows[0].request_hash!==input.requestHash||old.rows[0].status!=="RESERVED")
         throw new ProviderBudgetError("BUDGET_SETTLEMENT_FORBIDDEN","No matching unsettled billing reservation",409);
       const reserved=big(old.rows[0],"reserve_micro_usd");
-      const charged=big(row,"charged_micro_usd");
-      const held=big(row,"reserved_micro_usd");
-      if(reserved>held||BigInt(charged)+BigInt(input.chargeMicroUsd)>BigInt(Number.MAX_SAFE_INTEGER))
-        throw new ProviderBudgetError("BUDGET_CORRUPT","Provider spend totals cannot be reconciled",503);
+      const charged=big(row,"charged_micro_usd"),held=big(row,"reserved_micro_usd");
+      const orgCharged=big(organization,"charged_micro_usd"),orgHeld=big(organization,"reserved_micro_usd");
+      if(reserved>held||reserved>orgHeld||
+        BigInt(charged)+BigInt(input.chargeMicroUsd)>BigInt(Number.MAX_SAFE_INTEGER)||
+        BigInt(orgCharged)+BigInt(input.chargeMicroUsd)>BigInt(Number.MAX_SAFE_INTEGER))
+        throw new ProviderBudgetError("BUDGET_CORRUPT","Provider or organization spend totals cannot be reconciled",503);
       const excessive=input.chargeMicroUsd>reserved;
+      const orgOverage=excessive||BigInt(orgCharged)+BigInt(input.chargeMicroUsd)>BigInt(big(organization,"limit_micro_usd"));
       await client.query("UPDATE axiom_provider_spend_requests SET status=$5,charge_micro_usd=$6,response_hash=$7 WHERE "+budgetWhere+" AND request_id=$4",
-        [...budgetValues(input),input.requestId,excessive?"OVERAGE":"SETTLED",input.chargeMicroUsd,input.responseHash]);
+        [...budgetValues(input),input.requestId,orgOverage?"OVERAGE":"SETTLED",input.chargeMicroUsd,input.responseHash]);
       await client.query("UPDATE axiom_provider_spend_budgets SET charged_micro_usd=charged_micro_usd+$4,reserved_micro_usd=reserved_micro_usd-$5,suspended=CASE WHEN $6 THEN TRUE ELSE suspended END WHERE "+budgetWhere,
         [...budgetValues(input),input.chargeMicroUsd,reserved,excessive]);
-      return excessive;
+      await client.query("UPDATE axiom_provider_spend_organizations SET charged_micro_usd=charged_micro_usd+$2,reserved_micro_usd=reserved_micro_usd-$3,suspended=CASE WHEN $4 THEN TRUE ELSE suspended END WHERE billing_provider=$1",
+        [v,input.chargeMicroUsd,reserved,orgOverage]);
+      return orgOverage;
     });
-    if(overage)throw new ProviderBudgetError("BUDGET_PROVIDER_OVERAGE","Provider usage overage exceeded reserved spend; spending suspended for reconciliation",502);
+    if(overage)throw new ProviderBudgetError("BUDGET_PROVIDER_OVERAGE","Provider usage overage exceeded reservation or vendor cap; spending suspended for reconciliation",502);
   }
+
 }
 
  
