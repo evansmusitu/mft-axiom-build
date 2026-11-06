@@ -71,13 +71,16 @@ jobs:
           reporter=api('GET','/zones/'+zid+'/email/auth/dmarc-reports')
           assert reporter and reporter.get('rua_prefix'),'Cloudflare DMARC reporting destination unavailable'
           target='v=DMARC1; p=none; adkim=r; aspf=r'
+          def approved_policy(s):
+            tags=dict(piece.strip().split('=',1) for piece in s.strip('"').split(';') if '=' in piece)
+            return all(tags.get(k)==v for k,v in {'v':'DMARC1','p':'none','adkim':'r','aspf':'r'}.items())
           if len(any_dmarc)==0:
             result=api('POST','/zones/'+zid+'/dns_records',
               {'type':'TXT','name':name,'content':target,'ttl':300,'comment':'MUSITU approved monitor-only policy; Cloudflare-native RUA reporting'})
             print('Created exact monitoring-only DMARC TXT:',bool(result and result.get('id')))
           else:
             existing=str(any_dmarc[0].get('content','')).strip('"')
-            assert existing.startswith(target),'Unexpected DMARC policy: no overwrite permitted'
+            assert approved_policy(existing),'Unexpected DMARC policy: no overwrite permitted'
             print('Identical monitoring-only DMARC TXT already exists.')
           if reporter.get('enabled') is not True:
             updated=api('PATCH','/zones/'+zid+'/email/auth/dmarc-reports',{'enabled':True})
@@ -87,7 +90,7 @@ jobs:
           for attempt in range(6):
             got=records(zid,'TXT',name)
             reports=api('GET','/zones/'+zid+'/email/auth/dmarc-reports')
-            valid=len(got)==1 and str(got[0].get('content','')).strip('"').startswith(target)
+            valid=len(got)==1 and approved_policy(str(got[0].get('content','')))
             rua=valid and 'rua=mailto:' in str(got[0].get('content',''))
             if valid and rua and reports.get('enabled') is True:break
             if attempt<5:time.sleep(3)
