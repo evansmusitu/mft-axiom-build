@@ -1,0 +1,80 @@
+name: MUSITU Retry Exact Branded Pages Candidate 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-pages-retry-exact-candidate-20261106.yml
+permissions:
+  contents: read
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_PAGES_NAME: musitu-corporate
+      FAILED_DEPLOYMENT_ID: "6b088c23-d4e7-45af-901c-1d06198d9d78"
+      EXPECTED_BRANCH: corporate-private-20261103
+      EXPECTED_COMMIT: 835e5caafa28acca63d296ee299bf6a9b0e66255
+    steps:
+      - name: Validate failed preview and retry it in place
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request,urllib.error
+          token=os.environ['CLOUDFLARE_API_TOKEN']; account=os.environ['CF_ACCOUNT_ID']; project=os.environ['CF_PAGES_NAME']; did=os.environ['FAILED_DEPLOYMENT_ID']
+          base=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/deployments'
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def req(method,path):
+            q=urllib.request.Request(base+path,headers=headers,method=method,data=(b'{}' if method=='POST' else None))
+            with urllib.request.urlopen(q,timeout=30) as r:
+              body=json.load(r)
+            assert body.get('success') is True,body.get('errors')
+            return body['result']
+          before=req('GET','/'+did)
+          trigger=(before.get('deployment_trigger') or {}).get('metadata') or {}
+          assert before.get('environment')=='preview','Refusing non-preview deployment retry'
+          assert trigger.get('branch')==os.environ['EXPECTED_BRANCH'],trigger
+          assert trigger.get('commit_hash')==os.environ['EXPECTED_COMMIT'],trigger
+          assert (before.get('latest_stage') or {}).get('status')=='failure','Deployment is not failed'
+          assert before.get('uses_functions') is False,'Unexpected Pages Functions use'
+          print('validated_failed_exact_preview:',did)
+          retried=req('POST','/'+did+'/retry')
+          rid=retried.get('id') or did
+          print('retry_deployment_id:',rid)
+          final=None
+          for _ in range(24):
+            final=req('GET','/'+rid)
+            stage=final.get('latest_stage') or {}
+            print('retry_stage:',stage.get('name'),stage.get('status'))
+            if stage.get('status') in ('success','failure','canceled'):break
+            time.sleep(5)
+          stage=(final or {}).get('latest_stage') or {}
+          assert stage.get('status')=='success',stage
+          assert (final or {}).get('environment')=='preview'
+          print('retry_preview_url:',(final or {}).get('url'))
+          print('retry_aliases:',json.dumps((final or {}).get('aliases') or []))
+          print('cloudflare_exact_candidate_retry: PASS')
+          PY
+      - name: Verify branch alias remains anonymously blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,urllib.request,urllib.error
+          url='https://'+os.environ['EXPECTED_BRANCH']+'.'+os.environ['CF_PAGES_NAME']+'.pages.dev/'
+          class NR(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NR)
+          try:
+            with op.open(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Retry-Safety/20261106'}),timeout=20) as r:status=r.status;loc=r.headers.get('Location','')
+          except urllib.error.HTTPError as e:status=e.code;loc=e.headers.get('Location','')
+          ok=(status in (401,403)) or (status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc))
+          assert ok,'FAIL CLOSED: branch preview became anonymous'
+          print('post_retry_anonymous_http_status:',status)
+          print('post_retry_access_protection: VERIFIED')
+          print('production_dns_writes: 0')
+          PY
