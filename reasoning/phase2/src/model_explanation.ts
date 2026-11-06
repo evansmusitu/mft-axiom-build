@@ -4,6 +4,7 @@ import type {
   AuthorizedTenantContext, ModelAdapterManifest, ModelExplainRequest, ModelExplainResult,
   ModelExplanationContent, ModelExplanationProfile, ModelExplanationRecord, TenantScope
 } from "./types.ts";
+import { requireMeteredProviderAdapter } from "./provider_budget.ts";
 
 const HEX64=/^[0-9a-f]{64}$/;
 const MAX_EXPLANATION_ITEMS=8;
@@ -164,6 +165,7 @@ export class ModelExplanationService {
     for(const adapter of deps.adapters){
       const manifest=cloneManifest(adapter?.manifest);
       if(typeof adapter?.explain!=="function")throw new TypeError("Model explanation adapter must implement explain");
+      requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
       if(this.adapters.has(manifest.adapterId))throw new TypeError(`Duplicate model explanation adapter: ${manifest.adapterId}`);
       this.adapters.set(manifest.adapterId,adapter);
     }
