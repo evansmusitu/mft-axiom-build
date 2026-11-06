@@ -1,0 +1,54 @@
+name: AXIOM customer staging schema metadata 20261106 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-schema-readonly-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-schema-readonly-20261106
+  cancel-in-progress: false
+jobs:
+  read-only-staging-schema:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-hosted-schema-readback-20261106' && github.event.pull_request.base.ref == 'build/axiom-hosted-token-readback-20261106' && github.event.pull_request.base.sha == '1ff935b45f8387f99bad8f432520692f88fd9dc7' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 29bfb5a81996226ae10b4d8dadbf106d2aab27df
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit immutable reviewed schema reader and test hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          source = '29bfb5a81996226ae10b4d8dadbf106d2aab27df'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == source
+          for path, expected in {
+              'customer_frontier/qualification/cloudflare_customer_schema_readonly.py': '26cc14def42d1cd40c26d4099d791dca0904fbd070b9d619a28d8cf56804904a',
+              'customer_frontier/tests/test_cloudflare_customer_schema_readonly.py': 'de7cdc95e1e6f07731387cc91a66ba86e9f7f89b5563676c54d875dd8b1a46ad',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, path
+          print(json.dumps({'admitted_checkout_sha': source, 'script_and_test_hashes_match': True, 'network_authority': 'exact DB identity GET then one fixed sqlite_master SELECT'}))
+          PY
+      - name: Verify catalog SQL confinement and malformed responses offline
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_cloudflare_customer_schema_readonly.py -v
+      - name: Read exact staging catalog with existing API token
+        env:
+          AXIOM_CHECKOUT_SHA: 29bfb5a81996226ae10b4d8dadbf106d2aab27df
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/cloudflare_customer_schema_readonly.py
+      - name: Preserve actual catalog metadata including incomplete observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-schema-readonly-20261106
+          path: |
+            customer-schema-readonly.json
+            customer-schema-readonly.json.sha256
+          retention-days: 30
+          if-no-files-found: warn

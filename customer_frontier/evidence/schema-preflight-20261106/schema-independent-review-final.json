@@ -1,0 +1,20 @@
+{
+  "verdict": "NO_UNRESOLVED_P0_P2_FOR_EXACT_READ_ONLY_SCHEMA_OBSERVATION",
+  "finding": "P2_CHANGED_DB_CONTRADICTION_REPAIRED_BEFORE_LIVE_RUN",
+  "source_sha": "29bfb5a81996226ae10b4d8dadbf106d2aab27df",
+  "tree_sha": "b854d0afa98006eda14a9de3a8ab872ba1c91f9e",
+  "workflow_sha256": "e335fcc41ce36a6a23e6a3198a48ef864af4157aafaf728a9934697104d108ac",
+  "reader_sha256": "26cc14def42d1cd40c26d4099d791dca0904fbd070b9d619a28d8cf56804904a",
+  "test_sha256": "de7cdc95e1e6f07731387cc91a66ba86e9f7f89b5563676c54d875dd8b1a46ad",
+  "git_blobs": {
+    "customer_frontier/qualification/cloudflare_customer_schema_readonly.py": "498e4ab6fd27e0adb2abdeda7d064edad14cc15f",
+    "customer_frontier/tests/test_cloudflare_customer_schema_readonly.py": "b9a90aba225338b2da6a3c8f9144192e2a8f857d"
+  },
+  "offline_tests": 18,
+  "independent_original_and_repaired_repro_passed": true,
+  "credential_steps": 1,
+  "requests": "one pinned identityGET then one fixed sqlite_master SELECT",
+  "customer_rows": 0,
+  "hosted_requests_by_reviewer": 0,
+  "backup_or_migration_qualified": false
+}
