@@ -12,7 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 22
     env:
-      RELEASE_SHA: df87c9b36811db10f0d11e90d2989f3735f10754
+      RELEASE_SHA: 29d9e36f3eb755fde67b7c55087d05dff1c4a103
+      MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Install reviewer browser
         shell: bash
@@ -30,6 +31,11 @@ jobs:
           git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$RELEASE_SHA"
           git -C "$RUNNER_TEMP/site" checkout -q --detach FETCH_HEAD
           test "$(git -C "$RUNNER_TEMP/site" rev-parse HEAD)" = "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$MEDIA_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-demo-82s.mp4" > "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-poster.png" > "$RUNNER_TEMP/site/corporate/assets/studio-poster.png"
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4" | sha256sum -c -
+          printf '%s  %s\n' 0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0 "$RUNNER_TEMP/site/corporate/assets/studio-poster.png" | sha256sum -c -
           cd "$RUNNER_TEMP/site/corporate"
           MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
           python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
