@@ -1,0 +1,54 @@
+{
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "backup_restore_qualified": false,
+  "customer_records_read": 0,
+  "database_count": 11,
+  "empty_metadata_candidates": 0,
+  "files": {
+    "actual-inventory-42236980431.json": {
+      "bytes": 6335,
+      "sha256": "55056cfaed84dae0cd0e70a77d709fb4043cbaa42e0e1d664d7ba36c6f5bf567"
+    },
+    "actual-inventory-42236980431.log": {
+      "bytes": 25058,
+      "sha256": "9e0cd56bad562e1994795bd8d45088d3ef4ece0e280c3bdc834563919b8bcbbf"
+    }
+  },
+  "finding": "Every existing database reports at least one table. Continue with catalog/consumer audit and preserve existing objects; no reset or target adoption.",
+  "fixed_source_sha": "a53dca27ea2cf9ac285e64a20c03411b52c187d1",
+  "head_sha": "38ec29a4e7b1de06a6782febb95be8bcd9f60e1a",
+  "head_tree": "7dd272d78c9b96194a038bcee00b81d7062c425f",
+  "hosted_migration_qualified": false,
+  "job_id": 127957034670,
+  "mutations": 0,
+  "next_catalog_ids": [
+    "2571795a-80fe-4f63-9b95-07948b4cefdb",
+    "8cb4d319-6008-4ba8-aba1-563c6d836ce8",
+    "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+  ],
+  "parity_superiority": "NOT_CERTIFIED",
+  "private_backup_container": {
+    "contains_backup": false,
+    "created": true,
+    "permissions": "one owner, no additional entries",
+    "recovery_key_custody_qualified": false,
+    "shared": false
+  },
+  "release_authority": false,
+  "result": "SUCCESS_METADATA_OBSERVATION_ONLY",
+  "run_id": 42236980431,
+  "schema": "musitu.axiom.existing_d1_reuse.actual_receipt.v1",
+  "source_ci": {
+    "failures": 0,
+    "job_id": 127957033161,
+    "local_workerd": 16,
+    "node": 197,
+    "python": 97,
+    "run_id": 42236980093,
+    "skips": 0,
+    "status": "SUCCESS"
+  },
+  "sql_queries": 0,
+  "target_admitted": false,
+  "unavailable_final_usage": "UNKNOWN"
+}

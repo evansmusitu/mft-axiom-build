@@ -1,0 +1,72 @@
+{
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "backup_restore_qualified": false,
+  "binding_inventory_complete": false,
+  "credential_steps": 1,
+  "engineering_verdict": "NO_BLOCKING_P0_P2_FOR_EXACT_BOUNDED_OBSERVATION",
+  "existing_tests_passed": 11,
+  "files": {
+    "inventory-adversarial.log": {
+      "bytes": 2717,
+      "sha256": "ad1727900db778a45217b65c338a99931e2528d1bdb9db3ab59c043063d6ef2c"
+    },
+    "inventory-adversarial.py": {
+      "bytes": 7111,
+      "sha256": "b790beb962956b073193e3eb762cf6ec1caf1f18e3dcef69ff20dbb06c3adf5a"
+    },
+    "inventory-existing-tests-initial-harness-error.log": {
+      "bytes": 1795,
+      "sha256": "dd789c3416436cda4d114379a8386a96c687c72502f6c2e51d02636bf99aca12"
+    },
+    "inventory-existing-tests.log": {
+      "bytes": 1901,
+      "sha256": "db5141a695ec7e796cad3f0b0da664f13957fd516e43f016669eb491ec37da30"
+    },
+    "inventory-workflow-reviewed.yml": {
+      "bytes": 2937,
+      "sha256": "4cb99e8ae5a25da1c62b25e9b59095022b3eb11b9450403f5ac742ddf5e6a71c"
+    }
+  },
+  "hosted_migration_qualified": false,
+  "independent_adversarial_cases_passed": 19,
+  "max_observed_synthetic_requests": 21,
+  "network": "socket creation and create_connection denied; provider transport intercepted",
+  "observed_methods": [
+    "GET"
+  ],
+  "parent": "babf6b0c80f37546574b6df560121e12166d2394",
+  "parity_superiority": "NOT_CERTIFIED",
+  "python": "3.12.14",
+  "recommendation": "PROCEED_EXACT_REVIEWED_READ_ONLY_METADATA_JOB",
+  "release_authority": false,
+  "remote_local_bytes_equal": true,
+  "residual_gaps": [
+    "Actual Cloudflare metadata not observed by reviewer",
+    "Metadata-empty candidates are not qualified restore targets",
+    "No actual schema or binding/Pages/service-environment inspection",
+    "No global-unused or transactionally atomic account-inventory assertion",
+    "Protected/production-name heuristics are a filter, not proof of nonproduction",
+    "No target ownership reservation, private backup, restore, migration, custody or release acceptance"
+  ],
+  "review_harness_initial_failure": {
+    "cause": "socket class replaced before ssl module import",
+    "classification": "REVIEW_HARNESS_SETUP_ERROR_BEFORE_SUBJECT_IMPORT",
+    "resolution": "load standard-library SSL/http/mock modules before denying socket construction",
+    "retained_log": "inventory-existing-tests-initial-harness-error.log",
+    "root_source_modified": false
+  },
+  "schema": "musitu.axiom.existing_d1_inventory.independent_source_review.v1",
+  "source_commit": "a53dca27ea2cf9ac285e64a20c03411b52c187d1",
+  "source_git_blobs": [
+    "d1e034556e041f9369e1bbfe5d0eee9f8910d940",
+    "9334447196d7d89a58c876f722a5e1ee66268e23"
+  ],
+  "source_hash_checks_and_tests_precede_token": true,
+  "source_sha256": "b98bb6b417fde8ad0a29dd74bc1a748333a0c667f7266635a57c9f0270f548cd",
+  "source_tree": "722e095aa1b5e284d530a27463af34b947a05b84",
+  "specification_verdict": "PASS_BOUNDED_METADATA_DISCOVERY_ONLY",
+  "target_admitted": false,
+  "test_sha256": "955620925b754d36e5a7f5c5518f81c5d7358032571667e2af5c08ce6696328d",
+  "unavailable_final_usage": "UNKNOWN",
+  "workflow_sha256": "4cb99e8ae5a25da1c62b25e9b59095022b3eb11b9450403f5ac742ddf5e6a71c"
+}

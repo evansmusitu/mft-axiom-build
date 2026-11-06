@@ -1,0 +1,29 @@
+test_existing_d1_reuse_inventory (unittest.loader._FailedTest.test_existing_d1_reuse_inventory) ... ERROR
+
+======================================================================
+ERROR: test_existing_d1_reuse_inventory (unittest.loader._FailedTest.test_existing_d1_reuse_inventory)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_existing_d1_reuse_inventory
+Traceback (most recent call last):
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/loader.py", line 339, in _get_module_from_name
+    __import__(name)
+  File "/workspace/scratch/cf664c251767/existing-d1-reuse/customer_frontier/tests/test_existing_d1_reuse_inventory.py", line 10, in <module>
+    from unittest.mock import patch
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 26, in <module>
+    import asyncio
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/__init__.py", line 8, in <module>
+    from .base_events import *
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py", line 34, in <module>
+    import ssl
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/ssl.py", line 959, in <module>
+    class SSLSocket(socket):
+TypeError: function() argument 'code' must be code, not str
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
