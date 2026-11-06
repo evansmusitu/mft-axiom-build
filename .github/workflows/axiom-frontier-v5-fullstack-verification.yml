@@ -11,10 +11,84 @@ permissions:
   contents: read
 
 concurrency:
-  group: musitu-axiom-frontier-v5-fullstack
+  group: musitu-axiom-frontier-v5-fullstack-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
+  browser-fixture-prequalification:
+    name: Isolated real Chromium browser prequalification (NOT RELEASE)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout exact candidate source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Setup pinned Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Install pinned Chromium browser only (no broad system apt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.62.0' 'pyee==13.0.1' 'greenlet==3.5.5'
+          python -m playwright install chromium
+          python -m pip check
+      - name: Run default-deny negative tests and real loopback browser fixture
+        shell: bash
+        env:
+          FRONTIER_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_GLOBAL_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          test -z "${AXIOM_PRODUCTION_AUTHORIZATION:-}"
+          mkdir -p /tmp/musitu-frontier-browser
+          PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/musitu-frontier-browser/browser-policy.log
+          PYTHONPATH=. python frontier_v5/tests/test_isolated_browser_ci.py --output-dir /tmp/musitu-frontier-browser | tee /tmp/musitu-frontier-browser/browser-fixture.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/musitu-frontier-browser/browser-policy.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_ISOLATED_BROWSER_PASS_NOT_RELEASE' /tmp/musitu-frontier-browser/browser-fixture.log
+      - name: Validate and hash non-release browser evidence
+        shell: bash
+        env:
+          FRONTIER_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/musitu-frontier-browser')
+          obj=json.loads((root/'browser-evidence.json').read_text())
+          assert obj['source_head_sha']==os.environ['FRONTIER_SOURCE_HEAD']
+          assert obj['github_run_id']==os.environ['GITHUB_RUN_ID']
+          assert obj['status']=='PASS' and obj['scope']=='LOOPBACK_FIXTURE_ONLY_NOT_RELEASE'
+          assert obj['claims']=={'full_stack':'NOT_CERTIFIED','production_adapter':'BLOCKED','superiority':'NOT_CERTIFIED'}
+          assert all(obj['checks'].values())
+          assert hashlib.sha256((root/'browser-fixture.png').read_bytes()).hexdigest()==obj['screenshot_sha256']
+          names=('browser-evidence.json','browser-fixture.png','browser-policy.log','browser-fixture.log')
+          with (root/'SHA256SUMS.txt').open('w') as f:
+            for name in names:
+              p=root/name
+              f.write(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+name+'\n')
+          print('MUSITU_AXIOM_ISOLATED_BROWSER_EVIDENCE_HASHED_NOT_RELEASE')
+          PY
+      - name: Retain commit-bound browser fixture evidence (NOT RELEASE)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-frontier-browser-isolated-not-release
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            /tmp/musitu-frontier-browser/browser-evidence.json
+            /tmp/musitu-frontier-browser/browser-fixture.png
+            /tmp/musitu-frontier-browser/browser-policy.log
+            /tmp/musitu-frontier-browser/browser-fixture.log
+            /tmp/musitu-frontier-browser/SHA256SUMS.txt
+
   full-stack-frontier:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -33,8 +107,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng xvfb xdotool python3-tk scrot unzip ca-certificates
+          # The Azure apt mirror throttled a prior run past its 35-minute limit.
+          # Use the official Ubuntu mirror on this disposable CI runner only.
+          if test -f /etc/apt/apt-mirrors.txt; then
+            printf 'https://archive.ubuntu.com/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y --no-install-recommends ffmpeg espeak-ng xvfb xdotool python3-tk scrot unzip ca-certificates
           python -m pip install 'pip==26.2.1'
           python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
           python -m pip check
