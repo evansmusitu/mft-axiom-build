@@ -128,6 +128,14 @@ jobs:
               assert 'frame-ancestors' in axres.headers.get('content-security-policy','').lower(),'Missing deployed CSP response'
               print('hosted_axiom_direct_store_link: VERIFIED')
               print('hosted_response_noindex_and_csp: VERIFIED')
+              legal_address='Mhundwa Village, Seke, Mashonaland East, Zimbabwe'
+              pr=page.goto(origin+'/legal/privacy/',wait_until='domcontentloaded',timeout=25000)
+              assert pr and pr.status==200 and legal_address in page.locator('main').inner_text(),'Published privacy operator/address missing'
+              assert 'MUSITU is the website operator and data controller' in page.locator('main').inner_text(),'Privacy controller wording missing'
+              tr=page.goto(origin+'/legal/terms/',wait_until='domcontentloaded',timeout=25000)
+              assert tr and tr.status==200 and legal_address in page.locator('main').inner_text(),'Published terms operator/address missing'
+              assert legal_address in page.locator('footer').inner_text(),'Footer legal correspondence address missing'
+              print('hosted_legal_operator_and_correspondence_identification: VERIFIED')
               sc=page.goto(origin+'/products/foundry/studio/',wait_until='domcontentloaded',timeout=25000)
               assert sc and sc.status==200
               assert page.locator('video.studio-demo-player').count()==1,'Hosted Studio player missing'
@@ -318,3 +326,5 @@ jobs:
 # Post-rollback revalidation of same immutable PR32 website build; no DNS or production changes.
 
 # Final 29d9 post-rollback revalidation 20261106
+
+# Final legal-identification post-rollback revalidation 20261106
