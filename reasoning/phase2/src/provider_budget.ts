@@ -162,12 +162,18 @@ const trustedSqliteReserve=SqliteProviderSpendLedger.prototype.reserve;
 const trustedSqliteSettle=SqliteProviderSpendLedger.prototype.settle;
 function checkedPrices(value:ProviderTokenPrices):ProviderTokenPrices{
   if(!value||typeof value!=="object")throw new TypeError("Explicit vendor model price configuration is required");
-  return {
+  const rates={
     inputMicrosPerMillionTokens:money(value.inputMicrosPerMillionTokens,"input price"),
     outputMicrosPerMillionTokens:money(value.outputMicrosPerMillionTokens,"output price"),
     cacheReadMicrosPerMillionTokens:money(value.cacheReadMicrosPerMillionTokens,"cache-read price"),
     cacheWriteMicrosPerMillionTokens:money(value.cacheWriteMicrosPerMillionTokens,"cache-write price")
   };
+  // A paid provider with zero input or output prices could appear settled
+  // while silently omitting actual vendor charges. Explicit rates must be
+  // reconciled to the vendor's approved pricing schedule.
+  if(rates.inputMicrosPerMillionTokens===0||rates.outputMicrosPerMillionTokens===0)
+    throw new TypeError("Paid provider input and output token prices must be positive");
+  return rates;
 }
 /** Compute billable micro-USD using exact provider token classes and operator-pinned rates. */
 export function pricedProviderUsage(responseBody:string,provider:"openai"|"anthropic",prices:ProviderTokenPrices):number{

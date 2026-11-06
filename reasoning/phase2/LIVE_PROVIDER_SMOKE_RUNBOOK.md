@@ -7,7 +7,7 @@ The script at scripts/live-provider-smoke.ts exercises the ACTUAL Phase-2 adapte
 1. Scope approved testing to named domains, provider project/model IDs, exact MCP tool, SQL view, object bucket/key/version and compute operation. No trades, writes, orders, account mutations or privileged admin operations. Perform legal/security owner approval of each target, especially independent external penetration testing (separate activity).
 2. Supply a local JSON manifest file through AXIOM_SMOKE_CONFIG_PATH, containing these NON-SECRET keys:
    - tenantId
-   - openai: modelId, prices (four nonnegative integer micro-USD per million token fields)
+   - openai: modelId, prices (four integer micro-USD per million token fields (input and output strictly positive; cache classes nonnegative))
    - anthropic: modelId, apiVersion, prices (same four fields)
    - budget: limitMicroUsd, requestReserveMicroUsd, organizationLimitMicroUsd; all explicit safe integer micro-USD values, with a vendor-wide cap >= tenant limit; reservation must cover credible worst-case billable model usage
    - mcp: origin (HTTPS only), operationId, toolName (read-only), parameterName, parameterValue

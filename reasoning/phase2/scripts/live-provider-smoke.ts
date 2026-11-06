@@ -36,6 +36,8 @@ function price(value:any,label:string){
   const fields=["inputMicrosPerMillionTokens","outputMicrosPerMillionTokens",
     "cacheReadMicrosPerMillionTokens","cacheWriteMicrosPerMillionTokens"];
   for(const f of fields)if(!Number.isSafeInteger(value[f])||value[f]<0)throw new Error(label+" price "+f+" must be explicit micro-USD");
+  if(value.inputMicrosPerMillionTokens===0||value.outputMicrosPerMillionTokens===0)
+    throw new Error(label+" paid-provider input and output prices must be positive");
   return value;
 }
 function authorizedSecrets(){
