@@ -1,0 +1,58 @@
+name: MUSITU Cloudflare Pages Deployment Diagnostics 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-pages-deployment-diagnostics-20261106.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_PAGES_NAME: musitu-corporate
+      CF_PREVIEW_BRANCH: corporate-private-20261103
+    steps:
+      - name: Read recent Pages deployments and failed deploy logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN']; account=os.environ['CF_ACCOUNT_ID']; project=os.environ['CF_PAGES_NAME']; branch=os.environ['CF_PREVIEW_BRANCH']
+          base=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}'
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def get(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            with urllib.request.urlopen(req,timeout=25) as r: body=json.load(r)
+            assert body.get('success') is True,body.get('errors')
+            return body['result']
+          deployments=get('/deployments?per_page=20')
+          selected=[]
+          for d in deployments:
+            if d.get('deployment_trigger',{}).get('metadata',{}).get('branch')==branch or branch in (d.get('aliases') or []):
+              selected.append(d)
+          if not selected:
+            selected=[d for d in deployments if d.get('environment')=='preview'][:10]
+          print('recent_preview_deployments:',len(selected))
+          for d in selected[:10]:
+            stage=d.get('latest_stage') or {}
+            print(json.dumps({'id':d.get('id'),'short_id':d.get('short_id'),'url':d.get('url'),'environment':d.get('environment'),'stage':stage,'uses_functions':d.get('uses_functions'),'aliases':d.get('aliases'),'created_on':d.get('created_on'),'modified_on':d.get('modified_on')}))
+          failed=[d for d in selected if (d.get('latest_stage') or {}).get('status')=='failure']
+          if failed:
+            did=failed[0]['id']
+            print('diagnostic_failed_deployment_id:',did)
+            try:
+              logs=get('/deployments/'+did+'/history/logs')
+              data=logs.get('data',[]) if isinstance(logs,dict) else []
+              print('diagnostic_log_total:',logs.get('total') if isinstance(logs,dict) else None)
+              for item in data[-80:]:
+                line=str(item.get('line',''))
+                if line: print('CFLOG',line[:1200])
+            except Exception as exc:
+              print('diagnostic_logs_unavailable:',type(exc).__name__,str(exc)[:300])
+          PY
