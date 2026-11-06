@@ -1,0 +1,36 @@
+name: MUSITU Production Domain Validation Retry 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-domain-retry-20261106.yml
+permissions: {}
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ACCOUNT: "93f395f5121954671f92fffa453d6b61"
+      PROJECT: "musitu-corporate"
+    steps:
+      - name: Retry apex Pages domain validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          a=os.environ['ACCOUNT'];p=os.environ['PROJECT'];token=os.environ['CF_TOKEN']
+          url=f'https://api.cloudflare.com/client/v4/accounts/{a}/pages/projects/{p}/domains/mftintelligence.com'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          req=urllib.request.Request(url,headers=h,method='PATCH')
+          with urllib.request.urlopen(req,timeout=25) as r:
+              body=json.load(r)
+          assert body.get('success') is True
+          x=body.get('result') or {}
+          print('retry_http_status: PASS')
+          print('domain_status:',x.get('status'))
+          print('validation:',json.dumps(x.get('validation_data'),sort_keys=True))
+          print('verification:',json.dumps(x.get('verification_data'),sort_keys=True))
+          PY
