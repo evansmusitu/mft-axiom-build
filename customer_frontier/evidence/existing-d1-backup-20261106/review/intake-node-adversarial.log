@@ -1,0 +1,13 @@
+✔ trusted outer hash and source are mandatory independently of valid authenticated envelope (2.847759ms)
+✔ outer schema algorithm unknownfields and noncanonical base64 are rejected with matching outer hash (6.547892ms)
+✔ every authenticated envelope field rejects bit alteration even when outer hash is supplied (27.950433ms)
+✔ header provenance exactkeys and SQL hash are enforced before plaintext is returned (10.858295ms)
+✔ synthetic complete private CLI pipeline produces fresh0600 db and receipt without plaintext SQL file (403.343233ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1457.466338

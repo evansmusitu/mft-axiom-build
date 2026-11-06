@@ -1,0 +1,11 @@
+test_attach_and_writable_schema_are_denied (test_existing_d1_private_restore.PrivateRestore.test_attach_and_writable_schema_are_denied) ... ok
+test_catalog_drift_cannot_qualify (test_existing_d1_private_restore.PrivateRestore.test_catalog_drift_cannot_qualify) ... ok
+test_empty_or_invalid_utf8_export_rejected (test_existing_d1_private_restore.PrivateRestore.test_empty_or_invalid_utf8_export_rejected) ... ok
+test_invalid_foreign_key_rows_do_not_pass_post_restore_checks (test_existing_d1_private_restore.PrivateRestore.test_invalid_foreign_key_rows_do_not_pass_post_restore_checks) ... ok
+test_overwrite_never_changes_existing_file (test_existing_d1_private_restore.PrivateRestore.test_overwrite_never_changes_existing_file) ... ok
+test_restore_preserves_null_blob_unicode_and_rows_and_replays_identically (test_existing_d1_private_restore.PrivateRestore.test_restore_preserves_null_blob_unicode_and_rows_and_replays_identically) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.020s
+
+OK

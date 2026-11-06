@@ -1,0 +1,11 @@
+{
+  "status": "ACTUAL_LOCAL_RESTORE_AND_PROCESS_REPLAY_MATCH",
+  "sql_bytes": 680,
+  "user_objects": 4,
+  "restored_user_rows": 0,
+  "user_data_sha256": "4782bc55adb5d64fd9efd80381fcfc3665bfd4d61524a83ff54ee26b594a3caa",
+  "live_source_row_parity_independently_verified": false,
+  "hosted_restore_qualified": false,
+  "target_admitted": false,
+  "release_authority": false
+}

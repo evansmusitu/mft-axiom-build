@@ -42,3 +42,13 @@ export. No target admission, hosted migration, merge or publication is granted.
 Preserve $0, customer data, q06, Paynow, full breadth, production rollback origin
 and PR1's separate safety rejection. B27=FAILED_IN_SYNTHETIC_ATTACK;
 parity/superiority=NOT_CERTIFIED; unavailable final usage=UNKNOWN.
+
+## Actual continuation checkpoint
+
+The pre-run pending statements above are historical preparation. Actual export
+42284247771 completed, ciphertext was saved to owner-only Drive and its download
+matched. The separate intake review passed; two actual fresh local restores
+matched exact user catalogs and data fingerprints. See the retained actual
+backup/local-restore report and receipts. Hosted recovery, target admission,
+customer/OAuth migration and release qualification remain false. Source CI
+42284247249 passed210 Node,134 Python and16 local workerd tests.
