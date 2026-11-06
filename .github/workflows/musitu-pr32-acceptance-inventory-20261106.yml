@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 9
     env:
       BASE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
-      RELEASE_SHA: 835e5caafa28acca63d296ee299bf6a9b0e66255
+      RELEASE_SHA: df87c9b36811db10f0d11e90d2989f3735f10754
     steps:
       - name: Fetch both exact reviewed source commits
         shell: bash
