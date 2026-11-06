@@ -1,0 +1,54 @@
+name: AXIOM empty isolated restore target reservation 20261106 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-restore-target-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-restore-target-20261106
+  cancel-in-progress: false
+jobs:
+  reserve-one-empty-restore-target:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.number == 88 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-customer-restore-target-20261106' && github.event.pull_request.base.ref == 'build/axiom-oauth-binding-readback-20261106' && github.event.pull_request.base.sha == '9e47fcbe8916774514e882cee5c82856560da957' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: cfc7a8a040117103e727422b383f54922d59c401
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit immutable reviewed reservation source and test hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          source = 'cfc7a8a040117103e727422b383f54922d59c401'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == source
+          for path, expected in {
+              'customer_frontier/qualification/reserve_customer_restore_target.py': 'addb3ce9eb52d2f3b70509814465610f87f65742575c48e652b351037c7b2c90',
+              'customer_frontier/tests/test_restore_target_reservation.py': 'bea4930aabf2e26569d1c13d62490f72473c6986ec5cd96303fb290439b742a3',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, path
+          print(json.dumps({'admitted_checkout_sha': source, 'script_and_test_hashes_match': True, 'authority': 'bounded metadata plus one new empty D1 target only; no SQL or existing-resource changes'}))
+          PY
+      - name: Verify budget, rejection, ambiguity and collision handling offline
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_restore_target_reservation.py -v
+      - name: Reserve one empty target only after fresh included-budget checks
+        env:
+          AXIOM_CHECKOUT_SHA: cfc7a8a040117103e727422b383f54922d59c401
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/reserve_customer_restore_target.py
+      - name: Preserve actual reservation, rejection or unknown result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-restore-target-20261106
+          path: |
+            customer-restore-target-reservation.json
+            customer-restore-target-reservation.json.sha256
+          retention-days: 30
+          if-no-files-found: warn

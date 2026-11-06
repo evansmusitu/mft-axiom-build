@@ -1,0 +1,58 @@
+{
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "applicable_gate": "ISOLATED_D1_RESTORE_TARGET_NOT_AVAILABLE",
+  "backup_restore_qualified": false,
+  "billing_changes": 0,
+  "code_reference": {
+    "scope": "Official SDK issue historically maps7406 to per-account database limit. Current raw provider message was not logged; do not invent it.",
+    "url": "https://github.com/cloudflare/workers-sdk/issues/2913"
+  },
+  "created_database_id": null,
+  "creation_attempts": 1,
+  "customer_records_read": 0,
+  "existing_resource_mutations": 0,
+  "files": {
+    "actual-reservation-42199283284.json": {
+      "bytes": 3039,
+      "sha256": "f9fbef2119da7f0c68245c2316643b6bde0e4834ff0ec5eb4ae17ebf034bd487"
+    },
+    "actual-reservation-42199283284.log": {
+      "bytes": 22893,
+      "sha256": "af0d1fbd34b814a201039406e0a84ecb6366e1bbed71249f3c69c6e8d7a4c84b"
+    }
+  },
+  "fixed_source_sha": "cfc7a8a040117103e727422b383f54922d59c401",
+  "head_sha": "3b30a8d8f8606e516f543f99578ff2748d5b01eb",
+  "head_tree": "699dd83ac105c03ba2028942a7efb46aecdd9b1f",
+  "hosted_migration_qualified": false,
+  "initial_database_count": 11,
+  "initial_total_storage_bytes": 5255168,
+  "job_id": 127830283192,
+  "log_copy_encoding": "exact UTF-8 bytes of decoded GitHub connector response; extra terminal LF correction recorded separately",
+  "paid_upgrade_enabled": false,
+  "parity_superiority": "NOT_CERTIFIED",
+  "provider_error_codes": [
+    7406
+  ],
+  "provider_http": 403,
+  "provider_raw_message_retained": false,
+  "release_authority": false,
+  "resource_creations": 0,
+  "result": "PROVIDER_REJECTED_RESTORE_TARGET_CREATION_NOT_PASS",
+  "retry_performed": false,
+  "run_id": 42199283284,
+  "schema": "musitu.axiom.restore_target.actual_rejection_receipt.v1",
+  "source_ci": {
+    "failures": 0,
+    "job_id": 127830282972,
+    "node": 197,
+    "python": 86,
+    "run_id": 42199283180,
+    "skips": 0,
+    "status": "SUCCESS",
+    "workerd": 16
+  },
+  "sql_queries": 0,
+  "unavailable_final_usage": "UNKNOWN",
+  "url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/42199283284"
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "musitu.axiom.evidence.connector_log_copy_correction.v1",
+  "reason": "The patch-based save added one terminal LF to decoded connector log strings. Saved copies are now exact UTF-8 bytes of those original retrieved strings. Historical saved-copy bytes/hashes remain in prior commits.",
+  "scope": "five newly created log copies only; no provider response message reconstruction or source/business logic change",
+  "provider_outcomes_changed": false,
+  "tests_changed": false,
+  "records": [
+    {
+      "path": "customer_frontier/evidence/hosted-preflight-20261106/legacy-schema-audit-42166378062.log",
+      "receipt_path": "customer_frontier/evidence/hosted-preflight-20261106/legacy-schema-audit-receipt.json",
+      "job_id": 127723705761,
+      "original_saved_bytes": 18206,
+      "original_saved_sha256": "20da7cf3efacefd1f140a47efc6aa130a70c4b28d8385247df04dc999ab71afd",
+      "exact_connector_bytes": 18205,
+      "exact_connector_sha256": "6c53e55c9e0c1dbf301587f27a1d729ae00cf90f86b7aa9e0bcb12b5fb3f964b",
+      "correction": "removed_one_added_terminal_LF",
+      "semantic_change": false
+    },
+    {
+      "path": "customer_frontier/evidence/hosted-preflight-20261106/token-readback-42193105154.log",
+      "receipt_path": "customer_frontier/evidence/hosted-preflight-20261106/token-readback-receipt.json",
+      "job_id": 127809646450,
+      "original_saved_bytes": 22533,
+      "original_saved_sha256": "f2d0fa6857b19e4a56a72d7c08f9d23203f02bcd043f89c97b31b06b109f741e",
+      "exact_connector_bytes": 22532,
+      "exact_connector_sha256": "e00972a71925f2de68a58760d9470b03335c02ef0054fec70244c6e3e84a551f",
+      "correction": "removed_one_added_terminal_LF",
+      "semantic_change": false
+    },
+    {
+      "path": "customer_frontier/evidence/schema-preflight-20261106/actual-schema-42195469838.log",
+      "receipt_path": "customer_frontier/evidence/schema-preflight-20261106/actual-schema-receipt.json",
+      "job_id": 127817548750,
+      "original_saved_bytes": 39364,
+      "original_saved_sha256": "a2ecd3ede40f2fb17f6d88353fcc7515d5c640f6cf1b1dcda864690d0e0ecc88",
+      "exact_connector_bytes": 39363,
+      "exact_connector_sha256": "d0e2cabf339436c2ed4d89066440f5c774f039245276c2c156844c2f9503bb5e",
+      "correction": "removed_one_added_terminal_LF",
+      "semantic_change": false
+    },
+    {
+      "path": "customer_frontier/evidence/oauth-binding-20261106/actual-binding-42197345030.log",
+      "receipt_path": "customer_frontier/evidence/oauth-binding-20261106/actual-binding-receipt.json",
+      "job_id": 127823796739,
+      "original_saved_bytes": 23137,
+      "original_saved_sha256": "bbd921cfce23523789f1a90ffce05dc2305dd57a42b47636df1a04b34aecf702",
+      "exact_connector_bytes": 23136,
+      "exact_connector_sha256": "b7855fbfb1caeaa80a11ef1604ee867e5b2abf580708560fdbe2fd967fb410f7",
+      "correction": "removed_one_added_terminal_LF",
+      "semantic_change": false
+    },
+    {
+      "path": "customer_frontier/evidence/restore-target-20261106/actual-reservation-42199283284.log",
+      "receipt_path": "customer_frontier/evidence/restore-target-20261106/actual-reservation-receipt.json",
+      "job_id": 127830283192,
+      "original_saved_bytes": 22894,
+      "original_saved_sha256": "e42ff564da00c14b4d5f51b910f1ca3321636d60b1634659c10bb52101959d23",
+      "exact_connector_bytes": 22893,
+      "exact_connector_sha256": "af0d1fbd34b814a201039406e0a84ecb6366e1bbed71249f3c69c6e8d7a4c84b",
+      "correction": "removed_one_added_terminal_LF",
+      "semantic_change": false
+    }
+  ]
+}

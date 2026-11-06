@@ -1,0 +1,168 @@
+{
+  "schema": "musitu.axiom.hosted_preflight.all_event_workflow_audit.v1",
+  "complete_pages_verified": true,
+  "heads": [
+    {
+      "head": "41fc91d1a1925803d911eaca43d13416f1204aa0",
+      "runs": [
+        {
+          "id": 42193105154,
+          "name": "AXIOM customer token readback 20261106 (GET only)",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-token-readback-20261106.yml"
+        },
+        {
+          "id": 42193104973,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "1ff935b45f8387f99bad8f432520692f88fd9dc7",
+      "runs": [
+        {
+          "id": 42193821326,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "4cbb04a9a516b0503801f87446a5963b659e71fa",
+      "runs": [
+        {
+          "id": 42195469838,
+          "name": "AXIOM customer staging schema metadata 20261106 (READ ONLY)",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-schema-readonly-20261106.yml"
+        },
+        {
+          "id": 42195469751,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "954ca8a66e35530a0a4ed0743922160755454ce3",
+      "runs": [
+        {
+          "id": 42196455091,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "a6da1417a19b39f0e3b054523f596f6a987f7361",
+      "runs": [
+        {
+          "id": 42197345030,
+          "name": "AXIOM existing OAuth binding identity 20261106 (GET only)",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-oauth-binding-readonly-20261106.yml"
+        },
+        {
+          "id": 42197344918,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "9e47fcbe8916774514e882cee5c82856560da957",
+      "runs": [
+        {
+          "id": 42197802512,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        }
+      ]
+    },
+    {
+      "head": "3b30a8d8f8606e516f543f99578ff2748d5b01eb",
+      "runs": [
+        {
+          "id": 42199283180,
+          "name": "AXIOM Customer Frontier Candidate Gate",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+        },
+        {
+          "id": 42199283284,
+          "name": "AXIOM empty isolated restore target reservation 20261106 (NOT RELEASE)",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "failure",
+          "path": ".github/workflows/axiom-customer-restore-target-20261106.yml"
+        }
+      ]
+    }
+  ],
+  "main": "b10a74b435feb25654d4cf67ba67d09602698a3e",
+  "protected_PR1": {
+    "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+    "draft": true,
+    "merged": false
+  },
+  "observed_heads": [
+    {
+      "pr": 55,
+      "head": "8eec8770725cfee589794d95b4a1bfdd5a4bf579",
+      "draft": true,
+      "merged": false
+    },
+    {
+      "pr": 71,
+      "head": "15a9c93ef593737fe946c45621ad6eddb5b52ca6",
+      "draft": true,
+      "merged": false
+    },
+    {
+      "pr": 80,
+      "head": "253cd98581de7c56b302efec52b802626cd08659",
+      "draft": true,
+      "merged": false
+    },
+    {
+      "pr": 83,
+      "head": "f9feed7e0423ba51e0ece1e2b0dbed5af695947d",
+      "draft": true,
+      "merged": false
+    },
+    {
+      "pr": 87,
+      "head": "ba892a2c6b4cdfdb6f6905c481c5ae54baa3a03f",
+      "draft": true,
+      "merged": false
+    }
+  ],
+  "scope": "new source/evidence head workflow runs across all event types; only candidate CI and the explicitly admitted metadata/reservation workflows observed; no deployment workflow observed"
+}

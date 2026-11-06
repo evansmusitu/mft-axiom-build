@@ -1,0 +1,55 @@
+{
+  "verdict": "ACTUAL_PROVIDER_REJECTION_CONFIRMED_HOSTED_GATE_STILL_OPEN",
+  "classification": "PROVIDER_TECHNICAL_RESOURCE_GATE_NOT_SOURCE_DEFECT_OR_TOOL_APPROVAL_REJECTION",
+  "reservation_run": 42199283284,
+  "reservation_job": 127830283192,
+  "reservation_conclusion": "failure",
+  "source_ci_run": 42199283180,
+  "source_ci_job": 127830282972,
+  "source_ci_conclusion": "success",
+  "node_tests": 197,
+  "python_tests": 86,
+  "workerd_tests": 16,
+  "source_ci_failed_or_skipped_steps": 0,
+  "head_sha": "3b30a8d8f8606e516f543f99578ff2748d5b01eb",
+  "head_tree": "699dd83ac105c03ba2028942a7efb46aecdd9b1f",
+  "ci_merge_sha": "00bf8455cd0effebecde1a5c2312c8b2090bca8d",
+  "ci_tree_equals_head": true,
+  "fixed_reservation_source": "cfc7a8a040117103e727422b383f54922d59c401",
+  "workflow_sha256": "7970d88d0df22f3d2018b029ff4a8860b71eef702fb7141f170935f1ac907039",
+  "observed_gets": 12,
+  "all_gets_http": 200,
+  "observed_create_posts": 1,
+  "create_http": 403,
+  "provider_codes": [
+    7406
+  ],
+  "inventory_count": 11,
+  "storage_bytes": 5255168,
+  "creation_state": "REJECTED",
+  "resource_creations": 0,
+  "sql_queries": 0,
+  "existing_resource_mutations": 0,
+  "billing_changes": 0,
+  "reviewer_provider_calls": 0,
+  "fresh_decoded_reservation_log": {
+    "bytes": 22893,
+    "sha256": "af0d1fbd34b814a201039406e0a84ecb6366e1bbed71249f3c69c6e8d7a4c84b"
+  },
+  "retained_reservation_log": {
+    "bytes": 22893,
+    "sha256": "af0d1fbd34b814a201039406e0a84ecb6366e1bbed71249f3c69c6e8d7a4c84b",
+    "difference": "None; byte-equal to fresh decoded GitHub job log after audited one-LF copy correction"
+  },
+  "fresh_source_ci_log_sha256": "b4a3daa712afc8558affc1aa481112c4134b8997d1c8bdbaec33c9949f957f34",
+  "handoff_sha256": "ce84766f2e686e774bab88bea5f0cd57d22d9ca7dd52e898035d4a8842ce1787",
+  "handoff_review": "NO_UNSAFE_REUSE_OR_FALSE_QUALIFICATION_FOUND",
+  "backup_restore_or_migration_qualified": false,
+  "original_saved_log_before_correction": {
+    "bytes": 22894,
+    "sha256": "e42ff564da00c14b4d5f51b910f1ca3321636d60b1634659c10bb52101959d23",
+    "difference": "Exactly one extra trailing LF compared with freshly retrieved decoded log; retained receipt matches saved bytes"
+  },
+  "normalization_all_five_independently_verified": true,
+  "normalization_manifest_sha256": "401d6efb235c99b0087a83b66d0d65581c430ab4d28b489496e9680b451d7d27"
+}

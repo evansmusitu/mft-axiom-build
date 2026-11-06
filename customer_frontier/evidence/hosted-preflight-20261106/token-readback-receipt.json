@@ -8,8 +8,8 @@
       "sha256": "821e635762088577305fc6beb06228a4ccb74813a97e96a60a32a05f428bf503"
     },
     "token-readback-42193105154.log": {
-      "bytes": 22533,
-      "sha256": "f2d0fa6857b19e4a56a72d7c08f9d23203f02bcd043f89c97b31b06b109f741e"
+      "bytes": 22532,
+      "sha256": "e00972a71925f2de68a58760d9470b03335c02ef0054fec70244c6e3e84a551f"
     }
   },
   "fixed_checkout_sha": "94ae644cd8d57f188dea10222907bc092165025f",
@@ -18,6 +18,7 @@
   "hosted_migration_qualified": false,
   "inference_calls": 0,
   "job_id": 127809646450,
+  "log_copy_encoding": "exact UTF-8 bytes of decoded GitHub connector response; extra terminal LF correction recorded separately",
   "mutations": 0,
   "release_authority": false,
   "reported_table_count": 28,

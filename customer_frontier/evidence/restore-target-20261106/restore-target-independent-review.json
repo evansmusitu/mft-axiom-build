@@ -1,0 +1,26 @@
+{
+  "verdict": "NO_BLOCKING_P0_P2_FOR_EXACT_ONE_EMPTY_TARGET_RESERVATION",
+  "workflow_sha256": "7970d88d0df22f3d2018b029ff4a8860b71eef702fb7141f170935f1ac907039",
+  "admitted_pr": 88,
+  "source_sha": "cfc7a8a040117103e727422b383f54922d59c401",
+  "source_tree": "a7a7dc505f7c015574bf7f4764f99c54899c6142",
+  "parent_sha": "9e47fcbe8916774514e882cee5c82856560da957",
+  "source_sha256": {
+    "customer_frontier/qualification/reserve_customer_restore_target.py": "addb3ce9eb52d2f3b70509814465610f87f65742575c48e652b351037c7b2c90",
+    "customer_frontier/tests/test_restore_target_reservation.py": "bea4930aabf2e26569d1c13d62490f72473c6986ec5cd96303fb290439b742a3"
+  },
+  "source_git_blobs": {
+    "customer_frontier/qualification/reserve_customer_restore_target.py": "e27020b409bb0ee97e9b7ae31a7867c0ab1d0729",
+    "customer_frontier/tests/test_restore_target_reservation.py": "5aacb41961003cb10455b3ddd0d666a779b0603b"
+  },
+  "offline_tests_passed": 14,
+  "independent_adversarial_cases_passed": 21,
+  "maximum_create_attempts": 1,
+  "maximum_transport_calls_exercised": 23,
+  "reviewer_hosted_calls": 0,
+  "backup_restore_migration_or_release_qualified": false,
+  "pricing_sources": [
+    "https://developers.cloudflare.com/d1/platform/pricing/",
+    "https://developers.cloudflare.com/d1/platform/limits/"
+  ]
+}
