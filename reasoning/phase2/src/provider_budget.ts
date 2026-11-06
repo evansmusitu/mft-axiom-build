@@ -134,7 +134,7 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
         .get(input.tenantId,input.provider,input.modelId,input.requestId) as any;
       if(!old||old.hash!==input.requestHash||old.status!=="RESERVED")
         throw new ProviderBudgetError("BUDGET_SETTLEMENT_FORBIDDEN","No matching unsettled reservation",409);
-      // SQLite promotes integer addition past signed precision to a REAL value.
+      // SQLite integer arithmetic can exceed JavaScript's exact integer precision.
       // Refuse unsafe aggregate billing before touching either durable row.
       const budget=this.db.prepare("SELECT charged_micro_usd AS charged,reserved_micro_usd AS held FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
         .get(input.tenantId,input.provider,input.modelId) as any;
