@@ -1,0 +1,41 @@
+name: MUSITU Production Edge Diagnostic 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-edge-diagnostic-20261106.yml
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve independently and probe edge with TLS SNI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,subprocess,urllib.request
+          url='https://dns.google/resolve?name=mftintelligence.com&type=A&cd=1'
+          with urllib.request.urlopen(url,timeout=15) as r:d=json.load(r)
+          ips=[x['data'] for x in d.get('Answer',[]) if x.get('type')==1]
+          assert ips,'No public A answers from independent recursive resolver'
+          print('independent_public_A_answers:',ips)
+          ok=False
+          for ip in ips:
+              cmd=['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{ip}','https://mftintelligence.com/']
+              p=subprocess.run(cmd,capture_output=True,text=True)
+              out=p.stdout
+              first=out.splitlines()[0] if out.splitlines() else ''
+              print('edge_probe_ip:',ip,'exit=',p.returncode,'first=',first)
+              for line in out.splitlines()[:25]:
+                  if line.lower().startswith(('http/','server:','cf-ray:','content-type:','location:','x-content-type-options:','content-security-policy:')):
+                      print('header:',line[:600])
+              body=out.split('\r\n\r\n',1)[-1] if '\r\n\r\n' in out else out
+              print('body_markers:',{'musitu':('MUSITU' in body),'tagline':('Intelligence with evidence' in body),'challenge':('Just a moment' in body or 'cf-chl' in body)})
+              if p.returncode==0 and 'Intelligence with evidence' in body:
+                  ok=True
+          print('production_content_reachable_by_tls_sni_edge_probe:',ok)
+          PY
