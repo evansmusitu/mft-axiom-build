@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -48,6 +49,12 @@ jobs:
             esac
           done < <(git diff --name-only refs/remotes/origin/main HEAD)
           echo MUSITU_AXIOM_SEALED_SOURCE_STRICT_NO_DRIFT_PASS
+
+      - name: Verify read-only CI workflow trust boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_workflow_security_contract.py
 
       - name: Lint all frontier skills
         shell: bash
