@@ -41,7 +41,7 @@ def candidate():
         'required_f2_gain_fraction': 0.05,
         'holdout_training_prohibited': True,
         'folds': [
-            {'fold': i + 1, 'first_feature_time': iso(700 + i * 4800), 'last_feature_time': iso(4480 + i * 4800)}
+            {'fold': i + 1, 'first_feature_time': iso(720 + i * 4800), 'last_feature_time': iso(4500 + i * 4800)}
             for i in range(4)
         ],
     }
@@ -110,6 +110,36 @@ class HoldoutProtocolTests(unittest.TestCase):
             q=candidate();q[field]=value
             with self.subTest(field=field),self.assertRaisesRegex(ValueError,'development_source_reused'):
                 inspect_protocol(q)
+
+    def test_preregistered_folds_must_be_reachable_on_source_stride_grid(self):
+        # Streaming feature samples are selected by source-index % 30 == 0.
+        # Equal 30s spacing alone does not prove that a fold is on that grid.
+        q=candidate()
+        for fold in q['folds']:
+            fold['first_feature_time']=iso(720+(fold['fold']-1)*4800)
+            fold['last_feature_time']=iso(4500+(fold['fold']-1)*4800)
+        self.assertEqual(inspect_protocol(q)['declared_fold_count'],4)
+
+        bad=copy.deepcopy(q)
+        bad['folds'][0]['first_feature_time']=iso(730)
+        bad['folds'][0]['last_feature_time']=iso(4510)
+        # Both endpoints differ by 3780s; old code accepts this despite
+        # being unreachable for a source that starts at t=0.
+        with self.assertRaisesRegex(ValueError,'independent_protocol_fold_source_grid_mismatch'):
+            inspect_protocol(bad)
+
+    def test_grid_alignment_uses_source_origin_not_utc_minute_boundary(self):
+        q=candidate()
+        q['source_start_time']=iso(5)
+        q['source_end_time']=iso(21005)
+        for fold in q['folds']:
+            fold['first_feature_time']=iso(725+(fold['fold']-1)*4800)
+            fold['last_feature_time']=iso(4505+(fold['fold']-1)*4800)
+        self.assertEqual(inspect_protocol(q)['declared_fold_count'],4)
+        q['folds'][0]['first_feature_time']=iso(720)
+        q['folds'][0]['last_feature_time']=iso(4500)
+        with self.assertRaisesRegex(ValueError,'independent_protocol_fold_source_grid_mismatch'):
+            inspect_protocol(q)
 
     def test_four_chronological_purged_folds_and_windows_required(self):
         cases=[('nonchronological',lambda q:q['folds'][1].update(first_feature_time=iso(1000))),

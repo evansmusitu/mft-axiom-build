@@ -130,6 +130,14 @@ def inspect_protocol(protocol: Mapping[str, Any]) -> dict[str, Any]:
         if (last-first).total_seconds() < 30 or (
                 (last-first).total_seconds() % 30 != 0):
             raise ValueError('independent_protocol_fold_stride_invalid')
+        # The frozen streaming evaluator samples global source row indices
+        # 600, 630, 660, ... (30-second stride, zero-based). A fold whose
+        # endpoints are displaced by 1..29 seconds can have a valid internal
+        # stride but cannot match ANY source-indexed feature window. Check the
+        # source-relative phase before accepting and sealing preregistration.
+        step=timedelta(seconds=_TASK['sample_stride_seconds'])
+        if (first-start) % step != timedelta(0) or (last-start) % step != timedelta(0):
+            raise ValueError('independent_protocol_fold_source_grid_mismatch')
         if prev_end is not None and first - prev_end <= timedelta(seconds=360):
             raise ValueError('independent_protocol_fold_future_label_overlap')
         prev_end = last
