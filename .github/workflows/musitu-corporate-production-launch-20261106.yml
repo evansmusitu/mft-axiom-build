@@ -141,7 +141,7 @@ jobs:
           print('temporary_dns_token_expires_on:',expiry)
           PY
 
-      - name: Mint short-lived exact-zone Select Configuration Write token
+      - name: Mint short-lived exact-zone Config Settings token
         id: config_token
         shell: bash
         run: |
@@ -154,13 +154,14 @@ jobs:
               req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
               with urllib.request.urlopen(req,timeout=25) as r:
                   raw=r.read().decode();return json.loads(raw) if raw else {}
-          groups=call('GET',f'/accounts/{account}/tokens/permission_groups')
-          by={x.get('name'):x for x in groups.get('result') or []}
-          assert 'Select Configuration Write' in by,'Select Configuration Write permission unavailable'
+          groups=call('GET',f'/accounts/{account}/tokens/permission_groups');by={x.get('name'):x for x in groups.get('result') or []}
+          required=['Zone Read','Zone Settings Read','Config Settings Read','Config Settings Write']
+          missing=[n for n in required if n not in by]
+          assert not missing,'Missing Config Settings permission groups: '+repr(missing)
           expiry=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=45)).strftime('%Y-%m-%dT%H:%M:%SZ')
           payload={'name':'MUSITU corporate launch config 20261106',
                    'policies':[{'effect':'allow','resources':{f'com.cloudflare.api.account.zone.{zone}':'*'},
-                                'permission_groups':[{'id':by['Select Configuration Write']['id']}]}],
+                                'permission_groups':[{'id':by[n]['id']} for n in required]}],
                    'expires_on':expiry}
           out=call('POST',f'/accounts/{account}/tokens',payload);res=out.get('result') or {}
           token=res.get('value') or '';tid=res.get('id') or ''
@@ -168,8 +169,8 @@ jobs:
           print('::add-mask::'+token)
           with open(os.environ['GITHUB_ENV'],'a') as f:
               f.write('TEMP_CONFIG_TOKEN='+token+'\nTEMP_CONFIG_TOKEN_ID='+tid+'\n')
-          print('temporary_select_config_token_created: true')
-          print('temporary_select_config_token_expires_on:',expiry)
+          print('temporary_config_settings_token_created: true')
+          print('temporary_config_settings_token_expires_on:',expiry)
           PY
 
       - name: Install pinned Cloudflare Pages CLI
@@ -288,19 +289,17 @@ jobs:
           print('www_proxy_dns: CREATED')
           PY
 
-      - name: Apply exact-host public challenge exception transactionally
+      - name: Extend existing browser-host exception without increasing zone rule count
         id: public_security
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json,os,urllib.error,urllib.request
-          parent=os.environ['CLOUDFLARE_API_TOKEN'];writer=os.environ['TEMP_CONFIG_TOKEN'];zone=os.environ['CF_ZONE_ID']
-          base='https://api.cloudflare.com/client/v4'
-          ph={'Authorization':'Bearer '+parent,'Accept':'application/json','Content-Type':'application/json'}
-          wh={'Authorization':'Bearer '+writer,'Accept':'application/json','Content-Type':'application/json'}
-          def call(headers,method,path,data=None):
-              req=urllib.request.Request(base+path,headers=headers,method=method,data=None if data is None else json.dumps(data).encode())
+          token=os.environ['TEMP_CONFIG_TOKEN'];zone=os.environ['CF_ZONE_ID'];base='https://api.cloudflare.com/client/v4'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None):
+              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
               try:
                   with urllib.request.urlopen(req,timeout=25) as r:
                       raw=r.read().decode();b=json.loads(raw) if raw else {}
@@ -311,44 +310,38 @@ jobs:
                   raise RuntimeError(f'{method} {path} HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:600])
               assert b.get('success') is True,(path,b.get('errors'))
               return b.get('result')
-          sec=call(ph,'GET',f'/zones/{zone}/settings/security_level')
-          bic=call(ph,'GET',f'/zones/{zone}/settings/browser_check')
-          assert sec.get('value')=='under_attack','Global security level changed unexpectedly'
-          assert bic.get('value')=='on','Global Browser Integrity Check changed unexpectedly'
-          sets=call(ph,'GET',f'/zones/{zone}/rulesets') or []
+          sec=call('GET',f'/zones/{zone}/settings/security_level');bic=call('GET',f'/zones/{zone}/settings/browser_check')
+          assert sec.get('value')=='under_attack' and bic.get('value')=='on','Global challenge posture changed unexpectedly'
+          sets=call('GET',f'/zones/{zone}/rulesets') or []
           cfg=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
           assert len(cfg)==1,'Expected one zone http_config_settings ruleset'
-          rid=cfg[0]['id']
-          detail=call(ph,'GET',f'/zones/{zone}/rulesets/{rid}') or {}
-          ref='musitu_corporate_public_static_20261106'
-          expr='(http.host eq "mftintelligence.com" or http.host eq "www.mftintelligence.com")'
-          existing=[r for r in detail.get('rules') or [] if r.get('ref')==ref]
-          if existing:
-              assert len(existing)==1
-              r=existing[0];ap=r.get('action_parameters') or {}
-              assert r.get('expression')==expr and r.get('action')=='set_config' and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
-              rule_id=r.get('id');created=False
-              print('corporate_public_security_exception_already_exact: true')
-          else:
-              body={'action':'set_config',
-                    'action_parameters':{'security_level':'essentially_off','bic':False},
-                    'expression':expr,
-                    'description':'MUSITU public static corporate hostnames only; bypass global Under Attack/BIC challenge',
+          rid=cfg[0]['id'];detail=call('GET',f'/zones/{zone}/rulesets/{rid}') or {};rules=detail.get('rules') or []
+          assert len(rules)==10,'Unexpected configuration-rule count: '+str(len(rules))
+          ref='musitu_axiom_browser_world_release_direct_origin_v1'
+          hits=[r for r in rules if r.get('ref')==ref];assert len(hits)==1
+          r=hits[0];ap=r.get('action_parameters') or {}
+          original='(http.host eq "app.mftintelligence.com")'
+          expanded='(http.host eq "app.mftintelligence.com" or http.host eq "mftintelligence.com" or http.host eq "www.mftintelligence.com")'
+          assert r.get('action')=='set_config' and r.get('enabled') is not False
+          assert ap=={'bic':False,'security_level':'essentially_off'}
+          assert r.get('expression') in (original,expanded),'Browser-host exception changed unexpectedly'
+          rule_id=r['id'];changed=False
+          if r.get('expression')==original:
+              body={'action':'set_config','action_parameters':{'bic':False,'security_level':'essentially_off'},
+                    'expression':expanded,
+                    'description':'MUSITU browser-facing public hosts: suppress zone Under Attack/BIC on app and corporate apex/www only; application and Pages security controls remain independent',
                     'enabled':True,'ref':ref}
-              r=call(wh,'POST',f'/zones/{zone}/rulesets/{rid}/rules',body)
-              rule_id=r.get('id');created=True
-              print('corporate_public_security_exception_created: true')
-          assert rule_id
+              call('PATCH',f'/zones/{zone}/rulesets/{rid}/rules/{rule_id}',body)
+              changed=True
+          check=call('GET',f'/zones/{zone}/rulesets/{rid}') or {};rules2=check.get('rules') or []
+          assert len(rules2)==10
+          out=[x for x in rules2 if x.get('ref')==ref]
+          assert len(out)==1 and out[0].get('expression')==expanded
           with open(os.environ['GITHUB_ENV'],'a') as f:
-              f.write('CORP_RULESET_ID='+rid+'\nCORP_RULE_ID='+rule_id+'\nCORP_RULE_CREATED='+('1' if created else '0')+'\n')
-          # Parent token performs readback; the temporary child token performs no ruleset reads.
-          check=call(ph,'GET',f'/zones/{zone}/rulesets/{rid}') or {}
-          found=[r for r in check.get('rules') or [] if r.get('ref')==ref]
-          assert len(found)==1
-          r=found[0];ap=r.get('action_parameters') or {}
-          assert r.get('expression')==expr and r.get('action')=='set_config' and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
-          print('corporate_public_security_exception_readback: PASS')
-          print('global_under_attack_preserved_outside_exact_hosts: true')
+              f.write('CORP_RULESET_ID='+rid+'\nCORP_RULE_ID='+rule_id+'\nCORP_RULE_CHANGED='+('1' if changed else '0')+'\n')
+          print('config_rule_count_after:',len(rules2))
+          print('browser_host_exception_consolidated: PASS')
+          print('global_under_attack_preserved_outside_app_apex_www: true')
           PY
 
       - name: Wait for Pages activation, independent public DNS and verified edge HTTPS
@@ -590,9 +583,13 @@ jobs:
                   return e.code,{}
               except Exception:return 0,{}
           config_token=os.environ.get('TEMP_CONFIG_TOKEN','')
-          if os.environ.get('CORP_RULE_CREATED')=='1' and config_token and os.environ.get('CORP_RULESET_ID') and os.environ.get('CORP_RULE_ID'):
+          if os.environ.get('CORP_RULE_CHANGED')=='1' and config_token and os.environ.get('CORP_RULESET_ID') and os.environ.get('CORP_RULE_ID'):
               ch={'Authorization':'Bearer '+config_token,'Accept':'application/json','Content-Type':'application/json'}
-              req('DELETE',f'/zones/{zone}/rulesets/{os.environ["CORP_RULESET_ID"]}/rules/{os.environ["CORP_RULE_ID"]}',headers=ch)
+              body={'action':'set_config','action_parameters':{'bic':False,'security_level':'essentially_off'},
+                    'expression':'(http.host eq "app.mftintelligence.com")',
+                    'description':'MUSITU Axiom world release: suppress the zone interstitial only on the dedicated application hostname; Worker authentication, rate limiting, CSRF, CSP and session controls remain fail-closed',
+                    'enabled':True,'ref':'musitu_axiom_browser_world_release_direct_origin_v1'}
+              req('PATCH',f'/zones/{zone}/rulesets/{os.environ["CORP_RULESET_ID"]}/rules/{os.environ["CORP_RULE_ID"]}',data=body,headers=ch)
           www=os.environ.get('WWW_DNS_ID')
           if www:req('DELETE',f'/zones/{zone}/dns_records/{www}',headers=gh)
           apex=os.environ.get('APEX_DNS_ID')
@@ -621,7 +618,7 @@ jobs:
           print('public_cutover_rollback_attempted: true')
           PY
 
-      - name: Revoke temporary Select Configuration token
+      - name: Revoke temporary Config Settings token
         if: always()
         shell: bash
         run: |
@@ -630,13 +627,13 @@ jobs:
           import json,os,urllib.request
           parent=os.environ.get('CLOUDFLARE_API_TOKEN','');account=os.environ.get('CF_ACCOUNT_ID','');tid=os.environ.get('TEMP_CONFIG_TOKEN_ID','')
           if not tid:
-              print('temporary_select_config_token_created: false');raise SystemExit(0)
+              print('temporary_config_settings_token_created: false');raise SystemExit(0)
           req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{account}/tokens/{tid}',headers={'Authorization':'Bearer '+parent,'Accept':'application/json'},method='DELETE')
           try:
               with urllib.request.urlopen(req,timeout=20) as r:
                   raw=r.read().decode();body=json.loads(raw) if raw else {};ok=r.status in (200,204) and body.get('success',True) is True
           except Exception:ok=False
-          print('temporary_select_config_token_revoked:',ok)
+          print('temporary_config_settings_token_revoked:',ok)
           if not ok:raise SystemExit(1)
           PY
 
