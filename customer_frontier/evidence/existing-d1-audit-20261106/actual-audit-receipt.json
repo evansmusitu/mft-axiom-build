@@ -1,0 +1,16 @@
+{
+  "run_id": 42243560034,
+  "job_id": 127979820881,
+  "workflow_conclusion": "failure",
+  "result": "PARTIAL_OBSERVATION",
+  "source_commit": "5e69ebf3bcb73eebf183a462fa6d6314ccf87665",
+  "event_head": "cc70c52b9ba8ca21cc9aed959636a22e55819d5c",
+  "log_bytes": 66445,
+  "log_sha256": "24186452411552155b905c410d2bdd40ee482451e2bbdc8c43d66e3503b7ae6d",
+  "catalog_queries": 3,
+  "zero_writes_confirmed": 3,
+  "observed_worker_scripts": 67,
+  "observed_service_environment_paths": 67,
+  "pages_status": "UNKNOWN_HTTP_400",
+  "reuse_admitted": false
+}

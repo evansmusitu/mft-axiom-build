@@ -1,0 +1,1814 @@
+﻿2026-11-06T15:29:49.7870554Z Current runner version: '2.338.2'
+2026-11-06T15:29:49.7891349Z ##[group]Runner Image Provisioner
+2026-11-06T15:29:49.7892126Z Hosted Compute Agent
+2026-11-06T15:29:49.7892609Z Version: 20261028.624
+2026-11-06T15:29:49.7893248Z Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+2026-11-06T15:29:49.7893863Z Build Date: 2026-10-28T21:51:42Z
+2026-11-06T15:29:49.7894459Z Worker ID: {8a47621b-6f73-4662-b697-fbd6f333e162}
+2026-11-06T15:29:49.7895135Z Region: southcentralus
+2026-11-06T15:29:49.7895627Z Cloud: Azure
+2026-11-06T15:29:49.7896149Z ##[endgroup]
+2026-11-06T15:29:49.7897234Z ##[group]Operating System
+2026-11-06T15:29:49.7897844Z Ubuntu
+2026-11-06T15:29:49.7898305Z 24.04.5
+2026-11-06T15:29:49.7898744Z LTS
+2026-11-06T15:29:49.7899253Z ##[endgroup]
+2026-11-06T15:29:49.7899971Z ##[group]Runner Image
+2026-11-06T15:29:49.7900474Z Image: ubuntu-24.04
+2026-11-06T15:29:49.7901020Z Version: 20261101.360.1
+2026-11-06T15:29:49.7902072Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261101.360/images/ubuntu/Ubuntu2404-Readme.md
+2026-11-06T15:29:49.7903418Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261101.360
+2026-11-06T15:29:49.7904227Z ##[endgroup]
+2026-11-06T15:29:49.7905286Z ##[group]GITHUB_TOKEN Permissions
+2026-11-06T15:29:49.7906801Z Contents: read
+2026-11-06T15:29:49.7907431Z Metadata: read
+2026-11-06T15:29:49.7907916Z ##[endgroup]
+2026-11-06T15:29:49.7909778Z Secret source: Actions
+2026-11-06T15:29:49.7910604Z Cache mode: write
+2026-11-06T15:29:49.7911233Z Prepare workflow directory
+2026-11-06T15:29:49.8236728Z Prepare all required actions
+2026-11-06T15:29:49.8274723Z Getting action download info
+2026-11-06T15:29:50.0942656Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-06T15:29:50.2246643Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-11-06T15:29:50.3505672Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-11-06T15:29:50.5463897Z Complete job name: Isolated Tests (NO RELEASE)
+2026-11-06T15:29:50.6150509Z ##[group]Run actions/checkout@v4
+2026-11-06T15:29:50.6151185Z with:
+2026-11-06T15:29:50.6151542Z   persist-credentials: false
+2026-11-06T15:29:50.6151982Z   repository: evansmusitu/mft-axiom-build
+2026-11-06T15:29:50.6155190Z   token: ***
+2026-11-06T15:29:50.6155554Z   ssh-strict: true
+2026-11-06T15:29:50.6155907Z   ssh-user: git
+2026-11-06T15:29:50.6156244Z   clean: true
+2026-11-06T15:29:50.6156606Z   sparse-checkout-cone-mode: true
+2026-11-06T15:29:50.6157023Z   fetch-depth: 1
+2026-11-06T15:29:50.6157368Z   fetch-tags: false
+2026-11-06T15:29:50.6157721Z   show-progress: true
+2026-11-06T15:29:50.6158072Z   lfs: false
+2026-11-06T15:29:50.6158403Z   submodules: false
+2026-11-06T15:29:50.6158762Z   set-safe-directory: true
+2026-11-06T15:29:50.6159164Z   allow-unsafe-pr-checkout: false
+2026-11-06T15:29:50.6159866Z env:
+2026-11-06T15:29:50.6160230Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:50.6160693Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:50.6161160Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:50.6161585Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:50.6162002Z ##[endgroup]
+2026-11-06T15:29:50.8027468Z Syncing repository: evansmusitu/mft-axiom-build
+2026-11-06T15:29:50.8029226Z ##[group]Getting Git version info
+2026-11-06T15:29:50.8030319Z Working directory is '/home/runner/work/mft-axiom-build/mft-axiom-build'
+2026-11-06T15:29:50.8031689Z [command]/usr/bin/git version
+2026-11-06T15:29:50.8079109Z git version 2.56.0
+2026-11-06T15:29:50.8101206Z ##[endgroup]
+2026-11-06T15:29:50.8112347Z Temporarily overriding HOME='/home/runner/work/_temp/a50d5d0e-1e43-4f8d-a8e4-72c375511dba' before making global git config changes
+2026-11-06T15:29:50.8114108Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-06T15:29:50.8115847Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/mft-axiom-build/mft-axiom-build
+2026-11-06T15:29:50.8159328Z Deleting the contents of '/home/runner/work/mft-axiom-build/mft-axiom-build'
+2026-11-06T15:29:50.8177815Z ##[group]Initializing the repository
+2026-11-06T15:29:50.8181781Z [command]/usr/bin/git init /home/runner/work/mft-axiom-build/mft-axiom-build
+2026-11-06T15:29:50.8279323Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-06T15:29:50.8280693Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-06T15:29:50.8281696Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-06T15:29:50.8282299Z hint: call:
+2026-11-06T15:29:50.8282655Z hint:
+2026-11-06T15:29:50.8283252Z hint: 	git config --global init.defaultBranch <name>
+2026-11-06T15:29:50.8284015Z hint:
+2026-11-06T15:29:50.8284722Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-06T15:29:50.8285834Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-06T15:29:50.8286544Z hint:
+2026-11-06T15:29:50.8286889Z hint: 	git branch -m <name>
+2026-11-06T15:29:50.8287286Z hint:
+2026-11-06T15:29:50.8287808Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-06T15:29:50.8290684Z Initialized empty Git repository in /home/runner/work/mft-axiom-build/mft-axiom-build/.git/
+2026-11-06T15:29:50.8301016Z [command]/usr/bin/git remote add origin https://github.com/evansmusitu/mft-axiom-build
+2026-11-06T15:29:50.8341384Z ##[endgroup]
+2026-11-06T15:29:50.8342457Z ##[group]Disabling automatic garbage collection
+2026-11-06T15:29:50.8345582Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-06T15:29:50.8376331Z ##[endgroup]
+2026-11-06T15:29:50.8377462Z ##[group]Setting up auth
+2026-11-06T15:29:50.8382452Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-06T15:29:50.8417406Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-06T15:29:50.8771780Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-06T15:29:50.8814687Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-06T15:29:50.9021112Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-06T15:29:50.9059981Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-06T15:29:50.9262766Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-06T15:29:50.9304765Z ##[endgroup]
+2026-11-06T15:29:50.9305745Z ##[group]Fetching the repository
+2026-11-06T15:29:50.9315849Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +816b0d440e182f99edc06e7b0da7840a93a0a80c:refs/remotes/pull/90/merge
+2026-11-06T15:29:51.6307063Z From https://github.com/evansmusitu/mft-axiom-build
+2026-11-06T15:29:51.6308578Z  * [new ref]         816b0d440e182f99edc06e7b0da7840a93a0a80c -> pull/90/merge
+2026-11-06T15:29:51.6311716Z ##[endgroup]
+2026-11-06T15:29:51.6312719Z ##[group]Determining the checkout info
+2026-11-06T15:29:51.6313864Z ##[endgroup]
+2026-11-06T15:29:51.6319674Z [command]/usr/bin/git sparse-checkout disable
+2026-11-06T15:29:51.6379568Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-06T15:29:51.6500390Z ##[group]Checking out the ref
+2026-11-06T15:29:51.6502376Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/90/merge
+2026-11-06T15:29:51.6945100Z Note: switching to 'refs/remotes/pull/90/merge'.
+2026-11-06T15:29:51.6945765Z 
+2026-11-06T15:29:51.6946112Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-11-06T15:29:51.6947267Z changes and commit them, and you can discard any commits you make in this
+2026-11-06T15:29:51.6948084Z state without impacting any branches by switching back to a branch.
+2026-11-06T15:29:51.6948583Z 
+2026-11-06T15:29:51.6950255Z If you want to create a new branch to retain commits you create, you may
+2026-11-06T15:29:51.6951606Z do so (now or later) by using -c with the switch command. Example:
+2026-11-06T15:29:51.6952421Z 
+2026-11-06T15:29:51.6952701Z   git switch -c <new-branch-name>
+2026-11-06T15:29:51.6953187Z 
+2026-11-06T15:29:51.6953456Z Or undo this operation with:
+2026-11-06T15:29:51.6953905Z 
+2026-11-06T15:29:51.6954124Z   git switch -
+2026-11-06T15:29:51.6954830Z 
+2026-11-06T15:29:51.6955541Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-11-06T15:29:51.6956583Z 
+2026-11-06T15:29:51.6957718Z HEAD is now at 816b0d4 Merge cc70c52b9ba8ca21cc9aed959636a22e55819d5c into ab4d0aa0a670e59257d6e1bb779ea329c64ddff2
+2026-11-06T15:29:51.6961720Z ##[endgroup]
+2026-11-06T15:29:51.7001323Z [command]/usr/bin/git log -1 --format=%H
+2026-11-06T15:29:51.7029329Z 816b0d440e182f99edc06e7b0da7840a93a0a80c
+2026-11-06T15:29:51.7037639Z ##[group]Removing auth
+2026-11-06T15:29:51.7040937Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-06T15:29:51.7075105Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-06T15:29:51.7275790Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-06T15:29:51.7304080Z http.https://github.com/.extraheader
+2026-11-06T15:29:51.7310017Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-06T15:29:51.7345040Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-06T15:29:51.7542048Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-06T15:29:51.7578249Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-06T15:29:51.7772827Z ##[endgroup]
+2026-11-06T15:29:51.8045661Z ##[group]Run actions/setup-node@v4
+2026-11-06T15:29:51.8046259Z with:
+2026-11-06T15:29:51.8046631Z   node-version: 22
+2026-11-06T15:29:51.8047067Z   always-auth: false
+2026-11-06T15:29:51.8047516Z   check-latest: false
+2026-11-06T15:29:51.8055214Z   token: ***
+2026-11-06T15:29:51.8055601Z env:
+2026-11-06T15:29:51.8056005Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:51.8056663Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:51.8057299Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:51.8057903Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:51.8058495Z ##[endgroup]
+2026-11-06T15:29:51.9213466Z Found in cache @ /opt/hostedtoolcache/node/22.23.4/x64
+2026-11-06T15:29:51.9217451Z (node:2218) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-06T15:29:51.9220324Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-06T15:29:51.9222108Z ##[group]Environment details
+2026-11-06T15:29:54.6856607Z node: v22.23.4
+2026-11-06T15:29:54.6857560Z npm: 10.9.9
+2026-11-06T15:29:54.6858098Z yarn: 1.22.22
+2026-11-06T15:29:54.6859109Z ##[endgroup]
+2026-11-06T15:29:54.7021377Z ##[group]Run actions/setup-python@v5
+2026-11-06T15:29:54.7021653Z with:
+2026-11-06T15:29:54.7021861Z   python-version: 3.12
+2026-11-06T15:29:54.7022091Z   check-latest: false
+2026-11-06T15:29:54.7024286Z   token: ***
+2026-11-06T15:29:54.7024509Z   update-environment: true
+2026-11-06T15:29:54.7024748Z   allow-prereleases: false
+2026-11-06T15:29:54.7024986Z   freethreaded: false
+2026-11-06T15:29:54.7025197Z env:
+2026-11-06T15:29:54.7025405Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:54.7025888Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:54.7026156Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:54.7026406Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:54.7026666Z ##[endgroup]
+2026-11-06T15:29:54.8108011Z ##[group]Installed versions
+2026-11-06T15:29:54.8190418Z (node:2250) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-06T15:29:54.8191303Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-06T15:29:54.8191813Z Successfully set up CPython (3.12.16)
+2026-11-06T15:29:54.8192417Z ##[endgroup]
+2026-11-06T15:29:54.8321575Z ##[group]Run set -eu
+2026-11-06T15:29:54.8321895Z [36;1mset -eu[0m
+2026-11-06T15:29:54.8322384Z [36;1mfor p in customer_frontier/customer_control_plane/*.mjs customer_frontier/standalone_portal/portal.js; do node --check "$p"; done[0m
+2026-11-06T15:29:54.8394343Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:29:54.8394725Z env:
+2026-11-06T15:29:54.8395062Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:54.8395445Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:54.8395814Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:54.8396199Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:54.8396661Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:54.8397187Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:29:54.8397581Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:54.8397922Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:54.8398318Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:54.8398658Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:29:54.8398961Z ##[endgroup]
+2026-11-06T15:29:55.1793041Z ##[group]Run node --test customer_frontier/tests/*.test.mjs
+2026-11-06T15:29:55.1793446Z [36;1mnode --test customer_frontier/tests/*.test.mjs[0m
+2026-11-06T15:29:55.1812337Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:29:55.1812579Z env:
+2026-11-06T15:29:55.1812793Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:55.1813061Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:55.1813323Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:55.1813575Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:55.1813874Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:55.1814246Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:29:55.1814617Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:55.1814949Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:55.1815279Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:55.1815666Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:29:55.1815961Z ##[endgroup]
+2026-11-06T15:29:55.2516056Z TAP version 13
+2026-11-06T15:29:55.4737773Z # (node:2384) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.4744500Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.4856208Z # Subtest: canonical identity readback fails closed when no approved production customer link exists
+2026-11-06T15:29:55.4870528Z ok 1 - canonical identity readback fails closed when no approved production customer link exists
+2026-11-06T15:29:55.4871570Z   ---
+2026-11-06T15:29:55.4872336Z   duration_ms: 108.6178
+2026-11-06T15:29:55.4872699Z   type: 'test'
+2026-11-06T15:29:55.4872981Z   ...
+2026-11-06T15:29:55.4956523Z # Subtest: retry enrollment never picks an arbitrary tenant for a preexisting identity
+2026-11-06T15:29:55.4970597Z ok 2 - retry enrollment never picks an arbitrary tenant for a preexisting identity
+2026-11-06T15:29:55.4971543Z   ---
+2026-11-06T15:29:55.4972329Z   duration_ms: 7.140887
+2026-11-06T15:29:55.4972958Z   type: 'test'
+2026-11-06T15:29:55.4973911Z   ...
+2026-11-06T15:29:55.5163434Z # Subtest: website and ChatGPT candidate resolve the same approved UUID without elevating the database role
+2026-11-06T15:29:55.5180663Z ok 3 - website and ChatGPT candidate resolve the same approved UUID without elevating the database role
+2026-11-06T15:29:55.5181540Z   ---
+2026-11-06T15:29:55.5182019Z   duration_ms: 16.57035
+2026-11-06T15:29:55.5182420Z   type: 'test'
+2026-11-06T15:29:55.5182998Z   ...
+2026-11-06T15:29:55.5565833Z # Subtest: unqualified link, absent consent and unproven legacy ownership cannot create a mapping
+2026-11-06T15:29:55.5590905Z ok 4 - unqualified link, absent consent and unproven legacy ownership cannot create a mapping
+2026-11-06T15:29:55.5620210Z   ---
+2026-11-06T15:29:55.5620861Z   duration_ms: 44.664547
+2026-11-06T15:29:55.5621580Z   type: 'test'
+2026-11-06T15:29:55.5622181Z   ...
+2026-11-06T15:29:55.5687180Z # Subtest: conflicts, proof replay and revoked mapping cannot silently relink or replace a UUID
+2026-11-06T15:29:55.5697189Z ok 5 - conflicts, proof replay and revoked mapping cannot silently relink or replace a UUID
+2026-11-06T15:29:55.5698198Z   ---
+2026-11-06T15:29:55.5698679Z   duration_ms: 14.271108
+2026-11-06T15:29:55.5699191Z   type: 'test'
+2026-11-06T15:29:55.5699782Z   ...
+2026-11-06T15:29:55.5930550Z # Subtest: revoked membership and suspended tenant block both surfaces after successful linkage
+2026-11-06T15:29:55.5932098Z ok 6 - revoked membership and suspended tenant block both surfaces after successful linkage
+2026-11-06T15:29:55.5932949Z   ---
+2026-11-06T15:29:55.5933390Z   duration_ms: 17.546296
+2026-11-06T15:29:55.5933857Z   type: 'test'
+2026-11-06T15:29:55.5934278Z   ...
+2026-11-06T15:29:55.5935166Z # Subtest: link authority qualification is required and browser identity never supplies linking proof
+2026-11-06T15:29:55.5936915Z ok 7 - link authority qualification is required and browser identity never supplies linking proof
+2026-11-06T15:29:55.5937705Z   ---
+2026-11-06T15:29:55.5938117Z   duration_ms: 4.011206
+2026-11-06T15:29:55.5938605Z   type: 'test'
+2026-11-06T15:29:55.5942393Z   ...
+2026-11-06T15:29:55.6190897Z # Subtest: another subject cannot reuse an approved customer UUID or a consumed proof id
+2026-11-06T15:29:55.6192330Z ok 8 - another subject cannot reuse an approved customer UUID or a consumed proof id
+2026-11-06T15:29:55.6214242Z   ---
+2026-11-06T15:29:55.6256253Z   duration_ms: 26.138478
+2026-11-06T15:29:55.6259943Z   type: 'test'
+2026-11-06T15:29:55.6280266Z   ...
+2026-11-06T15:29:55.6281266Z # Subtest: revocation between proof verification and link insertion creates no mapping
+2026-11-06T15:29:55.6282338Z ok 9 - revocation between proof verification and link insertion creates no mapping
+2026-11-06T15:29:55.6283032Z   ---
+2026-11-06T15:29:55.6283638Z   duration_ms: 4.378294
+2026-11-06T15:29:55.6284079Z   type: 'test'
+2026-11-06T15:29:55.6284490Z   ...
+2026-11-06T15:29:55.6285305Z # Subtest: wrong OAuth audience and expired sessions cannot read an existing canonical link
+2026-11-06T15:29:55.6286351Z ok 10 - wrong OAuth audience and expired sessions cannot read an existing canonical link
+2026-11-06T15:29:55.6287033Z   ---
+2026-11-06T15:29:55.6287460Z   duration_ms: 5.660447
+2026-11-06T15:29:55.6287896Z   type: 'test'
+2026-11-06T15:29:55.6288322Z   ...
+2026-11-06T15:29:55.6488678Z # (node:2385) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.6501739Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.6570444Z # Subtest: completed payment is never presented as a fresh checkout on customer retry
+2026-11-06T15:29:55.6610706Z ok 11 - completed payment is never presented as a fresh checkout on customer retry
+2026-11-06T15:29:55.6639956Z   ---
+2026-11-06T15:29:55.6719158Z   duration_ms: 122.637533
+2026-11-06T15:29:55.6804774Z   type: 'test'
+2026-11-06T15:29:55.6809883Z   ...
+2026-11-06T15:29:55.6840355Z # Subtest: void order replay cannot trigger checkout
+2026-11-06T15:29:55.6860174Z ok 12 - void order replay cannot trigger checkout
+2026-11-06T15:29:55.6890053Z   ---
+2026-11-06T15:29:55.6919970Z   duration_ms: 6.348004
+2026-11-06T15:29:55.6953487Z   type: 'test'
+2026-11-06T15:29:55.6960095Z   ...
+2026-11-06T15:29:55.6960888Z # Subtest: pending checkout can be requested through qualified standalone provider
+2026-11-06T15:29:55.6962204Z ok 13 - pending checkout can be requested through qualified standalone provider
+2026-11-06T15:29:55.6962945Z   ---
+2026-11-06T15:29:55.6963364Z   duration_ms: 6.57939
+2026-11-06T15:29:55.6963816Z   type: 'test'
+2026-11-06T15:29:55.6964242Z   ...
+2026-11-06T15:29:55.6965154Z # (node:2386) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.6966201Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.6967233Z # Subtest: no credits without independently verified settlement
+2026-11-06T15:29:55.6968110Z ok 14 - no credits without independently verified settlement
+2026-11-06T15:29:55.6968801Z   ---
+2026-11-06T15:29:55.6969238Z   duration_ms: 107.282667
+2026-11-06T15:29:55.6969847Z   type: 'test'
+2026-11-06T15:29:55.6970265Z   ...
+2026-11-06T15:29:55.6970829Z # Subtest: settlement exact once and invoice exact once
+2026-11-06T15:29:55.6971555Z ok 15 - settlement exact once and invoice exact once
+2026-11-06T15:29:55.6995884Z   ---
+2026-11-06T15:29:55.6996528Z   duration_ms: 6.629414
+2026-11-06T15:29:55.6997014Z   type: 'test'
+2026-11-06T15:29:55.6997412Z   ...
+2026-11-06T15:29:55.6997943Z # Subtest: settlement mismatch rejected without effects
+2026-11-06T15:29:55.6998628Z ok 16 - settlement mismatch rejected without effects
+2026-11-06T15:29:55.6999162Z   ---
+2026-11-06T15:29:55.6999700Z   duration_ms: 3.589186
+2026-11-06T15:29:55.7000167Z   type: 'test'
+2026-11-06T15:29:55.7000573Z   ...
+2026-11-06T15:29:55.7001491Z # Subtest: settlement replay event collision rejected
+2026-11-06T15:29:55.7002226Z ok 17 - settlement replay event collision rejected
+2026-11-06T15:29:55.7002774Z   ---
+2026-11-06T15:29:55.7003210Z   duration_ms: 3.139365
+2026-11-06T15:29:55.7003728Z   type: 'test'
+2026-11-06T15:29:55.7004158Z   ...
+2026-11-06T15:29:55.7004694Z # Subtest: order idempotency avoids duplicate orders
+2026-11-06T15:29:55.7005374Z ok 18 - order idempotency avoids duplicate orders
+2026-11-06T15:29:55.7005896Z   ---
+2026-11-06T15:29:55.7006276Z   duration_ms: 2.926657
+2026-11-06T15:29:55.7006706Z   type: 'test'
+2026-11-06T15:29:55.7007109Z   ...
+2026-11-06T15:29:55.7007628Z # Subtest: credit reservation prevents overdraft
+2026-11-06T15:29:55.7008278Z ok 19 - credit reservation prevents overdraft
+2026-11-06T15:29:55.7008787Z   ---
+2026-11-06T15:29:55.7009188Z   duration_ms: 4.191966
+2026-11-06T15:29:55.7009763Z   type: 'test'
+2026-11-06T15:29:55.7010165Z   ...
+2026-11-06T15:29:55.7010819Z # Subtest: retry held reservation / committed hold remains idempotent
+2026-11-06T15:29:55.7011649Z ok 20 - retry held reservation / committed hold remains idempotent
+2026-11-06T15:29:55.7012243Z   ---
+2026-11-06T15:29:55.7012719Z   duration_ms: 3.829105
+2026-11-06T15:29:55.7013355Z   type: 'test'
+2026-11-06T15:29:55.7013767Z   ...
+2026-11-06T15:29:55.7014382Z # Subtest: released hold returns available units and cannot commit
+2026-11-06T15:29:55.7015166Z ok 21 - released hold returns available units and cannot commit
+2026-11-06T15:29:55.7015726Z   ---
+2026-11-06T15:29:55.7016134Z   duration_ms: 3.429909
+2026-11-06T15:29:55.7016568Z   type: 'test'
+2026-11-06T15:29:55.7016966Z   ...
+2026-11-06T15:29:55.7017586Z # Subtest: refund request does not issue a refund or revoke credits
+2026-11-06T15:29:55.7018383Z ok 22 - refund request does not issue a refund or revoke credits
+2026-11-06T15:29:55.7018958Z   ---
+2026-11-06T15:29:55.7019355Z   duration_ms: 3.778679
+2026-11-06T15:29:55.7019908Z   type: 'test'
+2026-11-06T15:29:55.7020300Z   ...
+2026-11-06T15:29:55.7020943Z # Subtest: refund reversal only for provider pending and attested refund
+2026-11-06T15:29:55.7021909Z ok 23 - refund reversal only for provider pending and attested refund
+2026-11-06T15:29:55.7022643Z   ---
+2026-11-06T15:29:55.7023029Z   duration_ms: 6.654481
+2026-11-06T15:29:55.7023296Z   type: 'test'
+2026-11-06T15:29:55.7023526Z   ...
+2026-11-06T15:29:55.7024051Z # Subtest: consumed credits create debt on genuine refund, prevent further usage
+2026-11-06T15:29:55.7024948Z ok 24 - consumed credits create debt on genuine refund, prevent further usage
+2026-11-06T15:29:55.7025403Z   ---
+2026-11-06T15:29:55.7025635Z   duration_ms: 4.513616
+2026-11-06T15:29:55.7025901Z   type: 'test'
+2026-11-06T15:29:55.7040144Z   ...
+2026-11-06T15:29:55.7040677Z # Subtest: cross-tenant project and ledger access are denied
+2026-11-06T15:29:55.7041600Z ok 25 - cross-tenant project and ledger access are denied
+2026-11-06T15:29:55.7042061Z   ---
+2026-11-06T15:29:55.7042357Z   duration_ms: 31.084931
+2026-11-06T15:29:55.7042685Z   type: 'test'
+2026-11-06T15:29:55.7043131Z   ...
+2026-11-06T15:29:55.7043549Z # Subtest: identity verifier unavailable fails closed
+2026-11-06T15:29:55.7044109Z ok 26 - identity verifier unavailable fails closed
+2026-11-06T15:29:55.7044517Z   ---
+2026-11-06T15:29:55.7044942Z   duration_ms: 3.468877
+2026-11-06T15:29:55.7045226Z   type: 'test'
+2026-11-06T15:29:55.7045471Z   ...
+2026-11-06T15:29:55.7046000Z # Subtest: public reconciliation route is inaccessible even authenticated
+2026-11-06T15:29:55.7046944Z ok 27 - public reconciliation route is inaccessible even authenticated
+2026-11-06T15:29:55.7047404Z   ---
+2026-11-06T15:29:55.7047651Z   duration_ms: 2.90153
+2026-11-06T15:29:55.7048098Z   type: 'test'
+2026-11-06T15:29:55.7048338Z   ...
+2026-11-06T15:29:55.7048907Z # Subtest: business account GET does not include checkout upsell or raw credentials
+2026-11-06T15:29:55.7050000Z ok 28 - business account GET does not include checkout upsell or raw credentials
+2026-11-06T15:29:55.7050496Z   ---
+2026-11-06T15:29:55.7050736Z   duration_ms: 7.621935
+2026-11-06T15:29:55.7051399Z   type: 'test'
+2026-11-06T15:29:55.7051656Z   ...
+2026-11-06T15:29:55.7051989Z # Subtest: cross-origin write blocked
+2026-11-06T15:29:55.7052423Z ok 29 - cross-origin write blocked
+2026-11-06T15:29:55.7052751Z   ---
+2026-11-06T15:29:55.7053180Z   duration_ms: 7.633693
+2026-11-06T15:29:55.7053458Z   type: 'test'
+2026-11-06T15:29:55.7053694Z   ...
+2026-11-06T15:29:55.7054025Z # Subtest: missing action intent blocked
+2026-11-06T15:29:55.7054636Z ok 30 - missing action intent blocked
+2026-11-06T15:29:55.7054978Z   ---
+2026-11-06T15:29:55.7055216Z   duration_ms: 12.631671
+2026-11-06T15:29:55.7055503Z   type: 'test'
+2026-11-06T15:29:55.7055744Z   ...
+2026-11-06T15:29:55.7056363Z # Subtest: unqualified checkout does not even create order
+2026-11-06T15:29:55.7056965Z ok 31 - unqualified checkout does not even create order
+2026-11-06T15:29:55.7057363Z   ---
+2026-11-06T15:29:55.7057605Z   duration_ms: 13.208452
+2026-11-06T15:29:55.7058075Z   type: 'test'
+2026-11-06T15:29:55.7058321Z   ...
+2026-11-06T15:29:55.7058869Z # Subtest: workspace project and work creation persist for authorized tenant
+2026-11-06T15:29:55.7059903Z ok 32 - workspace project and work creation persist for authorized tenant
+2026-11-06T15:29:55.7060386Z   ---
+2026-11-06T15:29:55.7060629Z   duration_ms: 23.756074
+2026-11-06T15:29:55.7060906Z   type: 'test'
+2026-11-06T15:29:55.7061324Z   ...
+2026-11-06T15:29:55.7061833Z # Subtest: same order idempotency key cannot be reused for another product
+2026-11-06T15:29:55.7062567Z ok 33 - same order idempotency key cannot be reused for another product
+2026-11-06T15:29:55.7063208Z   ---
+2026-11-06T15:29:55.7063449Z   duration_ms: 3.518471
+2026-11-06T15:29:55.7063725Z   type: 'test'
+2026-11-06T15:29:55.7063968Z   ...
+2026-11-06T15:29:55.7064491Z # Subtest: refund outstanding amount enforced
+2026-11-06T15:29:55.7064972Z ok 34 - refund outstanding amount enforced
+2026-11-06T15:29:55.7065321Z   ---
+2026-11-06T15:29:55.7065562Z   duration_ms: 7.148388
+2026-11-06T15:29:55.7065842Z   type: 'test'
+2026-11-06T15:29:55.7066262Z   ...
+2026-11-06T15:29:55.7066675Z # Subtest: refund idempotency key collision fails closed
+2026-11-06T15:29:55.7067281Z ok 35 - refund idempotency key collision fails closed
+2026-11-06T15:29:55.7068113Z   ---
+2026-11-06T15:29:55.7068394Z   duration_ms: 3.910456
+2026-11-06T15:29:55.7068663Z   type: 'test'
+2026-11-06T15:29:55.7068908Z   ...
+2026-11-06T15:29:55.7069640Z # Subtest: unverified independent identity cannot bootstrap a new tenant
+2026-11-06T15:29:55.7070338Z ok 36 - unverified independent identity cannot bootstrap a new tenant
+2026-11-06T15:29:55.7070772Z   ---
+2026-11-06T15:29:55.7071234Z   duration_ms: 10.216056
+2026-11-06T15:29:55.7071522Z   type: 'test'
+2026-11-06T15:29:55.7071770Z   ...
+2026-11-06T15:29:55.7072288Z # Subtest: credit ledger and provider receipts cannot be edited or deleted
+2026-11-06T15:29:55.7073200Z ok 37 - credit ledger and provider receipts cannot be edited or deleted
+2026-11-06T15:29:55.7073653Z   ---
+2026-11-06T15:29:55.7073896Z   duration_ms: 7.499412
+2026-11-06T15:29:55.7074317Z   type: 'test'
+2026-11-06T15:29:55.7074562Z   ...
+2026-11-06T15:29:55.7075063Z # Subtest: settled refund cannot be replayed with altered provider reference
+2026-11-06T15:29:55.7075927Z ok 38 - settled refund cannot be replayed with altered provider reference
+2026-11-06T15:29:55.7076388Z   ---
+2026-11-06T15:29:55.7076638Z   duration_ms: 10.827939
+2026-11-06T15:29:55.7076930Z   type: 'test'
+2026-11-06T15:29:55.7077185Z   ...
+2026-11-06T15:29:55.7077984Z # Subtest: external identity proof provisions a unique single-owner tenant without API key
+2026-11-06T15:29:55.7078895Z ok 39 - external identity proof provisions a unique single-owner tenant without API key
+2026-11-06T15:29:55.7079714Z   ---
+2026-11-06T15:29:55.7079960Z   duration_ms: 9.678614
+2026-11-06T15:29:55.7080214Z   type: 'test'
+2026-11-06T15:29:55.7080436Z   ...
+2026-11-06T15:29:55.7080914Z # Subtest: replayed authenticated registration is idempotent
+2026-11-06T15:29:55.7081660Z ok 40 - replayed authenticated registration is idempotent
+2026-11-06T15:29:55.7082012Z   ---
+2026-11-06T15:29:55.7082228Z   duration_ms: 7.289639
+2026-11-06T15:29:55.7082476Z   type: 'test'
+2026-11-06T15:29:55.7082736Z   ...
+2026-11-06T15:29:55.7083183Z # Subtest: replayed proof cannot provision a second identity
+2026-11-06T15:29:55.7083780Z ok 41 - replayed proof cannot provision a second identity
+2026-11-06T15:29:55.7084175Z   ---
+2026-11-06T15:29:55.7084410Z   duration_ms: 6.919757
+2026-11-06T15:29:55.7084684Z   type: 'test'
+2026-11-06T15:29:55.7084934Z   ...
+2026-11-06T15:29:55.7085425Z # Subtest: revoked identity cannot enroll a fresh unauthorized tenant
+2026-11-06T15:29:55.7099597Z ok 42 - revoked identity cannot enroll a fresh unauthorized tenant
+2026-11-06T15:29:55.7100394Z   ---
+2026-11-06T15:29:55.7100934Z   duration_ms: 7.613372
+2026-11-06T15:29:55.7101431Z   type: 'test'
+2026-11-06T15:29:55.7101836Z   ...
+2026-11-06T15:29:55.7102600Z # Subtest: fresh, multi-factor, verified email, qualified provider evidence is mandatory
+2026-11-06T15:29:55.7103763Z ok 43 - fresh, multi-factor, verified email, qualified provider evidence is mandatory
+2026-11-06T15:29:55.7104451Z   ---
+2026-11-06T15:29:55.7104865Z   duration_ms: 0.399506
+2026-11-06T15:29:55.7105304Z   type: 'test'
+2026-11-06T15:29:55.7105723Z   ...
+2026-11-06T15:29:55.7106481Z # Subtest: public enrollment fails closed without qualified independent identity provider
+2026-11-06T15:29:55.7107503Z ok 44 - public enrollment fails closed without qualified independent identity provider
+2026-11-06T15:29:55.7108202Z   ---
+2026-11-06T15:29:55.7108631Z   duration_ms: 6.131601
+2026-11-06T15:29:55.7109068Z   type: 'test'
+2026-11-06T15:29:55.7109582Z   ...
+2026-11-06T15:29:55.7431043Z # Subtest: cross-origin or forged browser JSON is never enrollment proof
+2026-11-06T15:29:55.7530418Z ok 45 - cross-origin or forged browser JSON is never enrollment proof
+2026-11-06T15:29:55.7561643Z   ---
+2026-11-06T15:29:55.7589967Z   duration_ms: 5.096706
+2026-11-06T15:29:55.7619945Z   type: 'test'
+2026-11-06T15:29:55.7680222Z   ...
+2026-11-06T15:29:55.7700960Z # Subtest: OIDC login is disabled unless a private broker is qualified
+2026-11-06T15:29:55.7701855Z ok 46 - OIDC login is disabled unless a private broker is qualified
+2026-11-06T15:29:55.7716918Z   ---
+2026-11-06T15:29:55.7740123Z   duration_ms: 2.932957
+2026-11-06T15:29:55.7741505Z   type: 'test'
+2026-11-06T15:29:55.7791750Z   ...
+2026-11-06T15:29:55.7792751Z # Subtest: OIDC broker pins client, callback, code flow, nonce, PKCE and unique parameters
+2026-11-06T15:29:55.7793997Z ok 47 - OIDC broker pins client, callback, code flow, nonce, PKCE and unique parameters
+2026-11-06T15:29:55.7820104Z   ---
+2026-11-06T15:29:55.7849945Z   duration_ms: 7.611469
+2026-11-06T15:29:55.7880167Z   type: 'test'
+2026-11-06T15:29:55.7891716Z   ...
+2026-11-06T15:29:55.7920685Z # Subtest: tenant ownership enforced by SQLite foreign keys across Project, Work, Agent, Artifact, Evidence
+2026-11-06T15:29:55.7960291Z ok 48 - tenant ownership enforced by SQLite foreign keys across Project, Work, Agent, Artifact, Evidence
+2026-11-06T15:29:55.7990010Z   ---
+2026-11-06T15:29:55.7990629Z   duration_ms: 7.895413
+2026-11-06T15:29:55.8020221Z   type: 'test'
+2026-11-06T15:29:55.8030060Z   ...
+2026-11-06T15:29:55.8073845Z # Subtest: credit orders cannot bind users to unrelated tenants
+2026-11-06T15:29:55.8090166Z ok 49 - credit orders cannot bind users to unrelated tenants
+2026-11-06T15:29:55.8133188Z   ---
+2026-11-06T15:29:55.8149924Z   duration_ms: 5.020643
+2026-11-06T15:29:55.8175200Z   type: 'test'
+2026-11-06T15:29:55.8200599Z   ...
+2026-11-06T15:29:55.8204469Z # Subtest: enrollment evidence is immutable
+2026-11-06T15:29:55.8205041Z ok 50 - enrollment evidence is immutable
+2026-11-06T15:29:55.8205404Z   ---
+2026-11-06T15:29:55.8205672Z   duration_ms: 13.070877
+2026-11-06T15:29:55.8205984Z   type: 'test'
+2026-11-06T15:29:55.8206243Z   ...
+2026-11-06T15:29:55.8206882Z # Subtest: workspace members cannot initiate financial operations or view invoices and ledger
+2026-11-06T15:29:55.8234166Z ok 51 - workspace members cannot initiate financial operations or view invoices and ledger
+2026-11-06T15:29:55.8250134Z   ---
+2026-11-06T15:29:55.8261761Z   duration_ms: 20.970556
+2026-11-06T15:29:55.8290006Z   type: 'test'
+2026-11-06T15:29:55.8320199Z   ...
+2026-11-06T15:29:55.8370920Z # Subtest: viewers may read workspace but cannot create projects or access billing
+2026-11-06T15:29:55.8400409Z ok 52 - viewers may read workspace but cannot create projects or access billing
+2026-11-06T15:29:55.8445258Z   ---
+2026-11-06T15:29:55.8445648Z   duration_ms: 5.175784
+2026-11-06T15:29:55.8445984Z   type: 'test'
+2026-11-06T15:29:55.8446324Z   ...
+2026-11-06T15:29:55.8446860Z # Subtest: direct SQL settlement without provider event is prohibited
+2026-11-06T15:29:55.8447582Z ok 53 - direct SQL settlement without provider event is prohibited
+2026-11-06T15:29:55.8448012Z   ---
+2026-11-06T15:29:55.8448271Z   duration_ms: 2.920698
+2026-11-06T15:29:55.8448555Z   type: 'test'
+2026-11-06T15:29:55.8448815Z   ...
+2026-11-06T15:29:55.8449602Z # Subtest: direct SQL refund settlement without verified refund event is prohibited
+2026-11-06T15:29:55.8450449Z ok 54 - direct SQL refund settlement without verified refund event is prohibited
+2026-11-06T15:29:55.8450976Z   ---
+2026-11-06T15:29:55.8451230Z   duration_ms: 3.907501
+2026-11-06T15:29:55.8451508Z   type: 'test'
+2026-11-06T15:29:55.8451771Z   ...
+2026-11-06T15:29:55.8452318Z # Subtest: cross-tenant invoices cannot attach to another tenant settled order
+2026-11-06T15:29:55.8453124Z ok 55 - cross-tenant invoices cannot attach to another tenant settled order
+2026-11-06T15:29:55.8453591Z   ---
+2026-11-06T15:29:55.8453842Z   duration_ms: 3.392392
+2026-11-06T15:29:55.8454133Z   type: 'test'
+2026-11-06T15:29:55.8454377Z   ...
+2026-11-06T15:29:55.8455073Z # (node:2420) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.8455935Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.8456855Z # Subtest: customer case accepts only verified server principal and rejects malformed requests
+2026-11-06T15:29:55.8457827Z ok 56 - customer case accepts only verified server principal and rejects malformed requests
+2026-11-06T15:29:55.8458806Z   ---
+2026-11-06T15:29:55.8459075Z   duration_ms: 5.781609
+2026-11-06T15:29:55.8459547Z   type: 'test'
+2026-11-06T15:29:55.8459822Z   ...
+2026-11-06T15:29:55.8460282Z # Subtest: request is idempotent, conflicting retry denied
+2026-11-06T15:29:55.8460871Z ok 57 - request is idempotent, conflicting retry denied
+2026-11-06T15:29:55.8461280Z   ---
+2026-11-06T15:29:55.8461536Z   duration_ms: 4.92544
+2026-11-06T15:29:55.8461820Z   type: 'test'
+2026-11-06T15:29:55.8462075Z   ...
+2026-11-06T15:29:55.8462592Z # Subtest: tenant and principal are isolated in lists and key namespace
+2026-11-06T15:29:55.8463307Z ok 58 - tenant and principal are isolated in lists and key namespace
+2026-11-06T15:29:55.8463760Z   ---
+2026-11-06T15:29:55.8464025Z   duration_ms: 4.573556
+2026-11-06T15:29:55.8464305Z   type: 'test'
+2026-11-06T15:29:55.8464563Z   ...
+2026-11-06T15:29:55.8465189Z # Subtest: privacy delete only opens a governed request, never deletes projects or identities
+2026-11-06T15:29:55.8466106Z ok 59 - privacy delete only opens a governed request, never deletes projects or identities
+2026-11-06T15:29:55.8466637Z   ---
+2026-11-06T15:29:55.8466890Z   duration_ms: 6.75438
+2026-11-06T15:29:55.8467165Z   type: 'test'
+2026-11-06T15:29:55.8467403Z   ...
+2026-11-06T15:29:55.8467854Z # Subtest: backlog quota is enforced by conditional SQL insert
+2026-11-06T15:29:55.8468466Z ok 60 - backlog quota is enforced by conditional SQL insert
+2026-11-06T15:29:55.8468873Z   ---
+2026-11-06T15:29:55.8469117Z   duration_ms: 5.504144
+2026-11-06T15:29:55.8494882Z   type: 'test'
+2026-11-06T15:29:55.8495272Z   ...
+2026-11-06T15:29:55.8495792Z # Subtest: immutable origin and deletion are rejected by triggers
+2026-11-06T15:29:55.8496469Z ok 61 - immutable origin and deletion are rejected by triggers
+2026-11-06T15:29:55.8496927Z   ---
+2026-11-06T15:29:55.8497444Z   duration_ms: 4.025488
+2026-11-06T15:29:55.8497822Z   type: 'test'
+2026-11-06T15:29:55.8498067Z   ...
+2026-11-06T15:29:55.8498519Z # Subtest: foreign-key prohibits a tenant identity mismatch
+2026-11-06T15:29:55.8499165Z ok 62 - foreign-key prohibits a tenant identity mismatch
+2026-11-06T15:29:55.8499755Z   ---
+2026-11-06T15:29:55.8500089Z   duration_ms: 3.382949
+2026-11-06T15:29:55.8500463Z   type: 'test'
+2026-11-06T15:29:55.8500794Z   ...
+2026-11-06T15:29:55.8501499Z # Subtest: customer API records support case and exposes only own tenant cases
+2026-11-06T15:29:55.8502482Z ok 63 - customer API records support case and exposes only own tenant cases
+2026-11-06T15:29:55.8502970Z   ---
+2026-11-06T15:29:55.8503336Z   duration_ms: 26.518075
+2026-11-06T15:29:55.8503633Z   type: 'test'
+2026-11-06T15:29:55.8503903Z   ...
+2026-11-06T15:29:55.8504567Z # Subtest: customer API rejects forged cross-origin support and unauthenticated privacy requests
+2026-11-06T15:29:55.8505560Z ok 64 - customer API rejects forged cross-origin support and unauthenticated privacy requests
+2026-11-06T15:29:55.8506104Z   ---
+2026-11-06T15:29:55.8506357Z   duration_ms: 8.759153
+2026-11-06T15:29:55.8506657Z   type: 'test'
+2026-11-06T15:29:55.8506905Z   ...
+2026-11-06T15:29:55.8507486Z # Subtest: privacy data-rights request remains available after ten support cases
+2026-11-06T15:29:55.8508312Z ok 65 - privacy data-rights request remains available after ten support cases
+2026-11-06T15:29:55.8508805Z   ---
+2026-11-06T15:29:55.8509067Z   duration_ms: 8.259447
+2026-11-06T15:29:55.8509360Z   type: 'test'
+2026-11-06T15:29:55.8509822Z   ...
+2026-11-06T15:29:55.8510478Z # (node:2432) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.8511331Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.8512324Z # Subtest: first session enrollment is pinned and bound without trusting browser identity or minting a production customer
+2026-11-06T15:29:55.8513553Z ok 66 - first session enrollment is pinned and bound without trusting browser identity or minting a production customer
+2026-11-06T15:29:55.8514557Z   ---
+2026-11-06T15:29:55.8514816Z   duration_ms: 21.369451
+2026-11-06T15:29:55.8515141Z   type: 'test'
+2026-11-06T15:29:55.8515394Z   ...
+2026-11-06T15:29:55.8516122Z # Subtest: enrollment refuses issuer substitution, stale session, changed challenge and downgraded MFA
+2026-11-06T15:29:55.8517165Z ok 67 - enrollment refuses issuer substitution, stale session, changed challenge and downgraded MFA
+2026-11-06T15:29:55.8517772Z   ---
+2026-11-06T15:29:55.8518035Z   duration_ms: 30.518075
+2026-11-06T15:29:55.8518345Z   type: 'test'
+2026-11-06T15:29:55.8518595Z   ...
+2026-11-06T15:29:55.8519265Z # Subtest: a suspended original enrollment home cannot be replaced with another active membership
+2026-11-06T15:29:55.8530822Z ok 68 - a suspended original enrollment home cannot be replaced with another active membership
+2026-11-06T15:29:55.8531424Z   ---
+2026-11-06T15:29:55.8531713Z   duration_ms: 6.220724
+2026-11-06T15:29:55.8532007Z   type: 'test'
+2026-11-06T15:29:55.8532261Z   ...
+2026-11-06T15:29:55.8532936Z # (node:2445) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.8533793Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.8534786Z # Subtest: verified OIDC consent binds authorization code and issued bearer/refresh family to immutable principal
+2026-11-06T15:29:55.8535945Z ok 69 - verified OIDC consent binds authorization code and issued bearer/refresh family to immutable principal
+2026-11-06T15:29:55.8536906Z   ---
+2026-11-06T15:29:55.8537159Z   duration_ms: 39.283766
+2026-11-06T15:29:55.8537451Z   type: 'test'
+2026-11-06T15:29:55.8537694Z   ...
+2026-11-06T15:29:55.8609798Z # Subtest: a revoked identity cannot exchange a previously valid unredeemed code
+2026-11-06T15:29:55.8620415Z ok 70 - a revoked identity cannot exchange a previously valid unredeemed code
+2026-11-06T15:29:55.8621436Z   ---
+2026-11-06T15:29:55.8621864Z   duration_ms: 20.761284
+2026-11-06T15:29:55.8622316Z   type: 'test'
+2026-11-06T15:29:55.8622732Z   ...
+2026-11-06T15:29:55.8815429Z # Subtest: refreshed token remains tied to original identity and gets revoked in same D1 transaction
+2026-11-06T15:29:55.8816758Z ok 71 - refreshed token remains tied to original identity and gets revoked in same D1 transaction
+2026-11-06T15:29:55.8876944Z   ---
+2026-11-06T15:29:55.8886688Z   duration_ms: 17.470713
+2026-11-06T15:29:55.8894030Z   type: 'test'
+2026-11-06T15:29:55.8894443Z   ...
+2026-11-06T15:29:55.8895763Z # Subtest: customer suspension disables both keyless OAuth credentials and existing legacy customer keys
+2026-11-06T15:29:55.8925550Z ok 72 - customer suspension disables both keyless OAuth credentials and existing legacy customer keys
+2026-11-06T15:29:55.8949524Z   ---
+2026-11-06T15:29:55.9006173Z   duration_ms: 15.671027
+2026-11-06T15:29:55.9060306Z   type: 'test'
+2026-11-06T15:29:55.9061845Z   ...
+2026-11-06T15:29:55.9181009Z # (node:2458) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:55.9182258Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:55.9270857Z # Subtest: session response must be bound to this credential, request and a fresh challenge
+2026-11-06T15:29:55.9274381Z ok 73 - session response must be bound to this credential, request and a fresh challenge
+2026-11-06T15:29:55.9298713Z   ---
+2026-11-06T15:29:55.9330029Z   duration_ms: 55.621058
+2026-11-06T15:29:55.9330622Z   type: 'test'
+2026-11-06T15:29:55.9332024Z   ...
+2026-11-06T15:29:55.9441094Z # Subtest: copied valid-looking response cannot authorize a later request or another cookie
+2026-11-06T15:29:55.9461943Z ok 74 - copied valid-looking response cannot authorize a later request or another cookie
+2026-11-06T15:29:55.9470184Z   ---
+2026-11-06T15:29:55.9530653Z   duration_ms: 9.099801
+2026-11-06T15:29:55.9531008Z   type: 'test'
+2026-11-06T15:29:55.9531303Z   ...
+2026-11-06T15:29:55.9943048Z # Subtest: missing and downgraded session assurance fail closed before customer reads
+2026-11-06T15:29:55.9945024Z ok 75 - missing and downgraded session assurance fail closed before customer reads
+2026-11-06T15:29:55.9967273Z   ---
+2026-11-06T15:29:55.9990450Z   duration_ms: 57.938006
+2026-11-06T15:29:56.0026365Z   type: 'test'
+2026-11-06T15:29:56.0090777Z   ...
+2026-11-06T15:29:56.0359159Z # Subtest: stale, future, inverted, overlong and incorrectly typed session times are rejected
+2026-11-06T15:29:56.0401361Z ok 76 - stale, future, inverted, overlong and incorrectly typed session times are rejected
+2026-11-06T15:29:56.0462719Z   ---
+2026-11-06T15:29:56.0489984Z   duration_ms: 35.648051
+2026-11-06T15:29:56.0502895Z   type: 'test'
+2026-11-06T15:29:56.0521371Z   ...
+2026-11-06T15:29:56.0565366Z # Subtest: a qualified binding cannot authenticate an absent or ambiguous browser credential
+2026-11-06T15:29:56.0590545Z ok 77 - a qualified binding cannot authenticate an absent or ambiguous browser credential
+2026-11-06T15:29:56.0603371Z   ---
+2026-11-06T15:29:56.0603879Z   duration_ms: 4.999181
+2026-11-06T15:29:56.0604392Z   type: 'test'
+2026-11-06T15:29:56.0604818Z   ...
+2026-11-06T15:29:56.0605787Z # Subtest: private verifier gets a bounded request digest, never client asserted identity or role
+2026-11-06T15:29:56.0606995Z ok 78 - private verifier gets a bounded request digest, never client asserted identity or role
+2026-11-06T15:29:56.0607750Z   ---
+2026-11-06T15:29:56.0608178Z   duration_ms: 6.56684
+2026-11-06T15:29:56.0608628Z   type: 'test'
+2026-11-06T15:29:56.0609046Z   ...
+2026-11-06T15:29:56.0610019Z # Subtest: verifier exception, malformed response and outage never produce access or identity detail
+2026-11-06T15:29:56.0611290Z ok 79 - verifier exception, malformed response and outage never produce access or identity detail
+2026-11-06T15:29:56.0612269Z   ---
+2026-11-06T15:29:56.0627176Z   duration_ms: 14.329335
+2026-11-06T15:29:56.0627696Z   type: 'test'
+2026-11-06T15:29:56.0628524Z   ...
+2026-11-06T15:29:56.0721222Z # Subtest: unqualified identity verifier cannot authorize a tenant even with a valid-looking principal
+2026-11-06T15:29:56.0771029Z ok 80 - unqualified identity verifier cannot authorize a tenant even with a valid-looking principal
+2026-11-06T15:29:56.0780079Z   ---
+2026-11-06T15:29:56.0790071Z   duration_ms: 5.564915
+2026-11-06T15:29:56.0790741Z   type: 'test'
+2026-11-06T15:29:56.0791369Z   ...
+2026-11-06T15:29:56.0792279Z # Subtest: missing pinned issuer fails closed instead of trusting arbitrary private broker
+2026-11-06T15:29:56.0793542Z ok 81 - missing pinned issuer fails closed instead of trusting arbitrary private broker
+2026-11-06T15:29:56.0794637Z   ---
+2026-11-06T15:29:56.0795142Z   duration_ms: 3.436428
+2026-11-06T15:29:56.0795641Z   type: 'test'
+2026-11-06T15:29:56.0796133Z   ...
+2026-11-06T15:29:56.0797001Z # Subtest: issuer substitution is rejected even if a membership is otherwise returned
+2026-11-06T15:29:56.0798243Z ok 82 - issuer substitution is rejected even if a membership is otherwise returned
+2026-11-06T15:29:56.0799008Z   ---
+2026-11-06T15:29:56.0799747Z   duration_ms: 10.029829
+2026-11-06T15:29:56.0800283Z   type: 'test'
+2026-11-06T15:29:56.0802590Z   ...
+2026-11-06T15:29:56.0803611Z # Subtest: admitted exact issuer and active tenant membership preserve existing account readback
+2026-11-06T15:29:56.0804628Z ok 83 - admitted exact issuer and active tenant membership preserve existing account readback
+2026-11-06T15:29:56.0805206Z   ---
+2026-11-06T15:29:56.0805470Z   duration_ms: 2.844676
+2026-11-06T15:29:56.0805768Z   type: 'test'
+2026-11-06T15:29:56.0806021Z   ...
+2026-11-06T15:29:56.0806711Z # Subtest: independent identity attestation does not override a revoked or missing membership
+2026-11-06T15:29:56.0807710Z ok 84 - independent identity attestation does not override a revoked or missing membership
+2026-11-06T15:29:56.0808283Z   ---
+2026-11-06T15:29:56.0808542Z   duration_ms: 2.404098
+2026-11-06T15:29:56.0808836Z   type: 'test'
+2026-11-06T15:29:56.0809094Z   ...
+2026-11-06T15:29:56.0809965Z # (node:2479) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.0811230Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.0812103Z # Subtest: fresh, independently verified OIDC subject resolves only pre-linked active legacy customer
+2026-11-06T15:29:56.0813070Z ok 85 - fresh, independently verified OIDC subject resolves only pre-linked active legacy customer
+2026-11-06T15:29:56.0813605Z   ---
+2026-11-06T15:29:56.0813847Z   duration_ms: 19.279653
+2026-11-06T15:29:56.0814115Z   type: 'test'
+2026-11-06T15:29:56.0814344Z   ...
+2026-11-06T15:29:56.0814915Z # Subtest: unqualified or missing private identity broker cannot admit an OAuth customer
+2026-11-06T15:29:56.0815743Z ok 86 - unqualified or missing private identity broker cannot admit an OAuth customer
+2026-11-06T15:29:56.0816229Z   ---
+2026-11-06T15:29:56.0816462Z   duration_ms: 5.305968
+2026-11-06T15:29:56.0816747Z   type: 'test'
+2026-11-06T15:29:56.0816985Z   ...
+2026-11-06T15:29:56.0817655Z # Subtest: forged issuer, tenant, audience, MFA, freshness, or flow binding cannot resolve a legacy customer
+2026-11-06T15:29:56.0818649Z ok 87 - forged issuer, tenant, audience, MFA, freshness, or flow binding cannot resolve a legacy customer
+2026-11-06T15:29:56.0819190Z   ---
+2026-11-06T15:29:56.0819552Z   duration_ms: 23.764215
+2026-11-06T15:29:56.0819827Z   type: 'test'
+2026-11-06T15:29:56.0820051Z   ...
+2026-11-06T15:29:56.0820571Z # Subtest: revoked identity link stays revoked and cannot be rewritten or deleted
+2026-11-06T15:29:56.0821324Z ok 88 - revoked identity link stays revoked and cannot be rewritten or deleted
+2026-11-06T15:29:56.0821772Z   ---
+2026-11-06T15:29:56.0821995Z   duration_ms: 4.741797
+2026-11-06T15:29:56.0822255Z   type: 'test'
+2026-11-06T15:29:56.0822476Z   ...
+2026-11-06T15:29:56.0822973Z # Subtest: unlinked IdP subject or disabled customer never resolves an account
+2026-11-06T15:29:56.0823901Z ok 89 - unlinked IdP subject or disabled customer never resolves an account
+2026-11-06T15:29:56.0824341Z   ---
+2026-11-06T15:29:56.0824563Z   duration_ms: 7.965188
+2026-11-06T15:29:56.0824824Z   type: 'test'
+2026-11-06T15:29:56.0825050Z   ...
+2026-11-06T15:29:56.0825768Z # Subtest: identity-to-customer relation requires independent immutable witness and unique canonical ownership
+2026-11-06T15:29:56.0826842Z ok 90 - identity-to-customer relation requires independent immutable witness and unique canonical ownership
+2026-11-06T15:29:56.0827428Z   ---
+2026-11-06T15:29:56.0827652Z   duration_ms: 3.288948
+2026-11-06T15:29:56.0827918Z   type: 'test'
+2026-11-06T15:29:56.0828142Z   ...
+2026-11-06T15:29:56.0828764Z # Subtest: cookie-less OAuth request cannot be admitted even with a mocked positive private verifier
+2026-11-06T15:29:56.0844339Z ok 91 - cookie-less OAuth request cannot be admitted even with a mocked positive private verifier
+2026-11-06T15:29:56.0844931Z   ---
+2026-11-06T15:29:56.0845196Z   duration_ms: 3.317832
+2026-11-06T15:29:56.0845473Z   type: 'test'
+2026-11-06T15:29:56.0845703Z   ...
+2026-11-06T15:29:56.0940944Z # (node:2493) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.0966149Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.0990657Z # Subtest: qualified session consent reaches authorization code without an AXIOM account key
+2026-11-06T15:29:56.1020739Z ok 92 - qualified session consent reaches authorization code without an AXIOM account key
+2026-11-06T15:29:56.1070105Z   ---
+2026-11-06T15:29:56.1100077Z   duration_ms: 32.440945
+2026-11-06T15:29:56.1150201Z   type: 'test'
+2026-11-06T15:29:56.1180035Z   ...
+2026-11-06T15:29:56.1220693Z # Subtest: qualified mode cannot issue a code when private session service is absent or link revoked
+2026-11-06T15:29:56.1250394Z ok 93 - qualified mode cannot issue a code when private session service is absent or link revoked
+2026-11-06T15:29:56.1279880Z   ---
+2026-11-06T15:29:56.1310066Z   duration_ms: 13.740877
+2026-11-06T15:29:56.1340157Z   type: 'test'
+2026-11-06T15:29:56.1367425Z   ...
+2026-11-06T15:29:56.1400418Z # Subtest: existing account-key authorization remains available and isolated from verified mode
+2026-11-06T15:29:56.1401538Z ok 94 - existing account-key authorization remains available and isolated from verified mode
+2026-11-06T15:29:56.1402116Z   ---
+2026-11-06T15:29:56.1429996Z   duration_ms: 7.420835
+2026-11-06T15:29:56.1449950Z   type: 'test'
+2026-11-06T15:29:56.1480041Z   ...
+2026-11-06T15:29:56.1520675Z # Subtest: two racing verified consents for one CSRF flow can issue at most one code
+2026-11-06T15:29:56.1530452Z ok 95 - two racing verified consents for one CSRF flow can issue at most one code
+2026-11-06T15:29:56.1530955Z   ---
+2026-11-06T15:29:56.1531202Z   duration_ms: 11.813531
+2026-11-06T15:29:56.1531492Z   type: 'test'
+2026-11-06T15:29:56.1531736Z   ...
+2026-11-06T15:29:56.1532255Z # Subtest: valid legacy key can be used only once for the same consent flow
+2026-11-06T15:29:56.1532955Z ok 96 - valid legacy key can be used only once for the same consent flow
+2026-11-06T15:29:56.1533368Z   ---
+2026-11-06T15:29:56.1533623Z   duration_ms: 8.225365
+2026-11-06T15:29:56.1533904Z   type: 'test'
+2026-11-06T15:29:56.1534149Z   ...
+2026-11-06T15:29:56.1534742Z # Subtest: failed verified-session mode cannot downgrade into legacy-key authorization
+2026-11-06T15:29:56.1535597Z ok 97 - failed verified-session mode cannot downgrade into legacy-key authorization
+2026-11-06T15:29:56.1536105Z   ---
+2026-11-06T15:29:56.1536359Z   duration_ms: 7.64501
+2026-11-06T15:29:56.1536620Z   type: 'test'
+2026-11-06T15:29:56.1536859Z   ...
+2026-11-06T15:29:56.1801028Z # Subtest: existing Paynow catalog readback cannot claim settlement or entitlement
+2026-11-06T15:29:56.1848948Z ok 98 - existing Paynow catalog readback cannot claim settlement or entitlement
+2026-11-06T15:29:56.1913384Z   ---
+2026-11-06T15:29:56.1991943Z   duration_ms: 32.376268
+2026-11-06T15:29:56.2008296Z   type: 'test'
+2026-11-06T15:29:56.2030104Z   ...
+2026-11-06T15:29:56.2036011Z # Subtest: qualification flag alone cannot grant a binding
+2026-11-06T15:29:56.2036746Z ok 99 - qualification flag alone cannot grant a binding
+2026-11-06T15:29:56.2037173Z   ---
+2026-11-06T15:29:56.2037429Z   duration_ms: 0.546826
+2026-11-06T15:29:56.2037731Z   type: 'test'
+2026-11-06T15:29:56.2038010Z   ...
+2026-11-06T15:29:56.2038435Z # Subtest: missing private service binding rejected
+2026-11-06T15:29:56.2039023Z ok 100 - missing private service binding rejected
+2026-11-06T15:29:56.2039617Z   ---
+2026-11-06T15:29:56.2039884Z   duration_ms: 0.21427
+2026-11-06T15:29:56.2040184Z   type: 'test'
+2026-11-06T15:29:56.2040450Z   ...
+2026-11-06T15:29:56.2040743Z # Subtest: price drift rejected
+2026-11-06T15:29:56.2041105Z ok 101 - price drift rejected
+2026-11-06T15:29:56.2041409Z   ---
+2026-11-06T15:29:56.2041657Z   duration_ms: 1.060763
+2026-11-06T15:29:56.2041940Z   type: 'test'
+2026-11-06T15:29:56.2042213Z   ...
+2026-11-06T15:29:56.2042638Z # Subtest: compute-unit and price-id drift rejected
+2026-11-06T15:29:56.2043178Z ok 102 - compute-unit and price-id drift rejected
+2026-11-06T15:29:56.2043582Z   ---
+2026-11-06T15:29:56.2043824Z   duration_ms: 1.871343
+2026-11-06T15:29:56.2044103Z   type: 'test'
+2026-11-06T15:29:56.2044361Z   ...
+2026-11-06T15:29:56.2044762Z # Subtest: duplicate plan and currency drift rejected
+2026-11-06T15:29:56.2045260Z ok 103 - duplicate plan and currency drift rejected
+2026-11-06T15:29:56.2045623Z   ---
+2026-11-06T15:29:56.2045864Z   duration_ms: 2.39889
+2026-11-06T15:29:56.2046146Z   type: 'test'
+2026-11-06T15:29:56.2046387Z   ...
+2026-11-06T15:29:56.2046832Z # Subtest: provider and authority health failures rejected
+2026-11-06T15:29:56.2047496Z ok 104 - provider and authority health failures rejected
+2026-11-06T15:29:56.2047886Z   ---
+2026-11-06T15:29:56.2048138Z   duration_ms: 2.195206
+2026-11-06T15:29:56.2048432Z   type: 'test'
+2026-11-06T15:29:56.2048688Z   ...
+2026-11-06T15:29:56.2049109Z # Subtest: conflicting certification flags rejected
+2026-11-06T15:29:56.2049824Z ok 105 - conflicting certification flags rejected
+2026-11-06T15:29:56.2050217Z   ---
+2026-11-06T15:29:56.2050721Z   duration_ms: 0.713876
+2026-11-06T15:29:56.2050993Z   type: 'test'
+2026-11-06T15:29:56.2051232Z   ...
+2026-11-06T15:29:56.2051752Z # Subtest: readback never calls checkout, refund or customer mutation routes
+2026-11-06T15:29:56.2052456Z ok 106 - readback never calls checkout, refund or customer mutation routes
+2026-11-06T15:29:56.2052871Z   ---
+2026-11-06T15:29:56.2053096Z   duration_ms: 1.659026
+2026-11-06T15:29:56.2053362Z   type: 'test'
+2026-11-06T15:29:56.2053603Z   ...
+2026-11-06T15:29:56.2054096Z # Subtest: upstream HTTP and response-type failure is fail closed
+2026-11-06T15:29:56.2054779Z ok 107 - upstream HTTP and response-type failure is fail closed
+2026-11-06T15:29:56.2055219Z   ---
+2026-11-06T15:29:56.2055472Z   duration_ms: 1.18578
+2026-11-06T15:29:56.2055764Z   type: 'test'
+2026-11-06T15:29:56.2056013Z   ...
+2026-11-06T15:29:56.2056789Z # (node:2516) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.2098309Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.2741336Z # Subtest: website and actual candidate consent/code/token/UserInfo use the same preapproved customer UUID
+2026-11-06T15:29:56.2770538Z ok 108 - website and actual candidate consent/code/token/UserInfo use the same preapproved customer UUID
+2026-11-06T15:29:56.2780180Z   ---
+2026-11-06T15:29:56.2786267Z   duration_ms: 61.279282
+2026-11-06T15:29:56.2786856Z   type: 'test'
+2026-11-06T15:29:56.2787336Z   ...
+2026-11-06T15:29:56.3398256Z # Subtest: OAuth consent cannot bypass missing, mismatched, revoked or unavailable website canonical mapping
+2026-11-06T15:29:56.3421484Z ok 109 - OAuth consent cannot bypass missing, mismatched, revoked or unavailable website canonical mapping
+2026-11-06T15:29:56.3449977Z   ---
+2026-11-06T15:29:56.3470028Z   duration_ms: 80.654918
+2026-11-06T15:29:56.3480369Z   type: 'test'
+2026-11-06T15:29:56.3520044Z   ...
+2026-11-06T15:29:56.3579228Z # Subtest: canonical revocation after code issuance blocks code exchange without issuing credentials
+2026-11-06T15:29:56.3616861Z ok 110 - canonical revocation after code issuance blocks code exchange without issuing credentials
+2026-11-06T15:29:56.3690271Z   ---
+2026-11-06T15:29:56.3720200Z   duration_ms: 12.471463
+2026-11-06T15:29:56.3750018Z   type: 'test'
+2026-11-06T15:29:56.3786092Z   ...
+2026-11-06T15:29:56.4033264Z # Subtest: canonical membership revocation blocks existing UserInfo and refresh without deleting evidence
+2026-11-06T15:29:56.4061366Z ok 111 - canonical membership revocation blocks existing UserInfo and refresh without deleting evidence
+2026-11-06T15:29:56.4071836Z   ---
+2026-11-06T15:29:56.4072311Z   duration_ms: 23.719549
+2026-11-06T15:29:56.4072798Z   type: 'test'
+2026-11-06T15:29:56.4073345Z   ...
+2026-11-06T15:29:56.4074174Z # Subtest: REPLACE cannot reactivate a revoked OAuth identity mapping
+2026-11-06T15:29:56.4075262Z ok 112 - REPLACE cannot reactivate a revoked OAuth identity mapping
+2026-11-06T15:29:56.4076051Z   ---
+2026-11-06T15:29:56.4076704Z   duration_ms: 17.052288
+2026-11-06T15:29:56.4077308Z   type: 'test'
+2026-11-06T15:29:56.4077795Z   ...
+2026-11-06T15:29:56.4174358Z # Subtest: copied OAuth verifier assertion cannot be reused for another request, even on the same flow
+2026-11-06T15:29:56.4224482Z ok 113 - copied OAuth verifier assertion cannot be reused for another request, even on the same flow
+2026-11-06T15:29:56.4244231Z   ---
+2026-11-06T15:29:56.4298687Z   duration_ms: 24.989674
+2026-11-06T15:29:56.4303321Z   type: 'test'
+2026-11-06T15:29:56.4330001Z   ...
+2026-11-06T15:29:56.4330883Z # Subtest: canonical revocation during token persistence never returns or leaves active unexposed credentials
+2026-11-06T15:29:56.4360504Z ok 114 - canonical revocation during token persistence never returns or leaves active unexposed credentials
+2026-11-06T15:29:56.4403099Z   ---
+2026-11-06T15:29:56.4434563Z   duration_ms: 20.710919
+2026-11-06T15:29:56.4470040Z   type: 'test'
+2026-11-06T15:29:56.4499974Z   ...
+2026-11-06T15:29:56.4671123Z # (node:2526) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.4690102Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.4720421Z # Subtest: legacy code retained across customer suspension cannot mint new credentials
+2026-11-06T15:29:56.4729300Z ok 115 - legacy code retained across customer suspension cannot mint new credentials
+2026-11-06T15:29:56.4759853Z   ---
+2026-11-06T15:29:56.4760619Z   duration_ms: 34.169855
+2026-11-06T15:29:56.4790033Z   type: 'test'
+2026-11-06T15:29:56.4810696Z   ...
+2026-11-06T15:29:56.4850375Z # Subtest: suspension during legacy mint is rejected by the database transaction
+2026-11-06T15:29:56.4851608Z ok 116 - suspension during legacy mint is rejected by the database transaction
+2026-11-06T15:29:56.4856291Z   ---
+2026-11-06T15:29:56.4870304Z   duration_ms: 15.680221
+2026-11-06T15:29:56.4870855Z   type: 'test'
+2026-11-06T15:29:56.4871283Z   ...
+2026-11-06T15:29:56.4872050Z # Subtest: active legacy account still mints, then suspension denies access and refresh
+2026-11-06T15:29:56.4873111Z ok 117 - active legacy account still mints, then suspension denies access and refresh
+2026-11-06T15:29:56.4873818Z   ---
+2026-11-06T15:29:56.4874243Z   duration_ms: 17.561338
+2026-11-06T15:29:56.4874709Z   type: 'test'
+2026-11-06T15:29:56.4875112Z   ...
+2026-11-06T15:29:56.4875918Z # (node:2533) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.4877079Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.4878087Z # Subtest: immutable token linkage cannot attach another customer key to an approved identity
+2026-11-06T15:29:56.4879133Z ok 118 - immutable token linkage cannot attach another customer key to an approved identity
+2026-11-06T15:29:56.4880080Z   ---
+2026-11-06T15:29:56.4880891Z   duration_ms: 9.78345
+2026-11-06T15:29:56.4881382Z   type: 'test'
+2026-11-06T15:29:56.4881807Z   ...
+2026-11-06T15:29:56.4882608Z # Subtest: linked parent key and code cannot be reassigned to a different customer or identity
+2026-11-06T15:29:56.4883708Z ok 119 - linked parent key and code cannot be reassigned to a different customer or identity
+2026-11-06T15:29:56.4884474Z   ---
+2026-11-06T15:29:56.4884910Z   duration_ms: 41.844759
+2026-11-06T15:29:56.4885371Z   type: 'test'
+2026-11-06T15:29:56.4885784Z   ...
+2026-11-06T15:29:56.4886454Z # Subtest: REPLACE of a linked parent cannot silently rewrite its binding
+2026-11-06T15:29:56.4887373Z ok 120 - REPLACE of a linked parent cannot silently rewrite its binding
+2026-11-06T15:29:56.4888036Z   ---
+2026-11-06T15:29:56.4888458Z   duration_ms: 19.167396
+2026-11-06T15:29:56.4888920Z   type: 'test'
+2026-11-06T15:29:56.4889331Z   ...
+2026-11-06T15:29:56.4890149Z # Subtest: revoked identity family cannot reactivate its linked API key
+2026-11-06T15:29:56.4890989Z ok 121 - revoked identity family cannot reactivate its linked API key
+2026-11-06T15:29:56.4891618Z   ---
+2026-11-06T15:29:56.4892120Z   duration_ms: 15.862653
+2026-11-06T15:29:56.4892658Z   type: 'test'
+2026-11-06T15:29:56.4893053Z   ...
+2026-11-06T15:29:56.4893795Z # Subtest: immutable code linkage cannot attach another customer code to an approved identity
+2026-11-06T15:29:56.4894822Z ok 122 - immutable code linkage cannot attach another customer code to an approved identity
+2026-11-06T15:29:56.4895504Z   ---
+2026-11-06T15:29:56.4895897Z   duration_ms: 13.341991
+2026-11-06T15:29:56.4896347Z   type: 'test'
+2026-11-06T15:29:56.4896744Z   ...
+2026-11-06T15:29:56.4897501Z # Subtest: valid pinned authorization-code OIDC redirect is admitted through qualified binding
+2026-11-06T15:29:56.4898620Z ok 123 - valid pinned authorization-code OIDC redirect is admitted through qualified binding
+2026-11-06T15:29:56.4899328Z   ---
+2026-11-06T15:29:56.4899883Z   duration_ms: 49.522598
+2026-11-06T15:29:56.4900331Z   type: 'test'
+2026-11-06T15:29:56.4900713Z   ...
+2026-11-06T15:29:56.4901415Z # Subtest: private broker cannot substitute OAuth client, callback or response type
+2026-11-06T15:29:56.4902646Z ok 124 - private broker cannot substitute OAuth client, callback or response type
+2026-11-06T15:29:56.4903297Z   ---
+2026-11-06T15:29:56.4903700Z   duration_ms: 4.1749
+2026-11-06T15:29:56.4904151Z   type: 'test'
+2026-11-06T15:29:56.4904555Z   ...
+2026-11-06T15:29:56.4905205Z # Subtest: client and callback must be configured under owned HTTPS domain
+2026-11-06T15:29:56.4906109Z ok 125 - client and callback must be configured under owned HTTPS domain
+2026-11-06T15:29:56.4906716Z   ---
+2026-11-06T15:29:56.4907108Z   duration_ms: 4.833113
+2026-11-06T15:29:56.4907532Z   type: 'test'
+2026-11-06T15:29:56.4907940Z   ...
+2026-11-06T15:29:56.4908516Z # Subtest: ambiguous duplicated OAuth parameters are denied
+2026-11-06T15:29:56.4909258Z ok 126 - ambiguous duplicated OAuth parameters are denied
+2026-11-06T15:29:56.4910031Z   ---
+2026-11-06T15:29:56.4910420Z   duration_ms: 5.834798
+2026-11-06T15:29:56.4910866Z   type: 'test'
+2026-11-06T15:29:56.4911247Z   ...
+2026-11-06T15:29:56.4911949Z # Subtest: weak or absent state, nonce, PKCE, code flow or openid scope is denied
+2026-11-06T15:29:56.4912892Z ok 127 - weak or absent state, nonce, PKCE, code flow or openid scope is denied
+2026-11-06T15:29:56.4913533Z   ---
+2026-11-06T15:29:56.4913933Z   duration_ms: 9.396943
+2026-11-06T15:29:56.4914391Z   type: 'test'
+2026-11-06T15:29:56.4914793Z   ...
+2026-11-06T15:29:56.4915327Z # Subtest: private service qualification is required
+2026-11-06T15:29:56.4916039Z ok 128 - private service qualification is required
+2026-11-06T15:29:56.4916603Z   ---
+2026-11-06T15:29:56.4917019Z   duration_ms: 0.435009
+2026-11-06T15:29:56.4917448Z   type: 'test'
+2026-11-06T15:29:56.4917841Z   ...
+2026-11-06T15:29:56.5166673Z # (node:2562) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.5180996Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.5209924Z # Subtest: owner can inspect existing Paynow pricing but no settlement claims
+2026-11-06T15:29:56.5240462Z ok 129 - owner can inspect existing Paynow pricing but no settlement claims
+2026-11-06T15:29:56.5269767Z   ---
+2026-11-06T15:29:56.5299911Z   duration_ms: 14.457756
+2026-11-06T15:29:56.5346922Z   type: 'test'
+2026-11-06T15:29:56.5369974Z   ...
+2026-11-06T15:29:56.5400322Z # Subtest: member cannot inspect billing catalog even with valid provider binding
+2026-11-06T15:29:56.5401453Z ok 130 - member cannot inspect billing catalog even with valid provider binding
+2026-11-06T15:29:56.5429934Z   ---
+2026-11-06T15:29:56.5450438Z   duration_ms: 4.659414
+2026-11-06T15:29:56.5479985Z   type: 'test'
+2026-11-06T15:29:56.5497965Z   ...
+2026-11-06T15:29:56.5500498Z # Subtest: missing or unqualified service binding yields 503 without orders
+2026-11-06T15:29:56.5501400Z ok 131 - missing or unqualified service binding yields 503 without orders
+2026-11-06T15:29:56.5501968Z   ---
+2026-11-06T15:29:56.5502303Z   duration_ms: 7.239103
+2026-11-06T15:29:56.5502655Z   type: 'test'
+2026-11-06T15:29:56.5502997Z   ...
+2026-11-06T15:29:56.5503584Z # Subtest: provider catalog mismatch blocks readback, does not enable purchase
+2026-11-06T15:29:56.5504415Z ok 132 - provider catalog mismatch blocks readback, does not enable purchase
+2026-11-06T15:29:56.5504968Z   ---
+2026-11-06T15:29:56.5505294Z   duration_ms: 7.180255
+2026-11-06T15:29:56.5505642Z   type: 'test'
+2026-11-06T15:29:56.5505958Z   ...
+2026-11-06T15:29:56.5506581Z # Subtest: browser adapter uses only credentialed same-origin GET with no raw tokens
+2026-11-06T15:29:56.5507457Z ok 133 - browser adapter uses only credentialed same-origin GET with no raw tokens
+2026-11-06T15:29:56.5508036Z   ---
+2026-11-06T15:29:56.5508362Z   duration_ms: 0.606115
+2026-11-06T15:29:56.5508724Z   type: 'test'
+2026-11-06T15:29:56.5509043Z   ...
+2026-11-06T15:29:56.5509880Z # Subtest: standalone portal has read-only provider catalog and no checkout invocation
+2026-11-06T15:29:56.5510795Z ok 134 - standalone portal has read-only provider catalog and no checkout invocation
+2026-11-06T15:29:56.5511634Z   ---
+2026-11-06T15:29:56.5511960Z   duration_ms: 0.277344
+2026-11-06T15:29:56.5512324Z   type: 'test'
+2026-11-06T15:29:56.5512644Z   ...
+2026-11-06T15:29:56.5745151Z # (node:2569) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.5747586Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.5766072Z # Subtest: interleaved partial refunds debit all units without stale-balance under-reversal
+2026-11-06T15:29:56.5769973Z ok 135 - interleaved partial refunds debit all units without stale-balance under-reversal
+2026-11-06T15:29:56.5770798Z   ---
+2026-11-06T15:29:56.5771245Z   duration_ms: 11.878508
+2026-11-06T15:29:56.5771715Z   type: 'test'
+2026-11-06T15:29:56.5772129Z   ...
+2026-11-06T15:29:56.5774560Z # Subtest: small verified partial refund can reverse zero integer units; later remainder still reverses all units
+2026-11-06T15:29:56.5777026Z ok 136 - small verified partial refund can reverse zero integer units; later remainder still reverses all units
+2026-11-06T15:29:56.5777725Z   ---
+2026-11-06T15:29:56.5790376Z   duration_ms: 5.669261
+2026-11-06T15:29:56.5790907Z   type: 'test'
+2026-11-06T15:29:56.5791361Z   ...
+2026-11-06T15:29:56.5803018Z # Subtest: database rejects forged provider transition that would refund more than captured amount
+2026-11-06T15:29:56.5804293Z ok 137 - database rejects forged provider transition that would refund more than captured amount
+2026-11-06T15:29:56.5805105Z   ---
+2026-11-06T15:29:56.5805536Z   duration_ms: 5.987766
+2026-11-06T15:29:56.5805967Z   type: 'test'
+2026-11-06T15:29:56.5806355Z   ...
+2026-11-06T15:29:56.5972790Z # (node:2580) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.5974350Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.5980815Z # Subtest: conflicting provider event in a settlement race is NEVER accepted as an idempotent replay
+2026-11-06T15:29:56.5983550Z ok 138 - conflicting provider event in a settlement race is NEVER accepted as an idempotent replay
+2026-11-06T15:29:56.5984166Z   ---
+2026-11-06T15:29:56.5984428Z   duration_ms: 10.102677
+2026-11-06T15:29:56.5984731Z   type: 'test'
+2026-11-06T15:29:56.5984998Z   ...
+2026-11-06T15:29:56.5991760Z # Subtest: identical verified settlement arriving during a race is a harmless replay
+2026-11-06T15:29:56.5993492Z ok 139 - identical verified settlement arriving during a race is a harmless replay
+2026-11-06T15:29:56.6010777Z   ---
+2026-11-06T15:29:56.6011265Z   duration_ms: 3.711789
+2026-11-06T15:29:56.6011758Z   type: 'test'
+2026-11-06T15:29:56.6012173Z   ...
+2026-11-06T15:29:56.6012888Z # Subtest: same refund idempotency key with different reason is a collision
+2026-11-06T15:29:56.6013863Z ok 140 - same refund idempotency key with different reason is a collision
+2026-11-06T15:29:56.6014525Z   ---
+2026-11-06T15:29:56.6014950Z   duration_ms: 5.661329
+2026-11-06T15:29:56.6015415Z   type: 'test'
+2026-11-06T15:29:56.6015849Z   ...
+2026-11-06T15:29:56.6110628Z # Subtest: unverified constructors cannot claim cloud-backed account
+2026-11-06T15:29:56.6118889Z ok 141 - unverified constructors cannot claim cloud-backed account
+2026-11-06T15:29:56.6119771Z   ---
+2026-11-06T15:29:56.6120212Z   duration_ms: 1.072069
+2026-11-06T15:29:56.6120670Z   type: 'test'
+2026-11-06T15:29:56.6121089Z   ...
+2026-11-06T15:29:56.6121735Z # Subtest: missing tenant or identity binding fails before network read
+2026-11-06T15:29:56.6122581Z ok 142 - missing tenant or identity binding fails before network read
+2026-11-06T15:29:56.6123219Z   ---
+2026-11-06T15:29:56.6123641Z   duration_ms: 1.60171
+2026-11-06T15:29:56.6124111Z   type: 'test'
+2026-11-06T15:29:56.6124518Z   ...
+2026-11-06T15:29:56.6125182Z # Subtest: reject wrong tenant even after valid authenticated account readback
+2026-11-06T15:29:56.6126118Z ok 143 - reject wrong tenant even after valid authenticated account readback
+2026-11-06T15:29:56.6126753Z   ---
+2026-11-06T15:29:56.6127467Z   duration_ms: 19.963534
+2026-11-06T15:29:56.6127899Z   type: 'test'
+2026-11-06T15:29:56.6128288Z   ...
+2026-11-06T15:29:56.6128828Z # Subtest: reject wrong identity even for correct tenant
+2026-11-06T15:29:56.6129706Z ok 144 - reject wrong identity even for correct tenant
+2026-11-06T15:29:56.6130376Z   ---
+2026-11-06T15:29:56.6130803Z   duration_ms: 0.407348
+2026-11-06T15:29:56.6131252Z   type: 'test'
+2026-11-06T15:29:56.6131649Z   ...
+2026-11-06T15:29:56.6132335Z # Subtest: reject unauthenticated, disabled, and malformed account principals
+2026-11-06T15:29:56.6133290Z ok 145 - reject unauthenticated, disabled, and malformed account principals
+2026-11-06T15:29:56.6133964Z   ---
+2026-11-06T15:29:56.6134371Z   duration_ms: 1.171568
+2026-11-06T15:29:56.6134796Z   type: 'test'
+2026-11-06T15:29:56.6135189Z   ...
+2026-11-06T15:29:56.6135922Z # Subtest: reject unsafe, credentialed, mismatched, and fragment origin before network
+2026-11-06T15:29:56.6136993Z ok 146 - reject unsafe, credentialed, mismatched, and fragment origin before network
+2026-11-06T15:29:56.6137695Z   ---
+2026-11-06T15:29:56.6138111Z   duration_ms: 0.485295
+2026-11-06T15:29:56.6138582Z   type: 'test'
+2026-11-06T15:29:56.6138964Z   ...
+2026-11-06T15:29:56.6139887Z # Subtest: failed or expired customer session never establishes cloud adapter
+2026-11-06T15:29:56.6140834Z ok 147 - failed or expired customer session never establishes cloud adapter
+2026-11-06T15:29:56.6141625Z   ---
+2026-11-06T15:29:56.6142004Z   duration_ms: 0.448429
+2026-11-06T15:29:56.6142432Z   type: 'test'
+2026-11-06T15:29:56.6142871Z   ...
+2026-11-06T15:29:56.6143820Z # Subtest: valid bound account can read its tenant projects through credentialed same-origin API
+2026-11-06T15:29:56.6145641Z ok 148 - valid bound account can read its tenant projects through credentialed same-origin API
+2026-11-06T15:29:56.6146381Z   ---
+2026-11-06T15:29:56.6147006Z   duration_ms: 1.38049
+2026-11-06T15:29:56.6147483Z   type: 'test'
+2026-11-06T15:29:56.6147856Z   ...
+2026-11-06T15:29:56.6151161Z # Subtest: wrong browser origin cannot read account
+2026-11-06T15:29:56.6153249Z ok 149 - wrong browser origin cannot read account
+2026-11-06T15:29:56.6153808Z   ---
+2026-11-06T15:29:56.6154203Z   duration_ms: 0.472615
+2026-11-06T15:29:56.6154638Z   type: 'test'
+2026-11-06T15:29:56.6155022Z   ...
+2026-11-06T15:29:56.7483608Z # Subtest: real RSA verification accepts matching signed MFA identity and subject-bound verified UserInfo
+2026-11-06T15:29:56.7486254Z ok 150 - real RSA verification accepts matching signed MFA identity and subject-bound verified UserInfo
+2026-11-06T15:29:56.7486961Z   ---
+2026-11-06T15:29:56.7487320Z   duration_ms: 37.735436
+2026-11-06T15:29:56.7487733Z   type: 'test'
+2026-11-06T15:29:56.7488060Z   ...
+2026-11-06T15:29:56.7551018Z # Subtest: signature forgery and payload mutation fail before UserInfo
+2026-11-06T15:29:56.7556300Z ok 151 - signature forgery and payload mutation fail before UserInfo
+2026-11-06T15:29:56.7557051Z   ---
+2026-11-06T15:29:56.7557449Z   duration_ms: 5.471044
+2026-11-06T15:29:56.7557900Z   type: 'test'
+2026-11-06T15:29:56.7558292Z   ...
+2026-11-06T15:29:56.7605623Z # Subtest: unsigned and algorithm-confused tokens are denied
+2026-11-06T15:29:56.7615958Z ok 152 - unsigned and algorithm-confused tokens are denied
+2026-11-06T15:29:56.7616560Z   ---
+2026-11-06T15:29:56.7616973Z   duration_ms: 6.823053
+2026-11-06T15:29:56.7617439Z   type: 'test'
+2026-11-06T15:29:56.7617829Z   ...
+2026-11-06T15:29:56.7675238Z # Subtest: embedded keys and token-selected key URLs cannot change the trust root
+2026-11-06T15:29:56.7692457Z ok 153 - embedded keys and token-selected key URLs cannot change the trust root
+2026-11-06T15:29:56.7719956Z   ---
+2026-11-06T15:29:56.7730074Z   duration_ms: 6.527922
+2026-11-06T15:29:56.7740373Z   type: 'test'
+2026-11-06T15:29:56.7747152Z   ...
+2026-11-06T15:29:56.7747755Z # Subtest: unknown kid and duplicate kid are denied
+2026-11-06T15:29:56.7748384Z ok 154 - unknown kid and duplicate kid are denied
+2026-11-06T15:29:56.7748847Z   ---
+2026-11-06T15:29:56.7749748Z   duration_ms: 4.439856
+2026-11-06T15:29:56.7760860Z   type: 'test'
+2026-11-06T15:29:56.7761342Z   ...
+2026-11-06T15:29:56.7820695Z # Subtest: key algorithm, use, operations and private fields are checked
+2026-11-06T15:29:56.7849317Z ok 155 - key algorithm, use, operations and private fields are checked
+2026-11-06T15:29:56.7880449Z   ---
+2026-11-06T15:29:56.7907149Z   duration_ms: 8.419065
+2026-11-06T15:29:56.7919837Z   type: 'test'
+2026-11-06T15:29:56.7939809Z   ...
+2026-11-06T15:29:56.7970237Z # Subtest: issuer, audience and authorized-party substitution fail closed
+2026-11-06T15:29:56.7994682Z ok 156 - issuer, audience and authorized-party substitution fail closed
+2026-11-06T15:29:56.8029904Z   ---
+2026-11-06T15:29:56.8046046Z   duration_ms: 8.906112
+2026-11-06T15:29:56.8061430Z   type: 'test'
+2026-11-06T15:29:56.8089815Z   ...
+2026-11-06T15:29:56.8107150Z # Subtest: one exact audience is supported and any provided azp must agree
+2026-11-06T15:29:56.8154141Z ok 157 - one exact audience is supported and any provided azp must agree
+2026-11-06T15:29:56.8169949Z   ---
+2026-11-06T15:29:56.8194148Z   duration_ms: 4.390652
+2026-11-06T15:29:56.8218022Z   type: 'test'
+2026-11-06T15:29:56.8229912Z   ...
+2026-11-06T15:29:56.8256145Z # Subtest: missing, weak and substituted expected nonce cannot authenticate
+2026-11-06T15:29:56.8283561Z ok 158 - missing, weak and substituted expected nonce cannot authenticate
+2026-11-06T15:29:56.8310776Z   ---
+2026-11-06T15:29:56.8311376Z   duration_ms: 3.944227
+2026-11-06T15:29:56.8311799Z   type: 'test'
+2026-11-06T15:29:56.8312152Z   ...
+2026-11-06T15:29:56.8312770Z # Subtest: expired, future, stale-auth and malformed numeric claims are denied
+2026-11-06T15:29:56.8313634Z ok 159 - expired, future, stale-auth and malformed numeric claims are denied
+2026-11-06T15:29:56.8314185Z   ---
+2026-11-06T15:29:56.8315091Z   duration_ms: 13.720537
+2026-11-06T15:29:56.8315495Z   type: 'test'
+2026-11-06T15:29:56.8315822Z   ...
+2026-11-06T15:29:56.8316310Z # Subtest: unverified email or missing MFA stays denied
+2026-11-06T15:29:56.8317879Z ok 160 - unverified email or missing MFA stays denied
+2026-11-06T15:29:56.8318544Z   ---
+2026-11-06T15:29:56.8319097Z   duration_ms: 11.530808
+2026-11-06T15:29:56.8319833Z   type: 'test'
+2026-11-06T15:29:56.8320174Z   ...
+2026-11-06T15:29:56.8320880Z # Subtest: UserInfo must refer to the identical signed subject even when email matches
+2026-11-06T15:29:56.8321819Z ok 161 - UserInfo must refer to the identical signed subject even when email matches
+2026-11-06T15:29:56.8322422Z   ---
+2026-11-06T15:29:56.8322756Z   duration_ms: 2.427002
+2026-11-06T15:29:56.8323114Z   type: 'test'
+2026-11-06T15:29:56.8323433Z   ...
+2026-11-06T15:29:56.8324006Z # Subtest: duplicate JSON claims and nested duplicate fields are denied
+2026-11-06T15:29:56.8324787Z ok 162 - duplicate JSON claims and nested duplicate fields are denied
+2026-11-06T15:29:56.8325378Z   ---
+2026-11-06T15:29:56.8325703Z   duration_ms: 1.631845
+2026-11-06T15:29:56.8326075Z   type: 'test'
+2026-11-06T15:29:56.8326415Z   ...
+2026-11-06T15:29:56.8327123Z # Subtest: malformed and noncanonical base64, oversized tokens and malformed payloads are denied
+2026-11-06T15:29:56.8328165Z ok 163 - malformed and noncanonical base64, oversized tokens and malformed payloads are denied
+2026-11-06T15:29:56.8328813Z   ---
+2026-11-06T15:29:56.8329139Z   duration_ms: 1.579948
+2026-11-06T15:29:56.8329668Z   type: 'test'
+2026-11-06T15:29:56.8330131Z   ...
+2026-11-06T15:29:56.8348814Z # Subtest: optional at_hash is bound to the exact access token
+2026-11-06T15:29:56.8350692Z ok 164 - optional at_hash is bound to the exact access token
+2026-11-06T15:29:56.8351338Z   ---
+2026-11-06T15:29:56.8351768Z   duration_ms: 6.236327
+2026-11-06T15:29:56.8352239Z   type: 'test'
+2026-11-06T15:29:56.8352643Z   ...
+2026-11-06T15:29:56.8392153Z # Subtest: provider HTTP failures and malformed responses never qualify identity
+2026-11-06T15:29:56.8393082Z ok 165 - provider HTTP failures and malformed responses never qualify identity
+2026-11-06T15:29:56.8403902Z   ---
+2026-11-06T15:29:56.8404166Z   duration_ms: 3.822084
+2026-11-06T15:29:56.8404467Z   type: 'test'
+2026-11-06T15:29:56.8404722Z   ...
+2026-11-06T15:29:56.8411648Z # Subtest: provider redirects are denied without a second destination or browser cookies
+2026-11-06T15:29:56.8412694Z ok 166 - provider redirects are denied without a second destination or browser cookies
+2026-11-06T15:29:56.8413330Z   ---
+2026-11-06T15:29:56.8413672Z   duration_ms: 1.689331
+2026-11-06T15:29:56.8414043Z   type: 'test'
+2026-11-06T15:29:56.8414392Z   ...
+2026-11-06T15:29:56.8431063Z # Subtest: provider response size is bounded and streams are cancelled
+2026-11-06T15:29:56.8431949Z ok 167 - provider response size is bounded and streams are cancelled
+2026-11-06T15:29:56.8432580Z   ---
+2026-11-06T15:29:56.8432955Z   duration_ms: 2.521213
+2026-11-06T15:29:56.8433344Z   type: 'test'
+2026-11-06T15:29:56.8433687Z   ...
+2026-11-06T15:29:56.8496001Z # Subtest: expiry and authentication age are rechecked after UserInfo completes
+2026-11-06T15:29:56.8496815Z ok 168 - expiry and authentication age are rechecked after UserInfo completes
+2026-11-06T15:29:56.8497285Z   ---
+2026-11-06T15:29:56.8497521Z   duration_ms: 4.188561
+2026-11-06T15:29:56.8497795Z   type: 'test'
+2026-11-06T15:29:56.8498043Z   ...
+2026-11-06T15:29:56.9215954Z # Subtest: 2047-bit RSA key is rejected despite having a 256-byte modulus
+2026-11-06T15:29:56.9216729Z ok 169 - 2047-bit RSA key is rejected despite having a 256-byte modulus
+2026-11-06T15:29:56.9217119Z   ---
+2026-11-06T15:29:56.9217299Z   duration_ms: 73.71401
+2026-11-06T15:29:56.9217502Z   type: 'test'
+2026-11-06T15:29:56.9217677Z   ...
+2026-11-06T15:29:56.9238344Z # Subtest: a clock moving backward between provider checks fails closed
+2026-11-06T15:29:56.9239575Z ok 170 - a clock moving backward between provider checks fails closed
+2026-11-06T15:29:56.9240306Z   ---
+2026-11-06T15:29:56.9241033Z   duration_ms: 1.545396
+2026-11-06T15:29:56.9241335Z   type: 'test'
+2026-11-06T15:29:56.9241513Z   ...
+2026-11-06T15:29:56.9415358Z # (node:2602) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-11-06T15:29:56.9415918Z # (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-06T15:29:56.9417241Z # Subtest: unadmitted staging ingress fails closed
+2026-11-06T15:29:56.9427315Z ok 171 - unadmitted staging ingress fails closed
+2026-11-06T15:29:56.9427755Z   ---
+2026-11-06T15:29:56.9428009Z   duration_ms: 9.445587
+2026-11-06T15:29:56.9428292Z   type: 'test'
+2026-11-06T15:29:56.9428527Z   ...
+2026-11-06T15:29:56.9428939Z # Subtest: S256 authorization uses only fixed staging destinations and opaque encrypted flow storage
+2026-11-06T15:29:56.9429719Z ok 172 - S256 authorization uses only fixed staging destinations and opaque encrypted flow storage
+2026-11-06T15:29:56.9430078Z   ---
+2026-11-06T15:29:56.9430268Z   duration_ms: 28.704989
+2026-11-06T15:29:56.9430459Z   type: 'test'
+2026-11-06T15:29:56.9430620Z   ...
+2026-11-06T15:29:56.9431025Z # Subtest: callback exchanges actual synthetic signed tokens, mints one hashed session and consumes flow
+2026-11-06T15:29:56.9431642Z ok 173 - callback exchanges actual synthetic signed tokens, mints one hashed session and consumes flow
+2026-11-06T15:29:56.9431992Z   ---
+2026-11-06T15:29:56.9432150Z   duration_ms: 29.183814
+2026-11-06T15:29:56.9432334Z   type: 'test'
+2026-11-06T15:29:56.9432496Z   ...
+2026-11-06T15:29:56.9432988Z # Subtest: racing callbacks and replay allow only one provider code exchange
+2026-11-06T15:29:56.9433698Z ok 174 - racing callbacks and replay allow only one provider code exchange
+2026-11-06T15:29:56.9434136Z   ---
+2026-11-06T15:29:56.9434369Z   duration_ms: 21.713075
+2026-11-06T15:29:56.9434633Z   type: 'test'
+2026-11-06T15:29:56.9434859Z   ...
+2026-11-06T15:29:56.9435312Z # Subtest: wrong browser cannot consume a legitimate pending flow
+2026-11-06T15:29:56.9435841Z ok 175 - wrong browser cannot consume a legitimate pending flow
+2026-11-06T15:29:56.9436111Z   ---
+2026-11-06T15:29:56.9436276Z   duration_ms: 11.768733
+2026-11-06T15:29:56.9436738Z   type: 'test'
+2026-11-06T15:29:56.9436911Z   ...
+2026-11-06T15:29:56.9437230Z # Subtest: provider failure consumes the flow without retry or session
+2026-11-06T15:29:56.9437658Z ok 176 - provider failure consumes the flow without retry or session
+2026-11-06T15:29:56.9437940Z   ---
+2026-11-06T15:29:56.9438143Z   duration_ms: 14.234284
+2026-11-06T15:29:56.9438430Z   type: 'test'
+2026-11-06T15:29:56.9438669Z   ...
+2026-11-06T15:29:56.9439130Z # Subtest: signed nonce substitution fails without issuing a session
+2026-11-06T15:29:56.9439819Z ok 177 - signed nonce substitution fails without issuing a session
+2026-11-06T15:29:56.9440096Z   ---
+2026-11-06T15:29:56.9440265Z   duration_ms: 10.314112
+2026-11-06T15:29:56.9440473Z   type: 'test'
+2026-11-06T15:29:56.9440702Z   ...
+2026-11-06T15:29:56.9441302Z # Subtest: callback rejects duplicate parameters, cookies, issuer substitution and malformed code
+2026-11-06T15:29:56.9441913Z ok 178 - callback rejects duplicate parameters, cookies, issuer substitution and malformed code
+2026-11-06T15:29:56.9442289Z   ---
+2026-11-06T15:29:56.9442459Z   duration_ms: 19.569034
+2026-11-06T15:29:56.9442641Z   type: 'test'
+2026-11-06T15:29:56.9442810Z   ...
+2026-11-06T15:29:56.9443164Z # Subtest: provider error consumes flow, but never reflects provider text or token
+2026-11-06T15:29:56.9443663Z ok 179 - provider error consumes flow, but never reflects provider text or token
+2026-11-06T15:29:56.9443970Z   ---
+2026-11-06T15:29:56.9444175Z   duration_ms: 3.715525
+2026-11-06T15:29:56.9444406Z   type: 'test'
+2026-11-06T15:29:56.9444572Z   ...
+2026-11-06T15:29:56.9444891Z # Subtest: flow expiry before and during provider I/O cannot mint a session
+2026-11-06T15:29:56.9445330Z ok 180 - flow expiry before and during provider I/O cannot mint a session
+2026-11-06T15:29:56.9445609Z   ---
+2026-11-06T15:29:56.9445935Z   duration_ms: 9.873906
+2026-11-06T15:29:56.9446132Z   type: 'test'
+2026-11-06T15:29:56.9446290Z   ...
+2026-11-06T15:29:56.9446578Z # Subtest: wrong custody key prevents exchange and any session
+2026-11-06T15:29:56.9446977Z ok 181 - wrong custody key prevents exchange and any session
+2026-11-06T15:29:56.9447229Z   ---
+2026-11-06T15:29:56.9447391Z   duration_ms: 7.248257
+2026-11-06T15:29:56.9447567Z   type: 'test'
+2026-11-06T15:29:56.9447727Z   ...
+2026-11-06T15:29:56.9448081Z # Subtest: session mint and flow completion roll back together on storage failure
+2026-11-06T15:29:56.9448560Z ok 182 - session mint and flow completion roll back together on storage failure
+2026-11-06T15:29:56.9448853Z   ---
+2026-11-06T15:29:56.9449019Z   duration_ms: 6.780118
+2026-11-06T15:29:56.9449193Z   type: 'test'
+2026-11-06T15:29:56.9449361Z   ...
+2026-11-06T15:29:56.9449998Z # Subtest: private assertion uses durable session and independent canonical mapping; never enrollment or OAuth
+2026-11-06T15:29:56.9450695Z ok 183 - private assertion uses durable session and independent canonical mapping; never enrollment or OAuth
+2026-11-06T15:29:56.9451081Z   ---
+2026-11-06T15:29:56.9451255Z   duration_ms: 7.574044
+2026-11-06T15:29:56.9451443Z   type: 'test'
+2026-11-06T15:29:56.9451619Z   ...
+2026-11-06T15:29:56.9452095Z # Subtest: real caller contract accepts assertion; forwarded production-origin request cannot be admitted as OAuth
+2026-11-06T15:29:56.9452915Z ok 184 - real caller contract accepts assertion; forwarded production-origin request cannot be admitted as OAuth
+2026-11-06T15:29:56.9453288Z   ---
+2026-11-06T15:29:56.9453457Z   duration_ms: 6.841561
+2026-11-06T15:29:56.9453632Z   type: 'test'
+2026-11-06T15:29:56.9453795Z   ...
+2026-11-06T15:29:56.9454163Z # Subtest: canonical link, membership and tenant revocation each deny current sessions
+2026-11-06T15:29:56.9454689Z ok 185 - canonical link, membership and tenant revocation each deny current sessions
+2026-11-06T15:29:56.9455022Z   ---
+2026-11-06T15:29:56.9455185Z   duration_ms: 20.587775
+2026-11-06T15:29:56.9455397Z   type: 'test'
+2026-11-06T15:29:56.9455569Z   ...
+2026-11-06T15:29:56.9490614Z # Subtest: logout requires exact Origin, durably revokes, and is terminal under replay
+2026-11-06T15:29:56.9491612Z ok 186 - logout requires exact Origin, durably revokes, and is terminal under replay
+2026-11-06T15:29:56.9492091Z   ---
+2026-11-06T15:29:56.9492347Z   duration_ms: 7.43782
+2026-11-06T15:29:56.9492612Z   type: 'test'
+2026-11-06T15:29:56.9492840Z   ...
+2026-11-06T15:29:56.9732784Z # Subtest: successful reauthentication rotates prior session in the mint transaction
+2026-11-06T15:29:56.9733404Z ok 187 - successful reauthentication rotates prior session in the mint transaction
+2026-11-06T15:29:56.9733748Z   ---
+2026-11-06T15:29:56.9733925Z   duration_ms: 8.182712
+2026-11-06T15:29:56.9734118Z   type: 'test'
+2026-11-06T15:29:56.9734283Z   ...
+2026-11-06T15:29:56.9968570Z # Subtest: new session and consumed flow survive database close/reopen and a separate connection
+2026-11-06T15:29:56.9969946Z ok 188 - new session and consumed flow survive database close/reopen and a separate connection
+2026-11-06T15:29:56.9970616Z   ---
+2026-11-06T15:29:56.9970900Z   duration_ms: 26.304176
+2026-11-06T15:29:56.9971179Z   type: 'test'
+2026-11-06T15:29:56.9971424Z   ...
+2026-11-06T15:29:57.0026545Z # Subtest: crashed processing flow survives restart and cannot repeat code exchange
+2026-11-06T15:29:57.0027550Z ok 189 - crashed processing flow survives restart and cannot repeat code exchange
+2026-11-06T15:29:57.0028078Z   ---
+2026-11-06T15:29:57.0028340Z   duration_ms: 19.011613
+2026-11-06T15:29:57.0028638Z   type: 'test'
+2026-11-06T15:29:57.0028888Z   ...
+2026-11-06T15:29:57.0105309Z # Subtest: SQL prevents flow replay, REPLACE, identity edits and evidence deletion
+2026-11-06T15:29:57.0108651Z ok 190 - SQL prevents flow replay, REPLACE, identity edits and evidence deletion
+2026-11-06T15:29:57.0112993Z   ---
+2026-11-06T15:29:57.0113319Z   duration_ms: 5.444135
+2026-11-06T15:29:57.0113605Z   type: 'test'
+2026-11-06T15:29:57.0114147Z   ...
+2026-11-06T15:29:57.0114639Z # Subtest: public ingress cannot reach private verification; methods, missing keys and destinations stay closed
+2026-11-06T15:29:57.0115357Z ok 191 - public ingress cannot reach private verification; methods, missing keys and destinations stay closed
+2026-11-06T15:29:57.0115734Z   ---
+2026-11-06T15:29:57.0115908Z   duration_ms: 2.513612
+2026-11-06T15:29:57.0116173Z   type: 'test'
+2026-11-06T15:29:57.0116363Z   ...
+2026-11-06T15:29:57.0163410Z # Subtest: expired session and duplicate credential cannot receive an assertion
+2026-11-06T15:29:57.0164215Z ok 192 - expired session and duplicate credential cannot receive an assertion
+2026-11-06T15:29:57.0164597Z   ---
+2026-11-06T15:29:57.0164771Z   duration_ms: 5.683081
+2026-11-06T15:29:57.0164965Z   type: 'test'
+2026-11-06T15:29:57.0165132Z   ...
+2026-11-06T15:29:57.0219855Z # Subtest: private proof is denied if session expires while the final storage read is awaiting
+2026-11-06T15:29:57.0221132Z ok 193 - private proof is denied if session expires while the final storage read is awaiting
+2026-11-06T15:29:57.0221644Z   ---
+2026-11-06T15:29:57.0221819Z   duration_ms: 5.54166
+2026-11-06T15:29:57.0222016Z   type: 'test'
+2026-11-06T15:29:57.0222188Z   ...
+2026-11-06T15:29:57.0277676Z # Subtest: callback cannot report success if its session expires while the mint commit is awaiting
+2026-11-06T15:29:57.0278630Z ok 194 - callback cannot report success if its session expires while the mint commit is awaiting
+2026-11-06T15:29:57.0279169Z   ---
+2026-11-06T15:29:57.0279533Z   duration_ms: 5.834848
+2026-11-06T15:29:57.0279810Z   type: 'test'
+2026-11-06T15:29:57.0280043Z   ...
+2026-11-06T15:29:57.0382782Z # Subtest: private verification uses primary bindings and observes revocation committed between reads
+2026-11-06T15:29:57.0383895Z ok 195 - private verification uses primary bindings and observes revocation committed between reads
+2026-11-06T15:29:57.0384555Z   ---
+2026-11-06T15:29:57.0384901Z   duration_ms: 5.379058
+2026-11-06T15:29:57.0385304Z   type: 'test'
+2026-11-06T15:29:57.0385647Z   ...
+2026-11-06T15:29:57.0401582Z # Subtest: anonymous staging flows have a fixed lifetime storage cap and cannot authorize paid expansion
+2026-11-06T15:29:57.0403231Z ok 196 - anonymous staging flows have a fixed lifetime storage cap and cannot authorize paid expansion
+2026-11-06T15:29:57.0403917Z   ---
+2026-11-06T15:29:57.0404277Z   duration_ms: 8.494887
+2026-11-06T15:29:57.0404668Z   type: 'test'
+2026-11-06T15:29:57.0405010Z   ...
+2026-11-06T15:29:57.0405789Z # Subtest: code exchange rejects malformed responses and does not accept secret or redirect overrides
+2026-11-06T15:29:57.0406971Z ok 197 - code exchange rejects malformed responses and does not accept secret or redirect overrides
+2026-11-06T15:29:57.0407701Z   ---
+2026-11-06T15:29:57.0408091Z   duration_ms: 0.459175
+2026-11-06T15:29:57.0408512Z   type: 'test'
+2026-11-06T15:29:57.0408893Z   ...
+2026-11-06T15:29:57.0508078Z 1..197
+2026-11-06T15:29:57.0508377Z # tests 197
+2026-11-06T15:29:57.0508666Z # suites 0
+2026-11-06T15:29:57.0508926Z # pass 197
+2026-11-06T15:29:57.0509148Z # fail 0
+2026-11-06T15:29:57.0510382Z # cancelled 0
+2026-11-06T15:29:57.0510716Z # skipped 0
+2026-11-06T15:29:57.0510957Z # todo 0
+2026-11-06T15:29:57.0511236Z # duration_ms 1830.971631
+2026-11-06T15:29:57.0639013Z ##[group]Run python -m unittest discover -s customer_frontier/tests -p 'test_*.py' -v
+2026-11-06T15:29:57.0639890Z [36;1mpython -m unittest discover -s customer_frontier/tests -p 'test_*.py' -v[0m
+2026-11-06T15:29:57.0661394Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:29:57.0661602Z env:
+2026-11-06T15:29:57.0661779Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:57.0662016Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:57.0662242Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:57.0662459Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:57.0662727Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.0663066Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:29:57.0663389Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.0663683Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.0664012Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.0664302Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:29:57.0664554Z ##[endgroup]
+2026-11-06T15:29:57.3980534Z test_null_identity_and_cross_tenant_link_are_rejected (test_canonical_identity_migration.CanonicalMigration.test_null_identity_and_cross_tenant_link_are_rejected) ... ok
+2026-11-06T15:29:57.4003462Z test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity (test_canonical_identity_migration.CanonicalMigration.test_replace_cannot_erase_terminal_revocation_or_rewrite_canonical_identity) ... ok
+2026-11-06T15:29:57.4025654Z test_upgrade_is_additive_and_never_autolinks_legacy_rows (test_canonical_identity_migration.CanonicalMigration.test_upgrade_is_additive_and_never_autolinks_legacy_rows) ... ok
+2026-11-06T15:29:57.4074575Z test_boolean_write_count_is_not_integer_zero (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_boolean_write_count_is_not_integer_zero) ... ok
+2026-11-06T15:29:57.4086446Z test_contradictory_database_changed_flag_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_contradictory_database_changed_flag_is_unknown) ... ok
+2026-11-06T15:29:57.4119270Z test_database_changed_flag_requires_actual_boolean_false (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_database_changed_flag_requires_actual_boolean_false) ... ok
+2026-11-06T15:29:57.4131101Z test_duplicate_object_rejected_without_partial_catalog (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_duplicate_object_rejected_without_partial_catalog) ... ok
+2026-11-06T15:29:57.4143941Z test_exact_catalog_request_and_hashes_without_ddl_or_customer_rows (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_exact_catalog_request_and_hashes_without_ddl_or_customer_rows) ... ok
+2026-11-06T15:29:57.4156613Z test_extra_provider_field_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_extra_provider_field_rejected) ... ok
+2026-11-06T15:29:57.4168074Z test_invalid_identifier_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_invalid_identifier_rejected) ... ok
+2026-11-06T15:29:57.4179206Z test_missing_database_changed_flag_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_database_changed_flag_is_unknown) ... ok
+2026-11-06T15:29:57.4188950Z test_missing_token_stops_before_network (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_token_stops_before_network) ... ok
+2026-11-06T15:29:57.4207999Z test_missing_write_metadata_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_write_metadata_is_unknown) ... ok
+2026-11-06T15:29:57.4218790Z test_multiple_query_results_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_multiple_query_results_rejected) ... ok
+2026-11-06T15:29:57.4221056Z test_no_redirect_handler_never_follows_target (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_no_redirect_handler_never_follows_target) ... ok
+2026-11-06T15:29:57.4226448Z test_real_sqlite_authorizer_allows_only_catalog_reads (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_real_sqlite_authorizer_allows_only_catalog_reads) ... ok
+2026-11-06T15:29:57.4237133Z test_redirect_refused_without_provider_body (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_redirect_refused_without_provider_body) ... ok
+2026-11-06T15:29:57.4249354Z test_transport_detail_is_not_printed (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_transport_detail_is_not_printed) ... ok
+2026-11-06T15:29:57.4260215Z test_unsuccessful_query_is_preserved_as_incomplete (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_unsuccessful_query_is_preserved_as_incomplete) ... ok
+2026-11-06T15:29:57.4270845Z test_write_metadata_cannot_qualify_read_only (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_write_metadata_cannot_qualify_read_only) ... ok
+2026-11-06T15:29:57.4280705Z test_wrong_database_stops_before_sql (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_wrong_database_stops_before_sql) ... ok
+2026-11-06T15:29:57.4309571Z test_boolean_count_is_not_an_integer_count (test_cloudflare_metadata_readback.MetadataReadback.test_boolean_count_is_not_an_integer_count) ... ok
+2026-11-06T15:29:57.4321305Z test_checkout_and_event_provenance_are_distinct (test_cloudflare_metadata_readback.MetadataReadback.test_checkout_and_event_provenance_are_distinct) ... ok
+2026-11-06T15:29:57.4333206Z test_inconsistent_provider_count_is_not_complete (test_cloudflare_metadata_readback.MetadataReadback.test_inconsistent_provider_count_is_not_complete) ... ok
+2026-11-06T15:29:57.4344841Z test_malformed_pagination_preserves_incomplete_evidence (test_cloudflare_metadata_readback.MetadataReadback.test_malformed_pagination_preserves_incomplete_evidence) ... ok
+2026-11-06T15:29:57.4357633Z test_malformed_subdomain_preserves_incomplete_evidence (test_cloudflare_metadata_readback.MetadataReadback.test_malformed_subdomain_preserves_incomplete_evidence) ... ok
+2026-11-06T15:29:57.4369221Z test_metadata_observation_is_not_release_or_migration (test_cloudflare_metadata_readback.MetadataReadback.test_metadata_observation_is_not_release_or_migration) ... ok
+2026-11-06T15:29:57.4380643Z test_missing_pagination_is_not_complete_inventory (test_cloudflare_metadata_readback.MetadataReadback.test_missing_pagination_is_not_complete_inventory) ... ok
+2026-11-06T15:29:57.4392171Z test_more_pages_are_not_a_complete_inventory (test_cloudflare_metadata_readback.MetadataReadback.test_more_pages_are_not_a_complete_inventory) ... ok
+2026-11-06T15:29:57.4405373Z test_selected_database_missing_from_inventory_is_incomplete (test_cloudflare_metadata_readback.MetadataReadback.test_selected_database_missing_from_inventory_is_incomplete) ... ok
+2026-11-06T15:29:57.4417091Z test_subdomain_cannot_supply_an_external_url (test_cloudflare_metadata_readback.MetadataReadback.test_subdomain_cannot_supply_an_external_url) ... ok
+2026-11-06T15:29:57.4428743Z test_truncated_http_response_preserves_incomplete_artifact (test_cloudflare_metadata_readback.MetadataReadback.test_truncated_http_response_preserves_incomplete_artifact) ... ok
+2026-11-06T15:29:57.4440073Z test_workers_wrong_shape_never_qualifies (test_cloudflare_metadata_readback.MetadataReadback.test_workers_wrong_shape_never_qualifies) ... ok
+2026-11-06T15:29:57.4453410Z test_wrong_selected_database_denies_identity_match (test_cloudflare_metadata_readback.MetadataReadback.test_wrong_selected_database_denies_identity_match) ... ok
+2026-11-06T15:29:57.4475883Z test_cross_tenant_author_denied (test_database_integrity_candidate.DBIntegrity.test_cross_tenant_author_denied) ... ok
+2026-11-06T15:29:57.4498852Z test_mismatched_provider_currency_or_settlement_amount (test_database_integrity_candidate.DBIntegrity.test_mismatched_provider_currency_or_settlement_amount) ... ok
+2026-11-06T15:29:57.4523428Z test_one_settlement_event_grants_exact_units_once (test_database_integrity_candidate.DBIntegrity.test_one_settlement_event_grants_exact_units_once) ... ok
+2026-11-06T15:29:57.4547132Z test_order_immutable_and_terminal_transition (test_database_integrity_candidate.DBIntegrity.test_order_immutable_and_terminal_transition) ... ok
+2026-11-06T15:29:57.4569873Z test_purchased_price_immutability_and_disable (test_database_integrity_candidate.DBIntegrity.test_purchased_price_immutability_and_disable) ... ok
+2026-11-06T15:29:57.4591811Z test_refund_currency_must_match (test_database_integrity_candidate.DBIntegrity.test_refund_currency_must_match) ... ok
+2026-11-06T15:29:57.4614456Z test_reject_wrong_catalog_economics (test_database_integrity_candidate.DBIntegrity.test_reject_wrong_catalog_economics) ... ok
+2026-11-06T15:29:57.4665120Z test_changed_db_true_keeps_mutations_unknown (test_existing_d1_catalog_binding_audit.CatalogBindings.test_changed_db_true_keeps_mutations_unknown) ... ok
+2026-11-06T15:29:57.4682974Z test_complete_current_scope_does_not_claim_global_absence_or_admit (test_existing_d1_catalog_binding_audit.CatalogBindings.test_complete_current_scope_does_not_claim_global_absence_or_admit) ... ok
+2026-11-06T15:29:57.4698773Z test_contradictory_pages_echo_is_not_complete (test_existing_d1_catalog_binding_audit.CatalogBindings.test_contradictory_pages_echo_is_not_complete) ... ok
+2026-11-06T15:29:57.4714620Z test_duplicate_project_page_is_incomplete (test_existing_d1_catalog_binding_audit.CatalogBindings.test_duplicate_project_page_is_incomplete) ... ok
+2026-11-06T15:29:57.4746107Z test_empty_pages_totals_accept_zero_or_one_pages (test_existing_d1_catalog_binding_audit.CatalogBindings.test_empty_pages_totals_accept_zero_or_one_pages) ... ok
+2026-11-06T15:29:57.4762403Z test_invalid_d1_reference_cannot_be_silently_ignored (test_existing_d1_catalog_binding_audit.CatalogBindings.test_invalid_d1_reference_cannot_be_silently_ignored) ... ok
+2026-11-06T15:29:57.4779976Z test_malformed_catalog_has_no_partial_catalog_admission (test_existing_d1_catalog_binding_audit.CatalogBindings.test_malformed_catalog_has_no_partial_catalog_admission) ... ok
+2026-11-06T15:29:57.4796271Z test_matching_optional_totals_accept_terminal_page_beyond_last (test_existing_d1_catalog_binding_audit.CatalogBindings.test_matching_optional_totals_accept_terminal_page_beyond_last) ... ok
+2026-11-06T15:29:57.4812133Z test_missing_counter_is_not_read_only_confirmation (test_existing_d1_catalog_binding_audit.CatalogBindings.test_missing_counter_is_not_read_only_confirmation) ... ok
+2026-11-06T15:29:57.4823796Z test_missing_token_makes_no_request (test_existing_d1_catalog_binding_audit.CatalogBindings.test_missing_token_makes_no_request) ... ok
+2026-11-06T15:29:57.4839593Z test_name_identity_change_blocks_that_catalog (test_existing_d1_catalog_binding_audit.CatalogBindings.test_name_identity_change_blocks_that_catalog) ... ok
+2026-11-06T15:29:57.4856581Z test_no_empty_terminal_page_keeps_pages_unknown (test_existing_d1_catalog_binding_audit.CatalogBindings.test_no_empty_terminal_page_keeps_pages_unknown) ... ok
+2026-11-06T15:29:57.4874652Z test_nondefault_environment_binding_is_observed (test_existing_d1_catalog_binding_audit.CatalogBindings.test_nondefault_environment_binding_is_observed) ... ok
+2026-11-06T15:29:57.4890492Z test_null_pages_binding_map_is_unknown (test_existing_d1_catalog_binding_audit.CatalogBindings.test_null_pages_binding_map_is_unknown) ... ok
+2026-11-06T15:29:57.4937997Z test_optional_pages_totals_must_match_aggregate (test_existing_d1_catalog_binding_audit.CatalogBindings.test_optional_pages_totals_must_match_aggregate) ... ok
+2026-11-06T15:29:57.4958140Z test_pages_permission_denial_is_unknown_not_empty (test_existing_d1_catalog_binding_audit.CatalogBindings.test_pages_permission_denial_is_unknown_not_empty) ... ok
+2026-11-06T15:29:57.5136759Z test_present_pages_totals_are_typed_nonnegative_and_stable (test_existing_d1_catalog_binding_audit.CatalogBindings.test_present_pages_totals_are_typed_nonnegative_and_stable) ... ok
+2026-11-06T15:29:57.5151785Z test_provider_error_codes_retained_without_private_messages (test_existing_d1_catalog_binding_audit.CatalogBindings.test_provider_error_codes_retained_without_private_messages) ... ok
+2026-11-06T15:29:57.5169159Z test_redirect_does_not_disclose_or_follow_target (test_existing_d1_catalog_binding_audit.CatalogBindings.test_redirect_does_not_disclose_or_follow_target) ... ok
+2026-11-06T15:29:57.5184559Z test_service_404_is_unknown_not_no_environments (test_existing_d1_catalog_binding_audit.CatalogBindings.test_service_404_is_unknown_not_no_environments) ... ok
+2026-11-06T15:29:57.5210232Z test_boolean_pagination_is_not_an_integer (test_existing_d1_reuse_inventory.ExistingInventory.test_boolean_pagination_is_not_an_integer) ... ok
+2026-11-06T15:29:57.5223846Z test_complete_inventory_projects_only_safe_metadata_and_does_not_admit (test_existing_d1_reuse_inventory.ExistingInventory.test_complete_inventory_projects_only_safe_metadata_and_does_not_admit) ... ok
+2026-11-06T15:29:57.5233695Z test_duplicate_database_identity_rejected (test_existing_d1_reuse_inventory.ExistingInventory.test_duplicate_database_identity_rejected) ... ok
+2026-11-06T15:29:57.5268640Z test_large_or_nonempty_database_is_not_an_empty_candidate (test_existing_d1_reuse_inventory.ExistingInventory.test_large_or_nonempty_database_is_not_an_empty_candidate) ... ok
+2026-11-06T15:29:57.5279716Z test_metadata_identity_mismatch_rejected_without_partial_candidates (test_existing_d1_reuse_inventory.ExistingInventory.test_metadata_identity_mismatch_rejected_without_partial_candidates) ... ok
+2026-11-06T15:29:57.5289032Z test_missing_pagination_never_claims_complete (test_existing_d1_reuse_inventory.ExistingInventory.test_missing_pagination_never_claims_complete) ... ok
+2026-11-06T15:29:57.5299657Z test_missing_token_makes_no_request (test_existing_d1_reuse_inventory.ExistingInventory.test_missing_token_makes_no_request) ... ok
+2026-11-06T15:29:57.5311681Z test_prod_named_database_is_protected_even_if_metadata_empty (test_existing_d1_reuse_inventory.ExistingInventory.test_prod_named_database_is_protected_even_if_metadata_empty) ... ok
+2026-11-06T15:29:57.5321100Z test_redirect_stops_without_raw_body_or_credentials (test_existing_d1_reuse_inventory.ExistingInventory.test_redirect_stops_without_raw_body_or_credentials) ... ok
+2026-11-06T15:29:57.5355027Z test_unknown_or_boolean_table_count_rejected (test_existing_d1_reuse_inventory.ExistingInventory.test_unknown_or_boolean_table_count_rejected) ... ok
+2026-11-06T15:29:57.5367187Z test_unrecognized_resource_label_is_not_published (test_existing_d1_reuse_inventory.ExistingInventory.test_unrecognized_resource_label_is_not_published) ... ok
+2026-11-06T15:29:57.5372285Z test_bond_values (test_finance_reference.FinanceReferenceTests.test_bond_values) ... ok
+2026-11-06T15:29:57.5375708Z test_complete_fixed_vectors (test_finance_reference.FinanceReferenceTests.test_complete_fixed_vectors) ... ok
+2026-11-06T15:29:57.5380972Z test_frozen_file_matches_generator (test_finance_reference.FinanceReferenceTests.test_frozen_file_matches_generator) ... ok
+2026-11-06T15:29:57.5385312Z test_npv_values (test_finance_reference.FinanceReferenceTests.test_npv_values) ... ok
+2026-11-06T15:29:57.5389611Z test_qp_residual_stationary_and_global_convexity (test_finance_reference.FinanceReferenceTests.test_qp_residual_stationary_and_global_convexity) ... ok
+2026-11-06T15:29:57.5390913Z test_empty_is_not_proven (test_frontier_benchmarks.BenchmarkTests.test_empty_is_not_proven) ... ok
+2026-11-06T15:29:57.5400662Z test_lacking_independent_evidence_fails_closed (test_frontier_benchmarks.BenchmarkTests.test_lacking_independent_evidence_fails_closed) ... ok
+2026-11-06T15:29:57.5401729Z test_no_superiority_claim_even_from_metrically_good_candidate (test_frontier_benchmarks.BenchmarkTests.test_no_superiority_claim_even_from_metrically_good_candidate) ... ok
+2026-11-06T15:29:57.5402536Z test_synthetic_nonqualifying (test_frontier_benchmarks.BenchmarkTests.test_synthetic_nonqualifying) ... ok
+2026-11-06T15:29:57.5403195Z test_unknown_dimension_rejected (test_frontier_benchmarks.BenchmarkTests.test_unknown_dimension_rejected) ... ok
+2026-11-06T15:29:57.5485847Z test_clean_rows_and_unrelated_trigger_preserved_on_idempotent_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_clean_rows_and_unrelated_trigger_preserved_on_idempotent_upgrade) ... ok
+2026-11-06T15:29:57.5627318Z test_constraint_violating_historical_rows_are_rejected_unchanged (test_oauth_identity_upgrade.OAuthUpgrade.test_constraint_violating_historical_rows_are_rejected_unchanged) ... ok
+2026-11-06T15:29:57.5664570Z test_dirty_null_primary_key_is_rejected_without_mutation (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_null_primary_key_is_rejected_without_mutation) ... ok
+2026-11-06T15:29:57.5739292Z test_dirty_pairing_is_rejected_without_any_schema_or_data_change (test_oauth_identity_upgrade.OAuthUpgrade.test_dirty_pairing_is_rejected_without_any_schema_or_data_change) ... ok
+2026-11-06T15:29:57.5770738Z test_disabled_check_constraints_cannot_bypass_dirty_row_guard (test_oauth_identity_upgrade.OAuthUpgrade.test_disabled_check_constraints_cannot_bypass_dirty_row_guard) ... ok
+2026-11-06T15:29:57.5811559Z test_existing_current_schema_upgrade_and_nonlinked_legacy_rows (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_current_schema_upgrade_and_nonlinked_legacy_rows) ... ok
+2026-11-06T15:29:57.5850324Z test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_code_denied) ... ok
+2026-11-06T15:29:57.5901006Z test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied (test_oauth_identity_upgrade.OAuthUpgrade.test_existing_v1_trigger_is_replaced_and_cross_customer_key_denied) ... ok
+2026-11-06T15:29:57.5938867Z test_legacy_nullable_primary_key_is_rejected_after_upgrade (test_oauth_identity_upgrade.OAuthUpgrade.test_legacy_nullable_primary_key_is_rejected_after_upgrade) ... ok
+2026-11-06T15:29:57.5977850Z test_legitimate_revoked_history_survives_and_cannot_be_reactivated (test_oauth_identity_upgrade.OAuthUpgrade.test_legitimate_revoked_history_survives_and_cannot_be_reactivated) ... ok
+2026-11-06T15:29:57.6022417Z test_mid_ddl_failure_rolls_back_replaced_triggers_and_version (test_oauth_identity_upgrade.OAuthUpgrade.test_mid_ddl_failure_rolls_back_replaced_triggers_and_version) ... ok
+2026-11-06T15:29:57.6061353Z test_missing_identity_tables_are_created_without_autolinking_customers (test_oauth_identity_upgrade.OAuthUpgrade.test_missing_identity_tables_are_created_without_autolinking_customers) ... ok
+2026-11-06T15:29:57.6076917Z test_never_commits_callers_work_or_disables_foreign_keys (test_oauth_identity_upgrade.OAuthUpgrade.test_never_commits_callers_work_or_disables_foreign_keys) ... ok
+2026-11-06T15:29:57.6883080Z test_process_crash_during_trigger_replacement_restores_original_database (test_oauth_identity_upgrade.OAuthUpgrade.test_process_crash_during_trigger_replacement_restores_original_database) ... ok
+2026-11-06T15:29:57.6913387Z test_schema_comparison_preserves_sql_literal_meaning (test_oauth_identity_upgrade.OAuthUpgrade.test_schema_comparison_preserves_sql_literal_meaning) ... ok
+2026-11-06T15:29:57.7017372Z test_unknown_table_layout_and_conflicting_version_are_rejected (test_oauth_identity_upgrade.OAuthUpgrade.test_unknown_table_layout_and_conflicting_version_are_rejected) ... ok
+2026-11-06T15:29:57.7047286Z test_unrecognized_existing_managed_trigger_is_not_overwritten (test_oauth_identity_upgrade.OAuthUpgrade.test_unrecognized_existing_managed_trigger_is_not_overwritten) ... ok
+2026-11-06T15:29:57.7119848Z test_unreviewed_version_insert_trigger_cannot_mutate_customer_data (test_oauth_identity_upgrade.OAuthUpgrade.test_unreviewed_version_insert_trigger_cannot_mutate_customer_data) ... ok
+2026-11-06T15:29:57.7152501Z test_upgrade_rejects_active_credential_belonging_to_disabled_customer (test_oauth_identity_upgrade.OAuthUpgrade.test_upgrade_rejects_active_credential_belonging_to_disabled_customer) ... ok
+2026-11-06T15:29:57.7194011Z test_upgraded_revocation_updates_both_families_and_key_atomically (test_oauth_identity_upgrade.OAuthUpgrade.test_upgraded_revocation_updates_both_families_and_key_atomically) ... ok
+2026-11-06T15:29:57.7486193Z test_writer_lock_spans_preflight_and_trigger_replacement (test_oauth_identity_upgrade.OAuthUpgrade.test_writer_lock_spans_preflight_and_trigger_replacement) ... ok
+2026-11-06T15:29:57.7518098Z test_ambiguous_timeout_is_unknown_and_never_retried (test_restore_target_reservation.RestoreTarget.test_ambiguous_timeout_is_unknown_and_never_retried) ... ok
+2026-11-06T15:29:57.7527905Z test_boolean_pagination_is_not_a_count (test_restore_target_reservation.RestoreTarget.test_boolean_pagination_is_not_a_count) ... ok
+2026-11-06T15:29:57.7537988Z test_duplicate_database_identity_is_rejected (test_restore_target_reservation.RestoreTarget.test_duplicate_database_identity_is_rejected) ... ok
+2026-11-06T15:29:57.7550287Z test_excess_storage_stops_before_creation (test_restore_target_reservation.RestoreTarget.test_excess_storage_stops_before_creation) ... ok
+2026-11-06T15:29:57.7561226Z test_existing_uuid_returned_from_create_is_unknown (test_restore_target_reservation.RestoreTarget.test_existing_uuid_returned_from_create_is_unknown) ... ok
+2026-11-06T15:29:57.7571436Z test_incomplete_inventory_stops_before_creation (test_restore_target_reservation.RestoreTarget.test_incomplete_inventory_stops_before_creation) ... ok
+2026-11-06T15:29:57.7581032Z test_known_database_name_drift_stops (test_restore_target_reservation.RestoreTarget.test_known_database_name_drift_stops) ... ok
+2026-11-06T15:29:57.7591649Z test_missing_token_has_no_network (test_restore_target_reservation.RestoreTarget.test_missing_token_has_no_network) ... ok
+2026-11-06T15:29:57.7602970Z test_nonempty_new_target_not_admitted_or_deleted (test_restore_target_reservation.RestoreTarget.test_nonempty_new_target_not_admitted_or_deleted) ... ok
+2026-11-06T15:29:57.7614243Z test_one_empty_target_created_after_complete_identity_storage_preflight (test_restore_target_reservation.RestoreTarget.test_one_empty_target_created_after_complete_identity_storage_preflight) ... ok
+2026-11-06T15:29:57.7623798Z test_preexisting_target_never_adopted (test_restore_target_reservation.RestoreTarget.test_preexisting_target_never_adopted) ... ok
+2026-11-06T15:29:57.7636687Z test_provider_capacity_rejection_retained_and_never_retried (test_restore_target_reservation.RestoreTarget.test_provider_capacity_rejection_retained_and_never_retried) ... ok
+2026-11-06T15:29:57.7646653Z test_unknown_storage_stops_before_creation (test_restore_target_reservation.RestoreTarget.test_unknown_storage_stops_before_creation) ... ok
+2026-11-06T15:29:57.7655766Z test_untrusted_run_marker_has_no_network (test_restore_target_reservation.RestoreTarget.test_untrusted_run_marker_has_no_network) ... ok
+2026-11-06T15:29:57.7656425Z 
+2026-11-06T15:29:57.7656727Z ----------------------------------------------------------------------
+2026-11-06T15:29:57.7657159Z Ran 117 tests in 0.370s
+2026-11-06T15:29:57.7657331Z 
+2026-11-06T15:29:57.7657438Z OK
+2026-11-06T15:29:57.7849240Z ##[group]Run npm ci --ignore-scripts --no-audit --no-fund
+2026-11-06T15:29:57.7849983Z [36;1mnpm ci --ignore-scripts --no-audit --no-fund[0m
+2026-11-06T15:29:57.7868948Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:29:57.7869261Z env:
+2026-11-06T15:29:57.7869676Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:29:57.7870074Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:29:57.7870413Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:29:57.7870758Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:29:57.7871155Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.7871635Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:29:57.7872129Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.7872581Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.7872994Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:29:57.7873551Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:29:57.7873934Z ##[endgroup]
+2026-11-06T15:30:00.6415391Z 
+2026-11-06T15:30:00.6416207Z added 31 packages in 3s
+2026-11-06T15:30:00.6873470Z ##[group]Run npm test
+2026-11-06T15:30:00.6873827Z [36;1mnpm test[0m
+2026-11-06T15:30:00.6892040Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:30:00.6892425Z env:
+2026-11-06T15:30:00.6892700Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:30:00.6893090Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:30:00.6893433Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:30:00.6893748Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:30:00.6894189Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:00.6894635Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:30:00.6895045Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:00.6895362Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:00.6895666Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:00.6895989Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:30:00.6896276Z ##[endgroup]
+2026-11-06T15:30:00.7756951Z 
+2026-11-06T15:30:00.7757417Z > axiom-idp-local-runtime-qualification@0.0.0 test
+2026-11-06T15:30:00.7758123Z > node --test idp_runtime.test.mjs review_adversarial.test.mjs
+2026-11-06T15:30:00.7758468Z 
+2026-11-06T15:30:00.8219252Z TAP version 13
+2026-11-06T15:30:01.9748998Z # Subtest: actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths
+2026-11-06T15:30:01.9781772Z ok 1 - actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths
+2026-11-06T15:30:01.9782665Z   ---
+2026-11-06T15:30:01.9783142Z   duration_ms: 515.002063
+2026-11-06T15:30:01.9783598Z   type: 'test'
+2026-11-06T15:30:01.9784017Z   ...
+2026-11-06T15:30:02.3263915Z # Subtest: server login, read-only Paynow truth and private verifier transports run without real grants
+2026-11-06T15:30:02.3270560Z ok 2 - server login, read-only Paynow truth and private verifier transports run without real grants
+2026-11-06T15:30:02.3271217Z   ---
+2026-11-06T15:30:02.3271499Z   duration_ms: 355.986971
+2026-11-06T15:30:02.3271795Z   type: 'test'
+2026-11-06T15:30:02.3272046Z   ...
+2026-11-06T15:30:02.3272663Z # Subtest: test process denies external network even if a client accidentally follows a redirect
+2026-11-06T15:30:02.3273570Z ok 3 - test process denies external network even if a client accidentally follows a redirect
+2026-11-06T15:30:02.3274065Z   ---
+2026-11-06T15:30:02.3274307Z   duration_ms: 3.930916
+2026-11-06T15:30:02.3274571Z   type: 'test'
+2026-11-06T15:30:02.3274809Z   ...
+2026-11-06T15:30:03.0161436Z # Subtest: unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API
+2026-11-06T15:30:03.0170467Z ok 4 - unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API
+2026-11-06T15:30:03.0180827Z   ---
+2026-11-06T15:30:03.0181106Z   duration_ms: 687.908957
+2026-11-06T15:30:03.0181409Z   type: 'test'
+2026-11-06T15:30:03.0181995Z   ...
+2026-11-06T15:30:03.6191066Z # Subtest: real D1 racing callbacks have one winner and one provider exchange
+2026-11-06T15:30:03.6210594Z ok 5 - real D1 racing callbacks have one winner and one provider exchange
+2026-11-06T15:30:03.6232057Z   ---
+2026-11-06T15:30:03.6260050Z   duration_ms: 601.364399
+2026-11-06T15:30:03.6266890Z   type: 'test'
+2026-11-06T15:30:03.6290064Z   ...
+2026-11-06T15:30:04.1736463Z # Subtest: wrong browser and provider redirect are denied without redeeming a flow twice
+2026-11-06T15:30:04.1737531Z ok 6 - wrong browser and provider redirect are denied without redeeming a flow twice
+2026-11-06T15:30:04.1738298Z   ---
+2026-11-06T15:30:04.1738587Z   duration_ms: 560.794032
+2026-11-06T15:30:04.1738883Z   type: 'test'
+2026-11-06T15:30:04.1739061Z   ...
+2026-11-06T15:30:04.8376184Z # Subtest: D1 batch failure rolls back session mint and prior-session rotation together
+2026-11-06T15:30:04.8381026Z ok 7 - D1 batch failure rolls back session mint and prior-session rotation together
+2026-11-06T15:30:04.8381776Z   ---
+2026-11-06T15:30:04.8382483Z   duration_ms: 663.387982
+2026-11-06T15:30:04.8382945Z   type: 'test'
+2026-11-06T15:30:04.8383325Z   ...
+2026-11-06T15:30:05.6840039Z # Subtest: persisted D1 session and replay denial survive complete workerd restart
+2026-11-06T15:30:05.6842270Z ok 8 - persisted D1 session and replay denial survive complete workerd restart
+2026-11-06T15:30:05.6842863Z   ---
+2026-11-06T15:30:05.6843243Z   duration_ms: 847.356334
+2026-11-06T15:30:05.6843639Z   type: 'test'
+2026-11-06T15:30:05.6843995Z   ...
+2026-11-06T15:30:06.5276894Z # Subtest: local logout is terminal across workerd restart and private binding reads
+2026-11-06T15:30:06.5277915Z ok 9 - local logout is terminal across workerd restart and private binding reads
+2026-11-06T15:30:06.5278501Z   ---
+2026-11-06T15:30:06.5278740Z   duration_ms: 842.480098
+2026-11-06T15:30:06.5278938Z   type: 'test'
+2026-11-06T15:30:06.5279116Z   ...
+2026-11-06T15:30:07.1078404Z # Subtest: canonical revocation and cross-tenant requests cannot use an otherwise active session
+2026-11-06T15:30:07.1079719Z ok 10 - canonical revocation and cross-tenant requests cannot use an otherwise active session
+2026-11-06T15:30:07.1080216Z   ---
+2026-11-06T15:30:07.1080518Z   duration_ms: 582.417263
+2026-11-06T15:30:07.1080830Z   type: 'test'
+2026-11-06T15:30:07.1081000Z   ...
+2026-11-06T15:30:07.6512112Z # Subtest: private verifier rejects production OAuth audience and public headers cannot create a private route
+2026-11-06T15:30:07.6513255Z ok 11 - private verifier rejects production OAuth audience and public headers cannot create a private route
+2026-11-06T15:30:07.6513845Z   ---
+2026-11-06T15:30:07.6514095Z   duration_ms: 543.041668
+2026-11-06T15:30:07.6514373Z   type: 'test'
+2026-11-06T15:30:07.6514609Z   ...
+2026-11-06T15:30:07.9010539Z # Subtest: all server private transports reject redirect responses before parsing or forwarding
+2026-11-06T15:30:07.9011522Z ok 12 - all server private transports reject redirect responses before parsing or forwarding
+2026-11-06T15:30:07.9012093Z   ---
+2026-11-06T15:30:07.9012361Z   duration_ms: 249.934599
+2026-11-06T15:30:07.9012697Z   type: 'test'
+2026-11-06T15:30:07.9012935Z   ...
+2026-11-06T15:30:08.5358496Z # Subtest: checkout transport only returns an authorized fixture destination and never settles synthetic orders
+2026-11-06T15:30:08.5359779Z ok 13 - checkout transport only returns an authorized fixture destination and never settles synthetic orders
+2026-11-06T15:30:08.5360346Z   ---
+2026-11-06T15:30:08.5360583Z   duration_ms: 638.655502
+2026-11-06T15:30:08.5360862Z   type: 'test'
+2026-11-06T15:30:08.5361080Z   ...
+2026-11-06T15:30:08.5592363Z # {"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token"],"status":400,"browserCookieForwarded":false}
+2026-11-06T15:30:08.5595331Z # {"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys"],"status":400,"browserCookieForwarded":false}
+2026-11-06T15:30:08.5598901Z # {"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo"],"status":400,"browserCookieForwarded":false}
+2026-11-06T15:30:08.5600977Z # Subtest: independent: each provider endpoint denies307 before following or forwarding browser cookies
+2026-11-06T15:30:08.5601948Z ok 14 - independent: each provider endpoint denies307 before following or forwarding browser cookies
+2026-11-06T15:30:08.5602504Z   ---
+2026-11-06T15:30:08.5602751Z   duration_ms: 2059.592251
+2026-11-06T15:30:08.5603044Z   type: 'test'
+2026-11-06T15:30:08.5603277Z   ...
+2026-11-06T15:30:08.5604723Z # {"case":"private-transport-browser-header-isolation","status":202,"observedUrls":["https://axiom-internal/identity/start-login","https://payments.mftintelligence.com/billing/healthz","https://payments.mftintelligence.com/billing/catalog","https://axiom-internal/payments/create"],"browserCredentialsForwarded":false}
+2026-11-06T15:30:08.5606314Z # Subtest: independent: browser credentials do not leak into login billing or checkout service requests
+2026-11-06T15:30:08.5607104Z ok 15 - independent: browser credentials do not leak into login billing or checkout service requests
+2026-11-06T15:30:08.5607481Z   ---
+2026-11-06T15:30:08.5607678Z   duration_ms: 681.696726
+2026-11-06T15:30:08.5607895Z   type: 'test'
+2026-11-06T15:30:08.5608077Z   ...
+2026-11-06T15:30:08.5608499Z # {"case":"identity-service302","status":401,"observedUrls":["https://axiom-internal/session/verify"]}
+2026-11-06T15:30:08.5609129Z # Subtest: independent: private identity verifier redirect cannot authenticate a customer
+2026-11-06T15:30:08.5609897Z ok 16 - independent: private identity verifier redirect cannot authenticate a customer
+2026-11-06T15:30:08.5610245Z   ---
+2026-11-06T15:30:08.5610431Z   duration_ms: 919.770905
+2026-11-06T15:30:08.5610643Z   type: 'test'
+2026-11-06T15:30:08.5610813Z   ...
+2026-11-06T15:30:08.5610985Z 1..16
+2026-11-06T15:30:08.5611128Z # tests 16
+2026-11-06T15:30:08.5611299Z # suites 0
+2026-11-06T15:30:08.5611460Z # pass 16
+2026-11-06T15:30:08.5611608Z # fail 0
+2026-11-06T15:30:08.5611757Z # cancelled 0
+2026-11-06T15:30:08.5612019Z # skipped 0
+2026-11-06T15:30:08.5612291Z # todo 0
+2026-11-06T15:30:08.5612569Z # duration_ms 7750.070534
+2026-11-06T15:30:08.5732879Z ##[group]Run python customer_frontier/benchmarks/verify_benchmarks.py customer_frontier/benchmarks/frontier_manifest.json customer_frontier/benchmarks/observations_not_proven.json --output /tmp/axiom-frontier-not-certified.json
+2026-11-06T15:30:08.5734153Z [36;1mpython customer_frontier/benchmarks/verify_benchmarks.py customer_frontier/benchmarks/frontier_manifest.json customer_frontier/benchmarks/observations_not_proven.json --output /tmp/axiom-frontier-not-certified.json[0m
+2026-11-06T15:30:08.5734851Z [36;1mpython - <<'PY'[0m
+2026-11-06T15:30:08.5735045Z [36;1mimport json[0m
+2026-11-06T15:30:08.5735297Z [36;1mo=json.load(open('/tmp/axiom-frontier-not-certified.json'))[0m
+2026-11-06T15:30:08.5735771Z [36;1massert 'NOT_CERTIFIED' in str(o) or 'not_certified' in str(o).lower(), 'Missing fail-closed certification status'[0m
+2026-11-06T15:30:08.5736159Z [36;1mPY[0m
+2026-11-06T15:30:08.5755078Z shell: /usr/bin/bash -e {0}
+2026-11-06T15:30:08.5755294Z env:
+2026-11-06T15:30:08.5755501Z   PAYMENT_CHECKOUT_QUALIFIED: false
+2026-11-06T15:30:08.5755740Z   IDENTITY_ENROLLMENT_QUALIFIED: false
+2026-11-06T15:30:08.5755959Z   IDENTITY_LOGIN_QUALIFIED: false
+2026-11-06T15:30:08.5756168Z   ALLOW_INTERNAL_RECONCILIATION: false
+2026-11-06T15:30:08.5756582Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:08.5756912Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-06T15:30:08.5757243Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:08.5757533Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:08.5757825Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-06T15:30:08.5758117Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-06T15:30:08.5758370Z ##[endgroup]
+2026-11-06T15:30:08.6068834Z {
+2026-11-06T15:30:08.6069198Z   "comparisons": [
+2026-11-06T15:30:08.6069632Z     {
+2026-11-06T15:30:08.6069948Z       "id": "onboarding_p90_seconds",
+2026-11-06T15:30:08.6070361Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6070689Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6070972Z     },
+2026-11-06T15:30:08.6071215Z     {
+2026-11-06T15:30:08.6071530Z       "id": "first_eligible_result_success_rate",
+2026-11-06T15:30:08.6071963Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6072296Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6072584Z     },
+2026-11-06T15:30:08.6072812Z     {
+2026-11-06T15:30:08.6073063Z       "id": "accuracy",
+2026-11-06T15:30:08.6073395Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6073728Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6074020Z     },
+2026-11-06T15:30:08.6074250Z     {
+2026-11-06T15:30:08.6074531Z       "id": "finance_risk_accuracy",
+2026-11-06T15:30:08.6074905Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6075206Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6075476Z     },
+2026-11-06T15:30:08.6075695Z     {
+2026-11-06T15:30:08.6075999Z       "id": "tenant_isolation_attack_success",
+2026-11-06T15:30:08.6076374Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6076656Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6076915Z     },
+2026-11-06T15:30:08.6077131Z     {
+2026-11-06T15:30:08.6077423Z       "id": "accessibility_success_rate",
+2026-11-06T15:30:08.6077786Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6078112Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6078405Z     },
+2026-11-06T15:30:08.6078629Z     {
+2026-11-06T15:30:08.6078909Z       "id": "p95_latency_seconds",
+2026-11-06T15:30:08.6079289Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6079764Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6080051Z     },
+2026-11-06T15:30:08.6080285Z     {
+2026-11-06T15:30:08.6080561Z       "id": "availability_rate",
+2026-11-06T15:30:08.6080915Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6081228Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6081488Z     },
+2026-11-06T15:30:08.6081696Z     {
+2026-11-06T15:30:08.6082270Z       "id": "verified_customer_outcome_rate",
+2026-11-06T15:30:08.6082649Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6082981Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6083286Z     },
+2026-11-06T15:30:08.6083515Z     {
+2026-11-06T15:30:08.6083806Z       "id": "payment_reconciliation_error_rate",
+2026-11-06T15:30:08.6084245Z       "reason": "no_measurement",
+2026-11-06T15:30:08.6084573Z       "state": "NOT_PROVEN"
+2026-11-06T15:30:08.6084856Z     }
+2026-11-06T15:30:08.6085080Z   ],
+2026-11-06T15:30:08.6086014Z   "note": "Presence of digests and alleged independent verifier is not cryptographic or human validation. External evidence verification and Security Gateway veto remain mandatory.",
+2026-11-06T15:30:08.6086964Z   "qualified_comparisons": 0,
+2026-11-06T15:30:08.6087279Z   "status": "NOT_CERTIFIED"
+2026-11-06T15:30:08.6087557Z }
+2026-11-06T15:30:08.6087675Z 
+2026-11-06T15:30:08.6365231Z Post job cleanup.
+2026-11-06T15:30:08.7435874Z (node:2898) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-06T15:30:08.7436855Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-06T15:30:08.7572014Z Post job cleanup.
+2026-11-06T15:30:08.8655518Z (node:2906) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-06T15:30:08.8657051Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-06T15:30:08.8841501Z Post job cleanup.
+2026-11-06T15:30:08.9610933Z [command]/usr/bin/git version
+2026-11-06T15:30:08.9677702Z git version 2.56.0
+2026-11-06T15:30:08.9707641Z Temporarily overriding HOME='/home/runner/work/_temp/c45d9e35-de70-460c-811f-bad472462c14' before making global git config changes
+2026-11-06T15:30:08.9708772Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-06T15:30:08.9711872Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/mft-axiom-build/mft-axiom-build
+2026-11-06T15:30:08.9748021Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-06T15:30:08.9778694Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-06T15:30:09.0006886Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-06T15:30:09.0050922Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-06T15:30:09.0269985Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-06T15:30:09.0313683Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-06T15:30:09.0664107Z Cleaning up orphan processes
+2026-11-06T15:30:09.0996687Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
