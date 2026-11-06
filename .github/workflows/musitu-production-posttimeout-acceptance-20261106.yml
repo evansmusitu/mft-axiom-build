@@ -1,0 +1,193 @@
+name: MUSITU Production Post-Timeout Acceptance 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-posttimeout-acceptance-20261106.yml
+permissions:
+  contents: read
+jobs:
+  accept:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      CF_PAGES_NAME: "musitu-corporate"
+      RELEASE_SHA: "7e0fa23dad220e0e1b7e48a9176e3437b5afc545"
+      MERGE_SHA: "bf70edf55b9d67402bbb1d8d0f1d72f14ed1ef86"
+      ORIGIN: "https://mftintelligence.com"
+    steps:
+      - name: Read Cloudflare production control-plane state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          base='https://api.cloudflare.com/client/v4'
+          h={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          aid=os.environ['CF_ACCOUNT_ID'];zid=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME'];merge=os.environ['MERGE_SHA']
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers=h),timeout=20) as r:b=json.load(r)
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          dom=get(f'/accounts/{aid}/pages/projects/{project}/domains/mftintelligence.com')
+          assert dom.get('status')=='active',dom
+          deps=get(f'/accounts/{aid}/pages/projects/{project}/deployments') or []
+          prod=[d for d in deps if d.get('environment')=='production']
+          assert prod,'No Pages production deployment'
+          latest=prod[0]
+          meta=((latest.get('deployment_trigger') or {}).get('metadata') or {})
+          assert meta.get('commit_hash')==merge,(latest.get('id'),meta.get('commit_hash'))
+          dns={}
+          for name in ('mftintelligence.com','www.mftintelligence.com'):
+              q=urllib.parse.urlencode({'name':name,'per_page':100})
+              dns[name]=get(f'/zones/{zid}/dns_records?{q}') or []
+          apex=[r for r in dns['mftintelligence.com'] if r.get('type') in ('A','AAAA','CNAME')]
+          www=[r for r in dns['www.mftintelligence.com'] if r.get('type') in ('A','AAAA','CNAME')]
+          assert len(apex)==1 and apex[0].get('type')=='CNAME' and apex[0].get('content')==project+'.pages.dev' and apex[0].get('proxied') is True,apex
+          assert len(www)==1 and www[0].get('proxied') is True,www
+          q=urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
+          mx=get(f'/zones/{zid}/dns_records?{q}') or []
+          assert len(mx)>=3,'MX routing not preserved'
+          # The production browser-host security exception must be a single existing zone rule, not a new ruleset/rule explosion.
+          sets=get(f'/zones/{zid}/rulesets') or []
+          cfg=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          assert len(cfg)==1
+          detail=get(f'/zones/{zid}/rulesets/{cfg[0]["id"]}') or {}
+          rules=detail.get('rules') or []
+          assert len(rules)==10,len(rules)
+          matching=[r for r in rules if r.get('ref')=='axiom_app_browser_challenge_exception']
+          assert len(matching)==1
+          expr=matching[0].get('expression') or ''
+          for host in ('app.mftintelligence.com','mftintelligence.com','www.mftintelligence.com'):
+              assert host in expr,expr
+          print('pages_apex_domain_active: PASS')
+          print('pages_latest_production_merge_sha: PASS')
+          print('apex_www_web_dns_present: PASS')
+          print('mx_email_routing_preserved:',len(mx))
+          print('zone_config_rule_count_preserved: 10')
+          print('browser_host_exception_consolidated: PASS')
+          PY
+
+      - name: Verify independent public DNS and both Cloudflare IPv4 edges
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,subprocess,time,urllib.request
+          def resolve(name):
+              out=[]
+              for typ in ('A','AAAA'):
+                  with urllib.request.urlopen(f'https://dns.google/resolve?name={name}&type={typ}&cd=1',timeout=15) as r:d=json.load(r)
+                  if d.get('Status')==0: out += [x.get('data') for x in d.get('Answer',[]) if x.get('type') in (1,28)]
+              return out
+          apex=resolve('mftintelligence.com');www=resolve('www.mftintelligence.com')
+          av4=[x for x in apex if ':' not in x];wv4=[x for x in www if ':' not in x]
+          assert len(av4)>=2 and len(wv4)>=2,(apex,www)
+          print('google_dns_apex:',apex)
+          print('google_dns_www:',www)
+          # Both current Cloudflare v4 edges must serve the production homepage with no challenge.
+          for ip in av4[:2]:
+              ok=False;last=''
+              for attempt in range(4):
+                  p=subprocess.run(['curl','-sS','-D','-','--max-time','15','--resolve',f'mftintelligence.com:443:{ip}','https://mftintelligence.com/'],capture_output=True,text=True)
+                  last=p.stdout[:500]
+                  if p.returncode==0 and 'HTTP/2 200' in p.stdout and 'Intelligence with evidence' in p.stdout and 'Just a moment' not in p.stdout:
+                      ok=True;break
+                  time.sleep(1)
+              assert ok,(ip,p.returncode,last)
+              print('edge_home_200:',ip)
+          open('/tmp/apex_v4.txt','w').write('\n'.join(av4[:2]))
+          PY
+
+      - name: Verify all public routes on both edges
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess,time,re
+          routes=['/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/']
+          ips=[x.strip() for x in open('/tmp/apex_v4.txt') if x.strip()]
+          assert len(ips)>=2
+          failures=[]
+          for ip in ips:
+              for route in routes:
+                  url='https://mftintelligence.com'+route
+                  ok=False;detail=''
+                  for n in range(3):
+                      p=subprocess.run(['curl','-sS','--max-time','12','--resolve',f'mftintelligence.com:443:{ip}',url],capture_output=True,text=True)
+                      body=p.stdout;detail=f'exit={p.returncode} bytes={len(body)}'
+                      if p.returncode==0 and '<meta name="robots" content="index,follow">' in body and f'<link rel="canonical" href="https://mftintelligence.com{route}">' in body and 'OWNER REVIEW BUILD' not in body and 'review-ribbon' not in body:
+                          ok=True;break
+                      time.sleep(.7)
+                  if not ok:failures.append({'edge':ip,'route':route,'detail':detail})
+          assert not failures,failures[:12]
+          print('public_route_edge_checks:',len(ips)*len(routes))
+          print('all_33_routes_both_edges: PASS')
+          PY
+
+      - name: Verify security headers, legal identity, Axiom, Studio, robots, sitemap and www redirect
+        shell: bash
+        run: |
+          set -euo pipefail
+          ip="$(head -1 /tmp/apex_v4.txt)"
+          curl -sS -D /tmp/h -o /tmp/home --max-time 20 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/
+          grep -qi '^content-security-policy:.*frame-ancestors '\''none' /tmp/h
+          grep -qi '^x-content-type-options: *nosniff' /tmp/h
+          ! grep -qi '^x-robots-tag:.*noindex' /tmp/h
+          curl -sS --max-time 20 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/legal/privacy/ > /tmp/privacy
+          grep -Fq 'MUSITU is the website operator and data controller' /tmp/privacy
+          grep -Fq 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' /tmp/privacy
+          curl -sS --max-time 20 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/products/axiom/ > /tmp/axiom
+          grep -Fq 'https://chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86' /tmp/axiom
+          curl -sS --max-time 60 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/assets/studio-demo-82s.mp4 -o /tmp/studio.mp4
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 /tmp/studio.mp4 | sha256sum -c -
+          curl -sS --max-time 20 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/robots.txt > /tmp/robots
+          grep -Fq 'Allow: /' /tmp/robots
+          grep -Fq 'Sitemap: https://mftintelligence.com/sitemap.xml' /tmp/robots
+          curl -sS --max-time 20 --resolve "mftintelligence.com:443:$ip" https://mftintelligence.com/sitemap.xml > /tmp/sitemap
+          test "$(grep -o '<url>' /tmp/sitemap | wc -l)" -eq 33
+          # Let public DNS choose the edge for canonical www redirect.
+          curl -sS -D /tmp/wwwh -o /dev/null --max-time 20 'https://www.mftintelligence.com/products/axiom/?launch=1'
+          grep -Eq '^HTTP/[0-9.]+ (301|308)' /tmp/wwwh
+          grep -Eqi '^location: *https://mftintelligence.com/products/axiom/\?launch=1' /tmp/wwwh
+          echo 'production_security_headers: PASS'
+          echo 'legal_identity: PASS'
+          echo 'axiom_chatgpt_destination: PASS'
+          echo 'studio_media_hash: PASS'
+          echo 'robots_sitemap: PASS'
+          echo 'www_canonical_redirect: PASS'
+
+      - name: Verify existing Intelligence origin remains separate
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl -sS --max-time 20 https://evansmusitu.github.io/)"
+          test -n "$body"
+          printf '%s' "$body" | grep -qi 'MUSITU'
+          echo 'existing_intelligence_origin_preserved: PASS'
+
+      - name: Write acceptance evidence
+        shell: bash
+        run: |
+          mkdir -p evidence
+          cat > evidence/PRODUCTION_POSTTIMEOUT_ACCEPTANCE.json <<EOF
+          {
+            "release_sha": "$RELEASE_SHA",
+            "merge_sha": "$MERGE_SHA",
+            "canonical_origin": "$ORIGIN",
+            "routes": 33,
+            "edges_checked": 2,
+            "production_launch": "PASS",
+            "acceptance_type": "read_only_post_timeout_reconciliation",
+            "cloudflare_mutations_in_this_workflow": 0
+          }
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-production-posttimeout-acceptance-20261106
+          path: evidence
+          retention-days: 90
