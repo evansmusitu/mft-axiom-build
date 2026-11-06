@@ -29,7 +29,7 @@ jobs:
           base=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/deployments'
           headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
           def req(method,path):
-            q=urllib.request.Request(base+path,headers=headers,method=method,data=(b'{}' if method=='POST' else None))
+            q=urllib.request.Request(base+path,headers=headers,method=method,data=None)
             with urllib.request.urlopen(q,timeout=30) as r:
               body=json.load(r)
             assert body.get('success') is True,body.get('errors')
