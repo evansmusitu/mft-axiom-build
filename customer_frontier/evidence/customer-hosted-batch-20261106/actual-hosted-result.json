@@ -1,0 +1,122 @@
+{
+  "result": {
+    "schema": "musitu.axiom.actual_customer_d1_batch.v1",
+    "source_sha": "60d1de79a220017e008b3002982de71bbf660c0b",
+    "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+    "run_id": "axiom-customer-d1-20261106-01",
+    "plan_sha256": "06cfe6adfed21dc718ce0f0cdd53521a05e8bee8d1f0e95fccd7e823575ed80c",
+    "customer_schema_applied": true,
+    "schema_application_outcome": "APPLIED_AND_VERIFIED",
+    "temporary_worker_removed": true,
+    "production_oauth_changed": false,
+    "release_authority": false,
+    "hosted_restore_qualified": false,
+    "customer_acceptance_qualified": false,
+    "transport": [
+      {
+        "surface": "control",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "GET",
+        "status": 404
+      },
+      {
+        "surface": "control",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "PUT",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "POST",
+        "status": 200
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 404
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "qualifier",
+        "method": "POST",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "PUT",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "POST",
+        "status": 200
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 401
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 401
+      },
+      {
+        "surface": "qualifier",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "DELETE",
+        "status": 200
+      },
+      {
+        "surface": "control",
+        "method": "GET",
+        "status": 404
+      }
+    ],
+    "worker_ownership_sha256": "4116b7d9125746a6b5b8c123aa2b30922b22da4a0875a3194ec5f15cdec59e6e",
+    "migration_attempted": true,
+    "atomic_customer_ddl_rollback": true,
+    "customer_tables": 20,
+    "foreign_user_tables_preserved": 3,
+    "foreign_user_rows": 0,
+    "customer_rows_seeded": 0,
+    "scope": "actual customer/IdP schema only; no production OAuth migration",
+    "oauth_upgrade_qualified": false,
+    "schema_survived_redeployment": true,
+    "temporary_operator_rotation_confirmed": true
+  },
+  "cleanup": [
+    {
+      "run_id": "axiom-customer-d1-20261106-01",
+      "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+      "database_deleted": false,
+      "temporary_worker_removed": true
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "schema": "musitu.axiom.independent_customer_idp_staging_batch_complete_review.v1",
+  "verdict": "PASS_FOR_ONE_BOUNDED_CUSTOMER_IDP_STAGING_RUN_ONLY",
+  "source": "60d1de79a220017e008b3002982de71bbf660c0b",
+  "tree": "b56689e98ff96d5250202ebaae2a13e925eb9ac3",
+  "parent": "d3ac105425088f672f0663b921be184482035b0a",
+  "reviewed_local_workflow_sha256": "116bdcc2cca805270f1fb698dd27ca64084ffa1ea4e4a12e265add8734e86092",
+  "fixed_database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+  "scope": "One customer/IdP staging schema qualification:71newCREATEs,20customer tables,73statement forced-failure batch then73statement forward batch, receipt, redeployment/operator-rotation readback and owned temporary Worker deletion. No production OAuth migration.",
+  "unresolved_p0_p1_p2": [],
+  "prior_findings": [
+    {
+      "issue": "Any first batch failure incorrectly certified atomic rollback.",
+      "status": "FIXED_AND_INDEPENDENTLY_VERIFIED",
+      "proof": "Exact named CHECK constraint required; transient/unrelated errors stop before forward; catalog and foreign rows checked after rollback."
+    },
+    {
+      "issue": "Lost/503 qualification response could leave customer_schema_applied=false despite possible commit.",
+      "status": "FIXED_AND_INDEPENDENTLY_VERIFIED",
+      "proof": "Persisted UNKNOWN/null before sending qualifier; only verified200 sets APPLIED_AND_VERIFIED/true; no qualifier retry."
+    },
+    {
+      "issue": "Always-run token-bearing cleanup was not gated behind successful source/test admission.",
+      "status": "FIXED_AND_INDEPENDENTLY_VERIFIED",
+      "proof": "Cleanup now requires successful immutable admission, SQLite/workerd tests and started driver.625outcome combinations directly evaluated."
+    },
+    {
+      "issue": "Initial local workerd SQLITE_AUTH during attempted foreign internal-table row counting.",
+      "status": "FIXED_IN_FROZEN_SOURCE_AND_REAL_LOCAL_WORKERD_PASS",
+      "proof": "Only reserved _cf_KV/_cf_METADATA excluded from user row counts; complete catalog hash and original object preservation remain. Initial failure retained by root."
+    }
+  ],
+  "validation": {
+    "exact_identity": "All8immutable remote source/test/package/lock Git blobs and SHA256 verified.7materialized local copies equal remote bytes; unchanged lock verified from immutable GitHub bytes.",
+    "plan_parity": {
+      "CREATEs": 71,
+      "tables": 20,
+      "objects": 71,
+      "sources": "53schema+5lifecycle+13IdP CREATE statements match primary Git SQL blobs exactly after prefix IF NOT EXISTS removal; source PRAGMAforeign_keys=ON is the only omitted nonCREATE and is enforced as runtime prerequisite.",
+      "log": "customer-batch-plan-parity.json"
+    },
+    "supplied_sqlite": {
+      "count": 4,
+      "result": "PASS",
+      "log": "customer-batch-final-existing-tests.log"
+    },
+    "supplied_real_local_workerd": {
+      "count": 1,
+      "result": "PASS",
+      "log": "customer-batch-final-workerd.log"
+    },
+    "independent_worker": {
+      "count": 8,
+      "result": "PASS",
+      "log": "customer-batch-final-worker-adversarial.log"
+    },
+    "independent_driver_fake_transport": {
+      "count": 7,
+      "result": "PASS",
+      "log": "customer-batch-driver-tests.log"
+    },
+    "independent_cleanup_fake_transport": {
+      "count": 3,
+      "result": "PASS",
+      "log": "customer-batch-cleanup-tests.log"
+    },
+    "credential_admission_states": {
+      "count": 625,
+      "result": "PASS",
+      "log": "customer-batch-cleanup-admission-proof.json"
+    },
+    "static_identity_workflow": {
+      "result": "PASS",
+      "log": "customer-batch-final-static-verification.log"
+    }
+  },
+  "verified_boundaries": [
+    "Fixed account and ccc473database only. Production504,sharedq06a738,legacy4a62 not bound or mutated; D1controlAPI onlymetadataGET.",
+    "Exact expected foreign catalog and zero user rows/FK-on must pass before batching; absent plan names collide safely because IF NOT EXISTS removed.",
+    "Intended named constraint failure must be observed; rollback catalog and original foreign zero rows verified before forward. Partial rollback or unrelated error cannot reach forward.",
+    "Forward is one actual D1Database.batch of71CREATEs plus marker table/row; original object definitions and rows checked afterward; schema names and FK checks required.",
+    "Bearer-only fixed temporary Worker denies origin/cookie, invalid/expired token and wrong run; fixed global plan, no caller SQL; schema replay rejects at initial catalog; credentials rotate before restart readback.",
+    "Driver refuses existing Worker before PUT; only fixed newWorker upload/subdomain-enable, sameownedWorker redeploy and ownedDELETE mutations exist. Random ownership SHA persists before API activity.",
+    "Cleanup checks fixedRUN/DB and exact random ownership/hash, deletes only that Worker, requires404 readback and never deletes database. Foreign replacement or uncertainty remains failure/unconfirmed.",
+    "Workflow exactsource/hash8 admission, pinned Node24.12 and Actions, locked npmci with install scriptsdisabled, SQLite and realworkerd tests before either CFtoken step; cleanup conditional and artifacts safe JSON only."
+  ],
+  "conditions_before_opening": [
+    "Root must verify published immutable workflow bytes equal116bdcc2… and live exactbase/head/main drift before triggering.",
+    "User20min window ends2026-11-06T21:43:22Z; this verdict does not extend it.",
+    "Actual hosted results, cleanup404 and safe logs must be retained and reconciled; UNKNOWN must not become not-applied or success without readback."
+  ],
+  "scope_limits": [
+    "Source/offline pass permits the bounded staging experiment only; actual hosted batch/restart/cleanup outcomes remain unobserved by this reviewer.",
+    "Local workerd uses synthetic foreign-catalog proof and diagnostic-only exception instrumentation; it is not hosted evidence.",
+    "No customer acceptance, actual IdP login, tenant isolation acceptance, production OAuth existing-schema upgrade, provider/payment/device path, hosted restore, custody, antirollback, merge/deploy/app publication or release is qualified.",
+    "Currentconsumer scans do not prove global absence. Existing foreign data is preserved by catalog/row guards, not a waiver of custody or SourceGate.",
+    "Temporary operator rotation is endpoint readback for this run, not certification of customer logout/revocation across product surfaces."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "retained_authority_states": {
+    "PR1": "SEPARATE_REJECTION_PRESERVED",
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN",
+    "production_oauth_changed": false,
+    "hosted_restore_qualified": false,
+    "customer_acceptance_qualified": false,
+    "release_authority": false
+  }
+}
