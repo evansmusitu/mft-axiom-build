@@ -263,3 +263,25 @@ test("prototype-wide accounting hook replacement cannot bypass an already regist
     x.ledger.close();
   }
 });
+
+
+test("SQLite provider settlement refuses unsafe aggregate charges without corrupting an outstanding reservation",()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  const provider="test:openai",modelId="test-model",tenantId="tenant:a";
+  const reserve=(requestId:string,requestHash:string,reserveMicroUsd:number)=>
+    ledger.reserve({tenantId,provider,modelId,requestId,requestHash,reserveMicroUsd});
+  const settle=(requestId:string,requestHash:string,chargeMicroUsd:number)=>
+    ledger.settle({tenantId,provider,modelId,requestId,requestHash,chargeMicroUsd,responseHash:"f".repeat(64)});
+  try{
+    ledger.provision(scope(),provider,modelId,1000);
+    reserve("settled-first","a".repeat(64),700);
+    settle("settled-first","a".repeat(64),600);
+    reserve("overlarge-second","b".repeat(64),100);
+    assert.throws(()=>settle("overlarge-second","b".repeat(64),Number.MAX_SAFE_INTEGER),
+      (error:any)=>error?.code==="BUDGET_CORRUPT",
+      "unsafe aggregate charges must fail closed before SQLite mutates stored balances");
+    assert.deepEqual(ledger.status(scope(),provider,modelId),{
+      limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:100,availableMicroUsd:300
+    });
+  }finally{ledger.close();}
+});
