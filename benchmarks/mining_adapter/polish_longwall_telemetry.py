@@ -5,6 +5,7 @@ import hashlib
 import itertools
 import shlex
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Iterator, Mapping, TextIO
@@ -86,6 +87,44 @@ def validate_header(fieldnames: list[str] | tuple[str,...] | None) -> tuple[str,
     return names
 
 
+_TIME_COMPONENT_BOUNDS={
+    "year":(1,9999),
+    "month":(1,12),
+    "day":(1,31),
+    "hour":(0,23),
+    "minute":(0,59),
+    "second":(0,59),
+}
+
+
+def _exact_timestamp_component(value: Any, name: str) -> int:
+    # The public ARFF has integer timestamp columns, but external streams may
+    # express those same integers as "2.0" or "2e0". Never truncate a
+    # fractional measurement, round away a small nonzero value via float, or
+    # accidentally accept Infinity, NaN or unbounded decimal exponents.
+    text=str(value).strip()
+    if not text or len(text)>32:
+        raise ValueError("longwall_timestamp_invalid")
+    lower,upper=_TIME_COMPONENT_BOUNDS[name]
+    try:
+        if text.isascii() and text.isdecimal():
+            whole=int(text)
+        else:
+            numeric=Decimal(text)
+            # Check bounds BEFORE converting to int: gigantic exponents must
+            # not cause excessive allocation or escape as OverflowError.
+            if (not numeric.is_finite()
+                    or not lower <= numeric <= upper
+                    or numeric != numeric.to_integral_value()):
+                raise ValueError("longwall_timestamp_invalid")
+            whole=int(numeric)
+        if not lower <= whole <= upper:
+            raise ValueError("longwall_timestamp_invalid")
+        return whole
+    except (TypeError,ValueError,OverflowError,InvalidOperation):
+        raise ValueError("longwall_timestamp_invalid") from None
+
+
 def canonical_telemetry_row(raw: Mapping[str,Any]) -> dict[str,Any]:
     row=_casefold_row(raw)
     missing=sorted(_required_header_names()-set(row))
@@ -93,15 +132,10 @@ def canonical_telemetry_row(raw: Mapping[str,Any]) -> dict[str,Any]:
         raise ValueError("longwall_required_columns_missing:"+",".join(missing))
     try:
         stamp=datetime(
-            int(float(str(row["year"]).strip())),
-            int(float(str(row["month"]).strip())),
-            int(float(str(row["day"]).strip())),
-            int(float(str(row["hour"]).strip())),
-            int(float(str(row["minute"]).strip())),
-            int(float(str(row["second"]).strip())),
+            *(_exact_timestamp_component(row[name],name) for name in _TIMESTAMP_FIELDS),
             tzinfo=timezone.utc,
         )
-    except (TypeError,ValueError):
+    except (TypeError,ValueError,OverflowError):
         raise ValueError("longwall_timestamp_invalid") from None
 
     record={"event_time":stamp.isoformat(timespec="seconds").replace("+00:00","Z")}
