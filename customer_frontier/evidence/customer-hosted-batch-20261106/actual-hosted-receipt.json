@@ -1,0 +1,32 @@
+{
+  "run_id": 42298449469,
+  "job_id": 128169687556,
+  "source_sha": "60d1de79a220017e008b3002982de71bbf660c0b",
+  "event_head": "f6fa3b1a778285f8bd5106e09b30a63538501767",
+  "conclusion": "success",
+  "customer_schema_application": "APPLIED_AND_VERIFIED",
+  "actual_atomic_customer_ddl_rollback": true,
+  "schema_survived_redeployment": true,
+  "temporary_operator_rotation_confirmed": true,
+  "temporary_worker_cleanup_404_confirmed": true,
+  "customer_tables": 20,
+  "existing_user_tables_preserved": 3,
+  "existing_user_rows": 0,
+  "logs": [
+    {
+      "name": "actual-hosted-42298449469.log",
+      "bytes": 24609,
+      "sha256": "cd14c7f8ad8c3b89df45622d55eb55e2f290a9b16395dcccd825bdb272f6fe7c"
+    },
+    {
+      "name": "actual-source-ci-42298449482.log",
+      "bytes": 150157,
+      "sha256": "ecdf4262aa3e070246dd95936d372c8bd58128b6537169a490f6c8b4c2c65c06"
+    }
+  ],
+  "production_oauth_changed": false,
+  "hosted_restore_qualified": false,
+  "customer_acceptance_qualified": false,
+  "oauth_upgrade_qualified": false,
+  "release_authority": false
+}

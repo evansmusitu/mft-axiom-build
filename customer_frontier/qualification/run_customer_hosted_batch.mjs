@@ -6,9 +6,10 @@ const sha=x=>createHash('sha256').update(x).digest('hex');
 const assert=(ok,code)=>{if(!ok)throw Error(code);};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function main(){
- const report={schema:'musitu.axiom.actual_customer_d1_batch.v1',source_sha:process.env.AXIOM_CHECKOUT_SHA,database_id:DB,run_id:RUN,plan_sha256:HASH,customer_schema_applied:false,temporary_worker_removed:false,production_oauth_changed:false,release_authority:false,hosted_restore_qualified:false,customer_acceptance_qualified:false,transport:[]};
+ const report={schema:'musitu.axiom.actual_customer_d1_batch.v1',source_sha:process.env.AXIOM_CHECKOUT_SHA,database_id:DB,run_id:RUN,plan_sha256:HASH,customer_schema_applied:false,schema_application_outcome:'NOT_ATTEMPTED',temporary_worker_removed:false,production_oauth_changed:false,release_authority:false,hosted_restore_qualified:false,customer_acceptance_qualified:false,transport:[]};
  const ownership=randomBytes(24).toString('hex');let token=randomBytes(32).toString('hex'),epoch=randomBytes(12).toString('hex'),attempted=false,baseUrl;
  const save=()=>writeFile('customer-hosted-batch-result.json',JSON.stringify(report,null,2)+'\n');
+ report.worker_ownership_sha256=sha(ownership);await save();
  async function cf(path,{method='GET',body,form,allow404=false}={}){
   const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+path,{method,headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,...(body?{'content-type':'application/json'}:{})},body:form||(body?JSON.stringify(body):undefined),redirect:'error',signal:AbortSignal.timeout(20000)});
   report.transport.push({surface:'control',method,status:r.status});if(allow404&&r.status===404)return null;
@@ -32,7 +33,7 @@ async function main(){
    await cf('/workers/scripts/'+RUN,{method:'PUT',form:f});await cf('/workers/scripts/'+RUN+'/subdomain',{method:'POST',body:{enabled:true,previews_enabled:false}});
    for(let i=0;i<12;i++){try{const h=await request('/health');if(h.status===200&&h.data.epoch===epoch)return;}catch{}await pause(750);}throw Error('new_epoch_unavailable');
   }
-  await deploy();report.migration_attempted=true;await save();const result=await request('/qualify','POST');assert(result.status===200&&result.data.atomic_customer_ddl_rollback===true&&result.data.customer_schema_applied===true,'qualification_unknown_requires_readback');Object.assign(report,result.data);await save();
+  await deploy();report.migration_attempted=true;report.customer_schema_applied=null;report.schema_application_outcome='UNKNOWN';await save();const result=await request('/qualify','POST');assert(result.status===200&&result.data.atomic_customer_ddl_rollback===true&&result.data.customer_schema_applied===true,'qualification_unknown_requires_readback');Object.assign(report,result.data);report.schema_application_outcome='APPLIED_AND_VERIFIED';await save();
   const old=token;token=randomBytes(32).toString('hex');epoch=randomBytes(12).toString('hex');await deploy();const oldResponse=await request('/health','GET',old);assert(oldResponse.status===401,'old_operator_not_revoked');const recovered=await request('/verify');assert(recovered.status===200&&recovered.data.epoch===epoch&&recovered.data.schema_survived_redeployment,'restart_readback_failed');report.schema_survived_redeployment=true;report.temporary_operator_rotation_confirmed=true;
  }catch{report.error='qualification_or_deployment_failed_reconcile_actual_schema';process.exitCode=1;}
  finally{

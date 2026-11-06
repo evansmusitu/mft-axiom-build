@@ -1,0 +1,16 @@
+✔ both batches contain73 statements; named rollback leaves original catalog; forward preserves foreign rows (18.731207ms)
+✔ foreign data catalog drift or disabled FK reject before any batch (5.323395ms)
+✔ unrelated or failed named rollback cannot reach forward (5.850431ms)
+✔ intended named failure inside cause is accepted only after actual rollback (8.762533ms)
+✔ foreign-row changes after forced rollback stop forward (5.393131ms)
+✔ replay cannot apply schema twice and caller SQL is ignored (16.559274ms)
+✔ browser cookie bad token expiry and run mismatch cannot touch DB (3.297336ms)
+✔ restart verify requires correct marker and all schema object names (13.984393ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 204.608266

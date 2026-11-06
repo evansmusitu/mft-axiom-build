@@ -8,7 +8,7 @@ const canonical=rows=>JSON.stringify(rows.map(row=>Object.fromEntries(Object.key
 const catalog=async db=>(await db.prepare(SQL).all()).results;
 const assert=(ok,code)=>{if(!ok)throw Error(code);};
 async function foreignRows(db,rows){
- let n=0;for(const r of rows.filter(r=>r.type==='table'&&r.name!=='_cf_KV')){assert(/^[A-Za-z0-9_]{1,128}$/.test(r.name),'invalid_foreign_name');n+=Number((await db.prepare('SELECT count(*) AS n FROM "'+r.name+'"').first()).n);}return n;
+ let n=0;for(const r of rows.filter(r=>r.type==='table'&&!['_cf_KV','_cf_METADATA'].includes(r.name))){assert(/^[A-Za-z0-9_]{1,128}$/.test(r.name),'invalid_foreign_name');n+=Number((await db.prepare('SELECT count(*) AS n FROM "'+r.name+'"').first()).n);}return n;
 }
 export async function qualify(db,plan,planHash){
  const before=await catalog(db);assert(await hash(canonical(before))===BASE,'catalog_drift');assert(await foreignRows(db,before)===0,'foreign_data_changed');
