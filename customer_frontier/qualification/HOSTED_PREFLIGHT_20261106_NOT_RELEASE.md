@@ -59,3 +59,17 @@ matched both blobs and SHA256 pins, parsed the workflow, and reproduced all
 read-only run; it is not custody or hosted acceptance. The reviewed workflow
 SHA256 is bb0734da5006a7e8389ea5b653dc52723cdb7aefd1bcd4c0b3f47e0c6d6b2ad0.
 The receipt and independent raw test log are retained beside the legacy failure.
+
+Actual new token readback run42193105154/job127809646450 SUCCESS: all four
+fixed GET requests returned HTTP200; selected staging DB UUID/name matched,
+28 tables reported, inventory complete (11 databases). This proves the saved
+API token works for this metadata scope despite the separate legacy-pair401.
+No credential replacement is needed for this path. Zero SQL/customer records,
+mutations or inference. Raw log, parsed observation and hash/provenance receipt
+are retained. Source CI42193104973/job127809646530 also SUCCESS. Schema,
+restorable backup, restore and customer migration remain unqualified.
+
+Concurrent PR83 was discovered during this run: draft/unmerged, head
+f9feed7e0423ba51e0ece1e2b0dbed5af695947d, stacked on PR80. It addresses
+Frontier apt-download timeout and isolates Chromium evidence, retaining its
+intentional failing live-adapter gate. It is not imported or certified here.
