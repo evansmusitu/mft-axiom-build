@@ -1,0 +1,52 @@
+{
+  "schema": "musitu.axiom.independent_pages_only_review.v1",
+  "verdict": "PASS_FOR_BOUNDED_PAGES_ONLY_READ_OBSERVATION",
+  "source": "fe3b6712312062fdf4c9cd81a74d3504443632df",
+  "tree": "95fe9712005471af8427be74ce78e1b4e5b5b871",
+  "parent": "8c969eb4848fe8fa43ed16935a27a85639bcccb2",
+  "reader_sha256": "ee37d5ccc05314dbd6c2160491d9ea216ecd1730a294e2aaa58af9558b92e650",
+  "tests_sha256": "4a7773f5c66c3e579c697960382af847792bfe7325664b73b455683e5606f4ab",
+  "reviewed_local_workflow_sha256": "9b4a89d5d03f6b8f22c373d0781f5ba099c048bab342f61f960a2015d5c432eb",
+  "unresolved_p0_p1_p2": [],
+  "validation": {
+    "supplied_tests": {
+      "count": 11,
+      "result": "PASS",
+      "log": "pages-only-existing-tests.log"
+    },
+    "independent_adversarial_methods": {
+      "count": 10,
+      "result": "PASS",
+      "harness": "pages-only-adversarial.py",
+      "log": "pages-only-adversarial.log"
+    },
+    "static_identity_workflow": {
+      "result": "PASS",
+      "log": "pages-only-static-verification.log"
+    },
+    "socket_network": "denied in both test runs"
+  },
+  "verified_boundaries": [
+    "Fixed account; GET only; literal per_page=10&page=1..17 matching current Wrangler; dynamic detail paths only from validated listed project names.",
+    "At most160 projects; missing empty terminal, inconsistent optional pagination counters, malformed identities/configs/bindings, denied/failed requests remain UNKNOWN or PARTIAL.",
+    "240-second request-start deadline,200 request cap,2MB response cap,1000 binding-map bound,4096 candidate-reference bound.",
+    "Actual integer provider error codes1000..2147483647, up to20, preserved; no raw error messages/bodies/configs/private labels/token emitted.",
+    "No SQL, database identity/catalog rerun, Worker calls, export, migration, deploy, create/delete or billing operations.",
+    "Exact-source checkout and reader/test hashes; supplied offline tests before sole Cloudflare credential step; opened-only exact same-repository head/base branches/baseSHA, first attempt; pinned checkout/upload actions; contents-read and no checkout credentials persisted.",
+    "All target/global-absence/backup-restore/migration/release/history flags remain false."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "scope_limits": [
+    "Source review is not provider evidence; prior actual HTTP400 remains unresolved until new actual observation.",
+    "Before opening PR, confirm immutable published workflow bytes equal reviewed hash.",
+    "Current production/preview project configs omit historical deployment binding snapshots, external D1 consumers and other deployment surfaces; no globally-unused/private claim.",
+    "No reuse target admission, source custody, backup/restore, migration or release qualification.",
+    "Main/base/PR drift and authority preservation remain root responsibilities."
+  ],
+  "retained_authority_states": {
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN"
+  }
+}
