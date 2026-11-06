@@ -137,6 +137,45 @@ class PolishLongwallTelemetryTests(unittest.TestCase):
                     canonical_telemetry_row(tampered)
                 self.assertEqual(tampered,{**original,conflicting_key:"999.0"})
 
+    def test_timestamp_rejects_fractional_components_without_truncation(self):
+        header=fixture_text().splitlines()[0].split(",")
+        values=fixture_text().splitlines()[1].split(",")
+        original=dict(zip(header,values,strict=True))
+        cases=(
+            ("year","2014.5"),
+            ("year","2014.00000000000001"),
+            ("month","3.9"),
+            ("day","2.5"),
+            ("hour","0.2"),
+            ("minute","0.00000000000000001"),
+            ("second","0.5"),
+            ("second","1e-999"),
+        )
+        for component,value in cases:
+            with self.subTest(component=component,value=value):
+                raw={**original,component:value}
+                with self.assertRaisesRegex(ValueError,"longwall_timestamp_invalid"):
+                    canonical_telemetry_row(raw)
+                self.assertEqual(raw[component],value)
+
+    def test_timestamp_nonfinite_and_extreme_input_fails_with_safe_error(self):
+        header=fixture_text().splitlines()[0].split(",")
+        values=fixture_text().splitlines()[1].split(",")
+        raw=dict(zip(header,values,strict=True))
+        for value in ("NaN","Infinity","1e400","-Infinity","1e1000000"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError,"longwall_timestamp_invalid"):
+                    canonical_telemetry_row({**raw,"year":value})
+
+    def test_timestamp_accepts_exact_integral_decimal_and_exponent_forms(self):
+        header=fixture_text().splitlines()[0].split(",")
+        values=fixture_text().splitlines()[1].split(",")
+        raw=dict(zip(header,values,strict=True))
+        valid={**raw,"year":"2014.0","month":"03.000",
+               "day":"2e0","hour":"+00","minute":"0.0","second":"0E0"}
+        record=canonical_telemetry_row(valid)
+        self.assertEqual(record["event_time"],"2014-03-02T00:00:00Z")
+
     def test_spec_is_bound_to_public_mendeley_dataset_and_million_row_durable_sample(self):
         spec=LongwallTelemetrySpec()
         self.assertEqual(spec.dataset_id,"yd7vw4c5mk")
