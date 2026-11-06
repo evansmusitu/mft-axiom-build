@@ -41,7 +41,16 @@
     "worker_provider": "synthetic_only"
   },
   "independent_source_review": "NO_UNRESOLVED_P0_P2_BOUNDED_LOCAL_SOFTWARE_ONLY",
-  "CI": "PENDING",
+  "CI": {
+    "run": 42164540544,
+    "job": 127717808626,
+    "source_commit": "84be81a75567defb0ae326143cb0ad2984af14d9",
+    "source_tree": "868c4bd177acb3e0480630dd8a9f98fb27aba295",
+    "node": 197,
+    "python": 54,
+    "workerd": 16,
+    "status": "SUCCESS_NOT_HOSTED_ACCEPTANCE"
+  },
   "production_flags_enabled": false,
   "hosted_writes": 0,
   "actual_payment_calls": 0,
