@@ -1,0 +1,41 @@
+name: MUSITU Production Edge Observer V2 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-edge-observer-v2-20261106.yml
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_PAGES_NAME: "musitu-corporate"
+    steps:
+      - name: Observe Pages status and both public edge IPs without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,subprocess,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
+          api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com'
+          with urllib.request.urlopen(urllib.request.Request(api,headers={'Authorization':'Bearer '+token,'Accept':'application/json'}),timeout=20) as r:b=json.load(r)
+          result=b.get('result') or {}
+          print('pages_domain_status:',result.get('status'))
+          print('pages_validation:',json.dumps(result.get('validation_data'),sort_keys=True))
+          print('pages_verification:',json.dumps(result.get('verification_data'),sort_keys=True))
+          with urllib.request.urlopen('https://dns.google/resolve?name=mftintelligence.com&type=A&cd=1',timeout=15) as r:d=json.load(r)
+          ips=[x['data'] for x in d.get('Answer',[]) if x.get('type')==1]
+          print('public_apex_ips:',json.dumps(ips))
+          for ip in ips:
+              p=subprocess.run(['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{ip}','https://mftintelligence.com/'],capture_output=True,text=True)
+              out=p.stdout;sep='\r\n\r\n' if '\r\n\r\n' in out else '\n\n';body=out.split(sep,1)[-1] if sep in out else out
+              first=out.splitlines()[0] if out.splitlines() else ''
+              print('edge:',ip,'exit=',p.returncode,'first=',first,'content=',('Intelligence with evidence' in body),'challenge=',('Just a moment' in body or 'cf-chl' in body))
+          print('write_performed: false')
+          PY
