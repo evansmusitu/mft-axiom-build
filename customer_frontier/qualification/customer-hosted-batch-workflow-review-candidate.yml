@@ -1,0 +1,54 @@
+name: AXIOM customer hosted D1 rollback then schema (STAGING NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-hosted-batch-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-hosted-batch-20261106
+  cancel-in-progress: false
+jobs:
+  qualify-customer-stage:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-customer-hosted-batch-20261106' && github.event.pull_request.base.ref == 'build/axiom-actual-oauth-preflight-20261106' && github.event.pull_request.base.sha == '009d6ef62cfa683435f7bd84f9263b6f56e14947' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 3d7fba395a051421e1ceacb06ee5c425830d9421
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Verify immutable reviewed plan, worker, driver and tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='3d7fba395a051421e1ceacb06ee5c425830d9421'
+          for path,expected in {
+            'customer_frontier/qualification/customer-hosted-plan-20261106.json':'06cfe6adfed21dc718ce0f0cdd53521a05e8bee8d1f0e95fccd7e823575ed80c',
+            'customer_frontier/qualification/customer_hosted_batch_worker.mjs':'cdc04787f241c0677b1faab1094955d755d8e9b6bc0ff81df623c694e7190b03',
+            'customer_frontier/qualification/run_customer_hosted_batch.mjs':'d33170112a8b057404988fbd540d70ff4b39e1e05e2dbcfe046e5e68836ffc6e',
+            'customer_frontier/tests/customer_hosted_batch.test.mjs':'d89f36786693f24e6ac1095fe152bb917f385a8a48da2a44ebb81d18e586975d',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print('Fixed reviewed customer-only batch candidate verified')
+          PY
+      - name: Verify full real SQLite plan rollback, preservation and boundary tests offline
+        run: node --test customer_frontier/tests/customer_hosted_batch.test.mjs
+      - name: Qualify rollback before applying owned customer staging schema
+        env:
+          AXIOM_CHECKOUT_SHA: 3d7fba395a051421e1ceacb06ee5c425830d9421
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/run_customer_hosted_batch.mjs
+      - name: Preserve actual schema outcome and owned Worker cleanup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-hosted-batch-20261106
+          path: customer-hosted-batch-result.json
+          retention-days: 30
+          if-no-files-found: warn
