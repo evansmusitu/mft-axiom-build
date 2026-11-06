@@ -1,0 +1,54 @@
+name: AXIOM existing D1 catalogs and current bindings 20261106 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-existing-d1-catalog-bindings-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-existing-d1-catalog-bindings-20261106
+  cancel-in-progress: false
+jobs:
+  observe-candidate-catalogs-current-bindings:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-existing-d1-audit-20261106' && github.event.pull_request.base.ref == 'build/axiom-existing-d1-reuse-20261106' && github.event.pull_request.base.sha == 'ab4d0aa0a670e59257d6e1bb779ea329c64ddff2' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e69ebf3bcb73eebf183a462fa6d6314ccf87665
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit immutable reviewed audit and test hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          source='5e69ebf3bcb73eebf183a462fa6d6314ccf87665'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source
+          for path,expected in {
+            'customer_frontier/qualification/existing_d1_catalog_binding_audit.py':'cb9d2579e8fca36e91d0b999310569019c24e4cedef71c8ec3964b9a8186e90c',
+            'customer_frontier/tests/test_existing_d1_catalog_binding_audit.py':'405e8168a5575d2734108c7302d44fe9431e124bd7c6c983064df64798a2c05b',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print(json.dumps({'admitted_checkout_sha':source,'hashes_match':True,'authority':'three fixed catalog SELECTs and bounded current metadata GETs; no data writes or target admission'}))
+          PY
+      - name: Verify privacy, identity, pagination and unknown-scope guards offline
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_existing_d1_catalog_binding_audit.py -v
+      - name: Observe fixed candidate catalogs and current consumer metadata
+        env:
+          AXIOM_CHECKOUT_SHA: 5e69ebf3bcb73eebf183a462fa6d6314ccf87665
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/existing_d1_catalog_binding_audit.py
+      - name: Preserve actual observations including unknown and partial scopes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-existing-d1-catalog-bindings-20261106
+          path: |
+            existing-d1-catalog-binding-audit.json
+            existing-d1-catalog-binding-audit.json.sha256
+          retention-days: 30
+          if-no-files-found: warn

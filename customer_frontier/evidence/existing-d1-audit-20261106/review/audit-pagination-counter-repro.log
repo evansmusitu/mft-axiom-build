@@ -1,0 +1,1 @@
+{"source": "9ac48710a7aff5590fa4d79b852f6cdba6d14001", "case": "contradictory-optional-page-totals", "exit": 0, "status": "CURRENT_CATALOG_AND_BINDINGS_OBSERVED", "pages": {"empty_terminal_page": true, "historical_deployment_bindings_covered": false, "projects": 1, "status": "OBSERVED_CURRENT_CONFIGS"}, "errors": [], "target_admitted": false}

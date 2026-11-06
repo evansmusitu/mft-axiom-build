@@ -31,8 +31,14 @@ false. Known references and unknown sections must be reconciled before private
 data can be restored or a target admitted. Prefer additive owned scope with all
 existing object/data preserved; never silently reset a small database.
 
-Primary contracts were inspected in the official Cloudflare SDKs. See the retained
-binding API research and exact source manifests. No CLI request uses raw labels
+Primary contracts were inspected in the official Cloudflare SDKs and Pages REST
+reference. Optional total_count/total_pages must be typed, stable across pages,
+and agree with the final observed aggregate; absence of optional totals is not
+an error. The original9ac audit accepted contradictory totals in an offline
+reproduction. Corrected immutable source5e69ebf3bcb73eebf183a462fa6d6314ccf87665
+rejects them; the original source, reproduction and failed qualification remain
+in the independent review evidence. See the retained binding API research and
+exact source manifests. No CLI request uses raw labels
 from untrusted caller input. No production data cloning, deploy or migration is
 performed by this audit. PR1 and its safety rejection remain separate; $0,
 Paynow authority, full breadth, q06 and production rollback origin persist.

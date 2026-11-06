@@ -1,0 +1,70 @@
+{
+  "schema": "musitu.axiom.independent_existing_d1_catalog_binding_review.v1",
+  "reviewed_source_commit": "5e69ebf3bcb73eebf183a462fa6d6314ccf87665",
+  "reviewed_source_tree": "721d60e2dfe5a7c45810c930430f52c5d80f01a1",
+  "source_parent": "9ac48710a7aff5590fa4d79b852f6cdba6d14001",
+  "reader_sha256": "cb9d2579e8fca36e91d0b999310569019c24e4cedef71c8ec3964b9a8186e90c",
+  "tests_sha256": "405e8168a5575d2734108c7302d44fe9431e124bd7c6c983064df64798a2c05b",
+  "reviewed_local_workflow_sha256": "db8fb19195ac32ee8fa5595cf34181758b0b5373dc63e009e8d4221ff1e41034",
+  "source_identity": "Independent GitHub exact-ref reads matched local UTF-8 bytes, SHA-256, Git blob SHA-1, commit parent and tree.",
+  "verdict": "PASS_FOR_BOUNDED_READ_ONLY_OBSERVATION",
+  "unresolved_p0_p1_p2": [],
+  "initial_finding": {
+    "severity": "P2",
+    "source": "9ac48710a7aff5590fa4d79b852f6cdba6d14001",
+    "issue": "Optional Pages total_count and total_pages were ignored, allowing contradictory totals to produce successful current-scope observation.",
+    "reproduction": "One project, empty second page, total_count=3 and total_pages=2 returned exit0 and OBSERVED_CURRENT_CONFIGS.",
+    "resolution": "Corrected source validates optional total types, nonnegative values, cross-page stability and terminal aggregate coherence. Original repro retained; corrected source returns exit1 and UNKNOWN Pages.",
+    "state": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+  },
+  "validation": {
+    "supplied_tests": {
+      "count": 20,
+      "result": "PASS",
+      "network": "socket.socket and socket.create_connection denied",
+      "log": "audit-corrected-existing-tests.log"
+    },
+    "independent_adversarial_test_methods": {
+      "count": 15,
+      "result": "PASS",
+      "network": "socket.socket and socket.create_connection denied",
+      "harness": "audit-adversarial.py",
+      "log": "audit-adversarial.log"
+    },
+    "static_identity_and_workflow_checks": {
+      "result": "PASS",
+      "log": "audit-static-verification.log"
+    },
+    "original_finding_reproduction": {
+      "result": "REPRODUCED_ON_ORIGINAL",
+      "harness": "audit-pagination-counter-repro.py",
+      "log": "audit-pagination-counter-repro.log"
+    }
+  },
+  "verified_boundaries": [
+    "Fixed Cloudflare account; exactly three candidate database identities; protected production/q06/legacy IDs absent from admitted paths.",
+    "Only GET metadata and at most three exact sqlite_master catalog SELECT POSTs; no customer-row SELECT, export, create, schema/write, deploy, grant, delete, or billing request.",
+    "Catalog confirmation requires actual false changed_db and exact integer-zero changes/rows_written; failed confirmation retains mutation evidence UNKNOWN.",
+    "Unknown resource/object, consumer, environment and binding labels are hashed; raw DDL, settings, env_vars, token and provider error messages are not emitted.",
+    "No redirects; malformed, denied, partial and exhausted scopes stay partial or UNKNOWN.",
+    "480-second request-start deadline, 512 requests, 2MB response, bounded scripts/projects/bindings/references.",
+    "Workflow opened only, same repository, exact head/base branch and base commit, attempt1, immutable source checkout and hashes, tests before sole Cloudflare credential step, pinned checkout/upload actions and contents-read.",
+    "All target-admission, global-absence, backup/restore, hosted-migration and release-authority flags remain false."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "scope_limits": [
+    "This review does not establish current live provider state or authorize selection, restore, migrations, deployment, or production writes.",
+    "Current Pages configs omit historical deployment binding snapshots; listed Worker/script/service scans omit other surfaces and external D1 users.",
+    "A successful bounded scan does not prove a database globally unused, private, or safe to restore.",
+    "Separate namespace preservation tests do not qualify whole-database backup/restore or source custody.",
+    "Workflow was reviewed as exact local bytes; confirm published immutable workflow blob has the same SHA-256 before opening the credentialed PR.",
+    "Root owns live main/base/PR drift checks and preservation of PR1, $0, Paynow, customer data and q06."
+  ],
+  "retained_authority_states": {
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN"
+  },
+  "no_release_authority": true
+}
