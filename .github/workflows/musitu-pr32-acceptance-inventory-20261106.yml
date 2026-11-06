@@ -1,0 +1,84 @@
+name: MUSITU PR32 Source and Built Asset Acceptance Inventory 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-pr32-acceptance-inventory-20261106.yml
+permissions:
+  contents: read
+jobs:
+  build-inventory:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      BASE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
+      RELEASE_SHA: a8a43b3d41354e302bb537637e28eabfac66eee1
+    steps:
+      - name: Fetch both exact reviewed source commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/musitu-source"
+          git -C "$RUNNER_TEMP/musitu-source" init -q
+          git -C "$RUNNER_TEMP/musitu-source" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
+          git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$BASE_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" checkout -q --detach "$RELEASE_SHA"
+          test "$(git -C "$RUNNER_TEMP/musitu-source" rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Reproduce site, run full source tests, and build immutable inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q pytest==8.4.2 beautifulsoup4==4.14.2
+          cd "$RUNNER_TEMP/musitu-source/corporate"
+          MUSITU_PROTECTED_STAGING_MEDIA=0 python3 scripts/build.py
+          python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py | tee "$RUNNER_TEMP/pytest-pr32.txt"
+          node --check assets/site.js
+          python3 - <<'PY'
+          import json,os,subprocess,csv,hashlib,shutil
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'musitu-source'
+          corp=root/'corporate';dist=corp/'dist'
+          out=Path(os.environ['RUNNER_TEMP'])/'pr32-evidence'
+          out.mkdir()
+          base=os.environ['BASE_SHA'];head=os.environ['RELEASE_SHA']
+          names=subprocess.check_output(['git','-C',str(root),'diff','--name-only',base,head,'--'],text=True).splitlines()
+          assert len(names)==35 and all(x.startswith('corporate/') for x in names),'Source scope is not exact'
+          with (out/'SOURCE_SHA256.csv').open('w',newline='') as f:
+            writer=csv.writer(f);writer.writerow(['source_path','bytes','sha256'])
+            for name in sorted(names):
+              data=(root/name).read_bytes()
+              writer.writerow([name,len(data),hashlib.sha256(data).hexdigest()])
+          assets=[p for p in sorted(dist.rglob('*')) if p.is_file()]
+          with (out/'GENERATED_ASSETS_SHA256.csv').open('w',newline='') as f:
+            writer=csv.writer(f);writer.writerow(['dist_path','bytes','sha256'])
+            for p in assets:
+              data=p.read_bytes()
+              writer.writerow([p.relative_to(dist).as_posix(),len(data),hashlib.sha256(data).hexdigest()])
+          manifest=json.loads((dist/'manifest.json').read_text())
+          assert len(manifest['routes'])==34 and not manifest['production_approved'] and not manifest['media_publication_approved']
+          assert len(manifest['files'])==40 and len(assets)==41
+          qa={'source_commit':head,'base_sha':base,'repo':'evansmusitu/evansmusitu.github.io','pr':32,
+            'changed_source_files':len(names),'generated_asset_files':len(assets),
+            'routes':len(manifest['routes']),'media_included':False,'studio_video_owner_review_only':True,
+            'staging_only':True,'noindex':True,'production_authorized':False}
+          (out/'RELEASE_IDENTITY.json').write_text(json.dumps(qa,indent=2)+'\n')
+          (out/'PYTEST_FRESH.log').write_text((Path(os.environ['RUNNER_TEMP'])/'pytest-pr32.txt').read_text())
+          (out/'BUILD_MANIFEST.json').write_text((dist/'manifest.json').read_text())
+          with (out/'SHA256SUMS.txt').open('w') as f:
+            for p in sorted(out.glob('*')):
+              if p.is_file() and p.name!='SHA256SUMS.txt':
+                f.write(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          print('source_inventory_count:',len(names))
+          print('generated_asset_inventory_count:',len(assets))
+          print('asset_checksum_manifest_reproducible: VERIFIED')
+          print('no_private_studio_video_in_artifact: VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-pr32-immutable-inventories-20261106
+          path: ${{ runner.temp }}/pr32-evidence
+          retention-days: 30
+          if-no-files-found: error
