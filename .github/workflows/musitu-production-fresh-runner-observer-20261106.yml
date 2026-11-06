@@ -1,0 +1,47 @@
+name: MUSITU Production Fresh Runner Observer 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-fresh-runner-observer-20261106.yml
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read-only DNS HTTPS and canonical checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,socket,ssl,urllib.request,urllib.error
+          host='mftintelligence.com'
+          addrs=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+          assert addrs,'apex did not resolve'
+          print('fresh_runner_apex_addresses:',json.dumps(addrs))
+          req=urllib.request.Request('https://mftintelligence.com/',headers={'User-Agent':'Mozilla/5.0 MUSITU-Fresh-Observer/20261106','Accept':'text/html'})
+          with urllib.request.urlopen(req,timeout=25,context=ssl.create_default_context()) as r:
+              body=r.read().decode('utf8','replace')
+              print('apex_https_status:',r.status)
+              print('csp_present:',bool(r.headers.get('Content-Security-Policy')))
+              assert r.status==200 and 'Intelligence with evidence' in body
+              assert 'rel="canonical" href="https://mftintelligence.com/"' in body
+              assert 'noindex' not in body.lower()
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NoRedirect)
+          try:
+              op.open('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=25)
+              raise AssertionError('www did not redirect')
+          except urllib.error.HTTPError as e:
+              loc=e.headers.get('Location','')
+              print('www_redirect_status:',e.code)
+              print('www_redirect_location:',loc)
+              assert e.code in (301,308)
+              assert loc.startswith('https://mftintelligence.com/products/axiom/')
+              assert 'launch=1' in loc
+          print('fresh_runner_public_https: PASS')
+          PY
