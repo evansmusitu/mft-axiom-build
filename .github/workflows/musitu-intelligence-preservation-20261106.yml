@@ -51,8 +51,7 @@ jobs:
           cd "$RUNNER_TEMP/intelligence-original"
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
-          import {webcrypto} from 'node:crypto';
-          globalThis.crypto = webcrypto;
+          assert.ok(globalThis.crypto?.subtle,'Node 22 WebCrypto unavailable');
           const vault = await import('./assets/musitu-workspace-vault.mjs');
           const slots = await import('./assets/musitu-workspace-slots.mjs');
           const message = 'MUSITU_SYNTHETIC_TEST_ONLY_20261106';
