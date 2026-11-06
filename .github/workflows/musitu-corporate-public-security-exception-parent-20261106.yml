@@ -1,0 +1,112 @@
+name: MUSITU Corporate Public Security Exception Parent 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-corporate-public-security-exception-parent-20261106.yml
+permissions:
+  contents: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      RULE_REF: "musitu_corporate_public_static_20261106"
+    steps:
+      - name: Add or validate exact-host configuration rule
+        id: apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          t=os.environ['CF_TOKEN'];z=os.environ['CF_ZONE_ID'];ref=os.environ['RULE_REF'];base='https://api.cloudflare.com/client/v4'
+          h={'Authorization':'Bearer '+t,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None):
+              q=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+              try:
+                  with urllib.request.urlopen(q,timeout=25) as r:
+                      raw=r.read().decode();b=json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf8','replace')
+                  try:b=json.loads(raw)
+                  except:b={}
+                  raise RuntimeError(f'{method} {path} HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:600])
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          security=call('GET',f'/zones/{z}/settings/security_level')
+          bic=call('GET',f'/zones/{z}/settings/browser_check')
+          assert security.get('value')=='under_attack'
+          assert bic.get('value')=='on'
+          sets=call('GET',f'/zones/{z}/rulesets') or []
+          matches=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          assert len(matches)==1
+          rid=matches[0]['id'];detail=call('GET',f'/zones/{z}/rulesets/{rid}') or {}
+          expr='(http.host eq "mftintelligence.com" or http.host eq "www.mftintelligence.com")'
+          existing=[r for r in detail.get('rules') or [] if r.get('ref')==ref]
+          if existing:
+              assert len(existing)==1
+              r=existing[0];ap=r.get('action_parameters') or {}
+              assert r.get('expression')==expr and r.get('action')=='set_config' and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+              rule_id=r.get('id');created=False
+          else:
+              body={'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},'expression':expr,'description':'MUSITU public static corporate hostnames only; bypass global Under Attack/BIC challenge; other host security remains unchanged','enabled':True,'ref':ref}
+              r=call('POST',f'/zones/{z}/rulesets/{rid}/rules',body)
+              rule_id=r.get('id');created=True
+          assert rule_id
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('CORP_RULESET_ID='+rid+'\nCORP_RULE_ID='+rule_id+'\nCORP_RULE_CREATED='+('1' if created else '0')+'\n')
+          check=call('GET',f'/zones/{z}/rulesets/{rid}') or {}
+          found=[r for r in check.get('rules') or [] if r.get('ref')==ref]
+          assert len(found)==1
+          r=found[0];ap=r.get('action_parameters') or {}
+          assert r.get('expression')==expr and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+          print('corporate_public_security_exception_readback: PASS')
+          print('global_security_level_still:',security.get('value'))
+          print('global_browser_check_still:',bic.get('value'))
+          print('scope_exact_corporate_hosts_only: true')
+          PY
+
+      - name: Verify public edge content after exception
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,subprocess,time,urllib.request
+          ready=False;last=[]
+          for attempt in range(50):
+              with urllib.request.urlopen('https://dns.google/resolve?name=mftintelligence.com&type=A&cd=1',timeout=15) as r:d=json.load(r)
+              ips=[x['data'] for x in d.get('Answer',[]) if x.get('type')==1]
+              last=[]
+              for ip in ips:
+                  p=subprocess.run(['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{ip}','https://mftintelligence.com/'],capture_output=True,text=True)
+                  out=p.stdout;body=out.split('\r\n\r\n',1)[-1] if '\r\n\r\n' in out else out
+                  first=out.splitlines()[0] if out.splitlines() else ''
+                  challenge=('Just a moment' in body or 'cf-chl' in body)
+                  content=('Intelligence with evidence' in body)
+                  last.append({'ip':ip,'exit':p.returncode,'first':first,'challenge':challenge,'content':content})
+                  if p.returncode==0 and content and not challenge:ready=True;break
+              print('corporate_edge_probe',attempt+1,json.dumps(last))
+              if ready:break
+              time.sleep(3)
+          assert ready,'Public edge still challenged after corporate host exception: '+json.dumps(last)
+          print('public_corporate_edge_content_without_uam_challenge: PASS')
+          PY
+
+      - name: Remove newly-created exception if edge verification failed
+        if: failure() && steps.apply.outcome == 'success'
+        shell: bash
+        run: |
+          set +e
+          if [ "${CORP_RULE_CREATED:-0}" != "1" ]; then exit 0; fi
+          python3 - <<'PY'
+          import os,urllib.request
+          t=os.environ['CF_TOKEN'];z=os.environ['CF_ZONE_ID'];rs=os.environ.get('CORP_RULESET_ID','');rid=os.environ.get('CORP_RULE_ID','')
+          if rs and rid:
+              q=urllib.request.Request(f'https://api.cloudflare.com/client/v4/zones/{z}/rulesets/{rs}/rules/{rid}',headers={'Authorization':'Bearer '+t},method='DELETE')
+              try:
+                  with urllib.request.urlopen(q,timeout=20) as r:print('exception_cleanup_http:',r.status)
+              except Exception as e:print('exception_cleanup_error:',type(e).__name__)
+          PY
