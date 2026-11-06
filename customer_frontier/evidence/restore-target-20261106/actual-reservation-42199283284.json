@@ -1,0 +1,108 @@
+{
+  "account": "93f395f5121954671f92fffa453d6b61",
+  "backup_restore_qualified": false,
+  "billing_changes": 0,
+  "created_database_id": null,
+  "creation_attempts": 1,
+  "creation_state": "REJECTED",
+  "customer_records_read": 0,
+  "empty_target_verified": false,
+  "error": "PROVIDER_REJECTED_CREATE",
+  "event_sha": "00bf8455cd0effebecde1a5c2312c8b2090bca8d",
+  "existing_resource_mutations": 0,
+  "hosted_migration_qualified": false,
+  "initial_database_count": 11,
+  "initial_total_storage_bytes": 5255168,
+  "observed_at": "2026-11-06T10:00:29.014327+00:00",
+  "paid_upgrade_enabled": false,
+  "release_authority": false,
+  "resource_creations": 0,
+  "run_id": "42199283284",
+  "schema": "musitu.axiom.customer.restore_target_reservation.v1",
+  "source_sha": "cfc7a8a040117103e727422b383f54922d59c401",
+  "sql_queries": 0,
+  "status": "RESTORE_TARGET_RESERVATION_REJECTED",
+  "target_name": "axiom-customer-restore-20261106-42199283284",
+  "transport": [
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database?per_page=100&page=1",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/b043cc1b-dc6c-4031-9f36-f2331728e062",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a525c8b6-9b44-413b-a219-46e419b71b12",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a7384b8a-0751-4705-ac77-0616b0885e7c",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/2571795a-80fe-4f63-9b95-07948b4cefdb",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/8cb4d319-6008-4ba8-aba1-563c6d836ce8",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a03dc12d-8206-47be-b904-1f24e4e37d91",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/e148cbce-1b00-4d07-bb58-c1d56a4af0c7",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/4a62b374-7232-4103-b201-34443c467382",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/92de45db-399a-450b-81d0-24d28b105f41",
+      "provider_error_codes": []
+    },
+    {
+      "http_status": 403,
+      "method": "POST",
+      "path": "/d1/database",
+      "provider_error_codes": [
+        7406
+      ]
+    }
+  ]
+}

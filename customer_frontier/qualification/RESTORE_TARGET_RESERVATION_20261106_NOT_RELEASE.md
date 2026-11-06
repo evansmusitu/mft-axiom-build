@@ -50,3 +50,22 @@ no retry/adoption or deletion. Review and raw tests are retained.
 Concurrent PR87 was discovered during preparation: documentation-only draft
 ba892a2c6b4cdfdb6f6905c481c5ae54baa3a03f, unmerged on unchanged mainb10.
 Its two reference documents are not imported here or treated as release evidence.
+
+Actual guarded run42199283284/job127830283192 FAILED at the sole creation
+request: HTTP403, provider numeric code7406. All12 metadata GETs succeeded
+(complete11DB inventory and11 exact size/identity readbacks); total storage
+5,255,168bytes. One create attempted, explicitly rejected; zero resources
+created, no existing changes, no SQL/customer rows, billing changes or paid
+upgrade. No retry, deletion, migration, deployment or publication. Raw log,
+parsed rejection and hash/provenance receipt retained. A rejected reservation
+is not acceptance. SourceCI42199283180/job127830282972 SUCCESS:197Node+
+86Python+16workerd, zero failures/skips. The independently reviewed software
+passed; the actual hosted restore-target gate remains blocked.
+
+No isolated restore target is reserved. Supply an owner-controlled staging
+account with available freeD1 capacity, or identify an existing empty database
+explicitly dedicated to disposable restore testing. New target admission must
+use a fresh exact reviewed source/job; do not retarget or rerun this sealed
+PR88 attempt. Existing production, shared staging/q06 and Paynow authority
+remain intact. Original user authorization persists; missing target capacity,
+not another general approval, prevents the next hosted storage gate.
