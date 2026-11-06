@@ -48,18 +48,31 @@ jobs:
           assert info.get('id')==zone and info.get('name')=='mftintelligence.com', 'Zone identity mismatch'
           assert (info.get('account') or {}).get('id')==account, 'Account identity mismatch'
           print('cloudflare_account_and_zone: VERIFIED')
-          dcode,dbody=read('/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'name':'corporate.mftintelligence.com','per_page':100}))
-          assert dcode==200 and dbody.get('success') is True, 'Corporate DNS read denied'
-          records=dbody.get('result') or []
-          print('corporate_dns_records:',len(records))
+          # Production-hostname readiness: inventory only; do not create or mutate records.
+          observed={}
+          for name in ['mftintelligence.com','www.mftintelligence.com','corporate.mftintelligence.com']:
+              dcode,dbody=read('/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'name':name,'per_page':100}))
+              assert dcode==200 and dbody.get('success') is True, 'DNS read denied for '+name
+              records=dbody.get('result') or []
+              observed[name]=[{'type':r.get('type'),'name':r.get('name'),'proxied':r.get('proxied'),'content':r.get('content') if r.get('type') in ('A','AAAA','CNAME') else '<preserved>'} for r in records]
+              print('dns_inventory_'+name.replace('.','_')+':',json.dumps(observed[name],sort_keys=True))
+          # Fail if www/corporate already point somewhere unexpected; apex may legitimately carry mail-only records.
+          for name in ['www.mftintelligence.com','corporate.mftintelligence.com']:
+              web=[r for r in observed[name] if r.get('type') in ('A','AAAA','CNAME')]
+              assert not web,'Unexpected existing web record collision at '+name
+          apex_web=[r for r in observed['mftintelligence.com'] if r.get('type') in ('A','AAAA','CNAME')]
+          print('apex_existing_web_records:',json.dumps(apex_web,sort_keys=True))
           pcode,pbody=read('/accounts/'+account+'/pages/projects')
           assert pcode==200 and pbody.get('success') is True, 'Cloudflare Pages account read denied'
           print('cloudflare_pages_read: VERIFIED')
           ccode,cbody=read('/accounts/'+account+'/pages/projects/musitu-corporate')
-          assert ccode in (200,404), 'Target Pages project status not safely determined'
-          if ccode==200:
-              assert cbody.get('success') is True, 'Target Pages project read failed'
-          print('musitu_corporate_pages_project_exists:',str(ccode==200).lower())
+          assert ccode==200 and cbody.get('success') is True, 'Target Pages project missing or unreadable'
+          project=cbody.get('result') or {}
+          assert project.get('name')=='musitu-corporate' and project.get('production_branch')=='main'
+          print('musitu_corporate_pages_project_exists: true')
+          print('pages_current_domains:',json.dumps(sorted(project.get('domains') or [])))
+          print('pages_production_branch:',project.get('production_branch'))
+          print('production_hostname_cutover_ready_without_collision:',str(not apex_web).lower())
           print('cloudflare_write_operations: 0')
           print('global_api_key_binding: NONE')
           print('cloudflare_secret_values_output: NONE')
