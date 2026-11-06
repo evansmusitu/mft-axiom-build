@@ -120,6 +120,34 @@ class CatalogBindings(unittest.TestCase):
   def change(d):d['/pages/projects/PRIVATE_PROJECT_ALIAS']['result']['deployment_configs']['production']['d1_databases']=None
   rc,result,_=self.run_subject(change);self.assertEqual(rc,1);self.assertEqual(result['pages']['status'],'PARTIAL')
 
+ def test_optional_pages_totals_must_match_aggregate(self):
+  for info in ({'total_count':3},{'total_pages':2},{'total_count':3,'total_pages':2}):
+   with self.subTest(info=info):
+    def change(d):
+     for page in (1,2):d['/pages/projects?page='+str(page)+'&per_page=100']['result_info']=info.copy()
+    rc,result,_=self.run_subject(change);self.assertEqual(rc,1);self.assertEqual(result['pages']['status'],'UNKNOWN')
+
+ def test_present_pages_totals_are_typed_nonnegative_and_stable(self):
+  for key in ('total_count','total_pages'):
+   for value in (True,-1,'1',None,1.0):
+    with self.subTest(key=key,value=value):
+     def change(d):d['/pages/projects?page=1&per_page=100']['result_info']={key:value}
+     rc,result,_=self.run_subject(change);self.assertEqual(rc,1)
+   def change(d):
+    d['/pages/projects?page=1&per_page=100']['result_info']={key:1}
+    d['/pages/projects?page=2&per_page=100']['result_info']={key:2}
+   rc,result,_=self.run_subject(change);self.assertEqual(rc,1)
+
+ def test_matching_optional_totals_accept_terminal_page_beyond_last(self):
+  def change(d):
+   for page in (1,2):d['/pages/projects?page='+str(page)+'&per_page=100']['result_info']={'page':page,'per_page':100,'count':1 if page==1 else 0,'total_count':1,'total_pages':1}
+  rc,result,_=self.run_subject(change);self.assertEqual(rc,0)
+
+ def test_empty_pages_totals_accept_zero_or_one_pages(self):
+  for total_pages in (0,1):
+   def change(d):d['/pages/projects?page=1&per_page=100'].update(result=[],result_info={'total_count':0,'total_pages':total_pages})
+   rc,result,_=self.run_subject(change);self.assertEqual(rc,0)
+
  def test_nondefault_environment_binding_is_observed(self):
   def change(d):
    d['/workers/services/PRIVATE_WORKER_ALIAS']['result']['environments']=[{'environment':'preview'}]

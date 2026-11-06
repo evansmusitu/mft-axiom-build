@@ -38,7 +38,7 @@ def observe():
       'customer_records_read':0,'intended_mutations':0,'provider_query_mutations':None,
       'target_admitted':False,'global_absence_certified':False,'backup_restore_qualified':False,
       'hosted_migration_qualified':False,'release_authority':False,'status':'INCOMPLETE'}
- scripts=set();envs=set();projects=set();deadline=time.monotonic()+480
+ scripts=set();envs=set();projects=set();pages_totals={};deadline=time.monotonic()+480
  opener=urllib.request.build_opener(NoRedirect)
 
  def fetch(path,kind,resource='',body=None):
@@ -74,6 +74,12 @@ def observe():
     expected={'page':int(resource),'per_page':100,'count':len(result)}
     if any(key in info and (type(info[key]) is not int or info[key]!=value) for key,value in expected.items()):
      raise AuditError('INCONSISTENT_PAGES_PAGINATION')
+    for key in ('total_count','total_pages'):
+     if key not in info:continue
+     value=info[key]
+     if type(value) is not int or value<0:raise AuditError('INVALID_PAGES_TOTAL')
+     if key in pages_totals and pages_totals[key]!=value:raise AuditError('CHANGED_PAGES_TOTAL')
+     pages_totals[key]=value
    return data.get('result')
   except urllib.error.HTTPError as error:
    item['http_status']=error.code
@@ -176,6 +182,11 @@ def observe():
      projects.add(row['name'])
     if len(projects)>160:raise AuditError('PROJECT_BUDGET_EXCEEDED')
    if not terminal:raise AuditError('PROJECT_PAGINATION_INCOMPLETE')
+   if 'total_count' in pages_totals and pages_totals['total_count']!=len(projects):
+    raise AuditError('INCONSISTENT_PAGES_TOTAL_COUNT')
+   expected_pages=(len(projects)+99)//100
+   if 'total_pages' in pages_totals and pages_totals['total_pages'] not in ({0,1} if not projects else {expected_pages}):
+    raise AuditError('INCONSISTENT_PAGES_TOTAL_PAGES')
    pages_ok=True
    for project in sorted(projects):
     try:
