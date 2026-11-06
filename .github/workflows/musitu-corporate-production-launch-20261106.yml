@@ -1,0 +1,367 @@
+name: MUSITU Corporate Production Launch 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-corporate-production-launch-20261106.yml
+permissions:
+  contents: read
+concurrency:
+  group: musitu-corporate-production-launch
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      CF_PAGES_NAME: "musitu-corporate"
+      RELEASE_SHA: "7e0fa23dad220e0e1b7e48a9176e3437b5afc545"
+      MERGE_SHA: "bf70edf55b9d67402bbb1d8d0f1d72f14ed1ef86"
+      MEDIA_SOURCE_SHA: "c3751047d714033585d20163709f10cef2ea3d2c"
+      CANONICAL_ORIGIN: "https://mftintelligence.com"
+      EXPECTED_PROD_TAR_SHA256: "49ae864ac4f8dd0d3d3651f03469b3ac4a2eb21a1518b847571da28f547fc79f"
+      WWW_REDIRECT_LIST: "musitu_www_to_apex_20261106"
+    steps:
+      - name: Fetch exact merged source and approved media
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q pytest==8.4.2 beautifulsoup4==4.14.2
+          mkdir -p "$RUNNER_TEMP/site"
+          git -C "$RUNNER_TEMP/site" init -q
+          git -C "$RUNNER_TEMP/site" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=40 origin main "$RELEASE_SHA"
+          test "$(git -C "$RUNNER_TEMP/site" rev-parse origin/main)" = "$MERGE_SHA"
+          git -C "$RUNNER_TEMP/site" merge-base --is-ancestor "$RELEASE_SHA" "$MERGE_SHA"
+          git -C "$RUNNER_TEMP/site" checkout -q --detach "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$MEDIA_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-demo-82s.mp4" > "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-poster.png" > "$RUNNER_TEMP/site/corporate/assets/studio-poster.png"
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4" | sha256sum -c -
+          printf '%s  %s\n' 0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0 "$RUNNER_TEMP/site/corporate/assets/studio-poster.png" | sha256sum -c -
+          cd "$RUNNER_TEMP/site/corporate"
+          MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN="$CANONICAL_ORIGIN" MUSITU_INCLUDE_STUDIO_MEDIA=1 python3 scripts/build.py
+          python3 -m pytest -q tests/test_production_build.py
+          node --check assets/site.js
+          tar --sort=name --mtime='UTC 2026-11-06' --owner=0 --group=0 --numeric-owner -cf "$RUNNER_TEMP/production.tar" dist
+          actual="$(sha256sum "$RUNNER_TEMP/production.tar"|cut -d' ' -f1)"
+          test "$actual" = "$EXPECTED_PROD_TAR_SHA256"
+          echo "production_artifact_sha256: $actual"
+
+      - name: Preflight Cloudflare state and rollback permissions without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.parse,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          base='https://api.cloudflare.com/client/v4'; headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None,ok=(200,)):
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=None if data is None else json.dumps(data).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf8','replace')
+                  try:body=json.loads(raw)
+                  except:body={}
+                  if e.code not in ok:return e.code,body
+                  return e.code,body
+          code,p=call('GET',f'/accounts/{account}/pages/projects/{project}')
+          assert code==200 and p.get('success') and p['result']['production_branch']=='main'
+          code,domains=call('GET',f'/accounts/{account}/pages/projects/{project}/domains')
+          assert code==200 and domains.get('success')
+          assert not [d for d in domains.get('result',[]) if d.get('name') in ('mftintelligence.com','www.mftintelligence.com')], 'Production domain already attached unexpectedly'
+          pre={'dns':{},'domains':domains.get('result',[])}
+          for name in ('mftintelligence.com','www.mftintelligence.com'):
+              code,d=call('GET',f'/zones/{zone}/dns_records?'+urllib.parse.urlencode({'name':name,'per_page':100}))
+              assert code==200 and d.get('success')
+              pre['dns'][name]=d.get('result',[])
+              assert not [r for r in pre['dns'][name] if r.get('type') in ('A','AAAA','CNAME')], 'Unexpected web DNS collision '+name
+          code,mx=call('GET',f'/zones/{zone}/dns_records?'+urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100}))
+          assert code==200 and mx.get('success') and mx.get('result'), 'MX routing missing before launch'
+          code,deps=call('GET',f'/accounts/{account}/pages/projects/{project}/deployments')
+          assert code==200 and deps.get('success')
+          prod=[d for d in deps.get('result',[]) if d.get('environment')=='production']
+          pre['previous_production_id']=prod[0].get('id') if prod else None
+          # Verify token can read the two redirect-management APIs before any mutation.
+          code,lists=call('GET',f'/accounts/{account}/rules/lists')
+          assert code==200 and lists.get('success'), 'Token lacks Account Filter Lists read/edit capability'
+          assert not [x for x in lists.get('result',[]) if x.get('name')==os.environ['WWW_REDIRECT_LIST']], 'Redirect list name collision'
+          code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',ok=(200,404))
+          assert code in (200,404), 'Token lacks redirect ruleset capability'
+          pre['redirect_entrypoint_exists']=code==200 and entry.get('success') is True
+          if pre['redirect_entrypoint_exists']:pre['redirect_ruleset_id']=entry['result']['id']
+          open(os.path.join(os.environ['RUNNER_TEMP'],'prestate.json'),'w').write(json.dumps(pre,indent=2))
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('PREV_PROD_ID='+str(pre['previous_production_id'] or '')+'\n')
+          print('cloudflare_preflight: PASS')
+          print('previous_production_deployment_present:',bool(pre['previous_production_id']))
+          print('mx_records_preserved_prelaunch:',len(mx.get('result',[])))
+          print('web_dns_collisions: 0')
+          PY
+
+      - name: Install pinned Cloudflare Pages CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/wrangler" --ignore-scripts --no-audit --no-fund wrangler@4.158.0
+          "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" --version
+
+      - name: Deploy exact production artifact to Pages main
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/site/corporate/dist" --project-name "$CF_PAGES_NAME" --branch main --commit-hash "$MERGE_SHA" --skip-caching --no-bundle
+          python3 - <<'PY'
+          import json,os,time,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME'];merge=os.environ['MERGE_SHA']
+          url=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/deployments'
+          head={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          found=None
+          for _ in range(12):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=head),timeout=20) as r:b=json.load(r)
+              for d in b.get('result',[]):
+                  meta=((d.get('deployment_trigger') or {}).get('metadata') or {})
+                  if d.get('environment')=='production' and meta.get('commit_hash')==merge:
+                      found=d;break
+              if found:break
+              time.sleep(3)
+          assert found,'Production deployment not discoverable after upload'
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('NEW_PROD_ID='+found['id']+'\n')
+          print('new_production_deployment_id:',found['id'])
+          print('production_pages_deploy: PASS')
+          PY
+
+      - name: Attach apex custom domain and configure canonical www redirect
+        id: domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.error,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME'];list_name=os.environ['WWW_REDIRECT_LIST']
+          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None,expected=(200,)):
+              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf8','replace')
+                  try:b=json.loads(raw)
+                  except:b={}
+                  if e.code not in expected:
+                      raise RuntimeError(f'Cloudflare {method} {path} failed HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:500])
+                  return e.code,b
+          code,d=call('POST',f'/accounts/{account}/pages/projects/{project}/domains',{'name':'mftintelligence.com'},expected=(200,201))
+          assert d.get('success'); 
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APEX_DOMAIN_CREATED=1\n')
+          print('apex_pages_domain_attach: CREATED')
+
+          code,l=call('POST',f'/accounts/{account}/rules/lists',{'name':list_name,'description':'MUSITU www to canonical apex redirect','kind':'redirect'},expected=(200,201))
+          assert l.get('success'); list_id=l['result']['id']
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('REDIRECT_LIST_ID='+list_id+'\n')
+          code,op=call('POST',f'/accounts/{account}/rules/lists/{list_id}/items',[{'redirect':{'source_url':'www.mftintelligence.com/','target_url':'https://mftintelligence.com','status_code':301,'include_subdomains':False,'subpath_matching':True,'preserve_path_suffix':True,'preserve_query_string':True}}],expected=(200,201))
+          assert op.get('success'); opid=op['result']['operation_id']
+          for _ in range(20):
+              code,b=call('GET',f'/accounts/{account}/rules/lists/bulk_operations/{opid}')
+              if b.get('result',{}).get('status')=='completed':break
+              time.sleep(2)
+          else:raise RuntimeError('Bulk redirect list population did not complete')
+
+          # Add the list to the account redirect entrypoint; create entrypoint only if absent.
+          try:
+              code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',expected=(200,404))
+          except RuntimeError:raise
+          rule={'ref':'musitu_www_to_apex_20261106','expression':f'http.request.full_uri in \${list_name}','description':'MUSITU canonical www to apex','action':'redirect','action_parameters':{'from_list':{'name':list_name,'key':'http.request.full_uri'}}}
+          if code==404 or not entry.get('success'):
+              code,rs=call('POST',f'/accounts/{account}/rulesets',{'name':'MUSITU canonical redirects','kind':'root','phase':'http_request_redirect','rules':[rule]},expected=(200,201))
+              assert rs.get('success');ruleset_id=rs['result']['id'];rule_id=(rs['result'].get('rules') or [{}])[0].get('id')
+              with open(os.environ['GITHUB_ENV'],'a') as f:
+                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULESET_CREATED=1\n')
+                  if rule_id:f.write('REDIRECT_RULE_ID='+rule_id+'\n')
+          else:
+              ruleset_id=entry['result']['id']
+              code,rr=call('POST',f'/accounts/{account}/rulesets/{ruleset_id}/rules',rule,expected=(200,201))
+              assert rr.get('success');rule_id=rr['result']['id']
+              with open(os.environ['GITHUB_ENV'],'a') as f:
+                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULE_ID='+rule_id+'\nREDIRECT_RULESET_CREATED=0\n')
+
+          code,dns=call('POST',f'/zones/{zone}/dns_records',{'type':'A','name':'www','content':'192.0.2.1','ttl':1,'proxied':True,'comment':'MUSITU canonical www redirect'},expected=(200,201))
+          assert dns.get('success');dns_id=dns['result']['id']
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('WWW_DNS_ID='+dns_id+'\n')
+          print('www_redirect_rule: CREATED')
+          print('www_dns_proxy_record: CREATED')
+          PY
+
+      - name: Wait for apex domain TLS and production route readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
+          api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          active=False
+          for i in range(40):
+              with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
+              status=(b.get('result') or {}).get('status')
+              print('apex_domain_status_attempt',i+1,status)
+              if status=='active':active=True;break
+              if status in ('error','blocked','deactivated'):raise RuntimeError('Apex custom domain entered '+str(status))
+              time.sleep(5)
+          assert active,'Apex custom domain did not become active'
+          print('apex_tls_domain_active: PASS')
+          PY
+
+      - name: Public production smoke test all routes, headers, media, redirect and mail preservation
+        id: smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.error,urllib.parse,urllib.request
+          origin='https://mftintelligence.com'
+          routes=['/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/']
+          headers=None
+          last=''
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(origin+'/',headers={'User-Agent':'MUSITU-Launch-Smoke/20261106'}),timeout=20) as r:
+                      body=r.read().decode('utf8','replace');headers=r.headers
+                  if r.status==200 and 'Intelligence with evidence' in body:break
+              except Exception as e:last=type(e).__name__
+              time.sleep(4)
+          else:raise RuntimeError('Apex production did not become publicly reachable: '+last)
+          assert headers['X-Content-Type-Options']=='nosniff'
+          assert "frame-ancestors 'none'" in headers['Content-Security-Policy']
+          assert 'noindex' not in (headers.get('X-Robots-Tag') or '').lower()
+          failures=[]
+          for route in routes:
+              try:
+                  with urllib.request.urlopen(origin+route,timeout=20) as r:
+                      html=r.read().decode('utf8','replace')
+                  if r.status!=200 or 'index,follow' not in html or 'rel="canonical"' not in html:failures.append((route,r.status))
+              except Exception as e:failures.append((route,type(e).__name__))
+          assert not failures,'Route failures '+repr(failures)
+          with urllib.request.urlopen(origin+'/legal/privacy/',timeout=20) as r:privacy=r.read().decode('utf8','replace')
+          assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in privacy
+          with urllib.request.urlopen(origin+'/assets/studio-demo-82s.mp4',timeout=30) as r:
+              media=r.read()
+          import hashlib
+          assert hashlib.sha256(media).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+          with urllib.request.urlopen(origin+'/robots.txt',timeout=20) as r:robots=r.read().decode()
+          assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
+          with urllib.request.urlopen(origin+'/sitemap.xml',timeout=20) as r:sitemap=r.read().decode()
+          assert sitemap.count('<url>')==33
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NoRedirect)
+          redirected=False
+          for _ in range(30):
+              try:
+                  op.open('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20)
+              except urllib.error.HTTPError as e:
+                  loc=e.headers.get('Location','')
+                  if e.code in (301,308) and loc.startswith('https://mftintelligence.com/products/axiom/') and 'launch=1' in loc:
+                      redirected=True;break
+              time.sleep(4)
+          assert redirected,'Canonical www 301 redirect not verified'
+          # Verify MX still present directly through Cloudflare API.
+          token=os.environ['CLOUDFLARE_API_TOKEN'];zone=os.environ['CF_ZONE_ID']
+          url='https://api.cloudflare.com/client/v4/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
+          with urllib.request.urlopen(urllib.request.Request(url,headers={'Authorization':'Bearer '+token,'Accept':'application/json'}),timeout=20) as r:b=json.load(r)
+          assert b.get('success') and b.get('result'),'MX records disappeared'
+          with urllib.request.urlopen('https://evansmusitu.github.io/',timeout=20) as r:intel=r.read(120000).decode('utf8','replace')
+          assert r.status==200 and 'MUSITU' in intel.upper(),'Existing Intelligence origin unavailable'
+          print('public_routes_200_indexable:',len(routes))
+          print('production_security_headers: PASS')
+          print('legal_identification_live: PASS')
+          print('studio_media_hash_live: PASS')
+          print('robots_and_33_url_sitemap: PASS')
+          print('www_to_apex_301_preserves_path_query: PASS')
+          print('mx_email_routing_preserved: PASS')
+          print('existing_intelligence_origin_preserved: PASS')
+          PY
+
+      - name: Capture successful production evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/launch-evidence"
+          cp "$RUNNER_TEMP/prestate.json" "$RUNNER_TEMP/launch-evidence/prestate.json"
+          cat > "$RUNNER_TEMP/launch-evidence/LAUNCH_IDENTITY.json" <<EOF
+          {
+            "release_sha": "$RELEASE_SHA",
+            "merge_sha": "$MERGE_SHA",
+            "production_artifact_sha256": "$EXPECTED_PROD_TAR_SHA256",
+            "canonical_origin": "$CANONICAL_ORIGIN",
+            "pages_project": "$CF_PAGES_NAME",
+            "production_deployment_id": "$NEW_PROD_ID",
+            "apex_custom_domain": "mftintelligence.com",
+            "www_behavior": "301 canonical redirect to apex, preserving path/query",
+            "studio_video_sha256": "afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0",
+            "routes_smoke_tested": 33,
+            "production_launch": "PASS"
+          }
+          EOF
+          echo "MUSITU production launch complete and smoke-tested." > "$RUNNER_TEMP/launch-evidence/RESULT.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-production-launch-evidence-20261106
+          path: ${{ runner.temp }}/launch-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Roll back public cutover on any failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.parse,urllib.request
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','');account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def req(method,path,data=None):
+              try:
+                  r=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+                  with urllib.request.urlopen(r,timeout=20) as x:
+                      raw=x.read().decode();return x.status,json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as e:
+                  return e.code,{}
+              except Exception:return 0,{}
+          dns=os.environ.get('WWW_DNS_ID')
+          if dns:req('DELETE',f'/zones/{zone}/dns_records/{dns}')
+          rule=os.environ.get('REDIRECT_RULE_ID');rs=os.environ.get('REDIRECT_RULESET_ID');created=os.environ.get('REDIRECT_RULESET_CREATED')
+          if rs and created=='1':req('DELETE',f'/accounts/{account}/rulesets/{rs}')
+          elif rs and rule:req('DELETE',f'/accounts/{account}/rulesets/{rs}/rules/{rule}')
+          li=os.environ.get('REDIRECT_LIST_ID')
+          if li:req('DELETE',f'/accounts/{account}/rules/lists/{li}')
+          if os.environ.get('APEX_DOMAIN_CREATED')=='1':
+              req('DELETE',f'/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com')
+          prev=os.environ.get('PREV_PROD_ID')
+          if prev:
+              code,_=req('POST',f'/accounts/{account}/pages/projects/{project}/deployments/{prev}/rollback',{})
+              print('previous_production_rollback_http:',code)
+          # Remove only newly-created apex/www web DNS records, preserving all pre-existing mail/TXT records.
+          pre={}
+          try:pre=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'prestate.json')))
+          except:pass
+          for name in ('mftintelligence.com','www.mftintelligence.com'):
+              code,b=req('GET',f'/zones/{zone}/dns_records?'+urllib.parse.urlencode({'name':name,'per_page':100}))
+              old={r.get('id') for r in (pre.get('dns',{}).get(name,[]) or [])}
+              for r in b.get('result',[]) if isinstance(b,dict) else []:
+                  if r.get('id') not in old and r.get('type') in ('A','AAAA','CNAME'):
+                      req('DELETE',f'/zones/{zone}/dns_records/{r.get("id")}')
+          print('public_cutover_rollback_attempted: true')
+          PY
