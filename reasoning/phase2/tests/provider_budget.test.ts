@@ -351,7 +351,8 @@ test("SQLite metered provider ignores caller replacement of its internal databas
     // Only the database opened by its original constructor may hold accounts.
     (x.ledger as any).db={
       exec(){throw new Error("FORGED_SPEND_DATABASE_USED");},
-      prepare(){throw new Error("FORGED_SPEND_DATABASE_USED");}
+      prepare(){throw new Error("FORGED_SPEND_DATABASE_USED");},
+      close(){}
     };
     await x.wrapped.invoke({
       tenant:scope(),compilationRequestHash:"1".repeat(64),attempt:0,mode:"INITIAL"
