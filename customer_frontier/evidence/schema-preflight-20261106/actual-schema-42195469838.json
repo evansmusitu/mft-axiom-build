@@ -1,0 +1,574 @@
+{
+  "backup_restore_qualified": false,
+  "catalog_sha256": "7ecf48b90c30e0e5fc3a05ff90c58da4c83590d8173a40022a941f884946a947",
+  "customer_records_read": 0,
+  "database_id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+  "error": null,
+  "event_sha": "28d5a98233eca01c8a2363b75f84aa8c386f76d9",
+  "expected_name": "mft-axiom-claude-staging-20260927",
+  "hosted_migration_qualified": false,
+  "identity_verified": true,
+  "inference_calls": 0,
+  "mutations": 0,
+  "oauth_parent_presence": {
+    "api_keys": true,
+    "customers": true,
+    "oauth_access_tokens": false,
+    "oauth_authorization_codes": false,
+    "oauth_refresh_tokens": false
+  },
+  "objects": [
+    {
+      "name": "axiom_q06_axiom_ec_runs_work",
+      "sql_sha256": "021d2f5725909cd321455b4a3a60a57251d7990414d83afc23c0aeb8bb11ae19",
+      "table": "axiom_q06_axiom_ec_runs",
+      "type": "index"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_audit_tenant",
+      "sql_sha256": "dfdca79e8d8130d5251947ec44f763d7ac7565c56e6cd9d80dd1db8f8adaf58d",
+      "table": "axiom_q06_axiom_lc_audit",
+      "type": "index"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies_work",
+      "sql_sha256": "98dfcb7d74f138ce6c3347bb4eed4605494550bcbf8b6eb694b48d9cd08464cf",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "index"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds_work",
+      "sql_sha256": "36a95a9b93f827bfc73d41ab85987499d6459055193975304b286e95e8aa1762",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "index"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_tombstones_work",
+      "sql_sha256": "1a8f9ba7132838e4afebb79ec22b71c60393518e47426b08871bf8d055dec230",
+      "table": "axiom_q06_axiom_lc_tombstones",
+      "type": "index"
+    },
+    {
+      "name": "idx_api_keys_customer",
+      "sql_sha256": "2e5c6e6ef032514285b0cb56c61b8d40cb8193a7efbf2043d072e35b9b9b342d",
+      "table": "api_keys",
+      "type": "index"
+    },
+    {
+      "name": "idx_usage_events_customer_time",
+      "sql_sha256": "b47d4559cf73179122487fd24ae2ab68f13189e8e89b70340e0e81e018af91e1",
+      "table": "usage_events",
+      "type": "index"
+    },
+    {
+      "name": "idx_usage_events_request",
+      "sql_sha256": "9e69e70355e0f54e2a8f69178932fe055f52e3e8fe94deb2049fd1dc4949d40c",
+      "table": "usage_events",
+      "type": "index"
+    },
+    {
+      "name": "_cf_KV",
+      "sql_sha256": "4043fea8b8581dfc344308300f74de5f3f0c683b4a9b0df120aff19d08d01156",
+      "table": "_cf_KV",
+      "type": "table"
+    },
+    {
+      "name": "api_keys",
+      "sql_sha256": "79efae28f455bea644abc0fc0771c639dff37441fb39e2686b3b7c79a479bf60",
+      "table": "api_keys",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_acceptance_rate_limits",
+      "sql_sha256": "0293b07b367d159140d03300b55f67ed7784a63455a6f4cb0e1aeacd5b5efbc0",
+      "table": "axiom_q06_axiom_acceptance_rate_limits",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_acceptance_reuse_scope",
+      "sql_sha256": "f7fa2d739c04a7023a87a5f403d4fb12b3c6dc83be911972c3261ffdddd79edc",
+      "table": "axiom_q06_axiom_acceptance_reuse_scope",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_completion_guards",
+      "sql_sha256": "be30d82b8aa03e42e6a1d8ee59d8b186eaed958963f2ec093b3b1e77cac5dfbf",
+      "table": "axiom_q06_axiom_ec_agent_completion_guards",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_invocations",
+      "sql_sha256": "a306c7a19459e3955cb9e2bf5c50441b015ac6c1b68d6485cdf189fb8dedac39",
+      "table": "axiom_q06_axiom_ec_agent_invocations",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agents",
+      "sql_sha256": "e61344caafa62853122e17647656b482d43c791a344eae3a3b9e956a83319ce2",
+      "table": "axiom_q06_axiom_ec_agents",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_artifacts",
+      "sql_sha256": "27b64b9cebd23d734313f33932b778ba524f2b6d1100a3bdfe2d0db2401f60d7",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_evidence",
+      "sql_sha256": "de33e9d26854d4785007132e69cb2c6c827198df3a5b4c2761cf4aedfa00eefe",
+      "table": "axiom_q06_axiom_ec_evidence",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_external_completion_guards",
+      "sql_sha256": "6b5dd9094d1f60cd4951b04ecf63766f341cb9508b12f67329a7a3610166930b",
+      "table": "axiom_q06_axiom_ec_external_completion_guards",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_external_consumptions",
+      "sql_sha256": "e6372b50b21aa31acc129aa66544d70ed439699406de0c5b1dfbb7fab435182a",
+      "table": "axiom_q06_axiom_ec_external_consumptions",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_projects",
+      "sql_sha256": "e5469c197012fd89762be4e35aa45ae38f488d59c17e16bece4d2893796637b8",
+      "table": "axiom_q06_axiom_ec_projects",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_reservations",
+      "sql_sha256": "82af2a5d7d3d94cfeb6dffcaca5e4104d4669c8d3bfedaad0fc06073e0820c2c",
+      "table": "axiom_q06_axiom_ec_reservations",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_runs",
+      "sql_sha256": "a63dd3affa4097a174572ad1575f83aa390d70c1fdfbeb2a01d3bd102d80264b",
+      "table": "axiom_q06_axiom_ec_runs",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_works",
+      "sql_sha256": "3b679f07d1a805a40e559e0e84be496710c9d5ed4937361f321e85b8d2ad5243",
+      "table": "axiom_q06_axiom_ec_works",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_audit",
+      "sql_sha256": "ff3d7513a0c8d65de5546e46b1e0b5deee49957bc9bb0d68be3dd5e66030c9c3",
+      "table": "axiom_q06_axiom_lc_audit",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_authorizations",
+      "sql_sha256": "8a1731168491108d5973f4de362fe2d8123c578c97720568bf2cda8101fa0d40",
+      "table": "axiom_q06_axiom_lc_authorizations",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_delete_requests",
+      "sql_sha256": "7d86327e249f84b009c521f41d61c2cf8dee216b86ed74ff0e4192bceb137ff0",
+      "table": "axiom_q06_axiom_lc_delete_requests",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies",
+      "sql_sha256": "0767108669cfa4578f285aa7790c389f31d1bce42139f83e781a33ea63218ab3",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_exports",
+      "sql_sha256": "ca3e65eda2085ebbbdb2ca50f3a5f8e83ccb9acbe054de1a67246b82ef0b67e2",
+      "table": "axiom_q06_axiom_lc_exports",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_guards",
+      "sql_sha256": "cc29f576d8aeab1c89ddc43ffafa25b39a0b7402fdaa5554a09155d9ce071fe4",
+      "table": "axiom_q06_axiom_lc_guards",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds",
+      "sql_sha256": "18682d00c407173645cb75e5d8ae2f2a84700a37199370fa19b74610c30f8182",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_schema",
+      "sql_sha256": "64ab2da95333ce414a8bdbe118214798193795d30a1a7733b3a5453457a56fe3",
+      "table": "axiom_q06_axiom_lc_schema",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_tombstones",
+      "sql_sha256": "81a0e2c4d134ef22cfb74f1ba3dc0ae7dbae88f53233ee27b5aa753de25e7f1a",
+      "table": "axiom_q06_axiom_lc_tombstones",
+      "type": "table"
+    },
+    {
+      "name": "billing_subscriptions",
+      "sql_sha256": "e1b9edbc5bb2e88e9e7acb7c6a77a32e2e1c3875456c1eaf8889f39fbbadec8f",
+      "table": "billing_subscriptions",
+      "type": "table"
+    },
+    {
+      "name": "customers",
+      "sql_sha256": "4e8552bfa9ea47a37985a080496bd227896e22d492837056466dc45a2f07ef57",
+      "table": "customers",
+      "type": "table"
+    },
+    {
+      "name": "usage_buckets",
+      "sql_sha256": "1d75218075232b6bc80808529e81df55193e42188fd51bf7e0c029d455100868",
+      "table": "usage_buckets",
+      "type": "table"
+    },
+    {
+      "name": "usage_events",
+      "sql_sha256": "45d5f4e1b2bb5d1d377a3731bdd00f4968d828f3868c274d156587cb1b5c934a",
+      "table": "usage_events",
+      "type": "table"
+    },
+    {
+      "name": "webhook_events",
+      "sql_sha256": "eaac42ab4d912d9ad4df783f9dc21858c098a967583c6b57083cff597c6efcbe",
+      "table": "webhook_events",
+      "type": "table"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_completion_guards_lifecycle_frozen_delete",
+      "sql_sha256": "ef6f69ef0e33f4b97caa89fe66129565b10516b617a62b341b99595673823795",
+      "table": "axiom_q06_axiom_ec_agent_completion_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_completion_guards_lifecycle_frozen_insert",
+      "sql_sha256": "f5eb6f9604f95f63b4c85dbcc9100be5a8a7eaf04307c8192a7a97cc5bae1a48",
+      "table": "axiom_q06_axiom_ec_agent_completion_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_completion_guards_lifecycle_frozen_update",
+      "sql_sha256": "d61469bd423f7f0525b4b1c989438e6f1939feb34ad99a5abcbab53f4185fdb8",
+      "table": "axiom_q06_axiom_ec_agent_completion_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_completion_snapshot",
+      "sql_sha256": "b934e68f1816a8514e6b7f5442a457f7f6dda4cd2f13a810df42aa8df193f4ad",
+      "table": "axiom_q06_axiom_ec_agent_completion_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_invocations_lifecycle_frozen_delete",
+      "sql_sha256": "4e4b6f8f985c08bf19f9db0208c24ffb772089add6b23926329ffdc6830bdabb",
+      "table": "axiom_q06_axiom_ec_agent_invocations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_invocations_lifecycle_frozen_insert",
+      "sql_sha256": "6e333f570083763c051b547e0464a00daadd0848038853992cbf8ae0358bab87",
+      "table": "axiom_q06_axiom_ec_agent_invocations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_agent_invocations_lifecycle_frozen_update",
+      "sql_sha256": "a199a20fd67f0e5e56dbb0c22171d2d9518db257899cf672031dd1c99a16289e",
+      "table": "axiom_q06_axiom_ec_agent_invocations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_artifact_active_lease",
+      "sql_sha256": "2e66f59fe6c1818e71f7b572293ab63d8137a0be277531296dc92ad5626e55e2",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_artifacts_lifecycle_frozen_delete",
+      "sql_sha256": "2388aecbade220a7342cc2df2d6e0120ffaf18997870c4e253e514b77b3d4de2",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_artifacts_lifecycle_frozen_insert",
+      "sql_sha256": "d9de3cf3c31b8ab7709840b64bbd897209cd6f613ceb59fd63324ca549adf48a",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_artifacts_lifecycle_frozen_update",
+      "sql_sha256": "a9e0986f5633df13fff793d9f51819b659396a735b69cd558c535a9656fef4d0",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_evidence_lifecycle_frozen_delete",
+      "sql_sha256": "a6a9516847d0e20f4d550d28a7df9844995de8f7e66943b36aab1613dd243286",
+      "table": "axiom_q06_axiom_ec_evidence",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_evidence_lifecycle_frozen_insert",
+      "sql_sha256": "43613386c53ec5befb00b458879d99c3b0ea4d8227d7554e771a80fc50a3af69",
+      "table": "axiom_q06_axiom_ec_evidence",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_evidence_lifecycle_frozen_update",
+      "sql_sha256": "e7acc60166a485632324904d9cdb17111fddf4b6478e1a30a24938d30a41d90e",
+      "table": "axiom_q06_axiom_ec_evidence",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_external_artifact_guard",
+      "sql_sha256": "8155800bff79fbc32f664ff2d67dae61cf1a415e8bc4ba12944e3bd44a8cf36e",
+      "table": "axiom_q06_axiom_ec_artifacts",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_external_completion_snapshot",
+      "sql_sha256": "b787bfc70894f6000e5347e98402f9bc9591173151a5e57030c4490f56b130f6",
+      "table": "axiom_q06_axiom_ec_external_completion_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_reservations_lifecycle_frozen_delete",
+      "sql_sha256": "00aabad3eb0aea38d8f873d0ecf5f4a6cef5030ce4a3f60bdb0b2a80e162a51b",
+      "table": "axiom_q06_axiom_ec_reservations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_reservations_lifecycle_frozen_insert",
+      "sql_sha256": "6173154a7e0b34de91dba29762ff21af141618f6043d9ae1662d96a4ef5199ff",
+      "table": "axiom_q06_axiom_ec_reservations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_reservations_lifecycle_frozen_update",
+      "sql_sha256": "8b02f8da907556d4cfeef6e4846375aef94aa6b54c51b161b5fc0b3732c975bd",
+      "table": "axiom_q06_axiom_ec_reservations",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_runs_lifecycle_frozen_delete",
+      "sql_sha256": "4af2873b4a0c2458a27b5ef3bb21c787a1622cc290352126e9cf89ce2308b0c6",
+      "table": "axiom_q06_axiom_ec_runs",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_runs_lifecycle_frozen_insert",
+      "sql_sha256": "325a91d05c7d471fdaf7fd8caa1611a0cc0c9dc25feccfb6ebe682798952a050",
+      "table": "axiom_q06_axiom_ec_runs",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_runs_lifecycle_frozen_update",
+      "sql_sha256": "b6af6b4d65a9da97ca0c4ffdb692acbe648a363a64f2670883c40b10e1bfdef1",
+      "table": "axiom_q06_axiom_ec_runs",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_works_lifecycle_frozen_delete",
+      "sql_sha256": "989ecd63d6b0a2d6a86ae92ebe90f3632bf2f986f020aad2c6530a8118d8b34d",
+      "table": "axiom_q06_axiom_ec_works",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_works_lifecycle_frozen_insert",
+      "sql_sha256": "92db5e20cb53fc8a9fe8a9f5b672a3316da5d0299fc434022e9f1330c0e60aa9",
+      "table": "axiom_q06_axiom_ec_works",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_ec_works_lifecycle_frozen_update",
+      "sql_sha256": "c259f1932bbbde2b3363b00fadc2de87317b1bc8a174216bffe0084b7b170056",
+      "table": "axiom_q06_axiom_ec_works",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_audit_append",
+      "sql_sha256": "a5f713bf9ed3ed0d414bd051e7fe5caafa201cf27116dc9ea9c126db14c66f37",
+      "table": "axiom_q06_axiom_lc_audit",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_audit_immutable_delete",
+      "sql_sha256": "37be488a4b04146e1a92ae8ea2272ef803e97a3a23d0b8383b91c9ce61f47087",
+      "table": "axiom_q06_axiom_lc_audit",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_audit_immutable_update",
+      "sql_sha256": "2f2a27851ff5c2428fc3650507f009de5411499c53a803fbc5819da6ff68e36f",
+      "table": "axiom_q06_axiom_lc_audit",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_delete_final",
+      "sql_sha256": "a0d2bf8a0d410ec54228ed2b04938b25a91b90e783907e514f09d28f4c88fe01",
+      "table": "axiom_q06_axiom_lc_delete_requests",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_delete_requests_immutable_delete",
+      "sql_sha256": "50e49089df210495450dfedd5daad8ec04efda8ef0d8e91b57c9471549bc30cd",
+      "table": "axiom_q06_axiom_lc_delete_requests",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_delete_requests_immutable_update",
+      "sql_sha256": "81fa1dfc769b4bb102aa5fecaaa9a338c1412c2d567fcd675f62fdab6a15ed2b",
+      "table": "axiom_q06_axiom_lc_delete_requests",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies_authorized_insert",
+      "sql_sha256": "36ec1c192afcf8acea703c08856628ca206b91b083b53affff6ef8e9ddbaf8db",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies_authorized_update",
+      "sql_sha256": "e8c53012c7e91745e1364956f09b17ad2823b52c44d14c3a7488171b901fe095",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies_no_delete",
+      "sql_sha256": "706f14d2d5b880de9eb8b390f2bbdcd82b83812d2e168b93821b42a942d5f897",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependencies_release_only",
+      "sql_sha256": "75010f47eddedb73938c166f2148077619da4d9e46ffb4027b14684ed8e80a9a",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_dependency_target",
+      "sql_sha256": "3a48639e547fe65f12093b2471292963a634497614d2b6cfc9b184bdf2686e32",
+      "table": "axiom_q06_axiom_lc_dependencies",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_export_authorized",
+      "sql_sha256": "642318eebdf34d7c33ce6509760e6bb44804977b1d34bc599da5dd0dc2cdd872",
+      "table": "axiom_q06_axiom_lc_exports",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_exports_immutable_delete",
+      "sql_sha256": "6441cf3a51db0b46471f3fe7097ca06addcfdde1a70f4334f9a93a6fad3b8ea0",
+      "table": "axiom_q06_axiom_lc_exports",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_exports_immutable_update",
+      "sql_sha256": "882834919191362b4aa1fb8f31a424d647d5d7c01d085d3c94255325f48d2641",
+      "table": "axiom_q06_axiom_lc_exports",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_guard_external_snapshot",
+      "sql_sha256": "5fe55b51a52f11bd265d4ee37d3a6ac8f466fb85bbc38e70e95f2f6430eccd8b",
+      "table": "axiom_q06_axiom_lc_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_guard_snapshot",
+      "sql_sha256": "d05e4baaa59b49924ae9a4430b7eb1047d571c7a13082a3b140e18dcdecf0392",
+      "table": "axiom_q06_axiom_lc_guards",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_hold_target",
+      "sql_sha256": "01ea145189212e5acf4cf9f771207cd1f13d1cabf3584dd1daf583c9a71f0e8e",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds_authorized_insert",
+      "sql_sha256": "d0e46037c3101ec4d6a0c047fc42397e65f02f84a2e983d41303e1cb6c820ffd",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds_authorized_update",
+      "sql_sha256": "07c934b4e62022ea24272da185b8043da8f58a5a650f9e0854a944bac99d86f7",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds_no_delete",
+      "sql_sha256": "7749f872ca8ffadb38a1ede29f2454be07c56b123cca257b4521471e0b813ae6",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_holds_release_only",
+      "sql_sha256": "6454a8447e0b6314708795e39237825e1d714d71f6f7e77d924a7abc712ea5f1",
+      "table": "axiom_q06_axiom_lc_holds",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_schema_immutable_delete",
+      "sql_sha256": "c5a065ac95078d915de645710d9c63f9238497561fa08c2f2e5aff677604e59c",
+      "table": "axiom_q06_axiom_lc_schema",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_schema_immutable_update",
+      "sql_sha256": "d1c4cbdb6c528f0282a5c0c70948c0ed76ec1880bc2a0ca6936c1715e4731ac3",
+      "table": "axiom_q06_axiom_lc_schema",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_tombstone_guard",
+      "sql_sha256": "1c7215cac972ea3e98481da4127c99c189e53963718d1c5ab757263950c35462",
+      "table": "axiom_q06_axiom_lc_tombstones",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_tombstones_immutable_delete",
+      "sql_sha256": "a9b15feb400e1573532844329d2393c0fba8a55f2312cfb9eb33f23a6dc4ac8c",
+      "table": "axiom_q06_axiom_lc_tombstones",
+      "type": "trigger"
+    },
+    {
+      "name": "axiom_q06_axiom_lc_tombstones_immutable_update",
+      "sql_sha256": "af191bc3ee6feaa6e93f8c5f9c6da25c03b9fe40b8619edde98ff5ede6c86f07",
+      "table": "axiom_q06_axiom_lc_tombstones",
+      "type": "trigger"
+    }
+  ],
+  "observed_at": "2026-11-06T09:29:51.862200+00:00",
+  "query_changed_db": false,
+  "query_changes": 0,
+  "query_count": 1,
+  "query_rows_written": 0,
+  "query_sha256": "354d949bd5c3d94b7b7d08346a251ca12aead18fa1dd544855d96198189a7f6b",
+  "raw_ddl_disclosed": false,
+  "release_authority": false,
+  "run_id": "42195469838",
+  "schema": "musitu.axiom.customer.schema_catalog_readonly.v1",
+  "source_sha": "29bfb5a81996226ae10b4d8dadbf106d2aab27df",
+  "status": "SCHEMA_CATALOG_OBSERVED",
+  "transport": [
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a7384b8a-0751-4705-ac77-0616b0885e7c"
+    },
+    {
+      "http_status": 200,
+      "method": "POST",
+      "path": "/d1/database/a7384b8a-0751-4705-ac77-0616b0885e7c/query"
+    }
+  ]
+}

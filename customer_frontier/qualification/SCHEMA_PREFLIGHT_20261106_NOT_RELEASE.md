@@ -64,3 +64,17 @@ acceptance with unknown mutations; only boolean false and two integer zeros
 accept. No remaining P0-P2 in the bounded reader. Workflow admission must be
 repinned to this repaired immutable source before the first credentialed run.
 Original source, red/green reproductions and independent logs are retained.
+
+Actual live run42195469838/job127817548750 SUCCESS: exact DB identity GET
+and fixed catalog SELECT bothHTTP200; changed_db:false, changes:0 and
+rows_written:0.88 catalog objects observed with exact definition hashes.
+The selected staging database has customers/api_keys but lacks
+oauth_authorization_codes, oauth_access_tokens and oauth_refresh_tokens.
+The existing-schema OAuth upgrade is NOT admitted on this target. Do not
+create missing OAuth parents from test fixtures or relabel q06 as this scope.
+Next read the actual production OAuth binding and select a reviewed isolated
+restore/migration target. The source workflow points to DB504029cc-f9a5-495e-
+818f-63c6144b4ea4, but live provider readback must establish its actual binding.
+Raw log, parsed observation and hash/provenance receipt retained. Source
+CI42195469751/job127817548734 passed197Node+72Python+16workerd, no failures
+or skips. This is discovery evidence, never backup/migration/release acceptance.
