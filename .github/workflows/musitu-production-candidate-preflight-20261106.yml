@@ -1,0 +1,160 @@
+name: MUSITU Production Candidate Preflight 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-candidate-preflight-20261106.yml
+permissions:
+  contents: read
+jobs:
+  production-candidate:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      RELEASE_SHA: 7e0fa23dad220e0e1b7e48a9176e3437b5afc545
+      MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
+      CANONICAL_ORIGIN: https://mftintelligence.com
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch exact source and approved Studio media
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q pytest==8.4.2 beautifulsoup4==4.14.2
+          mkdir -p "$RUNNER_TEMP/site"
+          git -C "$RUNNER_TEMP/site" init -q
+          git -C "$RUNNER_TEMP/site" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/site" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/site" rev-parse HEAD)" = "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$MEDIA_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-demo-82s.mp4" > "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4"
+          git -C "$RUNNER_TEMP/site" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-poster.png" > "$RUNNER_TEMP/site/corporate/assets/studio-poster.png"
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 "$RUNNER_TEMP/site/corporate/assets/studio-demo-82s.mp4" | sha256sum -c -
+          printf '%s  %s\n' 0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0 "$RUNNER_TEMP/site/corporate/assets/studio-poster.png" | sha256sum -c -
+      - name: Verify review mode remains fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/site/corporate"
+          MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
+          python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
+          node --check assets/site.js
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('dist')
+          m=json.loads((root/'manifest.json').read_text())
+          assert m['build_mode']=='review' and not m['indexing_enabled']
+          assert m['canonical_origin'] is None and not m['production_approved']
+          assert (root/'robots.txt').read_text()=='User-agent: *\nDisallow: /\n'
+          assert not (root/'sitemap.xml').exists()
+          assert all('noindex,nofollow' in p.read_text() for p in root.rglob('index.html'))
+          assert 'OWNER REVIEW BUILD' in (root/'index.html').read_text()
+          print('review_mode_regression: PASS')
+          PY
+      - name: Build production candidate twice and prove determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/site/corporate"
+          export MUSITU_BUILD_MODE=production
+          export MUSITU_CANONICAL_ORIGIN="$CANONICAL_ORIGIN"
+          export MUSITU_INCLUDE_STUDIO_MEDIA=1
+          python3 scripts/build.py
+          python3 -m pytest -q tests/test_production_build.py
+          node --check assets/site.js
+          tar --sort=name --mtime='UTC 2026-11-06' --owner=0 --group=0 --numeric-owner -cf "$RUNNER_TEMP/production-a.tar" dist
+          sha_a="$(sha256sum "$RUNNER_TEMP/production-a.tar"|cut -d' ' -f1)"
+          cp -a dist "$RUNNER_TEMP/first-dist"
+          python3 scripts/build.py
+          python3 -m pytest -q tests/test_production_build.py
+          tar --sort=name --mtime='UTC 2026-11-06' --owner=0 --group=0 --numeric-owner -cf "$RUNNER_TEMP/production-b.tar" dist
+          sha_b="$(sha256sum "$RUNNER_TEMP/production-b.tar"|cut -d' ' -f1)"
+          test "$sha_a" = "$sha_b"
+          diff -qr "$RUNNER_TEMP/first-dist" dist
+          echo "production_candidate_deterministic_sha256: $sha_a"
+      - name: Inspect production candidate contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/site/corporate"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          from xml.etree import ElementTree
+          root=Path('dist')
+          m=json.loads((root/'manifest.json').read_text())
+          assert m['build_mode']=='production'
+          assert m['canonical_origin']=='https://mftintelligence.com'
+          assert m['indexing_enabled'] is True and m['production_approved'] is False
+          assert m['route_count']==34 and m['studio_media_included'] is True
+          html=list(root.rglob('index.html'))
+          assert len(html)==34
+          for p in html:
+              txt=p.read_text()
+              if p.relative_to(root).as_posix()=='404/index.html':
+                  assert 'noindex,nofollow' in txt
+              else:
+                  assert 'index,follow' in txt and 'rel="canonical"' in txt
+              assert 'OWNER REVIEW BUILD' not in txt
+              assert 'Independent staging preview' not in txt
+          xml=ElementTree.parse(root/'sitemap.xml')
+          ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+          locs=[x.text for x in xml.findall('s:url/s:loc',ns)]
+          assert len(locs)==33 and all(x.startswith('https://mftintelligence.com/') for x in locs)
+          assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in (root/'legal/privacy/index.html').read_text()
+          assert 'MUSITU is the website operator and data controller' in (root/'legal/privacy/index.html').read_text()
+          assert hashlib.sha256((root/'assets/studio-demo-82s.mp4').read_bytes()).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+          headers=(root/'_headers').read_text()
+          assert 'X-Robots-Tag' not in headers and "frame-ancestors 'none'" in headers
+          print('production_candidate_contract: PASS')
+          print('production_candidate_routes: 34')
+          print('production_sitemap_urls: 33')
+          print('production_launch_authorized: false')
+          print('production_dns_writes: 0')
+          PY
+      - name: Create immutable production candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
+          cd "$RUNNER_TEMP/site/corporate"
+          python3 - <<'PY'
+          import csv,hashlib,json,os
+          from pathlib import Path
+          root=Path('dist'); out=Path(os.environ['RUNNER_TEMP'])/'evidence'
+          files=[p for p in sorted(root.rglob('*')) if p.is_file()]
+          with (out/'PRODUCTION_ASSET_SHA256.csv').open('w',newline='') as f:
+              w=csv.writer(f);w.writerow(['path','bytes','sha256'])
+              for p in files:
+                  b=p.read_bytes();w.writerow([p.relative_to(root).as_posix(),len(b),hashlib.sha256(b).hexdigest()])
+          manifest=json.loads((root/'manifest.json').read_text())
+          evidence={
+              'release_sha':os.environ['RELEASE_SHA'],
+              'media_source_sha':os.environ['MEDIA_SOURCE_SHA'],
+              'canonical_origin':'https://mftintelligence.com',
+              'build_mode':'production',
+              'routes':manifest['route_count'],
+              'generated_files':len(files),
+              'production_approved':False,
+              'dns_written':False,
+              'merged':False,
+          }
+          (out/'PRODUCTION_CANDIDATE_IDENTITY.json').write_text(json.dumps(evidence,indent=2)+'\n')
+          PY
+          cp dist/manifest.json "$RUNNER_TEMP/evidence/manifest.json"
+          cp dist/robots.txt "$RUNNER_TEMP/evidence/robots.txt"
+          cp dist/sitemap.xml "$RUNNER_TEMP/evidence/sitemap.xml"
+          cp dist/_headers "$RUNNER_TEMP/evidence/_headers"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-production-candidate-7e0fa23d-20261106
+          path: ${{ runner.temp }}/evidence
+          retention-days: 30
+          if-no-files-found: error
