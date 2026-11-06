@@ -141,6 +141,20 @@ class HoldoutProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'independent_protocol_fold_source_grid_mismatch'):
             inspect_protocol(q)
 
+    def test_development_openml_url_alias_cannot_be_sealed_as_independent(self):
+        # Hash and lineage controls are separate: a repacked development file
+        # could carry a new byte hash but still share the known catalog ID.
+        for alias in (
+            'https://WWW.OPENML.ORG/d/42701',
+            'https://www.openml.org/search?type=data&id=42701',
+            'https://data.mendeley.com/datasets/YD7VW4C5MK/1',
+        ):
+            q=candidate()
+            q['source_lineage_identifier']=alias
+            with self.subTest(alias=alias),self.assertRaisesRegex(
+                    ValueError,'independent_protocol_development_source_reused'):
+                inspect_protocol(q)
+
     def test_four_chronological_purged_folds_and_windows_required(self):
         cases=[('nonchronological',lambda q:q['folds'][1].update(first_feature_time=iso(1000))),
                ('fold_overlap',lambda q:q['folds'][1].update(first_feature_time=iso(4600))),

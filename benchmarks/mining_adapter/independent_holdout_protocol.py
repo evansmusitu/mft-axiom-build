@@ -100,7 +100,9 @@ def inspect_protocol(protocol: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError('independent_protocol_declaration_invalid')
     lineage = protocol['source_lineage_identifier'].lower()
     if (protocol['canonical_source_sha256'] == KNOWN_DEV_SHA or
-            any(x in lineage for x in ('yd7vw4c5mk','openml:42701','10.17632/yd7vw4c5mk'))):
+            any(x in lineage for x in ('yd7vw4c5mk','openml:42701','10.17632/yd7vw4c5mk',
+                                      'openml.org/d/42701',
+                                      'openml.org/search?type=data&id=42701'))):
         raise ValueError('independent_protocol_development_source_reused')
     if any(not _sha(protocol[k]) for k in (
             'canonical_source_sha256','frozen_model_manifest_sha256',

@@ -114,6 +114,27 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'source_is_known_development_dataset'):
             self.inspect()
 
+    def test_reencoded_development_lineage_variants_are_not_independent_sources(self):
+        # The source digest here is a separate synthetic fixture, so a reused
+        # development dataset must be caught by its own declared source ID.
+        for field in ('site_id', 'source_collection_id'):
+            for alias in (
+                'OpenML:42701',
+                'https://WWW.OPENML.ORG/d/42701',
+                'https://www.openml.org/search?type=data&id=42701',
+                'DOI:10.17632/yd7vw4c5mk.1',
+                'https://data.mendeley.com/datasets/YD7VW4C5MK/1',
+            ):
+                with self.subTest(field=field,alias=alias):
+                    self.metadata[field]=alias
+                    self.manifest.write_text(json.dumps(self.metadata),encoding='utf-8')
+                    with self.assertRaisesRegex(
+                            ValueError,'external_source_is_known_development_dataset'):
+                        self.inspect()
+                    self.metadata[field]='partner-mine-17' if field=='site_id' else 'partner-collection-2025-04'
+        self.manifest.write_text(json.dumps(self.metadata),encoding='utf-8')
+        self.assertEqual(self.inspect()['status'],'RESEARCH_INTAKE_ONLY_NOT_ADMITTED')
+
     def test_manifest_and_source_reject_impossible_utc_offsets(self):
         for value in ('2025-04-07T00:00:00+14:01', '2025-04-07T00:00:00-14:01',
                       '2025-04-07T00:00:00+15:00'):

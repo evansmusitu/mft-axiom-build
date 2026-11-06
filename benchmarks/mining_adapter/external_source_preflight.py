@@ -26,6 +26,12 @@ from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
 SCHEMA = 'musitu.axiom.external_source_manifest.v1'
 FORMAT = 'canonical_mining_telemetry_ndjson.v1'
 PUBLIC_DEV_SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+# A reencoded development file has a different byte digest. Recognize the
+# canonical dataset identifiers in source lineage metadata as well as its SHA.
+KNOWN_DEV_ID_MARKERS = (
+    'yd7vw4c5mk', '10.17632/yd7vw4c5mk', 'openml:42701',
+    'openml.org/d/42701', 'openml.org/search?type=data&id=42701',
+)
 NUMERIC_SENSORS = tuple(k for k in MINING_TELEMETRY_SENSORS if k != 'F_SIDE')
 ROW_FIELDS = frozenset(('event_time',) + MINING_TELEMETRY_SENSORS)
 HEX_SHA = re.compile(r'[0-9a-f]{64}\Z')
@@ -125,8 +131,10 @@ def _read_manifest(path: Path) -> tuple[Mapping[str, Any], str]:
         raise ValueError('external_source_sha256_invalid')
     if declared_sha == PUBLIC_DEV_SHA:
         raise ValueError('external_source_is_known_development_dataset')
-    if (manifest.get('source_collection_id') in ('yd7vw4c5mk', 'openml:42701')
-            or manifest.get('site_id') in ('yd7vw4c5mk', 'openml:42701')):
+    if any(
+            isinstance(manifest.get(field), str)
+            and any(marker in manifest[field].casefold() for marker in KNOWN_DEV_ID_MARKERS)
+            for field in ('source_collection_id', 'site_id')):
         raise ValueError('external_source_is_known_development_dataset')
     for field in ('site_id', 'source_collection_id', 'rights_basis', 'authorization_reference', 'provenance_reference'):
         if not isinstance(manifest.get(field), str) or not manifest[field].strip():
