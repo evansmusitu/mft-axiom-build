@@ -14,6 +14,7 @@ jobs:
     timeout-minutes: 8
     env:
       EXISTING_INTELLIGENCE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
+      CANDIDATE_SHA: 29d9e36f3eb755fde67b7c55087d05dff1c4a103
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -28,6 +29,14 @@ jobs:
           git -C "$RUNNER_TEMP/intelligence-original" fetch -q --depth=1 origin "$EXISTING_INTELLIGENCE_SHA"
           git -C "$RUNNER_TEMP/intelligence-original" checkout -q --detach FETCH_HEAD
           test "$(git -C "$RUNNER_TEMP/intelligence-original" rev-parse HEAD)" = "$EXISTING_INTELLIGENCE_SHA"
+          git -C "$RUNNER_TEMP/intelligence-original" fetch -q --depth=1 origin "$CANDIDATE_SHA"
+          changed="$(git -C "$RUNNER_TEMP/intelligence-original" diff --name-only "$EXISTING_INTELLIGENCE_SHA" "$CANDIDATE_SHA")"
+          test -n "$changed"
+          bad="$(printf '%s\n' "$changed" | grep -v '^corporate/' || true)"
+          test -z "$bad"
+          echo "candidate_changed_paths: $(printf '%s\n' "$changed" | wc -l)"
+          echo "candidate_outside_corporate_paths: 0"
+          echo "existing_intelligence_source_mutated_by_candidate: false"
       - name: Read-only live origin and independent corporate staging checks
         shell: bash
         run: |
