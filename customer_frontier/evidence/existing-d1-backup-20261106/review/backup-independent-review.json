@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.axiom.independent_encrypted_d1_export_review.v1",
+  "verdict": "PASS_FOR_BOUNDED_ENCRYPTED_LOGICAL_EXPORT_ONLY",
+  "source": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "tree": "609a23e496b77c583ed5321656eaefbc2f7ff333",
+  "parent": "1978cd977c470df6c9f7a72f548e1c2f142da3b1",
+  "reader_sha256": "35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c",
+  "recipient_public_sha256": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3",
+  "tests_sha256": "17f6c5818a985cf9de950993a498bffe73e830f2f5b2ee5d5743081271f0b3b1",
+  "reviewed_local_workflow_sha256": "356f930c9bbbcfd87c04f6936e036f98e8b07d485dd71544a71f7ecab16a3899",
+  "unresolved_p0_p1_p2": [],
+  "validation": {
+    "supplied_tests": {
+      "count": 10,
+      "result": "PASS",
+      "log": "backup-existing-tests-network-denied.log"
+    },
+    "independent_tests": {
+      "count": 12,
+      "result": "PASS",
+      "harness": "backup-adversarial.test.mjs",
+      "log": "backup-adversarial.log"
+    },
+    "network_guard": "global fetch and node net/tls/http/https disabled; fake fetcher only",
+    "identity_workflow": {
+      "result": "PASS",
+      "log": "backup-static-verification.log"
+    },
+    "reviewer_harness_correction": "Initial adversarial expectation required raw RESPONSE_TOO_LARGE, but implementation safely normalizes lower-level failures to BACKUP_EXPORT_UNAVAILABLE. Assertion corrected; original failing log retained as backup-adversarial-initial-harness-expectation.log. No product change."
+  },
+  "verified_boundaries": [
+    "Fixed candidate ccc473f1-fbb5-4b8d-8a24-45f3696ac10f and account only; metadata name/UUID/size bound plus exact five-row catalog proof before export.",
+    "Exact sqlite_master SELECT with false changed_db and numeric-zero changes/rows_written; no customer-row query except intended logical export.",
+    "POST export with polling,d1 compatibility and constant bookmark; at most10 polling calls; request-start deadline180s; bounded response and SQL download.",
+    "HTTPS suffix-allowlisted signed URL with no token or request headers; no redirects. Wrong origin/userinfo/nonstandard-port and deceptive suffixes rejected.",
+    "SQL stays in memory until RSA4096-OAEP-SHA256/AES256GCM envelope; metadata is authenticated AAD; only encrypted envelope and safe receipt written/uploaded; no owner private key in source or Actions.",
+    "Credential is in sole fixed-source workflow step after checkout/hash admission and tests; exact same repo/head/base branches/baseSHA, opened-only first attempt; pinned actions, contents-read, no checkout credential persistence.",
+    "No import/create/delete/schema/data/deploy/grant/billing operations. backup_saved_to_drive,restore_qualified,hosted_migration_qualified,target_admitted,release_authority remain false."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "primary_contracts": {
+    "workers_sdk_commit": "66bc0d6f353904f8a203bcea9298d9f45fbd234a",
+    "export_implementation_blob": "b87e6452ce92158205fe96595ef8a3d71063baeb",
+    "api_url": "https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/export/",
+    "provider_effect": "An in-progress export can block queries; continued polling is required or it auto-cancels. Bookmark remains constant during task."
+  },
+  "scope_limits": [
+    "Confirm published immutable workflow bytes equal the reviewed hash before opening credentialed PR.",
+    "Actual export/download/ciphertext durability not yet observed; no backup success or Drive storage claim.",
+    "Owner private-key custody, pairing and owner-only Drive ACL are parent-reported prerequisites and were not accessed or independently certified by this source review.",
+    "Logical export is not validated recovery or complete data/schema fidelity until actual decrypted restore checks pass. No whole-database/namespace qualification conflation.",
+    "Current consumer scan does not prove private/global absence; no target admission or source custody waiver.",
+    "Root owns live drift checks, costs/authority checks and PR1/customer-data/q06/Paynow/rollback preservation."
+  ],
+  "retained_authority_states": {
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN"
+  }
+}

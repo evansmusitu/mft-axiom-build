@@ -1,0 +1,20 @@
+✔ baseline pipeline encrypts signed download without credential transfer or plaintext artifact (6.668492ms)
+✔ constant bookmark is retained on poll and never emitted (2.130742ms)
+✔ bookmark change aborts before any download (2.098072ms)
+✔ ten unfinished polls exhaust without download or complete claim (1.622669ms)
+✔ wrong ID size and name fail before catalog or export (2.607936ms)
+✔ catalog write or proof drift blocks all export requests (1.891477ms)
+✔ preflight token provenance and recipient mismatches make zero calls (0.367994ms)
+✔ origin confusion credentials ports fragments nonHTTPS and deceptive suffixes fail safely (3.283847ms)
+✔ provider error code is retained while body text remains private (0.451999ms)
+✔ provider redirects invalidJSON and oversized bodies do not produce backup (15.705497ms)
+✔ expired deadline makes zero requests and no completed backup (0.54796ms)
+✔ authenticated envelope decrypts only exact content and authenticates metadata nonce key tag (484.641253ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 610.690259

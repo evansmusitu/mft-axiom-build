@@ -1,0 +1,53 @@
+name: AXIOM existing D1 encrypted backup 20261106 (NO MIGRATION)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-existing-d1-private-backup-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-existing-d1-private-backup-20261106
+  cancel-in-progress: false
+jobs:
+  export-encrypted-fixed-candidate:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-existing-d1-backup-20261106' && github.event.pull_request.base.ref == 'build/axiom-existing-d1-pages-20261106' && github.event.pull_request.base.sha == '1978cd977c470df6c9f7a72f548e1c2f142da3b1' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 9838db06cde1e4add97b5da061905f2a1c5b3d56
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify immutable export, test and recipient hashes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='9838db06cde1e4add97b5da061905f2a1c5b3d56'
+          for path,expected in {
+            'customer_frontier/recovery/export_existing_d1_backup.mjs':'35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c',
+            'customer_frontier/recovery/recipient-20261106.pem':'d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3',
+            'customer_frontier/tests/existing_d1_backup.test.mjs':'17f6c5818a985cf9de950993a498bffe73e830f2f5b2ee5d5743081271f0b3b1',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print('Fixed export source, test and public recipient verified; no private key available in Actions')
+          PY
+          node -e 'if(Number(process.versions.node.split(".")[0])<20)process.exit(1)'
+      - name: Verify export confinement, privacy and authenticated encryption offline
+        run: node --test customer_frontier/tests/existing_d1_backup.test.mjs
+      - name: Recheck fixed candidate and export directly into encrypted memory envelope
+        env:
+          AXIOM_CHECKOUT_SHA: 9838db06cde1e4add97b5da061905f2a1c5b3d56
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/recovery/export_existing_d1_backup.mjs
+      - name: Preserve encrypted backup and safe receipt including failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-existing-d1-encrypted-backup-20261106
+          path: |
+            existing-d1-ccc473f1-backup-20261106.json.enc
+            existing-d1-backup-export-receipt.json
+          retention-days: 30
+          if-no-files-found: warn

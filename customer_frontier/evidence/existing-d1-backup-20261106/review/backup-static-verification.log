@@ -1,0 +1,31 @@
+{
+  "result": "PASS",
+  "source": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "tree": "609a23e496b77c583ed5321656eaefbc2f7ff333",
+  "parent": "1978cd977c470df6c9f7a72f548e1c2f142da3b1",
+  "files": [
+    {
+      "path": "customer_frontier/recovery/export_existing_d1_backup.mjs",
+      "sha256": "35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c",
+      "git_blob": "e56d6e3f7967052013e80287b14746de2561f52a",
+      "remote_bytes_match": true
+    },
+    {
+      "path": "customer_frontier/recovery/recipient-20261106.pem",
+      "sha256": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3",
+      "git_blob": "ec9115c83879290d23cee2eb2932f2f31df5584d",
+      "remote_bytes_match": true
+    },
+    {
+      "path": "customer_frontier/tests/existing_d1_backup.test.mjs",
+      "sha256": "17f6c5818a985cf9de950993a498bffe73e830f2f5b2ee5d5743081271f0b3b1",
+      "git_blob": "6d5a6cbb3d745eb46ff212ab84fbd65e3a5275ac",
+      "remote_bytes_match": true
+    }
+  ],
+  "workflow_sha256": "356f930c9bbbcfd87c04f6936e036f98e8b07d485dd71544a71f7ecab16a3899",
+  "credential_confinement": "one fixed-source step after checkout/hash checks and offline tests; signed download excludes headers",
+  "artifact_scope": "encrypted envelope and safe receipt only; no SQL/private key",
+  "workflow_pins": "opened only, first attempt, exact same repository/head/base branches/base commit, pinned Actions, contents-read",
+  "provider_calls": 0
+}
