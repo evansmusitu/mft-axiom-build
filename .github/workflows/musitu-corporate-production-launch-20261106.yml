@@ -179,7 +179,7 @@ jobs:
           try:
               code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',expected=(200,404))
           except RuntimeError:raise
-          rule={'ref':'musitu_www_to_apex_20261106','expression':f'http.request.full_uri in \${list_name}','description':'MUSITU canonical www to apex','action':'redirect','action_parameters':{'from_list':{'name':list_name,'key':'http.request.full_uri'}}}
+          rule={'ref':'musitu_www_to_apex_20261106','expression':f'http.request.full_uri in ${list_name}','description':'MUSITU canonical www to apex','action':'redirect','action_parameters':{'from_list':{'name':list_name,'key':'http.request.full_uri'}}}
           if code==404 or not entry.get('success'):
               code,rs=call('POST',f'/accounts/{account}/rulesets',{'name':'MUSITU canonical redirects','kind':'root','phase':'http_request_redirect','rules':[rule]},expected=(200,201))
               assert rs.get('success');ruleset_id=rs['result']['id'];rule_id=(rs['result'].get('rules') or [{}])[0].get('id')
