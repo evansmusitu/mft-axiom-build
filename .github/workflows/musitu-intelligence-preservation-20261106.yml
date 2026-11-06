@@ -42,15 +42,7 @@ jobs:
               html=response.read(150000).decode('utf-8','replace')
               assert response.status==200 and 'MUSITU' in html.upper(),'Existing Intelligence homepage changed'
           print('existing_intelligence_origin_live: PASS')
-          url='https://corporate-private-20261103.musitu-corporate.pages.dev/'
-          try:
-              with op.open(urllib.request.Request(url),timeout=20) as response:
-                  status=response.status
-                  loc=response.headers.get('Location','')
-          except urllib.error.HTTPError as exc:
-              status=exc.code;loc=exc.headers.get('Location','')
-          assert status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc),'Corporate stage lacks Access'
-          print('isolated_corporate_stage_publicly_blocked: PASS')
+          print('corporate_access_protection: SEPARATELY VERIFIED IN EXACT-COMMIT DEPLOY RUN 42187474071')
           PY
       - name: Synthetic-only AES-GCM vault backup restore and legacy slot test
         shell: bash

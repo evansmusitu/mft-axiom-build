@@ -161,35 +161,35 @@ jobs:
                 except Exception as e:interactions.append({'name':name,'pass':False,'reason':str(e)[:125]})
               def navigator():
                 navigate('/solutions/')
-                page.locator('[data-navigate="foundry"]').click()
-                assert page.locator('[data-navigator-title]').inner_text()=='MUSITU Foundry'
+                page.locator('[data-goal="foundry"]').first.click()
+                assert page.locator('[data-goal-title]').first.inner_text()=='MUSITU Foundry'
               interaction('Navigator',navigator)
               def atlas():
                 navigate('/ecosystem/')
                 page.locator('[data-atlas="worldfabric"]').click()
-                assert page.locator('[data-atlas-title]').inner_text()=='MUSITU WorldFabric'
+                assert page.locator('[data-atlas-title]').first.inner_text()=='MUSITU WorldFabric'
               interaction('Ecosystem Atlas',atlas)
               def npv():
                 navigate('/experiences/lab/')
-                before=page.locator('#npv-output').inner_text()
+                before=page.locator('#npv-result').inner_text()
                 page.locator('#npv-rate').fill('20')
-                assert page.locator('#npv-output').inner_text()!=before
+                assert page.locator('#npv-result').inner_text()!=before
               interaction('Quantitative Lab',npv)
               def guide():
                 navigate('/')
-                page.locator('#ask-trigger').click()
-                assert page.locator('#corporate-guide').is_visible()
-                page.locator('#guide-input').fill('chemistry')
-                page.locator('#guide-form button').click()
-                assert page.locator('#guide-results a').count()>0
-                page.locator('#guide-close').click()
+                page.locator('[data-open="ask-dialog"]').first.click()
+                assert page.locator('#ask-dialog').is_visible()
+                page.locator('#ask-local-input').fill('chemistry')
+                page.locator('#ask-local-form button[type="submit"]').click()
+                assert page.locator('#ask-local-result a').count()>0
+                page.locator('#ask-dialog .dialog-close').click()
               interaction('Local Ask guide',guide)
               def search():
                 navigate('/')
-                page.locator('#search-toggle').click()
-                page.locator('#site-search-query').fill('Studio')
-                assert page.locator('.search-result').count()>0
-                page.locator('#search-close').click()
+                page.locator('[data-open="search-dialog"]').first.click()
+                page.locator('#site-search-input').fill('Studio')
+                assert page.locator('#site-search-results .search-result:not([hidden])').count()>0
+                page.locator('#search-dialog .dialog-close').click()
               interaction('Local website search',search)
               def skip():
                 navigate('/')
@@ -267,9 +267,9 @@ jobs:
                 try:
                   p.set_viewport_size({'width':390,'height':850})
                   p.goto(origin+'/',wait_until='load',timeout=25000)
-                  p.locator('#ask-trigger').click(timeout=8000)
-                  assert p.locator('#corporate-guide').is_visible(),'Ask dialog did not open'
-                  p.locator('#guide-close').click(timeout=8000)
+                  p.locator('#mobile-menu > summary').click(timeout=8000)
+                  assert p.locator('#mobile-menu[open]').count()==1,'Mobile navigation did not open'
+                  p.locator('#mobile-menu > summary').click(timeout=8000)
                 except Exception as e:
                   crossengine_failures.append({'engine':engine,'phase':'interactive','error':str(e)[:140]})
                 c.close();b.close()
@@ -278,6 +278,8 @@ jobs:
             print('crossengine_engines:',','.join(crossengines))
             print('crossengine_responsive_checks:',crossengine_checks)
             print('crossengine_failures:',json.dumps(crossengine_failures))
+            print('chromium_interactions_preassert:',json.dumps(interactions))
+            print('chromium_route_failures_preassert:',json.dumps(route_failures))
             assert not axe_failures and not crossengine_failures,'Hosted cross-engine or automated WCAG violations'
             print('chromium_rendered_routes_checked:',len(route_paths))
             print('chromium_rendered_route_failures:',json.dumps(route_failures))
