@@ -18,6 +18,22 @@ This is a public-safe change record. It contains no Neon project ID, database cr
 
 The project is intentionally empty of AXIOM tenant and provider-credential data. Its operational identity belongs in a restricted evidence vault, not this public document.
 
+## Workers-only hosting discovery — 2026-11-06
+
+The operator confirmed the existing Cloudflare estate is **Workers only**, with **no Cloudflare Tunnel or private server/VPC**. Consequently **there is no demonstrated private network path from Cloudflare to the Neon instance**. Do not mistake Cloudflare Workers, Workers VPC availability or Hyperdrive's connection pooling for a private tunnel.
+
+Current official Cloudflare documentation:
+- [Cloudflare Workers Neon database integration](https://developers.cloudflare.com/workers/databases/third-party-integrations/neon/): standard Hyperdrive or Neon serverless driver can connect when Neon is publicly reachable and credentials allow it.
+- [Hyperdrive getting started](https://developers.cloudflare.com/hyperdrive/get-started/): standard Hyperdrive requires a publicly accessible PostgreSQL-compatible database, and Node.js driver compatibility must be configured.
+- [Private database over Workers VPC](https://developers.cloudflare.com/workers-vpc/examples/private-database/): private PostgreSQL requires a Cloudflare Tunnel attached to the private network containing the DB.
+- [Hyperdrive private VPC integration](https://developers.cloudflare.com/hyperdrive/configuration/connect-to-private-database-vpc/): VPC Service + Tunnel connection; not automatically provided by a Workers-only estate.
+
+**Decision pending security authorization:** (A) install an independently verified private reachability path with appropriate network owner approval, maintaining public blocking; or (B) stage only an explicitly authorized, narrowly controlled internet-reachable Neon endpoint using Hyperdrive, strict TLS/credential/role controls, and formal exception+rollback. For (B), assess Workers/Hyperdrive egress and Neon IP allowlisting limitations rather than assuming a dedicated fixed Cloudflare egress IP. Neither option is approved simply by this document. Do not silently toggle `block_public_connections`.
+
+**Application runtime dependency:** The current Phase 2 code is a Node.js application with `node:http`, `node:fs`, PostgreSQL transaction pooling and trusted startup procedures. Hyperdrive compatibility with `pg` is **not equivalent to deployment compatibility of the complete Phase 2 service on Workers**. Require source-anchored review of Worker runtime boundaries, transaction pooling semantics, schema migrations executed outside HTTP request workers, and all provider entrypoints before deployment.
+
+**Current state:** No private route, no Internet access exception, no schema install, no scoped runtime role or deployed central ledger. Fail closed.
+
 ## Required private-connection work — **blocked pending approved network authority**
 
 1. Design and independently approve a **private** network path from an authenticated staging application/runner to Neon PostgreSQL. Verify actual VPC endpoint association, private DNS, routes, ingress and egress, TLS certificate validation, database authentication and least-privilege role assignment. `block_vpc_connections=false` alone is insufficient.
