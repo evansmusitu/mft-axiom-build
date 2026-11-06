@@ -1,4 +1,4 @@
-name: MUSITU Corporate DMARC Monitor-Only Enable (Owner Approved)
+name: MUSITU Corporate DMARC Monitor-Only Enable (DNS-scoped key required)
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_TOKEN: ${{ secrets.MUSITU_CORPORATE_DNS_API_TOKEN }}
     steps:
       - name: Add only DMARC p=none and Cloudflare-native reporting; preserve all other DNS
         run: |
