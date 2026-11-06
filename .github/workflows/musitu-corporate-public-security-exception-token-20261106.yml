@@ -32,7 +32,7 @@ jobs:
           g=call('GET',f'/accounts/{account}/tokens/permission_groups')
           assert g.get('success')
           by={x.get('name'):x for x in g.get('result') or []}
-          required=['Zone Read','Zone Settings Read','Zone Settings Write','Zone WAF Read','Zone WAF Write']
+          required=['Zone Read','Zone Settings Read','Zone Settings Write','Config Settings Read','Config Settings Write']
           missing=[x for x in required if x not in by]
           assert not missing,'Missing selectable permission groups: '+repr(missing)
           now=datetime.datetime.now(datetime.timezone.utc);expiry=(now+datetime.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
