@@ -1,0 +1,18 @@
+{"case":"expiry-after-final-active-select","status":401,"expiredAtReturn":false,"actualReturnTime":1793899032000}
+✔ review: session expires while final active SELECT is awaiting (33.201459ms)
+{"case":"revocation-missed-by-sequential-replica","status":401,"sessionStarts":0,"sessionReads":0,"durable":{"status":"revoked","session_version":2}}
+✔ review: D1 sequential replica may miss completed concurrent revocation (15.383652ms)
+{"case":"expiry-during-mint-batch","status":400,"cookieIssued":false,"expiredAtReturn":true,"durableStatus":"revoked"}
+✔ review: callback storage delay can expose an already expired session cookie (9.946241ms)
+{"case":"racing-starts-at-1023","statuses":[303,503,503],"count":1024}
+✔ review: simultaneous starts at cap have one remaining winner (16.888923ms)
+{"case":"reauth-mint-rollback","status":400,"oldSessionProofStatus":200}
+✔ review: failed reauthentication mint preserves existing active session (16.206854ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 242.955914

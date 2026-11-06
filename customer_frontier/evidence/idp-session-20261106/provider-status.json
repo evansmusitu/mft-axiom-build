@@ -1,0 +1,9 @@
+{
+  "schema": "musitu.axiom.operator-provider-status.v1",
+  "observed_utc_date": "2026-11-06",
+  "source": "connected private operator provider_status read",
+  "status": "UNAVAILABLE",
+  "external_provider_execution_authority": false,
+  "provider_admission_required": true,
+  "production_authority": false
+}

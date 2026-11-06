@@ -1,0 +1,35 @@
+✔ unadmitted staging ingress fails closed (7.258549ms)
+✔ S256 authorization uses only fixed staging destinations and opaque encrypted flow storage (24.305166ms)
+✔ callback exchanges actual synthetic signed tokens, mints one hashed session and consumes flow (22.094114ms)
+✔ racing callbacks and replay allow only one provider code exchange (16.872121ms)
+✔ wrong browser cannot consume a legitimate pending flow (12.186821ms)
+✔ provider failure consumes the flow without retry or session (10.766375ms)
+✔ signed nonce substitution fails without issuing a session (11.096882ms)
+✔ callback rejects duplicate parameters, cookies, issuer substitution and malformed code (24.410153ms)
+✔ provider error consumes flow, but never reflects provider text or token (8.148348ms)
+✔ flow expiry before and during provider I/O cannot mint a session (20.345248ms)
+✔ wrong custody key prevents exchange and any session (8.20885ms)
+✔ session mint and flow completion roll back together on storage failure (14.850168ms)
+✔ private assertion uses durable session and independent canonical mapping; never enrollment or OAuth (12.599799ms)
+✔ real caller contract accepts assertion; forwarded production-origin request cannot be admitted as OAuth (14.882839ms)
+✔ canonical link, membership and tenant revocation each deny current sessions (35.841892ms)
+✔ logout requires exact Origin, durably revokes, and is terminal under replay (11.28896ms)
+✔ successful reauthentication rotates prior session in the mint transaction (14.784093ms)
+✔ new session and consumed flow survive database close/reopen and a separate connection (57.610299ms)
+✔ crashed processing flow survives restart and cannot repeat code exchange (58.846017ms)
+✔ SQL prevents flow replay, REPLACE, identity edits and evidence deletion (11.297355ms)
+✔ public ingress cannot reach private verification; methods, missing keys and destinations stay closed (5.047604ms)
+✔ expired session and duplicate credential cannot receive an assertion (9.990895ms)
+✔ private proof is denied if session expires while the final storage read is awaiting (10.959676ms)
+✔ callback cannot report success if its session expires while the mint commit is awaiting (14.114309ms)
+✔ private verification uses primary bindings and observes revocation committed between reads (13.212052ms)
+✔ anonymous staging flows have a fixed lifetime storage cap and cannot authorize paid expansion (14.137541ms)
+✔ code exchange rejects malformed responses and does not accept secret or redirect overrides (1.136255ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 690.628547

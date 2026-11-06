@@ -1,0 +1,31 @@
+✔ unadmitted staging ingress fails closed (5.106204ms)
+✔ S256 authorization uses only fixed staging destinations and opaque encrypted flow storage (17.301083ms)
+✔ callback exchanges actual synthetic signed tokens, mints one hashed session and consumes flow (35.314157ms)
+✔ racing callbacks and replay allow only one provider code exchange (34.427385ms)
+✔ wrong browser cannot consume a legitimate pending flow (29.218492ms)
+✔ provider failure consumes the flow without retry or session (14.475728ms)
+✔ signed nonce substitution fails without issuing a session (9.223436ms)
+✔ callback rejects duplicate parameters, cookies, issuer substitution and malformed code (34.560238ms)
+✔ provider error consumes flow, but never reflects provider text or token (7.298451ms)
+✔ flow expiry before and during provider I/O cannot mint a session (14.187637ms)
+✔ wrong custody key prevents exchange and any session (5.985552ms)
+✔ session mint and flow completion roll back together on storage failure (10.740885ms)
+✔ private assertion uses durable session and independent canonical mapping; never enrollment or OAuth (17.757783ms)
+✔ real caller contract accepts assertion; forwarded production-origin request cannot be admitted as OAuth (16.727625ms)
+✔ canonical link, membership and tenant revocation each deny current sessions (34.745321ms)
+✔ logout requires exact Origin, durably revokes, and is terminal under replay (13.437221ms)
+✔ successful reauthentication rotates prior session in the mint transaction (16.484124ms)
+✔ new session and consumed flow survive database close/reopen and a separate connection (65.825402ms)
+✔ crashed processing flow survives restart and cannot repeat code exchange (66.703004ms)
+✔ SQL prevents flow replay, REPLACE, identity edits and evidence deletion (12.670653ms)
+✔ public ingress cannot reach private verification; methods, missing keys and destinations stay closed (5.592088ms)
+✔ expired session and duplicate credential cannot receive an assertion (12.162456ms)
+✔ code exchange rejects malformed responses and does not accept secret or redirect overrides (0.765374ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 728.79083
