@@ -819,7 +819,17 @@ test("PostgreSQL vendor-wide cap serializes competing tenant reservations and su
  await ledger.provisionOrganization(vendor,1000);
  await ledger.provision(tenantA,first.provider,first.modelId,1000,vendor);
  await ledger.provision(tenantB,second.provider,second.modelId,1000,vendor);
- const [a,b]=await Promise.allSettled([ledger.reserve(first),ledger.reserve(second)]);
+ // Simulate two independent workers with separate TCP pools. This verifies
+ // database row locking, not just scheduling inside a single Node.js pg Pool.
+ const workerPool=new Pool({host:process.env.PGHOST??"postgres",
+  port:Number(process.env.PGPORT??5432),database:process.env.PGDATABASE??"axiom_test",
+  user:process.env.PGUSER??"axiom",password:process.env.PGPASSWORD??"axiom-test-password",
+  max:2,connectionTimeoutMillis:2000});
+ let a:PromiseSettledResult<void>,b:PromiseSettledResult<void>;
+ try{
+  const otherWorker=new ax.PostgresProviderSpendLedger(workerPool);
+  [a,b]=await Promise.allSettled([ledger.reserve(first),otherWorker.reserve(second)]);
+ }finally{await workerPool.end();}
  assert.equal([a,b].filter(result=>result.status==="fulfilled").length,1);
  const winner=a.status==="fulfilled"?first:second,loser=winner===first?second:first;
  assert.deepEqual(await ledger.organizationStatus(vendor),{
