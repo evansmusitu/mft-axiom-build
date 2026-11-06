@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 8
     env:
       EXISTING_INTELLIGENCE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
-      CANDIDATE_SHA: ecb86b3165d494d1b18c740d2d43ab637be50650
+      CANDIDATE_SHA: 7e0fa23dad220e0e1b7e48a9176e3437b5afc545
     steps:
       - uses: actions/setup-node@v4
         with:
