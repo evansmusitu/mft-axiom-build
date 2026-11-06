@@ -318,3 +318,27 @@ test("PostgreSQL ledger rejects a forged Pool prototype and changed connect hook
     assert.equal(intercepted,0,"tampered pool connect must not be called");
   }finally{await genuine.end();}
 });
+
+
+test("paid provider registration refuses zero input or output token prices before calling upstream",()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  let calls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){calls++;return exchange(openAi({input_tokens:50,output_tokens:50,total_tokens:100}));},
+    async explain(){calls++;return exchange(openAi({input_tokens:50,output_tokens:50,total_tokens:100}));}
+  };
+  try{
+    for(const invalidPrices of [
+      {...prices,inputMicrosPerMillionTokens:0},
+      {...prices,outputMicrosPerMillionTokens:0},
+      {inputMicrosPerMillionTokens:0,outputMicrosPerMillionTokens:0,
+        cacheReadMicrosPerMillionTokens:0,cacheWriteMicrosPerMillionTokens:0}
+    ]){
+      assert.throws(()=>new phase2.BudgetedModelProviderAdapter({
+        adapter,ledger,tenantId:"tenant:a",prices:invalidPrices,requestReserveMicroUsd:700
+      }),/price|rate|paid|positive/i);
+    }
+    assert.equal(calls,0,"invalid rates must reject before upstream I/O");
+  }finally{ledger.close();}
+});
