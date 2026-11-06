@@ -15,8 +15,8 @@ export async function qualify(db,plan,planHash){
  assert((await db.prepare('SELECT foreign_keys AS n FROM pragma_foreign_keys').first()).n===1,'foreign_keys_required');
  assert(plan.tables.length===20&&plan.statements.length<100&&plan.objects.length===plan.statements.length,'invalid_fixed_plan');
  let rolledBack=false;
- try{await db.batch([...plan.statements.map(s=>db.prepare(s)),db.prepare("INSERT INTO tenants(id,name,status) VALUES('axiom-cq01-forced','rollback','INVALID')")]);}catch{rolledBack=true;}
- assert(rolledBack,'forced_failure_missing');assert(await hash(canonical(await catalog(db)))===BASE,'ddl_rollback_failed');assert(await foreignRows(db,before)===0,'foreign_rows_changed');
+ try{await db.batch([...plan.statements.map(s=>db.prepare(s)),db.prepare('CREATE TABLE axiom_cq01_forced_failure(ok INTEGER NOT NULL CONSTRAINT axiom_cq01_intended_failure CHECK(ok=1))'),db.prepare('INSERT INTO axiom_cq01_forced_failure VALUES(0)')]);}catch(error){rolledBack=[error?.message,error?.cause?.message].some(message=>typeof message==='string'&&/\bCHECK constraint failed:\s*axiom_cq01_intended_failure\b/.test(message));}
+ assert(rolledBack,'intended_constraint_failure_not_observed');assert(await hash(canonical(await catalog(db)))===BASE,'ddl_rollback_failed');assert(await foreignRows(db,before)===0,'foreign_rows_changed');
  await db.batch([...plan.statements.map(s=>db.prepare(s)),db.prepare('CREATE TABLE '+MARKER+'(run_id TEXT PRIMARY KEY NOT NULL,plan_sha256 TEXT NOT NULL)'),db.prepare('INSERT INTO '+MARKER+' VALUES(?1,?2)').bind(RUN,planHash)]);
  const after=await catalog(db),byName=new Map(after.map(r=>[r.name,r]));
  for(const r of before)assert(JSON.stringify(byName.get(r.name))===JSON.stringify(r),'foreign_object_changed');
