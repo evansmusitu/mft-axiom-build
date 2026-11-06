@@ -22,7 +22,7 @@ jobs:
       CF_PAGES_NAME: musitu-corporate
       CF_PREVIEW_BRANCH: corporate-private-20261103
       EXPECTED_ARCHIVE_SHA256: 3462413cbfa02f0d74319e9636b8a5cf6cd1d8253def14bc749741747a6dd724
-      EXACT_PR32_SHA: a8a43b3d41354e302bb537637e28eabfac66eee1
+      EXACT_PR32_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Preflight verified Access gates and isolated Pages project
         id: access
@@ -131,7 +131,7 @@ jobs:
           git -C "$RUNNER_TEMP/musitu-source" checkout -q --detach FETCH_HEAD
           test "$(git -C "$RUNNER_TEMP/musitu-source" rev-parse HEAD)" = "$EXACT_PR32_SHA"
           cd "$RUNNER_TEMP/musitu-source/corporate"
-          MUSITU_PROTECTED_STAGING_MEDIA=0 python3 scripts/build.py
+          MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
           python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
           node --check assets/site.js
           python3 - <<'PY'
@@ -141,14 +141,15 @@ jobs:
           dest=Path(os.environ['RUNNER_TEMP'])/'musitu-corporate-pr32'
           manifest=json.loads((site/'manifest.json').read_text())
           assert manifest['route_count']==34 and manifest['production_approved'] is False
-          assert manifest['protected_staging_media_included'] is False
+          assert manifest['protected_staging_media_included'] is True
           pages=list(site.rglob('index.html'))
           assert len(pages)==34 and all('noindex,nofollow' in p.read_text() for p in pages)
           assert all('review copy' in (site/k/'index.html').read_text().lower() for k in ('legal/privacy','legal/terms'))
           axiom=(site/'products/axiom/index.html').read_text()
           assert 'chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86' in axiom
-          assert not (site/'assets/studio-demo-82s.mp4').exists()
-          assert 'video-clearance-gate' in (site/'products/foundry/studio/index.html').read_text()
+          assert (site/'assets/studio-demo-82s.mp4').is_file()
+          assert (site/'assets/studio-poster.png').is_file()
+          assert 'studio-demo-player' in (site/'products/foundry/studio/index.html').read_text()
           shutil.copytree(site,dest,dirs_exist_ok=True)
           # These response-level headers apply only on the Access-protected preview branch.
           (dest/'_headers').write_text(
@@ -162,7 +163,7 @@ jobs:
            ,encoding='utf8')
           print('exact_pr32_source_commit:',os.environ['EXACT_PR32_SHA'])
           print('protected_review_routes:',len(pages))
-          print('studio_private_media_deferred_until_secure_asset_injection:',True)
+          print('studio_owner_cleared_media_included:',True)
           print('production_hostname_writes: 0')
           PY
       - name: Install pinned Pages deploy CLI

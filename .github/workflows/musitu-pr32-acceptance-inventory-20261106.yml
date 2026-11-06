@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 9
     env:
       BASE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
-      RELEASE_SHA: a8a43b3d41354e302bb537637e28eabfac66eee1
+      RELEASE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Fetch both exact reviewed source commits
         shell: bash
@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check -q pytest==8.4.2 beautifulsoup4==4.14.2
           cd "$RUNNER_TEMP/musitu-source/corporate"
-          MUSITU_PROTECTED_STAGING_MEDIA=0 python3 scripts/build.py
+          MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
           python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py | tee "$RUNNER_TEMP/pytest-pr32.txt"
           node --check assets/site.js
           python3 - <<'PY'
@@ -62,7 +62,7 @@ jobs:
           assert len(manifest['files'])==40 and len(assets)==41
           qa={'source_commit':head,'base_sha':base,'repo':'evansmusitu/evansmusitu.github.io','pr':32,
             'changed_source_files':len(names),'generated_asset_files':len(assets),
-            'routes':len(manifest['routes']),'media_included':False,'studio_video_owner_review_only':True,
+            'routes':len(manifest['routes']),'media_included':True,'studio_video_owner_review_only':False,
             'staging_only':True,'noindex':True,'production_authorized':False}
           (out/'RELEASE_IDENTITY.json').write_text(json.dumps(qa,indent=2)+'\n')
           (out/'PYTEST_FRESH.log').write_text((Path(os.environ['RUNNER_TEMP'])/'pytest-pr32.txt').read_text())
@@ -74,7 +74,7 @@ jobs:
           print('source_inventory_count:',len(names))
           print('generated_asset_inventory_count:',len(assets))
           print('asset_checksum_manifest_reproducible: VERIFIED')
-          print('no_private_studio_video_in_artifact: VERIFIED')
+          print('owner_cleared_studio_video_in_artifact: VERIFIED')
           PY
       - uses: actions/upload-artifact@v4
         with:

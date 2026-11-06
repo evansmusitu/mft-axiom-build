@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 28
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      EXPECTED_PR32_SHA: a8a43b3d41354e302bb537637e28eabfac66eee1
+      EXPECTED_PR32_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Install pinned Playwright Chromium Firefox WebKit and axe-core
         shell: bash
@@ -129,8 +129,13 @@ jobs:
               print('hosted_axiom_direct_store_link: VERIFIED')
               print('hosted_response_noindex_and_csp: VERIFIED')
               sc=page.goto(origin+'/products/foundry/studio/',wait_until='domcontentloaded',timeout=25000)
-              assert sc and sc.status==200 and page.locator('.video-clearance-gate').count()==1
-              print('studio_media_deferred_private_transfer_required: VERIFIED')
+              assert sc and sc.status==200
+              assert page.locator('video.studio-demo-player').count()==1,'Hosted Studio player missing'
+              assert page.locator('video.studio-demo-player source[src="/assets/studio-demo-82s.mp4"]').count()==1,'Hosted approved video source missing'
+              page.wait_for_function("document.querySelector('video.studio-demo-player').readyState >= 1",timeout=15000)
+              duration=page.locator('video.studio-demo-player').evaluate("el => el.duration")
+              assert 81.0 <= float(duration) <= 83.0,'Unexpected Studio media duration'
+              print('studio_owner_cleared_82s_media_hosted: VERIFIED',duration)
               def navigate(path):
                 res=page.goto(origin+path,wait_until='domcontentloaded',timeout=25000)
                 page.wait_for_load_state('load',timeout=25000)
