@@ -285,3 +285,16 @@ test("SQLite provider settlement refuses unsafe aggregate charges without corrup
     });
   }finally{ledger.close();}
 });
+
+
+test("PostgreSQL billing ledger refuses injected fake and prototype-forged connection pools",()=>{
+  // A branded ledger with a fabricated pool could make reserve/settle
+  // succeed without writing any shared accounting state.
+  let connections=0;
+  const fakePool={async connect(){connections++;return {
+    async query(){return {rowCount:1,rows:[{limit_micro_usd:"1000",charged_micro_usd:"0",reserved_micro_usd:"0",billing_provider:"openai",suspended:false}]};},
+    release(){}
+  };}};
+  assert.throws(()=>new phase2.PostgresProviderSpendLedger(fakePool as any),/trusted|pool|postgres/i);
+  assert.equal(connections,0);
+});
