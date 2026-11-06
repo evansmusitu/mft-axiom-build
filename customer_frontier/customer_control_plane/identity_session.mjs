@@ -40,7 +40,7 @@ export async function requestIdentityAssertion(request,env,{binding,qualificatio
  let response;
  try{response=await binding.fetch(new Request('https://axiom-internal'+path,{
   method:'POST',headers:{...credential,'content-type':'application/json','x-axiom-audience':audience},
-  body:JSON.stringify({audience,purpose,challenge,request_sha256,...bindingContext}),redirect:'error',signal:AbortSignal.timeout(5000)
+  body:JSON.stringify({audience,purpose,challenge,request_sha256,...bindingContext}),redirect:'manual',signal:AbortSignal.timeout(5000)
  }));}catch{fail('identity_verifier_unavailable');}
  if(response.status!==200)fail('authentication_required');
  let p;try{const raw=await response.text();if(raw.length>16000)fail('identity_verifier_invalid');p=JSON.parse(raw);}catch{fail('identity_verifier_invalid');}

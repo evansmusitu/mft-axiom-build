@@ -45,6 +45,12 @@ jobs:
         run: node --test customer_frontier/tests/*.test.mjs
       - name: Run reference and frontier-gate tests
         run: python -m unittest discover -s customer_frontier/tests -p 'test_*.py' -v
+      - name: Install locked local Workers test runtime (no install scripts)
+        working-directory: customer_frontier/runtime_acceptance
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run isolated workerd and D1 acceptance (NO HOSTED BINDINGS)
+        working-directory: customer_frontier/runtime_acceptance
+        run: npm test
       - name: Fail closed on unqualified superiority claims
         run: |
           python customer_frontier/benchmarks/verify_benchmarks.py customer_frontier/benchmarks/frontier_manifest.json customer_frontier/benchmarks/observations_not_proven.json --output /tmp/axiom-frontier-not-certified.json

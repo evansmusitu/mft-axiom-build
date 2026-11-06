@@ -1,0 +1,29 @@
+✖ server login, read-only Paynow truth and private verifier transports run without real grants (648.306879ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1301.518384
+
+✖ failing tests:
+
+test at idp_runtime.test.mjs:120:1
+✖ server login, read-only Paynow truth and private verifier transports run without real grants (648.306879ms)
+  AssertionError [ERR_ASSERTION]: {"error":"Invalid redirect value, must be one of \"follow\" or \"manual\" (\"error\" won't be implemented since it does not make sense at the edge; use \"manual\" and check the response status code)."}
+  
+  503 !== 200
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/session-broker-work/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:122:63)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 503,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

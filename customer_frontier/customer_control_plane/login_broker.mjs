@@ -24,7 +24,7 @@ export function validateLoginRedirect(value,env){
 export async function qualifiedLoginRedirect(env,{intent='login'}={}){
  if(!['login','register'].includes(intent))throw new Error('invalid_login_intent');
  if(env.IDENTITY_LOGIN_QUALIFIED!=='qualified_private_binding'||!env.IDENTITY_LOGIN_SERVICE?.fetch)throw new Error('login_not_qualified');
- const r=await env.IDENTITY_LOGIN_SERVICE.fetch(new Request('https://axiom-internal/identity/start-login',{method:'POST',headers:{'content-type':'application/json','x-axiom-purpose':'customer-login'},body:JSON.stringify({intent,return_path:'/'}),redirect:'error'}));
+ const r=await env.IDENTITY_LOGIN_SERVICE.fetch(new Request('https://axiom-internal/identity/start-login',{method:'POST',headers:{'content-type':'application/json','x-axiom-purpose':'customer-login'},body:JSON.stringify({intent,return_path:'/'}),redirect:'manual'}));
  if(r.status!==200)throw new Error('login_not_available');
  const data=await r.json();
  return validateLoginRedirect(data.authorization_url,env);

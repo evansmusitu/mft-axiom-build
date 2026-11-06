@@ -30,7 +30,7 @@ function fixture(t,options={}){
   f.requests.push(req);
   if(req.url===ZITADEL_STAGING.issuer+'/oauth/v2/token'){
    const body=new URLSearchParams(await req.text());
-   assert.equal(req.method,'POST');assert.equal(req.redirect,'error');assert.equal(req.credentials,'omit');
+   assert.equal(req.method,'POST');assert.equal(req.redirect,'manual');assert.equal(req.headers.has('cookie'),false);
    assert.equal(req.headers.has('authorization'),false);assert.equal(body.has('client_secret'),false);
    assert.equal(body.get('client_id'),ZITADEL_STAGING.client_id);assert.equal(body.get('redirect_uri'),ZITADEL_STAGING.redirect_uri);
    assert.equal(body.get('grant_type'),'authorization_code');assert.equal(body.get('code'),'synthetic-code');

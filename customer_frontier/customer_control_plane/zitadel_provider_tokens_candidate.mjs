@@ -41,7 +41,11 @@ function tokenJson(encoded){
 }
 async function providerJson(url,{fetcher,accessToken,form}={}){
  let response;
- try{response=await fetcher(new Request(url,{method:form?'POST':'GET',redirect:'error',credentials:'omit',signal:AbortSignal.timeout(5000),
+ // Server-only transport. workerd does not implement RequestInit.credentials.
+ // A fresh Request copies no browser headers/cookies; only explicit provider
+ // headers below are admitted. Manual redirects are inspected and denied by
+ // the exact-200 check, without forwarding credentials to another destination.
+ try{response=await fetcher(new Request(url,{method:form?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(5000),
   headers:{accept:'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{}),...(form?{'content-type':'application/x-www-form-urlencoded'}:{})},...(form?{body:form}:{})}));}catch{fail('idp_provider_unavailable');}
  if(response?.status!==200||!response.body?.getReader)fail('idp_provider_unavailable');
  const reader=response.body.getReader(),chunks=[];let length=0;

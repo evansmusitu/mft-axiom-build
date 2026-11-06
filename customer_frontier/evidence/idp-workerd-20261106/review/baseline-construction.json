@@ -1,0 +1,26 @@
+{
+  "baseline": "3d9585477b7386be21b60b7d366a821e8a6610a7",
+  "construction": "Copy current runtime harness and all current collaborator sources; replace exactly five affected source modules with git show HEAD:<path>. Original repository never changed. node_modules symlinks existing locked install.",
+  "modules": {
+    "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs": {
+      "baseline_sha256": "ad91244393cb0a8412edd7a1d0cb8596467c09193e675dd40b1b63999559136f",
+      "current_sha256": "25440fa6b55f36057a13d07fe8b5e7a392357b43c8a02053eef8fd0e0e5f53bd"
+    },
+    "customer_frontier/customer_control_plane/identity_session.mjs": {
+      "baseline_sha256": "c0eed5496438e6a2641c629f1286c71bb9224147f4e1d51cabab645f236d2a9f",
+      "current_sha256": "7d8aba562e0c2e1679966c3e80b0c77d82b001377040644d0ebb5cd0e20d6523"
+    },
+    "customer_frontier/customer_control_plane/login_broker.mjs": {
+      "baseline_sha256": "783bc32f866ba055f0d611344d32b3d73135411effaef49bdcb6cf4dac10a871",
+      "current_sha256": "779161200e0b55c85b7ddc76e7381938fd06f182b4219745c70373ce3737691e"
+    },
+    "customer_frontier/customer_control_plane/live_billing_truth.mjs": {
+      "baseline_sha256": "d00d8f32b1321d66c0de8cf34cd7ef1c9b44705841268b5af179e40a8ebf703f",
+      "current_sha256": "531cbbabcb4ca0d6da2e0e2953d0683d503b2e3106fdb6152b6abc25764d489a"
+    },
+    "customer_frontier/customer_control_plane/worker.mjs": {
+      "baseline_sha256": "492f954b77e4e46dbb021de28358543107510636b4c58ba93b78c606e13c782e",
+      "current_sha256": "6db1f1df4278596807c7bc337c01c7a57ab6551bb6f832330ddcca4277dc88f1"
+    }
+  }
+}

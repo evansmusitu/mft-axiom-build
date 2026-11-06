@@ -1,0 +1,58 @@
+{
+  "status": "LOCAL_WORKERD_ACCEPTANCE_HOSTED_UNQUALIFIED_NOT_RELEASE",
+  "parent": "95274190cacef4712293e7b92d8701fae06aea40",
+  "base_tree": "36c8180445681760a56830ee8658b6f59b4ee763",
+  "source_sha256": {
+    ".github/workflows/axiom-customer-frontier-candidate.yml": "b705bcce683c7cba2a28fda60160a6beed328f1b4b4277825646f3066182ffd8",
+    "customer_frontier/customer_control_plane/identity_session.mjs": "7d8aba562e0c2e1679966c3e80b0c77d82b001377040644d0ebb5cd0e20d6523",
+    "customer_frontier/customer_control_plane/live_billing_truth.mjs": "531cbbabcb4ca0d6da2e0e2953d0683d503b2e3106fdb6152b6abc25764d489a",
+    "customer_frontier/customer_control_plane/login_broker.mjs": "779161200e0b55c85b7ddc76e7381938fd06f182b4219745c70373ce3737691e",
+    "customer_frontier/customer_control_plane/schema.sql": "981d20c6f0788468aaa602dc225a53bcdf2fd0ed0355a29d847975f1f4434354",
+    "customer_frontier/customer_control_plane/worker.mjs": "6db1f1df4278596807c7bc337c01c7a57ab6551bb6f832330ddcca4277dc88f1",
+    "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs": "25440fa6b55f36057a13d07fe8b5e7a392357b43c8a02053eef8fd0e0e5f53bd",
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.mjs": "3c6258da9da65c697d6245a76b302998e9b8cb8948aab3f825ae921dd6172aeb",
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql": "b5655e814e894aa9a28a172f6b4a16c8d524119c3c5f2cdb4f04f565b9ef5ee1",
+    "customer_frontier/customer_control_plane/zitadel_session_worker_candidate.mjs": "4ab3141b392b0963dd25926a4e4f09750e3622eee5ef5b32f8548e17a4df25a6",
+    "customer_frontier/runtime_acceptance/.gitignore": "8d9afd872bf4ef1f0138a1a6d7fc4edb929a057bbf77dc1eb431f01e20aacf95",
+    "customer_frontier/runtime_acceptance/fixtures/local_ingress.mjs": "0eaff81ecb244a7507c000c6b348fffb67550e7a8655bbdbf296edcfc26842df",
+    "customer_frontier/runtime_acceptance/fixtures/server_transports.mjs": "2f94e163419e4d3916e09ebc4644ea023324d3aa8591840fae6fd777e34896fc",
+    "customer_frontier/runtime_acceptance/idp_runtime.test.mjs": "6e90789e65cadd91bd4dafc9124049d7c0c7b3fdaadb72fd3e74e8047b72192e",
+    "customer_frontier/runtime_acceptance/package-lock.json": "8dfa949b9a2241bef233de8193e89b60d16e6db868eaf3a108a67850eb38c58a",
+    "customer_frontier/runtime_acceptance/package.json": "933007154640daaa988faa47c257ae376825c3b7f1907941a94f19ef8303bf91",
+    "customer_frontier/tests/live_billing_truth.test.mjs": "f97029fddf23795fae0d3ff74731743696d1aab208a852460b08b796d0ef76f3",
+    "customer_frontier/tests/zitadel_provider_tokens.test.mjs": "33661c641103983e71e375f24773968e4702d321d3f738f9785e93a5473343ef",
+    "customer_frontier/tests/zitadel_session_broker.test.mjs": "3fb1cc0af9075db837097b955aa8c58117c53d2b1d64756a6e32d4453f4a1e5a",
+    "customer_frontier/runtime_acceptance/review_adversarial.test.mjs": "97288d4a2113d0c50d2f379877660e7e48b8d5b8f5f0adec1b5ed352a5a51073"
+  },
+  "tests": {
+    "node": 197,
+    "python": 54,
+    "workerd": 16,
+    "failures": 0,
+    "skips": 0,
+    "independent_adversarial_in_workerd_count": 3
+  },
+  "runtime": {
+    "miniflare": "4.20260730.0",
+    "workerd": "1.20260730.1",
+    "compatibility_date": "2026-07-01",
+    "hosted": false,
+    "node_egress": "loopback_only",
+    "worker_provider": "synthetic_only"
+  },
+  "independent_source_review": "NO_UNRESOLVED_P0_P2_BOUNDED_LOCAL_SOFTWARE_ONLY",
+  "CI": "PENDING",
+  "production_flags_enabled": false,
+  "hosted_writes": 0,
+  "actual_payment_calls": 0,
+  "provider_inference_calls": 0,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "baseline_runtime": {
+    "passed": 3,
+    "failed": 10,
+    "expected_failure_demonstration": true,
+    "accepted_as_release_evidence": false
+  }
+}
