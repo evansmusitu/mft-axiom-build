@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check pytest==8.4.2
+          python3 -m pip install --disable-pip-version-check pytest==8.4.2 beautifulsoup4==4.14.2
           mkdir -p "$RUNNER_TEMP/musitu-source"
           git -C "$RUNNER_TEMP/musitu-source" init -q
           git -C "$RUNNER_TEMP/musitu-source" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
@@ -75,9 +75,9 @@ jobs:
           git -C "$RUNNER_TEMP/musitu-source" checkout -q --detach FETCH_HEAD
           test "$(git -C "$RUNNER_TEMP/musitu-source" rev-parse HEAD)" = "$EXACT_PR32_SHA"
           cd "$RUNNER_TEMP/musitu-source/corporate"
+          MUSITU_PROTECTED_STAGING_MEDIA=0 python3 scripts/build.py
           python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
           node --check assets/site.js
-          MUSITU_PROTECTED_STAGING_MEDIA=0 python3 scripts/build.py
           python3 - <<'PY'
           import json,os,shutil
           from pathlib import Path
