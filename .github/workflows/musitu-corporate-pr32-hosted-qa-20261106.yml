@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 28
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      EXPECTED_PR32_SHA: ecb86b3165d494d1b18c740d2d43ab637be50650
+      EXPECTED_PR32_SHA: 7e0fa23dad220e0e1b7e48a9176e3437b5afc545
     steps:
       - name: Install pinned Playwright Chromium Firefox WebKit and axe-core
         shell: bash
