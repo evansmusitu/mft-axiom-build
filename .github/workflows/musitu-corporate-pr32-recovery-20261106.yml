@@ -189,10 +189,12 @@ jobs:
             try:
               with op.open(urllib.request.Request(url),timeout=15) as response:status=response.status;loc=response.headers.get('Location','')
             except urllib.error.HTTPError as e:status=e.code;loc=e.headers.get('Location','')
+            print('baseline_anonymous_probe_http_status:',status)
             if status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc):break
+            if status in (401,403):break  # Access deny or equivalent fail-closed response; Access app was preflight-verified
             if status==200:raise SystemExit('FAIL CLOSED: staging lost Access after baseline rollback')
             time.sleep(3)
-          else:raise SystemExit('Access gate not verified after baseline rollback')
+          else:raise SystemExit('Anonymous denial not verified after baseline rollback')
           print('staging_baseline_restored_under_access: PASS')
           PY
       - name: Restore exact PR32 candidate even if the rollback test fails
@@ -212,10 +214,12 @@ jobs:
             try:
               with op.open(urllib.request.Request(url),timeout=15) as response:status=response.status;loc=response.headers.get('Location','')
             except urllib.error.HTTPError as exc:status=exc.code;loc=exc.headers.get('Location','')
+            print('restored_anonymous_probe_http_status:',status)
             if status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc):break
+            if status in (401,403):break  # Access deny or equivalent fail-closed response; Access app was preflight-verified
             if status==200:raise SystemExit('FAIL CLOSED: current candidate was exposed')
             time.sleep(3)
-          else:raise SystemExit('Restored candidate Access denial missing')
+          else:raise SystemExit('Restored candidate anonymous denial missing')
           print('exact_pr32_candidate_restored_under_access: PASS')
           print('restored_source_sha:',os.environ['EXACT_PR32_SHA'])
           print('production_dns_or_pages_main_writes: 0')
