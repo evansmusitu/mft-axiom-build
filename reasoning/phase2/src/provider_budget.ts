@@ -134,7 +134,19 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
         .get(input.tenantId,input.provider,input.modelId,input.requestId) as any;
       if(!old||old.hash!==input.requestHash||old.status!=="RESERVED")
         throw new ProviderBudgetError("BUDGET_SETTLEMENT_FORBIDDEN","No matching unsettled reservation",409);
-      const excessive=input.chargeMicroUsd>Number(old.reserved);
+      // SQLite promotes integer addition past signed precision to a REAL value.
+      // Refuse unsafe aggregate billing before touching either durable row.
+      const budget=this.db.prepare("SELECT charged_micro_usd AS charged,reserved_micro_usd AS held FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
+        .get(input.tenantId,input.provider,input.modelId) as any;
+      const charged=Number(budget?.charged),held=Number(budget?.held),reserved=Number(old.reserved);
+      if(!budget||!Number.isSafeInteger(charged)||charged<0||
+        !Number.isSafeInteger(held)||held<0||
+        !Number.isSafeInteger(reserved)||reserved<=0||reserved>held||
+        charged>Number.MAX_SAFE_INTEGER-input.chargeMicroUsd){
+        throw new ProviderBudgetError("BUDGET_CORRUPT",
+          "Provider spend totals cannot be reconciled without loss of integer precision",503);
+      }
+      const excessive=input.chargeMicroUsd>reserved;
       this.db.prepare("UPDATE axiom_provider_spend_requests SET status=?,charge_micro_usd=?,response_hash=? WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
         .run(excessive?"OVERAGE":"SETTLED",input.chargeMicroUsd,input.responseHash,input.tenantId,input.provider,input.modelId,input.requestId);
       this.db.prepare("UPDATE axiom_provider_spend_budgets SET charged_micro_usd=charged_micro_usd+?,reserved_micro_usd=reserved_micro_usd-?,suspended=CASE WHEN ? THEN 1 ELSE suspended END WHERE tenant_id=? AND provider=? AND model_id=?")
