@@ -1,0 +1,210 @@
+{
+  "account": "93f395f5121954671f92fffa453d6b61",
+  "backup_restore_qualified": false,
+  "billing_changes": 0,
+  "binding_inventory_complete": false,
+  "customer_records_read": 0,
+  "database_count": 11,
+  "databases": [
+    {
+      "file_size": 495616,
+      "followup_metadata_candidate": false,
+      "id": "b043cc1b-dc6c-4031-9f36-f2331728e062",
+      "name": null,
+      "name_sha256": "551b580c0be9ac6327caf0aa7cec8939eed8264edbfc8b8905e491e5d4136e2d",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 16,
+      "version": "production"
+    },
+    {
+      "file_size": 528384,
+      "followup_metadata_candidate": false,
+      "id": "a525c8b6-9b44-413b-a219-46e419b71b12",
+      "name": null,
+      "name_sha256": "0c39bed960626cc4d0a8f5380246be714e7374afaab3c2f622da78774846925e",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 36,
+      "version": "production"
+    },
+    {
+      "file_size": 491520,
+      "followup_metadata_candidate": false,
+      "id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+      "name": "mft-axiom-claude-staging-20260927",
+      "name_sha256": "3afdc074f8eae3dce29bee84078f3c51747e6f431021f0a7a3bf7148a9a6f2f1",
+      "protected": true,
+      "reported_empty": false,
+      "reported_tables": 28,
+      "version": "production"
+    },
+    {
+      "file_size": 24576,
+      "followup_metadata_candidate": false,
+      "id": "2571795a-80fe-4f63-9b95-07948b4cefdb",
+      "name": null,
+      "name_sha256": "502e39f685479e0afaa8cf91043429335acffdfd2e212940a50778a110039bad",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 1,
+      "version": "production"
+    },
+    {
+      "file_size": 20480,
+      "followup_metadata_candidate": false,
+      "id": "8cb4d319-6008-4ba8-aba1-563c6d836ce8",
+      "name": null,
+      "name_sha256": "0917061da13c995e1a438bf65edfbff1b97d3742d6c40bb7c410bda9c5775aea",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 2,
+      "version": "production"
+    },
+    {
+      "file_size": 319488,
+      "followup_metadata_candidate": false,
+      "id": "a03dc12d-8206-47be-b904-1f24e4e37d91",
+      "name": null,
+      "name_sha256": "eea064d972716c2b9d9b2a2817dccd2df5187166a25fc8fb8a7861890d97747c",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 23,
+      "version": "production"
+    },
+    {
+      "file_size": 393216,
+      "followup_metadata_candidate": false,
+      "id": "e148cbce-1b00-4d07-bb58-c1d56a4af0c7",
+      "name": null,
+      "name_sha256": "755f48c99c99b6d3febc9073b37a4822797975bba0640a8ad413d997bb3aecda",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 16,
+      "version": "production"
+    },
+    {
+      "file_size": 40960,
+      "followup_metadata_candidate": false,
+      "id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+      "name": null,
+      "name_sha256": "7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 3,
+      "version": "production"
+    },
+    {
+      "file_size": 2785280,
+      "followup_metadata_candidate": false,
+      "id": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+      "name": "musitu-axiom-prod",
+      "name_sha256": "b0d9b8d70e3736276b018cc196c1ba823a15b43921b6493e63d95941ea199ef6",
+      "protected": true,
+      "reported_empty": false,
+      "reported_tables": 17,
+      "version": "production"
+    },
+    {
+      "file_size": 81920,
+      "followup_metadata_candidate": false,
+      "id": "4a62b374-7232-4103-b201-34443c467382",
+      "name": "mft-axiom-prod",
+      "name_sha256": "2c12eddd5ba3583ea04e7ed46b1579d5f0015a8b1255791c5238d27967831018",
+      "protected": true,
+      "reported_empty": false,
+      "reported_tables": 6,
+      "version": "production"
+    },
+    {
+      "file_size": 81920,
+      "followup_metadata_candidate": false,
+      "id": "92de45db-399a-450b-81d0-24d28b105f41",
+      "name": null,
+      "name_sha256": "610ca8bf299c5ac4900d52df57aa51a93f5ea15883077ab5b0cc71305b6cfa75",
+      "protected": false,
+      "reported_empty": false,
+      "reported_tables": 6,
+      "version": "production"
+    }
+  ],
+  "error": null,
+  "event_sha": "4c89fc89f03d1fa10007e0e43f16c61825ce4fa0",
+  "followup_candidate_ids": [],
+  "hosted_migration_qualified": false,
+  "http_methods": [
+    "GET"
+  ],
+  "inventory_complete": true,
+  "mutations": 0,
+  "observed_at": "2026-11-06T14:46:59.728896+00:00",
+  "release_authority": false,
+  "run_id": "42236980431",
+  "schema": "musitu.axiom.existing_d1_reuse_metadata.v1",
+  "source_sha": "a53dca27ea2cf9ac285e64a20c03411b52c187d1",
+  "sql_queries": 0,
+  "status": "EXISTING_D1_METADATA_OBSERVED",
+  "target_admitted": false,
+  "transport": [
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database?per_page=100&page=1"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/b043cc1b-dc6c-4031-9f36-f2331728e062"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a525c8b6-9b44-413b-a219-46e419b71b12"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a7384b8a-0751-4705-ac77-0616b0885e7c"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/2571795a-80fe-4f63-9b95-07948b4cefdb"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/8cb4d319-6008-4ba8-aba1-563c6d836ce8"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/a03dc12d-8206-47be-b904-1f24e4e37d91"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/e148cbce-1b00-4d07-bb58-c1d56a4af0c7"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/4a62b374-7232-4103-b201-34443c467382"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/92de45db-399a-450b-81d0-24d28b105f41"
+    }
+  ]
+}

@@ -40,3 +40,14 @@ The initial reviewer socket/ssl harness setup error preceded product import;
 that log is retained separately and is not treated as a product failure.
 The exact workflow SHA256 is4cb99e8ae5a25da1c62b25e9b59095022b3eb11b9450403f5ac742ddf5e6a71c.
 No target/binding/backup/migration/release qualification follows from discovery.
+
+Actual inventory run42236980431/job127957034670 SUCCESS: complete11DB
+metadata readback, all existing databases have tables. No empty metadata
+candidate. Do not reset an existing DB. Next audit the1/2/3-table candidates
+2571795a-80fe-4f63-9b95-07948b4cefdb,8cb4d319-6008-4ba8-aba1-563c6d836ce8
+and ccc473f1-fbb5-4b8d-8a24-45f3696ac10f for safe additive reuse preserving
+all existing objects/data. No target is admitted. SourceCI42236980093 passed
+197Node+97Python+16localworkerd, zero failures/skips. Raw decoded connector
+log is retained byte-exact, with parsed observation and hash receipt. A private
+Drive recovery folder was created and read back with shared:false/oneowner;
+it contains no backup and establishes no key custody or recovery qualification.
