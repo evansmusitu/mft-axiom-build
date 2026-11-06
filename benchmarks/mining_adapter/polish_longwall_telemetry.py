@@ -61,7 +61,9 @@ def _casefold_row(raw: Mapping[str,Any]) -> dict[str,Any]:
     normalized={}
     for key,value in raw.items():
         if key is None:
-            continue
+            # DictReader groups surplus cells under None. Discarding them
+            # would silently accept an ambiguous 28-channel measurement.
+            raise ValueError("longwall_csv_row_width_invalid")
         canonical=str(key).strip().casefold()
         if canonical in normalized:
             raise ValueError("longwall_duplicate_column")
@@ -78,6 +80,9 @@ def validate_header(fieldnames: list[str] | tuple[str,...] | None) -> tuple[str,
     folded={name.casefold() for name in names}
     if len(folded) != len(names):
         raise ValueError("longwall_duplicate_column")
+    unexpected=sorted(folded-_required_header_names())
+    if unexpected:
+        raise ValueError("longwall_unexpected_column")
     missing=sorted(_required_header_names()-folded)
     if missing:
         raise ValueError("longwall_required_columns_missing:"+",".join(missing))
@@ -140,7 +145,11 @@ def canonical_telemetry_row(raw: Mapping[str,Any]) -> dict[str,Any]:
 
     record={"event_time":stamp.isoformat(timespec="seconds").replace("+00:00","Z")}
     for sensor in MINING_TELEMETRY_SENSORS:
-        raw_value=str(row[sensor.casefold()]).strip()
+        value=row[sensor.casefold()]
+        if sensor=="F_SIDE" and value is None:
+            # A missing CSV cell must not become the literal state "None".
+            raise ValueError("longwall_sensor_state_required:F_SIDE")
+        raw_value=str(value).strip()
         if sensor=="F_SIDE":
             if not raw_value:
                 raise ValueError("longwall_sensor_state_required:F_SIDE")

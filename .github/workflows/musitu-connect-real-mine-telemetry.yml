@@ -8,6 +8,7 @@ on:
       - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
       - 'benchmarks/mining_adapter/polish_longwall_telemetry_runner.py'
       - 'tests/connect/test_polish_longwall_telemetry.py'
+      - 'tests/connect/test_polish_csv_row_width_integrity.py'
       - 'tests/connect/test_polish_development_source_boundary.py'
       - 'qualification/telemetry_source_failure.py'
       - 'tests/connect/test_telemetry_source_failure.py'
@@ -42,7 +43,7 @@ jobs:
       - name: Verify telemetry contract
         run: |
           python -m py_compile             connect/mining_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry_runner.py qualification/telemetry_source_failure.py
-          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry             tests.connect.test_telemetry_source_failure             tests.connect.test_polish_development_source_boundary -v
+          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry             tests.connect.test_polish_csv_row_width_integrity             tests.connect.test_telemetry_source_failure             tests.connect.test_polish_development_source_boundary -v
           python benchmarks/mining_adapter/polish_longwall_telemetry_runner.py --help >/dev/null
 
       - name: Bind public dataset identity and CC BY 4.0 license
