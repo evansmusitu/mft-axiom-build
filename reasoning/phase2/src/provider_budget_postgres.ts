@@ -1,3 +1,4 @@
+import pg from "pg";
 import type { Pool, PoolClient } from "pg";
 import type { TenantScope } from "./types.ts";
 import type { ProviderReservation, ProviderSettlement, ProviderSpendLedger, ProviderSpendStatus } from "./provider_budget.ts";
@@ -52,24 +53,37 @@ function report(row:any):ProviderSpendStatus{
   return {limitMicroUsd,chargedMicroUsd,reservedMicroUsd,
     availableMicroUsd:Math.max(0,limitMicroUsd-chargedMicroUsd-reservedMicroUsd)};
 }
+// Only a genuine pg Pool using the module-initialized connect method may
+// supply central spending authority. Structural connect() fakes must not
+// grant a trusted budget decorator the appearance of durable accounting.
+const trustedPoolConnect=pg.Pool.prototype.connect;
+function trustedPool(pool:unknown):pool is Pool{
+  return pool instanceof pg.Pool &&
+    Object.getPrototypeOf(pool)===pg.Pool.prototype &&
+    Object.hasOwn(pool,"options") &&
+    Object.hasOwn(pool,"_clients") &&
+    Array.isArray((pool as {_clients:unknown})._clients) &&
+    pool.connect===trustedPoolConnect;
+}
 type Key={tenantId:string;provider:string;modelId:string};
 const budgetWhere="tenant_id=$1 AND provider=$2 AND model_id=$3";
 const budgetValues=(input:Key)=>[input.tenantId,input.provider,input.modelId];
 
 export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   #authenticBudgetLedger=true;
-  private readonly pool:Pick<Pool,"connect">;
+  private readonly pool:Pool;
   static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
       (value as PostgresProviderSpendLedger).reserve===trustedPostgresReserve&&
       (value as PostgresProviderSpendLedger).settle===trustedPostgresSettle;
   }
-  constructor(pool:Pick<Pool,"connect">){
-    if(!pool||typeof pool.connect!=="function")throw new TypeError("Operator-owned PostgreSQL pool required");
+  constructor(pool:Pool){
+    if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
     this.pool=pool;
   }
   private async tx<T>(operation:(client:PoolClient)=>Promise<T>):Promise<T>{
+    if(!trustedPool(this.pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Trusted PostgreSQL accounting pool is unavailable",503);
     let client:PoolClient;
     try{client=await this.pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
