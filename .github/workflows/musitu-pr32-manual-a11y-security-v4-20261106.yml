@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 22
     env:
-      RELEASE_SHA: ecb86b3165d494d1b18c740d2d43ab637be50650
+      RELEASE_SHA: 7e0fa23dad220e0e1b7e48a9176e3437b5afc545
       MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Install reviewer browser
