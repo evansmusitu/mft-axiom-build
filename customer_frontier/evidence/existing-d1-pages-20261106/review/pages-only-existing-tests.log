@@ -1,0 +1,16 @@
+test_bad_binding_uuid_is_not_ignored (test_existing_d1_pages_only.PagesOnly.test_bad_binding_uuid_is_not_ignored) ... ok
+test_changed_totals_and_duplicate_pages_are_incomplete (test_existing_d1_pages_only.PagesOnly.test_changed_totals_and_duplicate_pages_are_incomplete) ... ok
+test_counts_are_optional_but_present_totals_must_be_coherent (test_existing_d1_pages_only.PagesOnly.test_counts_are_optional_but_present_totals_must_be_coherent) ... ok
+test_matches_wrangler_query_and_hashes_current_references (test_existing_d1_pages_only.PagesOnly.test_matches_wrangler_query_and_hashes_current_references) ... ok
+test_missing_empty_terminal_is_incomplete (test_existing_d1_pages_only.PagesOnly.test_missing_empty_terminal_is_incomplete) ... ok
+test_missing_or_null_configs_remain_partial (test_existing_d1_pages_only.PagesOnly.test_missing_or_null_configs_remain_partial) ... ok
+test_missing_token_never_requests (test_existing_d1_pages_only.PagesOnly.test_missing_token_never_requests) ... ok
+test_preview_reference_is_included (test_existing_d1_pages_only.PagesOnly.test_preview_reference_is_included) ... ok
+test_project_path_injection_is_not_requested (test_existing_d1_pages_only.PagesOnly.test_project_path_injection_is_not_requested) ... ok
+test_redirect_and_permissions_do_not_become_empty_results (test_existing_d1_pages_only.PagesOnly.test_redirect_and_permissions_do_not_become_empty_results) ... ok
+test_seven_digit_error_code_preserved_without_message (test_existing_d1_pages_only.PagesOnly.test_seven_digit_error_code_preserved_without_message) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.030s
+
+OK

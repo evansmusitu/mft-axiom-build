@@ -1,0 +1,53 @@
+name: AXIOM existing D1 Pages bindings 20261106 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-existing-d1-pages-only-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-existing-d1-pages-only-20261106
+  cancel-in-progress: false
+jobs:
+  observe-pages-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-existing-d1-pages-20261106' && github.event.pull_request.base.ref == 'build/axiom-existing-d1-audit-20261106' && github.event.pull_request.base.sha == '8c969eb4848fe8fa43ed16935a27a85639bcccb2' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fe3b6712312062fdf4c9cd81a74d3504443632df
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify immutable Pages-only source and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='fe3b6712312062fdf4c9cd81a74d3504443632df'
+          for path,expected in {
+            'customer_frontier/qualification/existing_d1_pages_only.py':'ee37d5ccc05314dbd6c2160491d9ea216ecd1730a294e2aaa58af9558b92e650',
+            'customer_frontier/tests/test_existing_d1_pages_only.py':'4a7773f5c66c3e579c697960382af847792bfe7325664b73b455683e5606f4ab',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print('Fixed reviewed Pages-only source and hashes admitted; no SQL or mutations')
+          PY
+      - name: Verify pagination, privacy, identity and error reporting offline
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_existing_d1_pages_only.py -v
+      - name: Observe current Pages configurations only
+        env:
+          AXIOM_CHECKOUT_SHA: fe3b6712312062fdf4c9cd81a74d3504443632df
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/existing_d1_pages_only.py
+      - name: Preserve actual observations including unknown scopes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-existing-d1-pages-only-20261106
+          path: |
+            existing-d1-pages-only.json
+            existing-d1-pages-only.json.sha256
+          retention-days: 30
+          if-no-files-found: warn

@@ -1,0 +1,15 @@
+test161_projects_never_gets_details_or_admits_complete (__main__.IndependentPages.test161_projects_never_gets_details_or_admits_complete) ... ok
+test_injected_project_and_wrong_detail_identity_stay_unknown (__main__.IndependentPages.test_injected_project_and_wrong_detail_identity_stay_unknown) ... ok
+test_integer_and_total_stability_boundaries (__main__.IndependentPages.test_integer_and_total_stability_boundaries) ... ok
+test_maximum160_projects_uses17_lists_and160_gets (__main__.IndependentPages.test_maximum160_projects_uses17_lists_and160_gets) ... ok
+test_missing_token_or_expired_deadline_emits_unknown_without_requests (__main__.IndependentPages.test_missing_token_or_expired_deadline_emits_unknown_without_requests) ... ok
+test_original_contradictory_totals_and_one_page_only_totals_rejected (__main__.IndependentPages.test_original_contradictory_totals_and_one_page_only_totals_rejected) ... ok
+test_preview_and_production_refs_are_hashed (__main__.IndependentPages.test_preview_and_production_refs_are_hashed) ... ok
+test_raw_json_size_null_map_and_wrong_binding_key_fail_closed (__main__.IndependentPages.test_raw_json_size_null_map_and_wrong_binding_key_fail_closed) ... ok
+test_redirect_handler_refuses_new_target (__main__.IndependentPages.test_redirect_handler_refuses_new_target) ... ok
+test_seven_digit_errors_retained_only_safe_actual_ints (__main__.IndependentPages.test_seven_digit_errors_retained_only_safe_actual_ints) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.064s
+
+OK

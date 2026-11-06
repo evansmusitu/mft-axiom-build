@@ -1,0 +1,25 @@
+{
+  "run_id": 42245530095,
+  "job_id": 127986635928,
+  "conclusion": "success",
+  "status": "OBSERVED_CURRENT_CONFIGS",
+  "current_projects": 1,
+  "requests": 3,
+  "candidate_references": 0,
+  "mutations": 0,
+  "logs": [
+    {
+      "name": "actual-pages-42245530095.log",
+      "bytes": 20530,
+      "sha256": "a33c9886eb1947791af86a7405f5be4193da05c3e64b727eea8ff32247e1f820"
+    },
+    {
+      "name": "actual-source-ci-42245529690.log",
+      "bytes": 139208,
+      "sha256": "0c8052884ff1d2364db5a5a5b9f4602a27ef680fad2205958c81188137593a65"
+    }
+  ],
+  "backup_restore_qualified": false,
+  "target_admitted": false,
+  "release_authority": false
+}
