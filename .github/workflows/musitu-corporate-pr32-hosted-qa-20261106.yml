@@ -305,3 +305,5 @@ jobs:
           assert cleanup,'Cleanup failed; verify Access Service Tokens and policies'
           print('browser_QA_release_boundary: STAGING_ONLY')
           PY
+
+# Post-rollback revalidation of same immutable PR32 website build; no DNS or production changes.
