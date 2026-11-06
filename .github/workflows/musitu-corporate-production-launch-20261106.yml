@@ -9,7 +9,7 @@ permissions:
   contents: read
 concurrency:
   group: musitu-corporate-production-launch
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   launch:
