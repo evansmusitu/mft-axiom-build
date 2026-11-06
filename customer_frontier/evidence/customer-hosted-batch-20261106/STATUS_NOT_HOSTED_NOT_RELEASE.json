@@ -1,0 +1,27 @@
+{
+  "source": "3d7fba395a051421e1ceacb06ee5c425830d9421",
+  "customer_tables_in_plan": 20,
+  "ddl_statements": 71,
+  "rollback_batch_statements": 73,
+  "forward_batch_statements": 73,
+  "local_tests": 4,
+  "local_tests_passed": true,
+  "initial_review": "P2_ANY_BATCH_ERROR_WRONGLY_QUALIFIED_ROLLBACK",
+  "repair": "require exact uniquely named CHECK failure before forward batch",
+  "independent_recheck": "PENDING",
+  "credential_workflow_published": false,
+  "hosted_migration_executed": false,
+  "release_authority": false,
+  "open_gates": [
+    "hosted_D1_OAuth",
+    "real_identity_ownership",
+    "execution_usage_cancellation",
+    "Paynow_devices",
+    "custody_antirollback_recovery",
+    "integration",
+    "release"
+  ],
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN"
+}

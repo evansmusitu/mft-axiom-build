@@ -1,0 +1,13 @@
+✔ complete real customer schema rolls back then applies atomically preserving foreign objects (19.70169ms)
+✔ dirty foreign rows and catalog drift reject before schema changes (3.603999ms)
+✔ auth expiry and browser requests cannot trigger migrations (5.44158ms)
+{"case":"transient-first-batch-failure","atomic_customer_ddl_rollback":true,"customer_schema_applied":true,"batch_calls":2}
+✔ REPRO: transient first batch failure falsely certifies rollback and admits forward DDL (7.022879ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 152.054424
