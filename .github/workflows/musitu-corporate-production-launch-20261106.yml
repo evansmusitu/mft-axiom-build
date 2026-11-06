@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 25
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
       CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
       CF_PAGES_NAME: "musitu-corporate"
@@ -61,6 +63,7 @@ jobs:
           python3 - <<'PY'
           import json,os,urllib.error,urllib.parse,urllib.request
           token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          assert os.environ.get('CLOUDFLARE_EMAIL') and os.environ.get('CLOUDFLARE_GLOBAL_API_KEY'),'Protected DNS-capable Cloudflare credentials unavailable'
           base='https://api.cloudflare.com/client/v4'; headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
           def call(method,path,data=None,ok=(200,)):
               req=urllib.request.Request(base+path,headers=headers,method=method,data=None if data is None else json.dumps(data).encode())
@@ -131,19 +134,23 @@ jobs:
           print('production_pages_deploy: PASS')
           PY
 
-      - name: Attach apex and www as Pages-managed custom domains
+      - name: Attach apex, create Pages DNS, and configure canonical www redirect
         id: domains
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,urllib.error,urllib.request
-          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
-          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
-          def call(method,path,data=None,expected=(200,)):
-              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+          import json,os,time,urllib.error,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];email=os.environ['CLOUDFLARE_EMAIL'];gkey=os.environ['CLOUDFLARE_GLOBAL_API_KEY']
+          account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          base='https://api.cloudflare.com/client/v4'
+          bearer={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          globalh={'X-Auth-Email':email,'X-Auth-Key':gkey,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None,expected=(200,),headers=None):
+              req=urllib.request.Request(base+path,headers=headers or bearer,method=method,data=None if data is None else json.dumps(data).encode())
               try:
-                  with urllib.request.urlopen(req,timeout=25) as r:return r.status,json.load(r)
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      raw=r.read().decode();return r.status,json.loads(raw) if raw else {}
               except urllib.error.HTTPError as e:
                   raw=e.read().decode('utf8','replace')
                   try:b=json.loads(raw)
@@ -151,15 +158,55 @@ jobs:
                   if e.code not in expected:
                       raise RuntimeError(f'Cloudflare {method} {path} failed HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:500])
                   return e.code,b
-          for name,flag in [('mftintelligence.com','APEX_DOMAIN_CREATED'),('www.mftintelligence.com','WWW_DOMAIN_CREATED')]:
-              code,d=call('POST',f'/accounts/{account}/pages/projects/{project}/domains',{'name':name},expected=(200,201))
-              assert d.get('success')
-              with open(os.environ['GITHUB_ENV'],'a') as f:f.write(flag+'=1\n')
-              print('pages_custom_domain_attach:',name,'CREATED')
-          print('www_dns_management: PAGES_MANAGED')
+
+          # Attach only the canonical apex to Pages.
+          code,d=call('POST',f'/accounts/{account}/pages/projects/{project}/domains',{'name':'mftintelligence.com'},expected=(200,201))
+          assert d.get('success')
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APEX_DOMAIN_CREATED=1\n')
+          print('apex_pages_domain_attach: CREATED')
+
+          # Explicit apex CNAME is allowed at Cloudflare apex through CNAME flattening.
+          code,dns=call('POST',f'/zones/{zone}/dns_records',{'type':'CNAME','name':'mftintelligence.com','content':project+'.pages.dev','ttl':1,'proxied':True,'comment':'MUSITU corporate Pages production apex'},expected=(200,201),headers=globalh)
+          assert dns.get('success'); apex_dns_id=dns['result']['id']
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APEX_DNS_ID='+apex_dns_id+'\n')
+          print('apex_pages_cname: CREATED')
+
+          # Cloudflare-recommended www -> apex Bulk Redirect.
+          list_name='musitu_www_to_apex_20261106'
+          code,l=call('POST',f'/accounts/{account}/rules/lists',{'name':list_name,'description':'MUSITU www to canonical apex redirect','kind':'redirect'},expected=(200,201))
+          assert l.get('success'); list_id=l['result']['id']
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('REDIRECT_LIST_ID='+list_id+'\n')
+          code,op=call('POST',f'/accounts/{account}/rules/lists/{list_id}/items',[{'redirect':{'source_url':'www.mftintelligence.com/','target_url':'https://mftintelligence.com','status_code':301,'include_subdomains':False,'subpath_matching':True,'preserve_path_suffix':True,'preserve_query_string':True}}],expected=(200,201))
+          assert op.get('success'); opid=op['result']['operation_id']
+          for _ in range(20):
+              code,b=call('GET',f'/accounts/{account}/rules/lists/bulk_operations/{opid}')
+              if b.get('result',{}).get('status')=='completed':break
+              time.sleep(2)
+          else:raise RuntimeError('Bulk redirect list population did not complete')
+          code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',expected=(200,404))
+          rule={'ref':'musitu_www_to_apex_20261106','expression':f'http.request.full_uri in $'+list_name,'description':'MUSITU canonical www to apex','action':'redirect','action_parameters':{'from_list':{'name':list_name,'key':'http.request.full_uri'}}}
+          if code==404 or not entry.get('success'):
+              code,rs=call('POST',f'/accounts/{account}/rulesets',{'name':'MUSITU canonical redirects','kind':'root','phase':'http_request_redirect','rules':[rule]},expected=(200,201))
+              assert rs.get('success'); ruleset_id=rs['result']['id']; rule_id=(rs['result'].get('rules') or [{}])[0].get('id')
+              with open(os.environ['GITHUB_ENV'],'a') as f:
+                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULESET_CREATED=1\n')
+                  if rule_id:f.write('REDIRECT_RULE_ID='+rule_id+'\n')
+          else:
+              ruleset_id=entry['result']['id']
+              code,rr=call('POST',f'/accounts/{account}/rulesets/{ruleset_id}/rules',rule,expected=(200,201))
+              assert rr.get('success'); rule_id=rr['result']['id']
+              with open(os.environ['GITHUB_ENV'],'a') as f:
+                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULE_ID='+rule_id+'\nREDIRECT_RULESET_CREATED=0\n')
+
+          # Cloudflare Pages documented www redirect DNS placeholder.
+          code,wdns=call('POST',f'/zones/{zone}/dns_records',{'type':'A','name':'www','content':'192.0.2.1','ttl':1,'proxied':True,'comment':'MUSITU canonical www redirect'},expected=(200,201),headers=globalh)
+          assert wdns.get('success'); www_id=wdns['result']['id']
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('WWW_DNS_ID='+www_id+'\n')
+          print('www_bulk_redirect: CREATED')
+          print('www_proxy_dns: CREATED')
           PY
 
-      - name: Wait for apex and www TLS/domain activation
+      - name: Wait for canonical apex TLS/domain activation
         shell: bash
         run: |
           set -euo pipefail
@@ -167,24 +214,17 @@ jobs:
           import json,os,time,urllib.request
           token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
           h={'Authorization':'Bearer '+token,'Accept':'application/json'}
-          for name in ('mftintelligence.com','www.mftintelligence.com'):
-              api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/{name}'
-              active=False
-              for i in range(50):
-                  with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
-                  result=b.get('result') or {}
-                  status=result.get('status')
-                  print('domain_status',name,'attempt',i+1,status,'validation=',json.dumps(result.get('validation_data'),sort_keys=True),'verification=',json.dumps(result.get('verification_data'),sort_keys=True))
-                  if name=='mftintelligence.com':
-                      dnsurl='https://api.cloudflare.com/client/v4/zones/'+os.environ['CF_ZONE_ID']+'/dns_records?'+urllib.parse.urlencode({'name':name,'per_page':100})
-                      with urllib.request.urlopen(urllib.request.Request(dnsurl,headers=h),timeout=20) as dr:db=json.load(dr)
-                      web=[{'type':x.get('type'),'content':x.get('content'),'proxied':x.get('proxied')} for x in db.get('result',[]) if x.get('type') in ('A','AAAA','CNAME')]
-                      print('apex_web_dns_records',json.dumps(web,sort_keys=True))
-                  if status=='active':active=True;break
-                  if status in ('error','blocked','deactivated'):raise RuntimeError(name+' entered '+str(status))
-                  time.sleep(5)
-              assert active,name+' did not become active'
-          print('apex_and_www_tls_domains_active: PASS')
+          api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com'
+          active=False
+          for i in range(80):
+              with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
+              result=b.get('result') or {};status=result.get('status')
+              print('apex_domain_status_attempt',i+1,status,'validation=',json.dumps(result.get('validation_data'),sort_keys=True),'verification=',json.dumps(result.get('verification_data'),sort_keys=True))
+              if status=='active':active=True;break
+              if status in ('error','blocked','deactivated'):raise RuntimeError('Apex domain entered '+str(status))
+              time.sleep(5)
+          assert active,'Apex domain did not become active'
+          print('apex_tls_domain_active: PASS')
           PY
 
       - name: Public production smoke test all routes, headers, media, canonical www and mail preservation
@@ -227,17 +267,19 @@ jobs:
           assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
           with urllib.request.urlopen(origin+'/sitemap.xml',timeout=20) as r:sitemap=r.read().decode()
           assert sitemap.count('<url>')==33
-          www_ok=False
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NoRedirect)
+          redirected=False
           for _ in range(30):
               try:
-                  with urllib.request.urlopen('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20) as r:
-                      www_html=r.read().decode('utf8','replace')
-                  if r.status==200 and 'rel="canonical" href="https://mftintelligence.com/products/axiom/"' in www_html:
-                      www_ok=True;break
-              except Exception:
-                  pass
+                  op.open('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20)
+              except urllib.error.HTTPError as e:
+                  loc=e.headers.get('Location','')
+                  if e.code in (301,308) and loc.startswith('https://mftintelligence.com/products/axiom/') and 'launch=1' in loc:
+                      redirected=True;break
               time.sleep(4)
-          assert www_ok,'www HTTPS Pages host with apex canonical link not verified'
+          assert redirected,'Canonical www 301 redirect not verified'
           # Verify MX still present directly through Cloudflare API.
           token=os.environ['CLOUDFLARE_API_TOKEN'];zone=os.environ['CF_ZONE_ID']
           url='https://api.cloudflare.com/client/v4/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
@@ -250,7 +292,7 @@ jobs:
           print('legal_identification_live: PASS')
           print('studio_media_hash_live: PASS')
           print('robots_and_33_url_sitemap: PASS')
-          print('www_https_with_apex_canonical: PASS')
+          print('www_to_apex_301_preserves_path_query: PASS')
           print('mx_email_routing_preserved: PASS')
           print('existing_intelligence_origin_preserved: PASS')
           PY
@@ -271,7 +313,7 @@ jobs:
             "pages_project": "$CF_PAGES_NAME",
             "production_deployment_id": "$NEW_PROD_ID",
             "apex_custom_domain": "mftintelligence.com",
-            "www_behavior": "Pages-managed HTTPS hostname; every page canonicalizes to apex via rel=canonical",
+            "www_behavior": "301 canonical redirect to apex preserving path/query",
             "studio_video_sha256": "afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0",
             "routes_smoke_tested": 33,
             "production_launch": "PASS"
@@ -295,17 +337,26 @@ jobs:
           python3 - <<'PY'
           import json,os,urllib.error,urllib.parse,urllib.request
           token=os.environ.get('CLOUDFLARE_API_TOKEN','');account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          email=os.environ.get('CLOUDFLARE_EMAIL','');gkey=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')
           base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
-          def req(method,path,data=None):
+          gh={'X-Auth-Email':email,'X-Auth-Key':gkey,'Accept':'application/json','Content-Type':'application/json'}
+          def req(method,path,data=None,headers=None):
               try:
-                  r=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+                  r=urllib.request.Request(base+path,headers=headers or h,method=method,data=None if data is None else json.dumps(data).encode())
                   with urllib.request.urlopen(r,timeout=20) as x:
                       raw=x.read().decode();return x.status,json.loads(raw) if raw else {}
               except urllib.error.HTTPError as e:
                   return e.code,{}
               except Exception:return 0,{}
-          if os.environ.get('WWW_DOMAIN_CREATED')=='1':
-              req('DELETE',f'/accounts/{account}/pages/projects/{project}/domains/www.mftintelligence.com')
+          www=os.environ.get('WWW_DNS_ID')
+          if www:req('DELETE',f'/zones/{zone}/dns_records/{www}',headers=gh)
+          apex=os.environ.get('APEX_DNS_ID')
+          if apex:req('DELETE',f'/zones/{zone}/dns_records/{apex}',headers=gh)
+          rule=os.environ.get('REDIRECT_RULE_ID');rs=os.environ.get('REDIRECT_RULESET_ID');created=os.environ.get('REDIRECT_RULESET_CREATED')
+          if rs and created=='1':req('DELETE',f'/accounts/{account}/rulesets/{rs}')
+          elif rs and rule:req('DELETE',f'/accounts/{account}/rulesets/{rs}/rules/{rule}')
+          li=os.environ.get('REDIRECT_LIST_ID')
+          if li:req('DELETE',f'/accounts/{account}/rules/lists/{li}')
           if os.environ.get('APEX_DOMAIN_CREATED')=='1':
               req('DELETE',f'/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com')
           prev=os.environ.get('PREV_PROD_ID')
@@ -321,6 +372,6 @@ jobs:
               old={r.get('id') for r in (pre.get('dns',{}).get(name,[]) or [])}
               for r in b.get('result',[]) if isinstance(b,dict) else []:
                   if r.get('id') not in old and r.get('type') in ('A','AAAA','CNAME'):
-                      req('DELETE',f'/zones/{zone}/dns_records/{r.get("id")}')
+                      req('DELETE',f'/zones/{zone}/dns_records/{r.get("id")}',headers=gh)
           print('public_cutover_rollback_attempted: true')
           PY
