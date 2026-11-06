@@ -801,3 +801,38 @@ test("PostgreSQL denies vendor reservations when the shared organization spendin
   limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
  });
 });
+
+
+test("PostgreSQL vendor-wide cap serializes competing tenant reservations and suspends after overage",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool),vendor="anthropic";
+ const tenantA={tenantId:"tenant:pg-organization-a"},tenantB={tenantId:"tenant:pg-organization-b"};
+ const first={tenantId:tenantA.tenantId,provider:"adapter:org-a",modelId:"org:model-a",
+  billingProvider:vendor,requestId:"org-a-1",requestHash:"8".repeat(64),reserveMicroUsd:700};
+ const second={tenantId:tenantB.tenantId,provider:"adapter:org-b",modelId:"org:model-b",
+  billingProvider:vendor,requestId:"org-b-1",requestHash:"9".repeat(64),reserveMicroUsd:700};
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await ledger.provisionOrganization(vendor,1000);
+ await ledger.provision(tenantA,first.provider,first.modelId,1000,vendor);
+ await ledger.provision(tenantB,second.provider,second.modelId,1000,vendor);
+ const [a,b]=await Promise.allSettled([ledger.reserve(first),ledger.reserve(second)]);
+ assert.equal([a,b].filter(result=>result.status==="fulfilled").length,1);
+ const winner=a.status==="fulfilled"?first:second,loser=winner===first?second:first;
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+ });
+ await ledger.settle({...winner,chargeMicroUsd:200,responseHash:"a".repeat(64)});
+ await ledger.reserve(loser);
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:700,availableMicroUsd:100
+ });
+ await assert.rejects(()=>ledger.settle({...loser,chargeMicroUsd:900,responseHash:"b".repeat(64)}),
+  (error:any)=>error?.code==="BUDGET_PROVIDER_OVERAGE");
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:1100,reservedMicroUsd:0,availableMicroUsd:0
+ });
+ await assert.rejects(()=>ledger.reserve({...winner,requestId:"after-org-overage",requestHash:"c".repeat(64),reserveMicroUsd:100}),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_SUSPENDED");
+});
