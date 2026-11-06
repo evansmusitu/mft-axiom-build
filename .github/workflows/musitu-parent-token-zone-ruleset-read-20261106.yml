@@ -1,0 +1,51 @@
+name: MUSITU Parent Token Zone Ruleset Read 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-parent-token-zone-ruleset-read-20261106.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+    steps:
+      - name: Read zone settings and config ruleset only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          z=os.environ['CF_ZONE_ID'];base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+os.environ['CF_TOKEN'],'Accept':'application/json'}
+          def get(path):
+              q=urllib.request.Request(base+path,headers=h)
+              try:
+                  with urllib.request.urlopen(q,timeout=20) as r:b=json.load(r)
+                  print('read',path,'http',r.status,'success',b.get('success'))
+                  return r.status,b
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf8','replace')
+                  try:b=json.loads(raw)
+                  except:b={}
+                  print('read',path,'http',e.code,'errors',json.dumps(b.get('errors',[]))[:500])
+                  return e.code,b
+          for key in ('security_level','browser_check','bot_fight_mode'):
+              c,b=get(f'/zones/{z}/settings/{key}')
+              if c==200 and b.get('success'):print('setting',key,'=',(b.get('result') or {}).get('value'))
+          c,b=get(f'/zones/{z}/rulesets')
+          if c==200 and b.get('success'):
+              matches=[x for x in b.get('result') or [] if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+              print('config_ruleset_count:',len(matches))
+              if len(matches)==1:
+                  rid=matches[0]['id'];c2,b2=get(f'/zones/{z}/rulesets/{rid}')
+                  if c2==200 and b2.get('success'):
+                      rules=(b2.get('result') or {}).get('rules') or []
+                      print('config_ruleset_detail_read: PASS')
+                      print('existing_config_rule_refs:',[r.get('ref') for r in rules if r.get('ref')])
+          print('write_operations: 0')
+          PY
