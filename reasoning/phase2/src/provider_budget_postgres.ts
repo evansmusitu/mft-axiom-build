@@ -71,7 +71,8 @@ const budgetValues=(input:Key)=>[input.tenantId,input.provider,input.modelId];
 
 export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   #authenticBudgetLedger=true;
-  private readonly pool:Pool;
+  // Keep the original operator-approved PG pool unforgeable after construction.
+  readonly #pool:Pool;
   static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
@@ -80,12 +81,12 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   }
   constructor(pool:Pool){
     if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
-    this.pool=pool;
+    this.#pool=pool;
   }
   private async tx<T>(operation:(client:PoolClient)=>Promise<T>):Promise<T>{
-    if(!trustedPool(this.pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Trusted PostgreSQL accounting pool is unavailable",503);
+    if(!trustedPool(this.#pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Trusted PostgreSQL accounting pool is unavailable",503);
     let client:PoolClient;
-    try{client=await this.pool.connect();}
+    try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
     try{
       await client.query("BEGIN");
