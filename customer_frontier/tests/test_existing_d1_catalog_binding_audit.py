@@ -95,6 +95,13 @@ class CatalogBindings(unittest.TestCase):
   rc,result,_=self.run_subject(exception=error,exception_path=path)
   self.assertEqual(rc,1);self.assertEqual(result['pages']['status'],'UNKNOWN')
 
+ def test_provider_error_codes_retained_without_private_messages(self):
+  path='/pages/projects?page=1&per_page=100'
+  body=io.BytesIO(json.dumps({'success':False,'errors':[{'code':10000,'message':'PRIVATE_ERROR'}]}).encode())
+  error=urllib.error.HTTPError('https://foreign.example',403,'PRIVATE_ERROR',{},body)
+  rc,result,_=self.run_subject(exception=error,exception_path=path);self.assertEqual(rc,1)
+  self.assertTrue(any(row['provider_error_codes']==[10000] for row in result['transport']))
+
  def test_service_404_is_unknown_not_no_environments(self):
   path='/workers/services/PRIVATE_WORKER_ALIAS'
   error=urllib.error.HTTPError('https://foreign.example',404,'PRIVATE_ERROR',{},None)

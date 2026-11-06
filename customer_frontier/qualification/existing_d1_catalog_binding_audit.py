@@ -57,7 +57,7 @@ def observe():
   remaining=deadline-time.monotonic()
   if not allowed:raise AuditError('UNADMITTED_REQUEST')
   if remaining<=0 or len(out['transport'])>=512:raise AuditError('REQUEST_BUDGET_EXHAUSTED')
-  item={'kind':kind,'resource_sha256':digest(resource),'method':method,'http_status':None}
+  item={'kind':kind,'resource_sha256':digest(resource),'method':method,'http_status':None,'provider_error_codes':[]}
   out['transport'].append(item)
   if method=='POST':out['query_count']+=1
   req=urllib.request.Request(API+path,method=method,data=None if body is None else json.dumps(body).encode(),
@@ -76,7 +76,16 @@ def observe():
      raise AuditError('INCONSISTENT_PAGES_PAGINATION')
    return data.get('result')
   except urllib.error.HTTPError as error:
-   item['http_status']=error.code;raise AuditError('HTTP_FAILURE') from None
+   item['http_status']=error.code
+   if error.fp is not None:
+    try:
+     raw=error.read(2_000_001)
+     if len(raw)<=2_000_000:
+      body=json.loads(raw)
+      errors=body.get('errors') if isinstance(body,dict) else None
+      if isinstance(errors,list):item['provider_error_codes']=[r['code'] for r in errors if isinstance(r,dict) and type(r.get('code')) is int and 1000<=r['code']<=999999][:20]
+    except (OSError,ValueError,TypeError,UnicodeError,http.client.HTTPException,RecursionError):pass
+   raise AuditError('HTTP_FAILURE') from None
 
  def problem(section,error,resource=''):
   code=str(error) if isinstance(error,AuditError) else 'INVALID_RESPONSE'
