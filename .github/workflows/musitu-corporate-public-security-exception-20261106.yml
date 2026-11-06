@@ -1,0 +1,66 @@
+name: MUSITU Corporate Public Host Security Exception 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-corporate-public-security-exception-20261106.yml
+permissions:
+  contents: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+    steps:
+      - name: Apply exact-host static corporate challenge exception and read back
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          zid=os.environ['CF_ZONE_ID'];base='https://api.cloudflare.com/client/v4'
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None):
+              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  raw=r.read().decode();b=json.loads(raw) if raw else {}
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          security=call('GET',f'/zones/{zid}/settings/security_level')
+          bic=call('GET',f'/zones/{zid}/settings/browser_check')
+          assert security.get('value')=='under_attack','Global security level changed unexpectedly'
+          assert bic.get('value')=='on','Global Browser Integrity Check changed unexpectedly'
+          sets=call('GET',f'/zones/{zid}/rulesets') or []
+          matches=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          assert len(matches)==1,'Expected one zone http_config_settings ruleset'
+          rid=matches[0]['id']
+          detail=call('GET',f'/zones/{zid}/rulesets/{rid}') or {}
+          rules=detail.get('rules') or []
+          ref='musitu_corporate_public_static_20261106'
+          expr='(http.host eq "mftintelligence.com" or http.host eq "www.mftintelligence.com")'
+          existing=[r for r in rules if r.get('ref')==ref]
+          if existing:
+              r=existing[0];ap=r.get('action_parameters') or {}
+              assert r.get('action')=='set_config' and r.get('expression')==expr and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+              print('corporate_public_security_exception_already_exact: true')
+              rule_id=r.get('id')
+          else:
+              body={'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},'expression':expr,'description':'MUSITU public static corporate site; bypass zone Under Attack/BIC only on apex and www; Pages CSP and WAF remain independent','enabled':True,'ref':ref}
+              r=call('POST',f'/zones/{zid}/rulesets/{rid}/rules',body)
+              rule_id=r.get('id')
+              print('corporate_public_security_exception_created: true')
+          check=call('GET',f'/zones/{zid}/rulesets/{rid}') or {}
+          found=[r for r in check.get('rules') or [] if r.get('ref')==ref]
+          assert len(found)==1
+          r=found[0];ap=r.get('action_parameters') or {}
+          assert r.get('expression')==expr and r.get('action')=='set_config' and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+          print('corporate_public_exception_readback: PASS')
+          print('scope_exact_hosts_only: mftintelligence.com,www.mftintelligence.com')
+          print('global_security_level_unchanged:',security.get('value'))
+          print('global_browser_check_unchanged:',bic.get('value'))
+          print('rule_id:',rule_id)
+          PY
