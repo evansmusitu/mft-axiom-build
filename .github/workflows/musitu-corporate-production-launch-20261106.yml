@@ -89,14 +89,6 @@ jobs:
           assert code==200 and deps.get('success')
           prod=[d for d in deps.get('result',[]) if d.get('environment')=='production']
           pre['previous_production_id']=prod[0].get('id') if prod else None
-          # Verify token can read the two redirect-management APIs before any mutation.
-          code,lists=call('GET',f'/accounts/{account}/rules/lists')
-          assert code==200 and lists.get('success'), 'Token lacks Account Filter Lists read/edit capability'
-          assert not [x for x in lists.get('result',[]) if x.get('name')==os.environ['WWW_REDIRECT_LIST']], 'Redirect list name collision'
-          code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',ok=(200,404))
-          assert code in (200,404), 'Token lacks redirect ruleset capability'
-          pre['redirect_entrypoint_exists']=code==200 and entry.get('success') is True
-          if pre['redirect_entrypoint_exists']:pre['redirect_ruleset_id']=entry['result']['id']
           open(os.path.join(os.environ['RUNNER_TEMP'],'prestate.json'),'w').write(json.dumps(pre,indent=2))
           with open(os.environ['GITHUB_ENV'],'a') as f:
               f.write('PREV_PROD_ID='+str(pre['previous_production_id'] or '')+'\n')
@@ -139,14 +131,14 @@ jobs:
           print('production_pages_deploy: PASS')
           PY
 
-      - name: Attach apex custom domain and configure canonical www redirect
+      - name: Attach apex and www as Pages-managed custom domains
         id: domains
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,time,urllib.error,urllib.request
-          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME'];list_name=os.environ['WWW_REDIRECT_LIST']
+          import json,os,urllib.error,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
           base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
           def call(method,path,data=None,expected=(200,)):
               req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
@@ -159,69 +151,37 @@ jobs:
                   if e.code not in expected:
                       raise RuntimeError(f'Cloudflare {method} {path} failed HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:500])
                   return e.code,b
-          code,d=call('POST',f'/accounts/{account}/pages/projects/{project}/domains',{'name':'mftintelligence.com'},expected=(200,201))
-          assert d.get('success'); 
-          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APEX_DOMAIN_CREATED=1\n')
-          print('apex_pages_domain_attach: CREATED')
-
-          code,l=call('POST',f'/accounts/{account}/rules/lists',{'name':list_name,'description':'MUSITU www to canonical apex redirect','kind':'redirect'},expected=(200,201))
-          assert l.get('success'); list_id=l['result']['id']
-          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('REDIRECT_LIST_ID='+list_id+'\n')
-          code,op=call('POST',f'/accounts/{account}/rules/lists/{list_id}/items',[{'redirect':{'source_url':'www.mftintelligence.com/','target_url':'https://mftintelligence.com','status_code':301,'include_subdomains':False,'subpath_matching':True,'preserve_path_suffix':True,'preserve_query_string':True}}],expected=(200,201))
-          assert op.get('success'); opid=op['result']['operation_id']
-          for _ in range(20):
-              code,b=call('GET',f'/accounts/{account}/rules/lists/bulk_operations/{opid}')
-              if b.get('result',{}).get('status')=='completed':break
-              time.sleep(2)
-          else:raise RuntimeError('Bulk redirect list population did not complete')
-
-          # Add the list to the account redirect entrypoint; create entrypoint only if absent.
-          try:
-              code,entry=call('GET',f'/accounts/{account}/rulesets/phases/http_request_redirect/entrypoint',expected=(200,404))
-          except RuntimeError:raise
-          rule={'ref':'musitu_www_to_apex_20261106','expression':f'http.request.full_uri in ${list_name}','description':'MUSITU canonical www to apex','action':'redirect','action_parameters':{'from_list':{'name':list_name,'key':'http.request.full_uri'}}}
-          if code==404 or not entry.get('success'):
-              code,rs=call('POST',f'/accounts/{account}/rulesets',{'name':'MUSITU canonical redirects','kind':'root','phase':'http_request_redirect','rules':[rule]},expected=(200,201))
-              assert rs.get('success');ruleset_id=rs['result']['id'];rule_id=(rs['result'].get('rules') or [{}])[0].get('id')
-              with open(os.environ['GITHUB_ENV'],'a') as f:
-                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULESET_CREATED=1\n')
-                  if rule_id:f.write('REDIRECT_RULE_ID='+rule_id+'\n')
-          else:
-              ruleset_id=entry['result']['id']
-              code,rr=call('POST',f'/accounts/{account}/rulesets/{ruleset_id}/rules',rule,expected=(200,201))
-              assert rr.get('success');rule_id=rr['result']['id']
-              with open(os.environ['GITHUB_ENV'],'a') as f:
-                  f.write('REDIRECT_RULESET_ID='+ruleset_id+'\nREDIRECT_RULE_ID='+rule_id+'\nREDIRECT_RULESET_CREATED=0\n')
-
-          code,dns=call('POST',f'/zones/{zone}/dns_records',{'type':'A','name':'www','content':'192.0.2.1','ttl':1,'proxied':True,'comment':'MUSITU canonical www redirect'},expected=(200,201))
-          assert dns.get('success');dns_id=dns['result']['id']
-          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('WWW_DNS_ID='+dns_id+'\n')
-          print('www_redirect_rule: CREATED')
-          print('www_dns_proxy_record: CREATED')
+          for name,flag in [('mftintelligence.com','APEX_DOMAIN_CREATED'),('www.mftintelligence.com','WWW_DOMAIN_CREATED')]:
+              code,d=call('POST',f'/accounts/{account}/pages/projects/{project}/domains',{'name':name},expected=(200,201))
+              assert d.get('success')
+              with open(os.environ['GITHUB_ENV'],'a') as f:f.write(flag+'=1\n')
+              print('pages_custom_domain_attach:',name,'CREATED')
+          print('www_dns_management: PAGES_MANAGED')
           PY
 
-      - name: Wait for apex domain TLS and production route readiness
+      - name: Wait for apex and www TLS/domain activation
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json,os,time,urllib.request
           token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
-          api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com'
           h={'Authorization':'Bearer '+token,'Accept':'application/json'}
-          active=False
-          for i in range(40):
-              with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
-              status=(b.get('result') or {}).get('status')
-              print('apex_domain_status_attempt',i+1,status)
-              if status=='active':active=True;break
-              if status in ('error','blocked','deactivated'):raise RuntimeError('Apex custom domain entered '+str(status))
-              time.sleep(5)
-          assert active,'Apex custom domain did not become active'
-          print('apex_tls_domain_active: PASS')
+          for name in ('mftintelligence.com','www.mftintelligence.com'):
+              api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/{name}'
+              active=False
+              for i in range(50):
+                  with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
+                  status=(b.get('result') or {}).get('status')
+                  print('domain_status',name,'attempt',i+1,status)
+                  if status=='active':active=True;break
+                  if status in ('error','blocked','deactivated'):raise RuntimeError(name+' entered '+str(status))
+                  time.sleep(5)
+              assert active,name+' did not become active'
+          print('apex_and_www_tls_domains_active: PASS')
           PY
 
-      - name: Public production smoke test all routes, headers, media, redirect and mail preservation
+      - name: Public production smoke test all routes, headers, media, canonical www and mail preservation
         id: smoke
         shell: bash
         run: |
@@ -261,19 +221,17 @@ jobs:
           assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
           with urllib.request.urlopen(origin+'/sitemap.xml',timeout=20) as r:sitemap=r.read().decode()
           assert sitemap.count('<url>')==33
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
-          op=urllib.request.build_opener(NoRedirect)
-          redirected=False
+          www_ok=False
           for _ in range(30):
               try:
-                  op.open('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20)
-              except urllib.error.HTTPError as e:
-                  loc=e.headers.get('Location','')
-                  if e.code in (301,308) and loc.startswith('https://mftintelligence.com/products/axiom/') and 'launch=1' in loc:
-                      redirected=True;break
+                  with urllib.request.urlopen('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20) as r:
+                      www_html=r.read().decode('utf8','replace')
+                  if r.status==200 and 'rel="canonical" href="https://mftintelligence.com/products/axiom/"' in www_html:
+                      www_ok=True;break
+              except Exception:
+                  pass
               time.sleep(4)
-          assert redirected,'Canonical www 301 redirect not verified'
+          assert www_ok,'www HTTPS Pages host with apex canonical link not verified'
           # Verify MX still present directly through Cloudflare API.
           token=os.environ['CLOUDFLARE_API_TOKEN'];zone=os.environ['CF_ZONE_ID']
           url='https://api.cloudflare.com/client/v4/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
@@ -286,7 +244,7 @@ jobs:
           print('legal_identification_live: PASS')
           print('studio_media_hash_live: PASS')
           print('robots_and_33_url_sitemap: PASS')
-          print('www_to_apex_301_preserves_path_query: PASS')
+          print('www_https_with_apex_canonical: PASS')
           print('mx_email_routing_preserved: PASS')
           print('existing_intelligence_origin_preserved: PASS')
           PY
@@ -307,7 +265,7 @@ jobs:
             "pages_project": "$CF_PAGES_NAME",
             "production_deployment_id": "$NEW_PROD_ID",
             "apex_custom_domain": "mftintelligence.com",
-            "www_behavior": "301 canonical redirect to apex, preserving path/query",
+            "www_behavior": "Pages-managed HTTPS hostname; every page canonicalizes to apex via rel=canonical",
             "studio_video_sha256": "afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0",
             "routes_smoke_tested": 33,
             "production_launch": "PASS"
@@ -340,13 +298,8 @@ jobs:
               except urllib.error.HTTPError as e:
                   return e.code,{}
               except Exception:return 0,{}
-          dns=os.environ.get('WWW_DNS_ID')
-          if dns:req('DELETE',f'/zones/{zone}/dns_records/{dns}')
-          rule=os.environ.get('REDIRECT_RULE_ID');rs=os.environ.get('REDIRECT_RULESET_ID');created=os.environ.get('REDIRECT_RULESET_CREATED')
-          if rs and created=='1':req('DELETE',f'/accounts/{account}/rulesets/{rs}')
-          elif rs and rule:req('DELETE',f'/accounts/{account}/rulesets/{rs}/rules/{rule}')
-          li=os.environ.get('REDIRECT_LIST_ID')
-          if li:req('DELETE',f'/accounts/{account}/rules/lists/{li}')
+          if os.environ.get('WWW_DOMAIN_CREATED')=='1':
+              req('DELETE',f'/accounts/{account}/pages/projects/{project}/domains/www.mftintelligence.com')
           if os.environ.get('APEX_DOMAIN_CREATED')=='1':
               req('DELETE',f'/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com')
           prev=os.environ.get('PREV_PROD_ID')
