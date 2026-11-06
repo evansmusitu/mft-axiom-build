@@ -132,8 +132,12 @@ jobs:
               assert sc and sc.status==200
               assert page.locator('video.studio-demo-player').count()==1,'Hosted Studio player missing'
               assert page.locator('video.studio-demo-player source[src="/assets/studio-demo-82s.mp4"]').count()==1,'Hosted approved video source missing'
-              page.wait_for_function("document.querySelector('video.studio-demo-player').readyState >= 1",timeout=15000)
-              duration=page.locator('video.studio-demo-player').evaluate("el => el.duration")
+              media=page.locator('video.studio-demo-player')
+              for _ in range(30):
+                  if media.evaluate("el => el.readyState") >= 1: break
+                  page.wait_for_timeout(500)
+              else: raise AssertionError('Studio media metadata did not load')
+              duration=media.evaluate("el => el.duration")
               assert 81.0 <= float(duration) <= 83.0,'Unexpected Studio media duration'
               print('studio_owner_cleared_82s_media_hosted: VERIFIED',duration)
               def navigate(path):
