@@ -1,0 +1,41 @@
+{
+  "all_four_requests_http200": true,
+  "backup_restore_qualified": false,
+  "customer_records_read": 0,
+  "files": {
+    "token-readback-42193105154.json": {
+      "bytes": 2717,
+      "sha256": "821e635762088577305fc6beb06228a4ccb74813a97e96a60a32a05f428bf503"
+    },
+    "token-readback-42193105154.log": {
+      "bytes": 22533,
+      "sha256": "f2d0fa6857b19e4a56a72d7c08f9d23203f02bcd043f89c97b31b06b109f741e"
+    }
+  },
+  "fixed_checkout_sha": "94ae644cd8d57f188dea10222907bc092165025f",
+  "head_sha": "41fc91d1a1925803d911eaca43d13416f1204aa0",
+  "head_tree": "c0856fcd559605499d0e73aa2dea19b9c5fa43a9",
+  "hosted_migration_qualified": false,
+  "inference_calls": 0,
+  "job_id": 127809646450,
+  "mutations": 0,
+  "release_authority": false,
+  "reported_table_count": 28,
+  "result": "SUCCESS_METADATA_OBSERVED_ONLY",
+  "run_id": 42193105154,
+  "schema": "musitu.axiom.hosted_preflight.token_readback.v1",
+  "schema_qualified": false,
+  "selected_database_identity_verified": true,
+  "source_ci": {
+    "failures": 0,
+    "job_id": 127809646530,
+    "node": 197,
+    "python": 54,
+    "result": "SUCCESS",
+    "run_id": 42193104973,
+    "skips": 0,
+    "workerd": 16
+  },
+  "sql_queries": 0,
+  "url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/42193105154"
+}

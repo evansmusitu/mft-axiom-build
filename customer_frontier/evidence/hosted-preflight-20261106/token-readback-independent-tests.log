@@ -1,0 +1,18 @@
+test_boolean_count_is_not_an_integer_count (test_cloudflare_metadata_readback.MetadataReadback.test_boolean_count_is_not_an_integer_count) ... ok
+test_checkout_and_event_provenance_are_distinct (test_cloudflare_metadata_readback.MetadataReadback.test_checkout_and_event_provenance_are_distinct) ... ok
+test_inconsistent_provider_count_is_not_complete (test_cloudflare_metadata_readback.MetadataReadback.test_inconsistent_provider_count_is_not_complete) ... ok
+test_malformed_pagination_preserves_incomplete_evidence (test_cloudflare_metadata_readback.MetadataReadback.test_malformed_pagination_preserves_incomplete_evidence) ... ok
+test_malformed_subdomain_preserves_incomplete_evidence (test_cloudflare_metadata_readback.MetadataReadback.test_malformed_subdomain_preserves_incomplete_evidence) ... ok
+test_metadata_observation_is_not_release_or_migration (test_cloudflare_metadata_readback.MetadataReadback.test_metadata_observation_is_not_release_or_migration) ... ok
+test_missing_pagination_is_not_complete_inventory (test_cloudflare_metadata_readback.MetadataReadback.test_missing_pagination_is_not_complete_inventory) ... ok
+test_more_pages_are_not_a_complete_inventory (test_cloudflare_metadata_readback.MetadataReadback.test_more_pages_are_not_a_complete_inventory) ... ok
+test_selected_database_missing_from_inventory_is_incomplete (test_cloudflare_metadata_readback.MetadataReadback.test_selected_database_missing_from_inventory_is_incomplete) ... ok
+test_subdomain_cannot_supply_an_external_url (test_cloudflare_metadata_readback.MetadataReadback.test_subdomain_cannot_supply_an_external_url) ... ok
+test_truncated_http_response_preserves_incomplete_artifact (test_cloudflare_metadata_readback.MetadataReadback.test_truncated_http_response_preserves_incomplete_artifact) ... ok
+test_workers_wrong_shape_never_qualifies (test_cloudflare_metadata_readback.MetadataReadback.test_workers_wrong_shape_never_qualifies) ... ok
+test_wrong_selected_database_denies_identity_match (test_cloudflare_metadata_readback.MetadataReadback.test_wrong_selected_database_denies_identity_match) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.015s
+
+OK

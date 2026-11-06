@@ -1,0 +1,92 @@
+{
+  "axiom_worker_names": [
+    "axiom-inference-zero-cash-do-stage-20261009",
+    "mft-axiom-billing-ingress",
+    "mft-axiom-binding-shape-probe",
+    "mft-axiom-bootstrap",
+    "mft-axiom-claude-staging-20260927",
+    "mft-axiom-modal-adapter",
+    "mft-axiom-modal-adapter-probe",
+    "mft-axiom-modal-edge-stage",
+    "mft-axiom-modal-exact-probe",
+    "mft-axiom-request-object-probe",
+    "mft-axiom-staging",
+    "musitu-axiom-claude-auth-candidate",
+    "musitu-axiom-claude-auth-publication",
+    "musitu-axiom-claude-mcp-candidate",
+    "musitu-axiom-claude-mcp-publication",
+    "musitu-axiom-fa13-canary",
+    "musitu-axiom-fa13-production-ui-edge",
+    "musitu-axiom-fa13-staging",
+    "musitu-axiom-fa20-production-ui-edge",
+    "musitu-axiom-mcp",
+    "musitu-axiom-mcp-core",
+    "musitu-axiom-modal-adapter",
+    "musitu-axiom-modal-edge-stage",
+    "musitu-axiom-oauth",
+    "musitu-axiom-operator-reviewer-mcp-20261006",
+    "musitu-axiom-operator-reviewer-oauth-20261006",
+    "musitu-axiom-public-status",
+    "musitu-axiom-review-video-20261027-c7314d",
+    "musitu-axiom-runtime-canary",
+    "musitu-axiom-runtime-staging",
+    "musitu-axiom-support",
+    "musitu-axiom-support-ops"
+  ],
+  "cloudflare_mutations": 0,
+  "customer_records_read": 0,
+  "database_count": 11,
+  "database_inventory_complete": true,
+  "database_pagination": {
+    "count": 11,
+    "page": 1,
+    "per_page": 100,
+    "total_count": 11
+  },
+  "database_returned_count": 11,
+  "event_sha": "f4b4c559faa0ed056a77b663b8cd2535bf767ccd",
+  "hosted_migration_qualified": false,
+  "http_methods": [
+    "GET"
+  ],
+  "inference_calls": 0,
+  "observed_at": "2026-11-06T09:11:14.116795+00:00",
+  "release_authority": false,
+  "run_id": "42193105154",
+  "schema": "musitu.axiom.customer.cloudflare_metadata_readback.v1",
+  "selected_database": {
+    "expected_name": "mft-axiom-claude-staging-20260927",
+    "file_size": 491520,
+    "id": "a7384b8a-0751-4705-ac77-0616b0885e7c",
+    "identity_verified": true,
+    "table_count": 28
+  },
+  "selected_database_listed": true,
+  "source_sha": "94ae644cd8d57f188dea10222907bc092165025f",
+  "sql_queries": 0,
+  "status": "METADATA_OBSERVED",
+  "transport": [
+    {
+      "http_status": 200,
+      "path": "/d1/database?per_page=100&page=1",
+      "success": true
+    },
+    {
+      "http_status": 200,
+      "path": "/d1/database/a7384b8a-0751-4705-ac77-0616b0885e7c",
+      "success": true
+    },
+    {
+      "http_status": 200,
+      "path": "/workers/scripts",
+      "success": true
+    },
+    {
+      "http_status": 200,
+      "path": "/workers/subdomain",
+      "success": true
+    }
+  ],
+  "workers_metadata_valid": true,
+  "workers_subdomain": "mft-education-nexus-93f395f5"
+}

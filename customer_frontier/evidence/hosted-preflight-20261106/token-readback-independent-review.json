@@ -1,0 +1,18 @@
+{
+  "workflow_sha256": "bb0734da5006a7e8389ea5b653dc52723cdb7aefd1bcd4c0b3f47e0c6d6b2ad0",
+  "source_commit": "94ae644cd8d57f188dea10222907bc092165025f",
+  "source_blobs": {
+    "customer_frontier/qualification/cloudflare_customer_inventory.py": "1909b0a0d142935f34778ff26af2fe36be74ea45",
+    "customer_frontier/tests/test_cloudflare_metadata_readback.py": "461dddf5d0c5ed4ff79ea1605507755503cf066d"
+  },
+  "source_sha256": {
+    "customer_frontier/qualification/cloudflare_customer_inventory.py": "a2c11686d3d0a5f26f7a07b457474a735c07349e2c00a08a7959d321fb7002ad",
+    "customer_frontier/tests/test_cloudflare_metadata_readback.py": "386f72a2c1b1130da8bacd21d60f1434a094733c01279d4baf3bd94a2eb98e21"
+  },
+  "offline_tests": 13,
+  "credential_steps": 1,
+  "network_operations": "four fixed GETs only",
+  "sql_queries": 0,
+  "mutations": 0,
+  "verdict": "NO_BLOCKER_FOR_BOUNDED_METADATA_READ_ONLY_RUN_NOT_HOSTED_ACCEPTANCE"
+}
