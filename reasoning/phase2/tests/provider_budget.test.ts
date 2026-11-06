@@ -363,3 +363,18 @@ test("SQLite metered provider ignores caller replacement of its internal databas
     });
   }finally{x.ledger.close();}
 });
+
+
+test("PostgreSQL ledger is not redirected by a replaced public pool property",async()=>{
+  const original=new pg.Pool({host:"127.0.0.1",port:1,
+    connectionTimeoutMillis:100,max:1});
+  const ledger=new phase2.PostgresProviderSpendLedger(original);
+  try{
+    Object.defineProperty(ledger,"pool",{
+      configurable:true,get(){throw new Error("FORGED_POSTGRES_POOL_USED");}
+    });
+    await assert.rejects(()=>ledger.status(scope(),"test:openai","test-model"),
+      (error:any)=>error?.code==="BUDGET_STORE_UNAVAILABLE",
+      "trusted billing should attempt its original Pool and fail safely on unavailable database");
+  }finally{await original.end();}
+});
