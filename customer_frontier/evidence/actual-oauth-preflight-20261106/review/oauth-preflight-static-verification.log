@@ -1,0 +1,25 @@
+{
+  "result": "PASS",
+  "source": "ad07f467268b2b322e6afb491567b7ede751591a",
+  "tree": "2d51daa306d2d679c687d6222cfe40310c3da013",
+  "parent": "7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a",
+  "files": [
+    {
+      "path": "customer_frontier/qualification/oauth_existing_component_preflight.mjs",
+      "sha256": "039612399edbce1c592a285e95232a43b5c32cbaeba88e835d16dd017abcfd24",
+      "blob": "18e9845a892213d15469f454168d402a0c6a9e12"
+    },
+    {
+      "path": "customer_frontier/tests/oauth_existing_component_preflight.test.mjs",
+      "sha256": "0721defbc3db6dd8bb581351f06988363fe8b65fbfac696447c33698187728da",
+      "blob": "ff4ca6ffbd88f42d5a14566baab1000696ffd06a"
+    }
+  ],
+  "dependencies": {
+    "customer_frontier/recovery/export_existing_d1_backup.mjs": "35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c",
+    "customer_frontier/recovery/recipient-20261106.pem": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3"
+  },
+  "local_workflow_sha256": "020b023a1e59035c7b2a0fecbdfab17111729a94a9c5669bf4612c851b93c610",
+  "sole_credential_step_after_hashes_tests": true,
+  "provider_calls": 0
+}

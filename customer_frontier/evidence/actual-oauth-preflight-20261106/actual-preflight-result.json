@@ -1,0 +1,59 @@
+{
+  "schema": "musitu.axiom.actual_oauth_preflight.v1",
+  "source_sha": "ad07f467268b2b322e6afb491567b7ede751591a",
+  "database_id": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "status": "BASE_CONSISTENCY_OBSERVED_NOT_MIGRATION",
+  "transport": [
+    {
+      "kind": "binding",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "metadata",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "catalog",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "consistency",
+      "http_status": 200,
+      "provider_error_codes": []
+    }
+  ],
+  "catalog_observed": true,
+  "base_consistency_observed": true,
+  "queries": 2,
+  "zero_write_queries": 2,
+  "provider_query_mutations": 0,
+  "required_tables_present": [
+    "customers",
+    "api_keys",
+    "oauth_authorization_codes",
+    "oauth_access_tokens",
+    "oauth_refresh_tokens"
+  ],
+  "counts": {
+    "foreign_key_violations": 0,
+    "invalid_customers": 0,
+    "invalid_keys": 0,
+    "invalid_codes": 0,
+    "invalid_access": 0,
+    "invalid_refresh": 0
+  },
+  "target_admitted": false,
+  "migration_qualified": false,
+  "release_authority": false,
+  "catalog_sha256": "56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1",
+  "catalog_objects": 33,
+  "encrypted_catalog_sha256": "33eda7854a947f5b840780a7ca0aad0f2cecd6ab9aed11a115386712ae2ba99f",
+  "encrypted_catalog_bytes": 13997,
+  "limitations": [
+    "Base-row checks do not qualify identity-link consistency or unknown trigger bodies.",
+    "No backup, hosted rollback, actual D1 batch, target admission or migration is performed."
+  ]
+}
