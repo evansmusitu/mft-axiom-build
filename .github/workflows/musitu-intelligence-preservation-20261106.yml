@@ -1,0 +1,91 @@
+name: MUSITU Intelligence Synthetic Workspace Preservation 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-intelligence-preservation-20261106.yml
+permissions:
+  contents: read
+jobs:
+  synthetic-vault:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      EXISTING_INTELLIGENCE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch read-only existing Intelligence source by SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/intelligence-original"
+          git -C "$RUNNER_TEMP/intelligence-original" init -q
+          git -C "$RUNNER_TEMP/intelligence-original" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
+          git -C "$RUNNER_TEMP/intelligence-original" fetch -q --depth=1 origin "$EXISTING_INTELLIGENCE_SHA"
+          git -C "$RUNNER_TEMP/intelligence-original" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/intelligence-original" rev-parse HEAD)" = "$EXISTING_INTELLIGENCE_SHA"
+      - name: Read-only live origin and independent corporate staging checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          op=urllib.request.build_opener(NoRedirect)
+          req=urllib.request.Request('https://evansmusitu.github.io/',headers={'User-Agent':'MUSITU-Preservation-Synthetic/20261106'})
+          with urllib.request.urlopen(req,timeout=20) as response:
+              html=response.read(150000).decode('utf-8','replace')
+              assert response.status==200 and 'MUSITU' in html.upper(),'Existing Intelligence homepage changed'
+          print('existing_intelligence_origin_live: PASS')
+          url='https://corporate-private-20261103.musitu-corporate.pages.dev/'
+          try:
+              with op.open(urllib.request.Request(url),timeout=20) as response:
+                  status=response.status
+                  loc=response.headers.get('Location','')
+          except urllib.error.HTTPError as exc:
+              status=exc.code;loc=exc.headers.get('Location','')
+          assert status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc),'Corporate stage lacks Access'
+          print('isolated_corporate_stage_publicly_blocked: PASS')
+          PY
+      - name: Synthetic-only AES-GCM vault backup restore and legacy slot test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/intelligence-original"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {webcrypto} from 'node:crypto';
+          globalThis.crypto = webcrypto;
+          const vault = await import('./assets/musitu-workspace-vault.mjs');
+          const slots = await import('./assets/musitu-workspace-slots.mjs');
+          const message = 'MUSITU_SYNTHETIC_TEST_ONLY_20261106';
+          const plaintext = {transcript:[{role:'user',content:message+' question'}, {role:'assistant',content:message+' answer'}],history:[{role:'user',content:message+' question'}]};
+          const passphrase='MUSITU-TEST-ONLY-passphrase-2026-strong';
+          const encrypted=await vault.encryptWorkspace(plaintext,passphrase);
+          assert.ok(encrypted.length>100 && encrypted.length<250000);
+          assert.ok(!encrypted.includes(message));
+          assert.equal(vault.validateEncryptedEnvelope(encrypted),true);
+          assert.deepEqual(await vault.decryptWorkspace(encrypted,passphrase),plaintext);
+          await assert.rejects(vault.decryptWorkspace(encrypted,'WRONG-passphrase-for-synthetic-only'),e=>e.code==='UNLOCK_FAILED');
+          const store=new Map();
+          const storage={getItem(k){return store.has(k)?store.get(k):null},setItem(k,v){store.set(k,v)},removeItem(k){store.delete(k)}};
+          assert.equal(slots.slotKey(1),vault.VAULT_KEY,'Old v1 storage key changed');
+          assert.equal(slots.WORKSPACE_SLOT_COUNT,5);
+          for(let i=1;i<=5;i++)slots.saveSlot(i,encrypted,storage);
+          assert.equal(slots.listSlots(storage).filter(x=>x.occupied).length,5);
+          const v1=slots.readSlot(1,storage);
+          slots.deleteSlot(3,storage);
+          assert.equal(slots.readSlot(1,storage),v1,'Legacy slot 1 changed');
+          assert.equal(slots.readSlot(3,storage),null);
+          assert.deepEqual(await vault.decryptWorkspace(slots.readSlot(1,storage),passphrase),plaintext);
+          assert.equal(store.size,4);
+          console.log('synthetic_vault_encrypt_decrypt_and_wrong_password: PASS');
+          console.log('five_slots_and_original_v1_key_preserved: PASS');
+          console.log('synthetic_local_export_import_compatibility: PASS');
+          console.log('customer_data_accessed: false');
+          JS
