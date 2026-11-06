@@ -19,6 +19,9 @@ _DATASET_VERSION=1
 _DOI="10.17632/yd7vw4c5mk.1"
 _LICENSE="CC BY 4.0"
 _SOURCE_PAGE="https://data.mendeley.com/datasets/yd7vw4c5mk/1"
+# Official OpenML 42701 raw ARFF, observed after provider MD5 verification.
+# Do not silently qualify a different 1.1-GB source behind the same dataset ID.
+_OPENML_RAW_SHA256="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
 
 
 @dataclass(frozen=True)
@@ -284,6 +287,10 @@ def evaluate_longwall_gate(spec: LongwallTelemetrySpec, report: Mapping[str,Any]
         and report.get("license")==spec.license
         and _sha256(report.get("source_archive_sha256"))
         and _sha256(report.get("source_member_sha256"))
+        and (report.get("transport_source") != "openml:42701" or (
+            report["source_archive_sha256"] == _OPENML_RAW_SHA256
+            and report["source_member_sha256"] == _OPENML_RAW_SHA256
+        ))
     )
     corpus_ok=(
         int(report.get("source_rows") or 0) >= spec.min_source_rows
@@ -306,6 +313,14 @@ def evaluate_longwall_gate(spec: LongwallTelemetrySpec, report: Mapping[str,Any]
         "schema":"musitu.connect.mining.real_telemetry_qualification.v1",
         "real_telemetry_qualified":qualified,
         "gate":"REAL_MINE_TELEMETRY_QUALIFIED" if qualified else "REAL_MINE_TELEMETRY_FAILED",
+        # This historical gate refers only to signed/replayable ingestion of
+        # the *development* corpus, never independent methane-model testing.
+        "source_role":"POLISH_DEVELOPMENT_CORPUS_ONLY",
+        "independent_source_eligible":False,
+        "independent_mine_validation":False,
+        "frozen_model_forecast_skill_evaluated":False,
+        "customer_admission_authorized":False,
+        "production_methane_prediction_authorized":False,
         "checks":{
             "verified_transport_and_cc_by_source_binding":"PASS" if source_bound else "FAIL",
             "full_corpus_schema_and_warning_evidence":"PASS" if corpus_ok else "FAIL",

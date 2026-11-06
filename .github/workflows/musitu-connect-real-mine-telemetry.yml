@@ -8,6 +8,7 @@ on:
       - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
       - 'benchmarks/mining_adapter/polish_longwall_telemetry_runner.py'
       - 'tests/connect/test_polish_longwall_telemetry.py'
+      - 'tests/connect/test_polish_development_source_boundary.py'
       - 'qualification/telemetry_source_failure.py'
       - 'tests/connect/test_telemetry_source_failure.py'
       - 'tests/connect/test_mining_telemetry.py'
@@ -41,7 +42,7 @@ jobs:
       - name: Verify telemetry contract
         run: |
           python -m py_compile             connect/mining_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry_runner.py qualification/telemetry_source_failure.py
-          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry             tests.connect.test_telemetry_source_failure -v
+          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry             tests.connect.test_telemetry_source_failure             tests.connect.test_polish_development_source_boundary -v
           python benchmarks/mining_adapter/polish_longwall_telemetry_runner.py --help >/dev/null
 
       - name: Bind public dataset identity and CC BY 4.0 license
@@ -199,6 +200,11 @@ jobs:
           q=report["qualification"]
           assert q["real_telemetry_qualified"] is True
           assert q["gate"]=="REAL_MINE_TELEMETRY_QUALIFIED"
+          assert q["source_role"]=="POLISH_DEVELOPMENT_CORPUS_ONLY"
+          for key in ("independent_source_eligible", "independent_mine_validation",
+                      "frozen_model_forecast_skill_evaluated", "customer_admission_authorized",
+                      "production_methane_prediction_authorized"):
+              assert q[key] is False
           assert e["dataset_id"]=="yd7vw4c5mk"
           assert e["dataset_version"]==1
           assert e["doi"]=="10.17632/yd7vw4c5mk.1"
@@ -217,6 +223,8 @@ jobs:
           assert e["credentials_used"] is False
           assert e["errors"] == []
           print("REAL_MINE_TELEMETRY_QUALIFICATION=PASS")
+          print("POLISH_DEVELOPMENT_CORPUS_INGEST_ONLY=PASS")
+          print("INDEPENDENT_MINE_HOLDOUT=NOT_QUALIFIED")
           print("CUSTOMER_RELEASE_AUTHORIZED=false")
           print("INDEPENDENT_MINE_VALIDATION=false")
           print(json.dumps({
