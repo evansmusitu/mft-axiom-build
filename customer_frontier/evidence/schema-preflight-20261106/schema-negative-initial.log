@@ -1,0 +1,1 @@
+{"case": "contradictory-changed-db-true", "exit": 0, "status": "SCHEMA_CATALOG_OBSERVED", "mutations": 0, "query_changes": 0, "query_rows_written": 0, "requests": 2}

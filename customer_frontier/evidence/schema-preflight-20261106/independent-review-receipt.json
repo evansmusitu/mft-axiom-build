@@ -1,0 +1,26 @@
+{
+  "additional_negative_flags": [
+    true,
+    "MISSING",
+    null,
+    "false",
+    0,
+    0.0,
+    [],
+    {}
+  ],
+  "custody_certification": false,
+  "finding": "P2 contradictory changed_db true accepted as zero mutations",
+  "hosted_acceptance": false,
+  "independent_tests": 18,
+  "initial_reproduced": true,
+  "initial_source_commit": "08b5c423b7819236ccb5adf17d20001bc9f393f7",
+  "only_false_accepted": true,
+  "reader_sha256": "26cc14def42d1cd40c26d4099d791dca0904fbd070b9d619a28d8cf56804904a",
+  "release_authority": false,
+  "repair": "require actual boolean false plus two exact integer-zero counters; preserve conflicts as INCOMPLETE and mutations UNKNOWN",
+  "schema": "musitu.axiom.schema_readback.independent_review.v1",
+  "source_verdict": "NO_UNRESOLVED_P0_P2_BOUNDED_READONLY_SOURCE",
+  "test_sha256": "de7cdc95e1e6f07731387cc91a66ba86e9f7f89b5563676c54d875dd8b1a46ad",
+  "workflow_verdict": "MUST_REPIN_TO_REPAIRED_IMMUTABLE_SOURCE_BEFORE_RUN"
+}

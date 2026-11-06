@@ -1,0 +1,23 @@
+test_boolean_write_count_is_not_integer_zero (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_boolean_write_count_is_not_integer_zero) ... ok
+test_contradictory_database_changed_flag_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_contradictory_database_changed_flag_is_unknown) ... ok
+test_database_changed_flag_requires_actual_boolean_false (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_database_changed_flag_requires_actual_boolean_false) ... ok
+test_duplicate_object_rejected_without_partial_catalog (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_duplicate_object_rejected_without_partial_catalog) ... ok
+test_exact_catalog_request_and_hashes_without_ddl_or_customer_rows (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_exact_catalog_request_and_hashes_without_ddl_or_customer_rows) ... ok
+test_extra_provider_field_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_extra_provider_field_rejected) ... ok
+test_invalid_identifier_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_invalid_identifier_rejected) ... ok
+test_missing_database_changed_flag_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_database_changed_flag_is_unknown) ... ok
+test_missing_token_stops_before_network (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_token_stops_before_network) ... ok
+test_missing_write_metadata_is_unknown (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_missing_write_metadata_is_unknown) ... ok
+test_multiple_query_results_rejected (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_multiple_query_results_rejected) ... ok
+test_no_redirect_handler_never_follows_target (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_no_redirect_handler_never_follows_target) ... ok
+test_real_sqlite_authorizer_allows_only_catalog_reads (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_real_sqlite_authorizer_allows_only_catalog_reads) ... ok
+test_redirect_refused_without_provider_body (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_redirect_refused_without_provider_body) ... ok
+test_transport_detail_is_not_printed (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_transport_detail_is_not_printed) ... ok
+test_unsuccessful_query_is_preserved_as_incomplete (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_unsuccessful_query_is_preserved_as_incomplete) ... ok
+test_write_metadata_cannot_qualify_read_only (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_write_metadata_cannot_qualify_read_only) ... ok
+test_wrong_database_stops_before_sql (test_cloudflare_customer_schema_readonly.SchemaReadOnly.test_wrong_database_stops_before_sql) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.029s
+
+OK

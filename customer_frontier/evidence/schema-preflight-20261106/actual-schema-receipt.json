@@ -1,0 +1,49 @@
+{
+  "backup_restore_qualified": false,
+  "catalog_sha256": "7ecf48b90c30e0e5fc3a05ff90c58da4c83590d8173a40022a941f884946a947",
+  "changed_db": false,
+  "changes": 0,
+  "customer_records_read": 0,
+  "files": {
+    "actual-schema-42195469838.json": {
+      "bytes": 21385,
+      "sha256": "1e28bc77c22326bf092ad52e30268da51b073f6e3cbf0d627db3170fd3a7a909"
+    },
+    "actual-schema-42195469838.log": {
+      "bytes": 39364,
+      "sha256": "a2ecd3ede40f2fb17f6d88353fcc7515d5c640f6cf1b1dcda864690d0e0ecc88"
+    }
+  },
+  "finding": "Selected staging DB lacks OAuth authorization-code/access-token/refresh-token parent tables. Existing-schema upgrade not admitted on this target.",
+  "fixed_checkout": "29bfb5a81996226ae10b4d8dadbf106d2aab27df",
+  "head_sha": "4cbb04a9a516b0503801f87446a5963b659e71fa",
+  "head_tree": "db80b1f29c61f87d3336ee768bfda0d5d5276483",
+  "hosted_migration_qualified": false,
+  "job_id": 127817548750,
+  "mutations": 0,
+  "oauth_parent_presence": {
+    "api_keys": true,
+    "customers": true,
+    "oauth_access_tokens": false,
+    "oauth_authorization_codes": false,
+    "oauth_refresh_tokens": false
+  },
+  "objects": 88,
+  "raw_ddl_disclosed": false,
+  "release_authority": false,
+  "result": "SUCCESS_SCHEMA_CATALOG_OBSERVED_ONLY",
+  "rows_written": 0,
+  "run_id": 42195469838,
+  "schema": "musitu.axiom.schema_readback.actual_receipt.v1",
+  "source_ci": {
+    "failures": 0,
+    "job_id": 127817548734,
+    "node": 197,
+    "python": 72,
+    "run_id": 42195469751,
+    "skips": 0,
+    "status": "SUCCESS",
+    "workerd": 16
+  },
+  "url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/42195469838"
+}
