@@ -779,3 +779,25 @@ test("PostgreSQL billing records overages, suspends further calls and fails clos
  await assert.rejects(()=>ledger.reserve({...reservation,requestId:"pg-new",requestHash:"d".repeat(64)}),/suspended|overage/i);
  await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999),/immutable|existing|differs/i);
 });
+
+
+test("PostgreSQL denies vendor reservations when the shared organization spending cap is not provisioned",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-organization-unprovisioned"};
+ const provider="adapter:pg-organization-unprovisioned",modelId="billing:model-unprovisioned";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
+ // The operator may provision a tenant limit without having approved the
+ // separate upstream vendor's aggregate organization spending authority.
+ await ledger.provision(tenant,provider,modelId,1000,"anthropic");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,
+  billingProvider:"anthropic",requestId:"org-not-provisioned",
+  requestHash:"7".repeat(64),reserveMicroUsd:700};
+ await assert.rejects(()=>ledger.reserve(reservation),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_NOT_PROVISIONED");
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
+ });
+});
