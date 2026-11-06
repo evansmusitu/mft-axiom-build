@@ -1,0 +1,12 @@
+✔ complete real customer schema rolls back then applies atomically preserving foreign objects (17.243416ms)
+✔ dirty foreign rows and catalog drift reject before schema changes (2.105173ms)
+✔ unrelated first-batch error cannot qualify rollback or apply forward schema (1.574444ms)
+✔ auth expiry and browser requests cannot trigger migrations (4.851321ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 131.733922

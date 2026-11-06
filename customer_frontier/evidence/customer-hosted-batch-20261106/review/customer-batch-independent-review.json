@@ -1,0 +1,42 @@
+{
+  "schema": "musitu.axiom.independent_customer_hosted_batch_review.v1",
+  "verdict": "HOSTED_WRITE_REVIEW_INCOMPLETE_HOLD_CODE_ONLY",
+  "initial_source": "a47efb8c2e6e4fa37c241dc81c7d2b8bc6a3d5f9",
+  "corrected_source": "3d7fba395a051421e1ceacb06ee5c425830d9421",
+  "corrected_tree": "8167f00900ce1bb6164c4cbcc04859629942b9e4",
+  "corrected_worker_sha256": "cdc04787f241c0677b1faab1094955d755d8e9b6bc0ff81df623c694e7190b03",
+  "corrected_tests_sha256": "d89f36786693f24e6ac1095fe152bb917f385a8a48da2a44ebb81d18e586975d",
+  "corrected_local_workflow_sha256": "3797d63862214742a00d53b0eee4e7fe51ba7a77250e6a10a6e74f89ab339bcd",
+  "finding": {
+    "severity": "P2",
+    "initial_state": "CONFIRMED_BLOCKING",
+    "issue": "Any first-batch failure was accepted as forced rollback, allowing a pre-execution transient failure to be followed by forward schema application and false atomic rollback evidence.",
+    "original_repro": "customer-batch-transient-repro.test.mjs",
+    "original_log": "customer-batch-transient-repro.log",
+    "corrected_state": "NARROW_REPAIR_INDEPENDENTLY_VERIFIED",
+    "repair": "Dedicated named CHECK constraint is required in error.message or error.cause.message. Other failures reject before forward batch; original catalog still must match.",
+    "validation": "4 supplied corrected realSQLite tests pass; independent regression adds transient busy and unrelated CHECK errors, each stops at1batch/no tenants table.5total methods pass in customer-batch-fixed-regression.log."
+  },
+  "review_scope": {
+    "original_source_files": "Four exact-ref files fetched and Git blobs/contents retained; source read for plan, Worker, driver and tests.",
+    "corrected_identity": "Exact remote/local Worker/test bytes, SHA256/Gitblob and commit/tree/parent verified; local updatedworkflow hash matched.",
+    "remaining": "Full hosted-write/driver verification and complete final workflow admission were not completed before the user window ended. Narrow repair must not be treated as full hosted-write recommendation."
+  },
+  "deadline": "2026-11-06T20:59:18Z",
+  "final_clock_observed": "2026-11-06T20:59:27Z",
+  "hosted_run_recommended": false,
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "retained_artifacts": [
+    "customer-batch-initial-blocker.md",
+    "customer-batch-initial-identities.json",
+    "customer-batch-original-worker.mjs",
+    "customer-batch-transient-repro.test.mjs",
+    "customer-batch-transient-repro.log",
+    "customer-batch-fixed-identities.json",
+    "customer-batch-fixed-existing-tests.log",
+    "customer-batch-fixed-regression.test.mjs",
+    "customer-batch-fixed-regression.log"
+  ],
+  "authority": "Hold at code-only draft; no hosted write, customer acceptance, production OAuth upgrade, recovery, integration or release qualification. Preserve PR1,$0,Paynow,customer/q06 data and rollback origin."
+}

@@ -1,0 +1,29 @@
+✖ real workerd rolls back complete customer DDL then preserves schema through isolate restart and token rotation (503.607113ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 869.969181
+
+✖ failing tests:
+
+test at customer_frontier/runtime_acceptance/customer_batch_runtime.test.mjs:13:1
+✖ real workerd rolls back complete customer DDL then preserves schema through isolate restart and token rotation (503.607113ms)
+  AssertionError [ERR_ASSERTION]: {"diagnostic":"D1_ERROR: not authorized: SQLITE_AUTH","cause":"not authorized: SQLITE_AUTH"}
+  
+  500 !== 200
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/customer-hosted-batch/customer_frontier/runtime_acceptance/customer_batch_runtime.test.mjs:22:125)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

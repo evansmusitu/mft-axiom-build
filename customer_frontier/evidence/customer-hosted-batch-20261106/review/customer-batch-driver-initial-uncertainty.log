@@ -1,0 +1,17 @@
+✔ happy driver confines target, rotates, verifies and deletes its new Worker (116.404042ms)
+✔ metadata drift, existing Worker and invalid subdomain never create or migrate (272.659516ms)
+✔ uncertain create cleans only matching owned Worker and denies foreign replacement (202.763856ms)
+{"scenario":"qualify_lost_after_apply","simulated_actual_applied":true,"reported_customer_schema_applied":false,"error":"qualification_or_deployment_failed_reconcile_actual_schema"}
+{"scenario":"qualify_503","simulated_actual_applied":true,"reported_customer_schema_applied":false,"error":"qualification_or_deployment_failed_reconcile_actual_schema"}
+✔ loss after commit and 503 remain failed reconciliation states, never retried (198.310311ms)
+✔ rotation uncertainty, old-token acceptance and verify failure cannot report complete (278.273028ms)
+✔ cleanup failure or foreign replacement never becomes removed success (280.3691ms)
+✔ already absent cleanup is accepted only after readback (85.003848ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1567.810723

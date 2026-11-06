@@ -1,0 +1,77 @@
+name: AXIOM customer hosted D1 rollback then schema (STAGING NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-hosted-batch-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-hosted-batch-20261106
+  cancel-in-progress: false
+jobs:
+  qualify-customer-stage:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-customer-hosted-batch-20261106' && github.event.pull_request.base.ref == 'build/axiom-customer-hosted-batch-review-20261106' && github.event.pull_request.base.sha == 'd3ac105425088f672f0663b921be184482035b0a' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 60d1de79a220017e008b3002982de71bbf660c0b
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Verify immutable reviewed plan, worker, driver and tests
+        id: admit_source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='60d1de79a220017e008b3002982de71bbf660c0b'
+          for path,expected in {
+            'customer_frontier/qualification/customer-hosted-plan-20261106.json':'06cfe6adfed21dc718ce0f0cdd53521a05e8bee8d1f0e95fccd7e823575ed80c',
+            'customer_frontier/qualification/customer_hosted_batch_worker.mjs':'74e2deac5ad8a308217765dbe94a09381bbb9aafb686ac98978aa248e35ad69b',
+            'customer_frontier/qualification/run_customer_hosted_batch.mjs':'b15b4f058ae43b0d7c0538e09cdd35c63b17c79eacaeaa5dae925d0c767abdc3',
+            'customer_frontier/qualification/cleanup_customer_hosted_batch.mjs':'17c79b4390a57589107ef060f4957ef1b3792c32f6c5e06d65f92f6243d1443d',
+            'customer_frontier/runtime_acceptance/customer_batch_runtime.test.mjs':'49cd55b9ac65a89de4ba07393247b66cf9edb99181c2ef485bb9e83bb7bfc977',
+            'customer_frontier/runtime_acceptance/package.json':'c8d2f9175459113cf56f6dcf45ad63dcac882244fca860d35fadc57d53128b63',
+            'customer_frontier/runtime_acceptance/package-lock.json':'8dfa949b9a2241bef233de8193e89b60d16e6db868eaf3a108a67850eb38c58a',
+            'customer_frontier/tests/customer_hosted_batch.test.mjs':'d89f36786693f24e6ac1095fe152bb917f385a8a48da2a44ebb81d18e586975d',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print('Fixed reviewed customer-only batch candidate verified')
+          PY
+      - name: Verify full real SQLite plan rollback, preservation and boundary tests offline
+        id: offline_sqlite
+        run: node --test customer_frontier/tests/customer_hosted_batch.test.mjs
+      - name: Install locked local workerd without install scripts
+        working-directory: customer_frontier/runtime_acceptance
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify actual local workerd rollback, schema and restart before credentials
+        id: offline_workerd
+        working-directory: customer_frontier/runtime_acceptance
+        run: node --test customer_batch_runtime.test.mjs
+      - name: Qualify rollback before applying owned customer staging schema
+        id: qualify_customer_stage
+        timeout-minutes: 3
+        env:
+          AXIOM_CHECKOUT_SHA: 60d1de79a220017e008b3002982de71bbf660c0b
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/run_customer_hosted_batch.mjs
+      - name: Independently reconcile only the owned temporary Worker
+        if: always() && steps.admit_source.outcome == 'success' && steps.offline_sqlite.outcome == 'success' && steps.offline_workerd.outcome == 'success' && steps.qualify_customer_stage.outcome != 'skipped' && steps.qualify_customer_stage.outcome != ''
+        timeout-minutes: 1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/cleanup_customer_hosted_batch.mjs
+      - name: Preserve actual schema outcome and owned Worker cleanup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-hosted-batch-20261106
+          path: |
+            customer-hosted-batch-result.json
+            customer-hosted-batch-cleanup.json
+          retention-days: 30
+          if-no-files-found: warn

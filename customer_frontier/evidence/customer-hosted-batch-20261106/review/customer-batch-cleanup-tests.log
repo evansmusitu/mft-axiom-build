@@ -1,0 +1,11 @@
+✔ cleanup requires owned target proof and confirms404 after deletion or priorabsence (193.571661ms)
+✔ wrong owner DB RUN and missing proof cannot delete any Worker (365.872264ms)
+✔ permission delete and readback uncertainty remain unconfirmed without retrying deletion (376.887121ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1075.016215
