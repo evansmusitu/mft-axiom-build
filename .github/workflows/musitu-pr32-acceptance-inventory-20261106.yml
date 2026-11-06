@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 9
     env:
       BASE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
-      RELEASE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
+      RELEASE_SHA: 835e5caafa28acca63d296ee299bf6a9b0e66255
     steps:
       - name: Fetch both exact reviewed source commits
         shell: bash
@@ -45,7 +45,7 @@ jobs:
           out.mkdir()
           base=os.environ['BASE_SHA'];head=os.environ['RELEASE_SHA']
           names=subprocess.check_output(['git','-C',str(root),'diff','--name-only',base,head,'--'],text=True).splitlines()
-          assert len(names)==35 and all(x.startswith('corporate/') for x in names),'Source scope is not exact'
+          assert len(names)==37 and all(x.startswith('corporate/') for x in names),'Source scope is not exact'
           with (out/'SOURCE_SHA256.csv').open('w',newline='') as f:
             writer=csv.writer(f);writer.writerow(['source_path','bytes','sha256'])
             for name in sorted(names):
@@ -59,7 +59,7 @@ jobs:
               writer.writerow([p.relative_to(dist).as_posix(),len(data),hashlib.sha256(data).hexdigest()])
           manifest=json.loads((dist/'manifest.json').read_text())
           assert len(manifest['routes'])==34 and not manifest['production_approved'] and not manifest['media_publication_approved']
-          assert len(manifest['files'])==40 and len(assets)==41
+          assert len(manifest['files'])==42 and len(assets)==43
           qa={'source_commit':head,'base_sha':base,'repo':'evansmusitu/evansmusitu.github.io','pr':32,
             'changed_source_files':len(names),'generated_asset_files':len(assets),
             'routes':len(manifest['routes']),'media_included':True,'studio_video_owner_review_only':False,
