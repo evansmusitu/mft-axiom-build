@@ -39,6 +39,13 @@
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
   "parity_superiority": "NOT_CERTIFIED",
   "unavailable_final_usage": "UNKNOWN",
-  "CI": "PENDING_REMOTE_DRAFT_CREATION",
+  "CI": {
+    "run_id": 42160505485,
+    "job_id": 127704772711,
+    "source_commit": "fa597bc0fba383f75e3fcca78f6cc5068d3d5202",
+    "tree": "159f3a9581b6a160817eb820f67d6377cfe46579",
+    "status": "SUCCESS_196_NODE_54_PYTHON",
+    "hosted_acceptance": false
+  },
   "raw_evidence_whitespace": "Raw failure/claim logs preserved byte-for-byte; git diff --check reports whitespace in these logs only."
 }
