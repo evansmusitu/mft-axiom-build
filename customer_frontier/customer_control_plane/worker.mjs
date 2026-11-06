@@ -23,7 +23,7 @@ async function verifiedEvent(req,env){
  if(env.ALLOW_INTERNAL_RECONCILIATION!=='qualified_private_binding')throw new Error('reconciliation_not_qualified');
  if(!env.PROVIDER_VERIFIER?.fetch)throw new Error('provider_verifier_unavailable');
  const raw=await req.text();if(raw.length>12000)throw new Error('payload_too_large');
- const attested=await env.PROVIDER_VERIFIER.fetch(new Request('https://axiom-internal/verify-settlement',{method:'POST',body:raw,headers:{'content-type':'application/json','x-axiom-purpose':'commercial-reconciliation'},redirect:'error'}));
+ const attested=await env.PROVIDER_VERIFIER.fetch(new Request('https://axiom-internal/verify-settlement',{method:'POST',body:raw,headers:{'content-type':'application/json','x-axiom-purpose':'commercial-reconciliation'},redirect:'manual'}));
  if(attested.status!==200)throw new Error('provider_not_verified');
  const receipt=await attested.json();if(receipt.verified!==true||receipt.production_qualified!==true||receipt.source!=='provider_verifier')throw new Error('provider_not_qualified');
  return receipt.evidence;
@@ -67,7 +67,7 @@ export async function handle(request,env){
   if(order.state!=='pending')return error('order_not_payable',409);
   const provider=await env.CHECKOUT_SERVICE.fetch(new Request('https://axiom-internal/payments/create',{
    method:'POST',headers:{'content-type':'application/json','idempotency-key':order.id},
-   body:JSON.stringify({order_id:order.id,amount_minor:order.amount_minor,currency:order.currency,tenant_id:tenant_id}),redirect:'error'}));
+   body:JSON.stringify({order_id:order.id,amount_minor:order.amount_minor,currency:order.currency,tenant_id:tenant_id}),redirect:'manual'}));
   if(provider.status!==201)return error('payment_service_unavailable',503);
   const result=await provider.json();const target=String(result.checkout_url||'');
   let checkoutUrl;try{checkoutUrl=new URL(target)}catch{return error('invalid_checkout_destination',503)}

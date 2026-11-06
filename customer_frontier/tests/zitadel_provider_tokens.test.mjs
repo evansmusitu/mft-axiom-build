@@ -32,7 +32,7 @@ test('real RSA verification accepts matching signed MFA identity and subject-bou
  assert.equal(t.requests.length,2);
  assert.equal(t.requests[0].headers.has('authorization'),false);
  assert.equal(t.requests[1].headers.get('authorization'),'Bearer '+access);
- for(const r of t.requests){assert.equal(r.redirect,'error');assert.equal(r.credentials,'omit');assert.equal(r.method,'GET');}
+ for(const r of t.requests){assert.equal(r.redirect,'manual');assert.equal(r.headers.has('cookie'),false);assert.equal(r.method,'GET');}
 });
 test('signature forgery and payload mutation fail before UserInfo',async()=>{
  const token=await sign(),parts=token.split('.');parts[1]=encode(claims({sub:'attacker'}));const t=transport();
@@ -95,6 +95,13 @@ test('provider HTTP failures and malformed responses never qualify identity',asy
  await assert.rejects(run(await sign(),transport({keyStatus:503})),/idp_provider_unavailable/);
  await assert.rejects(run(await sign(),transport({userStatus:401})),/idp_provider_unavailable/);
  const t={fetcher:async()=>new Response('{invalid')};await assert.rejects(run(await sign(),t),/idp_json_invalid/);
+});
+test('provider redirects are denied without a second destination or browser cookies',async()=>{
+ const calls=[];
+ const fetcher=async request=>{calls.push(request);assert.equal(request.redirect,'manual');assert.equal(request.headers.has('cookie'),false);
+  return new Response(null,{status:302,headers:{location:'https://untrusted.invalid/provider'}});};
+ await assert.rejects(verifyZitadelCodeTokens({id_token:await sign(),access_token:access,expected_nonce:nonce},{fetcher,clock:()=>now}),/idp_provider_unavailable/);
+ assert.equal(calls.length,1);assert.equal(calls[0].url,ZITADEL_STAGING.jwks_uri);
 });
 test('provider response size is bounded and streams are cancelled',async()=>{
  let cancelled=false;

@@ -1,0 +1,9 @@
+{
+  "name": "axiom-idp-local-runtime-qualification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test idp_runtime.test.mjs"},
+  "devDependencies": {"miniflare": "4.20260730.0", "undici": "7.28.0"},
+  "engines": {"node": ">=22"}
+}

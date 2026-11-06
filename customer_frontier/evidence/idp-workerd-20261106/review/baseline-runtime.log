@@ -1,0 +1,220 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> axiom-idp-local-runtime-qualification@0.0.0 test
+> node --test idp_runtime.test.mjs
+
+✔ actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths (538.886955ms)
+✖ server login, read-only Paynow truth and private verifier transports run without real grants (395.255586ms)
+✔ test process denies external network even if a client accidentally follows a redirect (7.085086ms)
+✖ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (819.994277ms)
+✖ real D1 racing callbacks have one winner and one provider exchange (840.033165ms)
+✖ wrong browser and provider redirect are denied without redeeming a flow twice (774.812829ms)
+✖ D1 batch failure rolls back session mint and prior-session rotation together (867.681699ms)
+✖ persisted D1 session and replay denial survive complete workerd restart (686.321709ms)
+✖ local logout is terminal across workerd restart and private binding reads (690.169606ms)
+✖ canonical revocation and cross-tenant requests cannot use an otherwise active session (702.561007ms)
+✖ private verifier rejects production OAuth audience and public headers cannot create a private route (665.108239ms)
+✔ all server private transports reject redirect responses before parsing or forwarding (325.273811ms)
+✖ checkout transport only returns an authorized fixture destination and never settles synthetic orders (660.882412ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 3
+ℹ fail 10
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8435.531238
+
+✖ failing tests:
+
+test at idp_runtime.test.mjs:127:1
+✖ server login, read-only Paynow truth and private verifier transports run without real grants (395.255586ms)
+  AssertionError [ERR_ASSERTION]: {"error":"Invalid redirect value, must be one of \"follow\" or \"manual\" (\"error\" won't be implemented since it does not make sense at the edge; use \"manual\" and check the response status code)."}
+  
+  503 !== 200
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:129:63)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 503,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:139:1
+✖ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (819.994277ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:140:53)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:149:1
+✖ real D1 racing callbacks have one winner and one provider exchange (840.033165ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  -   303,
+      400,
+      400,
+  +   400
+    ]
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:152:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 400, 400, 400 ],
+    expected: [ 303, 400, 400 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:155:1
+✖ wrong browser and provider redirect are denied without redeeming a flow twice (774.812829ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:160:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:164:1
+✖ D1 batch failure rolls back session mint and prior-session rotation together (867.681699ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:165:60)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:172:1
+✖ persisted D1 session and replay denial survive complete workerd restart (686.321709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  400 !== 303
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:173:157)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:178:1
+✖ local logout is terminal across workerd restart and private binding reads (690.169606ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:179:53)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:186:1
+✖ canonical revocation and cross-tenant requests cannot use an otherwise active session (702.561007ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:187:53)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:199:1
+✖ private verifier rejects production OAuth audience and public headers cannot create a private route (665.108239ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:200:53)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at idp_runtime.test.mjs:215:1
+✖ checkout transport only returns an authorized fixture destination and never settles synthetic orders (660.882412ms)
+  AssertionError [ERR_ASSERTION]: {"requests":[],"flows":[{"status":"failed"}],"sessions":[]}
+  
+  400 !== 303
+  
+      at f.login (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:109:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/workerd-review/baseline/customer_frontier/runtime_acceptance/idp_runtime.test.mjs:216:53)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 303,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

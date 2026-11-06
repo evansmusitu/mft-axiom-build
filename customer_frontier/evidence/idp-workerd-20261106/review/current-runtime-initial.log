@@ -1,0 +1,26 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> axiom-idp-local-runtime-qualification@0.0.0 test
+> node --test idp_runtime.test.mjs
+
+✔ actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths (600.996412ms)
+✔ server login, read-only Paynow truth and private verifier transports run without real grants (481.710048ms)
+✔ test process denies external network even if a client accidentally follows a redirect (7.297535ms)
+✔ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (1002.317204ms)
+✔ real D1 racing callbacks have one winner and one provider exchange (703.612074ms)
+✔ wrong browser and provider redirect are denied without redeeming a flow twice (751.786395ms)
+✔ D1 batch failure rolls back session mint and prior-session rotation together (805.316509ms)
+✔ persisted D1 session and replay denial survive complete workerd restart (1178.832516ms)
+✔ local logout is terminal across workerd restart and private binding reads (1148.67429ms)
+✔ canonical revocation and cross-tenant requests cannot use an otherwise active session (829.684349ms)
+✔ private verifier rejects production OAuth audience and public headers cannot create a private route (750.628032ms)
+✔ all server private transports reject redirect responses before parsing or forwarding (355.099485ms)
+✔ checkout transport only returns an authorized fixture destination and never settles synthetic orders (839.284044ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9991.29588

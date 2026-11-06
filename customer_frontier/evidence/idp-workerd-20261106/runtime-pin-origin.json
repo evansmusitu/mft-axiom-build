@@ -1,0 +1,11 @@
+{
+  "repository": "evansmusitu/mft-axiom-build",
+  "commit": "95274190cacef4712293e7b92d8701fae06aea40",
+  "path": ".github/workflows/musitu-connect-d1-local.yml",
+  "blob_sha": "88d85d39fceb6b99b828e59e3df02cfd337fa921",
+  "pin_lines": [
+    "        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0"
+  ],
+  "url": "https://github.com/evansmusitu/mft-axiom-build/blob/95274190cacef4712293e7b92d8701fae06aea40/.github/workflows/musitu-connect-d1-local.yml",
+  "note": "Existing historical runtime-test dependency pin, not a hosted qualification receipt."
+}

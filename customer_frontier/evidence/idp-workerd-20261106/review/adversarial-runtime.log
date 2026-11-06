@@ -1,0 +1,16 @@
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo"],"status":400,"browserCookieForwarded":false}
+✔ independent: each provider endpoint denies307 before following or forwarding browser cookies (2626.95633ms)
+{"case":"private-transport-browser-header-isolation","status":202,"observedUrls":["https://axiom-internal/identity/start-login","https://payments.mftintelligence.com/billing/healthz","https://payments.mftintelligence.com/billing/catalog","https://axiom-internal/payments/create"],"browserCredentialsForwarded":false}
+✔ independent: browser credentials do not leak into login billing or checkout service requests (847.995584ms)
+{"case":"identity-service302","status":401,"observedUrls":["https://axiom-internal/session/verify"]}
+✔ independent: private identity verifier redirect cannot authenticate a customer (1178.758676ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5205.879071

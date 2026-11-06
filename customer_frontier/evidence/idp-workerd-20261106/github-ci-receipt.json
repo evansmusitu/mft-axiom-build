@@ -1,0 +1,30 @@
+{
+  "source_commit": "84be81a75567defb0ae326143cb0ad2984af14d9",
+  "tree": "868c4bd177acb3e0480630dd8a9f98fb27aba295",
+  "CI_checkout": "b688032cb3f13a22aba7a4d915b84ef04ebf036b",
+  "CI_run": 42164540544,
+  "CI_job": 127717808626,
+  "node": 197,
+  "python": 54,
+  "workerd": 16,
+  "failures": 0,
+  "skips": 0,
+  "basePreserved": true,
+  "changedBlobs": 98,
+  "only_admitted_paths": true,
+  "CI_tree_equals_reviewed_tree": true,
+  "independent_new_Frontier": {
+    "PR": 80,
+    "head": "253cd98581de7c56b302efec52b802626cd08659",
+    "draft": true,
+    "merged": false,
+    "files": 157,
+    "customer_or_auth_overlap": false,
+    "fullstack_latest": "IN_PROGRESS_NOT_A_PASS",
+    "imported_into_this_change": false
+  },
+  "hosted_qualified": false,
+  "release": false,
+  "status": "SOURCE_AND_LOCAL_RUNTIME_CI_PASS_NOT_RELEASE",
+  "job_log_sha256": "a5bb92cba10c09996affda77eca7d85b9de6d79c45fe09525858c2794871fcd7"
+}

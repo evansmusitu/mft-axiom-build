@@ -11,7 +11,7 @@ async function read(service,path){
   let response;
   try {
     response=await service.fetch(new Request(origin+path,{
-      method:'GET',redirect:'error',cache:'no-store',headers:{accept:'application/json'}
+      method:'GET',redirect:'manual',cache:'no-store',headers:{accept:'application/json'}
     }));
   }catch{reject('billing_upstream_unavailable')}
   if(response.status!==200)reject('billing_upstream_http_rejected');
