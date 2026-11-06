@@ -1,0 +1,35 @@
+{
+  "result": "PASS",
+  "source": "1d08639f7a1716a9ce6f7eb76847fb7364931695",
+  "tree": "efcf67eb396b3c711520d3f94f97c65610fd05f8",
+  "parent": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "files": [
+    {
+      "path": "customer_frontier/recovery/decrypt_restore_existing_d1.mjs",
+      "sha256": "75bf7d0b73274242e0c7bff238073210dc0ac460daf6e466107c580b65cde386",
+      "git_blob": "298c71fdc35f11fd34c3c4d2120d759a94638e21",
+      "remote_bytes_match": true
+    },
+    {
+      "path": "customer_frontier/recovery/restore_sql_private.py",
+      "sha256": "2f3bcf4f68c11ec8195f206f725a4f2fb06a4935eaba593d7492b2ba72250643",
+      "git_blob": "01d1db191a183824abe18c0317375009fd4c11cb",
+      "remote_bytes_match": true
+    },
+    {
+      "path": "customer_frontier/tests/existing_d1_private_restore.test.mjs",
+      "sha256": "04f60f00990dc8999ead9b43bd2e093b4c56d51369f6005a30299e9e3cd38021",
+      "git_blob": "06b0fa5264211e1032365b8561312be69df063dc",
+      "remote_bytes_match": true
+    },
+    {
+      "path": "customer_frontier/tests/test_existing_d1_private_restore.py",
+      "sha256": "16e0d6053b58c4636d7ce5d4ec624d98f85b5544feb792ac71681a6358563bbc",
+      "git_blob": "ed45a864a36f6122fb13b45426611d84b920889f",
+      "remote_bytes_match": true
+    }
+  ],
+  "previous_export_source_recipient_tests_workflow_unchanged": true,
+  "provider_calls": 0,
+  "actual_private_key_or_backup_accessed": false
+}

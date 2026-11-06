@@ -1,0 +1,18 @@
+✔ hybrid envelope roundtrip and ciphertext secrecy (12.583755ms)
+✔ tampered ciphertext or metadata fails authentication (20.096736ms)
+✔ random data key and nonce prevent deterministic ciphertext (0.930311ms)
+✔ fixed export pipeline encrypts without leaking SQL or signed URL (11.298906ms)
+✔ name drift stops before catalog or export (0.864417ms)
+✔ catalog drift and contradictory counters stop before export (3.413364ms)
+✔ wrong recipient, missing token or source make zero provider calls (0.582036ms)
+✔ non-HTTPS, credentials and unknown download origins fail before download (2.806402ms)
+✔ export refusal or unknown result never downloads (4.030276ms)
+✔ empty SQL and oversized metadata do not produce an envelope (1.398171ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 890.508661

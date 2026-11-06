@@ -1,0 +1,33 @@
+{
+  "hosted_restore_qualified": false,
+  "release_authority": false,
+  "scope": "fresh local SQLite user SQL only; not hosted D1 or internal metadata recovery",
+  "status": "LOCAL_USER_SQL_RESTORE_VERIFIED",
+  "tables": [
+    {
+      "data_sha256": "9137a4c4522c7015bee6938eddb6ca2d15d517cc14ac8d45474cfecbb48e683f",
+      "rows": 0,
+      "table_name_sha256": "3d5ec0bc381c08922a99d928a9c5caf2b5f4c3eaf23297ea763dbd23b1b25297"
+    },
+    {
+      "data_sha256": "36ae8a1a4a24523b42ab02e92fd4eb9672f3d411a0e46a1a7622b34d28ecc111",
+      "rows": 0,
+      "table_name_sha256": "89f527ce2b1210129eca1a3d0707da7a8fba984f801c943f6a52c5416ea5a9ff"
+    },
+    {
+      "data_sha256": "fc0d48395551fecb631295f535341cf1c5250909d7cd3252dfafc00eb3a6ebf3",
+      "rows": 0,
+      "table_name_sha256": "ed0481703a186ce91280f26928db38ffd7f22d0b8a9f339d963828d16ed8a148"
+    }
+  ],
+  "target_admitted": false,
+  "user_data_sha256": "4782bc55adb5d64fd9efd80381fcfc3665bfd4d61524a83ff54ee26b594a3caa",
+  "user_objects": 4,
+  "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+  "envelope_sha256": "75dcf5fc255b79e19313eeb7794f58ed7a9fe92d8e45d28a3f45d23f1e2005aa",
+  "source_sha": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "recipient_public_sha256": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3",
+  "sql_sha256": "ff8e85f916c667d913340a6ffcd1606d6f184558fb9fad9df6bec6a7ea2bbe3b",
+  "sql_bytes": 680,
+  "independent_custody_qualified": false
+}

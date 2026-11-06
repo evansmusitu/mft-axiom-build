@@ -1,0 +1,17 @@
+{
+  "status": "ACTUAL_ENCRYPTED_D1_BACKUP_SAVED_AND_READ_BACK",
+  "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+  "source_sha": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "run_id": 42284247771,
+  "job_id": 128120847672,
+  "envelope_bytes": 2429,
+  "envelope_sha256": "75dcf5fc255b79e19313eeb7794f58ed7a9fe92d8e45d28a3f45d23f1e2005aa",
+  "owner_only_acl": true,
+  "drive_readback_bytes_match": true,
+  "plaintext_sql_saved": false,
+  "backup_saved_to_drive": true,
+  "restore_qualified": false,
+  "hosted_migration_qualified": false,
+  "target_admitted": false,
+  "release_authority": false
+}

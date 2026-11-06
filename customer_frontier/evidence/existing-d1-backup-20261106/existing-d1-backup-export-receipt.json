@@ -1,0 +1,49 @@
+{
+  "schema": "musitu.axiom.existing_d1_backup_export.v1",
+  "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+  "source_sha": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "recipient_public_sha256": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3",
+  "transport": [
+    {
+      "kind": "metadata",
+      "method": "GET",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "catalog",
+      "method": "POST",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "export",
+      "method": "POST",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "export",
+      "method": "POST",
+      "http_status": 200,
+      "provider_error_codes": []
+    },
+    {
+      "kind": "encrypted_export_download",
+      "method": "GET",
+      "http_status": 200,
+      "provider_error_codes": []
+    }
+  ],
+  "catalog_read_zero_writes": true,
+  "export_started": true,
+  "export_complete": true,
+  "backup_saved_to_drive": false,
+  "restore_qualified": false,
+  "hosted_migration_qualified": false,
+  "target_admitted": false,
+  "release_authority": false,
+  "envelope_bytes": 2429,
+  "envelope_sha256": "75dcf5fc255b79e19313eeb7794f58ed7a9fe92d8e45d28a3f45d23f1e2005aa",
+  "catalog_sha256": "b2ee9c1eb6c0ed8c0cf8fc1c9d02e5b7ae713c0c2dd292f946bd7d737d764737"
+}

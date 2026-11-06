@@ -1,0 +1,69 @@
+{
+  "schema": "musitu.axiom.independent_offline_d1_intake_review.v1",
+  "verdict": "PASS_FOR_TRUSTED_OFFLINE_PRIVATE_USER_SQL_INTAKE_ONLY",
+  "source": "1d08639f7a1716a9ce6f7eb76847fb7364931695",
+  "tree": "efcf67eb396b3c711520d3f94f97c65610fd05f8",
+  "parent": "9838db06cde1e4add97b5da061905f2a1c5b3d56",
+  "decrypt_sha256": "75bf7d0b73274242e0c7bff238073210dc0ac460daf6e466107c580b65cde386",
+  "restore_python_sha256": "2f3bcf4f68c11ec8195f206f725a4f2fb06a4935eaba593d7492b2ba72250643",
+  "node_tests_sha256": "04f60f00990dc8999ead9b43bd2e093b4c56d51369f6005a30299e9e3cd38021",
+  "python_tests_sha256": "16e0d6053b58c4636d7ce5d4ec624d98f85b5544feb792ac71681a6358563bbc",
+  "unresolved_p0_p1_p2": [],
+  "validation": {
+    "supplied_node": {
+      "count": 3,
+      "result": "PASS",
+      "log": "intake-node-existing-tests.log"
+    },
+    "supplied_python": {
+      "count": 6,
+      "result": "PASS",
+      "log": "intake-python-existing-tests.log"
+    },
+    "independent_node": {
+      "count": 5,
+      "result": "PASS",
+      "harness": "intake-adversarial.test.mjs",
+      "log": "intake-node-adversarial.log"
+    },
+    "independent_python": {
+      "count": 8,
+      "result": "PASS",
+      "harness": "intake-adversarial.py",
+      "log": "intake-python-adversarial.log"
+    },
+    "identity": {
+      "result": "PASS",
+      "log": "intake-static-verification.log"
+    },
+    "network": "Node global fetch/net/tls/http/https denied; Python socket/socket.create_connection denied; only synthetic fixtures",
+    "full_cli_fixture": "Synthetic key recipient and expected user-catalog proof replaced only in private disposable copies; full CLI decrypt→fixed Python stdin→fresh0600 SQLite/receipt succeeds, repeat overwrite and wrong outer hash fail; disposable fixture and synthetic key removed."
+  },
+  "verified_boundaries": [
+    "Mandatory actual-evidence outer envelope SHA and source SHA; strict envelope/header schemas and canonical Base64; pinned database/catalog/recipient; RSA4096 private-key public fingerprint, OAEP-SHA256, AES256GCM and SQL length/hash checks.",
+    "Production CLI uses fixed recipient pin. Exported helper recipient override is only exercised with synthetic test keys.",
+    "SQL remains in memory and is sent to fixed Python script via stdin with PATH-only child environment and timeout; no plaintext SQL file.",
+    "Fresh O_EXCL/O_NOFOLLOW0600 SQLite output; existing files and symlinks do not overwrite; fresh0600 receipt with no-overwrite.",
+    "SQLite denies ATTACH/DETACH, extensions/file functions and dangerous PRAGMAs; ATTACH/VACUUM INTO after explicit COMMIT cannot create sibling file.",
+    "Exact expected user-object catalog, integrity and FK checks; deterministic local row/count/data fingerprints; catalog/view/trigger drift rejected and FK-off invalid rows caught.",
+    "Safe receipt excludes raw SQL/key/row values/object labels and keeps hosted restore, target, release and independent custody flags false.",
+    "Prior export reader/public recipient/tests/workflow remain byte-identical to previous review."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "actual_private_key_or_backup_accessed": false,
+  "root_files_modified_by_reviewer": 0,
+  "scope_limits": [
+    "Actual envelope origin SHA/source must come from retained authenticated Actions evidence, independently of attacker-supplied envelope; public-key encryption alone does not prove origin.",
+    "This is a source/synthetic-test pass, not actual private-backup recovery evidence. Actual intake must still use fresh controlled private local paths and retain its receipt.",
+    "Local restored fingerprints are derived from the decrypted SQL. They do not independently establish parity with live provider row counts/data or source custody.",
+    "No hosted D1 import/restore, internal _cf_KV recovery, separate-host destructive recovery, anti-rollback qualification, tenant admission, migration or release is certified.",
+    "Owner-key/Drive custody and ACL proofs are not inspected here. No actual key, encrypted backup, decrypted SQL or private database was accessed.",
+    "A failed restore can leave its fresh private0600 partial database; failure must not be treated as successful recovery.",
+    "Root retains live drift, PR1/$0/Paynow/customer-data/q06/rollback checks."
+  ],
+  "retained_authority_states": {
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN"
+  }
+}

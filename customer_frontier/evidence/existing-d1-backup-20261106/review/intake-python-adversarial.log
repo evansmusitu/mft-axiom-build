@@ -1,0 +1,13 @@
+test_attach_and_vacuum_into_cannot_create_external_file (__main__.IndependentIntake.test_attach_and_vacuum_into_cannot_create_external_file) ... ok
+test_existing_file_and_symlink_destination_never_modified (__main__.IndependentIntake.test_existing_file_and_symlink_destination_never_modified) ... ok
+test_extra_view_trigger_or_schema_drift_never_qualifies (__main__.IndependentIntake.test_extra_view_trigger_or_schema_drift_never_qualifies) ... ok
+test_fingerprint_is_order_independent_and_content_sensitive (__main__.IndependentIntake.test_fingerprint_is_order_independent_and_content_sensitive) ... ok
+test_fresh_db_is_private_without_changing_process_umask (__main__.IndependentIntake.test_fresh_db_is_private_without_changing_process_umask) ... ok
+test_invalid_export_rejected_before_file_creation (__main__.IndependentIntake.test_invalid_export_rejected_before_file_creation) ... ok
+test_post_restore_fk_check_catches_dump_disabling_foreign_keys (__main__.IndependentIntake.test_post_restore_fk_check_catches_dump_disabling_foreign_keys) ... ok
+test_unsafe_pragmas_and_extension_file_functions_fail (__main__.IndependentIntake.test_unsafe_pragmas_and_extension_file_functions_fail) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.050s
+
+OK

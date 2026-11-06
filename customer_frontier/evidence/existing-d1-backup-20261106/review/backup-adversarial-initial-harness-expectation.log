@@ -1,0 +1,41 @@
+✔ baseline pipeline encrypts signed download without credential transfer or plaintext artifact (6.954217ms)
+✔ constant bookmark is retained on poll and never emitted (1.659344ms)
+✔ bookmark change aborts before any download (1.218222ms)
+✔ ten unfinished polls exhaust without download or complete claim (1.486599ms)
+✔ wrong ID size and name fail before catalog or export (2.52892ms)
+✔ catalog write or proof drift blocks all export requests (2.084574ms)
+✔ preflight token provenance and recipient mismatches make zero calls (0.377889ms)
+✔ origin confusion credentials ports fragments nonHTTPS and deceptive suffixes fail safely (3.261945ms)
+✔ provider error code is retained while body text remains private (0.842937ms)
+✖ provider redirects invalidJSON and oversized bodies do not produce backup (21.271424ms)
+✔ expired deadline makes zero requests and no completed backup (0.59479ms)
+✔ authenticated envelope decrypts only exact content and authenticates metadata nonce key tag (796.421031ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 11
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 932.454046
+
+✖ failing tests:
+
+test at reuse-review/backup-adversarial.test.mjs:86:1
+✖ provider redirects invalidJSON and oversized bodies do not produce backup (21.271424ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'BACKUP_EXPORT_UNAVAILABLE'
+  - 'RESPONSE_TOO_LARGE'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/reuse-review/backup-adversarial.test.mjs:90:81)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'BACKUP_EXPORT_UNAVAILABLE',
+    expected: 'RESPONSE_TOO_LARGE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,7 @@
+{
+  "owner_only_acl_verified": true,
+  "readback_bytes_match": true,
+  "recipient_public_sha256": "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3",
+  "readback_key_loaded": true,
+  "qualification": "BACKUP_RECIPIENT_DURABILITY_ONLY_NOT_INDEPENDENT_CUSTODY"
+}
