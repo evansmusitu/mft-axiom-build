@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as phase2 from "../src/index.ts";
+import pg from "pg";
 
 const manifest=(provider:"openai"|"anthropic")=>({
   adapterId:"test:"+provider,version:"1.0.0",implementationHash:"a".repeat(64),
@@ -297,4 +298,23 @@ test("PostgreSQL billing ledger refuses injected fake and prototype-forged conne
   };}};
   assert.throws(()=>new phase2.PostgresProviderSpendLedger(fakePool as any),/trusted|pool|postgres/i);
   assert.equal(connections,0);
+});
+
+test("PostgreSQL ledger rejects a forged Pool prototype and changed connect hook before billing",async()=>{
+  const forged=Object.create(pg.Pool.prototype);
+  assert.throws(()=>new phase2.PostgresProviderSpendLedger(forged),/trusted|pool|postgres/i);
+  const genuine=new pg.Pool({max:1,connectionTimeoutMillis:200});
+  try{
+    const ledger=new phase2.PostgresProviderSpendLedger(genuine);
+    let intercepted=0;
+    (genuine as any).connect=async()=>{
+      intercepted++;
+      return {async query(){return {rowCount:1,rows:[]};},release(){}};
+    };
+    await assert.rejects(()=>ledger.reserve({
+      tenantId:"tenant:authority",provider:"adapter:authority",modelId:"model:authority",
+      billingProvider:"openai",requestId:"intent:authority",requestHash:"d".repeat(64),reserveMicroUsd:100
+    }),/trusted|pool|unavailable|budget/i);
+    assert.equal(intercepted,0,"tampered pool connect must not be called");
+  }finally{await genuine.end();}
 });
