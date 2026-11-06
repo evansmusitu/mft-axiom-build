@@ -58,7 +58,7 @@ jobs:
               data=p.read_bytes()
               writer.writerow([p.relative_to(dist).as_posix(),len(data),hashlib.sha256(data).hexdigest()])
           manifest=json.loads((dist/'manifest.json').read_text())
-          assert len(manifest['routes'])==34 and not manifest['production_approved'] and not manifest['media_publication_approved']
+          assert len(manifest['routes'])==34 and not manifest['production_approved'] and manifest['media_publication_approved'] is True and manifest['brand_master_approved'] is True
           assert len(manifest['files'])==42 and len(assets)==43
           qa={'source_commit':head,'base_sha':base,'repo':'evansmusitu/evansmusitu.github.io','pr':32,
             'changed_source_files':len(names),'generated_asset_files':len(assets),
