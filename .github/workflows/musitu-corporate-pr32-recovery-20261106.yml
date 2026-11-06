@@ -22,7 +22,8 @@ jobs:
       CF_PAGES_NAME: musitu-corporate
       CF_PREVIEW_BRANCH: corporate-private-20261103
       EXPECTED_ARCHIVE_SHA256: 3462413cbfa02f0d74319e9636b8a5cf6cd1d8253def14bc749741747a6dd724
-      EXACT_PR32_SHA: df87c9b36811db10f0d11e90d2989f3735f10754
+      EXACT_PR32_SHA: 29d9e36f3eb755fde67b7c55087d05dff1c4a103
+      MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Preflight verified Access gates and isolated Pages project
         id: access
@@ -130,6 +131,11 @@ jobs:
           git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$EXACT_PR32_SHA"
           git -C "$RUNNER_TEMP/musitu-source" checkout -q --detach FETCH_HEAD
           test "$(git -C "$RUNNER_TEMP/musitu-source" rev-parse HEAD)" = "$EXACT_PR32_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$MEDIA_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-demo-82s.mp4" > "$RUNNER_TEMP/musitu-source/corporate/assets/studio-demo-82s.mp4"
+          git -C "$RUNNER_TEMP/musitu-source" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-poster.png" > "$RUNNER_TEMP/musitu-source/corporate/assets/studio-poster.png"
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 "$RUNNER_TEMP/musitu-source/corporate/assets/studio-demo-82s.mp4" | sha256sum -c -
+          printf '%s  %s\n' 0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0 "$RUNNER_TEMP/musitu-source/corporate/assets/studio-poster.png" | sha256sum -c -
           cd "$RUNNER_TEMP/musitu-source/corporate"
           MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
           python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
@@ -144,7 +150,10 @@ jobs:
           assert manifest['protected_staging_media_included'] is True
           pages=list(site.rglob('index.html'))
           assert len(pages)==34 and all('noindex,nofollow' in p.read_text() for p in pages)
-          assert all('review copy' in (site/k/'index.html').read_text().lower() for k in ('legal/privacy','legal/terms'))
+          privacy=(site/'legal/privacy/index.html').read_text().lower()
+          terms=(site/'legal/terms/index.html').read_text().lower()
+          assert 'support@mftintelligence.com' in privacy and 'working draft' not in privacy
+          assert 'support@mftintelligence.com' in terms and 'working draft' not in terms
           axiom=(site/'products/axiom/index.html').read_text()
           assert 'chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86' in axiom
           assert (site/'assets/studio-demo-82s.mp4').is_file()
