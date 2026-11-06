@@ -1,0 +1,44 @@
+{
+  "status": "SOURCE_VERIFIED_HOSTED_UNQUALIFIED_NOT_RELEASE",
+  "observed_utc": "2026-11-06T04:02:56.646201+00:00",
+  "parent_sha": "67de1a9d915914ce74d6d6012dc426fc66df6190",
+  "base_tree": "d972b6164de4fb0d3bdbaf445cccc5b768219fab",
+  "source_sha256": {
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.mjs": "3c6258da9da65c697d6245a76b302998e9b8cb8948aab3f825ae921dd6172aeb",
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql": "b5655e814e894aa9a28a172f6b4a16c8d524119c3c5f2cdb4f04f565b9ef5ee1",
+    "customer_frontier/customer_control_plane/zitadel_session_worker_candidate.mjs": "4ab3141b392b0963dd25926a4e4f09750e3622eee5ef5b32f8548e17a4df25a6",
+    "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs": "ad91244393cb0a8412edd7a1d0cb8596467c09193e675dd40b1b63999559136f",
+    "customer_frontier/customer_control_plane/sqlite_d1_test_adapter.mjs": "271869b0539cf09565bbf28bcdfaecd7c4b98629c2ff1c8c8322a1861622d70f",
+    "customer_frontier/tests/zitadel_session_broker.test.mjs": "1ae9cfa82cb2442b0faa553f076067f35d6fdfdc533743ad0db9b51f5729b89e"
+  },
+  "tests": {
+    "root_full_node": 196,
+    "root_python": 54,
+    "new_focused": 27,
+    "independent_adversarial": 5,
+    "root_portable_original_reproductions": 3,
+    "root_portable_repaired_checks": 5,
+    "failures": 0,
+    "skips": 0,
+    "syntax_exit": 0,
+    "source_diff_check_exit": 0
+  },
+  "independent_software_review": "no unresolved P0-P2 in bounded unmounted source slice; not human release/custody acceptance",
+  "pre_repair_findings": [
+    "P2 private assertion freshness after final DB await",
+    "P2 replica consistency may miss concurrent revocation",
+    "P2 callback false success after delayed mint commit"
+  ],
+  "deployment": false,
+  "hosted_sql_writes": 0,
+  "inference_calls": 0,
+  "payments": 0,
+  "cost_usd": 0,
+  "qualification_flags_enabled": false,
+  "main_and_PR1_modified": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "CI": "PENDING_REMOTE_DRAFT_CREATION",
+  "raw_evidence_whitespace": "Raw failure/claim logs preserved byte-for-byte; git diff --check reports whitespace in these logs only."
+}

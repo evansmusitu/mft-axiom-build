@@ -1,0 +1,46 @@
+✖ private proof is denied if session expires while the final storage read is awaiting (40.510611ms)
+✖ callback cannot report success if its session expires while the mint commit is awaiting (19.802354ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 343.464807
+
+✖ failing tests:
+
+test at customer_frontier/tests/zitadel_session_broker.test.mjs:209:1
+✖ private proof is denied if session expires while the final storage read is awaiting (40.510611ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 401
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/session-broker-work/customer_frontier/tests/zitadel_session_broker.test.mjs:213:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/zitadel_session_broker.test.mjs:215:1
+✖ callback cannot report success if its session expires while the mint commit is awaiting (19.802354ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  303 !== 400
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/session-broker-work/customer_frontier/tests/zitadel_session_broker.test.mjs:218:38)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 303,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

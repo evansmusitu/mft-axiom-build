@@ -19,7 +19,7 @@ function decode(value,code='idp_token_invalid'){
  if(b64(bytes)!==value)fail(code);
  return bytes;
 }
-function strictJson(raw){
+export function parseIdentityJson(raw){
  let result;try{result=JSON.parse(raw);}catch{fail('idp_json_invalid');}
  // JSON.parse alone accepts duplicate members. Scan valid JSON tokens while
  // preserving escaped key identity; no regex normalization of claim values.
@@ -37,12 +37,12 @@ function strictJson(raw){
 }
 function tokenJson(encoded){
  let raw;try{raw=new TextDecoder('utf-8',{fatal:true}).decode(decode(encoded));}catch(e){if(e.message==='idp_token_invalid')throw e;fail('idp_json_invalid');}
- return strictJson(raw);
+ return parseIdentityJson(raw);
 }
-async function providerJson(url,{fetcher,accessToken}={}){
+async function providerJson(url,{fetcher,accessToken,form}={}){
  let response;
- try{response=await fetcher(new Request(url,{method:'GET',redirect:'error',credentials:'omit',signal:AbortSignal.timeout(5000),
-  headers:{accept:'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{})}}));}catch{fail('idp_provider_unavailable');}
+ try{response=await fetcher(new Request(url,{method:form?'POST':'GET',redirect:'error',credentials:'omit',signal:AbortSignal.timeout(5000),
+  headers:{accept:'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{}),...(form?{'content-type':'application/x-www-form-urlencoded'}:{})},...(form?{body:form}:{})}));}catch{fail('idp_provider_unavailable');}
  if(response?.status!==200||!response.body?.getReader)fail('idp_provider_unavailable');
  const reader=response.body.getReader(),chunks=[];let length=0;
  try{
@@ -51,7 +51,15 @@ async function providerJson(url,{fetcher,accessToken}={}){
  finally{reader.releaseLock();}
  const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
  let raw;try{raw=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{fail('idp_json_invalid');}
- return strictJson(raw);
+ return parseIdentityJson(raw);
+}
+export async function exchangeZitadelAuthorizationCode({code,code_verifier}={}, {fetcher=globalThis.fetch}={}){
+ if(!text(code,2048)||!/^[A-Za-z0-9._~+/-]+={0,2}$/.test(code)||typeof code_verifier!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(code_verifier)||typeof fetcher!=='function')fail('idp_code_invalid');
+ const form=new URLSearchParams({grant_type:'authorization_code',client_id:ZITADEL_STAGING.client_id,
+  redirect_uri:ZITADEL_STAGING.redirect_uri,code,code_verifier});
+ const response=await providerJson(ZITADEL_STAGING.issuer+'/oauth/v2/token',{fetcher,form});
+ if(!record(response)||!text(response.id_token,32768)||!text(response.access_token,8192)||response.token_type!=='Bearer')fail('idp_token_response_invalid');
+ return {id_token:response.id_token,access_token:response.access_token};
 }
 function signingKey(jwks,kid){
  if(!record(jwks)||!Array.isArray(jwks.keys)||jwks.keys.length<1||jwks.keys.length>32)fail('idp_key_invalid');

@@ -1,0 +1,14 @@
+{"case":"expiry-after-final-active-select","status":200,"expiredAtReturn":true,"verifiedAtReturn":1793898732000,"actualReturnTime":1793899032000}
+✔ review: session expires while final active SELECT is awaiting (42.107957ms)
+{"case":"revocation-missed-by-sequential-replica","status":200,"sessionStarts":1,"sessionReads":2,"durable":{"status":"revoked","session_version":2},"assertedRevoked":false,"assertedVersion":1}
+✔ review: D1 sequential replica may miss completed concurrent revocation (17.464742ms)
+{"case":"expiry-during-mint-batch","status":303,"cookieIssued":true,"expiredAtReturn":true,"durableStatus":"active"}
+✔ review: callback storage delay can expose an already expired session cookie (13.051679ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 278.793641

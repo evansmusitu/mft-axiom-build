@@ -1,0 +1,11 @@
+{
+  "baseline": "fb0e36b54ee211fd8cc1ed5d2b0867f7a588cdd7",
+  "sha256": {
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.mjs": "3c6258da9da65c697d6245a76b302998e9b8cb8948aab3f825ae921dd6172aeb",
+    "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql": "b5655e814e894aa9a28a172f6b4a16c8d524119c3c5f2cdb4f04f565b9ef5ee1",
+    "customer_frontier/customer_control_plane/zitadel_session_worker_candidate.mjs": "4ab3141b392b0963dd25926a4e4f09750e3622eee5ef5b32f8548e17a4df25a6",
+    "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs": "ad91244393cb0a8412edd7a1d0cb8596467c09193e675dd40b1b63999559136f",
+    "customer_frontier/customer_control_plane/sqlite_d1_test_adapter.mjs": "271869b0539cf09565bbf28bcdfaecd7c4b98629c2ff1c8c8322a1861622d70f",
+    "customer_frontier/tests/zitadel_session_broker.test.mjs": "1ae9cfa82cb2442b0faa553f076067f35d6fdfdc533743ad0db9b51f5729b89e"
+  }
+}

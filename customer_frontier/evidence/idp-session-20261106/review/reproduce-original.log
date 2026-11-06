@@ -1,0 +1,10 @@
+{"case":"expiry-after-final-active-select","status":200,"expiredAtReturn":true,"verifiedAtReturn":1793898732000,"actualReturnTime":1793899032000}
+✔ review: session expires while final active SELECT is awaiting (39.217708ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 263.361166
