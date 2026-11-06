@@ -1,0 +1,67 @@
+name: MUSITU Corporate Access and Domain Audit 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-corporate-access-domain-audit-20261106.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      CF_PAGES_NAME: "musitu-corporate"
+    steps:
+      - name: Read-only Access, Pages and DNS inventory
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          base='https://api.cloudflare.com/client/v4'
+          aid=os.environ['CF_ACCOUNT_ID'];zid=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME']
+          gh={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json'}
+          th={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          def get(path,headers):
+              req=urllib.request.Request(base+path,headers=headers)
+              with urllib.request.urlopen(req,timeout=25) as r:b=json.load(r)
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          apps=get(f'/accounts/{aid}/access/apps?per_page=100',gh) or []
+          relevant=[]
+          for a in apps:
+              dom=str(a.get('domain') or '')
+              sdom=a.get('self_hosted_domains') or []
+              name=str(a.get('name') or '')
+              if ('musitu-corporate' in dom or 'mftintelligence.com' in dom or
+                  any('musitu-corporate' in str(x) or 'mftintelligence.com' in str(x) for x in sdom) or
+                  'corporate' in name.lower()):
+                  relevant.append({
+                    'id':a.get('id'),'name':name,'domain':dom,'type':a.get('type'),
+                    'self_hosted_domains':sdom,'session_duration':a.get('session_duration'),
+                    'app_launcher_visible':a.get('app_launcher_visible')
+                  })
+          domains=get(f'/accounts/{aid}/pages/projects/{project}/domains',th) or []
+          proj=get(f'/accounts/{aid}/pages/projects/{project}',th) or {}
+          dns={}
+          for name in ['mftintelligence.com','www.mftintelligence.com','corporate-private-20261103.musitu-corporate.pages.dev','musitu-corporate.pages.dev']:
+              q=urllib.parse.urlencode({'name':name,'per_page':100})
+              dns[name]=get(f'/zones/{zid}/dns_records?{q}',gh) or []
+          out={
+            'relevant_access_apps':relevant,
+            'pages_domains':[{'name':d.get('name'),'status':d.get('status')} for d in domains],
+            'pages_production_branch':proj.get('production_branch'),
+            'pages_subdomain':proj.get('subdomain'),
+            'dns':{k:[{'id':r.get('id'),'type':r.get('type'),'name':r.get('name'),'content':r.get('content'),'proxied':r.get('proxied')} for r in v] for k,v in dns.items()},
+            'write_performed':False
+          }
+          print(json.dumps(out,sort_keys=True))
+          PY
