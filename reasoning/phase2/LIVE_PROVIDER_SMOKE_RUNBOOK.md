@@ -9,7 +9,7 @@ The script at scripts/live-provider-smoke.ts exercises the ACTUAL Phase-2 adapte
    - tenantId
    - openai: modelId, prices (four nonnegative integer micro-USD per million token fields)
    - anthropic: modelId, apiVersion, prices (same four fields)
-   - budget: limitMicroUsd, requestReserveMicroUsd; reserve must cover credible worst-case billable model usage
+   - budget: limitMicroUsd, requestReserveMicroUsd, organizationLimitMicroUsd; all explicit safe integer micro-USD values, with a vendor-wide cap >= tenant limit; reservation must cover credible worst-case billable model usage
    - mcp: origin (HTTPS only), operationId, toolName (read-only), parameterName, parameterValue
    - sql: operationId, schema, view, tenantColumn, columns (array), orderColumn; the database view must be owned by an independent read-only role
    - object: operationId, readerModule (absolute trusted local JS module), readerModuleSha256 (SHA-256 of that module), bucket, key, versionId, expectedSha256 (content SHA-256). Module must export createApprovedReader returning an ImmutableObjectReader backed by an actual version-aware object SDK with narrow IAM
@@ -29,3 +29,9 @@ The script at scripts/live-provider-smoke.ts exercises the ACTUAL Phase-2 adapte
 - The exact MR/head/main GitLab CI conformance gates must pass after GitLab CI quota is restored.
 
 Never describe a dry-run, fixture, simulator, missing-evidence run or unapproved target as real provider certification.
+
+## Phase 2.10B vendor-level accounting authority
+
+A PostgreSQL transaction reserves against the upstream OpenAI/Anthropic **organization budget first**, then the tenant + adapter + model budget, using consistent vendor-first row-lock ordering. The trusted budgeted adapter supplies the vendor from its pinned provider manifest; provisioned tenant budgets are immutably vendor-bound. A missing organization budget, mismatch, exhaustion or suspension denies the provider request before network I/O. Actual billable overages remain possible, and settlement records and suspends the vendor cap for reconciliation.
+
+Before deploying this additive schema, preserve and reconcile existing reservations and provider invoices. **Old Phase 2.10A tenant rows have NULL `billing_provider` after migration and must fail closed** until an audited operator backfill binds them to the actual upstream vendor. Do not reset counters, change vendor attribution or provision a new database as a billing bypass. Provision shared organization caps from the actual vendor account/project limit, independent of each tenant cap. Production must still prove all workers use the same enforced PostgreSQL authority and complete real vendor invoice reconciliation; a passing synthetic CI test does not certify this.

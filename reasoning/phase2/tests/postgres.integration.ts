@@ -729,10 +729,11 @@ test("PostgreSQL provider spend reservations serialize across competing workers 
  const provider="model:pg-cost",modelId="billing:test-model";
  await pool.query("DELETE FROM axiom_provider_spend_requests WHERE provider=$1 AND model_id=$2",[provider,modelId]);
  await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE provider=$1 AND model_id=$2",[provider,modelId]);
- await ledger.provision(tenant,provider,modelId,1000);
- await ledger.provision(other,provider,modelId,1000);
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ await ledger.provision(other,provider,modelId,1000,"openai");
  const reservation=(id:string,tenantId=tenant.tenantId)=>({
-  tenantId,provider,modelId,requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
+  tenantId,provider,modelId,billingProvider:"openai",requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
  });
  const [first,second]=await Promise.allSettled([
   ledger.reserve(reservation("pg-cost-1")),ledger.reserve(reservation("pg-cost-2"))
@@ -766,8 +767,9 @@ test("PostgreSQL billing records overages, suspends further calls and fails clos
  const tenant={tenantId:"tenant:pg-cost-overage"},provider="model:pg-cost",modelId="billing:test-model";
  await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
  await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
- await ledger.provision(tenant,provider,modelId,1000);
- const reservation={tenantId:tenant.tenantId,provider,modelId,requestId:"pg-overage",
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,billingProvider:"openai",requestId:"pg-overage",
   requestHash:"e".repeat(64),reserveMicroUsd:100};
  await ledger.reserve(reservation);
  await assert.rejects(()=>ledger.settle({...reservation,requestHash:"f".repeat(64),chargeMicroUsd:600,responseHash:"b".repeat(64)}),/matching|reservation|forbidden/i);
@@ -777,7 +779,7 @@ test("PostgreSQL billing records overages, suspends further calls and fails clos
   limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:0,availableMicroUsd:400
  });
  await assert.rejects(()=>ledger.reserve({...reservation,requestId:"pg-new",requestHash:"d".repeat(64)}),/suspended|overage/i);
- await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999),/immutable|existing|differs/i);
+ await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999,"openai"),/immutable|existing|differs/i);
 });
 
 

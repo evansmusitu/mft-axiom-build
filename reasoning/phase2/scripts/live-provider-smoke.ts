@@ -70,9 +70,11 @@ async function main(){
   if(h(readerBytes)!==required(object.readerModuleSha256,"object.readerModuleSha256"))
     throw new Error("Approved object reader module digest mismatch");
   const secrets=authorizedSecrets(); // All secrets must exist before any network I/O.
-  const maximum=limits.limitMicroUsd,reserve=limits.requestReserveMicroUsd;
+  const maximum=limits.limitMicroUsd,reserve=limits.requestReserveMicroUsd,organizationMaximum=limits.organizationLimitMicroUsd;
   if(!Number.isSafeInteger(maximum)||!Number.isSafeInteger(reserve)||reserve<=0||reserve>maximum)
     throw new Error("Live provider budget and worst-case request reservation must be explicitly bounded");
+  if(!Number.isSafeInteger(organizationMaximum)||organizationMaximum<maximum)
+    throw new Error("Explicit shared vendor organization cap must cover the tenant budget");
   // Billing and evidence SQL credentials MUST be different. The billing role
   // may only access axiom_provider_spend_* tables; the evidence role is read-only.
   if(env("AXIOM_SMOKE_BILLING_PG_URI")===env("AXIOM_SMOKE_PG_URI"))
@@ -93,7 +95,8 @@ async function main(){
         implementationHash:impl(name==="openai"?"openai_model_adapter.ts":"anthropic_model_adapter.ts"),
         provider:name,modelId:required(modelConfig.modelId,name+".modelId")
       };
-      await ledger.provision({tenantId},adapterManifest.adapterId,adapterManifest.modelId,maximum);
+      await ledger.provisionOrganization(name,organizationMaximum);
+      await ledger.provision({tenantId},adapterManifest.adapterId,adapterManifest.modelId,maximum,name);
       const raw=name==="openai"
         ?new OpenAiResponsesModelAdapter({manifest:adapterManifest,apiKeySecretRef:"smoke:openai",
           timeoutMs:10000,maxResponseBytes:16384,secretResolver:secrets})
