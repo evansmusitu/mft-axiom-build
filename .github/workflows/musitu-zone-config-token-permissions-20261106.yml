@@ -1,0 +1,35 @@
+name: MUSITU Zone Config Token Permission Probe 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-zone-config-token-permissions-20261106.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      PARENT_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+    steps:
+      - name: List selectable zone configuration permission-group names only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request
+          a=os.environ['CF_ACCOUNT_ID'];t=os.environ['PARENT_TOKEN']
+          req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{a}/tokens/permission_groups',headers={'Authorization':'Bearer '+t,'Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=20) as r:b=json.load(r)
+          assert b.get('success')
+          rows=[]
+          for g in b.get('result') or []:
+              name=str(g.get('name') or '')
+              low=name.lower()
+              if any(k in low for k in ('zone','rule','waf','firewall','setting','config')):
+                  rows.append({'name':name,'id':g.get('id'),'selectable':g.get('is_selectable',True)})
+          print('candidate_permission_groups:',json.dumps(rows,sort_keys=True))
+          PY
