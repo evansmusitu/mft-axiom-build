@@ -112,7 +112,7 @@ jobs:
           set -euo pipefail
           "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/site/corporate/dist" --project-name "$CF_PAGES_NAME" --branch main --commit-hash "$MERGE_SHA" --skip-caching --no-bundle
           python3 - <<'PY'
-          import json,os,time,urllib.request
+          import json,os,time,urllib.parse,urllib.request
           token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME'];merge=os.environ['MERGE_SHA']
           url=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/deployments'
           head={'Authorization':'Bearer '+token,'Accept':'application/json'}
@@ -172,8 +172,14 @@ jobs:
               active=False
               for i in range(50):
                   with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
-                  status=(b.get('result') or {}).get('status')
-                  print('domain_status',name,'attempt',i+1,status)
+                  result=b.get('result') or {}
+                  status=result.get('status')
+                  print('domain_status',name,'attempt',i+1,status,'validation=',json.dumps(result.get('validation_data'),sort_keys=True),'verification=',json.dumps(result.get('verification_data'),sort_keys=True))
+                  if name=='mftintelligence.com':
+                      dnsurl='https://api.cloudflare.com/client/v4/zones/'+os.environ['CF_ZONE_ID']+'/dns_records?'+urllib.parse.urlencode({'name':name,'per_page':100})
+                      with urllib.request.urlopen(urllib.request.Request(dnsurl,headers=h),timeout=20) as dr:db=json.load(dr)
+                      web=[{'type':x.get('type'),'content':x.get('content'),'proxied':x.get('proxied')} for x in db.get('result',[]) if x.get('type') in ('A','AAAA','CNAME')]
+                      print('apex_web_dns_records',json.dumps(web,sort_keys=True))
                   if status=='active':active=True;break
                   if status in ('error','blocked','deactivated'):raise RuntimeError(name+' entered '+str(status))
                   time.sleep(5)
