@@ -21,7 +21,7 @@ jobs:
       CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
       CF_PAGES_NAME: musitu-corporate
       CF_PREVIEW_BRANCH: corporate-private-20261103
-      EXACT_PR32_SHA: ecb86b3165d494d1b18c740d2d43ab637be50650
+      EXACT_PR32_SHA: 7e0fa23dad220e0e1b7e48a9176e3437b5afc545
       MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Preflight two Cloudflare Access gates and isolated Pages project
