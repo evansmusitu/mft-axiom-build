@@ -105,6 +105,38 @@ class PolishLongwallTelemetryTests(unittest.TestCase):
         wrong_transport["transport_source"]="unverified-mirror"
         self.assertFalse(evaluate_longwall_gate(spec,wrong_transport)["real_telemetry_qualified"])
 
+    def test_duplicate_sensor_columns_fail_closed_in_csv_and_arff(self):
+        spec=LongwallTelemetrySpec(min_source_rows=3,durable_sample_rows=2)
+        # A repeated sensor key was formerly silently overwritten after mapping.
+        original=fixture_text().splitlines()
+        duplicate_csv="\n".join(
+            line + (", mM263 " if i==0 else ",0.25")
+            for i,line in enumerate(original)
+        ) + "\n"
+        with self.assertRaisesRegex(ValueError,"longwall_duplicate_column"):
+            scan_csv_stream(io.StringIO(duplicate_csv),spec)
+
+        original_arff=fixture_arff().splitlines()
+        data_index=original_arff.index("@DATA")
+        original_arff.insert(data_index,"@ATTRIBUTE mm263 NUMERIC")
+        for i in range(data_index+2,len(original_arff)):
+            if original_arff[i].strip():
+                original_arff[i] += ",0.25"
+        with self.assertRaisesRegex(ValueError,"longwall_duplicate_column"):
+            scan_arff_stream(io.StringIO("\n".join(original_arff)+"\n"),spec)
+
+    def test_casefold_collisions_in_direct_row_mapping_fail_closed(self):
+        fieldnames=fixture_text().splitlines()[0].split(",")
+        values=fixture_text().splitlines()[1].split(",")
+        raw=dict(zip(fieldnames,values,strict=True))
+        original=dict(raw)
+        for conflicting_key in ("mm263"," MM263 "):
+            with self.subTest(conflicting_key=conflicting_key):
+                tampered={**raw, conflicting_key:"999.0"}
+                with self.assertRaisesRegex(ValueError,"longwall_duplicate_column"):
+                    canonical_telemetry_row(tampered)
+                self.assertEqual(tampered,{**original,conflicting_key:"999.0"})
+
     def test_spec_is_bound_to_public_mendeley_dataset_and_million_row_durable_sample(self):
         spec=LongwallTelemetrySpec()
         self.assertEqual(spec.dataset_id,"yd7vw4c5mk")

@@ -57,7 +57,15 @@ class LongwallTelemetrySpec:
 
 
 def _casefold_row(raw: Mapping[str,Any]) -> dict[str,Any]:
-    return {str(key).strip().casefold():value for key,value in raw.items() if key is not None}
+    normalized={}
+    for key,value in raw.items():
+        if key is None:
+            continue
+        canonical=str(key).strip().casefold()
+        if canonical in normalized:
+            raise ValueError("longwall_duplicate_column")
+        normalized[canonical]=value
+    return normalized
 
 
 def _required_header_names() -> set[str]:
@@ -67,6 +75,8 @@ def _required_header_names() -> set[str]:
 def validate_header(fieldnames: list[str] | tuple[str,...] | None) -> tuple[str,...]:
     names=tuple(str(name).strip() for name in (fieldnames or ()) if name is not None)
     folded={name.casefold() for name in names}
+    if len(folded) != len(names):
+        raise ValueError("longwall_duplicate_column")
     missing=sorted(_required_header_names()-folded)
     if missing:
         raise ValueError("longwall_required_columns_missing:"+",".join(missing))
