@@ -342,3 +342,23 @@ test("paid provider registration refuses zero input or output token prices befor
     assert.equal(calls,0,"invalid rates must reject before upstream I/O");
   }finally{ledger.close();}
 });
+
+
+test("SQLite metered provider ignores caller replacement of its internal database handle",async()=>{
+  const x=setup();
+  try{
+    // A trusted provider ledger must not consult this forged storage object.
+    // Only the database opened by its original constructor may hold accounts.
+    (x.ledger as any).db={
+      exec(){throw new Error("FORGED_SPEND_DATABASE_USED");},
+      prepare(){throw new Error("FORGED_SPEND_DATABASE_USED");}
+    };
+    await x.wrapped.invoke({
+      tenant:scope(),compilationRequestHash:"1".repeat(64),attempt:0,mode:"INITIAL"
+    });
+    assert.equal(x.calls,1);
+    assert.deepEqual(x.ledger.status(scope(),"test:openai","test-model"),{
+      limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:800
+    });
+  }finally{x.ledger.close();}
+});
