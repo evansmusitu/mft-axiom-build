@@ -115,49 +115,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --prefix "$RUNNER_TEMP/musitu-wrangler" --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          npm install --prefix "$RUNNER_TEMP/musitu-wrangler" --ignore-scripts --no-audit --no-fund wrangler@4.158.0
           "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" --version
-      - name: Deploy harmless no-data Access guard probe to preview branch only
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/musitu-guard"
-          printf '%s\n' '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>Restricted corporate review</title><p>Restricted corporate release verification.</p></html>' > "$RUNNER_TEMP/musitu-guard/index.html"
-          printf '%s\n' '/*' '  X-Robots-Tag: noindex, nofollow' '  X-Content-Type-Options: nosniff' > "$RUNNER_TEMP/musitu-guard/_headers"
-          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/musitu-guard" --project-name "$CF_PAGES_NAME" --branch "$CF_PREVIEW_BRANCH" --commit-hash "$GITHUB_SHA"
-      - name: Refuse full site if anonymous browser can access guard probe
+      - name: Confirm existing preview is anonymously blocked before deploy
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os,urllib.request,urllib.error,time
+          import os,urllib.request,urllib.error
           url='https://'+os.environ['CF_PREVIEW_BRANCH']+'.'+os.environ['CF_PAGES_NAME']+'.pages.dev/'
           class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self,req,fp,code,msg,headers,newurl):return None
-          opener=urllib.request.build_opener(NoRedirect)
-          protected=False
-          for attempt in range(9):
-            try:
-              with opener.open(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Anonymous-Access-Probe/1.0'}),timeout=12) as r:
-                status=r.status;loc=r.headers.get('Location','')
-            except urllib.error.HTTPError as exc:
-              status=exc.code;loc=exc.headers.get('Location','')
-            except Exception as exc:
-              status=0;loc=''
-            if status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc):
-              protected=True;break
-            if status==200:
-              raise SystemExit('FAIL CLOSED: Guard probe is anonymously accessible — full site not deployed')
-            time.sleep(4)
-          print('anonymous_guard_status:',status)
-          print('anonymous_guard_redirect_to_access:',protected)
-          assert protected,'Access challenge not proven; the full website MUST NOT deploy'
+          op=urllib.request.build_opener(NoRedirect)
+          try:
+            with op.open(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Anonymous-Predeploy/20261106'}),timeout=20) as r:
+              status=r.status;loc=r.headers.get('Location','')
+          except urllib.error.HTTPError as e:
+            status=e.code;loc=e.headers.get('Location','')
+          protected=(status in (401,403)) or (status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc))
+          assert protected,'FAIL CLOSED: existing corporate preview is not anonymously blocked'
+          print('predeploy_anonymous_http_status:',status)
+          print('predeploy_access_protection: VERIFIED')
           PY
       - name: Deploy 34-route NOINDEX staging only behind verified Access
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/musitu-corporate-v4" --project-name "$CF_PAGES_NAME" --branch "$CF_PREVIEW_BRANCH" --commit-hash "$GITHUB_SHA"
+          "$RUNNER_TEMP/musitu-wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/musitu-corporate-v4" --project-name "$CF_PAGES_NAME" --branch "$CF_PREVIEW_BRANCH" --commit-hash "$EXACT_PR32_SHA" --skip-caching --no-bundle
       - name: Verify private preview stays Access protected; no public/domain changes
         shell: bash
         run: |
@@ -171,7 +155,7 @@ jobs:
           try:
             with op.open(urllib.request.Request(u,headers={'User-Agent':'MUSITU-Anonymous-Postdeploy/1.0'}),timeout=20) as r: status=r.status;loc=r.headers.get('Location','')
           except urllib.error.HTTPError as e:status=e.code;loc=e.headers.get('Location','')
-          ok=status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc)
+          ok=(status in (401,403)) or (status in (301,302,303,307,308) and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc))
           assert ok,'Postdeploy private preview Access protection missing'
           print('restricted_preview_url:',u)
           print('postdeploy_anonymous_access_blocked: VERIFIED')
@@ -179,3 +163,5 @@ jobs:
           print('existing_intelligence_writes: 0')
           print('public_release_completed: false')
           PY
+
+# Final candidate deploy uses one direct upload after API + anonymous Access preflight to avoid redundant probe deployment.
