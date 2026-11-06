@@ -1,0 +1,165 @@
+name: MUSITU Corporate Public Security Exception Token 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-corporate-public-security-exception-token-20261106.yml
+permissions:
+  contents: read
+jobs:
+  apply-and-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      PARENT_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      RULE_REF: "musitu_corporate_public_static_20261106"
+    steps:
+      - name: Mint short-lived exact-zone configuration token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,json,os,urllib.error,urllib.request
+          parent=os.environ['PARENT_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];zone=os.environ['CF_ZONE_ID']
+          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+parent,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None):
+              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  raw=r.read().decode();return json.loads(raw) if raw else {}
+          g=call('GET',f'/accounts/{account}/tokens/permission_groups')
+          assert g.get('success')
+          by={x.get('name'):x for x in g.get('result') or []}
+          required=['Zone Read','Zone Settings Read','Zone Settings Write','Zone WAF Read','Zone WAF Write']
+          missing=[x for x in required if x not in by]
+          assert not missing,'Missing selectable permission groups: '+repr(missing)
+          now=datetime.datetime.now(datetime.timezone.utc);expiry=(now+datetime.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+          payload={'name':'MUSITU corporate public security exception 20261106','policies':[{'effect':'allow','resources':{f'com.cloudflare.api.account.zone.{zone}':'*'},'permission_groups':[{'id':by[n]['id']} for n in required]}],'expires_on':expiry}
+          out=call('POST',f'/accounts/{account}/tokens',payload)
+          assert out.get('success')
+          result=out.get('result') or {};token=result.get('value') or '';tid=result.get('id') or ''
+          assert token and tid
+          print('::add-mask::'+token)
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('TEMP_CONFIG_TOKEN='+token+'\nTEMP_CONFIG_TOKEN_ID='+tid+'\n')
+          print('temporary_zone_config_token_created: true')
+          print('temporary_zone_config_token_expires_on:',expiry)
+          PY
+
+      - name: Apply exact-host Under-Attack and BIC exception
+        id: apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          token=os.environ['TEMP_CONFIG_TOKEN'];zid=os.environ['CF_ZONE_ID'];ref=os.environ['RULE_REF']
+          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'}
+          def call(method,path,data=None):
+              req=urllib.request.Request(base+path,headers=h,method=method,data=None if data is None else json.dumps(data).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      raw=r.read().decode();b=json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf8','replace')
+                  try:b=json.loads(raw)
+                  except:b={}
+                  raise RuntimeError(f'{method} {path} HTTP {e.code}: '+json.dumps(b.get('errors',[]))[:500])
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          security=call('GET',f'/zones/{zid}/settings/security_level')
+          bic=call('GET',f'/zones/{zid}/settings/browser_check')
+          assert security.get('value')=='under_attack'
+          assert bic.get('value')=='on'
+          sets=call('GET',f'/zones/{zid}/rulesets') or []
+          matches=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          assert len(matches)==1,'Expected unique zone http_config_settings ruleset'
+          rid=matches[0]['id']
+          detail=call('GET',f'/zones/{zid}/rulesets/{rid}') or {}
+          expr='(http.host eq "mftintelligence.com" or http.host eq "www.mftintelligence.com")'
+          existing=[r for r in detail.get('rules') or [] if r.get('ref')==ref]
+          if existing:
+              r=existing[0];ap=r.get('action_parameters') or {}
+              assert r.get('expression')==expr and r.get('action')=='set_config' and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+              rule_id=r.get('id');created=False
+          else:
+              body={'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},'expression':expr,'description':'MUSITU public static corporate hostnames only; remove global Under Attack/BIC challenge while retaining other zone controls','enabled':True,'ref':ref}
+              r=call('POST',f'/zones/{zid}/rulesets/{rid}/rules',body)
+              rule_id=r.get('id');created=True
+          assert rule_id
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('CORP_RULESET_ID='+rid+'\nCORP_RULE_ID='+rule_id+'\nCORP_RULE_CREATED='+('1' if created else '0')+'\n')
+          check=call('GET',f'/zones/{zid}/rulesets/{rid}') or {}
+          found=[r for r in check.get('rules') or [] if r.get('ref')==ref]
+          assert len(found)==1
+          r=found[0];ap=r.get('action_parameters') or {}
+          assert r.get('expression')==expr and ap.get('security_level')=='essentially_off' and ap.get('bic') is False and r.get('enabled') is not False
+          print('corporate_public_security_exception_readback: PASS')
+          print('exception_scope_exact_hosts_only: true')
+          print('global_security_level_preserved:',security.get('value'))
+          print('global_browser_integrity_preserved:',bic.get('value'))
+          PY
+
+      - name: Verify public apex content is no longer challenged
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,subprocess,time,urllib.request
+          ready=False;last=[]
+          for attempt in range(30):
+              with urllib.request.urlopen('https://dns.google/resolve?name=mftintelligence.com&type=A&cd=1',timeout=15) as r:d=json.load(r)
+              ips=[x['data'] for x in d.get('Answer',[]) if x.get('type')==1]
+              last=[]
+              for ip in ips:
+                  p=subprocess.run(['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{ip}','https://mftintelligence.com/'],capture_output=True,text=True)
+                  out=p.stdout;body=out.split('\r\n\r\n',1)[-1] if '\r\n\r\n' in out else out
+                  first=out.splitlines()[0] if out.splitlines() else ''
+                  challenge=('Just a moment' in body or 'cf-chl' in body)
+                  content=('Intelligence with evidence' in body)
+                  last.append({'ip':ip,'exit':p.returncode,'first':first,'challenge':challenge,'content':content})
+                  if p.returncode==0 and content and not challenge:
+                      ready=True;break
+              print('edge_after_exception_attempt',attempt+1,json.dumps(last))
+              if ready:break
+              time.sleep(4)
+          assert ready,'Public apex still challenged after exact-host exception: '+json.dumps(last)
+          print('public_apex_content_after_security_exception: PASS')
+          PY
+
+      - name: Remove newly-created exception if verification failed
+        if: failure() && steps.apply.outcome == 'success'
+        shell: bash
+        run: |
+          set +e
+          if [ "${CORP_RULE_CREATED:-0}" != "1" ]; then exit 0; fi
+          python3 - <<'PY'
+          import os,urllib.request
+          t=os.environ.get('TEMP_CONFIG_TOKEN','');z=os.environ['CF_ZONE_ID'];rs=os.environ.get('CORP_RULESET_ID','');rid=os.environ.get('CORP_RULE_ID','')
+          if t and rs and rid:
+              req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/zones/{z}/rulesets/{rs}/rules/{rid}',headers={'Authorization':'Bearer '+t,'Accept':'application/json'},method='DELETE')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:print('failed_exception_cleanup_http:',r.status)
+              except Exception as e:print('failed_exception_cleanup_error:',type(e).__name__)
+          PY
+
+      - name: Revoke temporary zone configuration token
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json,os,urllib.request
+          p=os.environ.get('PARENT_TOKEN','');a=os.environ.get('CF_ACCOUNT_ID','');tid=os.environ.get('TEMP_CONFIG_TOKEN_ID','')
+          if not tid:
+              print('temporary_zone_config_token_created: false');raise SystemExit(0)
+          req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{a}/tokens/{tid}',headers={'Authorization':'Bearer '+p,'Accept':'application/json'},method='DELETE')
+          try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  raw=r.read().decode();b=json.loads(raw) if raw else {};ok=r.status in (200,204) and b.get('success',True) is True
+          except Exception:ok=False
+          print('temporary_zone_config_token_revoked:',ok)
+          if not ok:raise SystemExit(1)
+          PY
