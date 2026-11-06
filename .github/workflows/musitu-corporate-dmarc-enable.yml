@@ -1,0 +1,101 @@
+name: MUSITU Corporate DMARC Monitor-Only Enable (Owner Approved)
+
+on:
+  push:
+    branches: [ops/corporate-dmarc-monitoring-20261106]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-dmarc-20261106
+  cancel-in-progress: false
+
+jobs:
+  establish-dmarc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Add only DMARC p=none and Cloudflare-native reporting; preserve all other DNS
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,hashlib,time
+          token=os.environ.get('CF_TOKEN','')
+          assert token,'Missing GitHub Cloudflare API token'
+          account='93f395f5121954671f92fffa453d6b61'
+          root='mftintelligence.com'
+          name='_dmarc.'+root
+          base='https://api.cloudflare.com/client/v4'
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def api(method,path,data=None):
+            payload=json.dumps(data,separators=(',',':')).encode() if data is not None else None
+            req=urllib.request.Request(base+path,data=payload,method=method,
+              headers=dict(headers,**({'Content-Type':'application/json'} if payload is not None else {})))
+            try:
+              with urllib.request.urlopen(req,timeout=22) as r:
+                body=json.loads(r.read(500000)); status=r.status
+            except urllib.error.HTTPError as e:
+              status=e.code
+              try:body=json.loads(e.read(300000))
+              except Exception:body={}
+            if not body.get('success'):
+              raise RuntimeError(method+' denied '+path.split('?')[0]+' HTTP '+str(status)
+                +' codes '+repr([str(x.get('code')) for x in (body.get('errors') or [])][:3]))
+            return body.get('result')
+          def records(zid,typ,nm):
+            return api('GET','/zones/'+zid+'/dns_records?type='+typ+'&name='+nm+'&per_page=50')
+          zones=api('GET','/zones?name='+root+'&per_page=5')
+          matches=[z for z in zones if z.get('name')==root]
+          assert len(matches)==1 and matches[0].get('status')=='active','Unrecognized/inactive exact domain zone'
+          zone=matches[0]
+          assert (zone.get('account') or {}).get('id')==account,'Unexpected corporate account'
+          zid=zone['id']
+          before={}
+          for typ,nm in [('MX',root),('TXT',root),('TXT','send.'+root),('TXT','resend._domainkey.'+root)]:
+            key=typ+'/'+nm
+            before[key]=records(zid,typ,nm)
+          assert len(before['MX/'+root])==3,'Mail MX baseline drift'
+          assert all(str(x.get('content','')).rstrip('.').endswith('cloudflare.net') for x in before['MX/'+root]),'Mail MX destination drift'
+          assert len(before['TXT/send.'+root])==1,'Resend sending SPF drift'
+          assert len(before['TXT/resend._domainkey.'+root])==1,'Resend signing DKIM drift'
+          def fingerprint(xs):
+            return hashlib.sha256(json.dumps(
+              sorted([{k:v for k,v in x.items() if k in ('id','type','name','content','priority','proxied','ttl')}
+                for x in xs],key=lambda d:str(d.get('id'))),sort_keys=True).encode()).hexdigest()
+          hashes={k:fingerprint(v) for k,v in before.items()}
+          any_dmarc=api('GET','/zones/'+zid+'/dns_records?name='+name+'&per_page=50')
+          assert all(x.get('type')=='TXT' for x in any_dmarc),'Unexpected CNAME or other DMARC record'
+          assert len(any_dmarc)<=1,'Conflicting DMARC records'
+          reporter=api('GET','/zones/'+zid+'/email/auth/dmarc-reports')
+          assert reporter and reporter.get('rua_prefix'),'Cloudflare DMARC reporting destination unavailable'
+          target='v=DMARC1; p=none; adkim=r; aspf=r'
+          if len(any_dmarc)==0:
+            result=api('POST','/zones/'+zid+'/dns_records',
+              {'type':'TXT','name':name,'content':target,'ttl':300,'comment':'MUSITU approved monitor-only policy; Cloudflare-native RUA reporting'})
+            print('Created exact monitoring-only DMARC TXT:',bool(result and result.get('id')))
+          else:
+            existing=str(any_dmarc[0].get('content','')).strip('"')
+            assert existing.startswith(target),'Unexpected DMARC policy: no overwrite permitted'
+            print('Identical monitoring-only DMARC TXT already exists.')
+          if reporter.get('enabled') is not True:
+            updated=api('PATCH','/zones/'+zid+'/email/auth/dmarc-reports',{'enabled':True})
+            print('Enabled Cloudflare-native DMARC report collection:',bool(updated and updated.get('enabled')))
+          else:print('Cloudflare-native DMARC reports already enabled.')
+          # Cloudflare may update TXT RUA asynchronously; enforce both policy and report address.
+          for attempt in range(6):
+            got=records(zid,'TXT',name)
+            reports=api('GET','/zones/'+zid+'/email/auth/dmarc-reports')
+            valid=len(got)==1 and str(got[0].get('content','')).strip('"').startswith(target)
+            rua=valid and 'rua=mailto:' in str(got[0].get('content',''))
+            if valid and rua and reports.get('enabled') is True:break
+            if attempt<5:time.sleep(3)
+          assert valid,'DMARC record missing or policy changed'
+          assert rua,'DMARC record lacks Cloudflare-approved aggregate RUA'
+          assert reports.get('enabled') is True,'Cloudflare DMARC report collection not enabled'
+          for typ,nm in [('MX',root),('TXT',root),('TXT','send.'+root),('TXT','resend._domainkey.'+root)]:
+            k=typ+'/'+nm
+            assert fingerprint(records(zid,typ,nm))==hashes[k],('Unauthorized DNS drift',k)
+          print('PASS: DMARC policy p=none, relaxed alignment, native RUA reporting enabled, all preexisting MX/SPF/DKIM/TXT records unchanged.')
+          PY
