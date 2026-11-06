@@ -124,7 +124,7 @@ jobs:
           candidates.sort(key=lambda g:0 if g.get('name')=='DNS Write' else 1)
           gid=candidates[0]['id']
           now=datetime.datetime.now(datetime.timezone.utc)
-          expiry=(now+datetime.timedelta(minutes=45)).isoformat().replace('+00:00','Z')
+          expiry=(now+datetime.timedelta(minutes=45)).strftime('%Y-%m-%dT%H:%M:%SZ')
           payload={'name':'MUSITU corporate launch DNS 20261106','policies':[{'effect':'allow','resources':{f'com.cloudflare.api.account.zone.{zone}':'*'},'permission_groups':[{'id':gid}]}],'expires_on':expiry}
           code,res=call('POST',f'/accounts/{account}/tokens',payload)
           assert res.get('success') is True
