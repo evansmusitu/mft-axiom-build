@@ -250,3 +250,16 @@ CREATE TABLE IF NOT EXISTS axiom_provider_spend_requests(
  FOREIGN KEY(tenant_id,provider,model_id)
    REFERENCES axiom_provider_spend_budgets(tenant_id,provider,model_id)
 );
+
+-- Phase 2.10B: vendor organization cap across tenants, adapters and models.
+-- Existing budgets receive NULL vendor and fail closed until audited backfill.
+ALTER TABLE axiom_provider_spend_budgets
+  ADD COLUMN IF NOT EXISTS billing_provider TEXT
+  CHECK (billing_provider IN ('openai','anthropic'));
+CREATE TABLE IF NOT EXISTS axiom_provider_spend_organizations(
+ billing_provider TEXT PRIMARY KEY CHECK(billing_provider IN ('openai','anthropic')),
+ limit_micro_usd BIGINT NOT NULL CHECK(limit_micro_usd>=0),
+ charged_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(charged_micro_usd>=0),
+ reserved_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(reserved_micro_usd>=0),
+ suspended BOOLEAN NOT NULL DEFAULT FALSE
+);

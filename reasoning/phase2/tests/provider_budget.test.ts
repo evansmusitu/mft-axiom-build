@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as phase2 from "../src/index.ts";
+import pg from "pg";
 
 const manifest=(provider:"openai"|"anthropic")=>({
   adapterId:"test:"+provider,version:"1.0.0",implementationHash:"a".repeat(64),
@@ -284,4 +285,96 @@ test("SQLite provider settlement refuses unsafe aggregate charges without corrup
       limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:100,availableMicroUsd:300
     });
   }finally{ledger.close();}
+});
+
+
+test("PostgreSQL billing ledger refuses injected fake and prototype-forged connection pools",()=>{
+  // A branded ledger with a fabricated pool could make reserve/settle
+  // succeed without writing any shared accounting state.
+  let connections=0;
+  const fakePool={async connect(){connections++;return {
+    async query(){return {rowCount:1,rows:[{limit_micro_usd:"1000",charged_micro_usd:"0",reserved_micro_usd:"0",billing_provider:"openai",suspended:false}]};},
+    release(){}
+  };}};
+  assert.throws(()=>new phase2.PostgresProviderSpendLedger(fakePool as any),/trusted|pool|postgres/i);
+  assert.equal(connections,0);
+});
+
+test("PostgreSQL ledger rejects a forged Pool prototype and changed connect hook before billing",async()=>{
+  const forged=Object.create(pg.Pool.prototype);
+  assert.throws(()=>new phase2.PostgresProviderSpendLedger(forged),/trusted|pool|postgres/i);
+  const genuine=new pg.Pool({max:1,connectionTimeoutMillis:200});
+  try{
+    const ledger=new phase2.PostgresProviderSpendLedger(genuine);
+    let intercepted=0;
+    (genuine as any).connect=async()=>{
+      intercepted++;
+      return {async query(){return {rowCount:1,rows:[]};},release(){}};
+    };
+    await assert.rejects(()=>ledger.reserve({
+      tenantId:"tenant:authority",provider:"adapter:authority",modelId:"model:authority",
+      billingProvider:"openai",requestId:"intent:authority",requestHash:"d".repeat(64),reserveMicroUsd:100
+    }),/trusted|pool|unavailable|budget/i);
+    assert.equal(intercepted,0,"tampered pool connect must not be called");
+  }finally{await genuine.end();}
+});
+
+
+test("paid provider registration refuses zero input or output token prices before calling upstream",()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  let calls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){calls++;return exchange(openAi({input_tokens:50,output_tokens:50,total_tokens:100}));},
+    async explain(){calls++;return exchange(openAi({input_tokens:50,output_tokens:50,total_tokens:100}));}
+  };
+  try{
+    for(const invalidPrices of [
+      {...prices,inputMicrosPerMillionTokens:0},
+      {...prices,outputMicrosPerMillionTokens:0},
+      {inputMicrosPerMillionTokens:0,outputMicrosPerMillionTokens:0,
+        cacheReadMicrosPerMillionTokens:0,cacheWriteMicrosPerMillionTokens:0}
+    ]){
+      assert.throws(()=>new phase2.BudgetedModelProviderAdapter({
+        adapter,ledger,tenantId:"tenant:a",prices:invalidPrices,requestReserveMicroUsd:700
+      }),/price|rate|paid|positive/i);
+    }
+    assert.equal(calls,0,"invalid rates must reject before upstream I/O");
+  }finally{ledger.close();}
+});
+
+
+test("SQLite metered provider ignores caller replacement of its internal database handle",async()=>{
+  const x=setup();
+  try{
+    // A trusted provider ledger must not consult this forged storage object.
+    // Only the database opened by its original constructor may hold accounts.
+    (x.ledger as any).db={
+      exec(){throw new Error("FORGED_SPEND_DATABASE_USED");},
+      prepare(){throw new Error("FORGED_SPEND_DATABASE_USED");},
+      close(){}
+    };
+    await x.wrapped.invoke({
+      tenant:scope(),compilationRequestHash:"1".repeat(64),attempt:0,mode:"INITIAL"
+    });
+    assert.equal(x.calls,1);
+    assert.deepEqual(x.ledger.status(scope(),"test:openai","test-model"),{
+      limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:800
+    });
+  }finally{x.ledger.close();}
+});
+
+
+test("PostgreSQL ledger is not redirected by a replaced public pool property",async()=>{
+  const original=new pg.Pool({host:"127.0.0.1",port:1,
+    connectionTimeoutMillis:100,max:1});
+  const ledger=new phase2.PostgresProviderSpendLedger(original);
+  try{
+    Object.defineProperty(ledger,"pool",{
+      configurable:true,get(){throw new Error("FORGED_POSTGRES_POOL_USED");}
+    });
+    await assert.rejects(()=>ledger.status(scope(),"test:openai","test-model"),
+      (error:any)=>error?.code==="BUDGET_STORE_UNAVAILABLE",
+      "trusted billing should attempt its original Pool and fail safely on unavailable database");
+  }finally{await original.end();}
 });

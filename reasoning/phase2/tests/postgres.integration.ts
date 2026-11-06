@@ -729,10 +729,11 @@ test("PostgreSQL provider spend reservations serialize across competing workers 
  const provider="model:pg-cost",modelId="billing:test-model";
  await pool.query("DELETE FROM axiom_provider_spend_requests WHERE provider=$1 AND model_id=$2",[provider,modelId]);
  await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE provider=$1 AND model_id=$2",[provider,modelId]);
- await ledger.provision(tenant,provider,modelId,1000);
- await ledger.provision(other,provider,modelId,1000);
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ await ledger.provision(other,provider,modelId,1000,"openai");
  const reservation=(id:string,tenantId=tenant.tenantId)=>({
-  tenantId,provider,modelId,requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
+  tenantId,provider,modelId,billingProvider:"openai",requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
  });
  const [first,second]=await Promise.allSettled([
   ledger.reserve(reservation("pg-cost-1")),ledger.reserve(reservation("pg-cost-2"))
@@ -766,8 +767,9 @@ test("PostgreSQL billing records overages, suspends further calls and fails clos
  const tenant={tenantId:"tenant:pg-cost-overage"},provider="model:pg-cost",modelId="billing:test-model";
  await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
  await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
- await ledger.provision(tenant,provider,modelId,1000);
- const reservation={tenantId:tenant.tenantId,provider,modelId,requestId:"pg-overage",
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,billingProvider:"openai",requestId:"pg-overage",
   requestHash:"e".repeat(64),reserveMicroUsd:100};
  await ledger.reserve(reservation);
  await assert.rejects(()=>ledger.settle({...reservation,requestHash:"f".repeat(64),chargeMicroUsd:600,responseHash:"b".repeat(64)}),/matching|reservation|forbidden/i);
@@ -777,5 +779,72 @@ test("PostgreSQL billing records overages, suspends further calls and fails clos
   limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:0,availableMicroUsd:400
  });
  await assert.rejects(()=>ledger.reserve({...reservation,requestId:"pg-new",requestHash:"d".repeat(64)}),/suspended|overage/i);
- await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999),/immutable|existing|differs/i);
+ await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999,"openai"),/immutable|existing|differs/i);
+});
+
+
+test("PostgreSQL denies vendor reservations when the shared organization spending cap is not provisioned",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-organization-unprovisioned"};
+ const provider="adapter:pg-organization-unprovisioned",modelId="billing:model-unprovisioned";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
+ // The operator may provision a tenant limit without having approved the
+ // separate upstream vendor's aggregate organization spending authority.
+ await ledger.provision(tenant,provider,modelId,1000,"anthropic");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,
+  billingProvider:"anthropic",requestId:"org-not-provisioned",
+  requestHash:"7".repeat(64),reserveMicroUsd:700};
+ await assert.rejects(()=>ledger.reserve(reservation),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_NOT_PROVISIONED");
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
+ });
+});
+
+
+test("PostgreSQL vendor-wide cap serializes competing tenant reservations and suspends after overage",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool),vendor="anthropic";
+ const tenantA={tenantId:"tenant:pg-organization-a"},tenantB={tenantId:"tenant:pg-organization-b"};
+ const first={tenantId:tenantA.tenantId,provider:"adapter:org-a",modelId:"org:model-a",
+  billingProvider:vendor,requestId:"org-a-1",requestHash:"8".repeat(64),reserveMicroUsd:700};
+ const second={tenantId:tenantB.tenantId,provider:"adapter:org-b",modelId:"org:model-b",
+  billingProvider:vendor,requestId:"org-b-1",requestHash:"9".repeat(64),reserveMicroUsd:700};
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await ledger.provisionOrganization(vendor,1000);
+ await ledger.provision(tenantA,first.provider,first.modelId,1000,vendor);
+ await ledger.provision(tenantB,second.provider,second.modelId,1000,vendor);
+ // Simulate two independent workers with separate TCP pools. This verifies
+ // database row locking, not just scheduling inside a single Node.js pg Pool.
+ const workerPool=new Pool({host:process.env.PGHOST??"postgres",
+  port:Number(process.env.PGPORT??5432),database:process.env.PGDATABASE??"axiom_test",
+  user:process.env.PGUSER??"axiom",password:process.env.PGPASSWORD??"axiom-test-password",
+  max:2,connectionTimeoutMillis:2000});
+ let a:PromiseSettledResult<void>,b:PromiseSettledResult<void>;
+ try{
+  const otherWorker=new ax.PostgresProviderSpendLedger(workerPool);
+  [a,b]=await Promise.allSettled([ledger.reserve(first),otherWorker.reserve(second)]);
+ }finally{await workerPool.end();}
+ assert.equal([a,b].filter(result=>result.status==="fulfilled").length,1);
+ const winner=a.status==="fulfilled"?first:second,loser=winner===first?second:first;
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+ });
+ await ledger.settle({...winner,chargeMicroUsd:200,responseHash:"a".repeat(64)});
+ await ledger.reserve(loser);
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:700,availableMicroUsd:100
+ });
+ await assert.rejects(()=>ledger.settle({...loser,chargeMicroUsd:900,responseHash:"b".repeat(64)}),
+  (error:any)=>error?.code==="BUDGET_PROVIDER_OVERAGE");
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:1100,reservedMicroUsd:0,availableMicroUsd:0
+ });
+ await assert.rejects(()=>ledger.reserve({...winner,requestId:"after-org-overage",requestHash:"c".repeat(64),reserveMicroUsd:100}),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_SUSPENDED");
 });

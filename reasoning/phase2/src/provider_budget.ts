@@ -16,10 +16,10 @@ export interface ProviderSpendStatus {
   limitMicroUsd:number;chargedMicroUsd:number;reservedMicroUsd:number;availableMicroUsd:number;
 }
 export interface ProviderReservation {
-  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;reserveMicroUsd:number;
+  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;reserveMicroUsd:number;billingProvider?:"openai"|"anthropic";
 }
 export interface ProviderSettlement {
-  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;chargeMicroUsd:number;responseHash:string;
+  tenantId:string;provider:string;modelId:string;requestId:string;requestHash:string;chargeMicroUsd:number;responseHash:string;billingProvider?:"openai"|"anthropic";
 }
 export interface ProviderSpendLedger {
   reserve(input:ProviderReservation):void|Promise<void>;
@@ -51,7 +51,8 @@ function sha(value:string):string{return sha256Hex(Buffer.from(value,"utf8"));}
 
 export class SqliteProviderSpendLedger implements ProviderSpendLedger {
   #authenticBudgetLedger=true;
-  private readonly db:DatabaseSync;
+  // Unforgeable backing-store identity: JS callers must never replace accounting I/O.
+  readonly #db:DatabaseSync;
   static isAuthenticLedger(value:unknown):value is SqliteProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
@@ -59,8 +60,8 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
       (value as SqliteProviderSpendLedger).settle===trustedSqliteSettle;
   }
   constructor(databasePath:string){
-    this.db=new DatabaseSync(named(databasePath,"databasePath"));
-    this.db.exec([
+    this.#db=new DatabaseSync(named(databasePath,"databasePath"));
+    this.#db.exec([
       "PRAGMA busy_timeout=5000;",
       "PRAGMA journal_mode=WAL;",
       "CREATE TABLE IF NOT EXISTS axiom_provider_spend_budgets(",
@@ -76,27 +77,27 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
       "PRIMARY KEY(tenant_id,provider,model_id,request_id));"
     ].join("\n"));
   }
-  close():void{this.db.close();}
+  close():void{this.#db.close();}
   private transaction<T>(run:()=>T):T{
-    this.db.exec("BEGIN IMMEDIATE");
-    try{const result=run();this.db.exec("COMMIT");return result;}
-    catch(error){try{this.db.exec("ROLLBACK");}catch{}throw error;}
+    this.#db.exec("BEGIN IMMEDIATE");
+    try{const result=run();this.#db.exec("COMMIT");return result;}
+    catch(error){try{this.#db.exec("ROLLBACK");}catch{}throw error;}
   }
   /** Trusted operator-only provisioning. Never expose directly to tenants. */
   provision(scope:TenantScope,provider:string,modelId:string,limitMicroUsd:number):void{
     const tenantId=named(scope?.tenantId,"tenantId");
     named(provider,"provider");named(modelId,"modelId");money(limitMicroUsd,"limitMicroUsd");
     this.transaction(()=>{
-      this.db.prepare("INSERT OR IGNORE INTO axiom_provider_spend_budgets(tenant_id,provider,model_id,limit_micro_usd) VALUES (?,?,?,?)")
+      this.#db.prepare("INSERT OR IGNORE INTO axiom_provider_spend_budgets(tenant_id,provider,model_id,limit_micro_usd) VALUES (?,?,?,?)")
         .run(tenantId,provider,modelId,limitMicroUsd);
-      const row=this.db.prepare("SELECT limit_micro_usd AS limitValue FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
+      const row=this.#db.prepare("SELECT limit_micro_usd AS limitValue FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
         .get(tenantId,provider,modelId) as any;
       if(Number(row.limitValue)!==limitMicroUsd)throw new ProviderBudgetError("BUDGET_POLICY_IMMUTABLE","Existing spending budget differs; audited administration is required",409);
     });
   }
   status(scope:TenantScope,provider:string,modelId:string):ProviderSpendStatus{
     const tenantId=named(scope?.tenantId,"tenantId");named(provider,"provider");named(modelId,"modelId");
-    const row=this.db.prepare("SELECT limit_micro_usd AS maximum,charged_micro_usd AS charged,reserved_micro_usd AS reserved FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
+    const row=this.#db.prepare("SELECT limit_micro_usd AS maximum,charged_micro_usd AS charged,reserved_micro_usd AS reserved FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
       .get(tenantId,provider,modelId) as any;
     if(!row)throw new ProviderBudgetError("BUDGET_NOT_PROVISIONED","No tenant provider budget is provisioned",403);
     const limitMicroUsd=Number(row.maximum),chargedMicroUsd=Number(row.charged),reservedMicroUsd=Number(row.reserved);
@@ -105,11 +106,11 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
   reserve(input:ProviderReservation):void{
     validateRequest(input);money(input.reserveMicroUsd,"reserveMicroUsd",true);
     this.transaction(()=>{
-      const row=this.db.prepare("SELECT limit_micro_usd AS maximum,charged_micro_usd AS charged,reserved_micro_usd AS reserved,suspended FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
+      const row=this.#db.prepare("SELECT limit_micro_usd AS maximum,charged_micro_usd AS charged,reserved_micro_usd AS reserved,suspended FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
         .get(input.tenantId,input.provider,input.modelId) as any;
       if(!row)throw new ProviderBudgetError("BUDGET_NOT_PROVISIONED","No tenant provider budget is provisioned",403);
       if(row.suspended)throw new ProviderBudgetError("BUDGET_SUSPENDED","Provider spending suspended after overage; reconciliation required");
-      const old=this.db.prepare("SELECT request_hash AS hash,status FROM axiom_provider_spend_requests WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
+      const old=this.#db.prepare("SELECT request_hash AS hash,status FROM axiom_provider_spend_requests WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
         .get(input.tenantId,input.provider,input.modelId,input.requestId) as any;
       if(old){
         if(old.hash!==input.requestHash)throw new ProviderBudgetError("BUDGET_IDENTITY_COLLISION","Provider request identity collision",409);
@@ -120,9 +121,9 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
         Number(row.charged)+Number(row.reserved)+input.reserveMicroUsd>Number(row.maximum)){
         throw new ProviderBudgetError("BUDGET_EXCEEDED","Tenant provider spending limit would be exceeded");
       }
-      this.db.prepare("INSERT INTO axiom_provider_spend_requests(tenant_id,provider,model_id,request_id,request_hash,reserve_micro_usd,status) VALUES (?,?,?,?,?,?,'RESERVED')")
+      this.#db.prepare("INSERT INTO axiom_provider_spend_requests(tenant_id,provider,model_id,request_id,request_hash,reserve_micro_usd,status) VALUES (?,?,?,?,?,?,'RESERVED')")
         .run(input.tenantId,input.provider,input.modelId,input.requestId,input.requestHash,input.reserveMicroUsd);
-      this.db.prepare("UPDATE axiom_provider_spend_budgets SET reserved_micro_usd=reserved_micro_usd+? WHERE tenant_id=? AND provider=? AND model_id=?")
+      this.#db.prepare("UPDATE axiom_provider_spend_budgets SET reserved_micro_usd=reserved_micro_usd+? WHERE tenant_id=? AND provider=? AND model_id=?")
         .run(input.reserveMicroUsd,input.tenantId,input.provider,input.modelId);
     });
   }
@@ -130,13 +131,13 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
     validateRequest(input);money(input.chargeMicroUsd,"chargeMicroUsd");
     if(!/^[0-9a-f]{64}$/.test(input.responseHash))throw new TypeError("responseHash must be SHA-256");
     const overage=this.transaction(()=>{
-      const old=this.db.prepare("SELECT request_hash AS hash,reserve_micro_usd AS reserved,status FROM axiom_provider_spend_requests WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
+      const old=this.#db.prepare("SELECT request_hash AS hash,reserve_micro_usd AS reserved,status FROM axiom_provider_spend_requests WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
         .get(input.tenantId,input.provider,input.modelId,input.requestId) as any;
       if(!old||old.hash!==input.requestHash||old.status!=="RESERVED")
         throw new ProviderBudgetError("BUDGET_SETTLEMENT_FORBIDDEN","No matching unsettled reservation",409);
       // SQLite integer arithmetic can exceed JavaScript's exact integer precision.
       // Refuse unsafe aggregate billing before touching either durable row.
-      const budget=this.db.prepare("SELECT charged_micro_usd AS charged,reserved_micro_usd AS held FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
+      const budget=this.#db.prepare("SELECT charged_micro_usd AS charged,reserved_micro_usd AS held FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
         .get(input.tenantId,input.provider,input.modelId) as any;
       const charged=Number(budget?.charged),held=Number(budget?.held),reserved=Number(old.reserved);
       if(!budget||!Number.isSafeInteger(charged)||charged<0||
@@ -147,9 +148,9 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
           "Provider spend totals cannot be reconciled without loss of integer precision",503);
       }
       const excessive=input.chargeMicroUsd>reserved;
-      this.db.prepare("UPDATE axiom_provider_spend_requests SET status=?,charge_micro_usd=?,response_hash=? WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
+      this.#db.prepare("UPDATE axiom_provider_spend_requests SET status=?,charge_micro_usd=?,response_hash=? WHERE tenant_id=? AND provider=? AND model_id=? AND request_id=?")
         .run(excessive?"OVERAGE":"SETTLED",input.chargeMicroUsd,input.responseHash,input.tenantId,input.provider,input.modelId,input.requestId);
-      this.db.prepare("UPDATE axiom_provider_spend_budgets SET charged_micro_usd=charged_micro_usd+?,reserved_micro_usd=reserved_micro_usd-?,suspended=CASE WHEN ? THEN 1 ELSE suspended END WHERE tenant_id=? AND provider=? AND model_id=?")
+      this.#db.prepare("UPDATE axiom_provider_spend_budgets SET charged_micro_usd=charged_micro_usd+?,reserved_micro_usd=reserved_micro_usd-?,suspended=CASE WHEN ? THEN 1 ELSE suspended END WHERE tenant_id=? AND provider=? AND model_id=?")
         .run(input.chargeMicroUsd,old.reserved,excessive?1:0,input.tenantId,input.provider,input.modelId);
       return excessive;
     });
@@ -162,12 +163,18 @@ const trustedSqliteReserve=SqliteProviderSpendLedger.prototype.reserve;
 const trustedSqliteSettle=SqliteProviderSpendLedger.prototype.settle;
 function checkedPrices(value:ProviderTokenPrices):ProviderTokenPrices{
   if(!value||typeof value!=="object")throw new TypeError("Explicit vendor model price configuration is required");
-  return {
+  const rates={
     inputMicrosPerMillionTokens:money(value.inputMicrosPerMillionTokens,"input price"),
     outputMicrosPerMillionTokens:money(value.outputMicrosPerMillionTokens,"output price"),
     cacheReadMicrosPerMillionTokens:money(value.cacheReadMicrosPerMillionTokens,"cache-read price"),
     cacheWriteMicrosPerMillionTokens:money(value.cacheWriteMicrosPerMillionTokens,"cache-write price")
   };
+  // A paid provider with zero input or output prices could appear settled
+  // while silently omitting actual vendor charges. Explicit rates must be
+  // reconciled to the vendor's approved pricing schedule.
+  if(rates.inputMicrosPerMillionTokens===0||rates.outputMicrosPerMillionTokens===0)
+    throw new TypeError("Paid provider input and output token prices must be positive");
+  return rates;
 }
 /** Compute billable micro-USD using exact provider token classes and operator-pinned rates. */
 export function pricedProviderUsage(responseBody:string,provider:"openai"|"anthropic",prices:ProviderTokenPrices):number{
@@ -265,7 +272,7 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
   }
   private async metered<T extends {responseBody:string}>(intent:string,run:()=>Promise<T>):Promise<T>{
     const requestHash=sha(intent),requestId=requestHash;
-    const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,requestId,requestHash};
+    const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,billingProvider:this.provider,requestId,requestHash};
     this.assertUntamperedLedger();
     await this.ledger.reserve({...identity,reserveMicroUsd:this.requestReserveMicroUsd});
     // A patched ledger after reservation must never authorize a vendor call.
