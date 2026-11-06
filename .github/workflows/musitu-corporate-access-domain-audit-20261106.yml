@@ -35,7 +35,7 @@ jobs:
               with urllib.request.urlopen(req,timeout=25) as r:b=json.load(r)
               assert b.get('success') is True,(path,b.get('errors'))
               return b.get('result')
-          apps=get(f'/accounts/{aid}/access/apps?per_page=100',gh) or []
+          apps=get(f'/accounts/{aid}/access/apps?per_page=100',th) or []
           relevant=[]
           for a in apps:
               dom=str(a.get('domain') or '')
