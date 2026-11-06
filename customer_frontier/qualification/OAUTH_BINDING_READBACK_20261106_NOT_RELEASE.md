@@ -31,3 +31,12 @@ and safe restore target remain required before any schema application. Existing
 Paynow authority, $0 and production rollback origin persist. B27 remains
 FAILED_IN_SYNTHETIC_ATTACK; parity/superiority NOT_CERTIFIED; missing final usage
 UNKNOWN. No paid inference, payment, deploy, merge or publication.
+
+Actual run42197345030/job127823796739 SUCCESS: twoHTTP200 GETs. The live
+Worker musitu-axiom-oauth/AXIOM_DB binding and exact D1 UUID/name both agree.
+OAuth uses production DB504029cc-f9a5-495e-818f-63c6144b4ea4, separate from
+the selected shared staging DB. No SQL/customer rows/settings values or
+mutations. Raw log, parsed observation and hash receipt retained. Customer
+CI42197344918/job127823796607 passed197Node+72Python+16workerd.
+Next earn a safe isolated restore target and private backup; never upgrade
+production or overwrite shared q06 data to bypass those conditions.
