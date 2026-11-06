@@ -1,0 +1,172 @@
+name: MUSITU Corporate PR33 Controlled Production Release
+
+on:
+  push:
+    branches: [ops/corporate-pr33-controlled-release-20261106]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-exact-qualified-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Snapshot successful prior corporate production deployment and fail closed on drift
+        id: baseline
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          tok=os.environ['CLOUDFLARE_API_TOKEN']
+          assert tok,'Missing Cloudflare token'
+          acc=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'Authorization':'Bearer '+tok,'Accept':'application/json'}
+          def get(p):
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+p,headers=h),timeout=20) as r: d=json.loads(r.read(400000))
+            assert d.get('success') is True,p
+            return d['result']
+          project=get('/accounts/'+acc+'/pages/projects/musitu-corporate')
+          assert project.get('name')=='musitu-corporate'
+          assert project.get('production_branch')=='main'
+          assert 'mftintelligence.com' in project.get('domains',[])
+          assert not (project.get('source') or {}).get('type'),'Unexpected Git-integrated Pages source: refuse direct upload'
+          entries=get('/accounts/'+acc+'/pages/projects/musitu-corporate/deployments?per_page=10')
+          successful=[d for d in entries if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+          assert successful,'No restore point'
+          old=successful[0]['id']
+          expected='69ee853a-f0b4-432e-b069-7d6e180fdb4c'
+          assert old==expected,'Production drift detected; refuse deploy without a fresh rollback baseline'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('old_id='+old+'\n')
+          print('Production Pages project and domain verified, rollback snapshot ID:',old)
+          PY
+      - name: Fetch exact PR33 source and hash-pin previously approved Studio media
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch postlaunch-public-copy-cleanup-20261106 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-pr33
+          test "$(git -C /tmp/musitu-pr33 rev-parse HEAD)" = "87cc21fc482ca1a200c3c37a6f527c7d63e3ca34"
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-pr33/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-pr33/corporate/assets/studio-poster.png
+          printf '%s  %s\n' \
+            'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-pr33/corporate/assets/studio-demo-82s.mp4' \
+            '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-pr33/corporate/assets/studio-poster.png' | sha256sum --check
+          echo 'Exact source SHA and checksum-approved media PASS'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recreate qualified deterministic 45-file production artifact
+        run: |
+          set -euo pipefail
+          python -m pip install -q pytest beautifulsoup4
+          cd /tmp/musitu-pr33/corporate
+          export MUSITU_BUILD_MODE=production
+          export MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com
+          export MUSITU_INCLUDE_STUDIO_MEDIA=1
+          python scripts/build.py
+          python -m pytest -q tests/test_production_build.py
+          printf '%s  %s\n' '979cb418d6e974d46d4901898f547e574c486a7b348b5f501f7242a4fc987e76' 'dist/manifest.json' | sha256sum --check
+          test "$(find dist -type f | wc -l)" -eq 45
+          echo 'Production manifest and full release artifact match qualified candidate'
+      - name: Deploy immutable PR33 artifact to pre-existing Cloudflare Pages project
+        id: deploy
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-pr33/corporate/dist \
+            --project-name=musitu-corporate \
+            --branch=main \
+            --commit-hash=87cc21fc482ca1a200c3c37a6f527c7d63e3ca34 \
+            --commit-message="MUSITU approved postlaunch six-page copy correction"
+      - name: Independent hosted route, video, legal, canonical, header and preservation verification
+        id: verify
+        run: |
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error,hashlib,xml.etree.ElementTree as ET
+          root='https://mftintelligence.com'
+          h={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          old='69ee853a-f0b4-432e-b069-7d6e180fdb4c'
+          def public(url):
+            req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-PR33-Release-Acceptance/1.0'})
+            with urllib.request.urlopen(req,timeout=20) as r:
+              return r.status,r.url,{k.lower():v for k,v in r.headers.items()},r.read(8000000)
+          def deployed():
+            p='/accounts/'+account+'/pages/projects/musitu-corporate/deployments?per_page=10'
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+p,headers=h),timeout=20) as r:d=json.loads(r.read())
+            assert d.get('success') is True
+            return [v for v in d['result'] if v.get('environment')=='production' and (v.get('latest_stage') or {}).get('status')=='success']
+          for attempt in range(12):
+            ds=deployed()
+            code,_,headers,studio=public(root+'/products/foundry/studio/')
+            if ds and ds[0]['id']!=old and b'PUBLIC STUDIO RECORDING' in studio and b'STAGING-ONLY MEDIA' not in studio:break
+            time.sleep(5)
+          assert ds and ds[0]['id']!=old,'New production deployment not confirmed'
+          assert b'PUBLIC STUDIO RECORDING' in studio and b'STAGING-ONLY MEDIA' not in studio,'Post-launch Studio copy not live'
+          assert code==200 and 'content-security-policy' in headers and headers.get('x-content-type-options','').lower()=='nosniff'
+          checks={
+            '/experiences/lab/':b'published',
+            '/sitemap/':b'33',
+            '/status/':b'monitoring',
+            '/contact/':b'Contact',
+            '/experiences/intelligence/':b'Intelligence'
+          }
+          for path,expected in checks.items():
+            status,url,head,body=public(root+path)
+            assert status==200 and expected.lower() in body.lower(),path
+            assert b'noindex,nofollow' not in body,path
+          status,url,hh,robots=public(root+'/robots.txt')
+          assert status==200 and b'Allow: /' in robots and b'sitemap.xml' in robots
+          status,url,hh,sm=public(root+'/sitemap.xml')
+          locs=[e.text for e in ET.fromstring(sm).findall('{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+          assert len(locs)==33
+          for path in locs:
+            st,where,head,body=public(path)
+            assert st==200 and where.rstrip('/')==path.rstrip('/'),path
+          st,where,hh,body=public('https://www.mftintelligence.com/legal/privacy/?release=33')
+          assert where==root+'/legal/privacy/?release=33'
+          st,where,hh,body=public('https://evansmusitu.github.io/')
+          assert st==200 and b'MUSITU' in body,'Existing Intelligence origin regression'
+          st,where,hh,video=public(root+'/assets/studio-demo-82s.mp4')
+          assert hashlib.sha256(video).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+          print('PASS: new Pages production deployment, 33 route XML sitemap, legal, canonical, public Studio video checksum, independent Intelligence preserved.')
+          print('New production deployment ID:',ds[0]['id'])
+          PY
+      - name: Roll back changed corporate production only if new release failed acceptance
+        if: failure()
+        env:
+          OLD_ID: ${{ steps.baseline.outputs.old_id }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request
+          old=os.environ.get('OLD_ID','')
+          if not old:
+            print('No rollback baseline created; release should have stopped before deploy.');raise SystemExit(0)
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID'];token=os.environ['CLOUDFLARE_API_TOKEN']
+          base='https://api.cloudflare.com/client/v4/accounts/'+account+'/pages/projects/musitu-corporate/deployments'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          with urllib.request.urlopen(urllib.request.Request(base+'?per_page=10',headers=h),timeout=20) as r: data=json.loads(r.read())
+          assert data.get('success')
+          prod=[d for d in data['result'] if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+          if not prod or prod[0]['id']==old:
+            print('No new successful production deployment; existing production remains unchanged.')
+            raise SystemExit(0)
+          latest=prod[0]
+          md=(latest.get('deployment_trigger') or {}).get('metadata') or {}
+          source_hash=md.get('commit_hash') or (latest.get('source') or {}).get('commit_hash') or ''
+          if source_hash and source_hash!='87cc21fc482ca1a200c3c37a6f527c7d63e3ca34':
+            raise SystemExit('Concurrent unrelated deployment observed; refusing to roll back another operator')
+          req=urllib.request.Request(base+'/'+old+'/rollback',headers=dict(h,**{'Content-Type':'application/json'}),
+           data=b'{}',method='POST')
+          with urllib.request.urlopen(req,timeout=25) as r:answer=json.loads(r.read())
+          assert answer.get('success'),'Cloudflare rollback API refused prior deployment'
+          print('Emergency rollback to prior successfully deployed corporate site completed:',old)
+          PY
