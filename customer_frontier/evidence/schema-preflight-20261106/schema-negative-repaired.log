@@ -1,0 +1,9 @@
+{"target": "original08b5", "case": "changed_db_true", "exit": 0, "status": "SCHEMA_CATALOG_OBSERVED", "mutations": 0}
+{"target": "repaired", "case": "invalid_changed_db", "value": true, "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": null, "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": "false", "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": 0, "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": 0.0, "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": [], "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "invalid_changed_db", "value": {}, "exit": 1, "status": "INCOMPLETE", "mutations": null}
+{"target": "repaired", "case": "explicit_false_and_both_zero", "exit": 0, "status": "SCHEMA_CATALOG_OBSERVED", "mutations": 0}

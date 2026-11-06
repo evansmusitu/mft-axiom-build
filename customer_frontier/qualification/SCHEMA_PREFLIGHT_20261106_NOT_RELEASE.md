@@ -10,7 +10,7 @@ documented D1 query API. Although that API uses POST, the SQL is read-only;
 it neither selects customer rows nor writes tables. No arbitrary SQL, target,
 redirect or caller input is admitted. Requests have a20s timeout,2MB response
 cap and no redirects. A catalog is admitted only with one successful query
-result and explicit integer-zero changes/rows_written metadata. Failure or
+result and explicit integer-zero changes/rows_written metadata and actual boolean-false changed_db. Failure or
 missing metadata is preserved as INCOMPLETE; an unconfirmed query's mutation
 count remains unknown. Unexpected catalog shapes, duplicate object identities,
 invalid identifiers and oversize definitions are rejected without partial
@@ -29,7 +29,7 @@ token into only the bounded reader step. Only an opened same-repository PR on
 the exact new branch/base and first attempt may run it. Original PR71 metadata
 and q06 qualification jobs remain sealed. Actions must remain commit-pinned.
 
-Root15 offline tests pass, including real SQLite with an authorizer that denies
+Root18 offline tests pass, including real SQLite with an authorizer that denies
 every customer-table read and write while allowing the exact catalog SELECT.
 Other checks cover wrong-target stop before SQL, missing credentials, provider
 mutation metadata, redirects, token/raw-DDL confinement and malformed catalog
@@ -49,3 +49,18 @@ final usage=UNKNOWN. No paid inference, payment, deploy, merge or publication.
 
 Primary API contract consulted6November2026:
 https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/
+
+Independent review reproduced a P2 evidence-integrity defect in initial source
+08b5c423b7819236ccb5adf17d20001bc9f393f7: changed_db:true with zero numeric
+counts was incorrectly accepted. No credentialed schema execution occurred.
+The repair requires explicit boolean false, preserves the reported flag, and
+keeps mutations unknown for missing/true/malformed flags. Three regression
+methods cover those cases. Initial reproduction and its script are retained;
+that initial source commit remains in the ancestry, never deployed.
+
+Independent repair review reproduced18 tests and the initial immutable defect.
+True/missing/null/string/numeric/array/object changed_db flags all deny catalog
+acceptance with unknown mutations; only boolean false and two integer zeros
+accept. No remaining P0-P2 in the bounded reader. Workflow admission must be
+repinned to this repaired immutable source before the first credentialed run.
+Original source, red/green reproductions and independent logs are retained.

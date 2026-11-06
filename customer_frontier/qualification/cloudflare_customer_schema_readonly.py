@@ -44,7 +44,7 @@ def observe():
         'query_sha256': hashlib.sha256(SQL.encode()).hexdigest(),
         'objects': [], 'catalog_sha256': None, 'oauth_parent_presence': {},
         'customer_records_read': 0, 'mutations': 0, 'inference_calls': 0,
-        'query_changes': None, 'query_rows_written': None,
+        'query_changes': None, 'query_rows_written': None, 'query_changed_db': None,
         'raw_ddl_disclosed': False, 'backup_restore_qualified': False,
         'hosted_migration_qualified': False, 'release_authority': False,
         'status': 'INCOMPLETE', 'error': None,
@@ -97,10 +97,12 @@ def observe():
         result = data[0]
         meta = result.get('meta')
         if isinstance(meta, dict):
+            if type(meta.get('changed_db')) is bool:
+                evidence['query_changed_db'] = meta['changed_db']
             for key in ('changes', 'rows_written'):
                 if type(meta.get(key)) is int and 0 <= meta[key] <= 1_000_000:
                     evidence['query_' + key] = meta[key]
-        if result.get('success') is not True or not isinstance(meta, dict) or any(
+        if result.get('success') is not True or not isinstance(meta, dict) or meta.get('changed_db') is not False or any(
             type(meta.get(key)) is not int or meta[key] != 0 for key in ('changes', 'rows_written')
         ):
             raise AuditError('READ_ONLY_METADATA_NOT_CONFIRMED')

@@ -21,7 +21,7 @@ class SchemaReadOnly(unittest.TestCase):
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         data = [
             {'success': True, 'result': {'uuid': module.DATABASE, 'name': module.DATABASE_NAME}},
-            {'success': True, 'result': [{'success': True, 'meta': {'changes': 0, 'rows_written': 0},
+            {'success': True, 'result': [{'success': True, 'meta': {'changes': 0, 'rows_written': 0, 'changed_db': False},
                 'results': [{'type': 'table', 'name': name, 'tbl_name': name,
                              'sql': "CREATE TABLE " + name + "(id TEXT DEFAULT 'PRIVATE-DDL-LITERAL')"}
                             for name in module.PARENTS]}]},
@@ -92,6 +92,20 @@ class SchemaReadOnly(unittest.TestCase):
 
     def test_missing_write_metadata_is_unknown(self):
         self.assert_incomplete(lambda p: p[1]['result'][0]['meta'].pop('rows_written'))
+
+    def test_contradictory_database_changed_flag_is_unknown(self):
+        result, _ = self.assert_incomplete(lambda p: p[1]['result'][0]['meta'].update(changed_db=True))
+        self.assertTrue(result['query_changed_db']); self.assertIsNone(result['mutations'])
+
+    def test_missing_database_changed_flag_is_unknown(self):
+        result, _ = self.assert_incomplete(lambda p: p[1]['result'][0]['meta'].pop('changed_db'))
+        self.assertIsNone(result['query_changed_db']); self.assertIsNone(result['mutations'])
+
+    def test_database_changed_flag_requires_actual_boolean_false(self):
+        for value in ['false', 0, None]:
+            with self.subTest(value=value):
+                result, _ = self.assert_incomplete(lambda p: p[1]['result'][0]['meta'].update(changed_db=value))
+                self.assertIsNone(result['query_changed_db']); self.assertIsNone(result['mutations'])
 
     def test_boolean_write_count_is_not_integer_zero(self):
         self.assert_incomplete(lambda p: p[1]['result'][0]['meta'].update(changes=False))
