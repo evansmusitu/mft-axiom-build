@@ -1,0 +1,209 @@
+name: MUSITU PR32 Manual-Style Accessibility and Security Review V3 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-pr32-manual-a11y-security-v3-20261106.yml
+permissions:
+  contents: read
+jobs:
+  reviewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      RELEASE_SHA: 835e5caafa28acca63d296ee299bf6a9b0e66255
+    steps:
+      - name: Install reviewer browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q pytest==8.4.2 beautifulsoup4==4.14.2 playwright==1.57.0
+          python3 -m playwright install --with-deps chromium firefox webkit
+      - name: Fetch and build exact branded media candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/site"
+          git -C "$RUNNER_TEMP/site" init -q
+          git -C "$RUNNER_TEMP/site" remote add origin https://github.com/evansmusitu/evansmusitu.github.io.git
+          git -C "$RUNNER_TEMP/site" fetch -q --depth=1 origin "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/site" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/site" rev-parse HEAD)" = "$RELEASE_SHA"
+          cd "$RUNNER_TEMP/site/corporate"
+          MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
+          python3 -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
+          node --check assets/site.js
+      - name: Reviewer-grade keyboard, semantics, media and security checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/site/corporate/dist"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          mkdir -p "$RUNNER_TEMP/manual-review/screens"
+          python3 - <<'PY'
+          import json,os,re,hashlib,subprocess
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+
+          out=Path(os.environ['RUNNER_TEMP'])/'manual-review'
+          origin='http://127.0.0.1:8765'
+          routes=['/','/company/','/trust/','/accessibility/','/products/','/solutions/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/','/404/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/']
+          report={'release_sha':os.environ['RELEASE_SHA'],'checks':{},'notes':[],'screenshots':[]}
+
+          def check(name,condition,detail=''):
+            report['checks'][name]={'pass':bool(condition),'detail':detail}
+            if not condition: raise AssertionError(name+(': '+detail if detail else ''))
+
+          with sync_playwright() as pw:
+            browser=pw.chromium.launch()
+            page=browser.new_page(viewport={'width':1440,'height':1000})
+            failures=[]
+            for route in routes:
+              res=page.goto(origin+route,wait_until='domcontentloaded',timeout=20000)
+              if not res or res.status!=200:failures.append([route,None if not res else res.status])
+            check('34 routes return 200',not failures,json.dumps(failures))
+            page.goto(origin+'/',wait_until='networkidle')
+            page.screenshot(path=str(out/'screens/home-desktop.png'),full_page=True)
+            report['screenshots'].append('home-desktop.png')
+            check('single main landmark',page.locator('main').count()==1)
+            check('single H1',page.locator('h1').count()==1)
+            check('header/nav/footer landmarks',page.locator('header').count()>=1 and page.locator('nav').count()>=1 and page.locator('footer').count()>=1)
+
+            # Keyboard-only skip link and visible focus.
+            page.keyboard.press('Tab')
+            active=page.evaluate("({tag:document.activeElement.tagName,cls:document.activeElement.className,href:document.activeElement.getAttribute('href'),outline:getComputedStyle(document.activeElement).outlineStyle,ow:getComputedStyle(document.activeElement).outlineWidth})")
+            check('first tab reaches skip link','skip-link' in str(active.get('cls')),json.dumps(active))
+            check('focus indicator visible',active.get('outline') not in ('none','') and active.get('ow')!='0px',json.dumps(active))
+            page.keyboard.press('Enter')
+            target=page.evaluate("document.activeElement.id || location.hash")
+            check('skip link targets main content','main' in str(target).lower(),str(target))
+
+            # Search dialog keyboard open, Escape close and focus return.
+            trigger=page.locator('[data-open="search-dialog"]').first
+            trigger.focus();page.keyboard.press('Enter')
+            check('search dialog opens from keyboard',page.locator('#search-dialog').evaluate("el=>el.open"))
+            inside=page.evaluate("document.activeElement && document.activeElement.closest('#search-dialog')!==null")
+            check('search dialog moves focus inside',inside)
+            page.keyboard.press('Escape')
+            check('search dialog closes on Escape',not page.locator('#search-dialog').evaluate("el=>el.open"))
+            returned=page.evaluate("document.activeElement && document.activeElement.getAttribute('data-open')")
+            check('search dialog restores opener focus',returned=='search-dialog',str(returned))
+
+            # Ask dialog keyboard interaction.
+            ask=page.locator('[data-open="ask-dialog"]').first
+            ask.focus();page.keyboard.press('Enter')
+            check('ask dialog opens from keyboard',page.locator('#ask-dialog').evaluate("el=>el.open"))
+            page.locator('#ask-local-input').fill('chemistry')
+            page.keyboard.press('Enter')
+            check('local ask returns navigable result',page.locator('#ask-local-result a').count()>=1)
+            page.keyboard.press('Escape')
+            check('ask dialog closes and returns focus',not page.locator('#ask-dialog').evaluate("el=>el.open") and page.evaluate("document.activeElement && document.activeElement.getAttribute('data-open')")=='ask-dialog')
+
+            # Mobile keyboard and reflow.
+            m=browser.new_page(viewport={'width':390,'height':844})
+            m.goto(origin+'/',wait_until='networkidle')
+            m.screenshot(path=str(out/'screens/home-mobile.png'),full_page=True)
+            report['screenshots'].append('home-mobile.png')
+            summary=m.locator('.mobile-menu > summary')
+            summary.focus();m.keyboard.press('Enter')
+            check('mobile menu opens by keyboard',m.locator('.mobile-menu').evaluate("el=>el.open"))
+            check('mobile page no horizontal overflow',m.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"))
+            m.keyboard.press('Escape')
+            # Native details does not have to close on Escape, so close via keyboard toggle.
+            if m.locator('.mobile-menu').evaluate("el=>el.open"):
+              summary.focus();m.keyboard.press('Enter')
+            check('mobile menu can close by keyboard',not m.locator('.mobile-menu').evaluate("el=>el.open"))
+            m.close()
+
+            # Studio media + accessible context.
+            page.goto(origin+'/products/foundry/studio/',wait_until='networkidle')
+            page.screenshot(path=str(out/'screens/studio-desktop.png'),full_page=True)
+            report['screenshots'].append('studio-desktop.png')
+            video=page.locator('video.studio-demo-player')
+            check('Studio player present',video.count()==1)
+            check('Studio player has controls',video.get_attribute('controls') is not None)
+            check('Studio player has accessible label','MUSITU Studio' in (video.get_attribute('aria-label') or ''))
+            page.wait_for_function("document.querySelector('video.studio-demo-player').readyState >= 1",timeout=15000)
+            duration=float(video.evaluate("el=>el.duration"))
+            check('Studio media is approved 82-second recording',81.0<=duration<=83.0,str(duration))
+            body=page.locator('body').inner_text().lower()
+            check('Studio transcript/context exists','transcript' in body and 'keyframe' in body,body[:500])
+            check('third-party no-endorsement context exists','no endorsement' in body)
+
+            # Axiom direct ChatGPT link safety.
+            page.goto(origin+'/products/axiom/',wait_until='networkidle')
+            ax=page.locator('a[href="https://chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86"]')
+            check('Axiom ChatGPT destination present',ax.count()==1)
+            rel=(ax.get_attribute('rel') or '').split()
+            check('external Axiom link uses noopener noreferrer','noopener' in rel and 'noreferrer' in rel,str(rel))
+            check('external new-tab context is labeled','new tab' in (ax.get_attribute('aria-label') or '').lower())
+
+            # Form-label and target-size review across representative routes.
+            representative=['/','/products/','/ecosystem/','/experiences/lab/','/contact/','/legal/privacy/']
+            unlabeled=[];small=[];focusable_hidden=[]
+            for route in representative:
+              page.goto(origin+route,wait_until='domcontentloaded')
+              unlabeled += page.evaluate("""() => [...document.querySelectorAll('input,select,textarea')].filter(el=>!el.disabled).filter(el=>{const id=el.id;const byFor=id&&document.querySelector('label[for="'+CSS.escape(id)+'"]');const wrap=el.closest('label');return !byFor&&!wrap&&!el.getAttribute('aria-label')&&!el.getAttribute('aria-labelledby')}).map(el=>location.pathname+':'+el.outerHTML.slice(0,180))""")
+              small += page.evaluate("""() => [...document.querySelectorAll('button,summary,input,select')].filter(el=>{const r=el.getBoundingClientRect();const cs=getComputedStyle(el);return cs.visibility!=='hidden'&&cs.display!=='none'&&r.width>0&&r.height>0&&(r.width<24||r.height<24)}).map(el=>location.pathname+':'+el.tagName+':'+(el.id||el.className)+':'+Math.round(el.getBoundingClientRect().width)+'x'+Math.round(el.getBoundingClientRect().height))""")
+              focusable_hidden += page.evaluate("""() => [...document.querySelectorAll('a[href],button,input,select,summary,[tabindex]')].filter(el=>el.tabIndex>=0).filter(el=>{const cs=getComputedStyle(el);if(cs.display==='none'||cs.visibility==='hidden')return false;const r=el.getBoundingClientRect();if(r.width>0&&r.height>0)return false;const closedDetails=el.closest('details:not([open])');const closedDialog=el.closest('dialog:not([open])');return !closedDetails&&!closedDialog}).map(el=>location.pathname+':'+el.tagName+':'+(el.id||el.className))""")
+            check('representative form controls have labels',not unlabeled,json.dumps(unlabeled))
+            check('non-inline control targets meet 24px minimum',not small,json.dumps(small[:30]))
+            check('no unexpected invisible focus targets',not focusable_hidden,json.dumps(focusable_hidden[:30]))
+
+            # Security/content review of built browser surface.
+            page.goto(origin+'/',wait_until='domcontentloaded')
+            security=page.evaluate("""() => ({
+              inlineHandlers:[...document.querySelectorAll('*')].flatMap(el=>[...el.attributes].filter(a=>/^on/i.test(a.name)).map(a=>el.tagName+':'+a.name)),
+              insecure:[...document.querySelectorAll('[href],[src]')].map(el=>el.getAttribute('href')||el.getAttribute('src')).filter(x=>x&&x.startsWith('http://')),
+              externalTargets:[...document.querySelectorAll('a[target="_blank"]')].map(a=>({href:a.href,rel:a.rel})),
+              forms:[...document.forms].map(f=>({action:f.action,method:f.method}))
+            })""")
+            check('no inline event handlers',not security['inlineHandlers'],json.dumps(security['inlineHandlers']))
+            check('no insecure http assets or links',not security['insecure'],json.dumps(security['insecure']))
+            badext=[x for x in security['externalTargets'] if 'noopener' not in x['rel'].split()]
+            check('all new-tab external links use noopener',not badext,json.dumps(badext))
+            riskyforms=[x for x in security['forms'] if x['action'] and not x['action'].startswith(origin)]
+            check('no external form submissions',not riskyforms,json.dumps(riskyforms))
+
+            # Basic cross-engine smoke with final logo/video source.
+            for name,engine in [('firefox',pw.firefox),('webkit',pw.webkit)]:
+              b=engine.launch();p=b.new_page(viewport={'width':390,'height':844})
+              for route in ('/','/products/foundry/studio/','/products/axiom/'):
+                res=p.goto(origin+route,wait_until='domcontentloaded',timeout=20000)
+                check(name+' '+route+' loads',bool(res and res.status==200))
+                check(name+' '+route+' no horizontal overflow',p.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"))
+              b.close()
+
+            browser.close()
+
+          dist=Path(os.environ['RUNNER_TEMP'])/'site'/'corporate'/'dist'
+          textfiles=[p for p in dist.rglob('*') if p.is_file() and p.suffix.lower() in {'.html','.js','.css','.json','.txt','.xml','.svg'}]
+          blob='\n'.join(p.read_text(errors='ignore') for p in textfiles)
+          secret_patterns=[r'sk-[A-Za-z0-9_-]{20,}',r'(?i)api[_-]?key\s*[:=]\s*["\'][^"\']{12,}',r'(?i)client[_-]?secret\s*[:=]']
+          secrets=[pat for pat in secret_patterns if re.search(pat,blob)]
+          check('no credential patterns in built text',not secrets,json.dumps(secrets))
+          check('no source maps shipped',not list(dist.rglob('*.map')))
+          check('approved video SHA256',hashlib.sha256((dist/'assets/studio-demo-82s.mp4').read_bytes()).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0')
+          check('approved brand master SHA256',hashlib.sha256((dist/'assets/favicon.svg').read_bytes()).hexdigest()=='f0e73478176b335bf3cfb5afd8bd7249d5aa39f2627798af7c71d9f13972c2fd')
+
+          passed=all(v['pass'] for v in report['checks'].values())
+          report['pass']=passed
+          (out/'MANUAL_A11Y_SECURITY_REVIEW.json').write_text(json.dumps(report,indent=2))
+          (out/'MANUAL_A11Y_SECURITY_REVIEW.md').write_text('# MUSITU PR32 manual-style accessibility and security review\n\n'
+            f'Exact release commit: `{os.environ["RELEASE_SHA"]}`\n\n'
+            + '\n'.join(f"- [{'PASS' if v['pass'] else 'FAIL'}] {k}: {v['detail']}" for k,v in report['checks'].items())
+            + '\n\nReviewer note: this is an evidence-based interactive reviewer audit performed with real browser keyboard operations and visual screenshots. It is not a certification by an independent human accessibility professional.\n')
+          print('manual_review_checks:',len(report['checks']))
+          print('manual_review_pass:',passed)
+          assert passed
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-pr32-manual-a11y-security-20261106
+          path: ${{ runner.temp }}/manual-review
+          retention-days: 30
+          if-no-files-found: error
