@@ -40,3 +40,13 @@ branch/base/attempt. Reservation is not a backup, restore, migration, ownership,
 tenant-isolation, custody or release qualification. Existing Paynow authority,
 $0 and full breadth persist. B27=FAILED_IN_SYNTHETIC_ATTACK;
 parity/superiority=NOT_CERTIFIED; unavailable final usage=UNKNOWN.
+
+Independent review verified immutable source cfc7a8a040117103e727422b383f54922d59c401,
+reproduced14 tests and21 additional adversarial cases, and found no blocking
+P0-P2 for the exact PR88/opened-only/attempt1 workflow. Source/test hashes and
+source-before-token ordering match. Unknown/ambiguous outcomes stay unknown;
+no retry/adoption or deletion. Review and raw tests are retained.
+
+Concurrent PR87 was discovered during preparation: documentation-only draft
+ba892a2c6b4cdfdb6f6905c481c5ae54baa3a03f, unmerged on unchanged mainb10.
+Its two reference documents are not imported here or treated as release evidence.
