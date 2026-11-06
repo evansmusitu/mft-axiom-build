@@ -1,6 +1,6 @@
 # Private GitLab history archive — fail-closed operator procedure
 
-**Status:** NOT EXECUTED. Source GitLab project `86647955` is **private**, while the existing GitHub product repository is **public**. Do not import unreviewed GitLab history into the public destination.
+**Status (updated 2026-11-06):** PRIVATE GIT MIRROR VERIFIED — HISTORICAL METADATA AND INDEPENDENT PRIVACY ACCEPTANCE STILL OPEN. Source GitLab project `86647955` is **private**, while the existing GitHub product repository is **public**. Do not import unreviewed GitLab history into the public destination.
 
 ## Read-only reconciliation, 2026-11-06
 
@@ -73,4 +73,16 @@ Git transport does **not** migrate GitLab issues, MRs, comments, approvals, atta
 - Keep the public GitHub repository and its 188 current GitHub-only refs unchanged; namespace collisions only **if** a separate, explicitly reviewed import into the public product repo is ever approved. Public `main` must never be force-pushed.
 - Obtain data-owner/security auditor sign-off, record private destination ID and manifest digest in issue #75 **without public private-path or secret disclosure**.
 
-**Current blocker:** the reviewer has no production/public submission power, and a separate authenticated browser attempt to create a private repository was blocked by unavailable Browser Use credits. The GitHub connector exposes no private repository creation action. No repository was created, no mirror was pushed and no private source content was disclosed to the public product repository by this procedure.
+## Verified mirror outcome — 2026-11-06 (supersedes initial setup blocker)
+
+The repository owner created a new empty **private** GitHub archive and configured GitLab push mirroring using their own scoped personal access token. Read-only connector verification confirmed:
+
+- Destination private visibility; 180 GitLab branch names **exactly** match the archive's 180 branch refs, and **all 180 corresponding tip commit SHAs match**.
+- The single GitLab tag exists with the same name and SHA in the archive; zero missing, extra, or divergent branches or tags.
+- The GitLab `main` and archived `main` both point to `e43980a377a36bd8cc33d2a088a92021b82729c4`.
+- This establishes **Git ref/tip parity**, not independent object-by-object ancestry audit or a secret/licensing review.
+- GitLab's 23 issues, 35 MRs, approvals, comments, attachments, CI metadata, audits and pipeline logs **were not migrated by push mirroring**. They still need private export and privacy validation.
+- Exact private repository URL and unreviewed private branch names are intentionally **not** published in this public procedure.
+- **Next control:** ensure imported GitHub Actions remain disabled, finish confidentiality review, decide whether ongoing push mirror is needed, and revoke the short-lived GitHub token when no longer needed. Keep public `main` untouched.
+
+The archived history must remain private. Do not mark this full project/history migration accepted until approved metadata archive, independent full-object review and data-owner/security sign-offs.
