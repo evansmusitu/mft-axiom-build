@@ -1,0 +1,44 @@
+{
+  "backup_restore_qualified": false,
+  "database_queries": 0,
+  "empty_terminal_page": true,
+  "errors": [],
+  "event_sha": "08ed9ef5999b29148f7ff48bbda7733525589214",
+  "global_absence_certified": false,
+  "historical_deployment_bindings_covered": false,
+  "hosted_migration_qualified": false,
+  "limitations": [
+    "Current project configs omit historical deployment bindings.",
+    "No external D1 client absence or target reuse qualification."
+  ],
+  "mutations": 0,
+  "observed_at": "2026-11-06T15:42:32.037542+00:00",
+  "projects_observed": 1,
+  "references": [],
+  "release_authority": false,
+  "run_id": "42245530095",
+  "schema": "musitu.axiom.existing_d1_pages_only.v1",
+  "source_sha": "fe3b6712312062fdf4c9cd81a74d3504443632df",
+  "status": "OBSERVED_CURRENT_CONFIGS",
+  "target_admitted": false,
+  "transport": [
+    {
+      "http_status": 200,
+      "kind": "pages_list",
+      "provider_error_codes": [],
+      "resource_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "http_status": 200,
+      "kind": "pages_list",
+      "provider_error_codes": [],
+      "resource_sha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+    },
+    {
+      "http_status": 200,
+      "kind": "project_detail",
+      "provider_error_codes": [],
+      "resource_sha256": "855f896880ccaae54b645e04c4ccf06dd93dcf750bb2ee423117f7436768eb1d"
+    }
+  ]
+}
