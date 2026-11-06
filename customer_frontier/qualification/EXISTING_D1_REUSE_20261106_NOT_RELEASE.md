@@ -32,3 +32,11 @@ also remained draft/unmerged at their recorded heads. Full product breadth,
 Paynow authority, $0 and production rollback origin persist. B27 remains
 FAILED_IN_SYNTHETIC_ATTACK; parity/superiority NOT_CERTIFIED; unavailable final
 usage UNKNOWN. No deployment, merge or publication follows from discovery.
+
+Independent software review fetched immutable source a53dca27ea2cf9ac285e64a20c03411b52c187d1,
+matched source/test hashes, and reproduced11 tests plus19 independent probes
+with sockets denied. No blocking P0-P2 for this exact GET-only observation.
+The initial reviewer socket/ssl harness setup error preceded product import;
+that log is retained separately and is not treated as a product failure.
+The exact workflow SHA256 is4cb99e8ae5a25da1c62b25e9b59095022b3eb11b9450403f5ac742ddf5e6a71c.
+No target/binding/backup/migration/release qualification follows from discovery.

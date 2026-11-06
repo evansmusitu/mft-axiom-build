@@ -1,0 +1,54 @@
+name: AXIOM existing D1 reuse inventory 20261106 (GET only)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-existing-d1-reuse-inventory-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-existing-d1-reuse-inventory-20261106
+  cancel-in-progress: false
+jobs:
+  observe-existing-d1-metadata:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-existing-d1-reuse-20261106' && github.event.pull_request.base.ref == 'build/axiom-customer-restore-target-20261106' && github.event.pull_request.base.sha == 'babf6b0c80f37546574b6df560121e12166d2394' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a53dca27ea2cf9ac285e64a20c03411b52c187d1
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit immutable metadata-only source and test hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          source='a53dca27ea2cf9ac285e64a20c03411b52c187d1'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source
+          for path,expected in {
+            'customer_frontier/qualification/existing_d1_reuse_inventory.py':'b98bb6b417fde8ad0a29dd74bc1a748333a0c667f7266635a57c9f0270f548cd',
+            'customer_frontier/tests/test_existing_d1_reuse_inventory.py':'955620925b754d36e5a7f5c5518f81c5d7358032571667e2af5c08ce6696328d',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print(json.dumps({'admitted_checkout_sha':source,'hashes_match':True,'authority':'fixed account D1 metadata GETs only; no SQL, target admission or mutations'}))
+          PY
+      - name: Verify shape, identity, protection and disclosure boundaries offline
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_existing_d1_reuse_inventory.py -v
+      - name: Observe current existing D1 metadata using saved token
+        env:
+          AXIOM_CHECKOUT_SHA: a53dca27ea2cf9ac285e64a20c03411b52c187d1
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/existing_d1_reuse_inventory.py
+      - name: Retain actual metadata including incomplete observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-existing-d1-reuse-inventory-20261106
+          path: |
+            existing-d1-reuse-inventory.json
+            existing-d1-reuse-inventory.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
