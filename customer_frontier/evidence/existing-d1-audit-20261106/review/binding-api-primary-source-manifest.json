@@ -1,0 +1,61 @@
+{
+  "files": [
+    {
+      "bytes": 10963,
+      "content_sha256": "816c0ee10776f593d0ef16ffe2267537d8aa311deb970326e88d550431d3debf",
+      "file": "binding-primary-pages-deployments.json",
+      "provider_blob": "609e5eea26ea6c77add966fceac25af0a15a4c00"
+    },
+    {
+      "bytes": 67830,
+      "content_sha256": "25d080ffb9c089eac96ce72252970644ba996844a790608de1dee76f523f009c",
+      "file": "binding-primary-pages-source-0.json",
+      "provider_blob": "36c6106329fe10162e3412622d7fd35f48bffa46"
+    },
+    {
+      "bytes": 12695,
+      "content_sha256": "4aea98683c9ec69720b50a94673688189320f93946dcce6819d7b0c77973afd9",
+      "file": "binding-primary-pages-source-1.json",
+      "provider_blob": "1411fafbf806422090fd43277079b4bd35ba3411"
+    },
+    {
+      "bytes": 6983,
+      "content_sha256": "8e0405f154900c40d8ff4a5eb7f3a5bd04ea692296c7c213ae84c6802bbcd309",
+      "file": "binding-primary-worker-extra-0.json",
+      "provider_blob": "ae73f0a38d0a25e25d550b578c1aa2905a007204"
+    },
+    {
+      "bytes": 10876,
+      "content_sha256": "3f1dfc04f21cb431bcc19fd273f34a2b80ac40a82f9b7b2766de827a3e2c14fc",
+      "file": "binding-primary-worker-extra-1.json",
+      "provider_blob": "9a84b1bdd9a5b3e741a542f652f09b25b8d00266"
+    },
+    {
+      "bytes": 166,
+      "content_sha256": "867ad5abb6c97373d1d30de2df796c3afec73bb8abd4f0e0dbc3acbc9666a371",
+      "file": "binding-primary-worker-extra-2.json",
+      "provider_blob": "83b5a38ed3b6d13a6ae7c76eb40d133bf04ae031"
+    },
+    {
+      "bytes": 1610,
+      "content_sha256": "19a46e1843a14e08aebfc42c27ee79207c24dafc41f0355dcb4ba7e11325c9ef",
+      "file": "binding-primary-worker-fetch-context.json",
+      "provider_blob": "7e7f40d5cbad221f57a5f8a2d8facc46f3125aac"
+    },
+    {
+      "bytes": 3990,
+      "content_sha256": "f1aeeb6388a93eb2d57e2db2e572e50be4db615bcb1740172ef49cb2f9e1fb28",
+      "file": "binding-primary-worker-source-1.json",
+      "provider_blob": "9ea30bb026ed71a727f195fe091257f97a01649b"
+    },
+    {
+      "bytes": 22687,
+      "content_sha256": "65fa6ed760319e1c6d2dd1dea0a1cee699c9b7b9d6d92b6aef593a6f8f40f9e2",
+      "file": "binding-primary-worker-source-2.json",
+      "provider_blob": "641764b7fb8f25e3c2a179b374025aa154de562f"
+    }
+  ],
+  "schema": "musitu.axiom.binding_api.primary_source_manifest.v1",
+  "typescript_commit": "0eb9ef0ea40c1fe38e4b19be92f41bd7466bc1d6",
+  "workers_sdk_commit": "66bc0d6f353904f8a203bcea9298d9f45fbd234a"
+}

@@ -1,0 +1,20 @@
+test_catalog_rows_and_missing_query_results_remain_unknown (__main__.IndependentAudit.test_catalog_rows_and_missing_query_results_remain_unknown) ... ok
+test_expired_deadline_and_missing_token_make_no_request (__main__.IndependentAudit.test_expired_deadline_and_missing_token_make_no_request) ... ok
+test_identity_path_injection_never_becomes_request (__main__.IndependentAudit.test_identity_path_injection_never_becomes_request) ... ok
+test_missing_identity_prevents_catalog_query (__main__.IndependentAudit.test_missing_identity_prevents_catalog_query) ... ok
+test_missing_totals_and_coherent_totals_remain_observations_only (__main__.IndependentAudit.test_missing_totals_and_coherent_totals_remain_observations_only) ... ok
+test_null_or_missing_environments_never_default_to_empty (__main__.IndependentAudit.test_null_or_missing_environments_never_default_to_empty) ... ok
+test_optional_total_only_on_terminal_or_first_is_still_enforced (__main__.IndependentAudit.test_optional_total_only_on_terminal_or_first_is_still_enforced) ... ok
+test_optional_total_type_and_stability_rejects_false_evidence (__main__.IndependentAudit.test_optional_total_type_and_stability_rejects_false_evidence) ... ok
+test_original_contradictory_optional_totals_are_rejected (__main__.IndependentAudit.test_original_contradictory_optional_totals_are_rejected) ... ok
+test_pages_uses_id_and_both_configs (__main__.IndependentAudit.test_pages_uses_id_and_both_configs) ... ok
+test_partial_privacy_and_http_errors_remain_unknown (__main__.IndependentAudit.test_partial_privacy_and_http_errors_remain_unknown) ... ok
+test_positive_reference_on_all_three_surfaces_hashes_labels (__main__.IndependentAudit.test_positive_reference_on_all_three_surfaces_hashes_labels) ... ok
+test_redirect_handler_refuses_destination (__main__.IndependentAudit.test_redirect_handler_refuses_destination) ... ok
+test_response_size_and_invalid_json_fail_closed (__main__.IndependentAudit.test_response_size_and_invalid_json_fail_closed) ... ok
+test_zero_write_confirmation_requires_exact_boolean_and_integer_types (__main__.IndependentAudit.test_zero_write_confirmation_requires_exact_boolean_and_integer_types) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.070s
+
+OK

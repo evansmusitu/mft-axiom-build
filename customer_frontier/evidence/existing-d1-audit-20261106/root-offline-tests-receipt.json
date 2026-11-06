@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "tests": 20,
+  "scope": "offline fake-provider unit suite; no hosted acceptance",
+  "log_bytes": 3385,
+  "log_sha256": "a4a0848a17675e65cf86c4551cb9796c0d83455b0b882f90ad09dd8ac17fce41",
+  "source_commit": "5e69ebf3bcb73eebf183a462fa6d6314ccf87665"
+}
