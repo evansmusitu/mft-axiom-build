@@ -22,7 +22,7 @@ jobs:
       CF_PAGES_NAME: musitu-corporate
       CF_PREVIEW_BRANCH: corporate-private-20261103
       EXPECTED_ARCHIVE_SHA256: 3462413cbfa02f0d74319e9636b8a5cf6cd1d8253def14bc749741747a6dd724
-      EXACT_PR32_SHA: 29d9e36f3eb755fde67b7c55087d05dff1c4a103
+      EXACT_PR32_SHA: ecb86b3165d494d1b18c740d2d43ab637be50650
       MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Preflight verified Access gates and isolated Pages project
