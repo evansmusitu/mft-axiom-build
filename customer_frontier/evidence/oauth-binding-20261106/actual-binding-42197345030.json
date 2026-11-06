@@ -1,0 +1,38 @@
+{
+  "account": "93f395f5121954671f92fffa453d6b61",
+  "binding_identity_observed": true,
+  "binding_name": "AXIOM_DB",
+  "customer_records_read": 0,
+  "database_identity_observed": true,
+  "error": null,
+  "event_sha": "79dd9d16186ce11d471fcd755ddc829d353d9dcc",
+  "expected_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "expected_database_name": "musitu-axiom-prod",
+  "fixed_checkout": "29bfb5a81996226ae10b4d8dadbf106d2aab27df",
+  "hosted_migration_qualified": false,
+  "http_methods": [
+    "GET"
+  ],
+  "inference_calls": 0,
+  "mutations": 0,
+  "observed_at": "2026-11-06T09:44:54.892073+00:00",
+  "raw_settings_disclosed": false,
+  "release_authority": false,
+  "run_id": "42197345030",
+  "schema": "musitu.axiom.oauth.binding_identity_readonly.v1",
+  "sql_queries": 0,
+  "status": "OAUTH_BINDING_IDENTITY_OBSERVED",
+  "transport": [
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/workers/scripts/musitu-axiom-oauth/settings"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "path": "/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4"
+    }
+  ],
+  "worker": "musitu-axiom-oauth"
+}

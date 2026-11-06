@@ -1,0 +1,18 @@
+{
+  "verdict": "NO_BLOCKING_P0_P2_FOR_EXACT_TWO_GET_OAUTH_BINDING_OBSERVATION",
+  "workflow_sha256": "c9cc6dd40655cea3c8fd73a1b717b2f19920a09cadc9902c397eeaf90304a332",
+  "inline_reader_sha256": "ca05d33d13ef31a5e75c74d7a7e6b66c6cd9553e01939dbbed5f20f061367966",
+  "fixed_checkout": "29bfb5a81996226ae10b4d8dadbf106d2aab27df",
+  "base_sha": "954ca8a66e35530a0a4ed0743922160755454ce3",
+  "synthetic_cases_passed": 21,
+  "synthetic_case_failures": 0,
+  "maximum_get_requests": 2,
+  "credential_steps": 1,
+  "reviewer_live_cloudflare_calls": 0,
+  "backup_migration_or_release_qualified": false,
+  "provenance": {
+    "reference_commit": "94ae644cd8d57f188dea10222907bc092165025f",
+    "worker_uuid_source_blob": "e1d7a678fb7ec86d072c9b7e77e3f247a998ccc7",
+    "database_name_uuid_source_blob": "e95d25648cf0db8909d7c6aa308ca069333e379e"
+  }
+}

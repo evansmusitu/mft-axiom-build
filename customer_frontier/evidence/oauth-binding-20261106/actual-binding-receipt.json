@@ -1,0 +1,40 @@
+{
+  "actual_database_id": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "actual_database_name": "musitu-axiom-prod",
+  "all_http200": true,
+  "backup_restore_qualified": false,
+  "binding": "musitu-axiom-oauth/AXIOM_DB",
+  "customer_records_read": 0,
+  "files": {
+    "actual-binding-42197345030.json": {
+      "bytes": 1136,
+      "sha256": "acc83970381dc1492ef22120ac914d5b10d251003cda873893663965cfc326e9"
+    },
+    "actual-binding-42197345030.log": {
+      "bytes": 23137,
+      "sha256": "bbd921cfce23523789f1a90ffce05dc2305dd57a42b47636df1a04b34aecf702"
+    }
+  },
+  "head_sha": "a6da1417a19b39f0e3b054523f596f6a987f7361",
+  "head_tree": "67513a39cd761dd7872aa8842385628f51363cd1",
+  "hosted_migration_qualified": false,
+  "http_requests": 2,
+  "job_id": 127823796739,
+  "mutations": 0,
+  "release_authority": false,
+  "result": "SUCCESS_OAUTH_BINDING_IDENTITY_OBSERVED_ONLY",
+  "run_id": 42197345030,
+  "schema": "musitu.axiom.oauth_binding.actual_receipt.v1",
+  "source_ci": {
+    "failures": 0,
+    "job_id": 127823796607,
+    "node": 197,
+    "python": 72,
+    "run_id": 42197344918,
+    "skips": 0,
+    "status": "SUCCESS",
+    "workerd": 16
+  },
+  "sql_queries": 0,
+  "url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/42197345030"
+}
