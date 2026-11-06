@@ -148,6 +148,14 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/wrangler" --ignore-scripts --no-audit --no-fund wrangler@4.158.0
           "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" --version
 
+      - name: Install pinned Chromium for public acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q playwright==1.55.0
+          python3 -m playwright install --with-deps chromium
+
+
       - name: Deploy exact production artifact to Pages main
         id: deploy
         shell: bash
@@ -210,6 +218,9 @@ jobs:
           assert dns.get('success'); apex_dns_id=dns['result']['id']
           with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APEX_DNS_ID='+apex_dns_id+'\n')
           print('apex_pages_cname: CREATED')
+          code,retry=call('PATCH',f'/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com',None,expected=(200,))
+          assert retry.get('success')
+          print('apex_pages_validation_retry: REQUESTED')
 
           # Cloudflare-recommended www -> apex Bulk Redirect.
           list_name='musitu_www_to_apex_20261106'
@@ -267,74 +278,125 @@ jobs:
           print('apex_tls_domain_active: PASS')
           PY
 
-      - name: Public production smoke test all routes, headers, media, canonical www and mail preservation
+      - name: Public production Chromium acceptance, DNS and mail preservation
         id: smoke
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,time,urllib.error,urllib.parse,urllib.request
+          import hashlib,json,os,time,urllib.parse,urllib.request
+          from playwright.sync_api import sync_playwright
           origin='https://mftintelligence.com'
           routes=['/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/']
-          headers=None
-          last=''
-          for attempt in range(30):
-              try:
-                  with urllib.request.urlopen(urllib.request.Request(origin+'/',headers={'User-Agent':'MUSITU-Launch-Smoke/20261106'}),timeout=20) as r:
-                      body=r.read().decode('utf8','replace');headers=r.headers
-                  if r.status==200 and 'Intelligence with evidence' in body:break
-              except Exception as e:last=type(e).__name__
-              time.sleep(4)
-          else:raise RuntimeError('Apex production did not become publicly reachable: '+last)
-          assert headers['X-Content-Type-Options']=='nosniff'
-          assert "frame-ancestors 'none'" in headers['Content-Security-Policy']
-          assert 'noindex' not in (headers.get('X-Robots-Tag') or '').lower()
-          failures=[]
-          for route in routes:
-              try:
-                  with urllib.request.urlopen(origin+route,timeout=20) as r:
-                      html=r.read().decode('utf8','replace')
-                  if r.status!=200 or 'index,follow' not in html or 'rel="canonical"' not in html:failures.append((route,r.status))
-              except Exception as e:failures.append((route,type(e).__name__))
-          assert not failures,'Route failures '+repr(failures)
-          with urllib.request.urlopen(origin+'/legal/privacy/',timeout=20) as r:privacy=r.read().decode('utf8','replace')
-          assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in privacy
-          with urllib.request.urlopen(origin+'/assets/studio-demo-82s.mp4',timeout=30) as r:
-              media=r.read()
-          import hashlib
-          assert hashlib.sha256(media).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
-          with urllib.request.urlopen(origin+'/robots.txt',timeout=20) as r:robots=r.read().decode()
-          assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
-          with urllib.request.urlopen(origin+'/sitemap.xml',timeout=20) as r:sitemap=r.read().decode()
-          assert sitemap.count('<url>')==33
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
-          op=urllib.request.build_opener(NoRedirect)
-          redirected=False
-          for _ in range(30):
-              try:
-                  op.open('https://www.mftintelligence.com/products/axiom/?launch=1',timeout=20)
-              except urllib.error.HTTPError as e:
-                  loc=e.headers.get('Location','')
-                  if e.code in (301,308) and loc.startswith('https://mftintelligence.com/products/axiom/') and 'launch=1' in loc:
-                      redirected=True;break
-              time.sleep(4)
-          assert redirected,'Canonical www 301 redirect not verified'
-          # Verify MX still present directly through Cloudflare API.
+          page_errors=[]
+          with sync_playwright() as pw:
+              browser=pw.chromium.launch(headless=True)
+              context=browser.new_context(
+                  viewport={'width':1280,'height':900},
+                  user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
+              )
+              page=context.new_page()
+              page.on('pageerror',lambda e:page_errors.append(str(e)[:200]))
+              home=None
+              for attempt in range(15):
+                  try:
+                      home=page.goto(origin+'/',wait_until='domcontentloaded',timeout=30000)
+                      if home and home.status==200 and 'Intelligence with evidence' in page.content():break
+                  except Exception:
+                      pass
+                  time.sleep(3)
+              assert home and home.status==200,'Apex production did not become browser-reachable'
+              hh=home.headers
+              assert hh.get('x-content-type-options')=='nosniff'
+              assert "frame-ancestors 'none'" in hh.get('content-security-policy','')
+              assert 'noindex' not in hh.get('x-robots-tag','').lower()
+              assert page.locator('meta[name="robots"]').get_attribute('content')=='index,follow'
+              assert page.locator('link[rel="canonical"]').get_attribute('href')==origin+'/'
+
+              failures=[]
+              for route in routes:
+                  try:
+                      resp=page.goto(origin+route,wait_until='domcontentloaded',timeout=30000)
+                      if not resp or resp.status!=200:raise AssertionError('HTTP '+str(resp.status if resp else None))
+                      if page.locator('meta[name="robots"]').get_attribute('content')!='index,follow':raise AssertionError('robots meta')
+                      if page.locator('link[rel="canonical"]').get_attribute('href')!=origin+route:raise AssertionError('canonical')
+                      if page.locator('.review-ribbon').count():raise AssertionError('review ribbon')
+                  except Exception as e:
+                      failures.append({'route':route,'error':type(e).__name__,'detail':str(e)[:120]})
+              assert not failures,'Route failures '+json.dumps(failures)
+
+              # Legal/operator identification and Axiom direct destination.
+              page.goto(origin+'/legal/privacy/',wait_until='domcontentloaded',timeout=30000)
+              privacy=page.locator('main').inner_text()
+              assert 'MUSITU is the website operator and data controller' in privacy
+              assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in privacy
+              page.goto(origin+'/products/axiom/',wait_until='domcontentloaded',timeout=30000)
+              assert page.locator('a[href="https://chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86"]').count()>0
+
+              # Verify live Studio media bytes through Chromium, not raw bot-sensitive HTTP.
+              media_page=context.new_page()
+              media_resp=media_page.goto(origin+'/assets/studio-demo-82s.mp4',wait_until='commit',timeout=30000)
+              assert media_resp and media_resp.status==200
+              media=media_resp.body()
+              assert hashlib.sha256(media).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+              media_page.close()
+              page.goto(origin+'/products/foundry/studio/',wait_until='domcontentloaded',timeout=30000)
+              video=page.locator('video.studio-demo-player')
+              assert video.count()==1
+              duration=0
+              for _ in range(20):
+                  duration=video.evaluate('(v)=>Number.isFinite(v.duration)?v.duration:0')
+                  if 81.5<=duration<=82.5:break
+                  page.wait_for_timeout(300)
+              assert 81.5<=duration<=82.5,'Studio video metadata duration mismatch'
+
+              # robots.xml and sitemap.xml through Chromium response bodies.
+              rpage=context.new_page()
+              rr=rpage.goto(origin+'/robots.txt',wait_until='commit',timeout=30000)
+              assert rr and rr.status==200
+              robots=rr.body().decode('utf8','replace')
+              assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
+              sr=rpage.goto(origin+'/sitemap.xml',wait_until='commit',timeout=30000)
+              assert sr and sr.status==200
+              sitemap=sr.body().decode('utf8','replace')
+              assert sitemap.count('<url>')==33
+              rpage.close()
+
+              # www must 301/308 to apex while preserving path/query.
+              redirect_events=[]
+              w=context.new_page()
+              w.on('response',lambda r: redirect_events.append({'url':r.url,'status':r.status,'location':r.headers.get('location','')}))
+              final=w.goto('https://www.mftintelligence.com/products/axiom/?launch=1',wait_until='domcontentloaded',timeout=30000)
+              assert final and final.status==200
+              assert w.url.startswith(origin+'/products/axiom/') and 'launch=1' in w.url
+              assert any(e['url'].startswith('https://www.mftintelligence.com/') and e['status'] in (301,308) and e['location'].startswith(origin+'/products/axiom/') for e in redirect_events),json.dumps(redirect_events[:8])
+              w.close()
+
+              # Existing Intelligence origin must remain independently available.
+              intel=context.new_page()
+              ir=intel.goto('https://evansmusitu.github.io/',wait_until='domcontentloaded',timeout=30000)
+              assert ir and ir.status==200 and 'MUSITU' in intel.content().upper()
+              intel.close()
+              browser.close()
+
+          assert not page_errors,'Browser JavaScript errors '+json.dumps(page_errors)
+
+          # Mail routing is checked via Cloudflare control plane, independent of browser challenge behavior.
           token=os.environ['CLOUDFLARE_API_TOKEN'];zone=os.environ['CF_ZONE_ID']
           url='https://api.cloudflare.com/client/v4/zones/'+zone+'/dns_records?'+urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
           with urllib.request.urlopen(urllib.request.Request(url,headers={'Authorization':'Bearer '+token,'Accept':'application/json'}),timeout=20) as r:b=json.load(r)
           assert b.get('success') and b.get('result'),'MX records disappeared'
-          with urllib.request.urlopen('https://evansmusitu.github.io/',timeout=20) as r:intel=r.read(120000).decode('utf8','replace')
-          assert r.status==200 and 'MUSITU' in intel.upper(),'Existing Intelligence origin unavailable'
-          print('public_routes_200_indexable:',len(routes))
+
+          print('public_chromium_routes_200_indexable:',len(routes))
           print('production_security_headers: PASS')
           print('legal_identification_live: PASS')
-          print('studio_media_hash_live: PASS')
+          print('axiom_chatgpt_destination_live: PASS')
+          print('studio_media_hash_and_82s_metadata_live: PASS')
           print('robots_and_33_url_sitemap: PASS')
           print('www_to_apex_301_preserves_path_query: PASS')
           print('mx_email_routing_preserved: PASS')
           print('existing_intelligence_origin_preserved: PASS')
+          print('public_browser_page_errors: 0')
           PY
 
       - name: Capture successful production evidence
