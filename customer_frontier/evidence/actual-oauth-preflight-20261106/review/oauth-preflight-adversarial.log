@@ -1,0 +1,15 @@
+✔ only exact four requests; catalog encrypts without plaintext and zero migration authority (14.30269ms)
+✔ duplicate binding malformed settings and wrong UUID stop before SQL (3.503534ms)
+✔ permission denial redirects oversized invalidJSON and provider codes stay safe UNKNOWN (7.703208ms)
+✔ each query independently requires exact zero-write evidence (12.991313ms)
+✔ missing parent malformed catalog and duplicate identities cannot qualify consistency (2.406529ms)
+✔ nonzero and malformed aggregate rows never pass success; fixed counts only (6.809016ms)
+✔ preflight provenance and token errors make zero requests (0.564142ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 199.28927
