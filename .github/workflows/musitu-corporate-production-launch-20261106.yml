@@ -257,17 +257,17 @@ jobs:
           print('www_proxy_dns: CREATED')
           PY
 
-      - name: Wait for canonical apex TLS/domain activation
+      - name: Wait for canonical apex API, public DNS and verified HTTPS readiness
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,time,urllib.request
+          import json,os,socket,ssl,time,urllib.error,urllib.request
           token=os.environ['CLOUDFLARE_API_TOKEN'];account=os.environ['CF_ACCOUNT_ID'];project=os.environ['CF_PAGES_NAME']
           h={'Authorization':'Bearer '+token,'Accept':'application/json'}
           api=f'https://api.cloudflare.com/client/v4/accounts/{account}/pages/projects/{project}/domains/mftintelligence.com'
           active=False
-          for i in range(80):
+          for i in range(100):
               with urllib.request.urlopen(urllib.request.Request(api,headers=h),timeout=20) as r:b=json.load(r)
               result=b.get('result') or {};status=result.get('status')
               print('apex_domain_status_attempt',i+1,status,'validation=',json.dumps(result.get('validation_data'),sort_keys=True),'verification=',json.dumps(result.get('verification_data'),sort_keys=True))
@@ -275,7 +275,51 @@ jobs:
               if status in ('error','blocked','deactivated'):raise RuntimeError('Apex domain entered '+str(status))
               time.sleep(5)
           assert active,'Apex domain did not become active'
-          print('apex_tls_domain_active: PASS')
+          print('apex_pages_domain_active: PASS')
+
+          # Wait for independent public recursive DNS, not just Cloudflare's control plane.
+          dns_ready=False
+          for i in range(120):
+              answers=[]
+              for typ in ('A','AAAA'):
+                  try:
+                      url=f'https://dns.google/resolve?name=mftintelligence.com&type={typ}&cd=0'
+                      with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Launch-DNS/20261106'}),timeout=15) as r:d=json.load(r)
+                      if d.get('Status')==0:
+                          answers.extend([x.get('data') for x in d.get('Answer',[]) if x.get('type') in (1,28)])
+                  except Exception as e:
+                      print('public_dns_probe_error',typ,type(e).__name__)
+              print('public_dns_attempt',i+1,'answers=',answers)
+              if answers:
+                  dns_ready=True;break
+              time.sleep(5)
+          assert dns_ready,'Public DNS did not resolve apex in propagation window'
+          print('public_recursive_dns_ready: PASS')
+
+          # Require the runner's own resolver and a normal verified TLS connection to converge.
+          https_ready=False;last=''
+          ctx=ssl.create_default_context()
+          for i in range(120):
+              try:
+                  resolved=sorted({x[4][0] for x in socket.getaddrinfo('mftintelligence.com',443,type=socket.SOCK_STREAM)})
+                  print('runner_dns_attempt',i+1,'answers=',resolved)
+                  with socket.create_connection(('mftintelligence.com',443),timeout=10) as raw:
+                      with ctx.wrap_socket(raw,server_hostname='mftintelligence.com') as tls:
+                          cert=tls.getpeercert()
+                          print('tls_peer_subject=',cert.get('subject'),'expires=',cert.get('notAfter'))
+                  req=urllib.request.Request('https://mftintelligence.com/',headers={'User-Agent':'Mozilla/5.0 MUSITU-Launch-HTTPS/20261106','Accept':'text/html'})
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      body=r.read(180000).decode('utf8','replace');code=r.status
+                  print('verified_https_attempt',i+1,'status=',code,'bytes=',len(body))
+                  if code==200 and 'Intelligence with evidence' in body:
+                      https_ready=True;break
+                  last=f'HTTP {code}'
+              except Exception as e:
+                  last=type(e).__name__+': '+str(e)[:180]
+                  print('verified_https_attempt',i+1,'error=',last)
+              time.sleep(5)
+          assert https_ready,'Verified public HTTPS did not become ready: '+last
+          print('public_dns_tls_https_ready: PASS')
           PY
 
       - name: Public production Chromium acceptance, DNS and mail preservation
@@ -297,15 +341,19 @@ jobs:
               )
               page=context.new_page()
               page.on('pageerror',lambda e:page_errors.append(str(e)[:200]))
-              home=None
-              for attempt in range(15):
+              home=None;last_browser=''
+              for attempt in range(30):
                   try:
                       home=page.goto(origin+'/',wait_until='domcontentloaded',timeout=30000)
-                      if home and home.status==200 and 'Intelligence with evidence' in page.content():break
-                  except Exception:
-                      pass
-                  time.sleep(3)
-              assert home and home.status==200,'Apex production did not become browser-reachable'
+                      content=page.content()
+                      last_browser=f'status={home.status if home else None} url={page.url} title={page.title()!r} bytes={len(content)}'
+                      print('browser_home_attempt',attempt+1,last_browser)
+                      if home and home.status==200 and 'Intelligence with evidence' in content:break
+                  except Exception as e:
+                      last_browser=type(e).__name__+': '+str(e)[:220]
+                      print('browser_home_attempt',attempt+1,'error=',last_browser)
+                  time.sleep(5)
+              assert home and home.status==200 and 'Intelligence with evidence' in page.content(),'Apex production did not become browser-reachable: '+last_browser
               hh=home.headers
               assert hh.get('x-content-type-options')=='nosniff'
               assert "frame-ancestors 'none'" in hh.get('content-security-policy','')
