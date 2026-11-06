@@ -1,0 +1,47 @@
+# Phase 2 PostgreSQL staging — private connectivity and billing gate (2026-11-06)
+
+**Status: STAGING PROJECT CREATED; APPLICATION CONNECTIVITY BLOCKED; NOT A PRODUCTION ACCEPTANCE.**
+This is a public-safe change record. It contains no Neon project ID, database credential, connection URI, private endpoint, tenant/customer data or privileged account details. It tracks G1 and G2 in the [external acceptance contract](2026-11-06-phase2-external-evidence-contract.md) and [release issue #74](https://github.com/evansmusitu/mft-axiom-build/issues/74).
+
+## Independently verified platform inventory (read-only connector/API)
+
+| Control | Observed | Consequence |
+|---|---|---|
+| Staging platform | New isolated Neon PostgreSQL **17** project in an approved US East staging region | Not connected to customer production |
+| Staging DB | Dedicated `axiom_phase2_stage` database; branch `main` exists | Only database creation verified, not schema installation |
+| Connection perimeter | `block_public_connections=true` | SQL and scoped role provisioning fail with `blocked network`; protection **remains enabled** |
+| Private networking | `block_vpc_connections=false` setting | **Not** proof of any VPC endpoint, routing, identity, TLS or private runner |
+| Compute and quotas | 0.25 CU maximum; idle suspension after 60 s; conservative consumption quotas | Usage can still incur charges; quotas do not prove financial cost ceilings |
+| Runtime database role | Not yet provisioned; a request to create scoped `read_write` role was denied, with **no changes** | No database application credential exists from this operation |
+| SQL schema/ledger | **NOT INSTALLED / NOT VERIFIED** | No central spend enforcement can be claimed |
+| Application stack | GitHub main remains separate from stacked draft Phase 2.10A [PR #76](https://github.com/evansmusitu/mft-axiom-build/pull/76) and Phase 2.10B [PR #81](https://github.com/evansmusitu/mft-axiom-build/pull/81) | Public Cloudflare/D1 deploy workflows are not proof that Phase 2 uses this PostgreSQL instance |
+
+The project is intentionally empty of AXIOM tenant and provider-credential data. Its operational identity belongs in a restricted evidence vault, not this public document.
+
+## Required private-connection work — **blocked pending approved network authority**
+
+1. Design and independently approve a **private** network path from an authenticated staging application/runner to Neon PostgreSQL. Verify actual VPC endpoint association, private DNS, routes, ingress and egress, TLS certificate validation, database authentication and least-privilege role assignment. `block_vpc_connections=false` alone is insufficient.
+2. Keep `block_public_connections=true` unless the security owner explicitly approves a narrow, logged, time-bounded exception and rollback plan. Do **not** open the database to all public IPs as a workaround and do not publish tokens, credentials or URLs in GitHub.
+3. Identify the pinned Phase 2 revision containing `reasoning/phase2/sql/postgres.sql`, `initializePostgresSchema(pool)`, `PostgresProviderSpendLedger`, vendor-organization cap and trusted provider-adapter factory. The stacked draft PRs are not part of production `main`. Review and promote code through tests/approvals before any production wiring.
+4. From the approved authenticated private deploy runner, create a migration-owner connection, transactionally apply the pinned `reasoning/phase2/sql/postgres.sql` migration using `initializePostgresSchema(pool)`, and compare the resulting schema/table/constraint manifest to the approved source digest. Do not use application runtime credentials for migration administration.
+5. After schema creation, create/verify a scoped non-superuser `read_write` billing runtime credential for that one database/schema; store it only in an approved secret manager, with rotation, TLS, least-privilege and role audit. The runtime must not own migrations, public grant administration, or cross-environment databases.
+6. Before enabling a paid OpenAI/Anthropic endpoint, wire **every** compile/explain entrypoint and replica to the real PostgreSQL `PostgresProviderSpendLedger` and mandatory trusted budget adapter factory. Explicitly provision the pinned upstream vendor cap and tenant/model limits through an authorized administrative path; deny missing/unknown budgets and unsupported price schedules.
+7. Independently test a missing organization cap; missing tenant cap; nonregistered tenant; adapter bypass; concurrent reservations from *two separate* PostgreSQL pools and worker replicas; duplicate request replay; overage suspension; unknown/ambiguous bill retention; rollback, restart and failover. Check that denial occurs **before** any external paid provider call.
+8. Verify read-only ledger evidence and end-to-end deployed host/worker inventory, exact git SHA, binary digest, DB endpoint identity (private), network/TLS attestation, role grants, alerts, invoice reconciliation, audit/incident/backup/restore/DR receipts. A synthetic test or successful Neon project creation cannot satisfy this gate.
+
+## Safe read-only verification queries (run only through approved private access)
+
+```sql
+SELECT current_database(), current_user, current_setting('server_version');
+SELECT to_regclass('public.axiom_provider_spend_budgets') AS tenant_budget_table,
+       to_regclass('public.axiom_provider_spend_organizations') AS vendor_budget_table,
+       to_regclass('public.axiom_provider_spend_requests') AS request_table;
+SELECT COUNT(*) AS tenant_budget_rows FROM public.axiom_provider_spend_budgets;
+SELECT COUNT(*) AS vendor_budget_rows FROM public.axiom_provider_spend_organizations;
+```
+
+The latter two queries are **only valid after the schema has actually been installed**. An empty table is not evidence of an approved nonzero budget. No staging exercise may use production provider credentials or customer data.
+
+## Acceptance decision
+
+**BLOCKED / NO-GO:** Neon PostgreSQL staging exists but there is no trusted private SQL connection, no installed schema, no scoped runtime role, no authenticated Phase 2 deployment, no real vendor invoice reconciliation, and no external security sign-off. The original public GitHub `main` remains unchanged. No profitable trading signal or profit guarantee follows from these controls.
