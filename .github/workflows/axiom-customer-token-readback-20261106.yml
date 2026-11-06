@@ -1,0 +1,54 @@
+name: AXIOM customer token readback 20261106 (GET only)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-token-readback-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-token-readback-20261106
+  cancel-in-progress: false
+jobs:
+  read-only-token-metadata:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-hosted-token-readback-20261106' && github.event.pull_request.base.ref == 'build/axiom-idp-workerd-qualification-20261106' && github.event.pull_request.base.sha == '94ae644cd8d57f188dea10222907bc092165025f' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 94ae644cd8d57f188dea10222907bc092165025f
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit fixed reviewed source and unchanged readback/test hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          source = '94ae644cd8d57f188dea10222907bc092165025f'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == source
+          for path, expected in {
+              'customer_frontier/qualification/cloudflare_customer_inventory.py': 'a2c11686d3d0a5f26f7a07b457474a735c07349e2c00a08a7959d321fb7002ad',
+              'customer_frontier/tests/test_cloudflare_metadata_readback.py': '386f72a2c1b1130da8bacd21d60f1434a094733c01279d4baf3bd94a2eb98e21',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, path
+          print(json.dumps({'admitted_checkout_sha': source, 'script_and_test_hashes_match': True, 'network_authority': 'four fixed account-scoped GET requests only'}))
+          PY
+      - name: Verify malformed provider responses fail closed without network
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_cloudflare_metadata_readback.py -v
+      - name: Read metadata with existing API token confined to fixed GET-only source
+        env:
+          AXIOM_CHECKOUT_SHA: 94ae644cd8d57f188dea10222907bc092165025f
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/cloudflare_customer_inventory.py
+      - name: Preserve actual observation including incomplete results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-token-readback-20261106
+          path: |
+            customer-cloudflare-readback.json
+            customer-cloudflare-readback.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
