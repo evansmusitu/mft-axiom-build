@@ -14,7 +14,8 @@ jobs:
     timeout-minutes: 9
     env:
       BASE_SHA: 13492fd3befd12af761d49399d6c6ed30d63ee2b
-      RELEASE_SHA: df87c9b36811db10f0d11e90d2989f3735f10754
+      RELEASE_SHA: 29d9e36f3eb755fde67b7c55087d05dff1c4a103
+      MEDIA_SOURCE_SHA: c3751047d714033585d20163709f10cef2ea3d2c
     steps:
       - name: Fetch both exact reviewed source commits
         shell: bash
@@ -27,6 +28,11 @@ jobs:
           git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$RELEASE_SHA"
           git -C "$RUNNER_TEMP/musitu-source" checkout -q --detach "$RELEASE_SHA"
           test "$(git -C "$RUNNER_TEMP/musitu-source" rev-parse HEAD)" = "$RELEASE_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" fetch -q --depth=1 origin "$MEDIA_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/musitu-source" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-demo-82s.mp4" > "$RUNNER_TEMP/musitu-source/corporate/assets/studio-demo-82s.mp4"
+          git -C "$RUNNER_TEMP/musitu-source" show "$MEDIA_SOURCE_SHA:corporate/assets/studio-poster.png" > "$RUNNER_TEMP/musitu-source/corporate/assets/studio-poster.png"
+          printf '%s  %s\n' afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0 "$RUNNER_TEMP/musitu-source/corporate/assets/studio-demo-82s.mp4" | sha256sum -c -
+          printf '%s  %s\n' 0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0 "$RUNNER_TEMP/musitu-source/corporate/assets/studio-poster.png" | sha256sum -c -
       - name: Reproduce site, run full source tests, and build immutable inventories
         shell: bash
         run: |
@@ -45,7 +51,7 @@ jobs:
           out.mkdir()
           base=os.environ['BASE_SHA'];head=os.environ['RELEASE_SHA']
           names=subprocess.check_output(['git','-C',str(root),'diff','--name-only',base,head,'--'],text=True).splitlines()
-          assert len(names)==37 and all(x.startswith('corporate/') for x in names),'Source scope is not exact'
+          assert len(names)==38 and all(x.startswith('corporate/') for x in names),'Source scope is not exact'
           with (out/'SOURCE_SHA256.csv').open('w',newline='') as f:
             writer=csv.writer(f);writer.writerow(['source_path','bytes','sha256'])
             for name in sorted(names):
@@ -61,7 +67,7 @@ jobs:
           assert len(manifest['routes'])==34 and not manifest['production_approved'] and manifest['media_publication_approved'] is True and manifest['brand_master_approved'] is True
           assert len(manifest['files'])==42 and len(assets)==43
           qa={'source_commit':head,'base_sha':base,'repo':'evansmusitu/evansmusitu.github.io','pr':32,
-            'changed_source_files':len(names),'generated_asset_files':len(assets),
+            'changed_source_files':len(names),'generated_asset_files':len(assets),'media_source_commit':os.environ['MEDIA_SOURCE_SHA'],
             'routes':len(manifest['routes']),'media_included':True,'studio_video_owner_review_only':False,
             'staging_only':True,'noindex':True,'production_authorized':False}
           (out/'RELEASE_IDENTITY.json').write_text(json.dumps(qa,indent=2)+'\n')
