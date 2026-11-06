@@ -1,0 +1,13 @@
+# Independent review: actual OAuth read-only preflight
+
+**PASS for the bounded read-only observation only. No remaining P0–P2 blocker found.** Source `ad07f467268b2b322e6afb491567b7ede751591a`, tree `2d51daa306d2d679c687d6222cfe40310c3da013`, parent `7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a`.
+
+Independent exact-ref GitHub reads matched source/test local bytes, SHA-256 and Git blobs. Reader SHA-256 `039612399edbce1c592a285e95232a43b5c32cbaeba88e835d16dd017abcfd24`; tests `0721defbc3db6dd8bb581351f06988363fe8b65fbfac696447c33698187728da`. Local workflow `020b023a1e59035c7b2a0fecbdfab17111729a94a9c5669bf4612c851b93c610` pins that source, both hashes and the prior reviewed encryption helper/public recipient. Confirm published workflow bytes match this hash before opening the credentialed PR.
+
+8 supplied tests and7 independent adversarial tests passed with global fetch and node network functions denied. Logs/harness: `oauth-preflight-existing-tests.log`, `oauth-preflight-adversarial.log`, `oauth-preflight-adversarial.test.mjs`; identity/workflow verification: `oauth-preflight-static-verification.log`.
+
+Independent probes covered exact paths/methods/SQL/empty params, duplicate/wrong bindings, malformed settings, wrong database identity, permission/redirect/provider-code privacy, oversized/invalid JSON, both queries' exact zero-write confirmations, missing real parents, catalog duplicates/field drift, malformed/nonzero aggregate counts and zero-call input failures. No provider calls or root edits were performed.
+
+The reader makes at most four fixed-account calls: known OAuth settings GET, production504029cc metadata GET, catalog SELECT, then aggregate SELECT only after five real OAuth parent tables are observed. It does not invent parents or perform any write/migration. Raw catalog remains in memory until encrypted with the fixed recipient and reviewed helper; outputs contain ciphertext and safe fixed-schema counts, never raw DDL/customer rows/private labels/token. Limits are four requests,90seconds and2MB per response, with redirects refused. Hash checks and tests precede the sole token step. Workflow admission remains opened-only/first-attempt with exact same-repository branches/baseSHA and pinned Actions.
+
+All target/migration/release flags remain false. Base counts do not qualify identity links, unknown triggers, comprehensive dirty-row rejection, backup, hosted rollback or a real D1Database.batch. PR83's deliberate production-writing block, PR1's rejection and execution UNAVAILABLE remain separate. $0/Paynow/customer-data/q06/rollback authority is unchanged. B27=`FAILED_IN_SYNTHETIC_ATTACK`; parity/superiority=`NOT_CERTIFIED`; unavailable final usage=`UNKNOWN`.

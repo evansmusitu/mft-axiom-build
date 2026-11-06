@@ -1,0 +1,51 @@
+{
+  "schema": "musitu.axiom.independent_actual_oauth_readonly_preflight_review.v1",
+  "verdict": "PASS_FOR_BOUNDED_READ_ONLY_OBSERVATION_ONLY",
+  "source": "ad07f467268b2b322e6afb491567b7ede751591a",
+  "tree": "2d51daa306d2d679c687d6222cfe40310c3da013",
+  "parent": "7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a",
+  "reader_sha256": "039612399edbce1c592a285e95232a43b5c32cbaeba88e835d16dd017abcfd24",
+  "tests_sha256": "0721defbc3db6dd8bb581351f06988363fe8b65fbfac696447c33698187728da",
+  "reviewed_local_workflow_sha256": "020b023a1e59035c7b2a0fecbdfab17111729a94a9c5669bf4612c851b93c610",
+  "unresolved_p0_p1_p2": [],
+  "validation": {
+    "supplied_tests": {
+      "count": 8,
+      "result": "PASS",
+      "log": "oauth-preflight-existing-tests.log"
+    },
+    "independent_tests": {
+      "count": 7,
+      "result": "PASS",
+      "harness": "oauth-preflight-adversarial.test.mjs",
+      "log": "oauth-preflight-adversarial.log"
+    },
+    "identity_workflow": {
+      "result": "PASS",
+      "log": "oauth-preflight-static-verification.log"
+    },
+    "network": "global fetch and node net/tls/http/https denied"
+  },
+  "boundaries": [
+    "Four fixed-account calls only: GET known OAuth Worker settings; GET production504029cc identity; exact catalog SELECT; exact aggregate SELECT only after five real parents observed.",
+    "Binding must be exactly one AXIOM_DB d1 entry pointing to fixed production database; UUID and expected name checked before SQL.",
+    "Both SELECT responses independently require actual false changed_db and numeric-zero changes/rows_written; failures keep provider mutation evidence UNKNOWN.",
+    "Fixed SQL only; no schema/data/resource/binding/grant/deploy/create/import/export operation. Catalog raw bytes encrypted in memory with previously reviewed fixed recipient/helper; only encrypted catalog and safe aggregate receipt emitted.",
+    "Four-request/90second/2MB bounds; no redirects; HTTP failures/malformed data remain UNKNOWN; nonzero aggregates reject success.",
+    "Exact reviewed source/test and prior encryption helper/public recipient hashes checked before tests and sole token step; same-repository exact branch/baseSHA, opened-only, first-attempt, pinned checkout/upload Actions, contents-read and no persisted checkout credentials."
+  ],
+  "scope_limits": [
+    "Verify published immutable workflow bytes equal reviewed local hash before opening PR.",
+    "No live provider operation performed by this reviewer; actual observation remains unperformed at verdict.",
+    "Base aggregate checks do not qualify full dirty-row rejection, identity-link consistency, unknown trigger bodies, backup, hosted rollback, actual D1Database.batch, target admission or migration.",
+    "No PR83 production-writing block or PR1 safety rejection may be bypassed; execution UNAVAILABLE and other product gates unchanged.",
+    "All target_admitted, migration_qualified and release_authority flags remain false."
+  ],
+  "provider_calls_performed_by_reviewer": 0,
+  "root_files_modified_by_reviewer": 0,
+  "retained_authority_states": {
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN"
+  }
+}

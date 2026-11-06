@@ -1,0 +1,125 @@
+{
+  "result": "PASS",
+  "evidence_head": "7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a",
+  "tree": "8276266a6deee1a11fed834f30ec369fa26e7713",
+  "prior_blob_count": 983,
+  "current_blob_count": 1001,
+  "added_paths": 18,
+  "changed_existing_paths": [
+    "customer_frontier/qualification/EXISTING_D1_PRIVATE_BACKUP_20261106_NOT_RELEASE.md"
+  ],
+  "qualification_change": "append-only actual checkpoint; all historical bytes and authority preserved",
+  "reviewed_source_paths_preserved": [
+    "customer_frontier/recovery/export_existing_d1_backup.mjs",
+    "customer_frontier/recovery/recipient-20261106.pem",
+    "customer_frontier/tests/existing_d1_backup.test.mjs",
+    "customer_frontier/recovery/decrypt_restore_existing_d1.mjs",
+    "customer_frontier/recovery/restore_sql_private.py",
+    "customer_frontier/tests/existing_d1_private_restore.test.mjs",
+    "customer_frontier/tests/test_existing_d1_private_restore.py"
+  ],
+  "workflow_preserved": true,
+  "live_log_bytes_match_retained_manifest": [
+    {
+      "name": "actual-export-42284247771.log",
+      "bytes": 22454,
+      "sha256": "55355a094a5ab963786f0f7c62c8a28d4b89af007f82f78e59b629b121b7aeb9"
+    },
+    {
+      "name": "actual-source-ci-42284247249.log",
+      "bytes": 145003,
+      "sha256": "9e86ecbc701392c731c49bf1be2c810cc6d43749a5417f522c2602ac48ab9b83"
+    }
+  ],
+  "safe_evidence_files": [
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/existing-d1-backup-export-receipt.json",
+      "bytes": 1368,
+      "sha256": "7d25bcba294ea54986b842acd22891a7566a5ac09ef9317a6b474dd775079986",
+      "git_blob": "454a4cb898ddbbb30715604478e0356145b3a947"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/drive-backup-readback-receipt.json",
+      "bytes": 604,
+      "sha256": "1f0d8d772d4b7d28c542f7fe5f5c8b611e101582c87231fdafea9be16a67ed32",
+      "git_blob": "7ecf8551aef9043f8a949839d44e5347b547eb71"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/recipient-drive-readback-receipt.json",
+      "bytes": 277,
+      "sha256": "68ebff8244c4a205faa014d83cf47e67915606101b81a902417d85d47745dab7",
+      "git_blob": "87b1cda09c44a3ebf850d8757656681a9ba8b2ae"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-local-restore-first-receipt.json",
+      "bytes": 1454,
+      "sha256": "133f4b5dbca2c5b5e23d5a4a842b6ac3e530033dbfc39d37252d70ba431cf9a8",
+      "git_blob": "23c316f420fd32d723c27d183b9279634313b322"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-local-restore-second-receipt.json",
+      "bytes": 1454,
+      "sha256": "133f4b5dbca2c5b5e23d5a4a842b6ac3e530033dbfc39d37252d70ba431cf9a8",
+      "git_blob": "23c316f420fd32d723c27d183b9279634313b322"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-local-restore-comparison.json",
+      "bytes": 375,
+      "sha256": "ec93465b92e241385261fb6fc7fdfef64a74e816c272d75a79da748937b6cf2a",
+      "git_blob": "170f9349ab1b38dc95e9a5ff215f0034483a8c7f"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-log-manifest.json",
+      "bytes": 317,
+      "sha256": "40b590a2354e2c46086728513734ee8f4857a5d042f88ba40d3f04593865906b",
+      "git_blob": "363871c1cb36976d3ba8a2812c14e5c260a7c0fc"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-export-42284247771.log",
+      "bytes": 22454,
+      "sha256": "55355a094a5ab963786f0f7c62c8a28d4b89af007f82f78e59b629b121b7aeb9",
+      "git_blob": "7c64a33d3f53ce5f7de32394e2f164ec761ff119"
+    },
+    {
+      "path": "customer_frontier/evidence/existing-d1-backup-20261106/actual-source-ci-42284247249.log",
+      "bytes": 145003,
+      "sha256": "9e86ecbc701392c731c49bf1be2c810cc6d43749a5417f522c2602ac48ab9b83",
+      "git_blob": "48697940e74848a59f9f9fc933a6343a7567afb8"
+    }
+  ],
+  "retained_independent_review_artifacts_checked": 17,
+  "export_receipt_matches_live_job": true,
+  "local_restore_receipts_match": true,
+  "local_user_objects": 4,
+  "local_user_tables": 3,
+  "local_restored_rows": 0,
+  "sql_bytes": 680,
+  "drive_and_key_readback_receipts_consistent": true,
+  "independent_private_storage_access": false,
+  "workflow_runs": [
+    {
+      "id": 42284247771,
+      "head_sha": "f1113ef5a58f5824d73ddc62dd6e6a59be972509",
+      "conclusion": "success",
+      "path": ".github/workflows/axiom-existing-d1-private-backup-20261106.yml"
+    },
+    {
+      "id": 42284247249,
+      "head_sha": "f1113ef5a58f5824d73ddc62dd6e6a59be972509",
+      "conclusion": "success",
+      "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+    },
+    {
+      "id": 42285211360,
+      "head_sha": "7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a",
+      "conclusion": "success",
+      "path": ".github/workflows/axiom-customer-frontier-candidate.yml"
+    }
+  ],
+  "CI_counts": {
+    "Node": 210,
+    "Python": 134,
+    "workerd": 16
+  },
+  "hosted_target_release_custody_liveparity_flags": false
+}

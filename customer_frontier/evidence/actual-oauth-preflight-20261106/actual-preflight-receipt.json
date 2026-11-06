@@ -1,0 +1,12 @@
+{
+  "run_id": 42289171014,
+  "job_id": 128137766651,
+  "event_head": "efb78e829abaa797c23b2f7444d089cbd213a10d",
+  "source_sha": "ad07f467268b2b322e6afb491567b7ede751591a",
+  "log_bytes": 22016,
+  "log_sha256": "730523975d52ad94eaee2a0b1165575b6227ba7b23994e5bd7bc4f1d118870a3",
+  "observed_at": "2026-11-06T20:34:03.632946+00:00",
+  "encrypted_catalog_saved_to_private_drive": true,
+  "migration_qualified": false,
+  "release_authority": false
+}

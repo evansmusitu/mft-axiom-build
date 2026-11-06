@@ -1,0 +1,16 @@
+✔ actual parent scope and base counts observed without migration authority (11.672049ms)
+✔ binding and metadata drift stop before SQL (1.316578ms)
+✔ missing OAuth parents blocks consistency query without inventing tables (2.04015ms)
+✔ write contradiction or missing counter remains unknown (3.200004ms)
+✔ inconsistent actual base rows reject qualification (1.691934ms)
+✔ malformed counters cannot pass (4.975405ms)
+✔ catalog duplicates and malformed response reject observation (1.202123ms)
+✔ missing token or wrong public recipient makes no request (0.607193ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 156.623043

@@ -1,0 +1,53 @@
+name: AXIOM actual OAuth component preflight (READ ONLY NOT MIGRATION)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-actual-oauth-preflight-20261106.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-actual-oauth-preflight-20261106
+  cancel-in-progress: false
+jobs:
+  observe-actual-oauth:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-actual-oauth-preflight-20261106' && github.event.pull_request.base.ref == 'build/axiom-existing-d1-backup-20261106' && github.event.pull_request.base.sha == '7e3e1e01116849ff27c0c1fc7c31a62a5e30eb0a' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ad07f467268b2b322e6afb491567b7ede751591a
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify immutable reader, tests and encrypted catalog dependencies
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='ad07f467268b2b322e6afb491567b7ede751591a'
+          for path,expected in {
+            'customer_frontier/qualification/oauth_existing_component_preflight.mjs':'039612399edbce1c592a285e95232a43b5c32cbaeba88e835d16dd017abcfd24',
+            'customer_frontier/tests/oauth_existing_component_preflight.test.mjs':'0721defbc3db6dd8bb581351f06988363fe8b65fbfac696447c33698187728da',
+            'customer_frontier/recovery/export_existing_d1_backup.mjs':'35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c',
+            'customer_frontier/recovery/recipient-20261106.pem':'d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3',
+          }.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==expected,path
+          print('Immutable actual-component reader and encryption dependencies verified')
+          PY
+      - name: Verify read-only identity, privacy and row-consistency guards offline
+        run: node --test customer_frontier/tests/oauth_existing_component_preflight.test.mjs
+      - name: Read actual OAuth binding, schema and aggregate consistency only
+        env:
+          AXIOM_CHECKOUT_SHA: ad07f467268b2b322e6afb491567b7ede751591a
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/oauth_existing_component_preflight.mjs
+      - name: Preserve encrypted private catalog and safe result including failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-actual-oauth-preflight-20261106
+          path: |
+            actual-oauth-catalog.json.enc
+            actual-oauth-preflight.json
+          retention-days: 30
+          if-no-files-found: warn
