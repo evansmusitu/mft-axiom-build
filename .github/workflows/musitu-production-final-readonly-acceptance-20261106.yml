@@ -1,0 +1,186 @@
+name: MUSITU Production Final Readonly Acceptance 20261106
+on:
+  push:
+    branches:
+      - audit/musitu-corporate-cloudflare-readonly-20261103
+    paths:
+      - .github/workflows/musitu-production-final-readonly-acceptance-20261106.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: "93f395f5121954671f92fffa453d6b61"
+      CF_ZONE_ID: "5b56528f03948ff5917a5e0cd9f7109e"
+      CF_PAGES_NAME: "musitu-corporate"
+      RELEASE_SHA: "7e0fa23dad220e0e1b7e48a9176e3437b5afc545"
+      MERGE_SHA: "bf70edf55b9d67402bbb1d8d0f1d72f14ed1ef86"
+      ORIGIN: "https://mftintelligence.com"
+    steps:
+      - name: Verify GitHub source and Cloudflare control-plane state without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          token=os.environ['CLOUDFLARE_API_TOKEN'];aid=os.environ['CF_ACCOUNT_ID'];zid=os.environ['CF_ZONE_ID'];project=os.environ['CF_PAGES_NAME'];merge=os.environ['MERGE_SHA']
+          base='https://api.cloudflare.com/client/v4';h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers=h),timeout=25) as r:b=json.load(r)
+              assert b.get('success') is True,(path,b.get('errors'))
+              return b.get('result')
+          p=get(f'/accounts/{aid}/pages/projects/{project}')
+          assert p.get('production_branch')=='main'
+          domains=get(f'/accounts/{aid}/pages/projects/{project}/domains') or []
+          apex=[d for d in domains if d.get('name')=='mftintelligence.com']
+          assert len(apex)==1 and apex[0].get('status')=='active',apex
+          deps=get(f'/accounts/{aid}/pages/projects/{project}/deployments') or []
+          prod=[d for d in deps if d.get('environment')=='production']
+          assert prod,'No production Pages deployment'
+          current=prod[0]
+          meta=((current.get('deployment_trigger') or {}).get('metadata') or {})
+          assert meta.get('commit_hash')==merge,(meta,current.get('id'))
+          for name in ('mftintelligence.com','www.mftintelligence.com'):
+              q=urllib.parse.urlencode({'name':name,'per_page':100})
+              rows=get(f'/zones/{zid}/dns_records?{q}') or []
+              web=[r for r in rows if r.get('type') in ('A','AAAA','CNAME')]
+              assert web,'Missing web DNS for '+name
+              print('web_dns',name,[(r.get('type'),r.get('content'),r.get('proxied')) for r in web])
+          q=urllib.parse.urlencode({'type':'MX','name':'mftintelligence.com','per_page':100})
+          mx=get(f'/zones/{zid}/dns_records?{q}') or []
+          assert len(mx)>=3,'Expected mail routing records'
+          print('pages_production_deployment_id:',current.get('id'))
+          print('pages_apex_status: active')
+          print('production_merge_sha:',meta.get('commit_hash'))
+          print('mx_records_present:',len(mx))
+          print('control_plane_readonly_acceptance: PASS')
+          PY
+
+      - name: Install pinned Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q playwright==1.55.0
+          python3 -m playwright install --with-deps chromium >/dev/null
+
+      - name: Public production browser acceptance without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,time,urllib.request
+          from playwright.sync_api import sync_playwright
+          origin=os.environ['ORIGIN']
+          routes=['/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/']
+          page_errors=[];failures=[];transients=[]
+          with sync_playwright() as pw:
+              browser=pw.chromium.launch(headless=True)
+              ctx=browser.new_context(ignore_https_errors=False)
+              p=ctx.new_page();p.on('pageerror',lambda e:page_errors.append(str(e)[:240]))
+              def goto_retry(url,attempts=4,wait='domcontentloaded'):
+                  last=None
+                  for n in range(attempts):
+                      try:
+                          last=p.goto(url,wait_until=wait,timeout=30000)
+                          if last and last.status<500:return last
+                          print('route_retry',url,n+1,last.status if last else None)
+                      except Exception as e:
+                          print('route_retry_exception',url,n+1,type(e).__name__)
+                      time.sleep(1.5)
+                  return last
+              home=goto_retry(origin+'/',6)
+              assert home and home.status==200,'Homepage not HTTP 200'
+              assert 'Intelligence with evidence' in p.content()
+              hh={k.lower():v for k,v in home.headers.items()}
+              assert hh.get('x-content-type-options')=='nosniff'
+              assert "frame-ancestors 'none'" in hh.get('content-security-policy','')
+              assert 'noindex' not in hh.get('x-robots-tag','').lower()
+              for route in routes:
+                  resp=goto_retry(origin+route)
+                  if not resp or resp.status!=200:
+                      failures.append((route,resp.status if resp else None));continue
+                  try:
+                      assert p.locator('meta[name="robots"]').get_attribute('content')=='index,follow'
+                      assert p.locator('link[rel="canonical"]').get_attribute('href')==origin+route
+                      assert p.locator('.review-ribbon').count()==0
+                  except Exception as e:failures.append((route,type(e).__name__))
+              assert not failures,'Route failures '+json.dumps(failures)
+              p.goto(origin+'/legal/privacy/',wait_until='domcontentloaded',timeout=30000)
+              privacy=p.locator('main').inner_text()
+              assert 'MUSITU is the website operator and data controller' in privacy
+              assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in privacy
+              p.goto(origin+'/legal/terms/',wait_until='domcontentloaded',timeout=30000)
+              assert 'Mhundwa Village, Seke, Mashonaland East, Zimbabwe' in p.locator('main').inner_text()
+              p.goto(origin+'/products/axiom/',wait_until='domcontentloaded',timeout=30000)
+              assert p.locator('a[href="https://chatgpt.com/plugins/plugin_asdk_app_6ae058ee6cec81919329ae43b76a4c86"]').count()>0
+              p.goto(origin+'/products/foundry/studio/',wait_until='domcontentloaded',timeout=30000)
+              v=p.locator('video.studio-demo-player');assert v.count()==1
+              duration=0
+              for _ in range(20):
+                  duration=v.evaluate('(x)=>Number.isFinite(x.duration)?x.duration:0')
+                  if 81.5<=duration<=82.5:break
+                  p.wait_for_timeout(300)
+              assert 81.5<=duration<=82.5,duration
+              req=ctx.request.get(origin+'/assets/studio-demo-82s.mp4',timeout=30000)
+              assert req.status==200
+              media=req.body()
+              assert hashlib.sha256(media).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+              rr=ctx.request.get(origin+'/robots.txt',timeout=30000);assert rr.status==200
+              robots=rr.text();assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
+              sr=ctx.request.get(origin+'/sitemap.xml',timeout=30000);assert sr.status==200
+              assert sr.text().count('<url>')==33
+              events=[]
+              w=ctx.new_page();w.on('response',lambda r:events.append((r.url,r.status,r.headers.get('location',''))))
+              final=w.goto('https://www.mftintelligence.com/products/axiom/?launch=1',wait_until='domcontentloaded',timeout=30000)
+              assert final and final.status==200
+              assert any(u.startswith('https://www.mftintelligence.com/') and st in (301,308) and loc.startswith(origin+'/products/axiom/') and 'launch=1' in loc for u,st,loc in events),events[:10]
+              intel=ctx.new_page();ir=intel.goto('https://evansmusitu.github.io/',wait_until='domcontentloaded',timeout=30000)
+              assert ir and ir.status==200 and 'MUSITU' in intel.content().upper()
+              browser.close()
+          assert not page_errors,'Browser JS errors '+json.dumps(page_errors)
+          print('public_routes_200_indexable:',len(routes))
+          print('production_security_headers: PASS')
+          print('legal_identification_live: PASS')
+          print('axiom_chatgpt_destination_live: PASS')
+          print('studio_media_hash_and_82s_metadata_live: PASS')
+          print('robots_and_33_url_sitemap: PASS')
+          print('www_to_apex_redirect_preserves_path_query: PASS')
+          print('existing_intelligence_origin_preserved: PASS')
+          print('browser_page_errors: 0')
+          print('public_production_readonly_acceptance: PASS')
+          PY
+
+      - name: Seal final evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cat > evidence/FINAL_PRODUCTION_ACCEPTANCE.json <<EOF
+          {
+            "date": "2026-11-06",
+            "release_sha": "$RELEASE_SHA",
+            "merge_sha": "$MERGE_SHA",
+            "canonical_origin": "$ORIGIN",
+            "pages_project": "$CF_PAGES_NAME",
+            "production_artifact_sha256": "49ae864ac4f8dd0d3d3651f03469b3ac4a2eb21a1518b847571da28f547fc79f",
+            "routes_verified": 33,
+            "studio_video_sha256": "afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0",
+            "legal_identification_live": true,
+            "mx_preserved": true,
+            "intelligence_origin_preserved": true,
+            "writes_performed_by_this_acceptance": false,
+            "production_acceptance": "PASS"
+          }
+          EOF
+          sha256sum evidence/FINAL_PRODUCTION_ACCEPTANCE.json > evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-final-production-acceptance-20261106
+          path: evidence
+          retention-days: 90
+          if-no-files-found: error
