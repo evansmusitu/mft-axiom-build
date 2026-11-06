@@ -375,33 +375,32 @@ jobs:
                   except Exception as e: print('public_dns_probe_error',name,typ,type(e).__name__)
               return answers
 
-          apex_ips=[];www_ips=[]
+          apex_ips=[];www_ips=[];apex_v4s=[];www_v4s=[]
           for i in range(120):
               apex_ips=resolve('mftintelligence.com');www_ips=resolve('www.mftintelligence.com')
-              print('independent_dns_attempt',i+1,'apex=',apex_ips,'www=',www_ips)
-              if apex_ips and www_ips:break
+              apex_v4s=[x for x in apex_ips if ':' not in x]
+              www_v4s=[x for x in www_ips if ':' not in x]
+              print('independent_dns_attempt',i+1,'apex=',apex_ips,'www=',www_ips,'apex_v4=',apex_v4s,'www_v4=',www_v4s)
+              if apex_v4s and www_v4s:break
               time.sleep(5)
-          assert apex_ips and www_ips,'Independent public DNS did not converge'
-          apex_v4=next((x for x in apex_ips if ':' not in x),None) or apex_ips[0]
-          www_v4=next((x for x in www_ips if ':' not in x),None) or www_ips[0]
+          assert apex_v4s and www_v4s,'Independent public IPv4 DNS did not converge'
 
-          # Probe the real edge while preserving hostname/SNI and bypassing only stale runner resolver caches.
-          ready=False;last=''
+          # Probe each real IPv4 edge while preserving hostname/SNI and bypassing only stale runner resolver caches.
+          ready=False;last='';apex_v4=apex_v4s[0];www_v4=www_v4s[0]
           for i in range(80):
-              p=subprocess.run(['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{apex_v4}','https://mftintelligence.com/'],capture_output=True,text=True)
-              out=p.stdout;body=out.split('\r\n\r\n',1)[-1] if '\r\n\r\n' in out else out
-              first=out.splitlines()[0] if out.splitlines() else ''
-              challenge=('Just a moment' in body or 'cf-chl' in body)
-              content=('Intelligence with evidence' in body)
-              last=json.dumps({'exit':p.returncode,'first':first,'challenge':challenge,'content':content})
-              print('edge_https_attempt',i+1,last)
-              if p.returncode==0 and content and not challenge:
-                  ready=True;break
+              for candidate in apex_v4s:
+                  p=subprocess.run(['curl','-sS','-D','-','--max-time','20','--resolve',f'mftintelligence.com:443:{candidate}','https://mftintelligence.com/'],capture_output=True,text=True)
+                  out=p.stdout;body=out.split('\r\n\r\n',1)[-1] if '\r\n\r\n' in out else out
+                  first=out.splitlines()[0] if out.splitlines() else ''
+                  challenge=('Just a moment' in body or 'cf-chl' in body)
+                  content=('Intelligence with evidence' in body)
+                  last=json.dumps({'edge':candidate,'exit':p.returncode,'first':first,'challenge':challenge,'content':content})
+                  print('edge_https_attempt',i+1,last)
+                  if p.returncode==0 and content and not challenge:
+                      ready=True;apex_v4=candidate;break
+              if ready:break
               time.sleep(4)
           assert ready,'Production edge did not serve corporate content: '+last
-          apex_v4s=[x for x in apex_ips if ':' not in x]
-          www_v4s=[x for x in www_ips if ':' not in x]
-          assert apex_v4s and www_v4s,'Public IPv4 Cloudflare edges not yet available'
           with open(os.environ['GITHUB_ENV'],'a') as f:
               f.write('APEX_EDGE_IP='+apex_v4+'\nWWW_EDGE_IP='+www_v4+'\n')
               f.write('APEX_EDGE_IPS='+','.join(apex_v4s)+'\nWWW_EDGE_IPS='+','.join(www_v4s)+'\n')
