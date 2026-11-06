@@ -399,8 +399,12 @@ jobs:
                   ready=True;break
               time.sleep(4)
           assert ready,'Production edge did not serve corporate content: '+last
+          apex_v4s=[x for x in apex_ips if ':' not in x]
+          www_v4s=[x for x in www_ips if ':' not in x]
+          assert apex_v4s and www_v4s,'Public IPv4 Cloudflare edges not yet available'
           with open(os.environ['GITHUB_ENV'],'a') as f:
               f.write('APEX_EDGE_IP='+apex_v4+'\nWWW_EDGE_IP='+www_v4+'\n')
+              f.write('APEX_EDGE_IPS='+','.join(apex_v4s)+'\nWWW_EDGE_IPS='+','.join(www_v4s)+'\n')
           print('independent_public_dns_ready: PASS')
           print('verified_edge_https_content_ready: PASS')
           PY
@@ -416,8 +420,24 @@ jobs:
           origin='https://mftintelligence.com'
           routes=['/','/company/','/trust/','/accessibility/','/products/','/products/axiom/','/products/education/','/products/foundry/','/products/markets/','/products/fmi/','/products/worldfabric/','/products/education/chemistry-rescue/','/products/foundry/studio/','/solutions/','/solutions/finance-research/','/solutions/learning/','/solutions/creative-production/','/solutions/enterprise-systems/','/experiences/','/experiences/intelligence/','/experiences/lab/','/ecosystem/','/research/','/evidence/','/resources/','/developers/','/news/','/contact/','/support/','/status/','/legal/privacy/','/legal/terms/','/sitemap/']
           page_errors=[]
+          apex_edges=[x for x in os.environ['APEX_EDGE_IPS'].split(',') if x]
+          www_edges=[x for x in os.environ['WWW_EDGE_IPS'].split(',') if x]
+          assert apex_edges and www_edges
+          def goto_transient(pg,url,wait_until='domcontentloaded',attempts=5):
+              last=None;last_exc=None
+              for n in range(attempts):
+                  try:
+                      last=pg.goto(url,wait_until=wait_until,timeout=30000)
+                      if last and last.status<500:return last
+                      print('transient_edge_response',url,'attempt',n+1,'status',last.status if last else None)
+                  except Exception as e:
+                      last_exc=e;print('transient_edge_exception',url,'attempt',n+1,type(e).__name__,str(e)[:140])
+                  time.sleep(1.5)
+              if last:return last
+              if last_exc:raise last_exc
+              return None
           with sync_playwright() as pw:
-              apex_ip=os.environ['APEX_EDGE_IP'];www_ip=os.environ['WWW_EDGE_IP']
+              apex_ip=apex_edges[0];www_ip=www_edges[0]
               browser=pw.chromium.launch(headless=True,args=[f'--host-resolver-rules=MAP mftintelligence.com {apex_ip}, MAP www.mftintelligence.com {www_ip}, EXCLUDE localhost'])
               context=browser.new_context(
                   viewport={'width':1280,'height':900},
@@ -445,16 +465,39 @@ jobs:
               assert page.locator('meta[name="robots"]').get_attribute('content')=='index,follow'
               assert page.locator('link[rel="canonical"]').get_attribute('href')==origin+'/'
 
-              failures=[]
+              failures=[];transient_routes=[]
               for route in routes:
                   try:
-                      resp=page.goto(origin+route,wait_until='domcontentloaded',timeout=30000)
-                      if not resp or resp.status!=200:raise AssertionError('HTTP '+str(resp.status if resp else None))
+                      resp=goto_transient(page,origin+route)
+                      if not resp:raise AssertionError('no response')
+                      if resp.status>=500:
+                          transient_routes.append(route);continue
+                      if resp.status!=200:raise AssertionError('HTTP '+str(resp.status))
                       if page.locator('meta[name="robots"]').get_attribute('content')!='index,follow':raise AssertionError('robots meta')
                       if page.locator('link[rel="canonical"]').get_attribute('href')!=origin+route:raise AssertionError('canonical')
                       if page.locator('.review-ribbon').count():raise AssertionError('review ribbon')
                   except Exception as e:
                       failures.append({'route':route,'error':type(e).__name__,'detail':str(e)[:120]})
+              if transient_routes and len(apex_edges)>1:
+                  second=apex_edges[1]
+                  print('second_edge_recheck_routes',second,transient_routes)
+                  b2=pw.chromium.launch(headless=True,args=[f'--host-resolver-rules=MAP mftintelligence.com {second}, EXCLUDE localhost'])
+                  c2=b2.new_context(viewport={'width':1280,'height':900},user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36')
+                  p2=c2.new_page();remaining=[]
+                  for route in transient_routes:
+                      try:
+                          resp=goto_transient(p2,origin+route,attempts=5)
+                          if not resp or resp.status!=200:
+                              remaining.append({'route':route,'error':'HTTP','detail':str(resp.status if resp else None)});continue
+                          if p2.locator('meta[name="robots"]').get_attribute('content')!='index,follow':raise AssertionError('robots meta')
+                          if p2.locator('link[rel="canonical"]').get_attribute('href')!=origin+route:raise AssertionError('canonical')
+                          if p2.locator('.review-ribbon').count():raise AssertionError('review ribbon')
+                      except Exception as e:
+                          remaining.append({'route':route,'error':type(e).__name__,'detail':str(e)[:120]})
+                  b2.close();transient_routes=[]
+                  failures.extend(remaining)
+              else:
+                  failures.extend([{'route':r,'error':'HTTP5xx','detail':'transient response persisted'} for r in transient_routes])
               assert not failures,'Route failures '+json.dumps(failures)
 
               # Legal/operator identification and Axiom direct destination.
@@ -467,7 +510,7 @@ jobs:
 
               # Verify live Studio media bytes through Chromium, not raw bot-sensitive HTTP.
               media_page=context.new_page()
-              media_resp=media_page.goto(origin+'/assets/studio-demo-82s.mp4',wait_until='commit',timeout=30000)
+              media_resp=goto_transient(media_page,origin+'/assets/studio-demo-82s.mp4',wait_until='commit',attempts=6)
               assert media_resp and media_resp.status==200
               media=media_resp.body()
               assert hashlib.sha256(media).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
@@ -484,11 +527,11 @@ jobs:
 
               # robots.xml and sitemap.xml through Chromium response bodies.
               rpage=context.new_page()
-              rr=rpage.goto(origin+'/robots.txt',wait_until='commit',timeout=30000)
+              rr=goto_transient(rpage,origin+'/robots.txt',wait_until='commit',attempts=6)
               assert rr and rr.status==200
               robots=rr.body().decode('utf8','replace')
               assert 'Allow: /' in robots and origin+'/sitemap.xml' in robots
-              sr=rpage.goto(origin+'/sitemap.xml',wait_until='commit',timeout=30000)
+              sr=goto_transient(rpage,origin+'/sitemap.xml',wait_until='commit',attempts=6)
               assert sr and sr.status==200
               sitemap=sr.body().decode('utf8','replace')
               assert sitemap.count('<url>')==33
