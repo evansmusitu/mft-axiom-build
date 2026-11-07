@@ -1,0 +1,85 @@
+name: MUSITU AXIOM whole-product continuation archive
+
+on:
+  push:
+    branches:
+      - handoff/20261107-complete-product-continuation
+    paths:
+      - .github/workflows/axiom-whole-product-continuation-package.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package-verified-public-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout public handoff branch (never persist credentials)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build complete public Git history and pinned source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          git remote set-url origin "https://github.com/evansmusitu/mft-axiom-build.git"
+          git fetch --force --prune --no-recurse-submodules origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          mkdir -p packaging/HANDOFF packaging/PRODUCT packaging/SOURCE_HISTORY
+          cp handoff/20261107/* packaging/HANDOFF/
+          assert_ref() {
+            local name="$1" expected="$2" got
+            got="$(git rev-parse "$name^{commit}")"
+            if [[ "$got" != "$expected" ]]; then
+              echo "::error::SHA mismatch for $name expected=$expected actual=$got"
+              exit 2
+            fi
+          }
+          assert_ref refs/remotes/origin/main b10a74b435feb25654d4cf67ba67d09602698a3e
+          assert_ref refs/remotes/origin/migration/gitlab-phase2-10a-20261104 bd8adc82daf87c38a2d90894c6b297106eccb752
+          assert_ref refs/remotes/origin/feature/phase2-10b-provider-org-cap-20261106 5dd65a4a659730c4506cd5f350e29af793e5263e
+          assert_ref refs/remotes/origin/docs/phase2-10-release-evidence-private-archive-20261106 23deaf0af81934bac311a94db12aebda98ce54ba
+          assert_ref refs/remotes/origin/feature/phase2-hyperdrive-staging-preflight-20261107 a32fe6c53ec90aad8361e4b8056e6d23bc446f4a
+          for row in \
+            "main|refs/remotes/origin/main" \
+            "draft-76-phase210a|refs/remotes/origin/migration/gitlab-phase2-10a-20261104" \
+            "draft-81-phase210b|refs/remotes/origin/feature/phase2-10b-provider-org-cap-20261106" \
+            "draft-87-evidence|refs/remotes/origin/docs/phase2-10-release-evidence-private-archive-20261106" \
+            "draft-99-hyperdrive|refs/remotes/origin/feature/phase2-hyperdrive-staging-preflight-20261107"
+          do
+            dest="${row%%|*}"
+            ref="${row#*|}"
+            mkdir -p "packaging/PRODUCT/$dest"
+            git archive --format=tar "$ref" | tar -xf - -C "packaging/PRODUCT/$dest"
+          done
+          # Git bundle contains all public branch/tag histories, not only five snapshots.
+          git bundle create packaging/SOURCE_HISTORY/public-github-all-refs.bundle --all
+          git bundle verify packaging/SOURCE_HISTORY/public-github-all-refs.bundle > packaging/SOURCE_HISTORY/VERIFY.txt 2>&1
+          git for-each-ref --format='%(objectname)%09%(refname)' refs/remotes/origin refs/tags | grep -v 'refs/remotes/origin/HEAD$' | sort > packaging/SOURCE_HISTORY/REFS.tsv
+          remote_count="$(git ls-remote --heads origin | wc -l | tr -d ' ')"
+          local_count="$(git for-each-ref --format='%(refname)' refs/remotes/origin | grep -v '^refs/remotes/origin/HEAD$' | wc -l | tr -d ' ')"
+          test "$remote_count" -eq "$local_count"
+          test "$remote_count" -gt 300
+          tag_count="$(git for-each-ref --format='%(refname)' refs/tags | wc -l | tr -d ' ')"
+          printf 'captured_utc=%s\npublic_main=%s\nall_remote_branches=%s\ntags=%s\npackage_head=%s\ngit_bundle_bytes=%s\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            "$(git rev-parse refs/remotes/origin/main)" \
+            "$remote_count" "$tag_count" \
+            "$(git rev-parse HEAD)" \
+            "$(stat -c%s packaging/SOURCE_HISTORY/public-github-all-refs.bundle)" \
+            > packaging/HANDOFF/ARCHIVE_BUILD_LOG.txt
+          (cd packaging && find . -type f ! -path './HANDOFF/SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > HANDOFF/SHA256SUMS.txt)
+          (cd packaging && sha256sum -c HANDOFF/SHA256SUMS.txt > HANDOFF/HASH_VERIFICATION_RESULT.txt)
+          # HASH_VERIFICATION_RESULT is generated after initial hash manifest to avoid a circular digest.
+          echo "Package complete: $(du -sh packaging | cut -f1), $remote_count branch refs, $tag_count tags"
+      - name: Upload complete continuation ZIP (public code only; no credentials)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_20261107
+          path: packaging/
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
