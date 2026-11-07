@@ -34,6 +34,23 @@ Current official Cloudflare documentation:
 
 **Current state:** No private route, no Internet access exception, no schema install, no scoped runtime role or deployed central ledger. Fail closed.
 
+## Selected staging connection design — Cloudflare Hyperdrive with restricted Neon egress
+
+On 2026-11-07, the operator delegated selection of a secure connection consistent with the confirmed **Cloudflare Workers-only** estate. The chosen **staging-only** design is a **cache-disabled Cloudflare Hyperdrive binding** to the existing dedicated Neon PostgreSQL 17 staging database, using an authenticated **least-privilege role** and TLS certificate verification. This is the practical supported connection in the existing stack, **but not private networking**: the destination must become Internet-reachable before Hyperdrive can connect.
+
+**Security preconditions before any database network change:**
+
+- Provision the restricted database role only in the dedicated staging database, with the smallest necessary SQL grants and a password/secret exclusively in an approved secret manager; review and correct any overly broad PUBLIC grants. Do not use the default owner/superuser as the Hyperdrive application role.
+- Permit database origin traffic only from vetted Cloudflare egress CIDRs rather than every public source. Those IP ranges are **shared by Cloudflare services and customers**, not a tenant-dedicated allowlist. They supplement, but cannot replace, PostgreSQL authentication and TLS.
+- Use a Hyperdrive origin connection with certificate validation (prefer `verify-full` with correct verified Neon CA/hostname). The dedicated staging binding must set `caching.disabled=true` for all billing, authentication and mutable budget state; Hyperdrive's default SELECT caching must not serve stale spend balances.
+- Cap origin pool connections/transaction timeouts; independently test PostgreSQL row locks, transaction semantics and reconnect/restart behavior from Cloudflare Workers. The Phase 2 `pg` driver is potentially compatible with Hyperdrive, but the whole Phase 2 Node HTTP process is **not yet verified as a Worker runtime**.
+- No production traffic, customer data, provider billing credentials, or real paid model calls while wiring. Keep an explicit time-bounded staging exception/rollback procedure, with security approver, access-log review and prompt reblocking when not needed.
+- Enabling `block_public_connections=false` is a **material security control change** and must only happen after the necessary allowlist/role/TLS/Hyperdrive preparations and an explicit network-access authorization, not merely because this connection method was selected. There is **no such completed approval or network change documented** at this checkpoint.
+
+**Current execution status: DESIGN SELECTED / NETWORK NOT OPENED / NO HYPERDRIVE BINDING / NO SCHEMA / NO BUDGET GATE.** Stage stays closed and fail-closed.
+
+Reference: [Neon + Hyperdrive](https://developers.cloudflare.com/workers/databases/third-party-integrations/neon/), [Hyperdrive firewall / shared egress ranges](https://developers.cloudflare.com/hyperdrive/configuration/firewall-and-networking-configuration/), [Hyperdrive TLS modes](https://developers.cloudflare.com/hyperdrive/configuration/tls-ssl-certificates-for-hyperdrive/), [Hyperdrive cache correctness](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/), [Hyperdrive PostgreSQL transaction pool](https://developers.cloudflare.com/hyperdrive/concepts/connection-pooling/).
+
 ## Required private-connection work — **blocked pending approved network authority**
 
 1. Design and independently approve a **private** network path from an authenticated staging application/runner to Neon PostgreSQL. Verify actual VPC endpoint association, private DNS, routes, ingress and egress, TLS certificate validation, database authentication and least-privilege role assignment. `block_vpc_connections=false` alone is insufficient.
