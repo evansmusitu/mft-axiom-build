@@ -238,6 +238,8 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
   private readonly prices:ProviderTokenPrices;
   private readonly requestReserveMicroUsd:number;
   private readonly adapter:ModelAdapter&ModelExplanationAdapter;
+  private readonly pinnedAdapterInvoke:ModelAdapter["invoke"];
+  private readonly pinnedAdapterExplain:ModelExplanationAdapter["explain"];
   private readonly ledger:ProviderSpendLedger;
   constructor(config:{
     adapter:ModelAdapter&ModelExplanationAdapter;ledger:ProviderSpendLedger;tenantId:string;
@@ -252,15 +254,32 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     if(!SqliteProviderSpendLedger.isAuthenticLedger(config.ledger) &&
        !PostgresProviderSpendLedger.isAuthenticLedger(config.ledger))
       throw new TypeError("Trusted, unmodified SQLite or PostgreSQL budget ledger is required");
-    this.adapter=config.adapter;this.manifest=config.adapter.manifest;
-    this.provider=config.adapter.manifest.provider;this.tenantId=named(config.tenantId,"tenantId");
-    this.prices=checkedPrices(config.prices);
+    this.adapter=config.adapter;
+    this.pinnedAdapterInvoke=config.adapter.invoke;
+    this.pinnedAdapterExplain=config.adapter.explain;
+    this.manifest=Object.freeze({...config.adapter.manifest});
+    this.provider=this.manifest.provider as "openai"|"anthropic";this.tenantId=named(config.tenantId,"tenantId");
+    this.prices=Object.freeze(checkedPrices(config.prices));
     this.requestReserveMicroUsd=money(config.requestReserveMicroUsd,"requestReserveMicroUsd",true);
     this.ledger=config.ledger;
     trustedMeteredAdapters.set(this,{
       tenantId:this.tenantId,adapterId:this.manifest.adapterId,
       modelId:this.manifest.modelId,provider:this.provider
     });
+    // Protect constructor-validated accounting authority and pricing from JS shadow writes.
+    Object.freeze(this);
+  }
+  private assertUntamperedAdapter():void{
+    const manifest=this.adapter.manifest;
+    if(this.adapter.invoke!==this.pinnedAdapterInvoke ||
+       this.adapter.explain!==this.pinnedAdapterExplain ||
+       manifest?.adapterId!==this.manifest.adapterId ||
+       manifest?.modelId!==this.manifest.modelId ||
+       manifest?.provider!==this.manifest.provider ||
+       manifest?.version!==this.manifest.version ||
+       manifest?.implementationHash!==this.manifest.implementationHash)
+      throw new ProviderBudgetError("BUDGET_PROVIDER_TAMPERED",
+        "Trusted paid-provider transport identity changed; provider call denied",503);
   }
   private assertUntamperedLedger():void{
     // Registration-only verification is insufficient: callers may still retain
@@ -273,14 +292,17 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
   private async metered<T extends {responseBody:string}>(intent:string,run:()=>Promise<T>):Promise<T>{
     const requestHash=sha(intent),requestId=requestHash;
     const identity={tenantId:this.tenantId,provider:this.manifest.adapterId,modelId:this.manifest.modelId,billingProvider:this.provider,requestId,requestHash};
+    this.assertUntamperedAdapter();
     this.assertUntamperedLedger();
     await this.ledger.reserve({...identity,reserveMicroUsd:this.requestReserveMicroUsd});
-    // A patched ledger after reservation must never authorize a vendor call.
+    // A patched transport or ledger after reservation must never authorize a vendor call.
+    this.assertUntamperedAdapter();
     this.assertUntamperedLedger();
     // Ambiguous errors deliberately leave a durable reservation: never auto-refetch.
     const result=await run();
     const chargeMicroUsd=pricedProviderUsage(result.responseBody,this.provider,this.prices);
-    // A patched settlement hook cannot turn billable usage into a successful call.
+    // A patched settlement hook or swapped transport cannot turn usage into a successful call.
+    this.assertUntamperedAdapter();
     this.assertUntamperedLedger();
     await this.ledger.settle({...identity,chargeMicroUsd,responseHash:sha(result.responseBody)});
     return result;
@@ -304,3 +326,6 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
       ()=>this.adapter.explain(input));
   }
 }
+
+// Protect the metering entrypoints against global prototype replacement.
+Object.freeze(BudgetedModelProviderAdapter.prototype);
