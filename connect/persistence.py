@@ -170,6 +170,8 @@ class RunStore:
         # Existing/idempotent writes still verify the stored bytes so a
         # tampered ledger cannot be silently accepted as an idempotent ingest.
         self._stored_run(existing)
+        if not self.verify_audit_chain(run_id):
+            raise RuntimeError("RUN_AUDIT_CHAIN_INVALID")
         return existing
 
     def _insert_run_row(
@@ -440,6 +442,8 @@ class RunStore:
         # Preserve the strong public boundary: arbitrary later audit appends
         # first verify the stored canonical bytes exactly as before.
         self.load_run(run_id)
+        if not self.verify_audit_chain(run_id):
+            raise RuntimeError("RUN_AUDIT_CHAIN_INVALID")
         with self.connection:
             return self._insert_audit_event_locked(
                 run_id,event_type,payload,ensure_run_exists=False,
