@@ -1,0 +1,45 @@
+name: AXIOM Cloudflare reachable account metadata offline gate (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-cloudflare-account-visibility-offline-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-cloudflare-account-visibility-offline-20261107
+  cancel-in-progress: false
+jobs:
+  offline-boundary:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-cloudflare-accessible-accounts-20261107' && github.event.pull_request.base.ref == 'build/axiom-d1-remaining-four-live-20261107' && github.event.pull_request.base.sha == '47fb30a9d191c4177471222d5fd90d4e05de7213' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e30b6825a532ac9b28b5241e222fc33bcfbdd41b
+          persist-credentials: false
+      - name: Validate exact immutable observer/test blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = e30b6825a532ac9b28b5241e222fc33bcfbdd41b
+          test "$(git hash-object customer_frontier/qualification/observe_cloudflare_accounts_readonly.py)" = 1dc611bfcfa779256148c5a08d5433ca6c2b5523
+          test "$(git hash-object customer_frontier/tests/test_observe_cloudflare_accounts_readonly.py)" = 7635b1a52c5f9c7660dcbce24e08552674b77a0b
+          python3 -m py_compile customer_frontier/qualification/observe_cloudflare_accounts_readonly.py customer_frontier/tests/test_observe_cloudflare_accounts_readonly.py
+      - name: Prove mock-only negative tests and no external I/O
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_observe_cloudflare_accounts_readonly.py -v
+      - name: Static read-only and fail-closed claim contract
+        run: |
+          python3 - <<'PY'
+          import ast
+          p='customer_frontier/qualification/observe_cloudflare_accounts_readonly.py'
+          source=open(p).read()
+          ast.parse(source)
+          assert "'/accounts?page=1&per_page=20'" in source
+          assert "method='GET'" in source
+          assert "'d1_queries': 0" in source
+          assert "'resource_mutations': 0" in source
+          assert "'restore_target_admitted': False" in source
+          assert "'migration_authorized': False" in source
+          assert "'release_authorized': False" in source
+          print('CLOUDFLARE_ACCOUNT_METADATA_ONLY_OFFLINE_NOT_RELEASE_PASS')
+          PY
