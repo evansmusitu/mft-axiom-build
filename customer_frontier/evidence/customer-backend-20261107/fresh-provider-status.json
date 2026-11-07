@@ -1,0 +1,7 @@
+{
+  "schema": "musitu.axiom.operator-provider-status.v1",
+  "status": "UNAVAILABLE",
+  "external_provider_execution_authority": false,
+  "provider_admission_required": true,
+  "production_authority": false
+}

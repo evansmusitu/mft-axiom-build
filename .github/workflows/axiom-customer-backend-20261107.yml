@@ -1,0 +1,71 @@
+name: AXIOM controlled customer backend (STAGING NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-customer-backend-20261107.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-customer-backend-20261107
+  cancel-in-progress: false
+jobs:
+  controlled-backend:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-customer-backend-hosted-20261107' && github.event.pull_request.base.ref == 'build/axiom-customer-backend-review-20261107' && github.event.pull_request.base.sha == '8bd16133acb9e09bd3d050c1d523ed54950e9de3' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 8bd16133acb9e09bd3d050c1d523ed54950e9de3
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Verify immutable source and all module, driver and test digests
+        id: admit_source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='8bd16133acb9e09bd3d050c1d523ed54950e9de3'
+          p=Path('customer_frontier/qualification/customer-backend-source-manifest.json')
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='6e064e83e63b54b3dd57b3e51599fe54f9354b9286160ad891eb7f170be95768'
+          for item in json.loads(p.read_bytes())['files']:
+              assert item['path'].startswith('customer_frontier/') and '..' not in item['path']
+              assert hashlib.sha256(Path(item['path']).read_bytes()).hexdigest()==item['sha256'],item['path']
+          print('Immutable controlled fixture source verified; no real identity/payment/release admission')
+          PY
+      - name: Verify SQLite ledger and finalization race regressions without credentials
+        id: offline_sqlite
+        run: node --test customer_frontier/tests/hold_finalization_races.test.mjs customer_frontier/tests/customer.test.mjs customer_frontier/tests/settlement_races.test.mjs customer_frontier/tests/refund_overlap.test.mjs
+      - name: Install pinned local workerd without install scripts
+        working-directory: customer_frontier/runtime_acceptance
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify actual local workerd and D1 before credentials
+        id: offline_workerd
+        working-directory: customer_frontier/runtime_acceptance
+        run: npm test
+      - name: Exercise real hosted customer modules using controlled staging fixtures
+        id: qualify_backend
+        timeout-minutes: 3
+        env:
+          AXIOM_CHECKOUT_SHA: 8bd16133acb9e09bd3d050c1d523ed54950e9de3
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/run_customer_backend.mjs
+      - name: Deactivate only owned fixtures and reconcile only owned temporary Worker
+        if: always() && steps.admit_source.outcome == 'success' && steps.offline_sqlite.outcome == 'success' && steps.offline_workerd.outcome == 'success' && steps.qualify_backend.outcome != 'skipped' && steps.qualify_backend.outcome != ''
+        timeout-minutes: 1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/cleanup_customer_backend.mjs
+      - name: Preserve exact bounded backend outcome and cleanup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-customer-backend-20261107
+          path: |
+            customer-backend-result.json
+            customer-backend-cleanup.json
+          retention-days: 30
+          if-no-files-found: warn

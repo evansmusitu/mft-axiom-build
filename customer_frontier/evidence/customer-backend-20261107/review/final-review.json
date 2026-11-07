@@ -1,0 +1,125 @@
+{
+  "schema": "musitu.axiom.independent_controlled_customer_backend_review.v1",
+  "verdict": "PASS_FOR_ONE_CONTROLLED_FIXTURE_BACKEND_RUN_ONLY",
+  "reviewed_source": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "tree": "d10a38fb6f5b9e78e385ef2f2beda2076a57f651",
+  "base_product_source": "a2e021f57575358ed9a5c9f4819db30978d710b5",
+  "manifest_sha256": "6e064e83e63b54b3dd57b3e51599fe54f9354b9286160ad891eb7f170be95768",
+  "manifest_files": 23,
+  "reviewed_activated_local_workflow_sha256": "ef45f1b8a3cc63afbdf9bf5f10e40880c87b90c6f9c097023b588d035ccb4cf8",
+  "reviewed_activated_workflow_git_blob": "1fe7933edffba85d54113f0175589bd8ce9f9202",
+  "unresolved_p0_p1_p2": [],
+  "scope": "Selectedccc473customer/IdP staging database; bounded synthetic principals and fixture credits through actual customer API/durable session verifier/ledger functions, phased state machine, redeployment, logout/membership deactivation, owned-only cleanup. One-shot; no real identity/ownership/payment/release certification.",
+  "verified_repairs": [
+    {
+      "defect": "Concurrent release winner could still be charged by losing commit.",
+      "proof": "Original PR95 race reproduced; root conditional debit-before-update in one D1batch verified under nativeworkerd both mixedorders, duplicatefinishes and abort afterprovisionaldebit. ledgerSHAb8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb."
+    },
+    {
+      "defect": "Absent fixture marker cleanup could deactivate preexisting matching namespace.",
+      "proof": "Original reproduced; ownedseed marker required. Missingmarker nowcreatesCANCELLED and skips allfixture-row mutations; foreign/malformed marker denies."
+    },
+    {
+      "defect": "Absent-marker no-op could claim disabled before delayed seed commits.",
+      "proof": "Original nativeworkerd falsepass reproduced. Atomic cancellation CTAS nowwins against seedCREATE; delayed seed503/zeroactive tenants; tombstone persists."
+    },
+    {
+      "defect": "Raw qualification error diagnostic could disclose private runtime/schema detail.",
+      "proof": "Frozen production error response is redacted; ownership negative tests assert no diagnostic field."
+    },
+    {
+      "defect": "One monolithic acceptance invocation exceeded a defensible Free query budget.",
+      "proof": "Fixed durable one-shot phases; wrapper refuses prepare49, measured maximum33forprojects and seed<=48; no paidlimit escalation."
+    }
+  ],
+  "validation": {
+    "frozen_source_and_template": {
+      "result": "PASS",
+      "files": 23,
+      "log": "frozen-source-workflow-verification.json"
+    },
+    "activated_workflow_bytes": {
+      "result": "PASS",
+      "log": "activated-workflow-byte-admission.json",
+      "substitutions": "exactly4sourceSHA and1manifestSHA substitutions; no other differences"
+    },
+    "workflow_credential_admission_states": 625,
+    "selected_supplied_sqlite": {
+      "methods": 53,
+      "result": "PASS",
+      "log": "frozen-workflow-sqlite-tests.log"
+    },
+    "supplied_phased_native_backend": {
+      "methods": 1,
+      "result": "PASS",
+      "log": "frozen-backend-runtime.log"
+    },
+    "independent_native_ledger": {
+      "methods": 2,
+      "scenarios": 5,
+      "result": "PASS",
+      "log": "ledger-real-workerd-independent.log"
+    },
+    "independent_native_late_seed_cancellation": {
+      "methods": 1,
+      "result": "PASS",
+      "log": "delayed-seed-cancel-fixed.log"
+    },
+    "independent_worker_namespace_auth": {
+      "methods": 4,
+      "result": "PASS",
+      "log": "worker-ownership-fixed.log"
+    },
+    "independent_driver_fake_transport": {
+      "methods": 6,
+      "result": "PASS",
+      "log": "backend-driver.log"
+    },
+    "independent_rest_cleanup_fake_transport": {
+      "methods": 6,
+      "result": "PASS",
+      "log": "backend-cleanup-final-verified.log"
+    },
+    "independent_total_methods": 19
+  },
+  "key_boundaries": [
+    "Fixed staging DB and new temporary Worker only; exact database name/hash/UUID and schema/foreign-user-row guards; no production/sharedq06/legacybinding.",
+    "Manifest admits every uploaded transitive module; all23frozen files matched immutable Gitblob/SHA256, with14original productmodules unchanged and only reviewedledgerrepair.",
+    "Private operator guard, 180second deployment expiry, 240second controlled sessions, raw fixture cookies/operator secrets onlyinmemory/secretbindings; no publicproduct/verifier/authcallbackroutes.",
+    "Durable phase claim+CASScompletion; no retry of mutations afterlostresponses. UNKNOWN persisted before activation. Rotated operator token and unchanged fixture secrets permit restart checks.",
+    "Atomic seed+ownership marker; atomic CANCELLED tombstone prevents lateactivation. CANCELLED cannot mutate preexistingmatching rows. Owned seeded cleanup revokes/suspends/releases onlyfixedfixture identifiers; immutable auditrows retained.",
+    "Driver refuses preexistingWorker, uses fixedmodule upload and sole targetbinding, verifies oldoperator denial and durablebackend state; deletes onlymatchingownedWorker and confirms404.",
+    "RESTcleanup performs no D1queries ifactivationnotattempted. Otherwise proves markerownership or cancels absence, skips datawrites onCANCELLED, keepspartialcleanup/readback failuresUNKNOWN, never deletesdatabase/foreignWorker.",
+    "Workflow exactsource+manifest pin; pinnedActions/Node24.12; scripts-disabledlockednpmci; SQLite/nativeworkerd before2credentialsteps; alwayscleanupguard requires successfuladmission/tests and starteddriver."
+  ],
+  "conditions": [
+    "Root must verify immutable published activeworkflow blob exactlymatches1fe7933edffba85d54113f0175589bd8ce9f9202 before PRopen and checklivehead/base/main drift.",
+    "Actual hosted phases, <=48counters, cleanupdeactivation andWorker404 must be retained/reconciled; source/offline PASS is not hosted evidence.",
+    "Keep run one-shot and retainfixturetombstones/auditdata. Do not cleartriggers/deletehistory/resetrevokedrows/reseed under same marker."
+  ],
+  "coverage_limits": [
+    "Two owner fixtures and selected project/work cross-tenant routes; this is not every customer API/role/device acceptance.",
+    "Verifier is the unchanged durable function composed through private in-worker fetch seam, not certification of separately operated liveIdP/servicebinding/production ownership.",
+    "Synthetic completeflows/sessions/canonical links and nonpaymentcredits are deliberate fixtures; they do not establish email/MFA/nonce/PKCE/consent/Paynow evidence.",
+    "RealIdP login, keylessonboarding, ChatGPTwebsite continuity, recovery, productionOAuthupgrade, execution/cancellation/usage, realpayments/devices, hostedrestore, custody/antirollback andwholeproductrelease remain open."
+  ],
+  "reviewer_activity": {
+    "provider_account_calls": 0,
+    "actual_customer_keys_or_private_database_access": false,
+    "root_source_edits": 0
+  },
+  "harness_corrections": [
+    "Initial delayed-seed barrier used cross-request Promise and workerd correctly canceled it; original harnesslog retained, corrected timer-based barrier reproduced product race.",
+    "Initial fakeRESTprovider returned a markerrow while tableabsent; corrected fake nowreturns400, initialharnesslogretained. Current6cleanupmethodsPASS."
+  ],
+  "retained_authorities": {
+    "PR1": "SEPARATE_SAFETY_REJECTION_PRESERVED",
+    "budget": "$0_NO_UPGRADE",
+    "Paynow": "EXISTING_AUTHORITY_ONLY",
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN",
+    "customer_acceptance_qualified": false,
+    "release_authority": false
+  }
+}

@@ -1,0 +1,14 @@
+✔ phased success rotates operator, preserves fixture secrets, deactivates and removes owned Worker (98.873842ms)
+✔ wrong DB existing Worker or invalid subdomain never attempt fixture activation (245.316279ms)
+✔ lost seed or phase response stays UNKNOWN with one-shot mutation and scoped cleanup (284.502909ms)
+✔ uncertain creation or rotation never claims acceptance (193.611034ms)
+✔ old operator still accepted or failed restart verification blocks PASS (192.933491ms)
+✔ foreign replacement denied deletion and failed readback remain explicit cleanup failures (294.146362ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1421.366387

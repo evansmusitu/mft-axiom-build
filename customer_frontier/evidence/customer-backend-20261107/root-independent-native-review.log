@@ -1,0 +1,17 @@
+{"cleanup_claim":{"fixture_authority_disabled":true,"fixtures_created":false,"real_identity_qualified":false,"production_ownership_qualified":false,"onboarding_qualified":false,"chatgpt_continuity_qualified":false,"payment_qualified":false,"hosted_restore_qualified":false,"production_oauth_changed":false,"customer_acceptance_qualified":false,"release_authority":false,"d1_prepared_statements":3},"late_seed_status":503,"active_tenants_after_cleanup_claim":0}
+✔ atomic cancellation fences delayed initial seed after absent-marker cleanup (1900.328223ms)
+{"case":["released","committed"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"released","booked":10,"charges":[],"outcomes":[{"status":"fulfilled"},{"status":"rejected","error":"hold_race"}],"readers":2}}
+{"case":["committed","released"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"committed","booked":3,"charges":[-7],"outcomes":[{"status":"fulfilled"},{"status":"rejected","error":"hold_race"}],"readers":2}}
+{"case":["committed","committed"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"committed","booked":3,"charges":[-7],"outcomes":[{"status":"fulfilled"},{"status":"fulfilled"}],"readers":2}}
+{"case":["released","released"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"released","booked":10,"charges":[],"outcomes":[{"status":"fulfilled"},{"status":"fulfilled"}],"readers":2}}
+✔ native D1 concurrent terminal races conserve credit for both mixed orders and duplicate finishes (668.993319ms)
+{"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","abort":{"error":"D1_ERROR: fixture_transition_abort: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_TRIGGER)","state":"open","credit":{"booked":10,"reserved":7,"available":3,"debt":0},"charges":0}}
+✔ native D1 abort after provisional debit rolls debit and terminal state back together (495.516262ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2256.77181

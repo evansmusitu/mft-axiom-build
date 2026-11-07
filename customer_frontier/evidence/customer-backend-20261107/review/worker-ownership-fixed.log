@@ -1,0 +1,12 @@
+✔ absent marker creates cancellation only and leaves preexisting matching tenant untouched (15.979136ms)
+✔ foreign run/hash and malformed marker refuse deactivation without raw errors (18.045947ms)
+✔ owned seeded marker permits scoped revocation and is terminal DISABLED (5.732751ms)
+✔ browser expired forged-operator and public product/verifier routes cannot reach DB (2.043667ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 152.168472

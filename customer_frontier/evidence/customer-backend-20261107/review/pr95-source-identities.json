@@ -1,0 +1,160 @@
+{
+  "source_commit": "a2e021f57575358ed9a5c9f4819db30978d710b5",
+  "tree": "19f83bac19254f21542a4368f6280c9f2f18791b",
+  "result": "14MODULES_AND_SQL_MATCH_LEDGER_ONLY_ROOT_CANDIDATE_PATCH",
+  "mjs_files": 15,
+  "files": [
+    {
+      "path": "customer_frontier/customer_control_plane/browser_adapter.mjs",
+      "bytes": 2439,
+      "sha256": "84bb7cf11662dddd71d76a80a653762e39e838990cc2a33128d74249b4be7285",
+      "git_blob": "6d5c6cb3df7e5510511accef649cbf2b449d8c34",
+      "matches_pr95": true,
+      "pr95_blob": "6d5c6cb3df7e5510511accef649cbf2b449d8c34"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/canonical_identity.mjs",
+      "bytes": 4813,
+      "sha256": "06250f726e8670e56113452b43a95bb740347429a946687b778019bb645c448d",
+      "git_blob": "01f1592859404242220120f02b4bcc9f445a6182",
+      "matches_pr95": true,
+      "pr95_blob": "01f1592859404242220120f02b4bcc9f445a6182"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/canonical_identity.sql",
+      "bytes": 2379,
+      "sha256": "e0e248f3fa6af786d2d1eb4406a564e0f05a0d17cfc45d6fc03969aba34fc703",
+      "git_blob": "342ba6b7a82872bf0aaab8064c3ccb360e90822c",
+      "matches_pr95": true,
+      "pr95_blob": "342ba6b7a82872bf0aaab8064c3ccb360e90822c"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/customer_lifecycle.mjs",
+      "bytes": 3592,
+      "sha256": "ab926d5888f73174f873f6bd9b710c6cbbd6180e3379e2014429a85eed663633",
+      "git_blob": "e3cc4e7539bad52b97518bf402b9b1b4073fa88d",
+      "matches_pr95": true,
+      "pr95_blob": "e3cc4e7539bad52b97518bf402b9b1b4073fa88d"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/customer_lifecycle.sql",
+      "bytes": 1783,
+      "sha256": "ed0612735fa98e137c8558c1be2427140554b5a79868cdaa48f2215ef81d82e8",
+      "git_blob": "a742d32f3e6e2f8ae7ef0170aaebbe43476af77b",
+      "matches_pr95": true,
+      "pr95_blob": "a742d32f3e6e2f8ae7ef0170aaebbe43476af77b"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/enrollment.mjs",
+      "bytes": 4855,
+      "sha256": "edd8dcb89755115af1f52915c1a9a4a1c96f5e5f9dbfa76d07a1da9c11c739c0",
+      "git_blob": "f7d2777362185974978bcf16c39daa2006209ac5",
+      "matches_pr95": true,
+      "pr95_blob": "f7d2777362185974978bcf16c39daa2006209ac5"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/identity_session.mjs",
+      "bytes": 4229,
+      "sha256": "7d8aba562e0c2e1679966c3e80b0c77d82b001377040644d0ebb5cd0e20d6523",
+      "git_blob": "727a4c24810e56b8a771e0aaeaa7c70673c2194e",
+      "matches_pr95": true,
+      "pr95_blob": "727a4c24810e56b8a771e0aaeaa7c70673c2194e"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/ledger.mjs",
+      "bytes": 11656,
+      "sha256": "b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb",
+      "git_blob": "650d476e06f567917826dea65c2b578c12f934ea",
+      "matches_pr95": false,
+      "pr95_blob": "a9d3abf9bbe637e09ee9b76ce164c55c2bd8b822"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/live_billing_truth.mjs",
+      "bytes": 3171,
+      "sha256": "531cbbabcb4ca0d6da2e0e2953d0683d503b2e3106fdb6152b6abc25764d489a",
+      "git_blob": "c5d3d8b1256f2234d3bea9dd95d97fde011be8f4",
+      "matches_pr95": true,
+      "pr95_blob": "c5d3d8b1256f2234d3bea9dd95d97fde011be8f4"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/login_broker.mjs",
+      "bytes": 2425,
+      "sha256": "779161200e0b55c85b7ddc76e7381938fd06f182b4219745c70373ce3737691e",
+      "git_blob": "7bd059163b23fd240edf2772c84b9b85f22ad16f",
+      "matches_pr95": true,
+      "pr95_blob": "7bd059163b23fd240edf2772c84b9b85f22ad16f"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/private_reconciler.mjs",
+      "bytes": 1077,
+      "sha256": "b7fc21c8d41eead77602ec5c82575649222ccc2bbba1b80d7ff4d1e52d6b9f87",
+      "git_blob": "33c8acde2769296fc5bdd24c3119ecab90406328",
+      "matches_pr95": true,
+      "pr95_blob": "33c8acde2769296fc5bdd24c3119ecab90406328"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/schema.sql",
+      "bytes": 17357,
+      "sha256": "981d20c6f0788468aaa602dc225a53bcdf2fd0ed0355a29d847975f1f4434354",
+      "git_blob": "274446b98fbea044aeb6ae835758777e76a10adc",
+      "matches_pr95": true,
+      "pr95_blob": "274446b98fbea044aeb6ae835758777e76a10adc"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/sqlite_d1_test_adapter.mjs",
+      "bytes": 930,
+      "sha256": "271869b0539cf09565bbf28bcdfaecd7c4b98629c2ff1c8c8322a1861622d70f",
+      "git_blob": "150ce6ca42e53134b16db1f400dc9a0352ab108b",
+      "matches_pr95": true,
+      "pr95_blob": "150ce6ca42e53134b16db1f400dc9a0352ab108b"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/vnext_remote_data_adapter.mjs",
+      "bytes": 2922,
+      "sha256": "715617a191ee7c0fb0231f4a539e63046ced7375daee7c974654a4191259bdcd",
+      "git_blob": "85c4f38715b48a52b751e420b13f55e718cf2f93",
+      "matches_pr95": true,
+      "pr95_blob": "85c4f38715b48a52b751e420b13f55e718cf2f93"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/worker.mjs",
+      "bytes": 12678,
+      "sha256": "6db1f1df4278596807c7bc337c01c7a57ab6551bb6f832330ddcca4277dc88f1",
+      "git_blob": "76c5990530f93bfeadf0295638c2e20507732217",
+      "matches_pr95": true,
+      "pr95_blob": "76c5990530f93bfeadf0295638c2e20507732217"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs",
+      "bytes": 9434,
+      "sha256": "25440fa6b55f36057a13d07fe8b5e7a392357b43c8a02053eef8fd0e0e5f53bd",
+      "git_blob": "e6e4344b6b1a9416032fe78dc9602710d278bb23",
+      "matches_pr95": true,
+      "pr95_blob": "e6e4344b6b1a9416032fe78dc9602710d278bb23"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.mjs",
+      "bytes": 13068,
+      "sha256": "3c6258da9da65c697d6245a76b302998e9b8cb8948aab3f825ae921dd6172aeb",
+      "git_blob": "75a18f7de3002725a86269541fb833adea88c671",
+      "matches_pr95": true,
+      "pr95_blob": "75a18f7de3002725a86269541fb833adea88c671"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql",
+      "bytes": 3810,
+      "sha256": "b5655e814e894aa9a28a172f6b4a16c8d524119c3c5f2cdb4f04f565b9ef5ee1",
+      "git_blob": "8ee3d092d2634e7fc44fc65db4b44e9fce2058fc",
+      "matches_pr95": true,
+      "pr95_blob": "8ee3d092d2634e7fc44fc65db4b44e9fce2058fc"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_session_worker_candidate.mjs",
+      "bytes": 444,
+      "sha256": "4ab3141b392b0963dd25926a4e4f09750e3622eee5ef5b32f8548e17a4df25a6",
+      "git_blob": "456e7d63dfa2470ff72b497e80610ee259a7e09a",
+      "matches_pr95": true,
+      "pr95_blob": "456e7d63dfa2470ff72b497e80610ee259a7e09a"
+    }
+  ]
+}

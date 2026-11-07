@@ -1,0 +1,16 @@
+{"path":"/projects","prepared":33,"phase":"PROJECTS_DONE"}
+{"path":"/isolation","prepared":30,"phase":"ISOLATION_DONE"}
+{"path":"/budget","prepared":21,"phase":"BUDGET_DONE"}
+{"path":"/finish/0","prepared":15,"phase":"FINISH_DONE_0"}
+{"path":"/finish/1","prepared":15,"phase":"FINISH_DONE_1"}
+{"path":"/finish/2","prepared":16,"phase":"FINISH_DONE_2"}
+{"path":"/finish/3","prepared":14,"phase":"AWAITING_RESTART"}
+✔ actual API tenant and budget enforcement survives restart; customer logout and membership revocation deny reuse (1179.88185ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1526.523843

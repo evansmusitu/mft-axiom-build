@@ -1,0 +1,10 @@
+{"cleanup_claim":{"fixture_authority_disabled":true,"fixtures_created":false,"real_identity_qualified":false,"production_ownership_qualified":false,"onboarding_qualified":false,"chatgpt_continuity_qualified":false,"payment_qualified":false,"hosted_restore_qualified":false,"production_oauth_changed":false,"customer_acceptance_qualified":false,"release_authority":false},"late_seed_status":200,"active_tenants_after_cleanup_claim":2}
+✔ REPRO: absence readback can precede a delayed initial seed and falsely confirm deactivation (1917.297002ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2194.983826

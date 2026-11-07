@@ -1,0 +1,14 @@
+✔ owned seeded cleanup performs exact scoped mutations and confirms Worker removal (90.104118ms)
+✔ absent marker cancellation skips every fixture-row mutation and fences the namespace (73.542145ms)
+✔ no attempted fixture means no D1 calls; only owned Worker is reconciled (77.375221ms)
+✔ foreign fixture proof or uncertain cancellation never mutates customer rows (321.764204ms)
+✔ partial mutation or active readback stays unconfirmed and can be reconciled later (182.403027ms)
+✔ foreign Worker or denied delete never becomes successful removal (181.231697ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1049.402261

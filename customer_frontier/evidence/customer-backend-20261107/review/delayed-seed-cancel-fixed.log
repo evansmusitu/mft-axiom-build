@@ -1,0 +1,10 @@
+{"cleanup_claim":{"fixture_authority_disabled":true,"fixtures_created":false,"real_identity_qualified":false,"production_ownership_qualified":false,"onboarding_qualified":false,"chatgpt_continuity_qualified":false,"payment_qualified":false,"hosted_restore_qualified":false,"production_oauth_changed":false,"customer_acceptance_qualified":false,"release_authority":false,"d1_prepared_statements":3},"late_seed_status":503,"active_tenants_after_cleanup_claim":0}
+✔ atomic cancellation fences delayed initial seed after absent-marker cleanup (1810.415763ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2115.300347
