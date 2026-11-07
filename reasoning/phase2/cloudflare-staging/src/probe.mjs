@@ -4,7 +4,15 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
  current_user AS role_name,
  to_regclass('public.axiom_provider_spend_budgets') IS NOT NULL AS budget_table,
  to_regclass('public.axiom_provider_spend_organizations') IS NOT NULL AS organization_table,
- to_regclass('public.axiom_provider_spend_requests') IS NOT NULL AS requests_table`;
+ to_regclass('public.axiom_provider_spend_requests') IS NOT NULL AS requests_table,
+ EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+   WHERE r.rolname=current_user
+   AND (r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolreplication OR r.rolbypassrls)) AS privileged_role,
+ EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+   WHERE r.rolname='neon_superuser'
+   AND pg_catalog.pg_has_role(r.oid,'member')) AS neon_superuser_member,
+ has_database_privilege(current_user,current_database(),'CREATE') AS can_create_database_objects,
+ has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects`;
 
 export async function inspectStagingHyperdrive(env, clientFactory){
   if(typeof env?.HYPERDRIVE?.connectionString !== 'string'||
@@ -25,10 +33,14 @@ export async function inspectStagingHyperdrive(env, clientFactory){
       throw new Error('STAGING_IDENTITY_MISMATCH');
     if(row.budget_table!==true||row.organization_table!==true||row.requests_table!==true)
       throw new Error('STAGING_SCHEMA_MISSING');
+    // Missing privilege evidence or elevated runtime capabilities are both denial.
+    if(row.privileged_role!==false||row.neon_superuser_member!==false||
+       row.can_create_database_objects!==false||row.can_create_schema_objects!==false)
+      throw new Error('STAGING_PRIVILEGED_ROLE_DENIED');
     // Schema existence is not evidence of budgets, enforced call paths, or invoice reconciliation.
     return {connected:true,identityVerified:true,billingSchemaPresent:true,productionBillingEnforced:false};
   }catch(error){
-    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING)$/.test(error.message))throw error;
+    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING|PRIVILEGED_ROLE_DENIED)$/.test(error.message))throw error;
     throw new Error('STAGING_DATABASE_UNAVAILABLE');
   }finally{
     if(client){try{await client.end();}catch{}}
