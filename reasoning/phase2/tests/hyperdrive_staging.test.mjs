@@ -13,7 +13,7 @@ function fakeClient(row, options={}) {
   }};
 }
 const env={HYPERDRIVE:{connectionString:'postgresql://worker@hyperdrive.invalid/axiom_phase2_stage'},EXPECTED_DATABASE:'axiom_phase2_stage',EXPECTED_ROLE:'axiom_stage_runtime'};
-const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true};
+const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false};
 
 test('requires Hyperdrive binding, not an arbitrary public database URL', async()=>{
   await assert.rejects(()=>inspectStagingHyperdrive({...env,HYPERDRIVE:undefined,DATABASE_URL:'postgres://unsafe'},fakeClient(completeRow).create),/STAGING_HYPERDRIVE_MISSING/);
@@ -73,4 +73,21 @@ test('enabled scheduled diagnostic reports generic failure only',async()=>{
   const worker=createStagingProbeWorker(fakeClient(completeRow,{queryFailure:true}).create,logger);
   await worker.scheduled({}, {...env,STAGING_DATABASE_PROBE_ENABLED:'true'},{});
   assert.deepEqual(messages,['AXIOM_STAGING_SCHEMA_BLOCKED']);
+});
+
+test('rejects a privileged SQL runtime even when its name matches the expected application role',async()=>{
+  for(const field of ['privileged_role','neon_superuser_member','can_create_database_objects','can_create_schema_objects']){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,[field]:true}).create),
+      /STAGING_PRIVILEGED_ROLE_DENIED/,
+      field
+    );
+  }
+});
+test('fails closed if the SQL privilege audit is absent or incomplete',async()=>{
+  const incomplete={...completeRow};delete incomplete.neon_superuser_member;
+  await assert.rejects(
+    ()=>inspectStagingHyperdrive(env,fakeClient(incomplete).create),
+    /STAGING_PRIVILEGED_ROLE_DENIED/
+  );
 });
