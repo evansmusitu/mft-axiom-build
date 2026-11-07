@@ -32,9 +32,9 @@ test('queries only read-only identity/schema metadata with bounded connection se
   assert.equal(client.traces.filter(x=>x[0]==='query').length,1);
   const query=client.traces.find(x=>x[0]==='query')[1];
   assert.match(query,/SELECT\s+current_database\(\)/);
-  assert.match(query,/^SELECT\\b/i);
+  assert.match(query,/^SELECT\b/i);
   assert.doesNotMatch(query,/;/);
-  assert.doesNotMatch(query,/\\b(?:UPDATE|DELETE|INSERT|DROP)\\s+(?:INTO|FROM|TABLE|[a-z_]+)\\b/i);
+  assert.doesNotMatch(query,/\b(?:UPDATE|DELETE|INSERT|DROP)\s+(?:INTO|FROM|TABLE|[a-z_]+)\b/i);
   assert.match(query,/AS privileged_role_membership/);
   assert.match(query,/AS billing_table_owner_member/);
   assert.match(query,/pg_catalog\.pg_has_role\(c\.relowner,'MEMBER'\)/);
