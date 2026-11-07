@@ -1,0 +1,47 @@
+name: AXIOM cross-account D1 capacity reader offline 20261107 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-d1-other-account-offline-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-d1-other-account-offline-20261107
+  cancel-in-progress: false
+jobs:
+  verified-reader-without-credentials:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-d1-other-account-inventory-20261107' && github.event.pull_request.base.ref == 'build/axiom-d1-remaining-four-live-20261107' && github.event.pull_request.base.sha == '47fb30a9d191c4177471222d5fd90d4e05de7213' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c9c4d4b8b8552558afafe90cd8f770c712c216e2
+          persist-credentials: false
+      - name: Verify immutable source and test Git object IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = c9c4d4b8b8552558afafe90cd8f770c712c216e2
+          test "$(git hash-object customer_frontier/qualification/other_cf_account_d1_capacity.py)" = b72ca7b552e661d15d6615dffcfae614ffad1bb9
+          test "$(git hash-object customer_frontier/tests/test_other_cf_account_d1_capacity.py)" = a2c71228a351fd8499c16c44e39a1f2697a4bb50
+          python3 -m py_compile customer_frontier/qualification/other_cf_account_d1_capacity.py customer_frontier/tests/test_other_cf_account_d1_capacity.py
+      - name: Run permission denial, privacy, pagination and no-mutation synthetic checks
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_other_cf_account_d1_capacity.py -v
+      - name: Pin discovery to GET account lists and no admission
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import importlib.util
+          p=Path('customer_frontier/qualification/other_cf_account_d1_capacity.py')
+          spec=importlib.util.spec_from_file_location('reader',p)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          src=p.read_text()
+          assert m.API=='https://api.cloudflare.com/client/v4'
+          assert m.BASE_ACCOUNTS=='/accounts?per_page=50&page='
+          assert m.MAIN=='93f395f5121954671f92fffa453d6b61'
+          assert "method='GET'" in src and "opener = urllib.request.build_opener(NoRedirect)" in src
+          assert "'create_authorized': False" in src
+          assert "'restore_target_admitted': False" in src
+          assert "'production_oauth_upgrade_qualified': False" in src
+          print('CROSS_ACCOUNT_D1_READONLY_SOURCE_PASS_NO_SECRETS')
+          PY
