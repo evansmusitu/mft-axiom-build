@@ -1,0 +1,81 @@
+name: AXIOM fixed D1 disposable candidate hosted observation 20261107 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-disposable-d1-live-audit-20261107.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-disposable-d1-live-audit-20261107
+  cancel-in-progress: false
+jobs:
+  observe-only-no-admission:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-disposable-d1-live-audit-20261107' && github.event.pull_request.base.ref == 'build/axiom-disposable-d1-audit-20261107' && github.event.pull_request.base.sha == '79ea49b8413acbc95f15680296ecd1dfb92efc16' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 79ea49b8413acbc95f15680296ecd1dfb92efc16
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit exact independently testable source and immutable blob identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 79ea49b8413acbc95f15680296ecd1dfb92efc16
+          test "$(git hash-object customer_frontier/qualification/disposable_d1_candidate_audit.py)" = ae56829c8c521a2a401898b6de210fa79e173de5
+          test "$(git hash-object customer_frontier/tests/test_disposable_d1_candidate_audit.py)" = 838dea2d0305ec2764ef27083399c9fc4919b3a6
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          p=Path('customer_frontier/qualification/disposable_d1_candidate_audit.py')
+          code=p.read_text()
+          spec=importlib.util.spec_from_file_location('fixed_disposable_candidate',p)
+          m=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          assert list(m.CANDIDATES.items())==[('92de45db-399a-450b-81d0-24d28b105f41','610ca8bf299c5ac4900d52df57aa51a93f5ea15883077ab5b0cc71305b6cfa75')]
+          assert "SELECT type,name,tbl_name,sql FROM sqlite_master" in m.SQL
+          assert 'per_page=100' not in code
+          assert "'target_admitted':False" in code and "'release_authority':False" in code
+          assert "'hosted_migration_qualified':False" in code and "'backup_restore_qualified':False" in code
+          assert "opener=urllib.request.build_opener(NoRedirect)" in code
+          print('EXACT_SOURCE_ONLY_SELECT_AND_CURRENT_BINDINGS_GUARDS_PASS')
+          PY
+      - name: Re-run privacy, fail-closed, and no-mutation synthetic tests before credential injection
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_disposable_d1_candidate_audit.py -v
+      - name: Observe exact D1 UUID, catalog, Workers/service environments and current Pages (NO WRITES)
+        env:
+          AXIOM_CHECKOUT_SHA: 79ea49b8413acbc95f15680296ecd1dfb92efc16
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/disposable_d1_candidate_audit.py
+      - name: Classify observed evidence WITHOUT admitting destructive target or migration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('disposable-d1-candidate-audit.json')
+          d=json.loads(p.read_text())
+          assert d['query_count']==1 and d['query_zero_writes_confirmed']==1
+          assert d['provider_query_mutations']==0
+          assert d['target_admitted'] is False and d['backup_restore_qualified'] is False
+          assert d['hosted_migration_qualified'] is False and d['release_authority'] is False
+          assert len(d['catalogs'])==1 and '92de45db-399a-450b-81d0-24d28b105f41' in d['catalogs']
+          assert d['workers']['status']=='OBSERVED_LISTED_SCRIPTS_AND_ENVIRONMENTS'
+          assert d['pages']['status']=='OBSERVED_CURRENT_CONFIGS'
+          if d['references']:
+              print('FIXED_D1_CANDIDATE_REFERENCED_AND_BLOCKED count='+str(len(d['references'])))
+              raise SystemExit(1)
+          print('NO_CURRENT_WORKERS_PAGES_BINDINGS_OBSERVED_NOT_A_RESTORE_ADMISSION')
+          PY
+      - name: Preserve bounded redacted audit evidence; no customer rows or raw definitions
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-disposable-d1-candidate-readonly-20261107
+          path: |
+            disposable-d1-candidate-audit.json
+            disposable-d1-candidate-audit.json.sha256
+          if-no-files-found: warn
+          retention-days: 30
