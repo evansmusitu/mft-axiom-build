@@ -1,0 +1,58 @@
+name: AXIOM Cloudflare account visibility one-shot read-only (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-cloudflare-account-visibility-live-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-cloudflare-account-visibility-live-20261107
+  cancel-in-progress: false
+jobs:
+  account-inventory-metadata-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-cloudflare-account-visibility-live-20261107' && github.event.pull_request.base.ref == 'build/axiom-cloudflare-accessible-accounts-20261107' && github.event.pull_request.base.sha == '2a75625776298aef576dec685517f3a73ac4e39d' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e30b6825a532ac9b28b5241e222fc33bcfbdd41b
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify immutable one-GET-only source and tests before secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = e30b6825a532ac9b28b5241e222fc33bcfbdd41b
+          test "$(git hash-object customer_frontier/qualification/observe_cloudflare_accounts_readonly.py)" = 1dc611bfcfa779256148c5a08d5433ca6c2b5523
+          test "$(git hash-object customer_frontier/tests/test_observe_cloudflare_accounts_readonly.py)" = 7635b1a52c5f9c7660dcbce24e08552674b77a0b
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path('customer_frontier/qualification/observe_cloudflare_accounts_readonly.py')
+          s=p.read_text()
+          ast.parse(s)
+          assert "PATH = '/accounts?page=1&per_page=20'" in s
+          assert "'http_methods': ['GET']" in s
+          assert "method='GET'" in s
+          assert "'d1_queries': 0" in s and "'resource_mutations': 0" in s
+          assert "'restore_target_admitted': False" in s
+          assert "'migration_authorized': False" in s and "'release_authorized': False" in s
+          print('PINNED_CLOUDFLARE_ONE_GET_READONLY_SOURCE_PASS')
+          PY
+      - name: Run privacy/adversarial/transport tests before secret injection
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_observe_cloudflare_accounts_readonly.py -v
+      - name: Observe only accessible account identities via existing token, no D1 or writes
+        env:
+          AXIOM_CHECKOUT_SHA: e30b6825a532ac9b28b5241e222fc33bcfbdd41b
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/observe_cloudflare_accounts_readonly.py
+      - name: Publish sanitized observation and separate SHA256 even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cloudflare-visible-account-metadata-only-20261107
+          path: |
+            cloudflare-visible-account-metadata-only.json
+            cloudflare-visible-account-metadata-only.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
