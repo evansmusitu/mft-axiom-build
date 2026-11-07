@@ -1,0 +1,21 @@
+{
+  "as_of": "2026-11-07",
+  "customer_schema": "APPLIED_AND_VERIFIED_PR95",
+  "controlled_backend_fixture_acceptance": "PASS_PR97",
+  "full_hosted_restore": "UNQUALIFIED",
+  "production_oauth_upgrade": "NOT_APPLIED",
+  "real_identity_ownership_onboarding_continuity": "UNQUALIFIED",
+  "external_execution_route": "UNAVAILABLE",
+  "provider_cancellation": "UNKNOWN",
+  "saved_final_usage": "UNKNOWN",
+  "genuine_paynow_devices": "UNQUALIFIED",
+  "hosted_custody_antirollback_destructive_recovery": "UNQUALIFIED",
+  "whole_product_integration": "UNQUALIFIED",
+  "PR83_full_stack": "FAILED_AT_INTENTIONAL_SECURITY_VETO",
+  "PR1": "SEPARATE_DRAFT_UNMERGED_REJECTION_PRESERVED",
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity": "NOT_CERTIFIED",
+  "superiority": "NOT_CERTIFIED",
+  "release": "BLOCKED",
+  "spend_authority_usd": 0
+}

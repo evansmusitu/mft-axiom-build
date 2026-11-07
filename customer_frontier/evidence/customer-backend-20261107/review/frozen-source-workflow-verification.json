@@ -1,0 +1,127 @@
+{
+  "result": "PASS_SOURCE_AND_INACTIVE_WORKFLOW_TEMPLATE",
+  "reviewed_source": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "tree": "d10a38fb6f5b9e78e385ef2f2beda2076a57f651",
+  "manifest_sha256": "6e064e83e63b54b3dd57b3e51599fe54f9354b9286160ad891eb7f170be95768",
+  "files": [
+    {
+      "path": "customer_frontier/customer_control_plane/canonical_identity.mjs",
+      "sha256": "06250f726e8670e56113452b43a95bb740347429a946687b778019bb645c448d",
+      "git_blob": "01f1592859404242220120f02b4bcc9f445a6182"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/customer_lifecycle.mjs",
+      "sha256": "ab926d5888f73174f873f6bd9b710c6cbbd6180e3379e2014429a85eed663633",
+      "git_blob": "e3cc4e7539bad52b97518bf402b9b1b4073fa88d"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/enrollment.mjs",
+      "sha256": "edd8dcb89755115af1f52915c1a9a4a1c96f5e5f9dbfa76d07a1da9c11c739c0",
+      "git_blob": "f7d2777362185974978bcf16c39daa2006209ac5"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/identity_session.mjs",
+      "sha256": "7d8aba562e0c2e1679966c3e80b0c77d82b001377040644d0ebb5cd0e20d6523",
+      "git_blob": "727a4c24810e56b8a771e0aaeaa7c70673c2194e"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/ledger.mjs",
+      "sha256": "b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb",
+      "git_blob": "650d476e06f567917826dea65c2b578c12f934ea"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/live_billing_truth.mjs",
+      "sha256": "531cbbabcb4ca0d6da2e0e2953d0683d503b2e3106fdb6152b6abc25764d489a",
+      "git_blob": "c5d3d8b1256f2234d3bea9dd95d97fde011be8f4"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/login_broker.mjs",
+      "sha256": "779161200e0b55c85b7ddc76e7381938fd06f182b4219745c70373ce3737691e",
+      "git_blob": "7bd059163b23fd240edf2772c84b9b85f22ad16f"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/worker.mjs",
+      "sha256": "6db1f1df4278596807c7bc337c01c7a57ab6551bb6f832330ddcca4277dc88f1",
+      "git_blob": "76c5990530f93bfeadf0295638c2e20507732217"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs",
+      "sha256": "25440fa6b55f36057a13d07fe8b5e7a392357b43c8a02053eef8fd0e0e5f53bd",
+      "git_blob": "e6e4344b6b1a9416032fe78dc9602710d278bb23"
+    },
+    {
+      "path": "customer_frontier/customer_control_plane/zitadel_session_broker_candidate.mjs",
+      "sha256": "3c6258da9da65c697d6245a76b302998e9b8cb8948aab3f825ae921dd6172aeb",
+      "git_blob": "75a18f7de3002725a86269541fb833adea88c671"
+    },
+    {
+      "path": "customer_frontier/qualification/cleanup_customer_backend.mjs",
+      "sha256": "b067d3dab6d7782b153db422e75da6102b0cb475615beb5d1a70bf642e92ff26",
+      "git_blob": "eb2849d251c0e67b1cd7e159d6037151ad0d4af3"
+    },
+    {
+      "path": "customer_frontier/qualification/customer-backend-workflow-review-candidate.yml",
+      "sha256": "cebbd56bca1315e06dfd43ec79e1861026094edaee1300d3763dfa967ed76697",
+      "git_blob": "f6044929a58c4429feb7b58bf0d48e4b873337d2"
+    },
+    {
+      "path": "customer_frontier/qualification/customer-hosted-plan-20261106.json",
+      "sha256": "06cfe6adfed21dc718ce0f0cdd53521a05e8bee8d1f0e95fccd7e823575ed80c",
+      "git_blob": "68ac28c8b8746979f456c19483d94dc2cce430f3"
+    },
+    {
+      "path": "customer_frontier/qualification/customer_acceptance_contract.mjs",
+      "sha256": "5792c8ed1ddd188e93830c3d553ea530cde34331f022a13ba1f50ffd42d47680",
+      "git_blob": "0c5ad3a165d54575f08273287024846b90434440"
+    },
+    {
+      "path": "customer_frontier/qualification/customer_backend_acceptance_worker.mjs",
+      "sha256": "2eea179f82b7cbc315ca08872f2817d139cd37705c19481d2c4014f7fd05cfad",
+      "git_blob": "8cc40efe3af343a6668c58493dc8e611d2b5c1d2"
+    },
+    {
+      "path": "customer_frontier/qualification/run_customer_backend.mjs",
+      "sha256": "7a730c805a8fbfe5eb1059485a352a6c9c9893f45066e215a1965f6da3c404b3",
+      "git_blob": "f0308fc9d6f4b1376f7d14fb5251a2381267e7ba"
+    },
+    {
+      "path": "customer_frontier/runtime_acceptance/customer_backend_runtime.test.mjs",
+      "sha256": "38238c5cfb3193178d84ea1f6b3bdef620a8ec83354f9a9e327256558cc832ff",
+      "git_blob": "71abd3a9e35b53898d9b3c9d42ebbe8961f5fbb0"
+    },
+    {
+      "path": "customer_frontier/runtime_acceptance/package-lock.json",
+      "sha256": "8dfa949b9a2241bef233de8193e89b60d16e6db868eaf3a108a67850eb38c58a",
+      "git_blob": "eeed0a71f781b4540e0f0feb6cc3c455b5e780b1"
+    },
+    {
+      "path": "customer_frontier/runtime_acceptance/package.json",
+      "sha256": "2b46aa037158dc443dc99fcdb37fd063ad34e634078333e4b3e228fa69721042",
+      "git_blob": "dd86328656217b6cb074dd342b749ccb9402d62f"
+    },
+    {
+      "path": "customer_frontier/tests/customer.test.mjs",
+      "sha256": "ea59f53b3952fde7ef4e9fc19c013ef52b34e57b83ce8a859b574267e76be80f",
+      "git_blob": "c51576f6a75d5f0772f61e763ef12dbaa52b5355"
+    },
+    {
+      "path": "customer_frontier/tests/hold_finalization_races.test.mjs",
+      "sha256": "b1f58f069ba8d7597abf35c60f94fec03767a2f4bab14c9f3a5b5fc79f2f6d2e",
+      "git_blob": "55b316f0051b43df3b83921329435a11ac7bc11e"
+    },
+    {
+      "path": "customer_frontier/tests/refund_overlap.test.mjs",
+      "sha256": "b01dfc1bc9c328fbeb83156a5d4fb8b710db2a858cb9ea421b88caa15fa4d131",
+      "git_blob": "de2407a082cefd860da241b3d921123196085c4f"
+    },
+    {
+      "path": "customer_frontier/tests/settlement_races.test.mjs",
+      "sha256": "a7d34077fd24051819251ff72d9204de7967ba460266a77de773868e12e11473",
+      "git_blob": "578f6a508f6f33f3584f7e13a6f1347a4c338936"
+    }
+  ],
+  "inactive_workflow_template_sha256": "cebbd56bca1315e06dfd43ec79e1861026094edaee1300d3763dfa967ed76697",
+  "cleanup_admission_states_checked": 625,
+  "final_workflow_still_requires_exact_4source_and_1manifest_placeholder_substitution_bytecheck": true,
+  "provider_api_calls": 0
+}

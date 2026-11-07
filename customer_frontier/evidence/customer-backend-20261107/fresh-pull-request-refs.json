@@ -1,0 +1,142 @@
+[
+  {
+    "pr": 57,
+    "head_sha": "f224f63187f090d89843de1220425a24ed24be59",
+    "branch": "customer/axiom-frontier-control-plane-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 58,
+    "head_sha": "bbc5af72f4436ed899d6edc58046bd5dcd053aee",
+    "branch": "customer/axiom-financial-replay-hardening-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 59,
+    "head_sha": "6cc5cf672faa35b12ae2cfb5afb51c730b39651b",
+    "branch": "customer/axiom-oidc-redirect-hardening-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 60,
+    "head_sha": "29bd6e3ae8719b03e40d6cb642f102c0702648a5",
+    "branch": "customer/axiom-account-lifecycle-release-evidence-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 61,
+    "head_sha": "88ee4a7b238d92be910d0d2b5dc99e9b5a84bce8",
+    "branch": "build/axiom-original-mission-customer-integrity-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 62,
+    "head_sha": "7b92377384b0ec78366aeb1a43ddfa0125c6010d",
+    "branch": "audit/axiom-security-authority-github-secrets-readonly-20261031",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 64,
+    "head_sha": "adf90dc4ed9afba30af9a59f420c09877e89c53e",
+    "branch": "build/axiom-customer-oidc-security-reconciliation-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 65,
+    "head_sha": "b1b34717c4e8fe2af05b22951c8e555cd2911908",
+    "branch": "build/axiom-keyless-canonical-link-candidate-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 66,
+    "head_sha": "cac0cced651bc5f107f2c38e60ed28db329f85e4",
+    "branch": "build/axiom-identity-linked-revocation-s1-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 67,
+    "head_sha": "535c5a6e42607186784a71fb385ef355190bc02a",
+    "branch": "build/axiom-customer-oauth-reconcile-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 68,
+    "head_sha": "2328e294f6ae7a13d383e81ae5bc7c875f489218",
+    "branch": "build/axiom-customer-session-qualification-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 69,
+    "head_sha": "11f975be442c1c1ebe8a20f5d31ca664b37238e9",
+    "branch": "integration/axiom-frontier-v5-sealed-reconcile-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 70,
+    "head_sha": "627e075e400e4c24a9ba4fa944e19e207da8b23c",
+    "branch": "build/axiom-customer-session-mapping-20261102",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 71,
+    "head_sha": "15a9c93ef593737fe946c45621ad6eddb5b52ca6",
+    "branch": "build/axiom-customer-oauth-continuity-20261103",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 77,
+    "head_sha": "4bb938d679a384cc2e499c09569a55c6b880a5fb",
+    "branch": "build/axiom-customer-oauth-upgrade-20261103",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 78,
+    "head_sha": "67de1a9d915914ce74d6d6012dc426fc66df6190",
+    "branch": "build/axiom-idp-session-provider-20261105",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 79,
+    "head_sha": "95274190cacef4712293e7b92d8701fae06aea40",
+    "branch": "build/axiom-durable-idp-session-20261105",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 80,
+    "head_sha": "253cd98581de7c56b302efec52b802626cd08659",
+    "branch": "review/axiom-frontier-v5-current-main-reconcile-20261106",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 82,
+    "head_sha": "94ae644cd8d57f188dea10222907bc092165025f",
+    "branch": "build/axiom-idp-workerd-qualification-20261106",
+    "draft": true,
+    "merged": false
+  },
+  {
+    "pr": 94,
+    "head_sha": "d3ac105425088f672f0663b921be184482035b0a",
+    "branch": "build/axiom-customer-hosted-batch-review-20261106",
+    "draft": true,
+    "merged": false
+  }
+]

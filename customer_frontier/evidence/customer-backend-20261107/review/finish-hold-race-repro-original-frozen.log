@@ -1,0 +1,10 @@
+{"hold_state":"released","booked":3,"available":3,"charges":[-7],"outcomes":[{"status":"fulfilled"},{"status":"rejected","error":"hold_race"}]}
+✔ REPRO: released hold can still be charged by losing concurrent commit (7.030843ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.577738

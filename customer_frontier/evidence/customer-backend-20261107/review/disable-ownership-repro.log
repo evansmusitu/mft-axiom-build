@@ -1,0 +1,10 @@
+{"marker_present":false,"response_status":200,"preexisting_tenant_status":"suspended"}
+✔ REPRO: disable mutates matching preexisting tenant without durable fixture marker (7.310206ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 93.530617

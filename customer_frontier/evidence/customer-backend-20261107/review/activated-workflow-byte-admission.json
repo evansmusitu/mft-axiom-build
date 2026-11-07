@@ -1,0 +1,13 @@
+{
+  "result": "PASS_EXACT_LOCAL_ACTIVATED_WORKFLOW",
+  "source": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "tree": "d10a38fb6f5b9e78e385ef2f2beda2076a57f651",
+  "sha256": "ef45f1b8a3cc63afbdf9bf5f10e40880c87b90c6f9c097023b588d035ccb4cf8",
+  "git_blob": "1fe7933edffba85d54113f0175589bd8ce9f9202",
+  "substitutions_only": {
+    "source": 4,
+    "manifest": 1
+  },
+  "same_source_manifest_tests_credential_guards_as_reviewed_candidate": true,
+  "requires_root_published_blob_match_before_PR_open": true
+}

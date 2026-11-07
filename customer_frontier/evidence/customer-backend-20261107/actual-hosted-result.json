@@ -1,0 +1,169 @@
+{
+  "schema": "musitu.axiom.controlled_customer_backend.v1",
+  "source_sha": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "database_id": "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f",
+  "run_id": "axiom-customer-acceptance-20261107-01",
+  "fixture_attempted": true,
+  "backend_outcome": "PASS_CONTROLLED_FIXTURES_ONLY",
+  "fixture_authority_disabled": true,
+  "temporary_worker_removed": true,
+  "real_identity_qualified": false,
+  "production_ownership_qualified": false,
+  "onboarding_qualified": false,
+  "chatgpt_continuity_qualified": false,
+  "payment_qualified": false,
+  "hosted_restore_qualified": false,
+  "production_oauth_changed": false,
+  "customer_acceptance_qualified": false,
+  "release_authority": false,
+  "transport": [
+    {
+      "surface": "control",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "GET",
+      "status": 404
+    },
+    {
+      "surface": "control",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "PUT",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "GET",
+      "status": 404
+    },
+    {
+      "surface": "qualifier",
+      "method": "GET",
+      "status": 404
+    },
+    {
+      "surface": "qualifier",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "PUT",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "qualifier",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "DELETE",
+      "status": 200
+    },
+    {
+      "surface": "control",
+      "method": "GET",
+      "status": 404
+    }
+  ],
+  "worker_ownership_sha256": "724bba9160bee9cd4257ad90e18b694b0e5a474a9b24ce4034bced1d69ce2653",
+  "phase": "PASS_DISABLED",
+  "server_tenant_binding": true,
+  "project_isolation": true,
+  "d1_prepared_statements": 17,
+  "tenant_isolation": true,
+  "csrf_denial": true,
+  "payment_admission_denied": true,
+  "concurrent_budget_guard": true,
+  "reservation_replay": true,
+  "finish_index": 3,
+  "hold_finalization_concurrency": true,
+  "epoch": "f195341fe0becbdf0e81d377",
+  "session_budget_restart": true,
+  "customer_logout_revocation": true,
+  "membership_revocation": true,
+  "scope": "conditional backend fixture acceptance only",
+  "temporary_operator_rotation_confirmed": true
+}

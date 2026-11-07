@@ -1,0 +1,33 @@
+✔ owned seeded cleanup performs exact scoped mutations and confirms Worker removal (88.931937ms)
+✔ absent marker cancellation skips every fixture-row mutation and fences the namespace (89.497382ms)
+✔ no attempted fixture means no D1 calls; only owned Worker is reconciled (87.258343ms)
+✖ foreign fixture proof or uncertain cancellation never mutates customer rows (264.983232ms)
+✔ partial mutation or active readback stays unconfirmed and can be reconciled later (176.254848ms)
+✔ foreign Worker or denied delete never becomes successful removal (190.312808ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1011.790633
+
+✖ failing tests:
+
+test at acceptance-independent-review-20261107/backend-cleanup.test.mjs:7:1
+✖ foreign fixture proof or uncertain cancellation never mutates customer rows (264.983232ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/acceptance-independent-review-20261107/backend-cleanup.test.mjs:7:202)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

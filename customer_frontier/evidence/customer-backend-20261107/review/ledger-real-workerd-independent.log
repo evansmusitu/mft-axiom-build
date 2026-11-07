@@ -1,0 +1,15 @@
+{"case":["released","committed"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"released","booked":10,"charges":[],"outcomes":[{"status":"fulfilled"},{"status":"rejected","error":"hold_race"}],"readers":2}}
+{"case":["committed","released"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"committed","booked":3,"charges":[-7],"outcomes":[{"status":"fulfilled"},{"status":"rejected","error":"hold_race"}],"readers":2}}
+{"case":["committed","committed"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"committed","booked":3,"charges":[-7],"outcomes":[{"status":"fulfilled"},{"status":"fulfilled"}],"readers":2}}
+{"case":["released","released"],"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","result":{"state":"released","booked":10,"charges":[],"outcomes":[{"status":"fulfilled"},{"status":"fulfilled"}],"readers":2}}
+✔ native D1 concurrent terminal races conserve credit for both mixed orders and duplicate finishes (537.034937ms)
+{"ledger_sha256":"b8bff1ed2600a08cccb95d498f3c39862c020711a27239bc34d616eab669e4eb","abort":{"error":"D1_ERROR: fixture_transition_abort: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_TRIGGER)","state":"open","credit":{"booked":10,"reserved":7,"available":3,"debt":0},"charges":0}}
+✔ native D1 abort after provisional debit rolls debit and terminal state back together (425.387762ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1253.686798
