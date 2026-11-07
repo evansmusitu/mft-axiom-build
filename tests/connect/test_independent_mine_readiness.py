@@ -70,6 +70,34 @@ class IndependentMineReadinessTests(unittest.TestCase):
                 self.assertIn("REUSED_OR_ALIASED_DEVELOPMENT_SOURCE",
                               result["outstanding_requirements"])
 
+    def test_known_development_source_in_any_review_reference_is_flagged(self):
+        # Renaming the lineage cannot make reused development data independent
+        # when the original source identity is declared in other evidence.
+        for key in REQUIRED_EXTERNAL_REVIEWS:
+            candidate = complete_but_self_attested()
+            candidate["external_review_references"][key] = "custody:OpenML:42701"
+            with self.subTest(reference=key):
+                result = screen_independent_mine_candidate(candidate)
+                self.assertTrue(result["known_development_source"])
+                self.assertIn("REUSED_OR_ALIASED_DEVELOPMENT_SOURCE",
+                              result["outstanding_requirements"])
+                self.assertFalse(result["independent_validation"])
+                self.assertFalse(result["production_admission"])
+                self.assertNotIn("custody:OpenML:42701", json.dumps(result))
+
+    def test_review_alias_variants_mark_development_reuse_even_with_new_hash(self):
+        for origin in ("doi:10.17632/yd7vw4c5mk.1",
+                       "https://www.openml.org/d/42701",
+                       "https://data.mendeley.com/datasets/YD7VW4C5MK/1"):
+            candidate = complete_but_self_attested()
+            candidate["external_review_references"]["source_owner_data_use_authorization"] = origin
+            with self.subTest(origin=origin):
+                result = screen_independent_mine_candidate(candidate)
+                self.assertTrue(result["known_development_source"])
+                self.assertIn("REUSED_OR_ALIASED_DEVELOPMENT_SOURCE",
+                              result["outstanding_requirements"])
+                self.assertNotIn(origin, json.dumps(result))
+
     def test_original_or_canonical_hash_reuse_is_rejected(self):
         for field in ("canonical_source_sha256", "original_source_sha256"):
             case = complete_but_self_attested()

@@ -86,7 +86,15 @@ def screen_independent_mine_candidate(candidate: Mapping[str, Any]) -> dict[str,
         raise ValueError("independent_mine_source_sha256_invalid")
     if original is not None and not _is_sha256(original):
         raise ValueError("independent_mine_original_sha256_invalid")
-    source_aliases = " ".join(lineage).casefold()
+    reviews = candidate.get("external_review_references")
+    if not isinstance(reviews, dict):
+        reviews = {}
+    # A renamed source-lineage identifier cannot hide a disclosed known
+    # development origin inside the self-declared review/custody references.
+    # Treat these as declarations only; no supplied reference proves rights.
+    source_aliases = " ".join([
+        *lineage, *(v for v in reviews.values() if isinstance(v, str))
+    ]).casefold()
     known_development_source = (
         canonical == SOURCE_HASH or original == SOURCE_HASH or
         any(s in source_aliases for s in REJECTED_SOURCE_MARKERS)
@@ -114,9 +122,6 @@ def screen_independent_mine_candidate(candidate: Mapping[str, Any]) -> dict[str,
     if model_sha != FROZEN_MANIFEST_HASH:
         reasons.append("FROZEN_MODEL_PIN_NOT_VERIFIED")
 
-    reviews = candidate.get("external_review_references")
-    if not isinstance(reviews, dict):
-        reviews = {}
     missing_review = [key for key in REQUIRED_EXTERNAL_REVIEWS if not _external_reference(reviews.get(key))]
     if missing_review:
         reasons.append("THIRD_PARTY_INDEPENDENCE_AND_SAFETY_REVIEW_INCOMPLETE")
