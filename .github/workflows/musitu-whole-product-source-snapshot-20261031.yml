@@ -92,3 +92,5 @@ jobs:
           path: /tmp/MUSITU_AXIOM_CONNECT_CURRENT_GIT_TREES_20261031.zip
           retention-days: 30
           if-no-files-found: error
+
+# 2026-11-07: source-only whole-product chat-shift refresh; no deploy, credentials or database writes.
