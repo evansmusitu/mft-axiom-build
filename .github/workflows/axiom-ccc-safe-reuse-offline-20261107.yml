@@ -1,0 +1,46 @@
+name: AXIOM ccc D1 current staging reuse offline guard (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-safe-reuse-offline-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-safe-reuse-offline-20261107
+  cancel-in-progress: false
+jobs:
+  fixed-ccc-nonmutating-audit-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-d1-safe-reuse-readonly-20261107' && github.event.pull_request.base.ref == 'build/axiom-cloudflare-account-visibility-live-20261107' && github.event.pull_request.base.sha == '3e96a4064d3b49828cfe68807d0318ef7ebddaa3' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6c54c661a4712795aeedc5eaa4bc35f97f171998
+          persist-credentials: false
+      - name: Verify immutable source and test file blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 6c54c661a4712795aeedc5eaa4bc35f97f171998
+          test "$(git hash-object customer_frontier/qualification/ccc_d1_safe_reuse_observe.py)" = 1f0f8f59fdbe2f02ee76526b10c661c083cafcbc
+          test "$(git hash-object customer_frontier/tests/test_ccc_d1_safe_reuse_observe.py)" = 11071f0b3302ae1f43fd6abe721294ab0a6b2a76
+          python3 -m py_compile customer_frontier/qualification/ccc_d1_safe_reuse_observe.py customer_frontier/tests/test_ccc_d1_safe_reuse_observe.py
+      - name: Run isolated synthetic privacy and nonmutation tests
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_ccc_d1_safe_reuse_observe.py -v
+      - name: Prove one exact ccc identity and zero admission authority
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          p='customer_frontier/qualification/ccc_d1_safe_reuse_observe.py'
+          s=importlib.util.spec_from_file_location('fixed_ccc',p)
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          assert m.CANDIDATES=={'ccc473f1-fbb5-4b8d-8a24-45f3696ac10f':'7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36'}
+          assert m.SQL.startswith('SELECT type,name,tbl_name,sql FROM sqlite_master')
+          src=open(p).read()
+          assert "'target_admitted':False" in src
+          assert "'hosted_migration_qualified':False" in src
+          assert "'release_authority':False" in src
+          assert 'per_page=100' not in src
+          print('CCC_CURRENT_REUSE_OBSERVER_OFFLINE_PASS_NONDESTRUCTIVE_ONLY')
+          PY
