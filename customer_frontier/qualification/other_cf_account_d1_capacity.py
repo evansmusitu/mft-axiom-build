@@ -110,6 +110,7 @@ def observe():
     else:
         try:
             account_pages = []
+            total_accounts = None
             terminal = False
             for page in (1, 2):
                 data = get(BASE_ACCOUNTS + str(page), 'account_list', str(page))
@@ -117,6 +118,11 @@ def observe():
                 if not isinstance(rows, list) or len(rows) > 50:
                     raise AdmissionError('INVALID_ACCOUNT_LIST')
                 validate_page(data, page, 50, rows)
+                info = data.get('result_info') or {}
+                if 'total_count' in info:
+                    if total_accounts is not None and total_accounts != info['total_count']:
+                        raise AdmissionError('CHANGED_ACCOUNT_TOTAL')
+                    total_accounts = info['total_count']
                 if not rows:
                     terminal = True
                     break
@@ -131,7 +137,7 @@ def observe():
                 if len(rows) < 50:
                     terminal = True
                     break
-            if not terminal or len(seen) > 50:
+            if not terminal or len(seen) > 50 or (total_accounts is not None and total_accounts != len(account_pages)):
                 raise AdmissionError('INCOMPLETE_ACCOUNT_PAGINATION')
             result['account_scope_complete'] = True
             for aid in account_pages:
@@ -140,6 +146,7 @@ def observe():
                 result['accounts'].append(entry)
                 try:
                     dbs = set()
+                    total_dbs = None
                     complete = False
                     for page in (1, 2):
                         data = get('/accounts/' + aid + '/d1/database?per_page=100&page=' + str(page),
@@ -148,6 +155,11 @@ def observe():
                         if not isinstance(rows, list) or len(rows) > 100:
                             raise AdmissionError('INVALID_D1_INVENTORY')
                         validate_page(data, page, 100, rows)
+                        info = data.get('result_info') or {}
+                        if 'total_count' in info:
+                            if total_dbs is not None and total_dbs != info['total_count']:
+                                raise AdmissionError('CHANGED_D1_TOTAL')
+                            total_dbs = info['total_count']
                         for row in rows:
                             if not isinstance(row, dict) or not isinstance(row.get('uuid'), str):
                                 raise AdmissionError('INVALID_D1_IDENTITY')
@@ -158,7 +170,7 @@ def observe():
                         if len(rows) < 100:
                             complete = True
                             break
-                    if not complete:
+                    if not complete or (total_dbs is not None and total_dbs != len(dbs)):
                         raise AdmissionError('D1_INVENTORY_NOT_EXHAUSTIVE')
                     entry['d1_count'] = len(dbs)
                     entry['status'] = 'OBSERVED'
