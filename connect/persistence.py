@@ -462,22 +462,38 @@ class RunStore:
 
     @_synchronized
     def verify_audit_chain(self, run_id: str) -> bool:
-        expected_previous="0"*64
-        for expected_index, event in enumerate(self.audit_events(run_id)):
-            if event.event_index != expected_index or event.previous_hash != expected_previous:
+        try:
+            # A missing, truncated, or detached history must not be considered
+            # a valid empty chain. Bind its first event to the stored run and
+            # verify the run's canonical hash before trusting later events.
+            stored=self.load_run(run_id)
+            events=self.audit_events(run_id)
+            if not events or events[0].event_type != "RUN_RECORDED":
                 return False
-            expected_hash=hashlib.sha256(canonical_bytes({
-                "run_id": event.run_id,
-                "event_index": event.event_index,
-                "event_type": event.event_type,
-                "payload": dict(event.payload),
-                "previous_hash": event.previous_hash,
-                "created_at": event.created_at,
-            })).hexdigest()
-            if event.event_hash != expected_hash:
+            if events[0].payload != {
+                "canonical_sha256": stored.canonical_sha256,
+                "connector_name": stored.connector_name,
+                "protocol": stored.protocol,
+            }:
                 return False
-            expected_previous=event.event_hash
-        return True
+            expected_previous="0"*64
+            for expected_index, event in enumerate(events):
+                if event.event_index != expected_index or event.previous_hash != expected_previous:
+                    return False
+                expected_hash=hashlib.sha256(canonical_bytes({
+                    "run_id": event.run_id,
+                    "event_index": event.event_index,
+                    "event_type": event.event_type,
+                    "payload": dict(event.payload),
+                    "previous_hash": event.previous_hash,
+                    "created_at": event.created_at,
+                })).hexdigest()
+                if event.event_hash != expected_hash:
+                    return False
+                expected_previous=event.event_hash
+            return True
+        except (KeyError, ValueError, TypeError, RuntimeError, AttributeError):
+            return False
 
     @_synchronized
     def close(self) -> None:
