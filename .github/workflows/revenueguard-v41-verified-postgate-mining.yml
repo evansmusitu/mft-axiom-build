@@ -1,0 +1,123 @@
+name: RevenueGuard V4.1 Recovered Specialists Postgate Failure Mining
+on:
+  push:
+    branches: [revenueguard-v41-postgate-research-20261101]
+    paths: ['.github/workflows/revenueguard-v41-verified-postgate-mining.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  contractnli_v3_mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact source evaluation is complete and nonadmissible
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41386143344 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41386143344/artifacts?name=revenueguard-contractnli-v3-locked-dev-result' > art.json
+          python - <<'PY'
+          import json
+          r=json.load(open('run.json'))
+          assert r['conclusion']=='success' and r['head_sha']=='938bf825bd528ec14a392ecb13494856ba18bc47'
+          a=[x for x in json.load(open('art.json'))['artifacts'] if x['name']=='revenueguard-contractnli-v3-locked-dev-result' and not x['expired']]
+          assert len(a)==1 and a[0]['digest']=='sha256:edf94dc02ad691df7bf6a831dad9a126f173b2b489cef4ada0becafc0c488340'
+          print('V3 frozen failed gate identity and completed evidence verified')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-v3-locked-dev-result
+          path: aggregate
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41386143344
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-v3-recovery-dev-shard-*
+          path: shards
+          merge-multiple: true
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41386143344
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mine exact V3 locked-development failure without changing scores
+        run: |
+          set -euo pipefail
+          python -m py_compile research/revenueguard/contractnli_v3_postgate_failure_miner.py
+          python research/revenueguard/contractnli_v3_postgate_failure_miner.py \
+            --aggregate aggregate/V3_LOCKED_DEV_GATE.json \
+            --shard-glob 'shards/v3_raw_*.json' \
+            --out CONTRACTNLI_V3_POSTGATE_FAILURE_FAMILIES.json
+          python - <<'PY'
+          import json
+          r=json.load(open('CONTRACTNLI_V3_POSTGATE_FAILURE_FAMILIES.json'))
+          assert r['gate_pass'] is False and r['dev_rows']==1037
+          assert r['source_aggregate_report_sha256']=='4770d2cad2cdc1faa43706f93a9aa78e80e602d8921c79e5e92560a8f57e3a9f'
+          assert r['checkpoint_artifact_sha256']=='503d654bbb2aa7a384888f7c2959caaee15a63c6cfde6f4693f1fa08d4f75369'
+          print('CN_V3_FAILURE_MINING_PASS',r['failure_family_counts'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-v3-verified-postgate-failure-families
+          path: CONTRACTNLI_V3_POSTGATE_FAILURE_FAMILIES.json
+          if-no-files-found: error
+          retention-days: 90
+  cuad_matched_mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact CUAD heldout report and its SHA-256
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41437056573 > run.json
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/41437056573/artifacts?name=revenueguard-cuad-matched-window-posttrain-locked-heldout-eval' > art.json
+          python - <<'PY'
+          import json
+          r=json.load(open('run.json'))
+          assert r['conclusion']=='success' and r['head_sha']=='f54b2c6ac805e1a452b4b56c6c03628685916a78'
+          a=[x for x in json.load(open('art.json'))['artifacts'] if x['name']=='revenueguard-cuad-matched-window-posttrain-locked-heldout-eval' and not x['expired']]
+          assert len(a)==1 and a[0]['digest']=='sha256:6ff7165cbdc688c589256e0e31fb71ca3b18bd4d84a4bbd37696c74c63211dff'
+          print('CUAD frozen failed gate identity and complete evidence verified')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-posttrain-locked-heldout-eval
+          path: aggregate
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41437056573
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-cuad-posttrain-heldout-shard-*
+          path: shards
+          merge-multiple: true
+          repository: evansmusitu/mft-axiom-build
+          run-id: 41437056573
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mine heldout failure families; preserve locked threshold
+        run: |
+          set -euo pipefail
+          python -m py_compile research/revenueguard/cuad_postgate_failure_miner.py
+          python research/revenueguard/cuad_postgate_failure_miner.py \
+            --aggregate aggregate/CUAD_MATCHED_WINDOW_POSTTRAIN_LOCKED_HELDOUT_EVAL.json \
+            --shard-glob 'shards/raw_shard_*.json' \
+            --out CUAD_MATCHED_POSTGATE_FAILURE_FAMILIES.json
+          python - <<'PY'
+          import json
+          r=json.load(open('CUAD_MATCHED_POSTGATE_FAILURE_FAMILIES.json'))
+          assert r['gate_pass'] is False and r['evaluation_rows']==1160
+          assert r['source_aggregate_report_sha256']=='af27de092b4454ed197ee20eeb00653bcbe0ad0f09ec31892f7810f968fb56e5'
+          assert r['model_artifact_sha256']=='adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07'
+          print('CUAD_FAILURE_MINING_PASS',r['failure_family_counts'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-verified-postgate-failure-families
+          path: CUAD_MATCHED_POSTGATE_FAILURE_FAMILIES.json
+          if-no-files-found: error
+          retention-days: 90
