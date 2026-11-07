@@ -13,7 +13,7 @@ function fakeClient(row, options={}) {
   }};
 }
 const env={HYPERDRIVE:{connectionString:'postgresql://worker@hyperdrive.invalid/axiom_phase2_stage'},EXPECTED_DATABASE:'axiom_phase2_stage',EXPECTED_ROLE:'axiom_stage_runtime'};
-const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false};
+const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false,privileged_role_membership:false,billing_table_owner_member:false};
 
 test('requires Hyperdrive binding, not an arbitrary public database URL', async()=>{
   await assert.rejects(()=>inspectStagingHyperdrive({...env,HYPERDRIVE:undefined,DATABASE_URL:'postgres://unsafe'},fakeClient(completeRow).create),/STAGING_HYPERDRIVE_MISSING/);
@@ -33,6 +33,9 @@ test('queries only read-only identity/schema metadata with bounded connection se
   const query=client.traces.find(x=>x[0]==='query')[1];
   assert.match(query,/SELECT\s+current_database\(\)/);
   assert.doesNotMatch(query,/\b(?:UPDATE|DELETE|INSERT|DROP)\b/i);
+  assert.match(query,/AS privileged_role_membership/);
+  assert.match(query,/AS billing_table_owner_member/);
+  assert.match(query,/pg_catalog\.pg_has_role\(c\.relowner,'MEMBER'\)/);
   assert.ok(client.traces.find(x=>x[0]==='construct')[1].connectionTimeoutMillis<=5000);
   assert.deepEqual(client.traces.at(-1),['end']);
 });
@@ -90,4 +93,27 @@ test('fails closed if the SQL privilege audit is absent or incomplete',async()=>
     ()=>inspectStagingHyperdrive(env,fakeClient(incomplete).create),
     /STAGING_PRIVILEGED_ROLE_DENIED/
   );
+});
+
+// A role can have innocuous own flags but still assume a privileged or billing-owner role.
+test('rejects inherited/assumable elevated PostgreSQL roles',async()=>{
+  await assert.rejects(
+    ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,privileged_role_membership:true}).create),
+    /STAGING_PRIVILEGED_ROLE_DENIED/
+  );
+});
+test('rejects runtime membership of any billing table owner',async()=>{
+  await assert.rejects(
+    ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,billing_table_owner_member:true}).create),
+    /STAGING_PRIVILEGED_ROLE_DENIED/
+  );
+});
+test('fails closed when expanded role and owner audit is absent',async()=>{
+  for(const field of ['privileged_role_membership','billing_table_owner_member']){
+    const partial={...completeRow};delete partial[field];
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient(partial).create),
+      /STAGING_PRIVILEGED_ROLE_DENIED/,field
+    );
+  }
 });

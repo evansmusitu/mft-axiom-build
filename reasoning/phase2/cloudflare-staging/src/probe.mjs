@@ -11,6 +11,14 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
  EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
    WHERE r.rolname='neon_superuser'
    AND pg_catalog.pg_has_role(r.oid,'member')) AS neon_superuser_member,
+ EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+   WHERE (r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolreplication OR r.rolbypassrls)
+   AND pg_catalog.pg_has_role(r.oid,'MEMBER')) AS privileged_role_membership,
+ EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+   JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname='public'
+   AND c.relname IN ('axiom_provider_spend_budgets','axiom_provider_spend_organizations','axiom_provider_spend_requests')
+   AND pg_catalog.pg_has_role(c.relowner,'MEMBER')) AS billing_table_owner_member,
  has_database_privilege(current_user,current_database(),'CREATE') AS can_create_database_objects,
  has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects`;
 
@@ -35,6 +43,7 @@ export async function inspectStagingHyperdrive(env, clientFactory){
       throw new Error('STAGING_SCHEMA_MISSING');
     // Missing privilege evidence or elevated runtime capabilities are both denial.
     if(row.privileged_role!==false||row.neon_superuser_member!==false||
+       row.privileged_role_membership!==false||row.billing_table_owner_member!==false||
        row.can_create_database_objects!==false||row.can_create_schema_objects!==false)
       throw new Error('STAGING_PRIVILEGED_ROLE_DENIED');
     // Schema existence is not evidence of budgets, enforced call paths, or invoice reconciliation.
