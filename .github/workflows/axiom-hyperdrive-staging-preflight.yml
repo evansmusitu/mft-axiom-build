@@ -1,0 +1,31 @@
+name: AXIOM Hyperdrive staging preflight (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'reasoning/phase2/cloudflare-staging/**'
+      - 'reasoning/phase2/tests/hyperdrive_staging.test.mjs'
+      - '.github/workflows/axiom-hyperdrive-staging-preflight.yml'
+  push:
+    branches:
+      - 'feature/phase2-hyperdrive-staging-preflight-20261107'
+    paths:
+      - 'reasoning/phase2/cloudflare-staging/**'
+      - 'reasoning/phase2/tests/hyperdrive_staging.test.mjs'
+      - '.github/workflows/axiom-hyperdrive-staging-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify closed diagnostic and fail-closed staging checks
+        working-directory: reasoning/phase2
+        run: node --test tests/hyperdrive_staging.test.mjs
