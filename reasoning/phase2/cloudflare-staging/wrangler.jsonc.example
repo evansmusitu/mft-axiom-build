@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/wrangler@latest/config-schema.json",
+  "name": "axiom-phase2-staging-db-preflight",
+  "main": "./src/index.mjs",
+  "compatibility_date": "2026-11-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "REPLACE_WITH_APPROVED_STAGING_HYPERDRIVE_ID"
+    }
+  ],
+  "vars": {
+    "EXPECTED_DATABASE": "axiom_phase2_stage",
+    "EXPECTED_ROLE": "axiom_phase2_stage_runtime",
+    "STAGING_DATABASE_PROBE_ENABLED": "false"
+  }
+}
