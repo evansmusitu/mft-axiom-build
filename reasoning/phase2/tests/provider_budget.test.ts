@@ -394,7 +394,7 @@ test("post-registration shadowed reserve cannot authorize a paid call below the 
 test("post-registration price mutation cannot silently undercharge billable tokens",async()=>{
   const x=setup();
   try{
-    try{(x.wrapped as any).prices.outputMicrosPerMillionTokens=0;}catch{}
+    try{(x.wrapped as any).prices.outputMicrosPerMillionTokens=1;}catch{}
     await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"2".repeat(64),attempt:0,mode:"INITIAL"});
     assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
   }finally{x.ledger.close();}
