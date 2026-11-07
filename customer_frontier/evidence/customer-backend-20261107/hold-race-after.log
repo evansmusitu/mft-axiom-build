@@ -1,0 +1,13 @@
+✔ atomic hold finalization released vs committed (5.520955ms)
+✔ atomic hold finalization committed vs released (3.266125ms)
+✔ atomic hold finalization committed vs committed (3.15413ms)
+✔ atomic hold finalization released vs released (2.331072ms)
+✔ failed debit rolls back the hold transition (4.813336ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 105.030449

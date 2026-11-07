@@ -1,0 +1,36 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> axiom-idp-local-runtime-qualification@0.0.0 test
+> node --test idp_runtime.test.mjs review_adversarial.test.mjs customer_batch_runtime.test.mjs customer_backend_runtime.test.mjs
+
+✔ actual API tenant and budget enforcement survives restart; customer logout and membership revocation deny reuse (1435.688679ms)
+✔ real workerd rolls back complete customer DDL then preserves schema through isolate restart and token rotation (1102.899347ms)
+✔ actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths (457.71014ms)
+✔ server login, read-only Paynow truth and private verifier transports run without real grants (423.782584ms)
+✔ test process denies external network even if a client accidentally follows a redirect (5.210564ms)
+✔ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (753.44395ms)
+✔ real D1 racing callbacks have one winner and one provider exchange (567.082855ms)
+✔ wrong browser and provider redirect are denied without redeeming a flow twice (577.32842ms)
+✔ D1 batch failure rolls back session mint and prior-session rotation together (692.436719ms)
+✔ persisted D1 session and replay denial survive complete workerd restart (869.6943ms)
+✔ local logout is terminal across workerd restart and private binding reads (897.332289ms)
+✔ canonical revocation and cross-tenant requests cannot use an otherwise active session (619.255994ms)
+✔ private verifier rejects production OAuth audience and public headers cannot create a private route (586.023643ms)
+✔ all server private transports reject redirect responses before parsing or forwarding (274.17355ms)
+✔ checkout transport only returns an authorized fixture destination and never settles synthetic orders (650.282673ms)
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo"],"status":400,"browserCookieForwarded":false}
+✔ independent: each provider endpoint denies307 before following or forwarding browser cookies (2184.774781ms)
+{"case":"private-transport-browser-header-isolation","status":202,"observedUrls":["https://axiom-internal/identity/start-login","https://payments.mftintelligence.com/billing/healthz","https://payments.mftintelligence.com/billing/catalog","https://axiom-internal/payments/create"],"browserCredentialsForwarded":false}
+✔ independent: browser credentials do not leak into login billing or checkout service requests (703.684047ms)
+{"case":"identity-service302","status":401,"observedUrls":["https://axiom-internal/session/verify"]}
+✔ independent: private identity verifier redirect cannot authenticate a customer (890.153856ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7761.6614

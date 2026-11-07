@@ -1,0 +1,32 @@
+✖ atomic hold finalization released vs committed (6.973064ms)
+✔ atomic hold finalization committed vs released (2.788183ms)
+✔ atomic hold finalization committed vs committed (3.327015ms)
+✔ atomic hold finalization released vs released (2.720147ms)
+✔ failed debit rolls back the hold transition (4.900765ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113.945243
+
+✖ failing tests:
+
+test at customer_frontier/tests/hold_finalization_races.test.mjs:7:2
+✖ atomic hold finalization released vs committed (6.973064ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  3 !== 10
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/cf664c251767/customer-hosted-acceptance-20261107/customer_frontier/tests/hold_finalization_races.test.mjs:17:40)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 10,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
