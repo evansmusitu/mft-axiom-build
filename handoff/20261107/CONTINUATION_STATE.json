@@ -1,0 +1,117 @@
+{
+  "schema": "musitu.axiom.continuation.v3",
+  "captured_date": "2026-11-07",
+  "timezone": "Africa/Harare",
+  "canonical": {
+    "public_github_repo": "evansmusitu/mft-axiom-build",
+    "public_main_sha": "b10a74b435feb25654d4cf67ba67d09602698a3e",
+    "private_gitlab_project_id": 86647955,
+    "private_gitlab_main_sha": "e43980a377a36bd8cc33d2a088a92021b82729c4",
+    "private_github_archive": {
+      "visibility": "private",
+      "mirrored_branches": 180,
+      "matching_tips": 180,
+      "mirrored_tags": 1,
+      "temporary_mirror_disconnected": true,
+      "temporary_token_revoked_user_confirmed": true,
+      "issue_mr_ci_metadata_archived": false
+    }
+  },
+  "draft_pull_requests": [
+    {
+      "number": 76,
+      "head": "bd8adc82daf87c38a2d90894c6b297106eccb752",
+      "base": "main",
+      "checks_success": 15,
+      "checks_total": 15,
+      "draft": true
+    },
+    {
+      "number": 81,
+      "head": "5dd65a4a659730c4506cd5f350e29af793e5263e",
+      "base": "migration/gitlab-phase2-10a-20261104",
+      "checks_success": 6,
+      "checks_total": 6,
+      "draft": true
+    },
+    {
+      "number": 87,
+      "head": "23deaf0af81934bac311a94db12aebda98ce54ba",
+      "base": "main",
+      "checks_success": 6,
+      "checks_total": 6,
+      "draft": true
+    },
+    {
+      "number": 99,
+      "head": "a32fe6c53ec90aad8361e4b8056e6d23bc446f4a",
+      "base": "main",
+      "checks_success": 14,
+      "checks_total": 14,
+      "draft": true
+    }
+  ],
+  "infra": {
+    "app_host": "Cloudflare Workers only",
+    "tunnel": false,
+    "vpc": false,
+    "staging_provider": "Neon",
+    "staging_name": "MUSITU AXIOM Phase2 Staging",
+    "postgres_major": 17,
+    "db_name": "axiom_phase2_stage",
+    "block_public_connections": true,
+    "allowlist_CIDRs_count": 22,
+    "neon_stage_main_protected": true,
+    "non_owner_role_created": false,
+    "schema_installed": false,
+    "hyperdrive_bound": false,
+    "deployed": false,
+    "live_sql_verified": false,
+    "production_customer_data_loaded": false,
+    "planned_connection": "Cloudflare Hyperdrive, staged controlled internet origin after approved exception, TLS verify-full, cache disabled, least privilege",
+    "network_exception_approved": false
+  },
+  "release": {
+    "status": "NO_GO",
+    "issue": 74,
+    "history_issue": 75,
+    "external_gates": {
+      "G1": "BLOCKED",
+      "G2": "BLOCKED",
+      "G3": "BLOCKED",
+      "G4": "BLOCKED",
+      "G5": "BLOCKED",
+      "G6": "PARTIAL_PRIVATE_GIT_PARITY_ONLY"
+    }
+  },
+  "constraints": {
+    "no_secrets_in_git": true,
+    "no_squash": true,
+    "no_force_push_main": true,
+    "keep_source_branches": true,
+    "no_production_changes_without_independent_evidence": true,
+    "no_profit_guarantees": true
+  },
+  "package": {
+    "git_public_bundle": "SOURCE_HISTORY/public-github-all-refs.bundle",
+    "snapshots": [
+      "PRODUCT/main",
+      "PRODUCT/draft-76-phase210a",
+      "PRODUCT/draft-81-phase210b",
+      "PRODUCT/draft-87-evidence",
+      "PRODUCT/draft-99-hyperdrive"
+    ],
+    "hash_manifest": "HANDOFF/SHA256SUMS.txt",
+    "confidential_history_included": false
+  },
+  "successor_work": [
+    "read handoff",
+    "verify live main and PR heads",
+    "review #99 and mandatory paid API boundary",
+    "secure Neon staging private or approved restricted origin",
+    "install schema and scoped role using authorized network route",
+    "prove budget denial with real PG pools",
+    "collect other external security and finance acceptance",
+    "do not close #74 or #75 prematurely"
+  ]
+}
