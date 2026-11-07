@@ -1,0 +1,78 @@
+name: AXIOM authorized Cloudflare account D1 headroom read-only 20261107
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-d1-other-account-live-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-d1-other-account-live-20261107
+  cancel-in-progress: false
+jobs:
+  check-current-token-account-scope:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-d1-other-account-live-20261107' && github.event.pull_request.base.ref == 'build/axiom-d1-other-account-inventory-20261107' && github.event.pull_request.base.sha == '7724d9fcf4d03e36256e26fcc687267c94b1154a' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 7724d9fcf4d03e36256e26fcc687267c94b1154a
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify immutable reviewed implementation and test blobs before credential injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 7724d9fcf4d03e36256e26fcc687267c94b1154a
+          test "$(git hash-object customer_frontier/qualification/other_cf_account_d1_capacity.py)" = 793474513c7a3898c668e30dc133e4cf24e6e139
+          test "$(git hash-object customer_frontier/tests/test_other_cf_account_d1_capacity.py)" = 36dccf43da0108b43f5fb518a07ac79628026efe
+          python3 -m py_compile customer_frontier/qualification/other_cf_account_d1_capacity.py customer_frontier/tests/test_other_cf_account_d1_capacity.py
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          p=Path('customer_frontier/qualification/other_cf_account_d1_capacity.py')
+          spec=importlib.util.spec_from_file_location('reader',p)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          s=p.read_text()
+          assert m.API=='https://api.cloudflare.com/client/v4'
+          assert m.MAIN=='93f395f5121954671f92fffa453d6b61'
+          assert m.BASE_ACCOUNTS=='/accounts?per_page=50&page='
+          assert "method='GET'" in s
+          for marker in ["'create_authorized': False","'restore_target_admitted': False",
+                         "'account_ownership_qualified': False","'billing_plan_qualified': False",
+                         "'production_oauth_upgrade_qualified': False","'release_authority': False"]:
+              assert marker in s,marker
+          print('EXACT_SOURCE_AND_NO_MUTATION_CLAIMS_VERIFIED')
+          PY
+      - name: Recheck synthetic network-denial, privacy, pagination and no-write safeguards
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_other_cf_account_d1_capacity.py -v
+      - name: One bounded GET-only accessible account and D1 count observation
+        env:
+          AXIOM_CHECKOUT_SHA: 7724d9fcf4d03e36256e26fcc687267c94b1154a
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/other_cf_account_d1_capacity.py
+      - name: Do not turn metadata headroom into restoration or ownership authorization
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('axiom-d1-accessible-accounts-readonly.json').read_text())
+          for key in ('account_ownership_qualified','billing_plan_qualified','create_authorized',
+                      'restore_target_admitted','backup_restore_qualified',
+                      'production_oauth_upgrade_qualified','release_authority'):
+              assert d[key] is False,key
+          assert d['sql_queries']==0 and d['mutations']==0 and d['customer_rows_read']==0
+          if d['status']!='OBSERVED_ACCESSIBLE_ACCOUNT_CAPACITY':
+              raise SystemExit('INCOMPLETE_CAPACITY_OBSERVATION')
+          print('READ_ONLY_DISCOVERY_COMPLETE_NO_TARGET_OR_RELEASE_AUTHORIZATION')
+          PY
+      - name: Preserve bounded PRIVATE-METADATA-safe hashed observations including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-other-account-capacity-readonly-20261107
+          path: |
+            axiom-d1-accessible-accounts-readonly.json
+            axiom-d1-accessible-accounts-readonly.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
