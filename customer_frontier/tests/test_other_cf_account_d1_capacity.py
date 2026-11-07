@@ -151,5 +151,43 @@ class TestCFAccountCapacity(unittest.TestCase):
         self.assertEqual(len(reqs),1)
         self.assertEqual(r['transport'][0]['http_status'],307)
 
+
+    def test_account_total_greater_than_returned_refuses_incomplete(self):
+        def modify(d):
+            d['/accounts?per_page=50&page=1']['result_info']['total_count']=3
+        rc,r,_=self.run_probe(modify)
+        self.assertEqual(rc,1)
+        self.assertFalse(r['account_scope_complete'])
+        self.assertIn('INCOMPLETE_ACCOUNT_PAGINATION',r['errors'])
+
+    def test_d1_total_greater_than_returned_does_not_claim_capacity(self):
+        p='/accounts/'+OTHER+'/d1/database?per_page=100&page=1'
+        def modify(d):
+            d[p]['result_info']['total_count']=4
+        rc,r,_=self.run_probe(modify)
+        self.assertEqual(rc,1)
+        self.assertEqual(r['other_accounts_with_under_10_d1'],0)
+        self.assertIn('D1_D1_INVENTORY_NOT_EXHAUSTIVE',r['errors'])
+
+    def test_zero_accounts_not_proven_if_total_reports_nonzero(self):
+        def modify(d):
+            d['/accounts?per_page=50&page=1']['result']=[]
+            d['/accounts?per_page=50&page=1']['result_info']={
+                'page':1,'per_page':50,'count':0,'total_count':1}
+        rc,r,_=self.run_probe(modify)
+        self.assertEqual(rc,1)
+        self.assertFalse(r['account_scope_complete'])
+
+    def test_current_account_only_is_not_an_alternative(self):
+        def modify(d):
+            d['/accounts?per_page=50&page=1']['result']=[
+                {'id':'93f395f5121954671f92fffa453d6b61'}]
+            d['/accounts?per_page=50&page=1']['result_info']['count']=1
+            d['/accounts?per_page=50&page=1']['result_info']['total_count']=1
+        rc,r,_=self.run_probe(modify)
+        self.assertEqual(rc,0)
+        self.assertEqual(r['other_accounts_with_under_10_d1'],0)
+        self.assertEqual(len(r['accounts']),1)
+
 if __name__=='__main__':
     unittest.main()
