@@ -1,7 +1,7 @@
 {
   "schema": "musitu.revenueguard.v4_1.checkpoint_recovery.execution_state.v1",
-  "as_of_utc": "2026-11-02",
-  "status": "V3_LOCKED_DEV_FAILED_CUAD_MATCHED_MODEL_COMPLETED_HELDOUT_SCORING_RUNNING",
+  "as_of_utc": "2026-11-07",
+  "status": "BOTH_SPECIALIST_DEV_GATES_MEASURED_FAILED_NEITHER_ADMISSIBLE",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "revenueguard-v41-postgate-research-20261101",
   "historical_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
@@ -11,7 +11,7 @@
     "contractnli": {
       "run_id": 41330633559,
       "source_commit": "eecee22260ccadc558b6c9317f85e70c24e2a7de",
-      "observed_state": "FINAL_V3_TRAINED_AND_DEV_EVALUATED_GATE_FAILED",
+      "observed_state": "TRAINED_FINAL_ARTIFACT_VERIFIED_LOCKED_DEV_COMPLETED_GATE_FAILED_POSTGATE_MINED",
       "artifact_expected_name": "revenueguard-contractnli-adapted-model",
       "next_conditional_workflow": ".github/workflows/revenueguard-v3-pairwise-recovery.yml",
       "trigger_path": "research/revenueguard/TRIGGER_V3_RECOVERY_TRAIN.json",
@@ -104,24 +104,32 @@
       "locked_dev_result": {
         "run_id": 41386143344,
         "report_artifact_id": 13116173322,
-        "report_artifact_sha256": "edf94dc02ad691df7bf6a831dad9a126f173b2b489cef4ada0becafc0c488340",
+        "report_artifact_zip_sha256": "edf94dc02ad691df7bf6a831dad9a126f173b2b489cef4ada0becafc0c488340",
         "report_sha256": "4770d2cad2cdc1faa43706f93a9aa78e80e602d8921c79e5e92560a8f57e3a9f",
-        "accuracy": 0.7531340405014465,
-        "macro_f1": 0.6803224800572208,
-        "false_grounding_notmentioned": 0.3900709219858156,
-        "exact_evidence_span_recall": 0.7931596091205212,
-        "calibration_rows": 595,
+        "checkpoint_artifact_sha256": "503d654bbb2aa7a384888f7c2959caaee15a63c6cfde6f4693f1fa08d4f75369",
         "dev_rows": 1037,
-        "selected_k": 32,
-        "selected_threshold": 0.91,
-        "passed": false,
-        "analysis_path": "research/revenueguard/CONTRACTNLI_V3_REAL_DEV_FAILURE_2026-11-02.json"
+        "calibration_rows": 595,
+        "chosen_k": 32,
+        "chosen_threshold": 0.91,
+        "gate_pass": false,
+        "metrics": {
+          "accuracy": 0.7531340405014465,
+          "macro_f1": 0.6803224800572208,
+          "false_grounding_notmentioned": 0.3900709219858156,
+          "selected_evidence_exact_span_recall": 0.7931596091205212
+        },
+        "thresholds": {
+          "accuracy_min": 0.9,
+          "macro_f1_min": 0.88,
+          "false_grounding_max": 0.02,
+          "evidence_recall_min": 0.85
+        }
       }
     },
     "cuad": {
       "run_id": 41330640096,
       "source_commit": "914be62c1cff332ee7c3ad5189805103e9debe3a",
-      "observed_state": "MATCHED_WINDOW_FOUR_CHUNKS_SUCCESS_FINAL_ARTIFACT_VERIFIED_LOCKED_HELDOUT_RUNNING",
+      "observed_state": "FOUR_MATCHED_CHUNKS_SUCCESS_FINAL_ARTIFACT_VERIFIED_LOCKED_HELDOUT_COMPLETED_GATE_FAILED_POSTGATE_MINED",
       "source_artifact_expected_name": "revenueguard-cuad-epoch1-chunked-final",
       "matched_workflow": ".github/workflows/revenueguard-cuad-matched-window-multitask-epoch2.yml",
       "matched_trigger_path": "research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json",
@@ -390,7 +398,41 @@
           "conclusion": null
         }
       ],
-      "heldout_trigger_commit": "f54b2c6ac805e1a452b4b56c6c03628685916a78"
+      "heldout_trigger_commit": "f54b2c6ac805e1a452b4b56c6c03628685916a78",
+      "matched_window_final": {
+        "run_id": 41386175423,
+        "workflow_status": "failure_dispatch_only_four_training_chunks_success",
+        "final_artifact_id": 13135449936,
+        "final_artifact_sha256": "adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07",
+        "completed_steps": 2571,
+        "selected_windows": 61659,
+        "source_artifact_sha256": "56588ea336fab987c8246564dfd7ef791ead0e6e459c2bbb76af653e5b00bf19"
+      },
+      "locked_heldout_result": {
+        "run_id": 41437056573,
+        "workflow_conclusion": "success",
+        "gate_pass": false,
+        "report_artifact_id": 13140558546,
+        "report_artifact_zip_sha256": "6ff7165cbdc688c589256e0e31fb71ca3b18bd4d84a4bbd37696c74c63211dff",
+        "report_sha256": "af27de092b4454ed197ee20eeb00653bcbe0ad0f09ec31892f7810f968fb56e5",
+        "model_artifact_sha256": "adf1b32462a21d1227209de4a55115ea8789ed69bad41b700d5f6f14ce232c07",
+        "heldout_rows": 2461,
+        "calibration_rows": 1301,
+        "evaluation_rows": 1160,
+        "threshold": 2.1496779918670654,
+        "metrics": {
+          "no_answer_false_positive_rate": 0.0315955766192733,
+          "answer_detection_f1": 0.5736636245110822,
+          "localization_overlap_recall": 0.12333965844402277,
+          "answerable_token_f1": 0.13600507943109577
+        },
+        "thresholds": {
+          "no_answer_false_positive_max": 0.02,
+          "answer_detection_f1_min": 0.85,
+          "localization_overlap_recall_min": 0.85,
+          "answerable_token_f1_min": 0.8
+        }
+      }
     }
   },
   "checks": {
@@ -403,12 +445,15 @@
     "frozen_v4_structured_money_regressions": "30/30 PASS",
     "source_adapter_final_artifact_present": true,
     "cuad_source_final_artifact_present": true,
-    "contractnli_v3_real_dev_gate": "FAIL_0_OF_4_THRESHOLDS",
-    "cuad_matched_heldout_gate": "IN_PROGRESS_NOT_YET_EVALUATED",
-    "contractnli_v3_real_training": "PASS_4_OF_4_CHUNKS",
+    "contractnli_v3_real_dev_gate": "FAIL_4_OF_4_METRICS",
+    "cuad_matched_heldout_gate": "FAIL_4_OF_4_METRICS",
+    "contractnli_v3_real_training": "COMPLETE_4_OF_4_CHUNKS",
     "source_encoder_drive_backup": "NOT_UPLOADED_GOOGLE_DRIVE_CONNECTOR_100_MIB_LIMIT_FOR_303_MB_ARTIFACT",
     "source_encoder_github_retention_days": 90,
-    "cuad_matched_model_training": "PASS_4_OF_4_CHUNKS"
+    "cuad_matched_model_training": "PASS_4_OF_4_CHUNKS",
+    "cuad_matched_training": "COMPLETE_4_OF_4_CHUNKS",
+    "specialist_dev_admission": "DENIED_BOTH_FAILED",
+    "latest_postgate_failure_mining": "PASS_DIAGNOSTIC_ONLY"
   },
   "limits": {
     "certification": "NOT_CERTIFIED",
@@ -455,5 +500,36 @@
     "cuad_posttrain_dispatch_failure": "Run 41386175423 dispatch_heldout job HTTP 404; all four model training jobs were successful",
     "cuad_heldout_repair": "Pin run 41386175423 head, four successful training jobs, dispatcher-only failure, and artifact SHA; trigger via research-branch push rather than API workflow_dispatch",
     "cuad_heldout_run_id": 41437056573
+  },
+  "postgate_failure_mining": {
+    "run_id": 42398144716,
+    "workflow_conclusion": "success",
+    "contractnli": {
+      "artifact_id": 13584635667,
+      "artifact_sha256": "a32c40898cdd7852b2e62bf05880cdd1cfe3e024f3acb0184106bafd01c1ce23",
+      "report_sha256": "b39fb0bcc7ff15344d64da116b60f7a338da5caf2d738fd15b47c4beebf77eef",
+      "counts": {
+        "false_grounding_notmentioned": 165,
+        "wrong_evidence_selection": 127,
+        "positive_abstention": 50,
+        "semantic_polarity_flip": 41,
+        "semantic_correct_despite_wrong_evidence": 85,
+        "abstention_despite_exact_evidence": 25,
+        "semantic_flip_despite_exact_evidence": 24
+      }
+    },
+    "cuad": {
+      "artifact_id": 13584307800,
+      "artifact_sha256": "e4e50b312683a53b6dc114b8dc172f1c76e61efeb26460450c0e578a957ddfcc",
+      "report_sha256": "e674ab2c92693677a85e9b7d2ba4e557a998db8f62992cf19592cf3aa679f5d8",
+      "counts": {
+        "false_grounding_no_answer": 20,
+        "missed_answer_abstention": 307,
+        "wrong_localization": 155,
+        "localized_but_low_semantic_match": 16,
+        "partial_span_boundary_or_semantic": 5
+      }
+    },
+    "rule": "Postgate diagnosis only. Error families can overlap. No train/dev/test split or metric changes. Not admissible for V4.1 promotion."
   }
 }
