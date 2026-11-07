@@ -1,0 +1,21 @@
+name: MUSITU JARVIS Synthetic Core
+on:
+  pull_request:
+    paths:
+      - 'products/musitu-jarvis/**'
+      - '.github/workflows/jarvis-synthetic-core.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run isolated deterministic tests (no services, no secrets)
+        working-directory: products/musitu-jarvis
+        run: npm test
