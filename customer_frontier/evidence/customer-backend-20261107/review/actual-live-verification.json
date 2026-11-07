@@ -1,0 +1,33 @@
+{
+  "result": "BOUNDED_LIVE_CONTROLLED_BACKEND_EVIDENCE_ACCEPTED",
+  "event_head": "a85c707296f0db89a7cce171330aa529e224adc9",
+  "source": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "hosted_run": 42342396830,
+  "hosted_job": 128312735103,
+  "all_steps_success": true,
+  "parallel_ci": {
+    "run": 42342396728,
+    "job": 128312734731,
+    "Node": 227,
+    "Python": 134,
+    "workerd": 18
+  },
+  "logs": [
+    {
+      "name": "actual-hosted-42342396830.log",
+      "bytes": 35204,
+      "sha256": "4c6ba3dd5f55dcbdeecaae4d05e31065d4211cfc24092e85233d2b6517fa6ac5"
+    },
+    {
+      "name": "actual-ci-42342396728.log",
+      "bytes": 153258,
+      "sha256": "5a289ebfbeb53b287d25f49c11e79da925b516dd3eaf32556cdfdc3be5bab544"
+    }
+  ],
+  "successful_qualifier_POSTs_including_disable": 11,
+  "last_reported_prepared_counter": 17,
+  "per_phase_count_limit": "reviewed sourceguard <=48; finalreport retains onlylastcounter, noteachactualphasecounter",
+  "separate_cleanup_confirmed": true,
+  "full_customer_and_release_qualified": false,
+  "Cloudflare_account_calls_by_reviewer": 0
+}

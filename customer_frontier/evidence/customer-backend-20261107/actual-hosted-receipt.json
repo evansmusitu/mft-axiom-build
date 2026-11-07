@@ -1,0 +1,38 @@
+{
+  "schema": "musitu.axiom.actual_controlled_customer_backend_receipt.v1",
+  "hosted_run": 42342396830,
+  "hosted_job": 128312735103,
+  "head_sha": "a85c707296f0db89a7cce171330aa529e224adc9",
+  "source_sha": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "workflow_sha256": "ef45f1b8a3cc63afbdf9bf5f10e40880c87b90c6f9c097023b588d035ccb4cf8",
+  "conclusion": "PASS_CONTROLLED_FIXTURES_ONLY",
+  "artifact": {
+    "id": 13561839035,
+    "bytes": 1276,
+    "sha256": "d25677ba2f4f0b6b87c6fdd0c96eaebcef0a61e26ab7451f595c6266dd2ff32d",
+    "zip_integrity": true,
+    "safe_exact_members": 2,
+    "json_matches_raw_log": true
+  },
+  "source_ci": {
+    "run": 42342396728,
+    "job": 128312734731,
+    "node": 227,
+    "python": 134,
+    "workerd": 18,
+    "merge_commit": "d1ea0b2a3e16955c43124d6454ff4ee4417b9da3",
+    "tree": "8ec28bbe79a7ea22f4b483dc3b597630eb450e9a",
+    "matches_execution_head_tree": true
+  },
+  "logs": {
+    "actual-hosted-42342396830.log": {
+      "bytes": 35204,
+      "sha256": "4c6ba3dd5f55dcbdeecaae4d05e31065d4211cfc24092e85233d2b6517fa6ac5"
+    },
+    "actual-wrapper-ci-42342396728.log": {
+      "bytes": 153258,
+      "sha256": "5a289ebfbeb53b287d25f49c11e79da925b516dd3eaf32556cdfdc3be5bab544"
+    }
+  },
+  "release_authority": false
+}

@@ -1,0 +1,50 @@
+{
+  "schema": "musitu.axiom.independent_actual_controlled_backend_observation.v1",
+  "verdict": "BOUNDED_LIVE_CONTROLLED_BACKEND_EVIDENCE_ACCEPTED",
+  "event_head": "a85c707296f0db89a7cce171330aa529e224adc9",
+  "source": "8bd16133acb9e09bd3d050c1d523ed54950e9de3",
+  "hosted_run": 42342396830,
+  "hosted_job": 128312735103,
+  "conclusion": "success",
+  "completed_at": "2026-11-07T05:22:16Z",
+  "published_workflow_blob": "1fe7933edffba85d54113f0175589bd8ce9f9202",
+  "actual_backend_outcome": "PASS_CONTROLLED_FIXTURES_ONLY",
+  "actual_phase": "PASS_DISABLED",
+  "fixture_authority_disabled": true,
+  "temporary_worker_removed": true,
+  "database_deleted": false,
+  "CI": {
+    "run": 42342396728,
+    "job": 128312734731,
+    "Node": 227,
+    "Python": 134,
+    "workerd": 18
+  },
+  "unresolved_observed_inconsistencies": [],
+  "logs": [
+    {
+      "name": "actual-hosted-42342396830.log",
+      "bytes": 35204,
+      "sha256": "4c6ba3dd5f55dcbdeecaae4d05e31065d4211cfc24092e85233d2b6517fa6ac5"
+    },
+    {
+      "name": "actual-ci-42342396728.log",
+      "bytes": 153258,
+      "sha256": "5a289ebfbeb53b287d25f49c11e79da925b516dd3eaf32556cdfdc3be5bab544"
+    }
+  ],
+  "counter_scope": "Only finalcounter17 retained; successfulphases enforcedhard48sourceguard. Localperphasecountsnotindividuallyloggedhosted.",
+  "real_identity_qualified": false,
+  "production_ownership_qualified": false,
+  "onboarding_qualified": false,
+  "chatgpt_continuity_qualified": false,
+  "payment_qualified": false,
+  "hosted_restore_qualified": false,
+  "production_oauth_changed": false,
+  "customer_acceptance_qualified": false,
+  "release_authority": false,
+  "reviewer_Cloudflare_account_calls": 0,
+  "reviewer_private_key_or_database_access": false,
+  "root_source_mutations": 0,
+  "scope": "Actual controlled fixture backend phases and cleanup only; no whole-product gate/release claim."
+}
