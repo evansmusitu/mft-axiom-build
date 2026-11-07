@@ -1,0 +1,43 @@
+name: AXIOM disposable D1 candidate offline qualification 20261107 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-disposable-d1-candidate-offline-20261107.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-disposable-d1-candidate-offline-20261107
+  cancel-in-progress: false
+jobs:
+  offline-candidate-contract:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-disposable-d1-audit-20261107' && github.event.pull_request.base.ref == 'build/axiom-customer-backend-hosted-20261107' && github.event.pull_request.base.sha == '196fc54cd2ca010ffb97970f85831555719a2294' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fd6e7d0f3b38d651036ebf5db1a64c69bba6cca8
+          persist-credentials: false
+      - name: Validate pinned source and exact reviewed test blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = fd6e7d0f3b38d651036ebf5db1a64c69bba6cca8
+          test "$(git hash-object customer_frontier/qualification/disposable_d1_candidate_audit.py)" = ae56829c8c521a2a401898b6de210fa79e173de5
+          test "$(git hash-object customer_frontier/tests/test_disposable_d1_candidate_audit.py)" = 838dea2d0305ec2764ef27083399c9fc4919b3a6
+          python3 -m py_compile customer_frontier/qualification/disposable_d1_candidate_audit.py customer_frontier/tests/test_disposable_d1_candidate_audit.py
+      - name: Run fixed-source synthetic guard and privacy regression cases
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_disposable_d1_candidate_audit.py -v
+      - name: Enforce read-only claim boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('customer_frontier/qualification/disposable_d1_candidate_audit.py').read_text()
+          assert '92de45db-399a-450b-81d0-24d28b105f41' in src
+          assert 'SELECT type,name,tbl_name,sql FROM sqlite_master' in src
+          assert "out['target_admitted']=True" not in src
+          assert "out['release_authority']=True" not in src
+          assert "out['hosted_migration_qualified']=True" not in src
+          assert 'per_page=100' not in src
+          print('OFFLINE_CANDIDATE_CONTRACT_PASS_NOT_RELEASE')
+          PY
