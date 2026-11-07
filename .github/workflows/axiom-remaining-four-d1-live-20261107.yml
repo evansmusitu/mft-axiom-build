@@ -1,0 +1,77 @@
+name: AXIOM remaining four D1 current bindings hosted read-only 20261107
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-remaining-four-d1-live-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-remaining-four-d1-live-20261107
+  cancel-in-progress: false
+jobs:
+  observe-four-unchanged-databases:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-d1-remaining-four-live-20261107' && github.event.pull_request.base.ref == 'build/axiom-d1-remaining-four-audit-20261107' && github.event.pull_request.base.sha == '518066b7a67c0bb1b5de6dbc3ac0fba821770066' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 518066b7a67c0bb1b5de6dbc3ac0fba821770066
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify immutable source, exact four identities and zero-write guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 518066b7a67c0bb1b5de6dbc3ac0fba821770066
+          test "$(git hash-object customer_frontier/qualification/remaining_four_d1_audit.py)" = 68d3b957fd52468b73dd6afa7d9ca77b07bdc7ed
+          test "$(git hash-object customer_frontier/tests/test_remaining_four_d1_audit.py)" = 6f0dbc4e5d2ac63397e6c0509d4fee02a9970ea5
+          python3 - <<'PY'
+          import importlib.util
+          p='customer_frontier/qualification/remaining_four_d1_audit.py'
+          spec=importlib.util.spec_from_file_location('four',p)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          expected={'b043cc1b-dc6c-4031-9f36-f2331728e062','a525c8b6-9b44-413b-a219-46e419b71b12','a03dc12d-8206-47be-b904-1f24e4e37d91','e148cbce-1b00-4d07-bb58-c1d56a4af0c7'}
+          assert set(m.CANDIDATES)==expected
+          assert m.SQL.startswith('SELECT type,name,tbl_name,sql FROM sqlite_master')
+          assert "'target_admitted':False" in open(p).read()
+          assert "'hosted_migration_qualified':False" in open(p).read()
+          assert 'per_page=100' not in open(p).read()
+          print('FOUR_D1_FIXED_SOURCE_AND_DENY_GATES_PASS')
+          PY
+      - name: Re-run twenty privacy and no-mutation negative tests before credential exposure
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_remaining_four_d1_audit.py -v
+      - name: Query only fixed catalogs and current Worker/Pages bindings with saved scoped token
+        env:
+          AXIOM_CHECKOUT_SHA: 518066b7a67c0bb1b5de6dbc3ac0fba821770066
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/remaining_four_d1_audit.py
+      - name: Classify current references only; no target admission
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          d=json.loads(Path('remaining-four-d1-audit.json').read_text())
+          assert d['query_count']==4 and d['query_zero_writes_confirmed']==4 and d['provider_query_mutations']==0
+          assert d['status']=='CURRENT_CATALOG_AND_BINDINGS_OBSERVED' and not d['errors']
+          assert len(d['catalogs'])==4
+          assert d['workers']['status']=='OBSERVED_LISTED_SCRIPTS_AND_ENVIRONMENTS'
+          assert d['pages']['status']=='OBSERVED_CURRENT_CONFIGS'
+          assert d['target_admitted'] is False and d['backup_restore_qualified'] is False
+          assert d['hosted_migration_qualified'] is False and d['release_authority'] is False
+          c=Counter(r['database_id'] for r in d['references'])
+          for uuid in sorted(d['catalogs']):
+              print('OBSERVED_D1_UUID='+uuid+' CURRENT_REFERENCE_COUNT='+str(c[uuid])+' CATALOG_OBJECTS='+str(len(d['catalogs'][uuid]['objects'])))
+          print('NO_DESTRUCTIVE_RESTORE_NO_RELEASE_NO_GLOBAL_UNBOUND_CERTIFICATION')
+          PY
+      - name: Save hashed catalog and binding evidence; no raw database rows or DDL
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-remaining-four-d1-current-bindings-20261107
+          path: |
+            remaining-four-d1-audit.json
+            remaining-four-d1-audit.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
