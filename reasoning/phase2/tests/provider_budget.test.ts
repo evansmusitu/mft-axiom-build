@@ -378,3 +378,63 @@ test("PostgreSQL ledger is not redirected by a replaced public pool property",as
       "trusted billing should attempt its original Pool and fail safely on unavailable database");
   }finally{await original.end();}
 });
+
+
+test("post-registration shadowed reserve cannot authorize a paid call below the approved hold",async()=>{
+  const x=setup("openai",500,700);
+  try{
+    try{Object.defineProperty(x.wrapped,"requestReserveMicroUsd",{configurable:true,value:1});}catch{}
+    await assert.rejects(
+      ()=>x.wrapped.invoke({tenant:scope(),compilationRequestHash:"1".repeat(64),attempt:0,mode:"INITIAL"}),
+      (e:any)=>e?.code==="BUDGET_EXCEEDED");
+    assert.equal(x.calls,0,"no paid provider call may occur after an inadequate reserve");
+  }finally{x.ledger.close();}
+});
+
+test("post-registration price mutation cannot silently undercharge billable tokens",async()=>{
+  const x=setup();
+  try{
+    try{(x.wrapped as any).prices.outputMicrosPerMillionTokens=0;}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"2".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{x.ledger.close();}
+});
+
+test("shadowing the metering method on a trusted decorator cannot bypass ledger writes",async()=>{
+  const x=setup();
+  try{
+    try{Object.defineProperty(x.wrapped,"metered",{configurable:true,
+      value:async (_intent:unknown,run:()=>Promise<unknown>)=>run()});}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"3".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{x.ledger.close();}
+});
+
+test("global decorator prototype mutation cannot replace the metering path",async()=>{
+  const x=setup(),proto=Object.getPrototypeOf(x.wrapped);
+  const original=Object.getOwnPropertyDescriptor(proto,"metered");
+  assert.ok(original);
+  try{
+    try{Object.defineProperty(proto,"metered",{...original,
+      value:async (_intent:unknown,run:()=>Promise<unknown>)=>run()});}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"4".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{
+    if(Object.getOwnPropertyDescriptor(proto,"metered")?.value!==original.value)
+      Object.defineProperty(proto,"metered",original);
+    x.ledger.close();
+  }
+});
+
+test("changing the underlying provider's transport after registration is denied before vendor access",async()=>{
+  const x=setup(),raw=(x.wrapped as any).adapter;
+  let replacementCalls=0;
+  try{
+    raw.invoke=async()=>{replacementCalls++;return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));};
+    await assert.rejects(
+      ()=>x.wrapped.invoke({tenant:scope(),compilationRequestHash:"5".repeat(64),attempt:0,mode:"INITIAL"}),
+      (e:any)=>e?.code==="BUDGET_PROVIDER_TAMPERED");
+    assert.equal(replacementCalls,0,"an unapproved swapped transport must never execute");
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
+  }finally{x.ledger.close();}
+});
