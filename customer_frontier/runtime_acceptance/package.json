@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test idp_runtime.test.mjs review_adversarial.test.mjs customer_batch_runtime.test.mjs"
+    "test": "node --test idp_runtime.test.mjs review_adversarial.test.mjs customer_batch_runtime.test.mjs customer_backend_runtime.test.mjs"
   },
   "devDependencies": {
     "miniflare": "4.20260730.0",
