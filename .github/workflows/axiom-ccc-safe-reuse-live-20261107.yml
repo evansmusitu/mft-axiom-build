@@ -1,0 +1,76 @@
+name: AXIOM ccc customer-stage D1 current live bindings (READ ONLY NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-safe-reuse-live-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-safe-reuse-live-20261107
+  cancel-in-progress: false
+jobs:
+  observe-ccc-preserve-everything:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-d1-safe-reuse-hosted-20261107' && github.event.pull_request.base.ref == 'build/axiom-ccc-d1-safe-reuse-readonly-20261107' && github.event.pull_request.base.sha == '090a3cb2fa0951facf22ff2a732f2ae308a1e206' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6c54c661a4712795aeedc5eaa4bc35f97f171998
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit exactly reviewed fixed-UUID reader/test blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 6c54c661a4712795aeedc5eaa4bc35f97f171998
+          test "$(git hash-object customer_frontier/qualification/ccc_d1_safe_reuse_observe.py)" = 1f0f8f59fdbe2f02ee76526b10c661c083cafcbc
+          test "$(git hash-object customer_frontier/tests/test_ccc_d1_safe_reuse_observe.py)" = 11071f0b3302ae1f43fd6abe721294ab0a6b2a76
+          python3 - <<'PY'
+          import importlib.util
+          s=importlib.util.spec_from_file_location('read_only_ccc','customer_frontier/qualification/ccc_d1_safe_reuse_observe.py')
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          assert m.CANDIDATES=={'ccc473f1-fbb5-4b8d-8a24-45f3696ac10f':'7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36'}
+          assert m.SQL.startswith('SELECT type,name,tbl_name,sql FROM sqlite_master')
+          code=open('customer_frontier/qualification/ccc_d1_safe_reuse_observe.py').read()
+          assert "'target_admitted':False" in code and "'release_authority':False" in code
+          assert "'hosted_migration_qualified':False" in code and "'backup_restore_qualified':False" in code
+          print('EXACT_CCC_SOURCE_AND_DENY_GATES_PASS')
+          PY
+      - name: Run privacy, identity, negative and no-mutation tests BEFORE token injection
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_ccc_d1_safe_reuse_observe.py -v
+      - name: Observe ccc catalog and all current Worker/service and Pages bindings, never change SQL
+        env:
+          AXIOM_CHECKOUT_SHA: 6c54c661a4712795aeedc5eaa4bc35f97f171998
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/ccc_d1_safe_reuse_observe.py
+      - name: Classify only current binding evidence, and deny all destructive operations
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('ccc-d1-safe-reuse-observation.json').read_text())
+          assert d['status']=='CURRENT_CATALOG_AND_BINDINGS_OBSERVED'
+          assert d['query_count']==1 and d['query_zero_writes_confirmed']==1 and d['provider_query_mutations']==0
+          assert not d['errors']
+          assert list(d['catalogs'])==['ccc473f1-fbb5-4b8d-8a24-45f3696ac10f']
+          assert d['workers']['status']=='OBSERVED_LISTED_SCRIPTS_AND_ENVIRONMENTS'
+          assert d['pages']['status']=='OBSERVED_CURRENT_CONFIGS'
+          assert d['target_admitted'] is False and d['backup_restore_qualified'] is False
+          assert d['hosted_migration_qualified'] is False and d['release_authority'] is False
+          print('CURRENT_CCC_SCHEMA_OBJECTS='+str(len(d['catalogs']['ccc473f1-fbb5-4b8d-8a24-45f3696ac10f']['objects'])))
+          print('CURRENT_CCC_REFERENCES='+str(len(d['references'])))
+          if d['references']:
+              print('CCC_CURRENTLY_BOUND_NO_REUSE_CLEARANCE')
+              raise SystemExit(1)
+          print('NO_OBSERVED_CURRENT_CCC_BINDINGS_BUT_ONLY_NONDESTRUCTIVE_REUSE_POSSIBLE_NOT_RESTORE_ADMISSION')
+          PY
+      - name: Preserve redacted catalog/validation result and SHA256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-ccc-safe-reuse-readonly-20261107
+          path: |
+            ccc-d1-safe-reuse-observation.json
+            ccc-d1-safe-reuse-observation.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
