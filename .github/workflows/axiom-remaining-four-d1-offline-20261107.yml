@@ -1,0 +1,45 @@
+name: AXIOM remaining four D1 catalogs offline qualification 20261107 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-remaining-four-d1-offline-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-remaining-four-d1-offline-20261107
+  cancel-in-progress: false
+jobs:
+  four-fixed-uuid-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-d1-remaining-four-audit-20261107' && github.event.pull_request.base.ref == 'build/axiom-disposable-d1-audit-20261107' && github.event.pull_request.base.sha == '79ea49b8413acbc95f15680296ecd1dfb92efc16' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 92b058cfc721042e4bc370d18596318578be79af
+          persist-credentials: false
+      - name: Prove immutable fixed-only reader and test identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 92b058cfc721042e4bc370d18596318578be79af
+          test "$(git hash-object customer_frontier/qualification/remaining_four_d1_audit.py)" = 68d3b957fd52468b73dd6afa7d9ca77b07bdc7ed
+          test "$(git hash-object customer_frontier/tests/test_remaining_four_d1_audit.py)" = 6f0dbc4e5d2ac63397e6c0509d4fee02a9970ea5
+          python3 -m py_compile customer_frontier/qualification/remaining_four_d1_audit.py customer_frontier/tests/test_remaining_four_d1_audit.py
+      - name: Run no-network privacy and read-only regression tests
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_remaining_four_d1_audit.py -v
+      - name: Assert no target admission or commercial mutation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          p='customer_frontier/qualification/remaining_four_d1_audit.py'
+          spec=importlib.util.spec_from_file_location('auditor',p)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          assert set(m.CANDIDATES)=={'b043cc1b-dc6c-4031-9f36-f2331728e062','a525c8b6-9b44-413b-a219-46e419b71b12','a03dc12d-8206-47be-b904-1f24e4e37d91','e148cbce-1b00-4d07-bb58-c1d56a4af0c7'}
+          assert m.SQL.startswith('SELECT type,name,tbl_name,sql FROM sqlite_master')
+          src=open(p).read()
+          assert 'per_page=100' not in src
+          assert "'target_admitted':False" in src and "'release_authority':False" in src
+          assert "'hosted_migration_qualified':False" in src
+          print('REMAINING_FOUR_OFFLINE_SCOPE_PASS_NOT_RELEASE')
+          PY
