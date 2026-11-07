@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           python -m py_compile qualification/production_runtime_enablement.py
           node --check connect/production_worker.mjs
-          node --test tests/connect/test_production_worker.mjs
+          node --test tests/connect/test_production_worker.mjs tests/connect/test_worker_request_integrity.mjs
           python qualification/validate_production_admission.py
 
       - name: Install pinned Wrangler

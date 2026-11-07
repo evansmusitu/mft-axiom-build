@@ -22,6 +22,9 @@ const INTERNAL_TOKEN_LABEL = 'MUSITU-CONNECT-RUNTIME-INTERNAL-V1';
 // offline customer-intake modules would break that deployment packaging path.
 // No new customer routes or Axiom operations are enabled by this parser.
 const MAX_AXIOM_RESPONSE_BYTES = 65_536;
+// Match the offline customer-intake byte ceiling. Authenticated requests must
+// be bounded before parsing or deriving a provenance-bound Axiom request ID.
+const MAX_CONNECT_REQUEST_BYTES = 65_536;
 
 function normalizedDecimal(token) {
   const match = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(token);
@@ -446,8 +449,44 @@ async function authorize(request, env) {
 }
 
 async function readJson(request) {
+  // Request.json() silently accepts duplicate keys and rounded numeric tokens,
+  // and buffers unbounded input. Both can change the signed computation.
+  const reader = request?.body?.getReader?.();
+  if (!reader) throw new Error('invalid_json');
+  const chunks = [];
+  let total = 0;
   try {
-    return await request.json();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error('invalid_json');
+      total += value.byteLength;
+      if (total > MAX_CONNECT_REQUEST_BYTES) {
+        void reader.cancel().catch(() => {});
+        throw new Error('invalid_json');
+      }
+      chunks.push(value);
+    }
+  } catch {
+    throw new Error('invalid_json');
+  } finally {
+    try { reader.releaseLock(); } catch { /* no input detail disclosed */ }
+  }
+  try {
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const decoded = JSON.parse(source);
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+      throw new Error('invalid_json');
+    }
+    const integrity = inspectJsonObjectTokens(source);
+    if (integrity.duplicate || integrity.lossy) throw new Error('invalid_json');
+    return decoded;
   } catch {
     throw new Error('invalid_json');
   }

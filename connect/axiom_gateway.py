@@ -50,15 +50,19 @@ def _encode_request(payload: dict[str, Any]) -> bytes:
 
 
 _OUTBOUND_REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
+_OUTBOUND_OPERATION = re.compile(r"[A-Za-z][A-Za-z0-9._:-]{0,127}\Z")
 
 
 def _validate_outbound_request(request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     # The same string ID travels in HTTP headers and (for MCP) JSON-RPC.
     # Coercing non-string IDs or permitting controls breaks correlation.
     request_id = request.get("request_id")
+    operation = request.get("operation")
     args = request.get("args", {})
     if (not isinstance(request_id, str) or
         not _OUTBOUND_REQUEST_ID.fullmatch(request_id) or
+        not isinstance(operation, str) or
+        not _OUTBOUND_OPERATION.fullmatch(operation) or
         not isinstance(args, dict)):
         raise RuntimeError("AXIOM_REQUEST_INVALID")
     return request_id, args

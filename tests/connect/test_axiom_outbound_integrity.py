@@ -27,6 +27,25 @@ class AxiomOutboundIntegrityTests(unittest.TestCase):
                                 {**self.REQUEST, 'request_id': request_id})
                         send.assert_not_called()
 
+    def test_invalid_operation_never_reaches_authenticated_axiom(self):
+        for operation in (None, False, 0, [], {}, '', ' bad',
+                          'arithmetic.evaluate\r\nX-Hijack: yes',
+                          'arithmetic.\N{SNOWMAN}', 'x' * 129):
+            for executor_class in self.EXECUTORS:
+                with self.subTest(executor=executor_class.__name__, operation=repr(operation)):
+                    with patch('urllib.request.urlopen') as send:
+                        with self.assertRaisesRegex(RuntimeError, 'AXIOM_REQUEST_INVALID'):
+                            executor_class('https://axiom.example/test', 'secret')(
+                                {**self.REQUEST, 'operation': operation})
+                        send.assert_not_called()
+        for executor_class in self.EXECUTORS:
+            with self.subTest(executor=executor_class.__name__, operation='missing'):
+                request = {k:v for k,v in self.REQUEST.items() if k != 'operation'}
+                with patch('urllib.request.urlopen') as send:
+                    with self.assertRaisesRegex(RuntimeError, 'AXIOM_REQUEST_INVALID'):
+                        executor_class('https://axiom.example/test', 'secret')(request)
+                    send.assert_not_called()
+
     def test_falsey_nonobject_args_are_not_silently_rewritten_to_empty_object(self):
         for args in ([], False, 0, '', None):
             for executor_class in self.EXECUTORS:
