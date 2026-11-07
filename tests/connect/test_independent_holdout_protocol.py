@@ -155,6 +155,16 @@ class HoldoutProtocolTests(unittest.TestCase):
                     ValueError,'independent_protocol_development_source_reused'):
                 inspect_protocol(q)
 
+    def test_known_development_origin_in_rights_or_provenance_cannot_be_preregistered(self):
+        # A renamed source lineage + a new byte hash are not enough when the
+        # other evidence declarations still identify the Polish dev corpus.
+        for field in ('source_owner_rights_reference', 'provenance_reference'):
+            q=candidate()
+            q[field]='authority-reference:OpenML:42701'
+            with self.subTest(field=field), self.assertRaisesRegex(
+                    ValueError, 'independent_protocol_development_source_reused'):
+                inspect_protocol(q)
+
     def test_four_chronological_purged_folds_and_windows_required(self):
         cases=[('nonchronological',lambda q:q['folds'][1].update(first_feature_time=iso(1000))),
                ('fold_overlap',lambda q:q['folds'][1].update(first_feature_time=iso(4600))),

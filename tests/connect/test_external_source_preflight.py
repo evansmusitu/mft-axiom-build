@@ -135,6 +135,20 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         self.manifest.write_text(json.dumps(self.metadata),encoding='utf-8')
         self.assertEqual(self.inspect()['status'],'RESEARCH_INTAKE_ONLY_NOT_ADMITTED')
 
+    def test_reencoded_public_development_alias_in_rights_or_provenance_is_rejected(self):
+        # A distinct reencoded hash and neutral site ID cannot disguise a
+        # known development source named in the other lineage declarations.
+        for field in ('rights_basis', 'authorization_reference', 'provenance_reference'):
+            with self.subTest(field=field):
+                old = self.metadata[field]
+                self.metadata[field] = 'data-custody:OpenML:42701'
+                self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')
+                with self.assertRaisesRegex(ValueError, 'external_source_is_known_development_dataset'):
+                    self.inspect()
+                self.metadata[field] = old
+        self.manifest.write_text(json.dumps(self.metadata), encoding='utf-8')
+        self.assertFalse(self.inspect()['independent_validation'])
+
     def test_manifest_and_source_reject_impossible_utc_offsets(self):
         for value in ('2025-04-07T00:00:00+14:01', '2025-04-07T00:00:00-14:01',
                       '2025-04-07T00:00:00+15:00'):

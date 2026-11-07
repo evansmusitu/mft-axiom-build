@@ -134,7 +134,8 @@ def _read_manifest(path: Path) -> tuple[Mapping[str, Any], str]:
     if any(
             isinstance(manifest.get(field), str)
             and any(marker in manifest[field].casefold() for marker in KNOWN_DEV_ID_MARKERS)
-            for field in ('source_collection_id', 'site_id')):
+            for field in ('source_collection_id', 'site_id', 'rights_basis',
+                          'authorization_reference', 'provenance_reference')):
         raise ValueError('external_source_is_known_development_dataset')
     for field in ('site_id', 'source_collection_id', 'rights_basis', 'authorization_reference', 'provenance_reference'):
         if not isinstance(manifest.get(field), str) or not manifest[field].strip():

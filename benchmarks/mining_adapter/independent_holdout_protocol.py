@@ -98,11 +98,17 @@ def inspect_protocol(protocol: Mapping[str, Any]) -> dict[str, Any]:
         v = protocol[key]
         if not isinstance(v, str) or not 4 <= len(v.strip()) <= 512:
             raise ValueError('independent_protocol_declaration_invalid')
-    lineage = protocol['source_lineage_identifier'].lower()
+    # An explicitly declared development origin cannot become independent by
+    # renaming its primary source identifier or reencoding the source bytes.
+    # These declarations do not independently authenticate a new source.
+    declared_origin = ' '.join(protocol[key] for key in (
+        'source_lineage_identifier', 'source_owner_rights_reference',
+        'provenance_reference')).casefold()
     if (protocol['canonical_source_sha256'] == KNOWN_DEV_SHA or
-            any(x in lineage for x in ('yd7vw4c5mk','openml:42701','10.17632/yd7vw4c5mk',
-                                      'openml.org/d/42701',
-                                      'openml.org/search?type=data&id=42701'))):
+            any(x in declared_origin for x in (
+                'yd7vw4c5mk', 'openml:42701', '10.17632/yd7vw4c5mk',
+                'openml.org/d/42701',
+                'openml.org/search?type=data&id=42701'))):
         raise ValueError('independent_protocol_development_source_reused')
     if any(not _sha(protocol[k]) for k in (
             'canonical_source_sha256','frozen_model_manifest_sha256',
