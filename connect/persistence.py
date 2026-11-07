@@ -94,6 +94,17 @@ class RunStore:
         );
         CREATE INDEX IF NOT EXISTS run_audit_run_idx
             ON run_audit(run_id, event_index);
+        -- A separate, transactionally updated terminal checkpoint detects
+        -- suffix truncation that preserves the remaining hash links.
+        -- Legacy stores without a checkpoint fail verification until they
+        -- undergo a separately reviewed migration; never infer the head
+        -- from possibly truncated historical audit rows.
+        CREATE TABLE IF NOT EXISTS run_audit_heads (
+            run_id TEXT PRIMARY KEY,
+            event_index INTEGER NOT NULL CHECK(event_index >= 0),
+            event_hash TEXT NOT NULL,
+            FOREIGN KEY (run_id) REFERENCES connect_runs(run_id) ON DELETE RESTRICT
+        );
         """)
         self.connection.commit()
 
@@ -245,6 +256,22 @@ class RunStore:
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (run_id, event_index, event_type, payload_json, previous_hash, event_hash, created_at),
         )
+        if previous is None:
+            self.connection.execute(
+                "INSERT INTO run_audit_heads (run_id, event_index, event_hash) VALUES (?, ?, ?)",
+                (run_id, event_index, event_hash),
+            )
+        else:
+            # Compare-and-swap ensures an existing head cannot silently be
+            # replaced by an unanchored or out-of-order event. Callers commit
+            # the audit row and head together or roll both back.
+            result=self.connection.execute(
+                """UPDATE run_audit_heads SET event_index=?, event_hash=?
+                   WHERE run_id=? AND event_index=? AND event_hash=?""",
+                (event_index, event_hash, run_id, previous["event_index"], previous_hash),
+            )
+            if result.rowcount != 1:
+                raise RuntimeError("RUN_AUDIT_CHAIN_INVALID")
         return AuditEvent(
             run_id=run_id,
             event_index=event_index,
@@ -495,7 +522,15 @@ class RunStore:
                 if event.event_hash != expected_hash:
                     return False
                 expected_previous=event.event_hash
-            return True
+            head=self.connection.execute(
+                "SELECT event_index, event_hash FROM run_audit_heads WHERE run_id=?",
+                (run_id,),
+            ).fetchone()
+            return bool(
+                head is not None
+                and head["event_index"] == events[-1].event_index
+                and head["event_hash"] == expected_previous
+            )
         except (KeyError, ValueError, TypeError, RuntimeError, AttributeError):
             return False
 
