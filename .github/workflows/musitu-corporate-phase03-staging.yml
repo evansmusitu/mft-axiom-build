@@ -73,7 +73,7 @@ jobs:
           python -m pip install -q pytest beautifulsoup4
           cd /tmp/musitu-phase03/corporate
           export MUSITU_BUILD_MODE=review
-          export MUSITU_PUBLISH_PHASE03=1
+          export MUSITU_PUBLISH_PHASE03=0
           export MUSITU_PROTECTED_STAGING_MEDIA=1
           python scripts/build.py
           python -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py tests/test_phase03_seo.py tests/test_phase03_growth.py
