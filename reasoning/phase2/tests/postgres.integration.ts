@@ -848,3 +848,64 @@ test("PostgreSQL vendor-wide cap serializes competing tenant reservations and su
  await assert.rejects(()=>ledger.reserve({...winner,requestId:"after-org-overage",requestHash:"c".repeat(64),reserveMicroUsd:100}),
   (error:any)=>error?.code==="BUDGET_ORGANIZATION_SUSPENDED");
 });
+
+
+// Phase 2.10C: a restricted runtime must not own or directly mutate the
+// accounting rows. Only narrow, operator-granted SQL RPCs can spend.
+test('protected PostgreSQL reserve and settle enforce limits without runtime table DML',async()=>{
+  await ready();await initializePostgresSchema(pool);
+  const signatures=await pool.query(`SELECT
+    to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)')::text AS reserve_rpc,
+    to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')::text AS settle_rpc`);
+  assert.ok(signatures.rows[0].reserve_rpc,'protected reserve SQL RPC must exist');
+  assert.ok(signatures.rows[0].settle_rpc,'protected settle SQL RPC must exist');
+  const migrationOwner=(await pool.query("SELECT current_user AS name")).rows[0].name;
+  assert.notEqual(migrationOwner,'axiom_spend_runtime_ci');
+  const ax:any=await import('../src/index.ts');
+  const operator=new ax.PostgresProviderSpendLedger(pool);
+  const tenant={tenantId:'tenant:pg-protected-rpc'},provider='adapter:protected-rpc',modelId='model:protected-rpc';
+  await pool.query('DELETE FROM public.axiom_provider_spend_requests WHERE tenant_id=$1',[tenant.tenantId]);
+  await pool.query('DELETE FROM public.axiom_provider_spend_budgets WHERE tenant_id=$1',[tenant.tenantId]);
+  await operator.provisionOrganization('openai',100000);
+  await operator.provision(tenant,provider,modelId,500,'openai');
+  // A temporary CI-only identity: no table ownership, no role inheritance,
+  // no schema CREATE, and only explicit RPC execution rights.
+  await pool.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+  let caller:InstanceType<typeof Pool>|undefined;
+  try{
+    await pool.query('GRANT USAGE ON SCHEMA axiom_spend TO axiom_spend_runtime_ci');
+    await pool.query(`GRANT EXECUTE ON FUNCTION axiom_spend.reserve(text,text,text,text,text,bigint,text),
+      axiom_spend.settle(text,text,text,text,text,bigint,text,text) TO axiom_spend_runtime_ci`);
+    caller=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
+      database:process.env.PGDATABASE??'axiom_test',user:'axiom_spend_runtime_ci',
+      password:'ci-disposable-not-production',max:2,connectionTimeoutMillis:2000});
+    const grants=await caller.query(`SELECT
+      has_table_privilege(current_user,'public.axiom_provider_spend_budgets','UPDATE,INSERT,DELETE,TRUNCATE') AS budget_dml,
+      has_table_privilege(current_user,'public.axiom_provider_spend_organizations','UPDATE,INSERT,DELETE,TRUNCATE') AS org_dml,
+      has_table_privilege(current_user,'public.axiom_provider_spend_requests','UPDATE,INSERT,DELETE,TRUNCATE') AS receipt_dml,
+      has_schema_privilege(current_user,'public','CREATE') AS can_create_public,
+      has_schema_privilege(current_user,'axiom_spend','CREATE') AS can_create_rpc`);
+    assert.deepEqual(grants.rows,[{budget_dml:false,org_dml:false,receipt_dml:false,can_create_public:false,can_create_rpc:false}]);
+    await assert.rejects(()=>caller!.query('UPDATE public.axiom_provider_spend_budgets SET limit_micro_usd=1000000 WHERE tenant_id=$1',[tenant.tenantId]),(e:any)=>e.code==='42501');
+    await assert.rejects(()=>caller!.query('SET ROLE '+migrationOwner),(e:any)=>e.code==='42501');
+    const args=[tenant.tenantId,provider,modelId,'protected-1','a'.repeat(64),350,'openai'];
+    const reserve=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
+    assert.equal(reserve.rows[0].verdict,'OK');
+    const denied=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',
+      [tenant.tenantId,provider,modelId,'protected-2','b'.repeat(64),350,'openai']);
+    assert.equal(denied.rows[0].verdict,'BUDGET_EXCEEDED');
+    assert.equal((await operator.status(tenant,provider,modelId)).reservedMicroUsd,350);
+    const settle=await caller.query('SELECT axiom_spend.settle($1,$2,$3,$4,$5,$6::bigint,$7,$8) AS verdict',
+      [tenant.tenantId,provider,modelId,'protected-1','a'.repeat(64),200,'b'.repeat(64),'openai']);
+    assert.equal(settle.rows[0].verdict,'OK');
+    assert.deepEqual(await operator.status(tenant,provider,modelId),{
+      limitMicroUsd:500,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:300
+    });
+    const repeat=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
+    assert.equal(repeat.rows[0].verdict,'BUDGET_ALREADY_SETTLED');
+  }finally{
+    if(caller)await caller.end();
+    await pool.query('DROP OWNED BY axiom_spend_runtime_ci');
+    await pool.query('DROP ROLE axiom_spend_runtime_ci');
+  }
+});
