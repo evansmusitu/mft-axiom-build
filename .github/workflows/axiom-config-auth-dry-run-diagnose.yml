@@ -1,0 +1,80 @@
+name: AXIOM Cloudflare scoped Config Rules edit authorization DRY RUN ONLY
+on:
+  push:
+    branches: [ops/axiom-config-auth-dry-run-diagnose-20261108]
+    paths: [.github/workflows/axiom-config-auth-dry-run-diagnose.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-config-auth-dry-run-diagnose-20261108' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read exact ruleset; check minimal no-change PUT with dry_run=true ONLY
+        env:
+          CF_CONFIG_TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,hashlib,urllib.request,urllib.error
+          from pathlib import Path
+          TOKEN=os.environ.get('CF_CONFIG_TOKEN','')
+          if not TOKEN or not TOKEN.startswith('cfut_'):raise SystemExit('USER_TOKEN_UNAVAILABLE')
+          ZONE='5b56528f03948ff5917a5e0cd9f7109e'
+          R='8e8a2552a8ee4bb383abbe0d748e1da5'
+          url='https://api.cloudflare.com/client/v4/zones/'+ZONE+'/rulesets/'+R
+          hdr={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','Content-Type':'application/json'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          op=urllib.request.build_opener(NoRedirect)
+          def req(method,u,body=None):
+            payload=json.dumps(body,separators=(',',':')).encode() if body is not None else None
+            request=urllib.request.Request(u,data=payload,headers=hdr,method=method)
+            try:
+              with op.open(request,timeout=22) as res:
+                code=res.status;raw=res.read(40001)
+            except urllib.error.HTTPError as e:
+              code=e.code;raw=e.read(40001)
+            except (OSError,TimeoutError,ValueError):
+              return 'TRANSPORT_UNKNOWN',{}
+            try:doc=json.loads(raw)
+            except ValueError:doc={}
+            return code,doc
+          code,baseline=req('GET',url)
+          rule=baseline.get('result',{}) if isinstance(baseline,dict) else {}
+          if code!=200 or not baseline.get('success') or not isinstance(rule,dict) or rule.get('version')!='25' or rule.get('id')!=R or len(rule.get('rules',[]))!=10:
+            raise SystemExit('EXACT_BASELINE_CHANGED_NO_PROBE')
+          description=rule.get('description','')
+          if not isinstance(description,str):raise SystemExit('DESCRIPTION_INVALID')
+          dry_code,dry=req('PUT',url+'?dry_run=true',{'description':description})
+          errors=dry.get('errors',[]) if isinstance(dry,dict) else []
+          messages=[str(x.get('message','')) for x in errors if isinstance(x,dict)] if isinstance(errors,list) else []
+          result={'schema':'AXIOM_CLOUDFLARE_SCOPED_TOKEN_MINIMAL_DRYRUN',
+                  'baseline_version_unchanged':'25','baseline_rule_count':10,
+                  'dry_run_http':dry_code,'dry_run_success':dry.get('success') is True if isinstance(dry,dict) else False,
+                  'dry_run_error_codes':[x.get('code') for x in errors if isinstance(x,dict) and isinstance(x.get('code'),int)] if isinstance(errors,list) else [],
+                  'denied_permission':any('permission' in m.lower() or 'forbidden' in m.lower() or 'not authorized' in m.lower() for m in messages),
+                  'denied_access':any('access' in m.lower() or 'auth' in m.lower() for m in messages),
+                  'business_rule_error':any('limit' in m.lower() or 'plan' in m.lower() or 'quota' in m.lower() for m in messages),
+                  'live_writes':0,'production_oauth_touched':False}
+          b=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-config-scoped-token-minimal-dryrun.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('EXACT_CONFIG_RULE_MINIMAL_DRYRUN_COMPLETED_NO_LIVE_WRITES')
+          PY
+      - name: Preserve status-only readback and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-config-scoped-token-minimal-dryrun-20261108
+          path: |
+            axiom-config-scoped-token-minimal-dryrun.json
+            axiom-config-scoped-token-minimal-dryrun.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
