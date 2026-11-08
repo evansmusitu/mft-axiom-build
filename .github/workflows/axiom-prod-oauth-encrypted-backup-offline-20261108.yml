@@ -1,0 +1,44 @@
+name: AXIOM production OAuth D1 encrypted backup offline review 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-prod-oauth-encrypted-backup-offline-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-prod-oauth-encrypted-backup-offline-20261108, cancel-in-progress: false}
+jobs:
+  pinned-encrypted-only-oauth-exporter-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-production-oauth-encrypted-backup-20261108' && github.event.pull_request.base.ref == 'build/axiom-oauth-unregistered-flow-expiry-live-20261108' && github.event.pull_request.base.sha == '89dce1172c4bdf4eca04b3f30ff145f9e468efe1' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 31f4d41e8bafd1cf146adb30676cded91d4cf529
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify source, fixed current OAuth D1 identity and public recipient before any credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 31f4d41e8bafd1cf146adb30676cded91d4cf529
+          test "$(git hash-object customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs)" = 2c28fbb5da3dd7ac706ff68c78d2291adfc6135c
+          test "$(git hash-object customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs)" = 8ddc06d2f7e1ca34fb61e1e1288ea53b28e9c093
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = ec9115c83879290d23cee2eb2932f2f31df5584d
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs').read_text()
+          assert "DATABASE='504029cc-f9a5-495e-818f-63c6144b4ea4'" in s
+          assert "NAME_SHA='b0d9b8d70e3736276b018cc196c1ba823a15b43921b6493e63d95941ea199ef6'" in s
+          assert "CATALOG_SHA='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'" in s
+          assert "rows.length!==33" in s
+          assert "return sha(JSON.stringify(rows))" in s
+          assert "sha(publicKey)!==RECIPIENT_SHA" in s
+          assert "encryptBackup(sql,publicKey,header);sql.fill(0)" in s
+          assert "'prod-oauth-current-20261108.json.enc'" in s
+          assert "'prod-oauth-backup-receipt.json'" in s
+          assert "'release_authority'" in s or "release_authority:false" in s
+          assert "'/import'" not in s and "'/delete'" not in s
+          print('FIXED_PRODUCTION_OAUTH_CURRENT_PRIVATE_BACKUP_SOURCE_ADMITTED')
+          PY
+      - name: Run original nine no-secret encryption, identity, drift and signed-origin tests
+        run: node --test customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs
