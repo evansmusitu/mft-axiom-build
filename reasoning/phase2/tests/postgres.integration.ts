@@ -920,6 +920,36 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
       billingProvider:'openai',requestId:'protected-ledger',requestHash:'c'.repeat(64),
       chargeMicroUsd:25,responseHash:'d'.repeat(64)});
     assert.equal((await operator.status(tenant,provider,modelId)).chargedMicroUsd,225);
+    // Exercise the real trusted decorator with a synthetic provider: no vendor or
+    // credential is contacted, and the runtime database role still has no DML.
+    let providerCalls=0;
+    const fakeAdapter={
+      manifest:{adapterId:provider,modelId,provider:'openai',version:'1.0.0',
+        implementationHash:'f'.repeat(64)},
+      async invoke(){
+        providerCalls++;
+        return {capturedAt:'2026-11-08T00:00:00.000Z',requestBody:'{}',
+          responseBody:JSON.stringify({id:'test-response',usage:{
+            input_tokens:100,output_tokens:50,total_tokens:150}}),
+          normalizedResponseBody:'{}'};
+      },
+      async explain(){throw new Error('explanation not requested');}
+    };
+    const priced={inputMicrosPerMillionTokens:1000000,outputMicrosPerMillionTokens:2000000,
+      cacheReadMicrosPerMillionTokens:0,cacheWriteMicrosPerMillionTokens:0};
+    const budgeted=new ax.BudgetedModelProviderAdapter({
+      adapter:fakeAdapter,ledger:protectedLedger,tenantId:tenant.tenantId,
+      prices:priced,requestReserveMicroUsd:260});
+    await budgeted.invoke({tenant,compilationRequestHash:'e'.repeat(64),attempt:0,mode:'INITIAL'});
+    assert.equal(providerCalls,1);
+    assert.equal((await operator.status(tenant,provider,modelId)).chargedMicroUsd,425);
+    await assert.rejects(
+      ()=>budgeted.invoke({tenant,compilationRequestHash:'f'.repeat(64),attempt:0,mode:'INITIAL'}),
+      (e:any)=>e?.code==='BUDGET_EXCEEDED');
+    assert.equal(providerCalls,1,'an exhausted budget must deny before provider network access');
+    await assert.rejects(()=>caller!.query(
+      'SELECT charged_micro_usd FROM public.axiom_provider_spend_budgets LIMIT 1'),
+      (e:any)=>e.code==='42501');
   }finally{
     if(caller)await caller.end();
     await admin.query('DROP OWNED BY axiom_spend_runtime_ci');
