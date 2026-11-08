@@ -1,0 +1,131 @@
+name: AXIOM independent PR77 live synthetic crosscustomer denial post-readback 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-postcrosscustomer-independent-readback-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-postcrosscustomer-independent-readback-20261108, cancel-in-progress: false}
+jobs:
+  independent-four-read-checks-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-post-crosscustomer-independent-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-synthetic-crosscustomer-live-v2-20261108' && github.event.pull_request.base.sha == '69f59a09accf1295ae1a162cfc6628cb342ec6f0' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Independently observe fake-account PR77 D1 and preserved recovery metadata, absent temp Worker and one fixed SELECT
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.request
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'
+          WORKER='axiom-pr77-synthetic-20261108'
+          PLAN='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          TOKEN=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          SQL="""SELECT
+           (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA')) AS user_tables,
+           (SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name NOT GLOB 'sqlite_*') AS user_indexes,
+           (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name NOT GLOB 'sqlite_*') AS user_triggers,
+           (SELECT COUNT(*) FROM customers) AS customers,
+           (SELECT COUNT(*) FROM customers WHERE id='customer-a' AND status='active') AS customer_a_active,
+           (SELECT COUNT(*) FROM customers WHERE id='customer-b' AND status='active') AS customer_b_active,
+           (SELECT COUNT(*) FROM api_keys WHERE id='key-a' AND customer_id='customer-a' AND status='active') AS key_a_active,
+           (SELECT COUNT(*) FROM api_keys WHERE id='key-b' AND customer_id='customer-b' AND status='active') AS key_b_active,
+           (SELECT COUNT(*) FROM oauth_access_tokens WHERE token_hash='access-a' AND revoked_at IS NULL) AS access_a_live,
+           (SELECT COUNT(*) FROM oauth_refresh_tokens WHERE token_hash='refresh-a' AND revoked_at IS NULL) AS refresh_a_live,
+           (SELECT COUNT(*) FROM oauth_identity_links WHERE customer_id='customer-a' AND state='active') AS identity_a_active,
+           (SELECT COUNT(*) FROM oauth_identity_token_links WHERE api_key_id='key-a') AS allowed_token_link,
+           (SELECT COUNT(*) FROM oauth_identity_token_links WHERE api_key_id='key-b') AS forbidden_token_link,
+           (SELECT COUNT(*) FROM oauth_identity_code_links WHERE code_hash='code-a') AS allowed_code_link,
+           (SELECT COUNT(*) FROM oauth_identity_code_links WHERE code_hash='code-b') AS forbidden_code_link,
+           (SELECT COUNT(*) FROM oauth_identity_schema_versions WHERE version=2 AND plan_sha256='__PLAN__') AS reviewed_version_2,
+           (SELECT COUNT(*) FROM sqlite_master WHERE name='oauth_identity_upgrade_v2_guard') AS guard_objects,
+           (SELECT COUNT(*) FROM sqlite_master WHERE name='axiom_pr77_abort_probe') AS abort_objects,
+           (SELECT COUNT(*) FROM pragma_foreign_key_check) AS foreign_key_violations""".replace('__PLAN__',PLAN)
+          EXPECTED=dict(user_tables=9,user_indexes=1,user_triggers=21,customers=2,customer_a_active=1,customer_b_active=1,key_a_active=1,key_b_active=1,access_a_live=1,refresh_a_live=1,identity_a_active=1,allowed_token_link=1,forbidden_token_link=0,allowed_code_link=1,forbidden_code_link=0,reviewed_version_2=1,guard_objects=0,abort_objects=0,foreign_key_violations=0)
+          out=dict(schema='musitu.axiom.pr77_independent_crosscustomer_denial_readback.v1',status='UNQUALIFIED',account_id=ACCOUNT,synthetic_database_id=TARGET,preserved_database_id=PRESERVED,reviewed_plan_sha256=PLAN,read_only_queries_verified=0,cloudflare_write_operations=0,worker_absent=False,real_customer_data_read=False,production_oauth_modified=False,production_tenant_isolation_qualified=False,release_authority=False)
+          class Stop(Exception):pass
+          class NeverRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NeverRedirect())
+          def request(path,sql=None,allow404=False):
+           if not TOKEN or '\r' in TOKEN or '\n' in TOKEN:raise Stop('SCOPED_SECRET_UNAVAILABLE')
+           allowed=['/d1/database/'+TARGET,'/d1/database/'+PRESERVED,'/workers/scripts/'+WORKER+'/settings','/d1/database/'+TARGET+'/query']
+           if path not in allowed:raise Stop('UNAPPROVED_PROVIDER_PATH')
+           if sql is not None and (path!=allowed[-1] or sql!=SQL):raise Stop('UNAPPROVED_SQL')
+           method='POST' if sql is not None else 'GET'
+           body=None if sql is None else json.dumps({'sql':SQL,'params':[]},separators=(',',':')).encode()
+           req=urllib.request.Request(ROOT+path,method=method,data=body,headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-PR77-FreshReadOnlyPostDenial-20261108',**({'Content-Type':'application/json'} if body is not None else {})})
+           try:
+            with opener.open(req,timeout=20) as response:
+             status=response.status;raw=response.read(200001)
+           except urllib.error.HTTPError as e:
+            if allow404 and e.code==404:return None
+            raise Stop('PROVIDER_HTTP_'+str(e.code))
+           except (urllib.error.URLError,OSError,TimeoutError):raise Stop('PROVIDER_NETWORK_UNAVAILABLE')
+           if status!=200 or len(raw)>200000:raise Stop('PROVIDER_RESPONSE_UNQUALIFIED')
+           try:jsondata=json.loads(raw)
+           except (ValueError,UnicodeError):raise Stop('PROVIDER_INVALID_JSON')
+           if not isinstance(jsondata,dict) or jsondata.get('success') is not True:raise Stop('PROVIDER_ENVELOPE_UNQUALIFIED')
+           return jsondata.get('result')
+          try:
+           s=request('/d1/database/'+TARGET)
+           if not isinstance(s,dict) or s.get('uuid')!=TARGET or s.get('name')!='axiom-pr77-synthetic-only-20261108':raise Stop('TARGET_IDENTITY_DRIFT')
+           p=request('/d1/database/'+PRESERVED)
+           if not isinstance(p,dict) or p.get('uuid')!=PRESERVED or p.get('name')!='axiom-disposable-dr-target-20261108':raise Stop('PRESERVED_RESOURCE_IDENTITY_DRIFT')
+           if request('/workers/scripts/'+WORKER+'/settings',allow404=True) is not None:raise Stop('TEMP_WORKER_PERSISTED')
+           out['worker_absent']=True
+           result=request('/d1/database/'+TARGET+'/query',sql=SQL)
+           if not isinstance(result,list) or len(result)!=1 or not isinstance(result[0],dict) or result[0].get('success') is not True:raise Stop('SELECT_RESULT_UNQUALIFIED')
+           meta=result[0].get('meta')
+           if not isinstance(meta,dict) or meta.get('changed_db') is not False or type(meta.get('changes')) is not int or meta['changes']!=0 or type(meta.get('rows_written')) is not int or meta['rows_written']!=0:raise Stop('READ_ONLY_META_UNQUALIFIED')
+           out['read_only_queries_verified']=1
+           rows=result[0].get('results')
+           if not isinstance(rows,list) or len(rows)!=1 or not isinstance(rows[0],dict) or set(rows[0])!=set(EXPECTED) or any(type(v) is not int for v in rows[0].values()):raise Stop('COUNTER_SHAPE_UNQUALIFIED')
+           out['sanitized_synthetic_counts']=rows[0]
+           if rows[0]!=EXPECTED:raise Stop('AFTER_FORBIDDEN_LINK_ATTEMPT_DATA_OR_FK_DRIFT')
+           out['status']='INDEPENDENT_PR77_HOSTED_CROSSCUSTOMER_DENIAL_POSTREADBACK_PASS'
+          except Stop as e:out['reason_code']=str(e)
+          except Exception:out['reason_code']='UNKNOWN_PROVIDER_OR_VALIDATOR_FAILURE'
+          path=Path('axiom-pr77-independent-crosscustomer-postreadback-20261108.json')
+          path.write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          if out['status']!='INDEPENDENT_PR77_HOSTED_CROSSCUSTOMER_DENIAL_POSTREADBACK_PASS':raise SystemExit(1)
+          
+          PY
+      - name: Require independent post-attack evidence and no production or release authority
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('axiom-pr77-independent-crosscustomer-postreadback-20261108.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='INDEPENDENT_PR77_HOSTED_CROSSCUSTOMER_DENIAL_POSTREADBACK_PASS'
+          assert x['synthetic_database_id']=='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          assert x['read_only_queries_verified']==1 and x['cloudflare_write_operations']==0
+          assert x['worker_absent'] is True
+          counts=x['sanitized_synthetic_counts']
+          assert counts['forbidden_token_link']==0 and counts['forbidden_code_link']==0
+          assert counts['allowed_token_link']==1 and counts['allowed_code_link']==1
+          assert counts['foreign_key_violations']==0 and counts['reviewed_version_2']==1
+          for k in ('real_customer_data_read','production_oauth_modified','production_tenant_isolation_qualified','release_authority'):
+              assert x[k] is False
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(digest+'  '+p.name+'\n')
+          print('INDEPENDENT_HOSTED_PR77_AFTER_BOTH_CROSSCUSTOMER_DENIALS_PASS_NOT_RELEASE sha256='+digest)
+          PY
+      - name: Preserve counts-only independent evidence even on rejection
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-hosted-independent-crosscustomer-readback-20261108
+          path: |
+            axiom-pr77-independent-crosscustomer-postreadback-20261108.json
+            axiom-pr77-independent-crosscustomer-postreadback-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
