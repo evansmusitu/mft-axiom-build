@@ -1,0 +1,130 @@
+name: MUSITU Corporate Phase03 Isolated Preview Restore Rehearsal
+on:
+  push:
+    branches: [ops/corporate-phase03-recovery-20261108]
+permissions:
+  contents: read
+concurrency:
+  group: musitu-phase03-safe-recovery-preview
+  cancel-in-progress: false
+jobs:
+  preview-restore-rehearsal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Require unchanged production and protected Cloudflare Pages preview policies
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=headers),timeout=20) as r:d=json.load(r)
+            assert d.get('success'),'Cloudflare provider preflight not authorized'
+            return d['result']
+          root='/accounts/'+account
+          project=get(root+'/pages/projects/musitu-corporate')
+          assert project.get('name')=='musitu-corporate'
+          assert project.get('production_branch')=='main'
+          assert 'mftintelligence.com' in project.get('domains',[])
+          prod=[r for r in get(root+'/pages/projects/musitu-corporate/deployments?per_page=10')
+                if r.get('environment')=='production' and (r.get('latest_stage') or {}).get('status')=='success']
+          assert prod and prod[0]['id']=='a2426a81-b0cb-4a46-a90c-493f871c9775'
+          assert any(p['id']=='69ee853a-f0b4-432e-b069-7d6e180fdb4c' for p in prod)
+          apps=get(root+'/access/apps?per_page=100')
+          if isinstance(apps,dict):apps=apps.get('apps') or apps.get('result') or []
+          app=next((a for a in apps if a.get('domain')=='*.musitu-corporate.pages.dev'),None)
+          assert app,'Preview wildcard Access app missing'
+          policies=get(root+'/access/apps/'+app['id']+'/policies?per_page=10')
+          if isinstance(policies,dict):policies=policies.get('policies') or policies.get('result') or []
+          assert policies and all(p.get('decision')=='allow' and
+            p.get('include') and all(set(rule)=={'cloudflare_account_member'} for rule in p['include'])
+            for p in policies),'Preview access not restricted to Cloudflare members'
+          print('PASS: preview-only protection and unchanged production baseline')
+          PY
+      - name: Checkout exact approved pre-release baseline and publication candidate
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch main https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-rehearsal-a
+          test "$(git -C /tmp/musitu-rehearsal-a rev-parse HEAD)" = "a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3"
+          git clone --quiet --depth 1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-rehearsal-b
+          test "$(git -C /tmp/musitu-rehearsal-b rev-parse HEAD)" = "d8e93b564e9012752b4f696c2d26da0f950116a8"
+          for repo in /tmp/musitu-rehearsal-a /tmp/musitu-rehearsal-b; do
+            curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 -o "$repo/corporate/assets/studio-demo-82s.mp4"
+            curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png -o "$repo/corporate/assets/studio-poster.png"
+            printf '%s  %s\n' \
+              'afd6dfd3c73668e544f3a857697fed0abaadccd4927202bb3a185612c2dea0' "$repo/corporate/assets/studio-demo-82s.mp4" \
+              '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' "$repo/corporate/assets/studio-poster.png" | sha256sum -c -
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build both unindexed protected preview artifacts
+        run: |
+          set -euo pipefail
+          ( cd /tmp/musitu-rehearsal-a/corporate && MUSITU_BUILD_MODE=review MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py )
+          ( cd /tmp/musitu-rehearsal-b/corporate && MUSITU_BUILD_MODE=review MUSITU_PROTECTED_STAGING_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 python3 scripts/build.py )
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          for directory,expected in [('/tmp/musitu-rehearsal-a/corporate/dist',34),('/tmp/musitu-rehearsal-b/corporate/dist',49)]:
+            root=Path(directory)
+            m=json.loads((root/'manifest.json').read_text())
+            assert m['build_mode']=='review' and m['route_count']==expected
+            assert m['indexing_enabled'] is False and m['production_approved'] is False
+            assert len(list(root.rglob('index.html')))==expected
+            assert (root/'robots.txt').read_text().endswith('Disallow: /\n')
+            assert not (root/'sitemap.xml').exists()
+            assert all('noindex,nofollow' in p.read_text() for p in root.rglob('index.html'))
+          print('Previous and new exact-source artifacts both noindex and isolated')
+          PY
+      - name: Deploy previous artifact to new Access-protected rehearsal branch (A)
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-rehearsal-a/corporate/dist \
+            --project-name=musitu-corporate --branch=phase03-recovery-lab-20261108 \
+            --commit-hash=a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3 --commit-message="Recovery rehearsal A baseline only"
+      - name: Deploy changed publication candidate to same protected branch (B)
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-rehearsal-b/corporate/dist \
+            --project-name=musitu-corporate --branch=phase03-recovery-lab-20261108 \
+            --commit-hash=d8e93b564e9012752b4f696c2d26da0f950116a8 --commit-message="Recovery rehearsal B changed candidate only"
+      - name: Restore original preview content by exact-source redeployment (A again)
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-rehearsal-a/corporate/dist \
+            --project-name=musitu-corporate --branch=phase03-recovery-lab-20261108 \
+            --commit-hash=a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3 --commit-message="Recovery rehearsal A restored; no production rollback"
+      - name: Verify actual Pages preview A-B-A history, anonymous Access and unchanged production
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          path='/accounts/'+account+'/pages/projects/musitu-corporate/deployments?per_page=10'
+          with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=headers),timeout=20) as r:d=json.load(r)
+          assert d.get('success')
+          rows=d['result']
+          prod=[x for x in rows if x.get('environment')=='production' and (x.get('latest_stage') or {}).get('status')=='success']
+          assert prod and prod[0]['id']=='a2426a81-b0cb-4a46-a90c-493f871c9775','Production baseline changed'
+          prev=[x for x in rows if x.get('environment')=='preview' and
+            (x.get('latest_stage') or {}).get('status')=='success' and
+            ((x.get('deployment_trigger') or {}).get('metadata') or {}).get('branch')=='phase03-recovery-lab-20261108']
+          assert len(prev)>=3,'Missing successful preview restoration history'
+          shas=[((x.get('deployment_trigger') or {}).get('metadata') or {}).get('commit_hash') for x in prev[:3]]
+          assert shas==['a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3','d8e93b564e9012752b4f696c2d26da0f950116a8','a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3'],('Rehearsal sequence not A-B-A',shas)
+          url='https://phase03-recovery-lab-20261108.musitu-corporate.pages.dev/'
+          with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'MUSITU-Rehearsal-Access-Audit'}),timeout=20) as res:
+            assert 'cloudflareaccess.com' in res.url,'Anonymous preview exposed'
+          print('PASS isolated preview A/B/A redeployment recovery. Successful deployment IDs:',[d['id'] for d in prev[:3]])
+          print('PASS production unchanged, anonymous Access gate enforced')
+          print('NOTE: NOT a production rollback API execution, no field RTO, no manual accessibility or security certification')
+          PY
