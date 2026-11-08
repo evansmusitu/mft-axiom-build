@@ -1,0 +1,91 @@
+name: AXIOM staging D1 post-rollback independent readback 20261108 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-postrollback-readback-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-postrollback-readback-20261108
+  cancel-in-progress: false
+jobs:
+  postrollback-no-mutating-probe:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-postrollback-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-hosted-synthetic-rollback-live-20261108' && github.event.pull_request.base.sha == '7c3922dec349d4fab764fd288bff753aed137bf7' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 7c3922dec349d4fab764fd288bff753aed137bf7
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Enforce immutable read-only source and synthetic regression tests BEFORE credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 7c3922dec349d4fab764fd288bff753aed137bf7
+          test "$(git hash-object customer_frontier/qualification/ccc_current_catalog_audit.py)" = 34fab291033cde14e13efdd9e87bd5e8d5d16100
+          test "$(git hash-object customer_frontier/tests/test_ccc_current_catalog_audit.py)" = 251c15962293cdbf346e7929194373b51e3ce6b8
+          python3 -m unittest discover -s customer_frontier/tests -p test_ccc_current_catalog_audit.py -v
+      - name: Fresh independent exact D1 catalog and current Workers/Pages readback, one SELECT zero writes
+        env:
+          AXIOM_CHECKOUT_SHA: 7c3922dec349d4fab764fd288bff753aed137bf7
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/ccc_current_catalog_audit.py
+      - name: Admit no new D1 changes and no current binding
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('ccc-current-catalog-audit.json').read_text())
+          assert d['status']=='CURRENT_CATALOG_AND_BINDINGS_OBSERVED' and d['errors']==[] and d['references']==[]
+          assert d['query_count']==1 and d['query_zero_writes_confirmed']==1 and d['provider_query_mutations']==0
+          assert d['workers']['status']=='OBSERVED_LISTED_SCRIPTS_AND_ENVIRONMENTS'
+          assert d['pages']['status']=='OBSERVED_CURRENT_CONFIGS'
+          assert d['catalogs']['ccc473f1-fbb5-4b8d-8a24-45f3696ac10f']['catalog_sha256']=='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'
+          assert len(d['catalogs']['ccc473f1-fbb5-4b8d-8a24-45f3696ac10f']['objects'])==78
+          assert d['target_admitted'] is False and d['release_authority'] is False
+          print('POSTROLLBACK_FRESH_D1_SCHEMA_AND_CURRENT_BINDINGS_STABLE_NOT_RELEASE')
+          PY
+      - name: Check exact removed temporary Worker settings GET 404 after prior workflow exit
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          class DenyRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**kw):return None
+          endpoint='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/workers/scripts/axiom-ccc-rollback-20261108-01/settings'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token:raise SystemExit('MISSING_OPERATOR_TOKEN')
+          req=urllib.request.Request(endpoint,headers={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-PostRollback-ReadOnly/1'},method='GET')
+          opener=urllib.request.build_opener(DenyRedirect)
+          code=None
+          try:
+              with opener.open(req,timeout=20) as response:code=response.status
+          except urllib.error.HTTPError as e:
+              code=e.code
+          rec={'schema':'musitu.axiom.ccc_postrollback_readonly_worker_absence.v1','worker_settings_http_status':code,
+               'worker_absent_verified':code==404,'request_count':1,'method':'GET',
+               'd1_queries':0,'mutations':0,'customer_records_read':0,'production_oauth_changed':False,
+               'full_hosted_restore_qualified':False,'release_authority':False}
+          raw=(json.dumps(rec,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('ccc-postrollback-worker-absence.json')
+          p.write_bytes(raw)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
+          print(json.dumps(rec,sort_keys=True))
+          if code!=404:raise SystemExit('TEMPORARY_WORKER_ABSENCE_NOT_CONFIRMED')
+          PY
+      - name: Retain independently observed post-rollback receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-ccc-postrollback-independent-readback-20261108
+          path: |
+            ccc-current-catalog-audit.json
+            ccc-current-catalog-audit.json.sha256
+            ccc-postrollback-worker-absence.json
+            ccc-postrollback-worker-absence.json.sha256
+          if-no-files-found: warn
+          retention-days: 30
