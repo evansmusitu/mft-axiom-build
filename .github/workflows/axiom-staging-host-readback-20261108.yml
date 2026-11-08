@@ -1,0 +1,60 @@
+name: AXIOM independent staging Custom Domain and HTTPS readback (NO MUTATIONS)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-staging-host-independent-readback-20261108' &&
+      github.base_ref == 'build/axiom-stage-host-oneuse-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read-only same-repository checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify immutable SHA256 and run 7 deny-by-default tests with NO credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          echo '6b2e809f639642f9099f60997d7ec7aeb8e4d9bd9a3942d56ce82eda8edb0a7f  customer_frontier/qualification/verify_stage_host.py' | sha256sum -c -
+          echo 'a9672634b4ffca1cd5d44ec8d67facbc60638662f2c4e69fd8506bf2d1e827e9  customer_frontier/qualification/test_verify_stage_host.py' | sha256sum -c -
+          python3 -m py_compile customer_frontier/qualification/verify_stage_host.py customer_frontier/qualification/test_verify_stage_host.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_verify_stage_host.py)
+      - name: GET-only Cloudflare identity/staging HTTP verification
+        id: readback
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/verify_stage_host.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          test -f axiom-staging-host-readback.json || exit 3
+          exit 0
+      - name: Archive read-only exact-host receipt and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-host-independent-readback-20261108
+          path: |
+            axiom-staging-host-readback.json
+            axiom-staging-host-readback.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Preserve NO-GO on missing HTTPS/certificate or auth denial
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.readback.outputs.exit_code }}" = 0
