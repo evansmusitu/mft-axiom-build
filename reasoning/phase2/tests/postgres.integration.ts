@@ -880,6 +880,20 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
   // A temporary CI-only identity: no table ownership, no role inheritance,
   // no schema CREATE, and only explicit RPC execution rights.
   await admin.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+  const functions=await admin.query(`SELECT p.proname,p.prosecdef,p.proconfig
+    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace=n.oid
+    WHERE n.nspname='axiom_spend' AND p.proname IN ('reserve','settle')
+    ORDER BY p.proname`);
+  assert.deepEqual(functions.rows.map((x:any)=>x.proname),['reserve','settle']);
+  assert.ok(functions.rows.every((x:any)=>x.prosecdef===true &&
+    String(x.proconfig).replace(/\\s+/g,'').includes('search_path=pg_catalog,pg_temp')));
+  const deniedPublic=await admin.query(`SELECT
+    has_function_privilege('axiom_spend_runtime_ci',
+      'axiom_spend.reserve(text,text,text,text,text,bigint,text)','EXECUTE') AS reserve_execution,
+    has_function_privilege('axiom_spend_runtime_ci',
+      'axiom_spend.settle(text,text,text,text,text,bigint,text,text)','EXECUTE') AS settle_execution`);
+  assert.deepEqual(deniedPublic.rows,[{reserve_execution:false,settle_execution:false}],
+    'the ungranted runtime must not inherit PUBLIC function execution');
   let caller:InstanceType<typeof Pool>|undefined;
   try{
     await admin.query('GRANT USAGE ON SCHEMA axiom_spend TO axiom_spend_runtime_ci');
@@ -953,6 +967,32 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     await assert.rejects(()=>caller!.query(
       'SELECT charged_micro_usd FROM public.axiom_provider_spend_budgets LIMIT 1'),
       (e:any)=>e.code==='42501');
+    // Two independent restricted PostgreSQL pools contend on the SAME vendor/
+    // tenant rows. This is stronger than concurrent calls through one pool.
+    const contenderPool=new Pool({host:process.env.PGHOST??'postgres',
+      port:Number(process.env.PGPORT??5432),database:'axiom_spend_isolated_ci',
+      user:'axiom_spend_runtime_ci',password:'ci-disposable-not-production',
+      max:2,connectionTimeoutMillis:2000});
+    try{
+      const contender=new ax.ProtectedPostgresProviderSpendLedger(contenderPool);
+      const a={tenantId:tenant.tenantId,provider,modelId,billingProvider:'openai',
+        requestId:'protected-race-a',requestHash:'1'.repeat(64),reserveMicroUsd:60};
+      const b={...a,requestId:'protected-race-b',requestHash:'2'.repeat(64)};
+      const outcomes=await Promise.allSettled([protectedLedger.reserve(a),contender.reserve(b)]);
+      assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);
+      const failure=outcomes.find(x=>x.status==='rejected') as PromiseRejectedResult|undefined;
+      assert.equal(failure?.reason?.code,'BUDGET_EXCEEDED');
+      assert.equal((await operator.status(tenant,provider,modelId)).reservedMicroUsd,60);
+      const winner=outcomes[0].status==='fulfilled'?a:b;
+      await assert.rejects(()=>protectedLedger.settle({...winner,chargeMicroUsd:100,
+        responseHash:'3'.repeat(64)}),(e:any)=>e?.code==='BUDGET_PROVIDER_OVERAGE');
+      assert.deepEqual(await operator.status(tenant,provider,modelId),{
+        limitMicroUsd:500,chargedMicroUsd:525,reservedMicroUsd:0,availableMicroUsd:0
+      });
+      await assert.rejects(()=>contender.reserve({...winner,requestId:'after-overage',
+        requestHash:'4'.repeat(64),reserveMicroUsd:1}),
+        (e:any)=>e?.code==='BUDGET_ORGANIZATION_SUSPENDED');
+    }finally{await contenderPool.end();}
   }finally{
     if(caller)await caller.end();
     await admin.query('DROP OWNED BY axiom_spend_runtime_ci');
