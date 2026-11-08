@@ -1,0 +1,75 @@
+name: AXIOM account-token zone authorization diagnosis GET only
+on:
+  push:
+    branches: [ops/axiom-cf-account-token-permission-readonly-20261108]
+    paths: [.github/workflows/axiom-cf-account-token-permission-readonly.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect only exact account token and zone provider GET responses, no secrets printed
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          ZONE='5b56528f03948ff5917a5e0cd9f7109e'
+          RULESET='8e8a2552a8ee4bb383abbe0d748e1da5'
+          t=os.environ.get('TOKEN','')
+          if not t:raise SystemExit('SECRET_NOT_PRESENT')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          def get(p):
+            request=urllib.request.Request('https://api.cloudflare.com/client/v4'+p,method='GET',
+                headers={'authorization':'Bearer '+t,'accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(request,timeout=15) as r:
+                status=r.status;data=r.read(24001)
+            except urllib.error.HTTPError as e:
+              status=e.code;data=e.read(24001)
+            except (OSError,TimeoutError,ValueError):
+              return {'http':'TRANSPORT_UNKNOWN','success':False,'error_codes':[]},None
+            try:d=json.loads(data)
+            except (ValueError,UnicodeError):d={}
+            es=d.get('errors',[])
+            codes=[x['code'] for x in es[:4] if isinstance(x,dict) and isinstance(x.get('code'),int)] if isinstance(es,list) else []
+            return {'http':status,'success':d.get('success') is True,'error_codes':codes},d.get('result')
+          check,token=get('/accounts/'+ACCOUNT+'/tokens/verify')
+          out={'kind':'AXIOM_ACCOUNT_TOKEN_EXACT_ZONE_PERMISSION_READONLY','account_token_verified':check,
+               'zone_read':None,'ruleset_read':None,'token_details':None,
+               'cloudflare_reads':0,'cloudflare_writes':0,'production_oauth_touched':False}
+          out['cloudflare_reads']+=1
+          out['zone_read'],_=get('/zones/'+ZONE);out['cloudflare_reads']+=1
+          out['ruleset_read'],_=get('/zones/'+ZONE+'/rulesets/'+RULESET);out['cloudflare_reads']+=1
+          if check['success'] and isinstance(token,dict) and isinstance(token.get('id'),str) and re.fullmatch(r'[a-f0-9]{32}',token['id']):
+            m,detail=get('/accounts/'+ACCOUNT+'/tokens/'+token['id'])
+            out['cloudflare_reads']+=1
+            out['token_details']=m
+            if m['success'] and isinstance(detail,dict) and isinstance(detail.get('policies'),list):
+              out['token_policy_count']=len(detail['policies'])
+              out['token_resource_scope_count']=sum(len(p.get('resources',{})) for p in detail['policies'] if isinstance(p,dict) and isinstance(p.get('resources'),dict))
+          b=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-account-config-zone-permissions-readonly.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('CLOUDFLARE_ACCOUNT_CONFIG_PERMISSION_STATUS_CHECK_GET_ONLY')
+          PY
+      - name: Preserve redacted permissions status with digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-account-token-exact-zone-permission-readonly-20261108
+          path: |
+            axiom-account-config-zone-permissions-readonly.json
+            axiom-account-config-zone-permissions-readonly.json.sha256
+          if-no-files-found: error
+          retention-days: 7
