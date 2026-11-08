@@ -1,0 +1,80 @@
+name: AXIOM PR77 synthetic D1 independent read-only reconciliation after one create 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-synthetic-d1-readback-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-synthetic-d1-readback-20261108, cancel-in-progress: false}
+jobs:
+  read-only-one-created-database-and-preserved-recovery-copy:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-d1-independent-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-synthetic-only-d1-create-20261108' && github.event.pull_request.base.sha == '5e6f3d6a55fb4c41fc27c2a199b1836514ec1bf5' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET only full D1 list and individual exact source and synthetic target metadata
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database'
+          PRESERVED_ID='e36972b3-850d-4273-b934-2fa67587d9f1'
+          PRESERVED_NAME='axiom-disposable-dr-target-20261108'
+          TARGET_NAME='axiom-pr77-synthetic-only-20261108'
+          TOKEN=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          out={'schema':'musitu.axiom.pr77_synthetic_d1_readback.v1','account_id':ACCOUNT,'status':'UNQUALIFIED','target_name':TARGET_NAME,'target_id':None,'target_metadata_confirmed':False,'preserved_d1_metadata_confirmed':False,'returned_count':None,'reported_total_count':None,'provider_inventory_count_consistent':False,'unrecognized_db_count':None,'d1_writes':0,'worker_writes':0,'release_authority':False}
+          class Rejected(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*a,**kw):return None
+          OPENER=urllib.request.build_opener(NoRedirect())
+          def get(path):
+           if not TOKEN or '\n' in TOKEN or '\r' in TOKEN:raise Rejected('CREDENTIAL_UNAVAILABLE')
+           if path!='?page=1&per_page=100' and not re.fullmatch(r'/[0-9a-f-]{36}',path):raise Rejected('PATH_NOT_ALLOWED')
+           request=urllib.request.Request(ROOT+path,method='GET',headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','User-Agent':'AXIOM-PR77-D1-IndependentReadbackOnly-20261108'})
+           try:
+            with OPENER.open(request,timeout=20) as r:
+             code=r.status;raw=r.read(130001)
+           except (urllib.error.URLError,OSError,TimeoutError):raise Rejected('PROVIDER_GET_UNAVAILABLE')
+           if code!=200 or len(raw)>130000:raise Rejected('PROVIDER_STATUS_OR_SIZE_INVALID')
+           try:val=json.loads(raw)
+           except Exception:raise Rejected('PROVIDER_JSON_INVALID')
+           if not isinstance(val,dict) or val.get('success') is not True:raise Rejected('PROVIDER_GET_REJECTED')
+           return val
+          try:
+           listing=get('?page=1&per_page=100')
+           result=listing.get('result');info=listing.get('result_info')
+           if not isinstance(result,list) or not isinstance(info,dict):raise Rejected('D1_LIST_ENVELOPE_INVALID')
+           out['returned_count']=len(result)
+           out['reported_total_count']=info.get('total_count') if type(info.get('total_count')) is int else None
+           out['provider_inventory_count_consistent']=out['reported_total_count']==len(result)
+           safe=[x for x in result if isinstance(x,dict) and x.get('name') in (PRESERVED_NAME,TARGET_NAME) and re.fullmatch(r'[0-9a-f-]{36}',str(x.get('uuid','')))]
+           out['unrecognized_db_count']=len(result)-len(safe)
+           if len(safe)!=2 or out['unrecognized_db_count']!=0 or len(result)!=2:raise Rejected('EXPECTED_TWO_DB_NAMES_NOT_FOUND_IN_RETURNED_PAGE')
+           src=[x for x in safe if x['name']==PRESERVED_NAME]
+           dst=[x for x in safe if x['name']==TARGET_NAME]
+           if len(src)!=1 or src[0]['uuid']!=PRESERVED_ID or len(dst)!=1 or dst[0]['uuid']==PRESERVED_ID:raise Rejected('EXACT_RESOURCE_NAMES_OR_UUIDS_INVALID')
+           target_id=dst[0]['uuid']
+           for kind,uid,expected in [('preserved',PRESERVED_ID,PRESERVED_NAME),('target',target_id,TARGET_NAME)]:
+            detail=get('/'+uid).get('result')
+            if not isinstance(detail,dict) or detail.get('uuid')!=uid or detail.get('name')!=expected:raise Rejected('RESOURCE_METADATA_MISMATCH_'+kind)
+            out[kind+'_d1_metadata_confirmed' if kind=='preserved' else 'target_metadata_confirmed']=True
+           out['target_id']=target_id
+           out['status']='TARGET_AND_PRESERVED_METADATA_VERIFIED_TWO_IN_PAGE' if out['provider_inventory_count_consistent'] else 'TARGET_AND_PRESERVED_VERIFIED_INVENTORY_COUNTER_UNQUALIFIED'
+          except Rejected as e:out['reason_code']=str(e)
+          except Exception:out['reason_code']='UNKNOWN_READBACK_ERROR'
+          Path('axiom-pr77-synthetic-d1-independent-readback-20261108.json').write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          if not(out['target_metadata_confirmed'] and out['preserved_d1_metadata_confirmed'] and out['returned_count']==2 and out['unrecognized_db_count']==0):raise SystemExit(1)
+          
+          PY
+      - name: Archive safe read-only actual Cloudflare resource proof
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-synthetic-d1-independent-readback-20261108
+          path: axiom-pr77-synthetic-d1-independent-readback-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
