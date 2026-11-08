@@ -1,0 +1,33 @@
+name: AXIOM staging D1 synthetic rollback offline proof 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-hosted-rollback-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-hosted-rollback-offline-20261108
+  cancel-in-progress: false
+jobs:
+  synthetic-atomic-deny-gate:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-hosted-synthetic-rollback-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-current-backup-live-20261108' && github.event.pull_request.base.sha == '03e3bdfddf9681518e55f028dd280199ac659cc8' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: abdf00c692e4597d0489cc597522c58b0f63da56
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Validate immutable Worker/driver/tests source blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = abdf00c692e4597d0489cc597522c58b0f63da56
+          test "$(git hash-object customer_frontier/qualification/ccc_synthetic_rollback_worker_20261108.mjs)" = 345d66ad33293ef34038c3cd91b81e760728d94a
+          test "$(git hash-object customer_frontier/qualification/run_ccc_hosted_synthetic_rollback_20261108.mjs)" = 6e86c436d91d54c2fb4baaa2c6fd5f3f9d88bdf0
+          test "$(git hash-object customer_frontier/tests/ccc_hosted_synthetic_rollback_20261108.test.mjs)" = c8072ef08559a38d1b321bc2785119607fe294fb
+          node --check customer_frontier/qualification/ccc_synthetic_rollback_worker_20261108.mjs
+          node --check customer_frontier/qualification/run_ccc_hosted_synthetic_rollback_20261108.mjs
+          node --check customer_frontier/tests/ccc_hosted_synthetic_rollback_20261108.test.mjs
+      - name: Adversarial D1 rollback, missing constraint, auth and no data-read tests (OFFLINE)
+        run: node --test customer_frontier/tests/ccc_hosted_synthetic_rollback_20261108.test.mjs
