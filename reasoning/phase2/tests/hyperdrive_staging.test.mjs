@@ -13,7 +13,7 @@ function fakeClient(row, options={}) {
   }};
 }
 const env={HYPERDRIVE:{connectionString:'postgresql://worker@hyperdrive.invalid/axiom_phase2_stage'},EXPECTED_DATABASE:'axiom_phase2_stage',EXPECTED_ROLE:'axiom_stage_runtime'};
-const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false,privileged_role_membership:false,billing_table_owner_member:false,direct_billing_dml_authority:false,direct_billing_select_authority:false};
+const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false,privileged_role_membership:false,billing_table_owner_member:false,direct_billing_dml_authority:false,direct_billing_select_authority:false,protected_rpc_present:true,protected_rpc_definers_safe:true,protected_rpc_grants_safe:true,protected_rpc_schema_safe:true};
 
 test('requires Hyperdrive binding, not an arbitrary public database URL', async()=>{
   await assert.rejects(()=>inspectStagingHyperdrive({...env,HYPERDRIVE:undefined,DATABASE_URL:'postgres://unsafe'},fakeClient(completeRow).create),/STAGING_HYPERDRIVE_MISSING/);
@@ -166,4 +166,54 @@ test('readiness query audits table and column SELECT rights against all protecte
   assert.match(sql,/has_any_column_privilege\(current_user,billing.table_oid,'SELECT'\)/);
   for(const table of ['axiom_provider_spend_budgets','axiom_provider_spend_organizations','axiom_provider_spend_requests'])
     assert.ok(sql.includes(table),table);
+});
+
+test('refuses absent protected spending function signatures',async()=>{
+  for(const value of [false,null]){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,protected_rpc_present:value}).create),
+      /STAGING_PROTECTED_RPC_INVALID/
+    );
+  }
+});
+test('refuses untrusted definer role or unsafe function search path',async()=>{
+  for(const value of [false,null]){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,protected_rpc_definers_safe:value}).create),
+      /STAGING_PROTECTED_RPC_INVALID/
+    );
+  }
+});
+test('refuses PUBLIC EXECUTE or missing direct restricted-role function access',async()=>{
+  for(const value of [false,null]){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,protected_rpc_grants_safe:value}).create),
+      /STAGING_PROTECTED_RPC_INVALID/
+    );
+  }
+});
+test('refuses absent protected-schema USAGE or runtime CREATE access',async()=>{
+  for(const value of [false,null]){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,protected_rpc_schema_safe:value}).create),
+      /STAGING_PROTECTED_RPC_INVALID/
+    );
+  }
+});
+test('readiness SQL attests exact signatures, definer, role, search path and PUBLIC ACL',async()=>{
+  const client=fakeClient(completeRow);
+  await inspectStagingHyperdrive(env,client.create);
+  const sql=client.traces.find(x=>x[0]==='query')[1];
+  for(const field of ['protected_rpc_present','protected_rpc_definers_safe','protected_rpc_grants_safe','protected_rpc_schema_safe'])
+    assert.ok(sql.includes('AS '+field),field);
+  assert.match(sql,/to_regprocedure\('axiom_spend\.reserve\(text,text,text,text,text,bigint,text\)'\)/);
+  assert.match(sql,/to_regprocedure\('axiom_spend\.settle\(text,text,text,text,text,bigint,text,text\)'\)/);
+  assert.match(sql,/p\.prosecdef/);
+  assert.match(sql,/NOT\s+o\.rolcanlogin/);
+  assert.match(sql,/pg_has_role\(o\.oid,'MEMBER'\)/);
+  assert.match(sql,/search_path=pg_catalog,pg_temp/);
+  assert.match(sql,/aclexplode\(/);
+  assert.match(sql,/acl\.grantee\s*=\s*0/);
+  assert.match(sql,/has_function_privilege\(current_user,p\.oid,'EXECUTE'\)/);
+  assert.match(sql,/has_schema_privilege\(current_user,'axiom_spend','CREATE'\)/);
 });
