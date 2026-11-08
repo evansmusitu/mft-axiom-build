@@ -489,3 +489,34 @@ test("production admission rejects SQLite and administrator PostgreSQL paid ledg
     assert.equal(providerCalls,0,"registration is never permission for upstream network access");
   }finally{sqlite.close();await pgPool.end();}
 });
+
+
+test("trusted accounting ledger constructor verifier cannot be overwritten to bless fake spending",()=>{
+  let calls=0,accounting=0;
+  const fakeLedger={
+    reserve(){accounting++;},settle(){accounting++;}
+  };
+  const raw={
+    manifest:manifest("openai"),
+    async invoke(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+    async explain(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+  };
+  const register=(ledger:any)=>new phase2.BudgetedModelProviderAdapter({
+    adapter:raw,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+  for(const ledgerClass of [phase2.SqliteProviderSpendLedger,
+    phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    const ctor=ledgerClass as any,original=ctor.isAuthenticLedger;
+    try {
+      try{ctor.isAuthenticLedger=()=>true;}catch{}
+      assert.equal(ctor.isAuthenticLedger,original,
+        "class-level trust verification must not be replaceable after module initialization");
+      assert.throws(()=>register(fakeLedger),/trusted|ledger|budget/i,
+        "a fake ledger may never be admitted by a forged class trust check");
+    }finally{
+      if(ctor.isAuthenticLedger!==original)ctor.isAuthenticLedger=original;
+    }
+  }
+  assert.equal(calls,0,"no paid provider traffic from a fake ledger");
+  assert.equal(accounting,0,"fake billing hooks must not run");
+});
