@@ -1,0 +1,31 @@
+name: AXIOM PR77 Cloudflare managed catalog regression red green (NO TOKENS) 20261108
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - '.github/workflows/axiom-pr77-cloudflare-managed-catalog-tdd-20261108.yml'
+      - 'customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py'
+      - 'customer_frontier/qualification/test_pr77_cf_managed_catalog_20261108.py'
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-cloudflare-managed-catalog-tdd-20261108, cancel-in-progress: false}
+jobs:
+  baseline-red-then-green-with-same-test:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-cf-managed-catalog-tdd-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-hosted-crosscustomer-denial-live-20261108' && github.event.pull_request.base.sha == '6f4c94910c7e0eab9aa1b173ef53b7c749f91485' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Test only old and corrected PR77 source against Cloudflare system metadata fake
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py customer_frontier/qualification/test_pr77_cf_managed_catalog_20261108.py
+          test -z "${AXIOM_CUSTOMER_STAGING_CF_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          python3 -m unittest discover -s customer_frontier/qualification -p test_pr77_cf_managed_catalog_20261108.py -v
+      - name: Existing seven negative tests must remain green
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_pr77_synthetic_crosscustomer_denials_20261108.py -v
