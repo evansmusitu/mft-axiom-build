@@ -38,7 +38,7 @@ jobs:
         with:
           name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_20261108
           path: /tmp/axiom-whole-product/
-          include-hidden-files: false
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
           compression-level: 6
