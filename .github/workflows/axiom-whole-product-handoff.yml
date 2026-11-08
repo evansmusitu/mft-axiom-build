@@ -1,0 +1,39 @@
+name: AXIOM whole-product PUBLIC-only new-chat continuation archive
+on:
+  push:
+    branches:
+      - handoff/whole-product-20261108-1223
+    paths:
+      - handoff/build_whole_product.py
+      - .github/workflows/axiom-whole-product-handoff.yml
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+concurrency:
+  group: axiom-public-whole-product-handoff
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AXIOM_OUTPUT: /tmp/axiom-whole-product
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Build reproducible public-only source bundle, pinned trees and handoff
+        run: python3 handoff/build_whole_product.py
+      - name: Preserve clean whole-product ZIP as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_20261108
+          path: /tmp/axiom-whole-product/
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
