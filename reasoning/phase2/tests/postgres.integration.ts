@@ -885,6 +885,11 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     caller=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
       database:'axiom_spend_isolated_ci',user:'axiom_spend_runtime_ci',
       password:'ci-disposable-not-production',max:2,connectionTimeoutMillis:2000});
+    assert.equal(typeof ax.ProtectedPostgresProviderSpendLedger,'function',
+      'restricted runtime must have a trusted SQL-RPC-only ledger implementation');
+    const protectedLedger=new ax.ProtectedPostgresProviderSpendLedger(caller);
+    assert.equal(ax.ProtectedPostgresProviderSpendLedger.isAuthenticLedger(protectedLedger),true);
+    assert.throws(()=>new ax.ProtectedPostgresProviderSpendLedger({connect:async()=>{}}),/PostgreSQL Pool/i);
     const grants=await caller.query(`SELECT
       has_table_privilege(current_user,'public.axiom_provider_spend_budgets','UPDATE,INSERT,DELETE,TRUNCATE') AS budget_dml,
       has_table_privilege(current_user,'public.axiom_provider_spend_organizations','UPDATE,INSERT,DELETE,TRUNCATE') AS org_dml,
@@ -909,6 +914,12 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     });
     const repeat=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
     assert.equal(repeat.rows[0].verdict,'BUDGET_ALREADY_SETTLED');
+    await protectedLedger.reserve({tenantId:tenant.tenantId,provider,modelId,
+      billingProvider:'openai',requestId:'protected-ledger',requestHash:'c'.repeat(64),reserveMicroUsd:100});
+    await protectedLedger.settle({tenantId:tenant.tenantId,provider,modelId,
+      billingProvider:'openai',requestId:'protected-ledger',requestHash:'c'.repeat(64),
+      chargeMicroUsd:25,responseHash:'d'.repeat(64)});
+    assert.equal((await operator.status(tenant,provider,modelId)).chargedMicroUsd,225);
   }finally{
     if(caller)await caller.end();
     await admin.query('DROP OWNED BY axiom_spend_runtime_ci');
