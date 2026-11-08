@@ -1,0 +1,70 @@
+name: AXIOM owner-only one-use staging Cloudflare configuration exception
+
+on:
+  push:
+    branches:
+      - ops/axiom-staging-config-owner-once-20261108-r2
+    paths:
+      - .github/workflows/axiom-staging-config-owner-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-owner-approved-stage-config-single-write-20261108
+  cancel-in-progress: false
+
+jobs:
+  host-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-staging-config-owner-once-20261108-r2' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.event.head_commit.message == 'ops(staging): owner-only one-shot Cloudflare host configuration gate (NOT RELEASE)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read exact owner-controlled source with no persisted GitHub token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Pin two reviewed Git objects and execute all 11 tests BEFORE exposing either secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+          test "$(git hash-object customer_frontier/qualification/staging_override_newtoken.py)" = '4357e5003e00131604ef1375a54fd0ef67b4e154'
+          test "$(git hash-object customer_frontier/qualification/test_staging_override_newtoken.py)" = 'aaa3ea2654786a0a52c386e56a904fd44722221c'
+          python3 -m py_compile customer_frontier/qualification/staging_override_newtoken.py customer_frontier/qualification/test_staging_override_newtoken.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_staging_override_newtoken.py)
+      - name: Read-only staging preflight, owner-approved dry-run and at most one Config Rules PUT
+        id: provider
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/staging_override_newtoken.py
+          code=$?
+          echo "status=$code" >> "$GITHUB_OUTPUT"
+          test -f axiom-staging-configuration-oneuse.json || exit 3
+          exit 0
+      - name: Preserve redacted receipt and detached SHA-256, including denied runs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-cloudflare-ownerscoped-oneuse-20261108
+          path: |
+            axiom-staging-configuration-oneuse.json
+            axiom-staging-configuration-oneuse.json.sha256
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Fail closed when Cloudflare or HTTPS verification fails
+        if: always()
+        run: |
+          set -euo pipefail
+          test "${{ steps.provider.outputs.status }}" = 0
