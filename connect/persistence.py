@@ -436,6 +436,11 @@ class RunStore:
             digest=str(sealed_canonical_sha256).lower()
             if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
                 raise ValueError("sealed_canonical_sha256_invalid")
+            # A supplied hash is an optimization hint, not authority. A changed
+            # in-memory row or forged digest must be rejected before any run,
+            # audit, or checkpoint row can be committed.
+            if digest != self.canonical_sha256(run_id, envelope):
+                raise ValueError("sealed_canonical_sha256_mismatch")
         existing=self._existing_or_conflict(
             run_id=run_id,
             connector_name=connector_name,
