@@ -1,0 +1,128 @@
+name: AXIOM PR77 exact 89-statement synthetic fixture and alternate Workers scope GET 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-workers-scope-fixture-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-workers-scope-fixture-20261108, cancel-in-progress: false}
+jobs:
+  exact-auth-source-fixture-no-secret:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-worker-scope-and-synthetic-fixture-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-cloudflare-alt-account-worker-readonly-20261108' && github.event.pull_request.base.sha == '38ac6f28a8337b84d44c67dea226f946aba9fd38' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Admit four exact PR77 source blobs before extracting synthetic-only test fixture
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          test "$(git hash-object auth/oauth_identity_upgrade_v2.py)" = 67887fd5b6d5f97bc07326a04e2038db97f7206c
+          test "$(git hash-object auth/oauth_identity_v1_trigger_manifest.json)" = 2ac6c77d0a35f04ebf278d88b6eeaaa104727d55
+          test "$(git hash-object auth/keyless_customer_link_candidate.sql)" = cb240ee7d7f1069b2a465eadf6ed2c56099d2663
+          test "$(git hash-object auth/keyless_token_revocation_candidate.sql)" = 800087038986382060f4d37c8d79d17db165b839
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_CUSTOMER_STAGING_CF_API_TOKEN:-}"
+          echo "EXACT_PR77_PUBLIC_SOURCE_4_BLOBS_VERIFIED"
+      - name: Generate exact SQL plan plus ONLY test fixture, replay in memory, no Cloudflare token
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import sys,sqlite3,json,re,hashlib
+          sys.path.insert(0,'customer_frontier/tests')
+          from test_oauth_identity_upgrade import migration, fixture, link
+          p=migration.build_plan()
+          assert p['plan_sha256']=='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'
+          assert len(p['statements'])==89
+          db=fixture(old=False)
+          link(db,'token','key-a')
+          link(db,'code','code-a')
+          dump='\n'.join(db.iterdump())
+          buf='';groups={'table':[],'index':[],'insert':[],'trigger':[]}
+          for line in dump.splitlines(keepends=True):
+              buf+=line
+              if not sqlite3.complete_statement(buf):continue
+              statement=buf.strip();buf=''
+              if statement in ('BEGIN TRANSACTION;','COMMIT;'):continue
+              if statement.startswith('CREATE TABLE'):groups['table'].append(statement)
+              elif statement.startswith(('CREATE INDEX','CREATE UNIQUE INDEX')):groups['index'].append(statement)
+              elif statement.startswith('INSERT INTO'):groups['insert'].append(statement)
+              elif statement.startswith('CREATE TRIGGER'):groups['trigger'].append(statement)
+              else:raise ValueError('UNKNOWN_SYNTHETIC_SEED_SQL')
+          assert not buf.strip()
+          priority=['customers','api_keys','oauth_authorization_codes','oauth_access_tokens','oauth_refresh_tokens','oauth_identity_links','oauth_identity_token_links','oauth_identity_code_links']
+          def rank(s):
+              m=re.match(r'INSERT INTO ["`]?([A-Za-z_][A-Za-z0-9_]*)',s)
+              assert m and m.group(1) in priority
+              return priority.index(m.group(1))
+          groups['insert'].sort(key=rank)
+          seed=[s for group in ('table','index','insert','trigger') for s in groups[group]]
+          assert len(seed)<=45 and len(seed)>20
+          fresh=sqlite3.connect(':memory:',isolation_level=None)
+          fresh.execute('PRAGMA foreign_keys=ON')
+          fresh.executescript('BEGIN;\n'+'\n'.join(seed)+'\nCOMMIT;')
+          assert fresh.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+          assert fresh.execute('SELECT count(*) FROM pragma_foreign_key_check').fetchone()[0]==0
+          migration.upgrade(fresh)
+          assert fresh.execute('SELECT count(*) FROM oauth_identity_schema_versions').fetchone()[0]==1
+          safe={'schema':'musitu.axiom.pr77_exact_synthetic_fixture.v1','status':'SYNTHETIC_FIXTURE_RAM_SQLITE_ONLY_PASS','source_commit':'4bb938d679a384cc2e499c09569a55c6b880a5fb','plan_statements':len(p['statements']),'plan_sha256':p['plan_sha256'],'seed_statements':len(seed),'seed_statement_groups':{k:len(v) for k,v in groups.items()},'real_customer_rows_used':False,'cloudflare_requests':0,'worker_deployed':False,'release_authority':False}
+          for danger in ('504029cc-f9a5-495e-818f-63c6144b4ea4','c954f0c842a486d0388c05b19cd21e47'):
+              assert danger not in json.dumps({'seed':seed,'plan':p['statements']})
+          with open('axiom-pr77-synthetic-source-preflight-20261108.json','w') as f:json.dump(safe,f,indent=2,sort_keys=True)
+          print(json.dumps(safe,sort_keys=True))
+          PY
+      - name: Preserve safe synthetic counts only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-reviewed-synthetic-fixture-counts-20261108
+          path: axiom-pr77-synthetic-source-preflight-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
+  worker-api-readonly-authorization:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-worker-scope-and-synthetic-fixture-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-cloudflare-alt-account-worker-readonly-20261108' && github.event.pull_request.base.sha == '38ac6f28a8337b84d44c67dea226f946aba9fd38' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: GET only list existing Workers from owner alternate account, never create
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          from pathlib import Path
+          acc='c954f0c842a486d0388c05b19cd21e47'
+          token=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          out={'schema':'musitu.axiom.pr77_workers_readonly_scope.v1','account_id':acc,'status':'UNQUALIFIED','workers_list_http':None,'workers_list_visible':False,'subdomain_http':None,'worker_edit_scope_verified':False,'d1_mutations':0,'worker_mutations':0,'release_authority':False}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          try:
+            if not token:raise ValueError('SECRET_MISSING')
+            for kind,path in [('workers_list','/workers/scripts'),('subdomain','/workers/subdomain')]:
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+acc+path,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'AXIOM-PR77-WorkerReadOnlyScope/1.0'})
+              try:
+                with opener.open(req,timeout=15) as r:
+                  code=r.status;raw=r.read(200001)
+                  data=json.loads(raw) if len(raw)<=200000 else None
+              except urllib.error.HTTPError as e:
+                code=e.code;data=None
+              out[kind+'_http']=code
+              if kind=='workers_list':out['workers_list_visible']=code==200 and isinstance(data,dict) and data.get('success') is True and isinstance(data.get('result'),list)
+            out['status']='WORKER_GET_VISIBLE_EDIT_STILL_NOT_PROVEN' if out['workers_list_visible'] else 'WORKER_READ_SCOPE_UNQUALIFIED_NO_DEPLOY'
+          except Exception:out['status']='WORKER_READ_SCOPE_UNQUALIFIED_NO_DEPLOY'
+          Path('axiom-pr77-worker-scope-preflight-20261108.json').write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Archive safe worker access status
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-workers-readonly-access-20261108
+          path: axiom-pr77-worker-scope-preflight-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
