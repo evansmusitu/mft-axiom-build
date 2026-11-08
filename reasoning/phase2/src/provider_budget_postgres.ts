@@ -223,6 +223,8 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
 // modification of the class prototype must not redefine trust.
 const trustedPostgresReserve=PostgresProviderSpendLedger.prototype.reserve;
 const trustedPostgresSettle=PostgresProviderSpendLedger.prototype.settle;
+// Prevent global reassignment of the privilege-bearing ledger trust verifier.
+Object.freeze(PostgresProviderSpendLedger);
 
 
 /**
@@ -303,3 +305,5 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
 const trustedProtectedReserve=ProtectedPostgresProviderSpendLedger.prototype.reserve;
 const trustedProtectedSettle=ProtectedPostgresProviderSpendLedger.prototype.settle;
 Object.freeze(ProtectedPostgresProviderSpendLedger.prototype);
+// Lock the protected production-only authenticity check as well as its methods.
+Object.freeze(ProtectedPostgresProviderSpendLedger);
