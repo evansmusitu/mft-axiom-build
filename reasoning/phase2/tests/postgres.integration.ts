@@ -860,6 +860,9 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     password:process.env.PGPASSWORD??'axiom-test-password',max:3});
   try{
     await initializePostgresSchema(admin);
+    // Privileged SQL functions are a separate, explicit migration; ordinary
+    // schema initialization must not implicitly create SECURITY DEFINER code.
+    await admin.query(readFileSync(new URL('../sql/provider_spend_protected.sql',import.meta.url),'utf8'));
   const signatures=await admin.query(`SELECT
     to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)')::text AS reserve_rpc,
     to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')::text AS settle_rpc`);
