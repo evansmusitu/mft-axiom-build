@@ -1,0 +1,76 @@
+name: AXIOM staging edge security cause GET-only review (NO POLICY CHANGE)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-staging-security-readonly-20261108' &&
+      github.base_ref == 'build/axiom-staging-edge403-diagnostic-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query three fixed zone settings only, no write or raw response logs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          Z='5b56528f03948ff5917a5e0cd9f7109e'
+          base='https://api.cloudflare.com/client/v4/zones/'+Z
+          paths={'bot_management':base+'/bot_management',
+                 'security_level':base+'/settings/security_level',
+                 'rulesets':base+'/rulesets'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          output={'status':'READ_ONLY','methods':['GET'],'zone':Z,'requests':{},
+                  'policy_changed':False,'production_oauth_touched':False,'customer_session_verified':False}
+          if not token:raise SystemExit('MISSING_GITHUB_SECRET')
+          for key,url in paths.items():
+            req=urllib.request.Request(url,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:
+                code=r.status;data=r.read(100001)
+              if len(data)>100000:raise ValueError()
+              value=json.loads(data)
+              if value.get('success') is not True:raise ValueError()
+              result=value.get('result')
+              if key=='bot_management' and isinstance(result,dict):
+                output['requests'][key]={'http':code,'fight_mode':result.get('fight_mode'),
+                   'sbfm_likely_automated':result.get('sbfm_likely_automated'),
+                   'sbfm_definitely_automated':result.get('sbfm_definitely_automated')}
+              elif key=='security_level' and isinstance(result,dict):
+                output['requests'][key]={'http':code,'level':result.get('value')}
+              elif key=='rulesets' and isinstance(result,list):
+                output['requests'][key]={'http':code,'count':len(result),
+                  'phases':sorted(set(str(x.get('phase','')) for x in result if isinstance(x,dict)))}
+              else:output['requests'][key]={'http':code,'shape':'UNEXPECTED'}
+            except urllib.error.HTTPError as e:
+              output['requests'][key]={'http':e.code,'permission':'DENIED_OR_NOT_AVAILABLE'}
+            except (ValueError,TimeoutError,OSError):
+              output['requests'][key]={'http':'UNKNOWN','reason':'RESPONSE_NOT_QUALIFIED'}
+          b=(json.dumps(output,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-staging-zone-security-readonly.json');p.write_bytes(b)
+          Path(str(p)+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+str(p)+'\n')
+          print('AXIOM_EDGE_SECURITY_GET_ONLY_COMPLETE; NO_POLICY_CHANGE')
+          PY
+      - name: Preserve sanitized permissions and zone security evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-zone-security-readonly-20261108
+          path: |
+            axiom-staging-zone-security-readonly.json
+            axiom-staging-zone-security-readonly.json.sha256
+          retention-days: 7
+          if-no-files-found: error
