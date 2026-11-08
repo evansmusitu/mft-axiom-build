@@ -213,7 +213,9 @@ test('readiness SQL attests exact signatures, definer, role, search path and PUB
   assert.match(sql,/pg_has_role\(o\.oid,'MEMBER'\)/);
   assert.match(sql,/search_path=pg_catalog,pg_temp/);
   assert.match(sql,/aclexplode\(/);
-  assert.match(sql,/acl\.grantee\s*=\s*0/);
+  assert.match(sql,/acl\.grantee\s+NOT\s+IN/);
+  assert.match(sql,/p\.proowner/);
+  assert.match(sql,/rolname=current_user/);
   assert.match(sql,/has_function_privilege\(current_user,p\.oid,'EXECUTE'\)/);
   assert.match(sql,/has_schema_privilege\(current_user,'axiom_spend','CREATE'\)/);
 });
