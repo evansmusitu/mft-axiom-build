@@ -863,6 +863,8 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     // Privileged SQL functions are a separate, explicit migration; ordinary
     // schema initialization must not implicitly create SECURITY DEFINER code.
     await admin.query(readFileSync(new URL('../sql/provider_spend_protected.sql',import.meta.url),'utf8'));
+    // Separate approved-owner handoff, exercised only in ephemeral PostgreSQL CI.
+    await admin.query(readFileSync(new URL('../sql/provider_spend_definer_handoff.sql',import.meta.url),'utf8'));
   const signatures=await admin.query(`SELECT
     to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)')::text AS reserve_rpc,
     to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')::text AS settle_rpc`);
@@ -887,7 +889,7 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     WHERE n.nspname='axiom_spend' AND p.proname IN ('reserve','settle')
     ORDER BY p.proname`);
   assert.deepEqual(functions.rows.map((x:any)=>x.proname),['reserve','settle']);
-  assert.ok(functions.rows.every((x:any)=>x.definer_name==='axiom_spend_definer_ci' &&
+  assert.ok(functions.rows.every((x:any)=>x.definer_name==='axiom_spend_definer' &&
     x.rolcanlogin===false && x.rolsuper===false && x.rolcreaterole===false &&
     x.rolcreatedb===false && x.rolreplication===false && x.rolbypassrls===false),
     'both protected SQL functions require an independently owned, non-login, non-admin definer');
@@ -922,6 +924,9 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     assert.deepEqual(grants.rows,[{budget_dml:false,org_dml:false,receipt_dml:false,can_create_public:false,can_create_rpc:false}]);
     await assert.rejects(()=>caller!.query('UPDATE public.axiom_provider_spend_budgets SET limit_micro_usd=1000000 WHERE tenant_id=$1',[tenant.tenantId]),(e:any)=>e.code==='42501');
     await assert.rejects(()=>caller!.query('SET ROLE '+migrationOwner),(e:any)=>e.code==='42501');
+    await assert.rejects(()=>caller!.query('SET ROLE axiom_spend_definer'),(e:any)=>e.code==='42501');
+    const fnOwner=await caller.query("SELECT pg_catalog.pg_has_role('axiom_spend_definer'::regrole,'MEMBER') AS owner_member");
+    assert.deepEqual(fnOwner.rows,[{owner_member:false}]);
     const args=[tenant.tenantId,provider,modelId,'protected-1','a'.repeat(64),350,'openai'];
     const reserve=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
     assert.equal(reserve.rows[0].verdict,'OK');
@@ -1007,5 +1012,6 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
   }finally{
     await admin.end();
     await pool.query('DROP DATABASE axiom_spend_isolated_ci WITH (FORCE)');
+    await pool.query('DROP ROLE IF EXISTS axiom_spend_definer');
   }
 });
