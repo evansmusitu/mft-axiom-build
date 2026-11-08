@@ -157,12 +157,46 @@ class RunStore:
         if not protocol.strip():
             raise ValueError("protocol_required")
 
+    @classmethod
+    def _same_retry_lineage(cls, stored: Mapping[str, Any],
+                            incoming: Mapping[str, Any],
+                            *, run_id: str, connector_name: str) -> bool:
+        if cls._json(stored) == cls._json(incoming):
+            return True
+        # ConnectFabric emits a fresh OpenLineage eventTime when replaying the
+        # same sealed run. That observation-time field is not source identity.
+        # All other provenance, including job, run, inputs and outputs, must
+        # remain identical to the originally stored event.
+        required={"eventType", "eventTime", "producer", "run", "job", "inputs", "outputs"}
+        if type(stored) is not dict or type(incoming) is not dict:
+            return False
+        if not required.issubset(stored) or not required.issubset(incoming):
+            return False
+        for event in (stored, incoming):
+            if (type(event.get("run")) is not dict
+                or event["run"].get("runId") != run_id
+                or type(event.get("job")) is not dict
+                or event["job"].get("name") != connector_name):
+                return False
+            stamp=event["eventTime"]
+            if type(stamp) is not str:
+                return False
+            try:
+                if datetime.fromisoformat(stamp.replace("Z", "+00:00")).tzinfo is None:
+                    return False
+            except ValueError:
+                return False
+        return cls._json({k:v for k,v in stored.items() if k!="eventTime"}) == cls._json(
+            {k:v for k,v in incoming.items() if k!="eventTime"})
+
     def _existing_or_conflict(
         self,
         *,
         run_id: str,
         connector_name: str,
         protocol: str,
+        envelope: CanonicalEnvelope,
+        lineage: Mapping[str, Any],
         signature: str,
         digest: str,
     ) -> sqlite3.Row | None:
@@ -180,9 +214,18 @@ class RunStore:
             raise ValueError("run_id_conflict")
         # Existing/idempotent writes still verify the stored bytes so a
         # tampered ledger cannot be silently accepted as an idempotent ingest.
-        self._stored_run(existing)
+        stored=self._stored_run(existing)
         if not self.verify_audit_chain(run_id):
             raise RuntimeError("RUN_AUDIT_CHAIN_INVALID")
+        # The signed arithmetic hash excludes source, provenance and lineage.
+        # Fail closed on a reused run ID that points at a different origin.
+        if (
+            stored.envelope.source != envelope.source
+            or stored.envelope.provenance != envelope.provenance
+            or not self._same_retry_lineage(stored.lineage, lineage,
+                                            run_id=run_id, connector_name=connector_name)
+        ):
+            raise ValueError("run_id_conflict")
         return existing
 
     def _insert_run_row(
@@ -301,6 +344,8 @@ class RunStore:
             run_id=run_id,
             connector_name=connector_name,
             protocol=protocol,
+            envelope=envelope,
+            lineage=lineage,
             signature=signature,
             digest=digest,
         )
@@ -374,6 +419,8 @@ class RunStore:
             run_id=run_id,
             connector_name=connector_name,
             protocol=protocol,
+            envelope=envelope,
+            lineage=lineage,
             signature=signature,
             digest=digest,
         )
