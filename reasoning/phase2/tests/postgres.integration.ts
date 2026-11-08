@@ -880,11 +880,17 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
   // A temporary CI-only identity: no table ownership, no role inheritance,
   // no schema CREATE, and only explicit RPC execution rights.
   await admin.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
-  const functions=await admin.query(`SELECT p.proname,p.prosecdef,p.proconfig
+  const functions=await admin.query(`SELECT p.proname,p.prosecdef,p.proconfig,
+      o.rolname AS definer_name,o.rolcanlogin,o.rolsuper,o.rolcreaterole,o.rolcreatedb,o.rolreplication,o.rolbypassrls
     FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace=n.oid
+    JOIN pg_catalog.pg_roles o ON o.oid=p.proowner
     WHERE n.nspname='axiom_spend' AND p.proname IN ('reserve','settle')
     ORDER BY p.proname`);
   assert.deepEqual(functions.rows.map((x:any)=>x.proname),['reserve','settle']);
+  assert.ok(functions.rows.every((x:any)=>x.definer_name==='axiom_spend_definer_ci' &&
+    x.rolcanlogin===false && x.rolsuper===false && x.rolcreaterole===false &&
+    x.rolcreatedb===false && x.rolreplication===false && x.rolbypassrls===false),
+    'both protected SQL functions require an independently owned, non-login, non-admin definer');
   assert.ok(functions.rows.every((x:any)=>x.prosecdef===true &&
     String(x.proconfig).replace(/\s+/g,'').includes('search_path=pg_catalog,pg_temp')));
   const deniedPublic=await admin.query(`SELECT
