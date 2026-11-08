@@ -3,7 +3,7 @@ import { sha256Hex } from "../../phase1/src/canonical.ts";
 import type { ModelAdapter, ModelAdapterInput, CapturedModelExchange } from "./model_adapter.ts";
 import type { ModelExplanationAdapter, ModelExplanationAdapterInput, CapturedModelExplanationExchange } from "./model_explanation.ts";
 import type { ModelAdapterManifest, TenantScope } from "./types.ts";
-import { PostgresProviderSpendLedger } from "./provider_budget_postgres.ts";
+import { PostgresProviderSpendLedger, ProtectedPostgresProviderSpendLedger } from "./provider_budget_postgres.ts";
 
 /** Operational usage and charge records are NOT signed AXIOM proof inputs. */
 export interface ProviderTokenPrices {
@@ -252,7 +252,8 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     // Never accept structural duck-typing for the accounting authority:
     // an arbitrary reserve/settle object could silently do nothing.
     if(!SqliteProviderSpendLedger.isAuthenticLedger(config.ledger) &&
-       !PostgresProviderSpendLedger.isAuthenticLedger(config.ledger))
+       !PostgresProviderSpendLedger.isAuthenticLedger(config.ledger) &&
+       !ProtectedPostgresProviderSpendLedger.isAuthenticLedger(config.ledger))
       throw new TypeError("Trusted, unmodified SQLite or PostgreSQL budget ledger is required");
     this.adapter=config.adapter;
     this.pinnedAdapterInvoke=config.adapter.invoke;
@@ -285,7 +286,8 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     // Registration-only verification is insufficient: callers may still retain
     // a mutable ledger reference and replace reserve/settle after construction.
     if(!SqliteProviderSpendLedger.isAuthenticLedger(this.ledger)&&
-       !PostgresProviderSpendLedger.isAuthenticLedger(this.ledger))
+       !PostgresProviderSpendLedger.isAuthenticLedger(this.ledger)&&
+       !ProtectedPostgresProviderSpendLedger.isAuthenticLedger(this.ledger))
       throw new ProviderBudgetError("BUDGET_ACCOUNTING_TAMPERED",
         "Trusted provider ledger accounting methods changed; provider call denied",503);
   }
