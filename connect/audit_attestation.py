@@ -153,16 +153,36 @@ def _verified_pinned_snapshot(artifact, secret):
 
 
 def verify_audit_attestation_rotation(store, pinned_previous, proposed_latest, secret):
-    """Verify a new audit tip extends the *externally pinned* old tip.
+    """Verify current signed tip extends a separately pinned earlier tip.
 
-    Both artifacts must be authentic under an owner-controlled HMAC key. The
-    complete current chain must match proposed_latest, AND the prior indexed
-    hash must still occur at its original position in that same chain. This
-    offers fork/rollback detection only while the earlier pinned bytes and
-    key are held beyond the audited DB. No storage/publishing is performed.
+    Preserves the original same-key contract for append-only audit progression.
+    For offline rollover to a distinct HMAC key, use the separate key-rotation
+    verifier; neither method performs key custody or artifact publication.
     """
-    old = _verified_pinned_snapshot(pinned_previous, secret)
-    proposed = _verified_pinned_snapshot(proposed_latest, secret)
+    return _verify_attestation_continuity(store, pinned_previous, proposed_latest,
+                                          secret, secret)
+
+
+def verify_audit_attestation_key_rotation(store, pinned_previous, proposed_latest,
+                                          previous_secret, successor_secret):
+    """Validate an offline *distinct-key* transition anchored to prior history.
+
+    Both artifacts must be independently owner-pinned/authenticated under
+    their corresponding separate secrets. The new signed tip must extend the
+    exact old event index/hash. No keys are generated, stored, or retired; a
+    caller must authorize and preserve custody outside the audited database.
+    """
+    if (not _valid_key(previous_secret) or not _valid_key(successor_secret)
+            or hmac.compare_digest(previous_secret, successor_secret)):
+        return False
+    return _verify_attestation_continuity(store, pinned_previous, proposed_latest,
+                                          previous_secret, successor_secret)
+
+
+def _verify_attestation_continuity(store, pinned_previous, proposed_latest,
+                                   previous_secret, successor_secret):
+    old = _verified_pinned_snapshot(pinned_previous, previous_secret)
+    proposed = _verified_pinned_snapshot(proposed_latest, successor_secret)
     if old is None or proposed is None:
         return False
     # Stable identity cannot be reassigned across different observations.
