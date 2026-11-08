@@ -85,6 +85,30 @@ jobs:
           except urllib.error.HTTPError as e:
             print('Anonymous base Pages access HTTP:',e.code)
           except Exception as e: print('Anonymous base Pages access UNVERIFIED:',type(e).__name__)
+          # Verify restrictive active Access policies for the actual Pages preview zone.
+          assert a.get('success'), 'HOLD: Cloudflare Access policy list not readable'
+          assert len(relevant)>=2, 'HOLD: both Pages wildcard and base Access applications required'
+          apps_by_name={}
+          for app in rows:
+            if app.get('name') in ('MUSITU Corporate Staging Previews','MUSITU Corporate Staging Base'):
+              apps_by_name[app['name']]=app
+          assert len(apps_by_name)==2,'HOLD: required Access applications missing'
+          for name,app in apps_by_name.items():
+            assert app.get('type')=='self_hosted',name
+            app_id=app.get('id')
+            assert app_id,name
+            policy=call(prefix+'/access/apps/'+app_id+'/policies?per_page=50')
+            assert policy.get('success'), 'HOLD: Cannot inspect Access policies for '+name
+            policies=policy['result']
+            if isinstance(policies,dict):policies=policies.get('result') or policies.get('policies') or []
+            active=[p for p in policies if not p.get('is_disabled',False)]
+            allowed=[p for p in active if str(p.get('decision','')).lower()=='allow']
+            def insecure(p):
+              selectors=(p.get('include') or [])
+              return not selectors or any('everyone' in x for x in selectors if isinstance(x,dict))
+            assert allowed and not any(insecure(p) for p in allowed),'HOLD: no restrictive allow policy on '+name
+            assert not any(str(p.get('decision','')).lower()=='bypass' for p in active),'HOLD: Access bypass policy on '+name
+            print('Restricted Access policy verified:',name,'active policy count:',len(active),'allow policy count:',len(allowed))
           print('READ-ONLY COMPLETE; no preview upload, production mutation, DNS, merge or rollback executed.')
           if baseline!=expected:
             raise SystemExit('HOLD: Production changed from last recorded deployment; recapture baseline before any release')
