@@ -74,7 +74,10 @@ def observe(fetch):
  if not isinstance(protected,dict) or protected.get('uuid')!=PRESERVED or protected.get('name')!='axiom-disposable-dr-target-20261108':
   raise Reject('PRESERVED_RECOVERY_IDENTITY_DRIFT')
  original_catalog=fetch('catalog')
- if not isinstance(original_catalog,list) or len(original_catalog)!=31:
+ if not isinstance(original_catalog,list) or any(not isinstance(row,dict) for row in original_catalog):
+  raise Reject('CATALOG_OBJECT_COUNT_DRIFT')
+ user_catalog=[row for row in original_catalog if row.get('name') not in ('_cf_KV','_cf_METADATA')]
+ if len(user_catalog)!=31:
   raise Reject('CATALOG_OBJECT_COUNT_DRIFT')
  initial_schema=sha(canonical(original_catalog))
  initial_counts=validate_counts(fetch('counts'))
