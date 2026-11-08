@@ -1,0 +1,120 @@
+name: AXIOM previously-created isolated D1 restore-target cross-account GET-only check
+on:
+  push:
+    branches: [ops/axiom-crossaccount-disposable-d1-20261109-r2]
+    paths: [.github/workflows/axiom-crossaccount-disposable-d1-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-crossaccount-disposable-d1-20261109-r2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Query exact previously recorded account/D1 provider metadata only; NO SQL OR WRITES
+        env:
+          CLOUDFLARE_AXIOM_DR_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          DB='e36972b3-850d-4273-b934-2fa67587d9f1'
+          EXPECT='axiom-disposable-dr-target-20261108'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          TOKEN=os.environ.get('CLOUDFLARE_AXIOM_DR_READ_TOKEN','')
+          if not TOKEN or any(c in TOKEN for c in '\r\n'):raise SystemExit('NO_VALID_READ_TOKEN')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          seen=[]
+          def get(path):
+            allowed={
+              '/d1/database/'+DB,
+              '/d1/database?per_page=100&page=1',
+              '/workers/scripts'
+            }
+            if re.fullmatch(r'/workers/scripts/[a-zA-Z0-9_-]{1,128}/settings',path):
+              allowed.add(path)
+            if path not in allowed:raise SystemExit('UNREVIEWED_READ_PATH')
+            req=urllib.request.Request(ROOT+path,headers={'authorization':'Bearer '+TOKEN,'accept':'application/json'},method='GET')
+            try:
+              with opener.open(req,timeout=15) as f:
+                http=f.status;raw=f.read(250001)
+            except urllib.error.HTTPError as e:
+              http=e.code;raw=b''
+            except (OSError,TimeoutError,ValueError):
+              http='TRANSPORT_ERROR';raw=b''
+            row={'op':'GET','target':'database' if DB in path else ('database_inventory' if '/d1/database?' in path else 'worker_metadata'),'http':http}
+            seen.append(row)
+            if http!=200 or len(raw)>250000:return None
+            try:obj=json.loads(raw)
+            except (ValueError,UnicodeError):return None
+            if not isinstance(obj,dict) or obj.get('success') is not True:return None
+            return obj
+          selected=get('/d1/database/'+DB)
+          inventory=get('/d1/database?per_page=100&page=1')
+          workers=get('/workers/scripts')
+          s=selected.get('result') if isinstance(selected,dict) else None
+          rows=inventory.get('result') if isinstance(inventory,dict) else None
+          info=inventory.get('result_info') if isinstance(inventory,dict) else None
+          scripts=workers.get('result') if isinstance(workers,dict) else None
+          matched=isinstance(s,dict) and s.get('uuid')==DB and s.get('name')==EXPECT
+          table_count=s.get('num_tables') if matched else None
+          count=info.get('count') if isinstance(info,dict) else None
+          total=info.get('total_count') if isinstance(info,dict) else None
+          complete=(isinstance(rows,list) and isinstance(info,dict) and type(count) is int and type(total) is int and
+                    type(info.get('page')) is int and info['page']==1 and count==total==len(rows))
+          if not complete:complete=False
+          listed=bool(isinstance(rows,list) and any(isinstance(x,dict) and x.get('uuid')==DB and x.get('name')==EXPECT for x in rows))
+          scripts_valid=isinstance(scripts,list) and len(scripts)<=30 and all(isinstance(x,dict) and re.fullmatch(r'[a-zA-Z0-9_-]{1,128}',str(x.get('id',''))) for x in scripts)
+          bindings_ok=scripts_valid
+          bound_count=0
+          if scripts_valid:
+            for w in scripts:
+              item=get('/workers/scripts/'+w['id']+'/settings')
+              setting=item.get('result') if isinstance(item,dict) else None
+              bindings=setting.get('bindings') if isinstance(setting,dict) else None
+              if not isinstance(bindings,list):
+                bindings_ok=False
+                continue
+              for b in bindings:
+                if isinstance(b,dict) and (b.get('id')==DB or b.get('database_id')==DB):
+                  bound_count+=1
+          out={'schema':'AXIOM_CROSSACCOUNT_DISPOSABLE_RESTORE_DB_READONLY_V1',
+            'account_accessible':bool(selected or inventory),
+            'expected_db_metadata_verified':bool(matched),
+            'expected_db_table_count':table_count if type(table_count) is int else None,
+            'expected_db_empty_metadata':bool(matched and type(table_count) is int and table_count==0),
+            'database_catalog_complete':bool(complete),
+            'db_visible_in_catalog':listed,
+            'database_catalog_count':len(rows) if complete else None,
+            'worker_script_inventory_complete':bool(scripts_valid and bindings_ok),
+            'found_exact_target_worker_bindings':bound_count if bindings_ok else None,
+            'credential_read_statuses':seen,
+            'deletion_or_destructive_restore_authorized':False,
+            'production_oauth_touched':False,'d1_sql_queries':0,'provider_mutations':0,
+            'restore_qualified':False,'identity_hosted_qualified':False,'release_qualified':False}
+          out['status']='EMPTY_UNBOUND_METADATA_ONLY_NOT_RESTORE_APPROVED' if all((
+            matched,type(table_count) is int and table_count==0,complete,listed,scripts_valid,bindings_ok,bound_count==0
+          )) else 'UNQUALIFIED_OR_INACCESSIBLE_NO_WRITES'
+          data=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          path=Path('axiom-crossaccount-disposable-d1-readonly.json');path.write_bytes(data)
+          path.with_name(path.name+'.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+path.name+'\n')
+          print('AXIOM_PREVIOUS_DISPOSABLE_D1='+out['status']+' SQL=0 WRITES=0')
+          PY
+      - name: Archive sanitised cross-account read status and detached digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-previous-disposable-d1-crossaccount-scoped-readonly-20261109
+          path: |
+            axiom-crossaccount-disposable-d1-readonly.json
+            axiom-crossaccount-disposable-d1-readonly.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
