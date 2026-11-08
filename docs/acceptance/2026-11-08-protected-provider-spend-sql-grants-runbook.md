@@ -62,3 +62,14 @@ Function `SECURITY DEFINER` authority is dangerous if ownership or search paths 
 ## November 8 isolated verification checkpoint
 
 In GitHub Actions run `42456063178` at draft #104 head `1a93cfe9f2d2d879405a4a727d5c21499f0b7c7d`, PostgreSQL 17 **20/20**, Phase 2 **268/268**, and Phase 1 **20/20** passed. The RED checkpoint `acbbf682cf3c29d8087d07a5a649925b7f8da7a9` failed precisely on administrator-owned protected functions (19/20 PostgreSQL). GREEN code used only an isolated disposable CI database and a temporary, non-login, non-admin function owner. This does **not** verify production deployment privileges, a live protected owner, or the operator's authority to install roles in Neon.
+
+
+## Protected paid-provider registration admission — additional 2026-11-08 checkpoint
+
+The trusted compilation and explanation service constructors now accept `productionBillingRequired: true`, and the exported `requireProtectedPaidProviderAdapter(adapter, tenantId?)` verifies an internal, non-forgeable decorator admission mark. A paid `openai` or `anthropic` adapter using a genuine but **SQLite** or **administrator-backed PostgreSQL** ledger is denied with `BUDGET_PROTECTED_LEDGER_REQUIRED` even if it passed ordinary offline metering registration. A genuine `ProtectedPostgresProviderSpendLedger` remains eligible only for further trust checks; registration does not make a network call or prove the connected SQL user has least privilege.
+
+**Mandatory production-wiring review:** Every trusted production creation path for `ModelCompilationService` and `ModelExplanationService` **must set `productionBillingRequired: true` with server-owned, immutable configuration**. Do not derive that boolean from a caller request, arbitrary environment variable, query parameter, unauthenticated feature flag, or insecure default. Existing offline/default service construction intentionally preserves legacy testing behavior and is **not an acceptable paid production entrypoint**. No deployed Worker has yet been shown to enable this mode.
+
+The source-only test performed a RED run `42457358519` on `dee6884cab6b7dee2402167a5ceb712cc9c6875c` (Phase 2 **268 pass / 1 expected fail**) followed by GREEN `42457465786` on `82f3a538ee9bd5d94d86a3ede158fc5af937296b`: Phase 2 **269/269**, disposable PostgreSQL **20/20** and Phase 1 **20/20**. All tests were credential-free with synthetic adapters.
+
+**Still BLOCKED:** Audit actual Worker and proxy constructors and call graphs; prove strict mode enabled for every vendor-billable route including explanation, repair, cron/queue and legacy entrypoints; verify immutable, reviewed price ceilings, protected SQL function-owner ACLs, Hyperdrive TLS/no-cache settings, approved Neon network topology, cross-replica evidence, independent vendor bill receipts and release-gate signoff. Until then production is **NO-GO**.
