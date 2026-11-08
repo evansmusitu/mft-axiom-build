@@ -15,7 +15,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       WRANGLER_SEND_METRICS: 'false'
-      REVIEW_SHA: 031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa
+      REVIEW_SHA: cedbb4e17c52b80c071ee5b658f2dfbc28b014ff
       REVIEW_BRANCH: phase03-acceptance-20261108
     steps:
       - name: Fail closed unless corporate Pages baseline and restricted Access are verified
@@ -64,6 +64,7 @@ jobs:
         env:
           MUSITU_BUILD_MODE: review
           MUSITU_PROTECTED_STAGING_MEDIA: '1'
+          MUSITU_PUBLISH_PHASE03: '1'
         run: |
           set -euo pipefail
           python -m pip install -q pytest beautifulsoup4
@@ -75,12 +76,12 @@ jobs:
           from pathlib import Path
           import json
           d=Path('dist')
-          assert len(list(d.rglob('index.html')))==34
+          assert len(list(d.rglob('index.html')))==49
           assert not (d/'sitemap.xml').exists()
           assert (d/'robots.txt').read_text().splitlines()==['User-agent: *','Disallow: /']
           m=json.loads((d/'manifest.json').read_text())
           assert m['build_mode']=='review' and m['studio_media_included'] and not m['indexing_enabled']
-          print('PASS: all review source contracts, 34 routes, media, noindex')
+          print('PASS: all review source contracts, 49 routes, 12 articles + 3 French, media, noindex')
           PY
       - name: Deploy to protected preview branch only
         run: |
