@@ -62,6 +62,29 @@ jobs:
               if 'musitu-corporate.pages.dev' in domains or 'corporate' in str(app.get('name','')).lower():
                 relevant.append({'name':app.get('name'),'type':app.get('type'),'domain':app.get('domain')})
             print('Potential Pages preview Access apps (not policy proof):',json.dumps(relevant))
+          if a.get('success'):
+            def selectors(p):
+              return sorted(set(k for item in (p.get('include') or []) for k in item.keys()))
+            for app in rows:
+              domain=str(app.get('domain',''))
+              if 'musitu-corporate.pages.dev' not in domain:continue
+              appid=app.get('id')
+              pol=call(prefix+'/access/apps/'+str(appid)+'/policies?per_page=10')
+              if pol.get('success'):
+                pp=pol['result']
+                if isinstance(pp,dict):pp=pp.get('result') or pp.get('policies') or []
+                print('Access policy summary for',domain,[(x.get('decision'),selectors(x)) for x in pp])
+                no_bypass=bool(pp) and all(x.get('decision') not in ('bypass','non_identity') for x in pp)
+                no_everyone=all('everyone' not in selectors(x) for x in pp)
+                print('Restricted policy structure (NOT full anonymous host proof):',no_bypass and no_everyone)
+              else:print('Access policies UNVERIFIED on',domain,'HTTP',pol.get('http_status','API error'))
+          try:
+            req=urllib.request.Request('https://musitu-corporate.pages.dev/',headers={'User-Agent':'MUSITU-Anonymous-Preview-Protection-Audit'})
+            with urllib.request.urlopen(req,timeout=20) as response:
+              print('Anonymous base Pages access HTTP:',response.status,'location:',response.url.split('/')[2])
+          except urllib.error.HTTPError as e:
+            print('Anonymous base Pages access HTTP:',e.code)
+          except Exception as e: print('Anonymous base Pages access UNVERIFIED:',type(e).__name__)
           print('READ-ONLY COMPLETE; no preview upload, production mutation, DNS, merge or rollback executed.')
           if baseline!=expected:
             raise SystemExit('HOLD: Production changed from last recorded deployment; recapture baseline before any release')
