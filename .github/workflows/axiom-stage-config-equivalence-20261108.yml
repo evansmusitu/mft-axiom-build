@@ -58,7 +58,57 @@ jobs:
             if [r0.get('id'),r1.get('id')]!=OLD:raise ValueError('OLD_RULE_ID_DRIFT')
             for r,h in zip((r0,r1),HASHES):
               if hashlib.sha256(r['expression'].encode()).hexdigest()!=h:raise ValueError('OLD_RULE_EXPR_DRIFT')
-            pat=r'^\\(?http\\.host eq "([a-z0-9.-]+)"\\)?$'
+            pat=r'^\(?http\.host eq "([a-z0-9.-]+)"\)?
+            matches=[re.fullmatch(pat,r['expression']) for r in (r0,r1)]
+            if not all(matches):raise ValueError('OLD_RULE_NOT_EXACT_HOST')
+            host0,host1=(m.group(1) for m in matches)
+            if host0==host1 or HOST in (host0,host1):raise ValueError('HOST_OVERLAP')
+            if any(r.get('action')!='set_config' or r.get('enabled') is not True for r in (r0,r1)):raise ValueError('ACTION_NOT_MATCHED')
+            if any(r.get('action_parameters')!={'bic':False,'security_level':'essentially_off'} for r in (r0,r1)):raise ValueError('PARAMS_NOT_IDENTICAL')
+            if any(HOST in r.get('expression','') for r in rules):raise ValueError('EXISTING_STAGE_REFERENT')
+            # Two adjacent, idempotent set_config assignments on disjoint exact hostnames.
+            # A single OR predicate with identical action config has equal effects for
+            # the two originals, and no changed effects on any other hostname.
+            after_expression='('+r0['expression']+') or ('+r1['expression']+')'
+            target=[dict(r0,expression=after_expression)]+rules[2:]+[{
+              'action':'set_config','enabled':True,'expression':'(http.host eq "'+HOST+'")',
+              'action_parameters':{'security_level':'essentially_off'},
+              'description':'AXIOM private staging Under Attack override only',
+              'ref':'axiom_customer_staging_20261108'}]
+            result.update({
+              'original_pair_ids':OLD,
+              'original_pair_digest':[hashlib.sha256(x['expression'].encode()).hexdigest() for x in (r0,r1)],
+              'original_pair_actions_equal':True,
+              'original_pair_effect':{'bic':False,'security_level':'essentially_off'},
+              'proposed_rule_count':len(target),
+              'unmodified_original_rule_ids':[x['id'] for x in rules[2:]],
+              'unchanged_existing_rules':8,
+              'combined_rule_retains_id':r0['id'],
+              'retired_rule_id':r1['id'],
+              'original_rule_id_retention':False,
+              'same_effects_for_original_two_hosts':True,
+              'staging_action_only':{'security_level':'essentially_off'},
+              'qualified':True,'status':'PREPARED_NEEDS_OWNER_GOVERNANCE_APPROVAL_NO_WRITE',
+              'note':'Candidate would retire one existing rule ID; original behavior and other 8 rules preserved, rule identity not preserved. No Cloudflare mutation.'})
+          except (ValueError,urllib.error.HTTPError,OSError,TimeoutError,KeyError,TypeError) as e:
+            result['status']='NOT_PROVEN_NO_WRITE'
+            result['reason']=type(e).__name__
+          b=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-config-rule-semantic-equivalence.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_RULE_EQUIVALENCE='+result['status']+' MUTATIONS=0')
+          PY
+      - name: Keep only sanitized proofs with independent SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-config-equivalence-readonly-20261108
+          path: |
+            axiom-config-rule-semantic-equivalence.json
+            axiom-config-rule-semantic-equivalence.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
+
             matches=[re.fullmatch(pat,r['expression']) for r in (r0,r1)]
             if not all(matches):raise ValueError('OLD_RULE_NOT_EXACT_HOST')
             host0,host1=(m.group(1) for m in matches)
