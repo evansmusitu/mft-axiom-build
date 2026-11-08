@@ -90,7 +90,7 @@ const anthropicManifest={adapterId:anthropicProfile.adapterId,version:"1.0.0",im
 
 let openAiCompileCalls=0,openAiExplainCalls=0,anthropicCompileCalls=0;
 const openAiAdapter=new OpenAiResponsesModelAdapter({
-  manifest:openAiManifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:32768,
+  manifest:openAiManifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:2048,maxResponseBytes:32768,
   secretResolver:new StaticSecretResolver({"secret:openai":openAiSecret}),
   fetchFn:async(_url,init)=>{
     assert.equal((init?.headers as any).authorization,`Bearer ${openAiSecret}`);

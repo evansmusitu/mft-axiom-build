@@ -14,6 +14,11 @@ import type { CapturedModelExplanationExchange, ModelExplanationAdapterInput } f
 import { BoundedModelProviderTransport } from "./model_provider_transport.ts";
 
 const HEX64=/^[0-9a-f]{64}$/;
+function boundedOutputTokens(value:unknown):number{
+  if(!Number.isSafeInteger(value)||Number(value)<16||Number(value)>16384)
+    throw new TypeError("maxOutputTokens must be a safe integer between 16 and 16384");
+  return Number(value);
+}
 function required(value:unknown,label:string):string{
   if(typeof value!=="string"||!value.trim())throw new TypeError(`${label} is required`);
   return value;
@@ -55,12 +60,15 @@ function outputText(raw:string,expectedModel:string):string{
 
 export class OpenAiResponsesModelAdapter implements ModelAdapter {
   readonly manifest:ModelAdapterManifest;
+  private readonly maxOutputTokens:number;
   private readonly transport:BoundedModelProviderTransport;
 
   constructor(config:{
     manifest:ModelAdapterManifest;
     apiKeySecretRef:string;
     timeoutMs:number;
+    /** Explicit upper bound on visible + reasoning generation, not a billable-USD guarantee. */
+    maxOutputTokens:number;
     maxResponseBytes:number;
     secretResolver:SecretResolver;
     fetchFn?:EvidenceFetch;
@@ -68,6 +76,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
   }){
     this.manifest=manifest(config.manifest);
     const apiKeySecretRef=required(config.apiKeySecretRef,"apiKeySecretRef");
+    this.maxOutputTokens=boundedOutputTokens(config.maxOutputTokens);
     this.transport=new BoundedModelProviderTransport({
       origin:config.origin??"https://api.openai.com",
       path:"/v1/responses",
@@ -87,6 +96,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
     const requestBody=canonicalize({
       input:[{role:"user",content:[{type:"input_text",text:promptBody}]}],
       model:this.manifest.modelId,
+      max_output_tokens:this.maxOutputTokens,
       store:false,
       text:{format:{
         type:"json_schema",name:"axiom_advisory_explanation_v1",strict:true,
@@ -104,6 +114,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
     const requestBody=canonicalize({
       input:[{role:"user",content:[{type:"input_text",text:gatewayBody}]}],
       model:this.manifest.modelId,
+      max_output_tokens:this.maxOutputTokens,
       store:false,
       text:{format:{
         type:"json_schema",name:"axiom_model_proposal_v1",strict:true,
