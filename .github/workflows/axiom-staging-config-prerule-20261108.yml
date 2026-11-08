@@ -1,0 +1,104 @@
+name: AXIOM staging host Config Rules exact pre-admission READ ONLY
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-staging-config-prerule-20261108' &&
+      github.base_ref == 'build/axiom-staging-security-readonly-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fixed Cloudflare Config Rules/zone setting GET-only admission
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          Z='5b56528f03948ff5917a5e0cd9f7109e'
+          ROOT='https://api.cloudflare.com/client/v4/zones/'+Z
+          ENDPOINTS={'config_rules': ROOT+'/rulesets/phases/http_config_settings/entrypoint',
+                     'zone_security':ROOT+'/settings/security_level',
+                     'rulesets':ROOT+'/rulesets'}
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token:raise SystemExit('MISSING_SCOPED_GITHUB_SECRET')
+          out={'scope':'AXIOM_STAGING_CONFIG_PRECHECK','zone':Z,'requests':{},
+               'existing_rule_inventory':[],'provider_mutations':0,'production_oauth_touched':False,
+               'config_admitted':False}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          for name,url in ENDPOINTS.items():
+            req=urllib.request.Request(url,method='GET',headers={'authorization':'Bearer '+token,'accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as response:
+                code=response.status;raw=response.read(150001)
+              if code!=200 or len(raw)>150000:raise ValueError('UNEXPECTED_RESPONSE')
+              doc=json.loads(raw)
+              if doc.get('success') is not True:raise ValueError('INVALID_PROVIDER_ENVELOPE')
+              result=doc.get('result')
+              if name=='config_rules':
+                if not isinstance(result,dict) or result.get('kind')!='zone' or result.get('phase')!='http_config_settings' or not isinstance(result.get('rules'),list):raise ValueError('INVALID_RULESET')
+                out['config_ruleset_id']=result.get('id')
+                out['config_ruleset_version']=result.get('version')
+                out['config_ruleset_rule_count']=len(result['rules'])
+                for idx,r in enumerate(result['rules']):
+                  if not isinstance(r,dict):raise ValueError('INVALID_RULE')
+                  expr=r.get('expression','')
+                  parameters=r.get('action_parameters',{})
+                  if not isinstance(expr,str) or not isinstance(parameters,dict):raise ValueError('INVALID_RULE_SHAPE')
+                  out['existing_rule_inventory'].append({'order':idx,'id':r.get('id'),'enabled':r.get('enabled',True),
+                      'action':r.get('action'),'expression_sha256':hashlib.sha256(expr.encode()).hexdigest(),
+                      'expr_has_stage_hostname':'axiom-customer-staging.mftintelligence.com' in expr,
+                      'expr_is_unconditional':expr.strip().lower()=='true',
+                      'parameter_keys':sorted(parameters),'security_level':parameters.get('security_level')})
+              elif name=='zone_security':
+                if not isinstance(result,dict):raise ValueError('INVALID_SECURITY_LEVEL')
+                out['zone_security_level']=result.get('value')
+              else:
+                if not isinstance(result,list):raise ValueError('INVALID_RULESET_LIST')
+                out['zone_ruleset_count']=len(result)
+                out['config_ruleset_count']=sum(r.get('phase')=='http_config_settings' for r in result if isinstance(r,dict))
+              out['requests'][name]={'http':code,'status':'OK'}
+            except urllib.error.HTTPError as err:
+              out['requests'][name]={'http':err.code,'status':'DENIED_OR_UNAVAILABLE'}
+            except (ValueError,TimeoutError,OSError) as err:
+              out['requests'][name]={'http':'UNKNOWN','status':'INVALID_PROVIDER_RESULT'}
+          out['config_admitted']=(
+              out['requests'].get('config_rules',{}).get('status')=='OK' and
+              out.get('zone_security_level')=='under_attack' and
+              out.get('config_ruleset_count')==1 and
+              isinstance(out.get('config_ruleset_id'),str) and len(out['config_ruleset_id'])==32 and
+              isinstance(out.get('config_ruleset_rule_count'),int) and
+              out['config_ruleset_rule_count']<10 and
+              not any(x['expr_has_stage_hostname'] for x in out['existing_rule_inventory'])
+          )
+          raw=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-staging-config-rule-prerule.json');p.write_bytes(raw)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_CONFIG_PRERULE_GET_ONLY='+('PREFLIGHT_ADMITTED' if out['config_admitted'] else 'PREFLIGHT_NOT_QUALIFIED'))
+          print('GET_COUNT='+str(len(out['requests']))+' WRITE_COUNT=0')
+          PY
+      - name: Store sanitized Configuration Rules snapshot before changes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-config-prerule-readonly-20261108
+          path: |
+            axiom-staging-config-rule-prerule.json
+            axiom-staging-config-rule-prerule.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
