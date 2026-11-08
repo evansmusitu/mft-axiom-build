@@ -1,0 +1,75 @@
+name: AXIOM Cloudflare new GitHub secret format and validation GET-only
+on:
+  push:
+    branches: [ops/axiom-cf-config-token-format-20261108-r2]
+    paths: [.github/workflows/axiom-cf-config-token-format.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read-only two-token Cloudflare authentication with no secret output
+        shell: bash
+        env:
+          NEW_TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+          OLD_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,hashlib
+          from pathlib import Path
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          def verify(token):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/user/tokens/verify',method='GET',headers={'authorization':'Bearer '+token,'accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:
+                status=r.status;raw=r.read(16001)
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(16001)
+            except Exception:
+              return {'http':'TRANSPORT_UNKNOWN','active':False}
+            try:
+              d=json.loads(raw)
+            except Exception:
+              d={}
+            return {'http':status,'active':d.get('success') is True and isinstance(d.get('result'),dict) and d['result'].get('status')=='active'}
+          raw=os.environ.get('NEW_TOKEN','')
+          old=os.environ.get('OLD_TOKEN','')
+          trimmed=raw.strip()
+          classification={
+            'new_secret_present':bool(raw),'old_secret_present':bool(old),
+            'distinct_from_old':bool(raw and old and raw!=old),
+            'outer_whitespace':bool(raw and raw!=trimmed),
+            'has_bearer_prefix':trimmed.lower().startswith('bearer '),
+            'has_quote_wrapper':len(trimmed)>1 and trimmed[0] in (chr(34),chr(39)) and trimmed[-1]==trimmed[0],
+            'looks_like_new_user_api_token':trimmed.startswith('cfut_'),
+            'looks_like_new_account_api_token':trimmed.startswith('cfat_'),
+            'looks_like_new_global_api_key':trimmed.startswith('cfk_'),
+            'embedded_newline':any(c in raw for c in '\r\n'),
+            'old_token_verify':verify(old) if old else None,
+            'new_token_verify':verify(raw) if raw and not any(c in raw for c in '\r\n') else None,
+            'trimmed_token_verify':verify(trimmed) if trimmed!=raw and trimmed and not any(c in trimmed for c in '\r\n') else None,
+            'methods':['GET'],'provider_writes':0,'production_oauth_touched':False
+          }
+          b=(json.dumps(classification,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-cloudflare-newtoken-sanitized-diagnostic.json')
+          p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('CLOUDFLARE_NEW_TOKEN_CLASSIFICATION_COMPLETE_READ_ONLY')
+          PY
+      - name: Archive status-only receipt and SHA256
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cf-config-newtoken-format-readonly-20261108
+          path: |
+            axiom-cloudflare-newtoken-sanitized-diagnostic.json
+            axiom-cloudflare-newtoken-sanitized-diagnostic.json.sha256
+          if-no-files-found: error
+          retention-days: 7
