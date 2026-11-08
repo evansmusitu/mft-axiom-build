@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 from connect.admission import (
     ProductionAdmissionEvidence,
@@ -56,6 +57,70 @@ class ProductionAdmissionTests(unittest.TestCase):
             "PRODUCTION_ADMISSION_QUALIFIED__PROMOTION_AUTHORIZED__"
             "ENABLEMENT_REMAINS_SEPARATELY_BLOCKED",
         )
+
+    def test_truthy_nonboolean_control_evidence_never_qualifies(self):
+        # Parsed API, YAML, and environment values are not necessarily bools.
+        # Truthiness must not turn the string "false" or integer 1 into proof.
+        policy = ProductionAdmissionPolicy()
+        for control in policy.required_controls:
+            for value in ("false", "true", 1, b"true", {"verified": True}):
+                with self.subTest(control=control, value=value):
+                    evidence = replace(self._full_evidence(), **{control: value})
+                    result = policy.assess(
+                        evidence,
+                        ProductionPromotionAuthorization(
+                            approved=True,
+                            authorization_id="chg-verified",
+                            authorized_by="release-authority",
+                        ),
+                    )
+                    self.assertFalse(result.technical_ready)
+                    self.assertIn(control, result.missing_controls)
+                    self.assertFalse(result.promotion_authorized)
+                    self.assertFalse(result.enablement_permitted)
+                    self.assertEqual(result.state, "PRODUCTION_ADMISSION_BLOCKED")
+
+    def test_truthy_nonboolean_approval_is_not_promotion_authorization(self):
+        policy = ProductionAdmissionPolicy()
+        for approved in ("false", "true", 1, ["approved"], {"approved": True}):
+            with self.subTest(approved=approved):
+                result = policy.assess(
+                    self._full_evidence(),
+                    ProductionPromotionAuthorization(
+                        approved=approved,
+                        authorization_id="chg-verified",
+                        authorized_by="release-authority",
+                    ),
+                )
+                self.assertTrue(result.technical_ready)
+                self.assertFalse(result.promotion_authorized)
+                self.assertFalse(result.enablement_permitted)
+                self.assertEqual(
+                    result.state,
+                    "PRODUCTION_ADMISSION_QUALIFIED__PROMOTION_AUTHORIZATION_REQUIRED",
+                )
+
+    def test_malformed_authorization_identity_fails_closed_without_crashing(self):
+        policy = ProductionAdmissionPolicy()
+        for field in ("authorization_id", "authorized_by"):
+            for value in (1, True, None, ["identity"], {"identity": "x"}):
+                with self.subTest(field=field, value=value):
+                    fields = {
+                        "approved": True,
+                        "authorization_id": "chg-verified",
+                        "authorized_by": "release-authority",
+                    }
+                    fields[field] = value
+                    result = policy.assess(
+                        self._full_evidence(),
+                        ProductionPromotionAuthorization(**fields),
+                    )
+                    self.assertFalse(result.promotion_authorized)
+                    self.assertFalse(result.enablement_permitted)
+                    self.assertEqual(
+                        result.state,
+                        "PRODUCTION_ADMISSION_QUALIFIED__PROMOTION_AUTHORIZATION_REQUIRED",
+                    )
 
     def test_partial_authorization_is_not_valid(self):
         decision=ProductionAdmissionPolicy().assess(

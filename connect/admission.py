@@ -30,8 +30,10 @@ class ProductionPromotionAuthorization:
 
     def is_valid(self) -> bool:
         return (
-            self.approved
+            self.approved is True
+            and isinstance(self.authorization_id, str)
             and bool(self.authorization_id.strip())
+            and isinstance(self.authorized_by, str)
             and bool(self.authorized_by.strip())
         )
 
@@ -54,7 +56,7 @@ class ProductionAdmissionPolicy:
     ) -> ProductionAdmissionDecision:
         missing=tuple(
             control for control in self.required_controls
-            if not bool(getattr(evidence, control))
+            if getattr(evidence, control, None) is not True
         )
         technical_ready=not missing
         promotion_authorized=bool(
