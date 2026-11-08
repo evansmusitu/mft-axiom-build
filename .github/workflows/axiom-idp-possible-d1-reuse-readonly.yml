@@ -1,0 +1,138 @@
+name: AXIOM existing D1 zero-table unbound staging candidate metadata-only catalog
+on:
+  push:
+    branches: [ops/axiom-idp-possible-d1-reuse-readonly-20261109]
+    paths: [.github/workflows/axiom-idp-possible-d1-reuse-readonly.yml]
+permissions:
+  contents: read
+jobs:
+  catalog:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-idp-possible-d1-reuse-readonly-20261109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Read Cloudflare exact account metadata only; ALL D1 query, SQL and write paths prohibited
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+          from pathlib import Path
+          A='93f395f5121954671f92fffa453d6b61'
+          API='https://api.cloudflare.com/client/v4/accounts/'+A
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token or '\n' in token or '\r' in token:raise SystemExit('READ_TOKEN_MISSING')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          requests=[]
+          def get(path):
+            allowed={'/d1/database?per_page=100&page=1','/workers/scripts'}
+            if re.fullmatch(r'/d1/database/[0-9a-f]{8}-[0-9a-f-]{27}',path):allowed.add(path)
+            if re.fullmatch(r'/workers/scripts/[a-zA-Z0-9_-]{1,128}/settings',path):allowed.add(path)
+            if path not in allowed:raise SystemExit('UNAPPROVED_PATH')
+            r=urllib.request.Request(API+path,method='GET',
+               headers={'authorization':'Bearer '+token,'accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(r,timeout=16) as f:
+                code=f.status;raw=f.read(200001)
+            except urllib.error.HTTPError as e:
+              code=e.code;raw=b''
+            except (OSError,TimeoutError,ValueError):
+              code='NETWORK_ERROR';raw=b''
+            requests.append({'kind':'d1_database_meta' if '/d1/database/' in path else (
+              'worker_settings' if '/workers/scripts/' in path else 'catalog'),'http':code})
+            if code!=200 or len(raw)>200000:return None
+            try:d=json.loads(raw)
+            except (ValueError,UnicodeError):return None
+            return d if isinstance(d,dict) and d.get('success') is True else None
+          d1=get('/d1/database?per_page=100&page=1')
+          scripts=get('/workers/scripts')
+          rows=d1.get('result') if isinstance(d1,dict) else None
+          meta=d1.get('result_info') if isinstance(d1,dict) else None
+          workers=scripts.get('result') if isinstance(scripts,dict) else None
+          catalog_complete=(isinstance(rows,list) and isinstance(meta,dict)
+             and type(meta.get('page')) is int and meta['page']==1
+             and type(meta.get('count')) is int and type(meta.get('total_count')) is int
+             and meta['count']==meta['total_count']==len(rows)
+             and len(rows)<=50
+             and all(isinstance(x,dict) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f-]{27}',str(x.get('uuid','')))
+                and isinstance(x.get('name'),str) for x in rows))
+          workers_ok=(isinstance(workers,list) and len(workers)<=50 and
+             all(isinstance(x,dict) and re.fullmatch(r'[a-zA-Z0-9_-]{1,128}',str(x.get('id',''))) for x in workers))
+          binding_counts={}
+          bound_metadata_complete=workers_ok
+          if workers_ok:
+            for w in workers:
+              obj=get('/workers/scripts/'+w['id']+'/settings')
+              result=obj.get('result') if isinstance(obj,dict) else None
+              bindings=result.get('bindings') if isinstance(result,dict) else None
+              if not isinstance(bindings,list):
+                bound_metadata_complete=False
+                continue
+              for b in bindings:
+                if isinstance(b,dict) and isinstance(b.get('id',b.get('database_id')),str):
+                  ident=b.get('id',b.get('database_id'))
+                  binding_counts[ident]=binding_counts.get(ident,0)+1
+          details={}
+          if catalog_complete:
+            for item in rows:
+              ident=item['uuid']
+              r=get('/d1/database/'+ident)
+              val=r.get('result') if isinstance(r,dict) else None
+              if not isinstance(val,dict) or val.get('uuid')!=ident or val.get('name')!=item['name']:
+                details[ident]=None
+              else:details[ident]=val
+          detail_complete=catalog_complete and len(details)==len(rows) and all(isinstance(x,dict) for x in details.values())
+          empty_count=0
+          stage_zero_count=0
+          eligible_names=[]
+          axiom_nostage_present=0
+          if detail_complete:
+            for d in details.values():
+              name=d['name']
+              lower=name.lower()
+              n=d.get('num_tables')
+              if type(n) is int and n==0:empty_count+=1
+              if 'axiom' in lower and type(n) is int and n==0:axiom_nostage_present+=1
+              stage_mark=any(s in lower for s in ('stage','sandbox','qualification','test','disposable','restore'))
+              deny=any(s in lower for s in ('prod','oauth','whatsapp','mail','payment'))
+              if stage_mark and 'axiom' in lower and type(n) is int and n==0:stage_zero_count+=1
+              if (stage_mark and 'axiom' in lower and not deny and type(n) is int and n==0 and
+                  bound_metadata_complete and binding_counts.get(d['uuid'],0)==0):
+                  eligible_names.append(name)
+          out={'schema':'AXIOM_EXISTING_ACCOUNT_D1_EMPTY_UNBOUND_CANDIDATE_METADATA_V1',
+            'account_catalog_complete':bool(catalog_complete),
+            'd1_database_count':len(rows) if catalog_complete else None,
+            'all_d1_metadata_complete':bool(detail_complete),
+            'all_worker_bindings_checked':bool(bound_metadata_complete),
+            'worker_scripts_count':len(workers) if workers_ok else None,
+            'zero_table_d1_count':empty_count if detail_complete else None,
+            'zero_table_axiom_d1_count':axiom_nostage_present if detail_complete else None,
+            'zero_table_axiom_staging_labeled_count':stage_zero_count if detail_complete else None,
+            'possible_unbound_axiom_staging_d1_names':eligible_names if detail_complete and bound_metadata_complete else [],
+            'provider_read_count':len(requests),
+            'provider_get_http_non200_count':sum(x['http']!=200 for x in requests),
+            'customer_rows_read':0,'d1_sql_queries':0,'provider_mutations':0,
+            'restore_qualified':False,'staging_idp_qualified':False,'release_qualified':False,
+            'production_oauth_touched':False}
+          out['status']=('CANDIDATES_FOUND_REQUIRE_INDEPENDENT_ADMISSION' if eligible_names else 'NO_QUALIFIED_REUSE_CANDIDATES') if detail_complete and bound_metadata_complete else 'INCOMPLETE_METADATA_NO_GO'
+          b=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-d1-safe-staging-candidates-readonly.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_D1_CANDIDATE_METADATA='+out['status']+' REQUESTS='+str(len(requests))+' WRITES=0')
+          PY
+      - name: Preserve bounded read-only candidate metadata and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-d1-safe-reuse-candidates-readonly-20261109
+          path: |
+            axiom-d1-safe-staging-candidates-readonly.json
+            axiom-d1-safe-staging-candidates-readonly.json.sha256
+          retention-days: 14
+          if-no-files-found: warn
