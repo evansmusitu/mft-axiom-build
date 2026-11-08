@@ -1,0 +1,43 @@
+name: AXIOM PR77 synthetic Worker safety tests no credentials 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-synthetic-worker-offline-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-synthetic-worker-offline-20261108, cancel-in-progress: false}
+jobs:
+  worker-auth-denial-bounded-batch-contract:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-batch-worker-source-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-synthetic-d1-independent-readback-20261108' && github.event.pull_request.base.sha == '7cf428086ee176ee68c42c7e5fb1c5c12e484290' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 498b6dcdefffdb92c94c2daf31ddd33283338ebc
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Pin exact Worker source, tests and no release privileges
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 498b6dcdefffdb92c94c2daf31ddd33283338ebc
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs)" = 0c0a697c225b62b49dc46be64fa775ac9f801fa4
+          test "$(git hash-object customer_frontier/tests/pr77_synthetic_d1_worker_20261108.test.mjs)" = 29ce5c8871398890385caeeb67242655ff11a11c
+          node --check customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs').read_text()
+          assert "const EXPECTED_PLAN='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'" in s
+          assert "fixed.seed.length!==41" in s and "fixed.plan.length!==89" in s
+          assert "fixed.plan.slice(0,46)" in s and "total_batched_statements:48" in s
+          assert "fixed.plan.map(sql=>env.DB.prepare(sql))" in s
+          assert "req.headers.has('origin')" in s and "req.headers.has('cookie')" in s
+          assert "authorization" in s and "release_authority:false" in s
+          assert "SELECT * FROM" not in s and "eval(" not in s
+          print('SOURCE_PINNED_FIXED_SYNTHETIC_WORKER_NO_RELEASE')
+          PY
+      - name: Eight unit tests deny browser/unknown SQL and classify D1 failures
+        run: node --test customer_frontier/tests/pr77_synthetic_d1_worker_20261108.test.mjs
