@@ -1,0 +1,43 @@
+name: AXIOM alternate D1 empty recovery target offline tests 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-disposable-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-disposable-offline-20261108
+  cancel-in-progress: false
+jobs:
+  deny-unexpected-resource-and-duplicate-creates:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-disposable-target-create-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-target-account-preflight-20261108' && github.event.pull_request.base.sha == 'c7272c4be67cfef547f547dbce429f0b0e9324ea' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: bc40623ca8d4cb7f7c8e91d84938aa9c30c1db90
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit exactly named alternate account and fixed source, zero secrets
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = bc40623ca8d4cb7f7c8e91d84938aa9c30c1db90
+          test "$(git hash-object customer_frontier/qualification/disposable_d1_target_20261108.py)" = 7dd662f458c6bdac389c51ded45004319e22e88b
+          test "$(git hash-object customer_frontier/qualification/test_disposable_d1_target_20261108.py)" = cb074943d63b910d71add9acad816820bd87d7e7
+          python3 -m py_compile customer_frontier/qualification/disposable_d1_target_20261108.py customer_frontier/qualification/test_disposable_d1_target_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('customer_frontier/qualification/disposable_d1_target_20261108.py').read_text()
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in p
+          assert "ORIGINAL_ACCOUNT='93f395f5121954671f92fffa453d6b61'" in p
+          assert "NAME='axiom-disposable-dr-target-20261108'" in p
+          assert "if before:raise Rejected('TARGET_ACCOUNT_NOT_EMPTY')" in p
+          assert "writes+=1" in p
+          assert "fetch('create')" in p
+          assert "'customer_data_imported':False" in p
+          assert "'full_restore_qualified':False" in p and "'release_authority':False" in p
+          assert "DELETE FROM" not in p and "DROP TABLE" not in p
+          print('FIXED_OWNER_ALT_ACCOUNT_EMPTY_D1_CREATE_OFFLINE_ADMITTED')
+          PY
+      - name: Six offline synthetic fail-closed tests without Cloudflare
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_disposable_d1_target_20261108.py -v
