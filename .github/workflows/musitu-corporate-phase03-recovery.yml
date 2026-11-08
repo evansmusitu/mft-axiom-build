@@ -57,7 +57,7 @@ jobs:
             curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 -o "$repo/corporate/assets/studio-demo-82s.mp4"
             curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png -o "$repo/corporate/assets/studio-poster.png"
             printf '%s  %s\n' \
-              'afd6dfd3c73668e544f3a857697fed0abaadccd4927202bb3a185612c2dea0' "$repo/corporate/assets/studio-demo-82s.mp4" \
+              'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' "$repo/corporate/assets/studio-demo-82s.mp4" \
               '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' "$repo/corporate/assets/studio-poster.png" | sha256sum -c -
           done
       - uses: actions/setup-python@v5
