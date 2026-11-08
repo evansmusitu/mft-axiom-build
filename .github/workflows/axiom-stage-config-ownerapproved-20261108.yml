@@ -1,0 +1,64 @@
+name: AXIOM owner-approved exact staging config exception (one-use governed)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-exact-staging-configuration-rule-ownerapproved-20261108
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-stage-config-ownerapproved-20261108' &&
+      github.base_ref == 'build/axiom-stage-rule-equivalence-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fixed same-repository checkout, no persistent write credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify immutable source and execute 9 negative/positive tests BEFORE secret access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          test "$(git hash-object customer_frontier/qualification/staging_override.py)" = '9fdf9fb73c55c6801e7465236a875301bf0ffb13'
+          test "$(git hash-object customer_frontier/qualification/test_staging_override.py)" = 'db9db6b4c701afce6e18c0977518105c628cce87'
+          python3 -m py_compile customer_frontier/qualification/staging_override.py customer_frontier/qualification/test_staging_override.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_staging_override.py)
+      - name: Exact original Cloudflare zone version-25 rollback check, provider dry run, single full-ruleset PUT
+        id: apply
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/staging_override.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          test -f axiom-staging-configuration-oneuse.json || exit 3
+          exit 0
+      - name: Retain immutable redacted provider receipt and SHA256 digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-ownerapproved-config-oneuse-20261108
+          path: |
+            axiom-staging-configuration-oneuse.json
+            axiom-staging-configuration-oneuse.json.sha256
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Fail closed on denial or ambiguous state; never retry writes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.apply.outputs.exit_code }}" = 0
