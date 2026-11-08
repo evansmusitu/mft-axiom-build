@@ -1,0 +1,109 @@
+name: AXIOM isolated Workers route canary 60s no D1 20261108 (NO RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-workers-route-canary-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-workers-route-canary-20261108, cancel-in-progress: false}
+jobs:
+  one-no-database-owned-worker-route:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-workers-dev-routing-canary-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-post404-independent-readback-20261108' && github.event.pull_request.base.sha == 'ae36ee250371907f9af186a8d5cd07830204df94' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: New owned nonpublic canary, verify script route enabled, poll bounded 60s, then delete
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import {randomBytes} from 'node:crypto';
+          import {writeFile} from 'node:fs/promises';
+          const ACC='c954f0c842a486d0388c05b19cd21e47';
+          const SUB='mftaxiomdr-c954f0c8-20261108';
+          const NAME='axiom-pr77-routing-canary-20261108';
+          const RUN='axiom-pr77-route-probe-20261108-01';
+          const API='https://api.cloudflare.com/client/v4/accounts/'+ACC;
+          const HOST='https://'+NAME+'.'+SUB+'.workers.dev/health';
+          const TOKEN=process.env.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN||'';
+          const OWNER=randomBytes(24).toString('hex'),OP=randomBytes(32).toString('hex'),EPOCH=randomBytes(10).toString('hex');
+          const report={schema:'musitu.axiom.pr77_isolated_workers_dev_routing_canary.v1',account_id:ACC,script_name:NAME,workers_dev_subdomain:SUB,status:'UNQUALIFIED',script_uploaded:false,worker_owner_verified:false,script_subdomain_enabled_verified:false,script_deleted:false,worker_d1_bindings:0,d1_requests:0,worker_route_status_counts:{},route_verified:false,production_oauth_changed:false,release_authority:false,provider_http:[]};
+          const owned=x=>Array.isArray(x?.bindings)&&x.bindings.length===5&&x.bindings.some(b=>b.name==='OWNER'&&b.type==='plain_text'&&b.text===OWNER)&&x.bindings.some(b=>b.name==='RUN'&&b.text===RUN)&&x.bindings.every(b=>['OWNER','RUN','EPOCH','EXPIRES','TOKEN'].includes(b.name));
+          function assert(v,reason){if(!v)throw Error(reason)}
+          async function cloud(path,{method='GET',body=null,form=null,allow404=false}={}){
+           assert(TOKEN.length>5&&!TOKEN.includes('\n'),'TOKEN_MISSING');
+           const url=API+path;assert(url.startsWith(API+'/workers/'),'UNALLOWED_CLOUDFLARE_SURFACE');
+           const resp=await fetch(url,{method,headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},body:form||(body?JSON.stringify(body):undefined),redirect:'error',signal:AbortSignal.timeout(20000)});
+           report.provider_http.push({method,status:resp.status,route:path.includes('/subdomain')?'subdomain':path.includes('/settings')?'settings':'script'});
+           if(resp.status===404&&allow404)return null;
+           const raw=await resp.text();assert(raw.length<100000,'PROVIDER_LIMIT');
+           const obj=JSON.parse(raw);
+           assert(resp.status>=200&&resp.status<300&&obj?.success===true,'PROVIDER_REJECTED');
+           return obj.result;
+          }
+          const code='export default {async fetch(req,env){if(req.headers.has("origin")||req.headers.has("cookie"))return new Response("forbidden",{status:403});if(req.headers.get("authorization")!=="Bearer "+env.TOKEN)return new Response("unauthorized",{status:401});if(env.RUN!=="axiom-pr77-route-probe-20261108-01"||Date.now()>Number(env.EXPIRES))return new Response("expired",{status:403});return new Response(JSON.stringify({run_id:env.RUN,epoch:env.EPOCH,synthetic_only:true,release_authority:false}),{status:200,headers:{"content-type":"application/json","cache-control":"no-store"}})}};';
+          let attempted=false,route=false;
+          try{
+           const existing=await cloud('/workers/scripts/'+NAME+'/settings',{allow404:true});
+           assert(existing===null,'CANARY_NAME_ALREADY_EXISTS');
+           const sub=await cloud('/workers/subdomain');
+           assert(sub?.subdomain===SUB,'ACCOUNT_NAMESPACE_DRIFT');
+           const metadata={main_module:'worker.mjs',compatibility_date:'2026-11-08',bindings:[
+             {type:'plain_text',name:'OWNER',text:OWNER},
+             {type:'plain_text',name:'RUN',text:RUN},
+             {type:'plain_text',name:'EPOCH',text:EPOCH},
+             {type:'plain_text',name:'EXPIRES',text:String(Date.now()+240000)},
+             {type:'secret_text',name:'TOKEN',text:OP}
+           ]};
+           const f=new FormData();f.set('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+           f.set('worker.mjs',new Blob([code],{type:'application/javascript+module'}),'worker.mjs');
+           attempted=true;
+           await cloud('/workers/scripts/'+NAME,{method:'PUT',form:f});
+           report.script_uploaded=true;
+           const settings=await cloud('/workers/scripts/'+NAME+'/settings');
+           assert(owned(settings),'CANARY_OWNERSHIP_UNKNOWN');
+           report.worker_owner_verified=true;
+           await cloud('/workers/scripts/'+NAME+'/subdomain',{method:'POST',body:{enabled:true,previews_enabled:false}});
+           const routing=await cloud('/workers/scripts/'+NAME+'/subdomain');
+           report.script_subdomain_enabled_verified=routing?.enabled===true;
+           assert(report.script_subdomain_enabled_verified,'CLOUDFLARE_SCRIPT_SUBDOMAIN_NOT_ENABLED');
+           for(let attempt=0;attempt<30;attempt++){
+             try{
+               const r=await fetch(HOST,{headers:{authorization:'Bearer '+OP},redirect:'error',signal:AbortSignal.timeout(8000)});
+               const k=String(r.status);report.worker_route_status_counts[k]=(report.worker_route_status_counts[k]||0)+1;
+               if(r.status===200){
+                 const txt=await r.text();assert(txt.length<3000,'HEALTH_BODY_LIMIT');
+                 const obj=JSON.parse(txt);
+                 if(obj?.run_id===RUN&&obj?.epoch===EPOCH&&obj?.synthetic_only===true&&obj.release_authority===false){route=true;break}
+               }
+             }catch{report.worker_route_status_counts.network=(report.worker_route_status_counts.network||0)+1}
+             await new Promise(resolve=>setTimeout(resolve,2000));
+           }
+           report.route_verified=route;
+           report.status=route?'PRIVATE_WORKERS_DEV_ROUTE_VERIFIED_NO_D1':'SCRIPT_ENABLED_BUT_ROUTE_NOT_VERIFIED';
+          }catch{
+           if(report.status==='UNQUALIFIED')report.status='WORKER_ROUTING_PROVIDER_UNQUALIFIED';
+          }finally{
+           if(attempted){
+            try{
+              const current=await cloud('/workers/scripts/'+NAME+'/settings',{allow404:true});
+              if(current!==null){assert(owned(current),'FOREIGN_SCRIPT_NO_DELETE');await cloud('/workers/scripts/'+NAME,{method:'DELETE'})}
+              const absent=await cloud('/workers/scripts/'+NAME+'/settings',{allow404:true});
+              assert(absent===null,'WORKER_DELETE_NOT_VERIFIED');
+              report.script_deleted=true;
+            }catch{report.cleanup_status='OWNED_SCRIPT_DELETE_UNKNOWN';}
+           }
+           await writeFile('axiom-pr77-workers-dev-routing-canary-20261108.json',JSON.stringify(report,null,2)+'\n');
+           console.log(JSON.stringify(report));
+           if(!report.route_verified||!report.script_deleted)process.exitCode=1;
+          }
+          
+          JS
+      - name: Preserve only sanitized routing/cleanup statuses
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-private-workers-dev-route-canary-no-d1-20261108
+          path: axiom-pr77-workers-dev-routing-canary-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
