@@ -1,0 +1,77 @@
+name: AXIOM scoped alternate Cloudflare worker temporary write+delete test (NO D1) 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-worker-scoped-edit-probe-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-worker-scoped-edit-probe-20261108, cancel-in-progress: false}
+jobs:
+  one-empty-nonpublic-script-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-alt-worker-edit-scope-probe-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-worker-scope-and-synthetic-fixture-20261108' && github.event.pull_request.base.sha == '05516aee09215dfb5f0d0c37d9a714615730ac0e' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Create and remove one owned nonpublic Worker if scoped permission allows, NO D1
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          import {randomBytes} from 'node:crypto';
+          import {writeFile} from 'node:fs/promises';
+          const ACCOUNT='c954f0c842a486d0388c05b19cd21e47';
+          const SCRIPT='axiom-pr77-permission-probe-20261108';
+          const URL='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/workers/scripts/'+SCRIPT;
+          const token=process.env.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN||'';
+          const owner=randomBytes(24).toString('hex');
+          let status='UNQUALIFIED',writeAttempted=false,writeConfirmed=false,cleanupConfirmed=false,observations=[];
+          const report=()=>({schema:'musitu.axiom.pr77_alternate_worker_write_probe.v1',account_id:ACCOUNT,script_name:SCRIPT,status,write_attempted:writeAttempted,worker_created:writeConfirmed,worker_deleted:cleanupConfirmed,d1_database_bound:false,d1_writes:0,customer_data_used:false,production_oauth_changed:false,release_authority:false,observed_http_status_codes:observations});
+          class NoRetry extends Error{}
+          async function api(method,path='',body=null){
+            if(!token || token.includes('\n') || token.includes('\r'))throw new NoRetry('SECRET_MISSING');
+            const url=URL+path;
+            const headers={Authorization:'Bearer '+token,Accept:'application/json','User-Agent':'AXIOM-ScopedWorkerPermissionProbe-20261108'};
+            const r=await fetch(url,{method,headers,body,redirect:'error',signal:AbortSignal.timeout(20000)});
+            observations.push({method,route:path||'script',code:r.status});
+            if(r.status===404)return {status:404,result:null};
+            const data=await r.json().catch(()=>null);
+            if(r.status<200||r.status>=300||data?.success!==true)return {status:r.status,result:null};
+            return {status:r.status,result:data.result};
+          }
+          try{
+            const original=await api('GET','/settings');
+            if(original.status!==404){status='NAME_CONFLICT_OR_RESOURCE_UNQUALIFIED_NO_WRITES';throw new NoRetry(status)}
+            const script="export default {async fetch(){return new Response('disabled',{status:404,headers:{'cache-control':'no-store'}})}};";
+            const metadata={main_module:'worker.mjs',compatibility_date:'2026-11-08',bindings:[{type:'plain_text',name:'OWNER',text:owner}]};
+            const body=new FormData();
+            body.set('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+            body.set('worker.mjs',new Blob([script],{type:'application/javascript+module'}),'worker.mjs');
+            writeAttempted=true;
+            const uploaded=await api('PUT','',body);
+            if(uploaded.status!==200 && uploaded.status!==201){status='WORKER_WRITE_NOT_AUTHORIZED_OR_PROVIDER_REJECTED';throw new NoRetry(status)}
+            const settings=await api('GET','/settings');
+            const binds=settings.result?.bindings;
+            const matching=Array.isArray(binds)&&binds.filter(b=>b?.type==='plain_text'&&b?.name==='OWNER'&&b?.text===owner);
+            if(settings.status!==200||!Array.isArray(matching)||matching.length!==1||binds.length!==1){
+               status='CREATED_IDENTITY_UNVERIFIED_NO_FOREIGN_CLEANUP';throw new NoRetry(status)
+            }
+            writeConfirmed=true;
+            const del=await api('DELETE');
+            if(del.status!==200&&del.status!==204){status='OWNED_WORKER_DELETE_UNCONFIRMED';throw new NoRetry(status)}
+            const after=await api('GET','/settings');
+            if(after.status!==404){status='OWNED_WORKER_MAY_PERSIST_AFTER_DELETE';throw new NoRetry(status)}
+            cleanupConfirmed=true;status='WORKER_WRITE_AND_OWNED_DELETE_VERIFIED_NO_DB';
+          }catch(_error){if(status==='UNQUALIFIED')status='WORKER_PROVIDER_UNKNOWN_NO_RETRY_OR_FOREIGN_RESOURCE';}
+          await writeFile('axiom-pr77-worker-scope-probe-20261108.json',JSON.stringify(report(),null,2)+'\n');
+          console.log(JSON.stringify(report()));
+          if(status!=='WORKER_WRITE_AND_OWNED_DELETE_VERIFIED_NO_DB')process.exitCode=1;
+          
+          JS
+      - name: Archive sanitized provider decisions including failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-synthetic-worker-scope-write-probe-no-d1-20261108
+          path: axiom-pr77-worker-scope-probe-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
