@@ -1,0 +1,78 @@
+name: AXIOM current customer staging D1 encrypted logical snapshot 20261108 (NO MIGRATION)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-current-backup-live-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-current-backup-live-20261108
+  cancel-in-progress: false
+jobs:
+  one-shot-owner-encrypted-staging-backup:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-current-backup-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-current-encrypted-backup-20261108' && github.event.pull_request.base.sha == '263ac66ffd0bbb97940787f9bb99bbbd8467a37f' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a950ba2484d982f57a32891581417e79cd22fda2
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Admit exact reviewed exporter, tests, public recipient and current catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a950ba2484d982f57a32891581417e79cd22fda2
+          test "$(git hash-object customer_frontier/recovery/export_ccc_staging_current_backup.mjs)" = d95156158d5bd3aa2c93bef8023cbb86a05a10a5
+          test "$(git hash-object customer_frontier/tests/ccc_staging_current_backup.test.mjs)" = b2d6dc1e4a7337f96be5bcd18a8a7ff9380e0966
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = ec9115c83879290d23cee2eb2932f2f31df5584d
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          s=Path('customer_frontier/recovery/export_ccc_staging_current_backup.mjs').read_text()
+          assert "export const DATABASE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'" in s
+          assert "export const CATALOG_SHA='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'" in s
+          assert "rows.length!==78" in s
+          assert "metadata.file_size>16777216" in s
+          assert "sha(publicKey)!==RECIPIENT_SHA" in s
+          assert "encryptBackup(sql,publicKey,header);sql.fill(0)" in s
+          assert "restore_qualified:false" in s and "target_admitted:false" in s
+          assert "export started" not in s
+          print('FRESH_STAGE_BACKUP_SOURCE_TEST_AND_RECIPIENT_ADMITTED')
+          PY
+      - name: Repeat offline test suite before Cloudflare credential injection
+        run: node --test customer_frontier/tests/ccc_staging_current_backup.test.mjs
+      - name: One bounded current-catalog-checked encrypted D1 export (no schema/data writes)
+        env:
+          AXIOM_CHECKOUT_SHA: a950ba2484d982f57a32891581417e79cd22fda2
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/recovery/export_ccc_staging_current_backup.mjs
+      - name: Verify encrypted backup and safe receipt, not hosted restore
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          encrypted=Path('ccc-staging-current-20261108.json.enc').read_bytes()
+          receipt=json.loads(Path('ccc-staging-current-backup-receipt.json').read_text())
+          outer=json.loads(encrypted)
+          assert receipt['export_complete'] is True and receipt['catalog_read_zero_writes'] is True
+          assert receipt['catalog_sha256']=='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'
+          assert hashlib.sha256(encrypted).hexdigest()==receipt['envelope_sha256']
+          assert outer['schema']=='musitu.axiom.encrypted_d1_backup.v1'
+          assert outer['algorithm']=='RSA-OAEP-SHA256+AES-256-GCM'
+          assert receipt['backup_saved_to_drive'] is False
+          assert receipt['restore_qualified'] is False and receipt['hosted_migration_qualified'] is False
+          assert receipt['target_admitted'] is False and receipt['release_authority'] is False
+          print('CURRENT_STAGING_CIPHERTEXT_AND_RECEIPT_MATCH_NO_RELEASE sha256='+receipt['envelope_sha256'])
+          PY
+      - name: Preserve encrypted-only blob and safe receipt including failed attempts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-ccc-current-staging-encrypted-snapshot-20261108
+          path: |
+            ccc-staging-current-20261108.json.enc
+            ccc-staging-current-backup-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
