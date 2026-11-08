@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --quiet --depth 1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-phase03
-          test "$(git -C /tmp/musitu-phase03 rev-parse HEAD)" = "031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa"
+          test "$(git -C /tmp/musitu-phase03 rev-parse HEAD)" = "cedbb4e17c52b80c071ee5b658f2dfbc28b014ff"
           curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-phase03/corporate/assets/studio-demo-82s.mp4
           curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-phase03/corporate/assets/studio-poster.png
           printf '%s  %s\n' \
@@ -73,6 +73,7 @@ jobs:
           python -m pip install -q pytest beautifulsoup4
           cd /tmp/musitu-phase03/corporate
           export MUSITU_BUILD_MODE=review
+          export MUSITU_PUBLISH_PHASE03=1
           export MUSITU_PROTECTED_STAGING_MEDIA=1
           python scripts/build.py
           python -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py tests/test_phase03_seo.py tests/test_phase03_growth.py
@@ -82,14 +83,16 @@ jobs:
           root=Path('dist')
           assert not (root/'sitemap.xml').exists()
           assert (root/'robots.txt').read_text().splitlines()==['User-agent: *','Disallow: /']
-          assert len(list(root.rglob('index.html')))==34
+          assert len(list(root.rglob('index.html')))==49
           manifest=json.loads((root/'manifest.json').read_text())
           assert manifest['build_mode']=='review' and manifest['studio_media_included'] is True
           assert manifest['production_approved'] is False
+          assert manifest['phase03_publication_source_approved'] is True
+          assert len(manifest['phase03_publication_routes'])==15
           for file in root.rglob('index.html'):
             data=file.read_text()
             assert 'noindex,nofollow' in data and 'canonical"' not in data
-          print('Review-only artifact has 34 noindex routes and approved media; no production SEO publication')
+          print('Review-only artifact has 49 noindex routes and approved media; no production SEO publication')
           PY
       - name: Deploy exact qualified review build to Access-protected preview branch ONLY
         run: |
@@ -97,7 +100,7 @@ jobs:
           npx --yes wrangler@4 pages deploy /tmp/musitu-phase03/corporate/dist \
             --project-name=musitu-corporate \
             --branch=phase03-staging-20261108 \
-            --commit-hash=031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa \
+            --commit-hash=cedbb4e17c52b80c071ee5b658f2dfbc28b014ff \
             --commit-message="MUSITU Phase03 protected candidate review only"
       - name: Confirm preview deployment remains behind Access and production unchanged
         run: |
@@ -119,7 +122,7 @@ jobs:
             previews=[d for d in rows if d.get('environment')=='preview' and (d.get('latest_stage') or {}).get('status')=='success']
             for d in previews:
               commit=((d.get('deployment_trigger') or {}).get('metadata') or {}).get('commit_hash','')
-              if commit=='031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa':
+              if commit=='cedbb4e17c52b80c071ee5b658f2dfbc28b014ff':
                 preview=d
                 break
             if preview:break
