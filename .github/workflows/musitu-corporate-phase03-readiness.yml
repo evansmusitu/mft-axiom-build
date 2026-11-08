@@ -62,6 +62,30 @@ jobs:
               if 'musitu-corporate.pages.dev' in domains or 'corporate' in str(app.get('name','')).lower():
                 relevant.append({'name':app.get('name'),'type':app.get('type'),'domain':app.get('domain')})
             print('Potential Pages preview Access apps (not policy proof):',json.dumps(relevant))
+            for app in rows:
+              domain=str(app.get('domain',''))
+              if domain not in ('*.musitu-corporate.pages.dev','musitu-corporate.pages.dev'):continue
+              print('Checking Access policy for',app.get('name'))
+              pid=app.get('id')
+              assert pid,'Access app missing ID'
+              check=call(prefix+'/access/apps/'+pid+'/policies?per_page=100')
+              if not check.get('success'):
+                print('Access policy inventory UNVERIFIED:',check.get('http_status','API error'))
+                continue
+              policies=check.get('result') or []
+              if isinstance(policies,dict):policies=policies.get('result') or []
+              print('Access policy decisions:',json.dumps([str(p.get('decision')) for p in policies]))
+              any_bad=False
+              for p in policies:
+                if p.get('decision') in ('bypass','non_identity'):
+                  any_bad=True
+                # These public selectors are never acceptable for a restricted preview.
+                for entry in p.get('include',[]):
+                  if 'everyone' in entry or 'any_valid_service_token' in entry:
+                    any_bad=True
+              print('Access policies count:',len(policies),'unsafe anonymous grants:',any_bad)
+              assert policies and not any_bad,'HOLD: preview Access policy has anonymous bypass or no policies'
+
           if a.get('success'):
             def selectors(p):
               return sorted(set(k for item in (p.get('include') or []) for k in item.keys()))
