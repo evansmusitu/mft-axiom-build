@@ -48,3 +48,29 @@ test("OpenAI explanation sends exact provider-generated token ceiling independen
   assert.equal(JSON.parse(captured.requestBody).max_output_tokens,256);
   assert.equal(JSON.parse(captured.normalizedResponseBody).summary,"Synthetic only");
 });
+
+test("OpenAI compilation sends the same exact generated-token ceiling",async()=>{
+  const outbound:any[]=[];
+  const adapter=new axiom.OpenAiResponsesModelAdapter(config(256,async (_url:any,init:any)=>{
+    outbound.push(JSON.parse(String(init.body)));
+    return fakeFetch(_url,init);
+  }) as any);
+  const profile={
+    profileId:"profile:synthetic",version:"1.0.0",adapterId:model.adapterId,
+    allowedOperationIds:["comparison.lte"],maxRepairAttempts:0,maxInputs:2,maxNodes:2,
+    maxConstraints:2,maxAssumptions:2,maxObjectiveBytes:1024,maxModelResponseBytes:8192
+  };
+  const input:any={
+    tenant:{tenantId:"tenant:synthetic"},profile,profileHash:"b".repeat(64),
+    compilationRequestHash:"c".repeat(64),attempt:0,mode:"INITIAL",
+    objective:"Check bounded synthetic inputs",inputContracts:[],
+    operationRegistryManifest:[],remainingRepairAttempts:0,
+    capturedAt:"2026-11-08T00:00:00.000Z"
+  };
+  // The mock response is an explanation, not a proposal. Only the outbound
+  // envelope is under test; it must reach the fake fetch with a token cap.
+  await adapter.invoke(input).catch(()=>undefined);
+  assert.equal(outbound.length,1,"Compilation must reach the mocked provider transport");
+  assert.equal(outbound[0].max_output_tokens,256);
+  assert.equal(outbound[0].store,false);
+});
