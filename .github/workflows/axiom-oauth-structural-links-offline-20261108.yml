@@ -1,0 +1,44 @@
+name: AXIOM production OAuth structural link offline qualification 20261108 (NO TOKENS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-oauth-structural-links-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-oauth-structural-links-offline-20261108
+  cancel-in-progress: false
+jobs:
+  fixed-readonly-relationship-negative-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-oauth-structural-links-readonly-20261108' && github.event.pull_request.base.ref == 'build/axiom-production-oauth-readonly-fresh-20261108' && github.event.pull_request.base.sha == '621555d0e781c48aaa0f08e10efa98871fc2920b' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b56e1f7a26298ae4a216b309af0090c8b9dcf221
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Pin exact immutable reader and seven negative tests without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = b56e1f7a26298ae4a216b309af0090c8b9dcf221
+          test "$(git hash-object customer_frontier/qualification/oauth_identity_links_20261108.py)" = c1dab9b2d08a088db63f99568c2a607f28f10a36
+          test "$(git hash-object customer_frontier/qualification/test_oauth_identity_links_20261108.py)" = f485dc025c95879aca2dbce628693d2783c130f5
+          python3 -m py_compile customer_frontier/qualification/oauth_identity_links_20261108.py customer_frontier/qualification/test_oauth_identity_links_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          x=Path('customer_frontier/qualification/oauth_identity_links_20261108.py').read_text()
+          assert "DATABASE='504029cc-f9a5-495e-818f-63c6144b4ea4'" in x
+          assert "CATALOG_SHA='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'" in x
+          assert "WORKER='musitu-axiom-oauth'" in x
+          assert "calls>=4" in x
+          assert "changes" in x and "rows_written" in x and "changed_db" in x
+          assert "'real_identity_qualified':False" in x and "'release_authority':False" in x
+          assert "SELECT * FROM" not in x and "DELETE FROM" not in x and "DROP TABLE" not in x
+          assert "private_jwk" not in x and "oauth_oidc_signing_keys" not in x
+          print('FIXED_STRUCTURAL_OAUTH_NO_PII_READONLY_ADMISSION_PASS')
+          PY
+      - name: Seven read-only, schema drift and cross-tenant failure tests
+        shell: bash
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_oauth_identity_links_20261108.py -v
