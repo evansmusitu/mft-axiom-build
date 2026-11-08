@@ -1,0 +1,91 @@
+name: AXIOM staging D1 hosted synthetic batch rollback 20261108 (NO RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-hosted-rollback-live-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-hosted-rollback-live-20261108
+  cancel-in-progress: false
+jobs:
+  verify-one-atomic-negative-batch:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-hosted-synthetic-rollback-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-hosted-synthetic-rollback-20261108' && github.event.pull_request.base.sha == 'b1612ca3b619f8712c6ce42ecdfe229187495cd3' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: abdf00c692e4597d0489cc597522c58b0f63da56
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Confirm immutable worker, driver, tests and preflight hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = abdf00c692e4597d0489cc597522c58b0f63da56
+          test "$(git hash-object customer_frontier/qualification/ccc_synthetic_rollback_worker_20261108.mjs)" = 345d66ad33293ef34038c3cd91b81e760728d94a
+          test "$(git hash-object customer_frontier/qualification/run_ccc_hosted_synthetic_rollback_20261108.mjs)" = 6e86c436d91d54c2fb4baaa2c6fd5f3f9d88bdf0
+          test "$(git hash-object customer_frontier/tests/ccc_hosted_synthetic_rollback_20261108.test.mjs)" = c8072ef08559a38d1b321bc2785119607fe294fb
+          test "$(git hash-object customer_frontier/qualification/ccc_current_catalog_audit.py)" = 34fab291033cde14e13efdd9e87bd5e8d5d16100
+          test "$(git hash-object customer_frontier/tests/test_ccc_current_catalog_audit.py)" = 251c15962293cdbf346e7929194373b51e3ce6b8
+          node --check customer_frontier/qualification/ccc_synthetic_rollback_worker_20261108.mjs
+          node --check customer_frontier/qualification/run_ccc_hosted_synthetic_rollback_20261108.mjs
+      - name: Repeat synthetic security, rollback and privacy tests before Cloudflare
+        shell: bash
+        run: |
+          node --test customer_frontier/tests/ccc_hosted_synthetic_rollback_20261108.test.mjs
+          python3 -m unittest discover -s customer_frontier/tests -p test_ccc_current_catalog_audit.py -v
+      - name: Fresh Cloudflare current D1 catalog and ALL current Worker/Pages binding preflight
+        env:
+          AXIOM_CHECKOUT_SHA: abdf00c692e4597d0489cc597522c58b0f63da56
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/ccc_current_catalog_audit.py
+      - name: Deny hosted probe on ANY current drift/binding/unknown observation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('ccc-current-catalog-audit.json').read_text())
+          assert d['status']=='CURRENT_CATALOG_AND_BINDINGS_OBSERVED' and d['references']==[] and d['errors']==[]
+          assert d['query_count']==1 and d['query_zero_writes_confirmed']==1 and d['provider_query_mutations']==0
+          assert d['workers']['status']=='OBSERVED_LISTED_SCRIPTS_AND_ENVIRONMENTS'
+          assert d['pages']['status']=='OBSERVED_CURRENT_CONFIGS'
+          row=d['catalogs']['ccc473f1-fbb5-4b8d-8a24-45f3696ac10f']
+          assert row['catalog_sha256']=='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'
+          assert len(row['objects'])==78
+          assert not d['target_admitted'] and not d['release_authority']
+          print('CURRENT_STAGING_FRESH_EXACT_SCHEMA_AND_UNBOUND_CHECK_PASS')
+          PY
+      - name: Deploy only temporary owned private probe; require failed D1 batch and hard cleanup
+        env:
+          AXIOM_CHECKOUT_SHA: abdf00c692e4597d0489cc597522c58b0f63da56
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/qualification/run_ccc_hosted_synthetic_rollback_20261108.mjs
+      - name: Require atomic rollback, no residue, unchanged catalog and deleted Worker
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('ccc-hosted-rollback-result.json').read_text())
+          assert d['rollback_verified'] is True
+          assert d['initial_catalog_verified'] is True and d['after_catalog_verified'] is True
+          assert d['temporary_worker_removed'] is True and d['probe_table_persisted'] is False
+          assert d['catalog_sha256']=='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'
+          assert d['customer_records_read']==0 and d['production_oauth_changed'] is False
+          assert d['full_hosted_restore_qualified'] is False and d['release_authority'] is False
+          assert d['error'] is None
+          print('HOSTED_SYNTHETIC_BATCH_ROLLBACK_PASS_NOT_A_DESTRUCTIVE_RESTORE')
+          PY
+      - name: Preserve redacted evidence and preflight even on failed/uncertain outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-ccc-hosted-synthetic-rollback-20261108
+          path: |
+            ccc-current-catalog-audit.json
+            ccc-current-catalog-audit.json.sha256
+            ccc-hosted-rollback-result.json
+          if-no-files-found: warn
+          retention-days: 30
