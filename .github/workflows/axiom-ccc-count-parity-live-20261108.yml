@@ -1,0 +1,82 @@
+name: AXIOM customer D1 aggregate read-only count parity 20261108 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-count-parity-live-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-count-parity-live-20261108
+  cancel-in-progress: false
+jobs:
+  one-shot-fixed-staging-counts:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-count-parity-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-count-parity-review-20261108' && github.event.pull_request.base.sha == '74dd145d3fde0aea0af6d53dac78e566d1853880' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4e60c47cda67683b48d576ecf32fa18d7bf49a8a
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit only reviewed GET metadata + 26 SELECT count/catalog calls before secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4e60c47cda67683b48d576ecf32fa18d7bf49a8a
+          test "$(git hash-object customer_frontier/qualification/ccc_live_count_preflight.py)" = 32fb1580e323699937efe7d80b573516a584d622
+          test "$(git hash-object customer_frontier/qualification/test_ccc_live_count_preflight.py)" = 2deeb42dcd5e08a0125d467a63b05c3bd4fc7bde
+          python3 -m py_compile customer_frontier/qualification/ccc_live_count_preflight.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('customer_frontier/qualification/ccc_live_count_preflight.py')
+          s=p.read_text()
+          assert "DB='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'" in s
+          assert "CATALOG_SHA='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'" in s
+          assert "OLD_BACKUP_SHA='d8fdb7d06f27d3053799ba70eb2c4c12d2b5570eb9c5cf4724e7216908d0b3b3'" in s
+          assert "MAX_REQUESTS=27" in s and "MAX_QUERIES=26" in s
+          assert "NoRedirects" in s
+          assert "SELECT * FROM " not in s and "DROP TABLE " not in s
+          assert "COUNT_SQL.fullmatch(sql)" in s
+          assert "'user_row_contents_compared':False" in s
+          assert "'full_restore_qualified':False" in s
+          assert "'release_authority':False" in s
+          print('READ_ONLY_STAGING_AGGREGATE_EXACT_SOURCE_PIN_PASS')
+          PY
+      - name: Re-run privacy, SQL-injection, drift and zero-write negative tests (NO SECRETS)
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_ccc_live_count_preflight.py -v
+      - name: Execute exact D1 row-count-only observation with existing scoped credential
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/ccc_live_count_preflight.py
+      - name: Reject incomplete or elevated parity claims and hash receipt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('ccc-live-count-parity-20261108.json')
+          r=json.loads(p.read_text())
+          assert r['status']=='AGGREGATE_COUNT_PARITY_ONLY'
+          assert r['database_id']=='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
+          assert r['user_table_count']==25 and r['user_rows_total']==25
+          assert r['request_count']==27 and r['query_count']==26
+          assert r['query_zero_writes_confirmed']==26 and r['provider_query_mutations']==0
+          assert r['user_row_contents_compared'] is False
+          assert r['identity_qualified'] is False
+          assert r['full_restore_qualified'] is False
+          assert r['production_oauth_changed'] is False and r['release_authority'] is False
+          assert len(r['table_count_vector_sha256'])==64
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(digest+'  '+p.name+'\n')
+          print('HOSTED_COUNT_ONLY_PARITY_PASS_NOT_DATA_EQUIVALENCE sha256='+digest)
+          PY
+      - name: Preserve sanitized aggregate counts only including failure status
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-ccc-hosted-count-parity-only-20261108
+          path: |
+            ccc-live-count-parity-20261108.json
+            ccc-live-count-parity-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
