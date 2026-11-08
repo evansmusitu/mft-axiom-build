@@ -101,7 +101,7 @@ async function main(){
       await ledger.provision({tenantId},adapterManifest.adapterId,adapterManifest.modelId,maximum,name);
       const raw=name==="openai"
         ?new OpenAiResponsesModelAdapter({manifest:adapterManifest,apiKeySecretRef:"smoke:openai",
-          timeoutMs:10000,maxResponseBytes:16384,secretResolver:secrets})
+          timeoutMs:10000,maxOutputTokens:256,maxResponseBytes:16384,secretResolver:secrets})
         :new AnthropicMessagesModelAdapter({manifest:adapterManifest,apiKeySecretRef:"smoke:anthropic",
           anthropicVersion:required(anthropic.apiVersion,"anthropic.apiVersion"),maxTokens:256,
           timeoutMs:10000,maxResponseBytes:16384,secretResolver:secrets});
