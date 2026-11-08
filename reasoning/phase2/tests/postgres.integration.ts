@@ -886,7 +886,7 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     ORDER BY p.proname`);
   assert.deepEqual(functions.rows.map((x:any)=>x.proname),['reserve','settle']);
   assert.ok(functions.rows.every((x:any)=>x.prosecdef===true &&
-    String(x.proconfig).replace(/\\s+/g,'').includes('search_path=pg_catalog,pg_temp')));
+    String(x.proconfig).replace(/\s+/g,'').includes('search_path=pg_catalog,pg_temp')));
   const deniedPublic=await admin.query(`SELECT
     has_function_privilege('axiom_spend_runtime_ci',
       'axiom_spend.reserve(text,text,text,text,text,bigint,text)','EXECUTE') AS reserve_execution,
