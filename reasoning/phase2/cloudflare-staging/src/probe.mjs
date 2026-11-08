@@ -29,6 +29,15 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
     'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
  OR pg_catalog.has_any_column_privilege(current_user,billing.table_oid,
     'INSERT,UPDATE,REFERENCES')) AS direct_billing_dml_authority,
+ EXISTS (SELECT 1 FROM (VALUES
+   (to_regclass('public.axiom_provider_spend_budgets')),
+   (to_regclass('public.axiom_provider_spend_organizations')),
+   (to_regclass('public.axiom_provider_spend_requests'))
+ ) AS billing(table_oid)
+ WHERE billing.table_oid IS NULL
+ OR pg_catalog.has_table_privilege(current_user,billing.table_oid,'SELECT')
+ OR pg_catalog.has_any_column_privilege(current_user,billing.table_oid,'SELECT'))
+   AS direct_billing_select_authority,
  has_database_privilege(current_user,current_database(),'CREATE') AS can_create_database_objects,
  has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects`;
 
@@ -54,7 +63,7 @@ export async function inspectStagingHyperdrive(env, clientFactory){
     // Missing privilege evidence or elevated runtime capabilities are both denial.
     if(row.privileged_role!==false||row.neon_superuser_member!==false||
        row.privileged_role_membership!==false||row.billing_table_owner_member!==false||
-       row.direct_billing_dml_authority!==false||
+       row.direct_billing_dml_authority!==false||row.direct_billing_select_authority!==false||
        row.can_create_database_objects!==false||row.can_create_schema_objects!==false)
       throw new Error('STAGING_PRIVILEGED_ROLE_DENIED');
     // Schema existence is not evidence of budgets, enforced call paths, or invoice reconciliation.
