@@ -161,6 +161,8 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
 // mutable prototype at validation time would bless a later global patch.
 const trustedSqliteReserve=SqliteProviderSpendLedger.prototype.reserve;
 const trustedSqliteSettle=SqliteProviderSpendLedger.prototype.settle;
+// Do not allow post-import replacement of the genuine ledger trust verifier.
+Object.freeze(SqliteProviderSpendLedger);
 function checkedPrices(value:ProviderTokenPrices):ProviderTokenPrices{
   if(!value||typeof value!=="object")throw new TypeError("Explicit vendor model price configuration is required");
   const rates={
