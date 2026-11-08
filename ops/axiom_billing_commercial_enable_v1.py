@@ -14,7 +14,9 @@ import urllib.request
 API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']; DBID=os.environ['D1_UUID']
 AUTH=os.environ['AUTHORITY']; TRANSPORT=os.environ['TRANSPORT']; BILLING=os.environ['BILLING']; ROUTE=os.environ['BILLING_ROUTE']; BASE=os.environ['PAYMENTS_BASE']
 AUTH_SHA=os.environ['AUTHORITY_SHA256']; TRANSPORT_SHA=os.environ['TRANSPORT_SHA256']
-CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Billing-Commercial-Enable/1.0'}
+API_TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+LEGACY_CFH={'X-Auth-Email':os.environ.get('CLOUDFLARE_EMAIL',''),'X-Auth-Key':os.environ.get('CLOUDFLARE_GLOBAL_API_KEY',''),'User-Agent':'MUSITU-Axiom-Billing-Commercial-Enable/1.1'}
+CFH=({'Authorization':'Bearer '+API_TOKEN,'User-Agent':'MUSITU-Axiom-Billing-Commercial-Enable/1.1'} if API_TOKEN else LEGACY_CFH)
 transport_bridge=secrets.token_urlsafe(48)
 original={'authority':None,'transport':None,'billing':None}
 changed={'authority':False,'transport':False,'billing':False,'transport_secret_transport':False,'transport_secret_billing':False}
@@ -318,6 +320,7 @@ def public(path,method='GET',body=None,headers=None):
     return req(BASE+path,method,h,body,30)
 
 try:
+    if not API_TOKEN: raise RuntimeError('CLOUDFLARE_API_TOKEN is required')
     original['authority']=read_script(AUTH,'verifyPaynowCallback')
     original['transport']=read_script(TRANSPORT,'/internal/paynow/initiate')
     original['billing']=read_script(BILLING,'/billing/healthz')
