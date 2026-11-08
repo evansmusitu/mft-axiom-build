@@ -64,7 +64,7 @@ test("OpenAI compilation sends the same exact generated-token ceiling",async()=>
   const input:any={
     tenant:{tenantId:"tenant:synthetic"},profile,profileHash:modelProfileHash(profile as any),
     compilationRequestHash:"c".repeat(64),attempt:0,mode:"INITIAL",
-    objective:"Check bounded synthetic inputs",inputContracts:[],
+    objective:"Check bounded synthetic inputs",inputContracts:[{inputName:"observed",type:{kind:"number",unit:"ratio"},entity:"risk:synthetic",attribute:"value",requirementId:"synthetic-value",maxAgeMs:1000}],
     operationRegistryManifest:[{id:"comparison.lte",version:"1.0.0",implementationHash:"d".repeat(64),moduleHash:"e".repeat(64)}],remainingRepairAttempts:0,
     capturedAt:"2026-11-08T00:00:00.000Z"
   };
