@@ -1,0 +1,141 @@
+name: MUSITU Corporate Phase03 Exact-SHA Protected Staging Qualification
+on:
+  push:
+    branches: [ops/corporate-phase03-staging-20261108]
+permissions:
+  contents: read
+concurrency:
+  group: musitu-corporate-phase03-staging-release
+  cancel-in-progress: false
+jobs:
+  guarded-staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Require unchanged production and restrictive corporate preview Access policies
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request
+          token=os.environ.get('CLOUDFLARE_API_TOKEN')
+          assert token,'No corporate Cloudflare credential'
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=headers),timeout=20) as response: data=json.load(response)
+            assert data.get('success'), 'Cloudflare provider preflight failed'
+            return data['result']
+          base='/accounts/'+account
+          project=get(base+'/pages/projects/musitu-corporate')
+          assert project.get('name')=='musitu-corporate'
+          assert project.get('production_branch')=='main'
+          assert 'mftintelligence.com' in project.get('domains',[])
+          assert not (project.get('source') or {}).get('type')
+          deployments=get(base+'/pages/projects/musitu-corporate/deployments?per_page=10')
+          production=[d for d in deployments if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+          assert production and production[0]['id']=='a2426a81-b0cb-4a46-a90c-493f871c9775','Unexpected production drift: REFUSE staging'
+          assert any(d['id']=='69ee853a-f0b4-432e-b069-7d6e180fdb4c' for d in production),'Rollback snapshot missing'
+          apps=get(base+'/access/apps?per_page=100')
+          if isinstance(apps,dict): apps=apps.get('apps') or apps.get('result') or []
+          target=next((app for app in apps if app.get('domain')=='*.musitu-corporate.pages.dev'),None)
+          assert target,'Cloudflare Access wildcard preview app absent'
+          policies=get(base+'/access/apps/'+target['id']+'/policies?per_page=10')
+          if isinstance(policies,dict):policies=policies.get('policies') or policies.get('result') or []
+          assert policies,'Preview Access policy missing'
+          for p in policies:
+            assert p.get('decision')=='allow','Preview Access policy includes bypass/non-allow'
+            inc=p.get('include') or []
+            assert inc and all(set(rule)=={'cloudflare_account_member'} for rule in inc),'Preview Access public selector'
+          print('Staging Access/production isolation verified; current production remains PR33')
+          PY
+      - name: Fetch exact PR35 source and hash-verify previously approved video and poster
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-phase03
+          test "$(git -C /tmp/musitu-phase03 rev-parse HEAD)" = "031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa"
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-phase03/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-phase03/corporate/assets/studio-poster.png
+          printf '%s  %s\n' \
+            'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-phase03/corporate/assets/studio-demo-82s.mp4' \
+            '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-phase03/corporate/assets/studio-poster.png' | sha256sum --check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rebuild and independently test exact nonindexing staging artifact
+        run: |
+          set -euo pipefail
+          python -m pip install -q pytest beautifulsoup4
+          cd /tmp/musitu-phase03/corporate
+          export MUSITU_BUILD_MODE=review
+          export MUSITU_PROTECTED_STAGING_MEDIA=1
+          python scripts/build.py
+          python -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py tests/test_phase03_seo.py tests/test_phase03_growth.py
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('dist')
+          assert not (root/'sitemap.xml').exists()
+          assert (root/'robots.txt').read_text().splitlines()==['User-agent: *','Disallow: /']
+          assert len(list(root.rglob('index.html')))==34
+          manifest=json.loads((root/'manifest.json').read_text())
+          assert manifest['build_mode']=='review' and manifest['studio_media_included'] is True
+          assert manifest['production_approved'] is False
+          for file in root.rglob('index.html'):
+            data=file.read_text()
+            assert 'noindex,nofollow' in data and 'canonical"' not in data
+          print('Review-only artifact has 34 noindex routes and approved media; no production SEO publication')
+          PY
+      - name: Deploy exact qualified review build to Access-protected preview branch ONLY
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-phase03/corporate/dist \
+            --project-name=musitu-corporate \
+            --branch=phase03-staging-20261108 \
+            --commit-hash=031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa \
+            --commit-message="MUSITU Phase03 protected candidate review only"
+      - name: Confirm preview deployment remains behind Access and production unchanged
+        run: |
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          base='/accounts/'+account+'/pages/projects/musitu-corporate/deployments?per_page=10'
+          def get():
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+base,headers=h),timeout=20) as r:data=json.load(r)
+            assert data.get('success')
+            return data['result']
+          preview=None
+          for attempt in range(8):
+            rows=get()
+            prod=[d for d in rows if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+            assert prod and prod[0]['id']=='a2426a81-b0cb-4a46-a90c-493f871c9775','Production changed; alert owner'
+            previews=[d for d in rows if d.get('environment')=='preview' and (d.get('latest_stage') or {}).get('status')=='success']
+            for d in previews:
+              commit=((d.get('deployment_trigger') or {}).get('metadata') or {}).get('commit_hash','')
+              if commit=='031a0aef47216a4a6ff6917bc0a6f0e3ba1c41fa':
+                preview=d
+                break
+            if preview:break
+            time.sleep(5)
+          assert preview,'Exact-SHA protected preview not confirmed by Pages API'
+          url='https://phase03-staging-20261108.musitu-corporate.pages.dev/'
+          req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-Phase03-Anonymous-Access-Check'})
+          try:
+            with urllib.request.urlopen(req,timeout=20) as res:
+              final=res.url
+              body=res.read(160000)
+              assert 'cloudflareaccess.com' in final,'Preview publicly accessible without identity'
+              assert b'MUSITU PUBLIC' not in body,'Preview body unexpectedly anonymously exposed'
+          except urllib.error.HTTPError as err:
+            assert err.code in (401,403),'Unexpected preview response: '+str(err.code)
+          print('PASS: exact-sha preview Pages ID:',preview['id'])
+          print('PASS: anonymous Access challenge and unchanged production; preview URL:',url)
+          print('MANUAL hosted/assistive-technology checks still required; no production deployment or rollback performed')
+          PY
