@@ -75,16 +75,18 @@ jobs:
                   assert not re.search(r'<meta\b[^>]*\bname\s*=\s*["\']robots["\'][^>]*\bcontent\s*=\s*["\'][^"\']*noindex',body,flags=re.I),"Route noindex"
                   assert "noindex" not in str(h.get("x-robots-tag","")).lower(),"X-Robots-Tag noindex"
                   assert "<title>" in body.lower(),"Missing title"
-                  return (url, True,"", "mailto:support@mftintelligence.com" in body.lower())
+                  return (url, True,"", "mailto:support@mftintelligence.com" in body.lower(), "/cdn-cgi/l/email-protection" in body.lower() or "data-cfemail" in body.lower(), "mhundwa village" in body.lower())
               except Exception as exc:
                   # URL is public; do not disclose private data from any response.
-                  return (url, False,type(exc).__name__+": "+str(exc)[:140],False)
+                  return (url, False,type(exc).__name__+": "+str(exc)[:140],False,False,False)
 
           with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
               statuses=list(pool.map(page_check,tags))
-          fails=[(u,err) for u,ok,err,_ in statuses if not ok]
+          fails=[(u,err) for u,ok,err,*_ in statuses if not ok]
           print("LIVE canonical/indexable route audits:",len(statuses)-len(fails),"/",len(statuses))
-          print("LIVE support mailto address present on public HTML:",any(hit for _,_,_,hit in statuses))
+          print("LIVE support mailto address present on public HTML:",any(s[3] for s in statuses))
+          print("Cloudflare email obfuscation detected in published HTML:",any(s[4] for s in statuses))
+          print("PUBLIC LOCATION PRIVACY REVIEW: specific village location exposed:",any(s[5] for s in statuses))
           if fails:
               for url,issue in fails[:10]:print("PUBLIC ROUTE REVIEW:",url,issue)
               raise SystemExit("HOLD: public sitemap URL/readability/canonical audit failed")
@@ -121,7 +123,9 @@ jobs:
           elif isinstance(feeds,list):
               sitemaps=[(x.get("Url") or x.get("FeedUrl") or x.get("Feed") or "") for x in feeds if isinstance(x,dict)]
               found=any(str(u).rstrip("/")==ORIGIN+"/sitemap.xml" for u in sitemaps)
-              print("BING feeds inventory accessible: PASS; entries:",len(feeds),"; canonical sitemap found:",found)
+              matched_path=[urllib.parse.urlsplit(str(u)) for u in sitemaps if urllib.parse.urlsplit(str(u)).hostname=="mftintelligence.com" and urllib.parse.urlsplit(str(u)).path=="/sitemap.xml"]
+              print("BING feeds inventory accessible: PASS; entries:",len(feeds),"; exact HTTPS sitemap present:",found, "; matching-domain/path record:",bool(matched_path),"; URL schemes:", sorted({x.scheme for x in matched_path}))
+              print("BING sitemap status categories:",sorted(set(str(x.get("Status","unknown")) for x in feeds if isinstance(x,dict))))
               if feeds and not found:
                   print("BING sitemap entry needs manual provider-console review: provider schema can vary")
           else:
