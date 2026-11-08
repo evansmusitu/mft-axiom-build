@@ -76,7 +76,10 @@ def get_json(url, token):
         body=None
     if token:
         good=isinstance(body,dict) and body.get('success') is True and code==200
-        return {'http':code,'cookie':cookie,'valid':good},body.get('result') if good else None
+        meta={'http':code,'cookie':cookie,'valid':good}
+        if good and url==CFROOT+CLOUD_PATHS[3]:
+            meta['result_info']=body.get('result_info')
+        return meta,body.get('result') if good else None
     return {'http':code,'cookie':cookie,'valid':isinstance(body,dict)},body
 
 def safe_d1_inventory(status,data):

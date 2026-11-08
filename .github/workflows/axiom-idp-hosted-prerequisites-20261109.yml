@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/hosted_idp_prerequisites_readonly.py)" = 'c9e86c26aa5d5dc9a536f19434c650c80c8912f6'
+          test "$(git hash-object customer_frontier/qualification/hosted_idp_prerequisites_readonly.py)" = '4a0341bbc239e15db065931efd1e9b49bed60868'
           test "$(git hash-object customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py)" = 'e9ad70d43335e7456e991c7778210ff1aaca4f3b'
           python3 -m py_compile customer_frontier/qualification/hosted_idp_prerequisites_readonly.py customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py
           (cd customer_frontier/qualification && python3 -m unittest -v test_hosted_idp_prerequisites_readonly.py)
