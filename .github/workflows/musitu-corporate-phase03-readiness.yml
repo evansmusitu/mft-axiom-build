@@ -36,8 +36,8 @@ jobs:
           assert p.get('name')=='musitu-corporate' and p.get('production_branch')=='main'
           assert 'mftintelligence.com' in p.get('domains',[])
           assert not (p.get('source') or {}).get('type'), 'Unexpected Git integration; reject legacy direct upload procedure'
-          depls=call(prefix+'/pages/projects/musitu-corporate/deployments?per_page=30')
-          assert depls.get('success'), 'Cannot read deployment history'
+          depls=call(prefix+'/pages/projects/musitu-corporate/deployments?per_page=10')
+          assert depls.get('success'), 'Cannot read deployment history: HTTP '+str(depls.get('http_status','API error'))
           all_rows=depls['result']
           prod=[d for d in all_rows if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
           assert len(prod)>=2, 'Insufficient live rollback history'
