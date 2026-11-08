@@ -378,3 +378,145 @@ test("PostgreSQL ledger is not redirected by a replaced public pool property",as
       "trusted billing should attempt its original Pool and fail safely on unavailable database");
   }finally{await original.end();}
 });
+
+
+test("post-registration shadowed reserve cannot authorize a paid call below the approved hold",async()=>{
+  const x=setup("openai",500,700);
+  try{
+    try{Object.defineProperty(x.wrapped,"requestReserveMicroUsd",{configurable:true,value:1});}catch{}
+    await assert.rejects(
+      ()=>x.wrapped.invoke({tenant:scope(),compilationRequestHash:"1".repeat(64),attempt:0,mode:"INITIAL"}),
+      (e:any)=>e?.code==="BUDGET_EXCEEDED");
+    assert.equal(x.calls,0,"no paid provider call may occur after an inadequate reserve");
+  }finally{x.ledger.close();}
+});
+
+test("post-registration price mutation cannot silently undercharge billable tokens",async()=>{
+  const x=setup();
+  try{
+    try{(x.wrapped as any).prices.outputMicrosPerMillionTokens=1;}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"2".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{x.ledger.close();}
+});
+
+test("shadowing the metering method on a trusted decorator cannot bypass ledger writes",async()=>{
+  const x=setup();
+  try{
+    try{Object.defineProperty(x.wrapped,"metered",{configurable:true,
+      value:async (_intent:unknown,run:()=>Promise<unknown>)=>run()});}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"3".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{x.ledger.close();}
+});
+
+test("global decorator prototype mutation cannot replace the metering path",async()=>{
+  const x=setup(),proto=Object.getPrototypeOf(x.wrapped);
+  const original=Object.getOwnPropertyDescriptor(proto,"metered");
+  assert.ok(original);
+  try{
+    try{Object.defineProperty(proto,"metered",{...original,
+      value:async (_intent:unknown,run:()=>Promise<unknown>)=>run()});}catch{}
+    await x.wrapped.invoke({tenant:scope(),compilationRequestHash:"4".repeat(64),attempt:0,mode:"INITIAL"});
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+  }finally{
+    if(Object.getOwnPropertyDescriptor(proto,"metered")?.value!==original.value)
+      Object.defineProperty(proto,"metered",original);
+    x.ledger.close();
+  }
+});
+
+test("changing the underlying provider's transport after registration is denied before vendor access",async()=>{
+  const x=setup(),raw=(x.wrapped as any).adapter;
+  let replacementCalls=0;
+  try{
+    raw.invoke=async()=>{replacementCalls++;return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));};
+    await assert.rejects(
+      ()=>x.wrapped.invoke({tenant:scope(),compilationRequestHash:"5".repeat(64),attempt:0,mode:"INITIAL"}),
+      (e:any)=>e?.code==="BUDGET_PROVIDER_TAMPERED");
+    assert.equal(replacementCalls,0,"an unapproved swapped transport must never execute");
+    assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
+  }finally{x.ledger.close();}
+});
+
+
+test("production admission rejects SQLite and administrator PostgreSQL paid ledgers before vendor calls",async()=>{
+  let providerCalls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){providerCalls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+    async explain(){providerCalls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+  };
+  const compiler=(wrapped:any,mode:any=true)=>new phase2.ModelCompilationService({
+    profiles:{resolve(){throw Error("not used");}} as any,
+    repository:{commitCompilation(){throw Error("not used");}} as any,
+    registry:{manifest(){return [];}} as any,
+    adapter:wrapped,productionBillingRequired:mode
+  });
+  const explainer=(wrapped:any,mode:any=true)=>new phase2.ModelExplanationService({
+    tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
+    plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+    adapters:[wrapped],productionBillingRequired:mode
+  });
+  const wrapper=(ledger:any)=>new phase2.BudgetedModelProviderAdapter({
+    adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+  const sqlite=new phase2.SqliteProviderSpendLedger(":memory:");
+  const pgPool=new pg.Pool({max:1,connectionTimeoutMillis:100});
+  try{
+    const adminPg=new phase2.PostgresProviderSpendLedger(pgPool);
+    for(const ledger of [sqlite,adminPg]){
+      const wrapped=wrapper(ledger);
+      for(const register of [compiler,explainer]){
+        assert.throws(()=>register(wrapped),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+        assert.doesNotThrow(()=>register(wrapped,false),
+          "offline compatibility remains explicitly supported");
+      }
+      assert.throws(()=>phase2.requireProtectedPaidProviderAdapter(wrapped,scope().tenantId),
+        (e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+    }
+    const protectedPg=new phase2.ProtectedPostgresProviderSpendLedger(pgPool);
+    const protectedAdapter=wrapper(protectedPg);
+    assert.doesNotThrow(()=>compiler(protectedAdapter));
+    assert.doesNotThrow(()=>explainer(protectedAdapter));
+    assert.doesNotThrow(()=>phase2.requireProtectedPaidProviderAdapter(protectedAdapter,scope().tenantId));
+    assert.throws(()=>phase2.requireProtectedPaidProviderAdapter(protectedAdapter,"tenant:elsewhere"),
+      (e:any)=>e?.code==="BUDGET_TENANT_MISMATCH");
+    for(const register of [compiler,explainer]){
+      assert.throws(()=>register(protectedAdapter,"true" as any),/boolean|billing/i,
+        "unrecognized admission settings must not silently disable protected mode");
+    }
+    assert.equal(providerCalls,0,"registration is never permission for upstream network access");
+  }finally{sqlite.close();await pgPool.end();}
+});
+
+
+test("trusted accounting ledger constructor verifier cannot be overwritten to bless fake spending",()=>{
+  let calls=0,accounting=0;
+  const fakeLedger={
+    reserve(){accounting++;},settle(){accounting++;}
+  };
+  const raw={
+    manifest:manifest("openai"),
+    async invoke(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+    async explain(){calls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+  };
+  const register=(ledger:any)=>new phase2.BudgetedModelProviderAdapter({
+    adapter:raw,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+  for(const ledgerClass of [phase2.SqliteProviderSpendLedger,
+    phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    const ctor=ledgerClass as any,original=ctor.isAuthenticLedger;
+    try {
+      try{ctor.isAuthenticLedger=()=>true;}catch{}
+      assert.equal(ctor.isAuthenticLedger,original,
+        "class-level trust verification must not be replaceable after module initialization");
+      assert.throws(()=>register(fakeLedger),/trusted|ledger|budget/i,
+        "a fake ledger may never be admitted by a forged class trust check");
+    }finally{
+      if(ctor.isAuthenticLedger!==original)ctor.isAuthenticLedger=original;
+    }
+  }
+  assert.equal(calls,0,"no paid provider traffic from a fake ledger");
+  assert.equal(accounting,0,"fake billing hooks must not run");
+});
