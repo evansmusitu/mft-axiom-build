@@ -1,0 +1,43 @@
+name: AXIOM staging edge HTTP403 independent diagnosis (NO CHANGE)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-staging-edge403-diagnostic-20261108' &&
+      github.base_ref == 'build/axiom-staging-host-independent-readback-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify reviewed source and four negative tests without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'e09e1ab25a3cb26cadd7a1573b9ba7a9a81e0607623a10c5023cf7b1ee01cfaa  customer_frontier/qualification/diagnose_edge_403.py' | sha256sum -c -
+          echo 'ea950af6470d96f79ed1a2097416350a96c188c0bcfa9318b21d41f3a243bc13  customer_frontier/qualification/test_diagnose_edge_403.py' | sha256sum -c -
+          (cd customer_frontier/qualification && python3 -m unittest -v test_diagnose_edge_403.py)
+      - name: Compare only fixed unauthenticated HTTPS GET statuses and security markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 customer_frontier/qualification/diagnose_edge_403.py
+      - name: Archive sanitized classification with SHA256
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-staging-edge403-classification-20261108
+          path: |
+            axiom-staging-edge403-readonly.json
+            axiom-staging-edge403-readonly.json.sha256
+          if-no-files-found: error
+          retention-days: 7
