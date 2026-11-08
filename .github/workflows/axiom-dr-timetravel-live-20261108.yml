@@ -1,0 +1,84 @@
+name: AXIOM isolated D1 real hosted Time Travel synthetic rollback 20261108 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-timetravel-live-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-timetravel-live-20261108
+  cancel-in-progress: false
+jobs:
+  one-use-target-only-point-in-time-restoration:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-hosted-timetravel-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-hosted-timetravel-20261108' && github.event.pull_request.base.sha == '2a0da4a039e008d189ad2d110505bd5bff701cd5' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: f4fa49cef15dbaaf8acc43223069ae71675c4982
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Pin exact source/test/observer and target only before secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = f4fa49cef15dbaaf8acc43223069ae71675c4982
+          test "$(git hash-object customer_frontier/qualification/hosted_timetravel_rollback_20261108.py)" = 4ad244248897771d08fe9389ec1ee120fdab849c
+          test "$(git hash-object customer_frontier/qualification/test_hosted_timetravel_rollback_20261108.py)" = 0c686089481052d55b3d4fa712d650c928eb274a
+          test "$(git hash-object customer_frontier/qualification/independent_d1_restore_observer_20261108.py)" = 05b6c60e9947049232d1c354f06090f2671f2e74
+          python3 -m py_compile customer_frontier/qualification/hosted_timetravel_rollback_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/hosted_timetravel_rollback_20261108.py').read_text()
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "TARGET='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "PROBE='axiom_dr_ttravel_probe_20261108'" in s
+          assert "verify_before_and_after()" in s
+          assert "report['step']='ONE_TIME_TRAVEL_RESTORE_REQUEST_SENT'" in s
+          assert "result=ctrl('restore',bookmark=bookmark)" in s
+          assert "if observed_probe_count()!=0:raise Rejected('PROBE_PERSISTED_AFTER_RESTORE')" in s
+          assert "'user_rows_deleted_or_updated':False" in s
+          assert "'destructive_full_database_recovery_qualified':False" in s
+          assert "'release_authority':False" in s
+          assert "'/time_travel/restore?bookmark='" in s
+          assert "DROP TABLE" not in s and "DELETE FROM" not in s
+          print('ACTUAL_ONE_SHOT_SYNTHETIC_TIME_TRAVEL_SOURCE_PINNED')
+          PY
+      - name: Repeat five credential-free fail-closed no-retry tests before token
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_hosted_timetravel_rollback_20261108.py -v
+      - name: Perform hosted target-only synthetic Time Travel restoration and full data parity
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: python3 customer_frontier/qualification/hosted_timetravel_rollback_20261108.py
+      - name: Verify no real customer data modified and no release authority
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          p=Path('axiom-hosted-timetravel-rollback-20261108.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='HOSTED_SYNTHETIC_TIME_TRAVEL_RESTORE_PASS'
+          assert x['time_travel_restore_confirmed'] is True
+          assert x['post_restore_customer_data_equal'] is True
+          assert x['user_rows_deleted_or_updated'] is False
+          assert x['customer_row_values_logged'] is False
+          assert x['production_oauth_changed'] is False
+          assert x['destructive_full_database_recovery_qualified'] is False
+          assert x['independent_custody_qualified'] is False
+          assert x['release_authority'] is False
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(digest+'  '+p.name+'\n')
+          print('HOSTED_SYNTHETIC_TIME_TRAVEL_ROLLBACK_PASS_NOT_FULL_DR sha256='+digest)
+          PY
+      - name: Preserve only synthetic recovery receipt including unknown outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-isolated-d1-hosted-synthetic-timetravel-20261108
+          path: |
+            axiom-hosted-timetravel-rollback-20261108.json
+            axiom-hosted-timetravel-rollback-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
