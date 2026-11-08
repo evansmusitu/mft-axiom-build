@@ -1,0 +1,132 @@
+name: AXIOM PR77 independent hosted synthetic D1 v2 readback 20261108 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-posthosted-independent-readback-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-posthosted-independent-readback-20261108, cancel-in-progress: false}
+jobs:
+  independent-no-writes-after-hosted-batch:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-hosted-synthetic-independent-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-synthetic-hosted-after-route-canary-20261108' && github.event.pull_request.base.sha == 'b622415886844859cac32809f26b3658a5496ea2' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Validate fixed read-only synthetic and original protected resource identifiers before secrets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          t='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          p='e36972b3-850d-4273-b934-2fa67587d9f1'
+          production='504029cc-f9a5-495e-818f-63c6144b4ea4'
+          assert t!=p and t!=production and p!=production
+          print('NO_CUSTOMER_RECORDS_OR_PRODUCTION_RESOURCE_IN_TARGET')
+          PY
+      - name: Fresh independently initiated Cloudflare GET metadata and one fixed read-only aggregate SELECT
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request,hashlib
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'
+          SCRIPT='axiom-pr77-synthetic-20261108'
+          PLAN='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'
+          TOKEN=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          SQL=("SELECT "
+           "(SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA')) AS user_tables,"
+           "(SELECT count(*) FROM sqlite_master WHERE type='index' AND name NOT GLOB 'sqlite_*') AS user_indexes,"
+           "(SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name NOT GLOB 'sqlite_*') AS user_triggers,"
+           "(SELECT count(*) FROM customers) AS customers,"
+           "(SELECT count(*) FROM oauth_identity_links) AS identity_links,"
+           "(SELECT count(*) FROM oauth_identity_token_links) AS token_links,"
+           "(SELECT count(*) FROM oauth_identity_code_links) AS code_links,"
+           "(SELECT count(*) FROM oauth_identity_schema_versions WHERE version=2 AND plan_sha256='"+PLAN+"') AS qualified_v2,"
+           "(SELECT count(*) FROM oauth_identity_schema_versions) AS version_rows,"
+           "(SELECT count(*) FROM sqlite_master WHERE name='oauth_identity_upgrade_v2_guard') AS guard_objects,"
+           "(SELECT count(*) FROM sqlite_master WHERE name='axiom_pr77_abort_probe') AS abort_probe_objects,"
+           "(SELECT count(*) FROM pragma_foreign_key_check) AS fk_violations")
+          EXPECTED=dict(user_tables=9,user_indexes=1,user_triggers=21,customers=2,identity_links=1,token_links=1,code_links=1,qualified_v2=1,version_rows=1,guard_objects=0,abort_probe_objects=0,fk_violations=0)
+          out={'schema':'musitu.axiom.pr77_independent_post_hosted_synthetic_verification.v1','status':'UNQUALIFIED','target_database_id':TARGET,'account_id':ACCOUNT,'protected_recovery_database_id':PRESERVED,'reviewed_plan_sha256':PLAN,'queries_confirmed_zero_write':0,'cloudflare_write_operations':0,'worker_script_absent':False,'protected_recovery_identity_passed':False,'synthetic_target_identity_passed':False,'v2_schema_and_synthetic_rows_verified':False,'public_release_authority':False,'production_oauth_changed':False}
+          class Rejected(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*args,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          def api(path,body=None,allow404=False):
+           if not TOKEN or '\r' in TOKEN or '\n' in TOKEN:raise Rejected('SECRET_MISSING')
+           if path not in ('/d1/database/'+TARGET,'/d1/database/'+PRESERVED,'/d1/database/'+TARGET+'/query','/workers/scripts/'+SCRIPT+'/settings'):raise Rejected('UNADMITTED_PROVIDER_PATH')
+           method='POST' if body is not None else 'GET'
+           if body is not None and path!='/d1/database/'+TARGET+'/query':raise Rejected('UNADMITTED_WRITE_PATH')
+           data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+           hdr={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','User-Agent':'AXIOM-PR77-IndependentSyntheticReader-20261108'}
+           if data is not None:hdr['Content-Type']='application/json'
+           req=urllib.request.Request(BASE+path,method=method,data=data,headers=hdr)
+           try:
+            with opener.open(req,timeout=25) as r:
+             status=r.status;raw=r.read(200001)
+           except urllib.error.HTTPError as exc:
+            if allow404 and exc.code==404:return None
+            raise Rejected('PROVIDER_HTTP_'+str(exc.code))
+           except (urllib.error.URLError,OSError,TimeoutError):raise Rejected('PROVIDER_NETWORK_UNQUALIFIED')
+           if status!=200 or len(raw)>200000:raise Rejected('PROVIDER_STATUS_OR_SIZE_UNQUALIFIED')
+           try:v=json.loads(raw)
+           except (UnicodeError,ValueError):raise Rejected('PROVIDER_JSON_UNQUALIFIED')
+           if not isinstance(v,dict) or v.get('success') is not True:raise Rejected('PROVIDER_ENVELOPE_INVALID')
+           return v.get('result')
+          try:
+           t=api('/d1/database/'+TARGET)
+           if not isinstance(t,dict) or t.get('uuid')!=TARGET or t.get('name')!='axiom-pr77-synthetic-only-20261108':raise Rejected('SYNTHETIC_TARGET_IDENTITY_MISMATCH')
+           out['synthetic_target_identity_passed']=True
+           b=api('/d1/database/'+PRESERVED)
+           if not isinstance(b,dict) or b.get('uuid')!=PRESERVED or b.get('name')!='axiom-disposable-dr-target-20261108':raise Rejected('PROTECTED_RECOVERY_IDENTITY_MISMATCH')
+           out['protected_recovery_identity_passed']=True
+           if api('/workers/scripts/'+SCRIPT+'/settings',allow404=True) is not None:raise Rejected('TEMP_WORKER_PERSISTED')
+           out['worker_script_absent']=True
+           q=api('/d1/database/'+TARGET+'/query',{'sql':SQL,'params':[]})
+           if not isinstance(q,list) or len(q)!=1 or not isinstance(q[0],dict) or q[0].get('success') is not True:raise Rejected('QUERY_RESULT_ENVELOPE_UNQUALIFIED')
+           m=q[0].get('meta')
+           if not isinstance(m,dict) or m.get('changed_db') is not False or type(m.get('changes')) is not int or m['changes']!=0 or type(m.get('rows_written')) is not int or m['rows_written']!=0:raise Rejected('PROVIDER_READ_ONLY_META_NOT_CONFIRMED')
+           out['queries_confirmed_zero_write']=1
+           vals=q[0].get('results')
+           if not isinstance(vals,list) or len(vals)!=1 or not isinstance(vals[0],dict) or set(vals[0])!=set(EXPECTED) or any(type(vals[0][k]) is not int for k in EXPECTED):raise Rejected('AGGREGATE_COUNTER_SHAPE_UNQUALIFIED')
+           out['synthetic_aggregate_counts']=vals[0]
+           if vals[0]!=EXPECTED:raise Rejected('SYNTHETIC_VERSION_SCHEMA_OR_FK_DRIFT')
+           out['v2_schema_and_synthetic_rows_verified']=True
+           out['status']='INDEPENDENT_HOSTED_PR77_V2_SCHEMA_ROWS_FK_AND_WORKER_CLEANUP_PASS'
+          except Rejected as e:out['reason_code']=str(e)
+          except Exception:out['reason_code']='UNKNOWN_PROVIDER_OR_VALIDATOR_FAILURE'
+          path=Path('axiom-pr77-post-hosted-independent-readback-20261108.json')
+          path.write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          if out['status']!='INDEPENDENT_HOSTED_PR77_V2_SCHEMA_ROWS_FK_AND_WORKER_CLEANUP_PASS':raise SystemExit(1)
+          
+          PY
+      - name: Hash and enforce only safe synthetic no-release receipt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('axiom-pr77-post-hosted-independent-readback-20261108.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='INDEPENDENT_HOSTED_PR77_V2_SCHEMA_ROWS_FK_AND_WORKER_CLEANUP_PASS'
+          assert x['queries_confirmed_zero_write']==1 and x['cloudflare_write_operations']==0
+          assert x['worker_script_absent'] is True and x['protected_recovery_identity_passed'] is True
+          assert x['v2_schema_and_synthetic_rows_verified'] is True and x['public_release_authority'] is False
+          d=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(d+'  '+p.name+'\n')
+          print('INDEPENDENT_HOSTED_PR77_V2_READBACK_SYNTHETIC_ONLY_PASS sha256='+d)
+          PY
+      - name: Preserve only counts and hash; never customer or signing material
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-independent-posthosted-synthetic-v2-readback-20261108
+          path: |
+            axiom-pr77-post-hosted-independent-readback-20261108.json
+            axiom-pr77-post-hosted-independent-readback-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn

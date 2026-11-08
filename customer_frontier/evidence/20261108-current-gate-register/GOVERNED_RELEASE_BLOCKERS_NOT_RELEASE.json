@@ -60,24 +60,95 @@
       "foreign_key_violations": 0,
       "integrity_ok": true,
       "hosted_recovery_qualified": false
+    },
+    "pr77_exact_reviewed_real_data_local": {
+      "status": "PASS_EXACT_PR77_REAL_OAUTH_SNAPSHOT_SQLITE_ONLY",
+      "plan_sha256": "6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a",
+      "source_commit": "4bb938d679a384cc2e499c09569a55c6b880a5fb",
+      "production_rows_preserved": 4612,
+      "first_apply_pass": true,
+      "idempotent_second_apply_pass": true,
+      "controlled_mid_ddl_failure_exact_rollback_pass": true,
+      "cloudflare_production_writes": 0,
+      "hosted_migration_qualified": false,
+      "pr141": 141,
+      "pr142": 142,
+      "private_receipt_drive_id": "1dqLSN8f3Jn_OBjtHeXvThT5Gd9z7iywr"
+    },
+    "pr77_isolated_hosted_synthetic_batch": {
+      "status": "PASS_HOSTED_ONE_CALL_89_AND_48_STATEMENT_FORCED_ABORT",
+      "source_plan_sha256": "6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a",
+      "isolated_account_id": "c954f0c842a486d0388c05b19cd21e47",
+      "synthetic_d1_id": "1eff7a3d-b22b-4264-a0b8-196edf70074f",
+      "original_staging_recovery_d1_id": "e36972b3-850d-4273-b934-2fa67587d9f1",
+      "hosted_run_id": 42474084999,
+      "pr158": 158,
+      "pr159": 159,
+      "actual_seed_sql": 41,
+      "first_46_pr77_plus_forced_check_sql": 48,
+      "expected_ddl_rollback_verified": true,
+      "full_89_sql_batch_result": "HOSTED_ACCEPTED",
+      "version_2_exact_sha_verified": true,
+      "independent_actual_readback_run_id": 42474543414,
+      "independent_readback": {
+        "user_tables": 9,
+        "indexes": 1,
+        "triggers": 21,
+        "synthetic_customers": 2,
+        "version_rows": 1,
+        "foreign_key_violations": 0,
+        "guard_objects": 0,
+        "synthetic_abort_objects": 0
+      },
+      "independent_cloudflare_writes": 0,
+      "temporary_worker_removed": true,
+      "archived_live_evidence": {
+        "drive_id": "1os3PvYpvwEvVZh95EZFvyZyKLqUkIQrl",
+        "zip_sha256": "7ac2582854875efbe6ce1cbcb0bf9d8758401c7174cd18e79fb03676fb5dd7ca"
+      },
+      "archived_independent_evidence": {
+        "drive_id": "1a-hP76sa7bRuyqSltsapmlBfbRGy5M9h",
+        "zip_sha256": "9fcc0bf8992bea85981e23046e8668c2ce8090646c661f0db1eff1f412382c81"
+      },
+      "source_customer_data_accessed": false,
+      "production_oauth_changed": false,
+      "customer_identity_qualified": false,
+      "production_upgrade_qualified": false,
+      "release_authority": false
+    },
+    "pr83_fullstack_live_adapter_security_veto": {
+      "status": "FAILED_AS_REQUIRED_SECURITY_HOLD",
+      "run_id": 42292436148,
+      "job_id": 128149159182,
+      "failing_step": "Block legacy production-writing live adapter pending isolated staging security gate",
+      "workflow_blob_sha": "0ef374b04e5e8eab788e2c498dfea0a3c1c1538b",
+      "source_ref": "fdc89d48f7aa888c67afc4ece3465328cc2a77f6",
+      "cause": "legacy live adapter accesses sealed D1, can provision customer fixtures and accepts broad Cloudflare credentials",
+      "accepted_no_credentials_stages": "BROWSER_MULTIMODAL_ADVERSARIAL_INDEPENDENT_IMPLEMENTATION_PRIOR_SUCCESS",
+      "isolated_staging_live_adapter_replacement_qualified": false,
+      "independent_security_reviewer_signed": false,
+      "veto_removed": false,
+      "release_authority": false
     }
   },
   "blocking_gates": {
     "production_oauth_independent_hosted_disaster_recovery": "NOT_QUALIFIED",
-    "production_oauth_atomic_upgrade_and_rollback": "NOT_QUALIFIED_PR77_IS_OFFLINE_ONLY",
+    "production_oauth_atomic_upgrade_and_rollback": "NOT_QUALIFIED_FOR_PRODUCTION_PR77_REAL_DATA_SQLITE_AND_HOSTED_SYNTHETIC_ONLY_PASS",
     "real_idp_signed_customer_identity_and_production_owner_proof": "NOT_QUALIFIED",
     "keyless_onboarding_website_chatgpt_continuity_logout_recovery": "NOT_QUALIFIED",
     "external_execution_cancellation_final_compute_usage": "NOT_QUALIFIED",
     "paynow_true_settlement_invoice_refund_and_real_devices": "NOT_QUALIFIED",
     "custody_antirollback_independent_destructive_recovery": "B27_FAILED_IN_SYNTHETIC_ATTACK",
-    "integration_security_full_stack": "PR83_FAILED_AT_INTENTIONAL_LIVE_ADAPTER_VETO",
+    "integration_security_full_stack": "PR83_CONFIRMED_INTENTIONAL_FAIL_CLOSED_LEGACY_LIVE_ADAPTER_REQUIRES_ISOLATED_STAGING_AND_INDEPENDENT_SECURITY_ATTESTATION",
     "independent_reviewer_and_public_release": "NOT_QUALIFIED"
   },
   "protected_refs": {
     "frontier_pr1": "DRAFT_UNMERGED",
     "oauth_migration_pr77": "DRAFT_UNMERGED",
     "full_stack_pr83": "DRAFT_UNMERGED",
-    "production_oauth_backup_pr140": "DRAFT_UNMERGED"
+    "production_oauth_backup_pr140": "DRAFT_UNMERGED",
+    "pr77_hosted_synthetic_pr158": "DRAFT_UNMERGED",
+    "pr77_independent_readback_pr159": "DRAFT_UNMERGED"
   },
   "prohibited_without_new_qualification": [
     "production_oauth_schema_or_row_write",
@@ -89,5 +160,5 @@
   "additional_spend_authority_usd": 0,
   "final_provider_usage": "UNKNOWN",
   "superiority_claim": "NOT_CERTIFIED",
-  "evidence_boundary": "Hosted staging recoverability and locally restored production OAuth are not interchangeable. An encrypted owner backup does not prove real signed customer login, hosted OAuth recovery, settlement, independent custody or release."
+  "evidence_boundary": "Owner production OAuth SQL was independently encrypted and recovered locally only; PR77 reviewed migration proved compatible with exact authenticated real snapshot in SQLite RAM and separately with a DIFFERENT synthetic-only hosted Cloudflare D1 including forced rollback and independent readback. Neither proves hosted migration of protected production OAuth, real customer IdP ownership, payments, independent custody, B27, PR83 security or release."
 }
