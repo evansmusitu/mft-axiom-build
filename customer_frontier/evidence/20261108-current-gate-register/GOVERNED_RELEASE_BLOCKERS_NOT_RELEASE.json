@@ -1,0 +1,93 @@
+{
+  "schema": "musitu.axiom.governed_release_gate_snapshot.v1",
+  "observed_date": "2026-11-08",
+  "release_authority": false,
+  "public_release_admitted": false,
+  "merge_admitted": false,
+  "production_oauth_migration_admitted": false,
+  "evidence": {
+    "customer_staging_hosted_copy": {
+      "status": "PASS_SCHEMA_AND_PRIVATE_DATA_PARITY",
+      "run_id": 42455417454,
+      "independent_post_time_travel_run_id": 42456661318,
+      "destructive_full_loss_rebuild_qualified": false
+    },
+    "customer_staging_time_travel": {
+      "status": "PASS_SYNTHETIC_POINT_IN_TIME_ROLLBACK",
+      "run_id": 42456316988
+    },
+    "production_oauth_base": {
+      "status": "PASS_READ_ONLY_BASE_CONSISTENCY",
+      "run_id": 42458236416,
+      "provider_writes": 0,
+      "required_parent_tables": 5,
+      "catalog_objects": 33
+    },
+    "production_oauth_structural_links": {
+      "status": "ONE_AGGREGATE_NONZERO",
+      "run_id": 42459010498,
+      "counters_zero": 11,
+      "counters_total": 12,
+      "missing_client_authorization_flows": 3
+    },
+    "production_oauth_unregistered_flow_expiry": {
+      "status": "THREE_EXPIRED_PREVIOUSLY_USED",
+      "run_id": 42459481558,
+      "expired": 3,
+      "unexpired": 0,
+      "invalid_expiry": 0,
+      "used": 3,
+      "distinct_unknown_clients": 3,
+      "repair_performed": false
+    },
+    "production_oauth_encrypted_export": {
+      "status": "TWO_INDEPENDENT_ENCRYPTED_EXPORTS_SAME_AUTHENTICATED_SQL",
+      "first_run_id": 42457620412,
+      "second_run_id": 42459936050,
+      "sql_sha256": "c8eb426f629d3ef6d84a88aa5e11603e2d2637b266706288435b710537b3b304",
+      "sql_bytes": 2453521,
+      "encrypted_only": true,
+      "private_owner_drive_file_ids": [
+        "19DOs2Ay7C4USaILla0WpCl5UDliIDzhO",
+        "1vUna6KauU5mp63yfjHhCoqgQy7wTRv_4"
+      ]
+    },
+    "production_oauth_local_recovery": {
+      "status": "THREE_SEPARATE_IN_MEMORY_SQLITE_RESTORES_PASS",
+      "tables": 17,
+      "rows": 4612,
+      "indexes": 15,
+      "foreign_key_violations": 0,
+      "integrity_ok": true,
+      "hosted_recovery_qualified": false
+    }
+  },
+  "blocking_gates": {
+    "production_oauth_independent_hosted_disaster_recovery": "NOT_QUALIFIED",
+    "production_oauth_atomic_upgrade_and_rollback": "NOT_QUALIFIED_PR77_IS_OFFLINE_ONLY",
+    "real_idp_signed_customer_identity_and_production_owner_proof": "NOT_QUALIFIED",
+    "keyless_onboarding_website_chatgpt_continuity_logout_recovery": "NOT_QUALIFIED",
+    "external_execution_cancellation_final_compute_usage": "NOT_QUALIFIED",
+    "paynow_true_settlement_invoice_refund_and_real_devices": "NOT_QUALIFIED",
+    "custody_antirollback_independent_destructive_recovery": "B27_FAILED_IN_SYNTHETIC_ATTACK",
+    "integration_security_full_stack": "PR83_FAILED_AT_INTENTIONAL_LIVE_ADAPTER_VETO",
+    "independent_reviewer_and_public_release": "NOT_QUALIFIED"
+  },
+  "protected_refs": {
+    "frontier_pr1": "DRAFT_UNMERGED",
+    "oauth_migration_pr77": "DRAFT_UNMERGED",
+    "full_stack_pr83": "DRAFT_UNMERGED",
+    "production_oauth_backup_pr140": "DRAFT_UNMERGED"
+  },
+  "prohibited_without_new_qualification": [
+    "production_oauth_schema_or_row_write",
+    "real_customer_charge",
+    "copy_live_oauth_signing_keys_into_general_staging",
+    "remove_PR83_security_veto",
+    "merge_or_publication"
+  ],
+  "additional_spend_authority_usd": 0,
+  "final_provider_usage": "UNKNOWN",
+  "superiority_claim": "NOT_CERTIFIED",
+  "evidence_boundary": "Hosted staging recoverability and locally restored production OAuth are not interchangeable. An encrypted owner backup does not prove real signed customer login, hosted OAuth recovery, settlement, independent custody or release."
+}
