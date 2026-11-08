@@ -1,0 +1,80 @@
+name: AXIOM single empty disposable alternate D1 target create 20261108 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-disposable-live-create-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-disposable-live-create-20261108
+  cancel-in-progress: false
+jobs:
+  one-only-owned-alternate-account:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-disposable-target-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-disposable-target-create-20261108' && github.event.pull_request.base.sha == '7f1951d630db3d5b5d933ff10fb0940aa0bc4564' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: bc40623ca8d4cb7f7c8e91d84938aa9c30c1db90
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Re-admit immutable reviewed source and exact distinct account before secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = bc40623ca8d4cb7f7c8e91d84938aa9c30c1db90
+          test "$(git hash-object customer_frontier/qualification/disposable_d1_target_20261108.py)" = 7dd662f458c6bdac389c51ded45004319e22e88b
+          test "$(git hash-object customer_frontier/qualification/test_disposable_d1_target_20261108.py)" = cb074943d63b910d71add9acad816820bd87d7e7
+          python3 -m py_compile customer_frontier/qualification/disposable_d1_target_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/disposable_d1_target_20261108.py').read_text()
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "ORIGINAL_ACCOUNT='93f395f5121954671f92fffa453d6b61'" in s
+          assert "NAME='axiom-disposable-dr-target-20261108'" in s
+          assert "if before:raise Rejected('TARGET_ACCOUNT_NOT_EMPTY')" in s
+          assert "writes+=1" in s and "fetch('create')" in s
+          assert "'customer_data_imported':False" in s
+          assert "'full_restore_qualified':False" in s
+          assert "'release_authority':False" in s
+          assert 'DROP TABLE' not in s and 'DELETE FROM' not in s and 'SELECT *' not in s
+          print('PINNED_SINGLE_EMPTY_D1_CREATE_ADMISSION_PASS')
+          PY
+      - name: Six fail-closed no-secret tests before any Cloudflare write
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_disposable_d1_target_20261108.py -v
+      - name: One guarded new-account empty D1 creation, no retry/customer data
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: python3 customer_frontier/qualification/disposable_d1_target_20261108.py
+      - name: Admission receipt must deny full restore and release
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          p=Path('disposable-d1-target-create-20261108.json')
+          r=json.loads(p.read_text())
+          assert r['status']=='ONE_EMPTY_DISPOSABLE_TARGET_CREATED_AND_LIST_VERIFIED'
+          assert r['account_id']=='c954f0c842a486d0388c05b19cd21e47'
+          assert r['database_name']=='axiom-disposable-dr-target-20261108'
+          assert r['existing_databases_before']==0 and r['databases_after']==1
+          assert r['write_operations']==1
+          assert r['source_database_touched'] is False
+          assert r['customer_data_imported'] is False
+          assert r['production_oauth_changed'] is False
+          assert r['full_restore_qualified'] is False
+          assert r['release_authority'] is False
+          d=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(d+'  '+p.name+'\n')
+          print('ONE_EMPTY_D1_DISPOSABLE_RESOURCE_CREATED_NOT_RESTORED receipt_sha256='+d)
+          PY
+      - name: Preserve sanitized creation receipt (including failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-disposable-d1-target-created-not-restored-20261108
+          path: |
+            disposable-d1-target-create-20261108.json
+            disposable-d1-target-create-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
