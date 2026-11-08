@@ -1,0 +1,123 @@
+name: MUSITU Corporate Bing Webmaster Private Readonly Monitor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/corporate-bing-readonly-20261108
+      - main
+    paths:
+      - .github/workflows/musitu-corporate-bing-readonly.yml
+  schedule:
+    # Daily, once this independently reviewed workflow is merged to the default branch.
+    - cron: "37 05 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-bing-readonly
+  cancel-in-progress: false
+
+jobs:
+  verify-bing-metrics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+      MUSITU_BING_SITE: https://mftintelligence.com/
+    steps:
+      - name: Verify Bing property and daily summary without disclosing private traffic or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          """Owner-only, read-only Bing Webmaster API connectivity/metrics check.
+          This is a public GitHub repository: never emit the secret, API URL,
+          response body, site inventory, search counts or downloadable artifacts.
+          Bing API data remains in memory on this ephemeral runner only.
+          """
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          key = os.environ.get("BING_WEBMASTER_API_KEY", "")
+          if not key.strip():
+              raise SystemExit("HOLD: expected Bing GitHub Actions secret is unavailable")
+          site = os.environ["MUSITU_BING_SITE"]
+          base = "https://ssl.bing.com/webmaster/api.svc/json/"
+
+          def get(method, **params):
+              query = urllib.parse.urlencode({"apikey": key, **params})
+              req = urllib.request.Request(
+                  base + method + "?" + query,
+                  headers={"Accept": "application/json", "User-Agent": "MUSITU-Readonly-Bing-Healthcheck"},
+                  method="GET",
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as resp:
+                      if resp.status != 200:
+                          raise SystemExit("HOLD: Bing response was not HTTP 200")
+                      body = resp.read(2_000_001)
+              except urllib.error.HTTPError as exc:
+                  # Never log exception text: it can contain the API key in its URL.
+                  raise SystemExit("HOLD: Bing rejected a read-only request (HTTP " + str(exc.code) + ")") from None
+              except (urllib.error.URLError, TimeoutError) as exc:
+                  raise SystemExit("HOLD: Bing connectivity failed (" + type(exc).__name__ + ")") from None
+              if len(body) > 2_000_000:
+                  raise SystemExit("HOLD: oversized Bing response")
+              try:
+                  obj = json.loads(body)
+              except (ValueError, UnicodeError):
+                  raise SystemExit("HOLD: Bing returned an unrecognized response") from None
+              if not isinstance(obj, dict) or "d" not in obj:
+                  raise SystemExit("HOLD: Bing response lacks its documented data object")
+              return obj["d"]
+
+          def rows(value):
+              if isinstance(value, list):
+                  return value
+              if isinstance(value, dict):
+                  for name in ("results", "Results", "sites", "Sites"):
+                      if isinstance(value.get(name), list):
+                          return value[name]
+              raise SystemExit("HOLD: Bing response list format changed")
+
+          # Verifies that the key belongs to an account with this exact apex site.
+          registered = rows(get("GetUserSites"))
+          selected = None
+          expected = urllib.parse.urlsplit(site)
+          for item in registered:
+              if not isinstance(item, dict):
+                  continue
+              candidate = item.get("Url") or item.get("SiteUrl") or ""
+              parsed = urllib.parse.urlsplit(str(candidate))
+              if (parsed.hostname == expected.hostname and
+                      parsed.path.strip("/") == "" and
+                      parsed.scheme in ("http", "https") and
+                      item.get("IsVerified", True) is not False):
+                  selected = str(candidate)
+                  break
+          if not selected:
+              raise SystemExit("HOLD: requested exact MUSITU apex property not found as verified in Bing")
+
+          # This endpoint reads daily totals, never makes submissions or changes.
+          stats = rows(get("GetRankAndTrafficStats", siteUrl=selected))
+          for item in stats:
+              if not isinstance(item, dict):
+                  raise SystemExit("HOLD: invalid daily Bing statistics response")
+              for name in ("Clicks", "Impressions"):
+                  value = item.get(name)
+                  if type(value) is not int or value < 0:
+                      raise SystemExit("HOLD: invalid nonnegative traffic count")
+              if not isinstance(item.get("Date"), str):
+                  raise SystemExit("HOLD: invalid daily traffic date")
+          print("Bing API key present and accepted: PASS")
+          print("MUSITU apex site present in authorized Bing properties: PASS")
+          print("Daily Bing metrics endpoint and payload validation: PASS")
+          print("Privacy: traffic totals, account inventory, API key, and raw responses deliberately NOT published")
+          print("Write operations: NONE")
+          PY
