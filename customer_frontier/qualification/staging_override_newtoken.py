@@ -164,6 +164,12 @@ def run(client,observe=http,sleep=time.sleep):
     again=client.get(RULEPATH)
     if again!=current or client.get(f'/zones/{ZONE}/settings/security_level')!=security:
         raise Stop('RULESET_CHANGED_DURING_PREFLIGHT')
+    # Cloudflare dry-run and rule checks do not pin the Worker ingress itself.
+    # Recheck both exact previously admitted GET resources immediately before
+    # considering a policy-changing PUT; any ingress drift is a hard veto.
+    if (client.get(f'/accounts/{ACCOUNT}/workers/domains')!=domains or
+        client.get(f'/accounts/{ACCOUNT}/workers/scripts/{WORKER}/settings')!=settings):
+        raise Stop('STAGING_INGRESS_CHANGED_DURING_PREFLIGHT')
     result['live_write_attempted']=True
     client.put(RULEPATH,payload)
     updated=client.get(RULEPATH)
