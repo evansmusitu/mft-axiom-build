@@ -13,7 +13,7 @@ function fakeClient(row, options={}) {
   }};
 }
 const env={HYPERDRIVE:{connectionString:'postgresql://worker@hyperdrive.invalid/axiom_phase2_stage'},EXPECTED_DATABASE:'axiom_phase2_stage',EXPECTED_ROLE:'axiom_stage_runtime'};
-const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false,privileged_role_membership:false,billing_table_owner_member:false,direct_billing_dml_authority:false};
+const completeRow={database_name:'axiom_phase2_stage',role_name:'axiom_stage_runtime',budget_table:true,organization_table:true,requests_table:true,privileged_role:false,neon_superuser_member:false,can_create_database_objects:false,can_create_schema_objects:false,privileged_role_membership:false,billing_table_owner_member:false,direct_billing_dml_authority:false,direct_billing_select_authority:false};
 
 test('requires Hyperdrive binding, not an arbitrary public database URL', async()=>{
   await assert.rejects(()=>inspectStagingHyperdrive({...env,HYPERDRIVE:undefined,DATABASE_URL:'postgres://unsafe'},fakeClient(completeRow).create),/STAGING_HYPERDRIVE_MISSING/);
@@ -140,6 +140,30 @@ test('readiness SQL checks direct table and column DML grants across all three p
   assert.match(sql,/AS direct_billing_dml_authority/);
   assert.match(sql,/has_table_privilege/);
   assert.match(sql,/has_any_column_privilege/);
+  for(const table of ['axiom_provider_spend_budgets','axiom_provider_spend_organizations','axiom_provider_spend_requests'])
+    assert.ok(sql.includes(table),table);
+});
+
+test('rejects direct read grants to protected provider-spend tables',async()=>{
+  await assert.rejects(
+    ()=>inspectStagingHyperdrive(env,fakeClient({...completeRow,direct_billing_select_authority:true}).create),
+    /STAGING_PRIVILEGED_ROLE_DENIED/
+  );
+});
+test('rejects missing read-privilege audit evidence',async()=>{
+  const row={...completeRow};delete row.direct_billing_select_authority;
+  await assert.rejects(
+    ()=>inspectStagingHyperdrive(env,fakeClient(row).create),
+    /STAGING_PRIVILEGED_ROLE_DENIED/
+  );
+});
+test('readiness query audits table and column SELECT rights against all protected ledgers',async()=>{
+  const client=fakeClient(completeRow);
+  await inspectStagingHyperdrive(env,client.create);
+  const sql=client.traces.find(x=>x[0]==='query')[1];
+  assert.match(sql,/AS direct_billing_select_authority/);
+  assert.match(sql,/has_table_privilege\(current_user,billing.table_oid,'SELECT'\)/);
+  assert.match(sql,/has_any_column_privilege\(current_user,billing.table_oid,'SELECT'\)/);
   for(const table of ['axiom_provider_spend_budgets','axiom_provider_spend_organizations','axiom_provider_spend_requests'])
     assert.ok(sql.includes(table),table);
 });
