@@ -1,0 +1,60 @@
+name: AXIOM identity hosted prerequisites GET-only evidence (NOT RELEASE)
+
+on:
+  push:
+    branches:
+      - ops/axiom-idp-hosted-prerequisites-20261109
+    paths:
+      - .github/workflows/axiom-idp-hosted-prerequisites-20261109.yml
+      - customer_frontier/qualification/hosted_idp_prerequisites_readonly.py
+      - customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-idp-prerequisites-readonly-20261109
+  cancel-in-progress: false
+
+jobs:
+  read-only-audit:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-idp-hosted-prerequisites-20261109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact code blobs, syntax and seven host/deny regression tests BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/hosted_idp_prerequisites_readonly.py)" = 'c9e86c26aa5d5dc9a536f19434c650c80c8912f6'
+          test "$(git hash-object customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py)" = 'e9ad70d43335e7456e991c7778210ff1aaca4f3b'
+          python3 -m py_compile customer_frontier/qualification/hosted_idp_prerequisites_readonly.py customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_hosted_idp_prerequisites_readonly.py)
+      - name: Read only exact-zone metadata, staging D1 inventory, Worker bindings, ZITADEL discovery/JWKS, and closed HTTPS routes
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/hosted_idp_prerequisites_readonly.py
+          code=$?
+          echo "READONLY_RESULT=$code"
+          test -f axiom-identity-staging-hosted-readonly.json || exit 3
+          exit "$code"
+      - name: Preserve sanitized GET-only evidence and detached SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-idp-hosted-metadata-readonly-20261109
+          path: |
+            axiom-identity-staging-hosted-readonly.json
+            axiom-identity-staging-hosted-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
