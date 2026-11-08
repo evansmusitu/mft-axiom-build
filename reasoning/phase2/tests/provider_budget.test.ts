@@ -438,3 +438,54 @@ test("changing the underlying provider's transport after registration is denied 
     assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
   }finally{x.ledger.close();}
 });
+
+
+test("production admission rejects SQLite and administrator PostgreSQL paid ledgers before vendor calls",async()=>{
+  let providerCalls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(){providerCalls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));},
+    async explain(){providerCalls++;return exchange(openAi({input_tokens:1,output_tokens:1,total_tokens:2}));}
+  };
+  const compiler=(wrapped:any,mode:any=true)=>new phase2.ModelCompilationService({
+    profiles:{resolve(){throw Error("not used");}} as any,
+    repository:{commitCompilation(){throw Error("not used");}} as any,
+    registry:{manifest(){return [];}} as any,
+    adapter:wrapped,productionBillingRequired:mode
+  });
+  const explainer=(wrapped:any,mode:any=true)=>new phase2.ModelExplanationService({
+    tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
+    plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+    adapters:[wrapped],productionBillingRequired:mode
+  });
+  const wrapper=(ledger:any)=>new phase2.BudgetedModelProviderAdapter({
+    adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:700
+  });
+  const sqlite=new phase2.SqliteProviderSpendLedger(":memory:");
+  const pgPool=new pg.Pool({max:1,connectionTimeoutMillis:100});
+  try{
+    const adminPg=new phase2.PostgresProviderSpendLedger(pgPool);
+    for(const ledger of [sqlite,adminPg]){
+      const wrapped=wrapper(ledger);
+      for(const register of [compiler,explainer]){
+        assert.throws(()=>register(wrapped),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+        assert.doesNotThrow(()=>register(wrapped,false),
+          "offline compatibility remains explicitly supported");
+      }
+      assert.throws(()=>phase2.requireProtectedPaidProviderAdapter(wrapped,scope().tenantId),
+        (e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+    }
+    const protectedPg=new phase2.ProtectedPostgresProviderSpendLedger(pgPool);
+    const protectedAdapter=wrapper(protectedPg);
+    assert.doesNotThrow(()=>compiler(protectedAdapter));
+    assert.doesNotThrow(()=>explainer(protectedAdapter));
+    assert.doesNotThrow(()=>phase2.requireProtectedPaidProviderAdapter(protectedAdapter,scope().tenantId));
+    assert.throws(()=>phase2.requireProtectedPaidProviderAdapter(protectedAdapter,"tenant:elsewhere"),
+      (e:any)=>e?.code==="BUDGET_TENANT_MISMATCH");
+    for(const register of [compiler,explainer]){
+      assert.throws(()=>register(protectedAdapter,"true" as any),/boolean|billing/i,
+        "unrecognized admission settings must not silently disable protected mode");
+    }
+    assert.equal(providerCalls,0,"registration is never permission for upstream network access");
+  }finally{sqlite.close();await pgPool.end();}
+});
