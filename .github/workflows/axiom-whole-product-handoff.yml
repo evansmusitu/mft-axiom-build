@@ -6,6 +6,11 @@ on:
     paths:
       - handoff/build_whole_product.py
       - .github/workflows/axiom-whole-product-handoff.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - handoff/build_whole_product.py
+      - .github/workflows/axiom-whole-product-handoff.yml
 permissions:
   contents: read
   pull-requests: read
