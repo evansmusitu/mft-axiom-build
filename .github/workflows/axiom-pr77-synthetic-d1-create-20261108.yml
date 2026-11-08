@@ -1,0 +1,110 @@
+name: AXIOM one separate owner alternate synthetic-only PR77 D1 create 20261108 (NO RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-synthetic-d1-create-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-synthetic-d1-create-20261108, cancel-in-progress: false}
+jobs:
+  only-new-database-no-production-or-recovery-copy:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-only-d1-create-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-alternate-workers-subdomain-20261108' && github.event.pull_request.base.sha == 'c6a5cdbb9968ca5c100d0b540dcefe8339e24c16' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Exact resources and fail-closed contract before Cloudflare token
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          account='c954f0c842a486d0388c05b19cd21e47'
+          kept='e36972b3-850d-4273-b934-2fa67587d9f1'
+          protected='504029cc-f9a5-495e-818f-63c6144b4ea4'
+          name='axiom-pr77-synthetic-only-20261108'
+          assert account!='93f395f5121954671f92fffa453d6b61'
+          assert kept!=protected and name!='axiom-disposable-dr-target-20261108'
+          print('ONE_ISOLATED_SYNTHETIC_D1_ONLY_ACCOUNT_IDENTITY_ADMITTED')
+          PY
+      - name: Exactly one D1 POST only after owner-alternate listing proves protected copy is sole existing resource
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,re,urllib.error,urllib.request
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'
+          PRESERVED_NAME='axiom-disposable-dr-target-20261108'
+          TARGET_NAME='axiom-pr77-synthetic-only-20261108'
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database'
+          TOKEN=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          UUID=re.compile(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\Z')
+          report={'schema':'musitu.axiom.pr77_synthetic_d1_target_create.v1','account_id':ACCOUNT,'status':'UNQUALIFIED','phase':'NOT_STARTED','target_name':TARGET_NAME,'target_database_id':None,'provider_http_status':[],'create_attempted':False,'created_and_readback_verified':False,'preserved_customer_staging_d1_untouched':True,'production_oauth_changed':False,'customer_data_imported':False,'release_authority':False}
+          class Rejected(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*a,**kw):return None
+          OPENER=urllib.request.build_opener(NoRedirect())
+          def call(method,path,data=None):
+           if not TOKEN or '\r' in TOKEN or '\n' in TOKEN:raise Rejected('SCOPED_TOKEN_UNAVAILABLE')
+           body=None if data is None else json.dumps(data,separators=(',',':')).encode()
+           if method not in ('GET','POST') or (method=='POST' and path!='') or (method=='GET' and path not in ('?page=1&per_page=100',) and not re.fullmatch('/[0-9a-f-]{36}',path)):
+            raise Rejected('UNADMITTED_HTTP_OPERATION')
+           request=urllib.request.Request(BASE+path,method=method,data=body,headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','User-Agent':'AXIOM-PR77-Synthetic-D1-Only-20261108',**({'Content-Type':'application/json'} if body else {})})
+           try:
+            with OPENER.open(request,timeout=20) as response:
+             code=response.status;raw=response.read(120001)
+           except urllib.error.HTTPError as exc:
+            code=exc.code;raw=b''
+           except (urllib.error.URLError,OSError,TimeoutError):raise Rejected('PROVIDER_UNKNOWN_NO_RETRY')
+           report['provider_http_status'].append({'method':method,'status':code})
+           if code not in (200,201) or len(raw)>120000:raise Rejected('PROVIDER_REJECTED_OR_TOO_LARGE_'+str(code))
+           try:obj=json.loads(raw)
+           except ValueError:raise Rejected('PROVIDER_INVALID_JSON')
+           if not isinstance(obj,dict) or obj.get('success') is not True:raise Rejected('PROVIDER_OPERATION_NOT_SUCCESSFUL')
+           return obj
+          def list_d1():
+           obj=call('GET','?page=1&per_page=100')
+           arr=obj.get('result');info=obj.get('result_info')
+           if not isinstance(arr,list) or not isinstance(info,dict) or type(info.get('total_count')) is not int or info['total_count']!=len(arr):
+            raise Rejected('PAGINATION_OR_RESULT_COUNT_UNQUALIFIED')
+           if not all(isinstance(z,dict) and UUID.fullmatch(str(z.get('uuid',''))) and isinstance(z.get('name'),str) for z in arr):
+            raise Rejected('D1_LIST_OBJECT_INVALID')
+           return {z['uuid']:z['name'] for z in arr}
+          try:
+           report['phase']='BASELINE_VERIFICATION'
+           before=list_d1()
+           if before!={PRESERVED:PRESERVED_NAME}:raise Rejected('OWNER_ALT_ACCOUNT_DRIFT_OR_TARGET_ALREADY_EXISTS')
+           report['phase']='EXACTLY_ONE_CREATE_ATTEMPT'
+           report['create_attempted']=True
+           r=call('POST','',{'name':TARGET_NAME})
+           obj=r.get('result')
+           if not isinstance(obj,dict) or not UUID.fullmatch(str(obj.get('uuid',''))) or obj.get('name')!=TARGET_NAME:
+            raise Rejected('CREATE_PROVIDER_RESPONSE_IDENTITY_UNQUALIFIED_NO_RETRY')
+           uid=obj['uuid']
+           report['phase']='INDEPENDENT_POST_CREATE_READBACK'
+           after=list_d1()
+           if after!={PRESERVED:PRESERVED_NAME,uid:TARGET_NAME} or len(after)!=2:raise Rejected('CREATED_DATABASE_NOT_ONLY_NEW_RESOURCE_NO_RETRY')
+           meta=call('GET','/'+uid).get('result')
+           if not isinstance(meta,dict) or meta.get('uuid')!=uid or meta.get('name')!=TARGET_NAME:
+            raise Rejected('TARGET_METADATA_UNQUALIFIED_NO_RETRY')
+           report['target_database_id']=uid
+           report['created_and_readback_verified']=True
+           report['phase']='ONE_SYNTHETIC_EMPTY_TARGET_VERIFIED'
+           report['status']='ONE_NEW_SYNTHETIC_EMPTY_D1_CREATED_ORIGINAL_PRESERVED'
+          except Rejected as e:
+           report['reason_code']=str(e)
+          except Exception:
+           report['reason_code']='UNKNOWN_OUTCOME_NO_RETRY'
+          p=Path('axiom-pr77-synthetic-d1-created-20261108.json')
+          p.write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(report,sort_keys=True))
+          if not report['created_and_readback_verified']:raise SystemExit(1)
+          
+          PY
+      - name: Archive sanitized new resource identity including any uncertainty
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-one-new-synthetic-d1-only-20261108
+          path: axiom-pr77-synthetic-d1-created-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
