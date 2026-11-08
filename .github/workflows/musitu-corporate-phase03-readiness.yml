@@ -1,0 +1,69 @@
+name: MUSITU Corporate Phase03 Readonly Cloudflare Release Inventory
+on:
+  push:
+    branches: [ops/corporate-phase03-readiness-20261108]
+permissions:
+  contents: read
+concurrency:
+  group: musitu-corporate-phase03-readiness
+  cancel-in-progress: false
+jobs:
+  readonly-acceptance-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - name: Inspect only corporate Pages baseline, preview protection and rollback candidates
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          assert token, 'Missing existing scoped Cloudflare token'
+          acc=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def call(path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=h)
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:obj=json.loads(r.read(2500000))
+              return obj if obj.get('success') else {'success':False,'reason':'Cloudflare API error'}
+            except urllib.error.HTTPError as e:return {'success':False,'http_status':e.code}
+          prefix='/accounts/'+acc
+          project=call(prefix+'/pages/projects/musitu-corporate')
+          assert project.get('success'), 'Cannot read corporate Pages project'
+          p=project['result']
+          assert p.get('name')=='musitu-corporate' and p.get('production_branch')=='main'
+          assert 'mftintelligence.com' in p.get('domains',[])
+          assert not (p.get('source') or {}).get('type'), 'Unexpected Git integration; reject legacy direct upload procedure'
+          depls=call(prefix+'/pages/projects/musitu-corporate/deployments?per_page=30')
+          assert depls.get('success'), 'Cannot read deployment history'
+          all_rows=depls['result']
+          prod=[d for d in all_rows if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+          assert len(prod)>=2, 'Insufficient live rollback history'
+          baseline=prod[0]['id']
+          expected='a2426a81-b0cb-4a46-a90c-493f871c9775'
+          rollback='69ee853a-f0b4-432e-b069-7d6e180fdb4c'
+          print('Corporate Pages baseline current:',baseline)
+          print('Recorded PR33 release still current:',baseline==expected)
+          print('Previously recorded separate production rollback candidate exists:',any(d['id']==rollback for d in prod))
+          print('Retained successful production deployments:',len(prod))
+          print('Cloudflare production domain and direct-upload project PASS')
+          # Access applications require separately granted Access Read. Never infer protection if denied.
+          a=call(prefix+'/access/apps?per_page=100')
+          if not a.get('success'):
+            print('Cloudflare Access app inventory UNVERIFIED; provider API response:',a.get('http_status','unavailable'))
+          else:
+            rows=a.get('result') or []
+            if isinstance(rows,dict):rows=rows.get('result') or rows.get('apps') or []
+            relevant=[]
+            for app in rows:
+              domains=' '.join(str(x) for x in (app.get('domain'),app.get('self_hosted_domains'),app.get('destinations')))
+              if 'musitu-corporate.pages.dev' in domains or 'corporate' in str(app.get('name','')).lower():
+                relevant.append({'name':app.get('name'),'type':app.get('type'),'domain':app.get('domain')})
+            print('Potential Pages preview Access apps (not policy proof):',json.dumps(relevant))
+          print('READ-ONLY COMPLETE; no preview upload, production mutation, DNS, merge or rollback executed.')
+          if baseline!=expected:
+            raise SystemExit('HOLD: Production changed from last recorded deployment; recapture baseline before any release')
+          assert any(d['id']==rollback for d in prod), 'HOLD: recorded prior deployment missing'
+          PY
