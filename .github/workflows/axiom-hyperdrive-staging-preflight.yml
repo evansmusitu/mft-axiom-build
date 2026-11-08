@@ -1,0 +1,70 @@
+name: AXIOM Hyperdrive staging preflight (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'reasoning/phase2/cloudflare-staging/**'
+      - 'reasoning/phase2/tests/hyperdrive_staging.test.mjs'
+      - 'reasoning/phase2/tests/hyperdrive_staging.postgres.test.mjs'
+      - '.github/workflows/axiom-hyperdrive-staging-preflight.yml'
+  push:
+    branches:
+      - 'feature/phase2-hyperdrive-staging-preflight-20261107'
+    paths:
+      - 'reasoning/phase2/cloudflare-staging/**'
+      - 'reasoning/phase2/tests/hyperdrive_staging.test.mjs'
+      - 'reasoning/phase2/tests/hyperdrive_staging.postgres.test.mjs'
+      - '.github/workflows/axiom-hyperdrive-staging-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify closed diagnostic and fail-closed staging checks
+        working-directory: reasoning/phase2
+        run: node --test tests/hyperdrive_staging.test.mjs
+
+  postgres-catalog-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: axiom_test
+          POSTGRES_USER: axiom
+          POSTGRES_PASSWORD: test-only-ephemeral-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U axiom -d axiom_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: axiom_test
+      PGUSER: axiom
+      PGPASSWORD: test-only-ephemeral-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+          cache: npm
+          cache-dependency-path: reasoning/phase2/package-lock.json
+      - name: Install locked dependencies without scripts
+        working-directory: reasoning/phase2
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: PostgreSQL 17 restricted-role catalog preflight integration
+        working-directory: reasoning/phase2
+        run: node --test tests/hyperdrive_staging.postgres.test.mjs
