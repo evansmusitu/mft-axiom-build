@@ -97,6 +97,13 @@ class TestStagingOverride(unittest.TestCase):
         r=m.run(self.api,http,lambda _:None)
         self.assertEqual(r['status'],'PROVIDER_WRITE_READBACK_MISMATCH_REVIEW_REQUIRED')
         self.assertEqual(self.api.live_count,1)
+    def test_global_api_key_and_email_use_only_cloudflare_auth_headers(self):
+        client=m.Client('synthetic-not-real','example@example.com')
+        self.assertEqual(client.auth_headers,{'X-Auth-Email':'example@example.com','X-Auth-Key':'synthetic-not-real'})
+        self.assertNotIn('authorization',client.auth_headers)
+        with self.assertRaisesRegex(m.Stop,'CREDENTIALS_UNAVAILABLE'):
+            m.Client('synthetic-not-real','')
+
     def test_no_http_success_does_not_claim_identity(self):
         def challenged(path):return 403,False,b'challenge'
         r=m.run(self.api,challenged,lambda _:None)
