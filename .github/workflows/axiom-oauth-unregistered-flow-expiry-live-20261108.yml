@@ -1,0 +1,74 @@
+name: AXIOM live unmatched OAuth client flow expiry read-only triage 20261108 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-oauth-unregistered-flow-expiry-live-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-oauth-unregistered-flow-expiry-live-20261108, cancel-in-progress: false}
+jobs:
+  one-shot-five-request-expiry-aggregate:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-oauth-unregistered-flow-expiry-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-oauth-unregistered-flow-expiry-20261108' && github.event.pull_request.base.sha == 'aa7fe5dbd62502d285acb8e2db6f87cf7d16ecdf' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 1c9809717298aa820ab77aebd162047d022a9d73
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Pin both previously reviewed immutable readers and negative tests before secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 1c9809717298aa820ab77aebd162047d022a9d73
+          test "$(git hash-object customer_frontier/qualification/oauth_identity_links_20261108.py)" = c1dab9b2d08a088db63f99568c2a607f28f10a36
+          test "$(git hash-object customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py)" = ef971300174097ecc2b0ccf53306d4db62f880a4
+          test "$(git hash-object customer_frontier/qualification/test_oauth_flow_expiry_triage_20261108.py)" = 4b710fb6b335df45613b189c9ccab1c730be81fd
+          python3 -m py_compile customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py customer_frontier/qualification/oauth_identity_links_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py').read_text()
+          assert "refs.get('orphan_flow_clients')!=3" in s
+          assert "julianday(expires_at)" in s
+          assert "COUNT(DISTINCT client_id)" in s
+          assert "baseline.observe(baseline._provider_fetcher(token))" in s
+          assert "result=classify(original,timing_query(token))" in s
+          assert "THREE_UNREGISTERED_FLOWS_EXPIRED_NOT_USER_OWNERSHIP" in s
+          assert "'real_identity_qualified':False" in s and "'release_authority':False" in s
+          assert "SELECT *" not in s and "DROP TABLE" not in s and "DELETE FROM" not in s
+          print('FIXED_READONLY_EXPIRY_TRIAGE_SOURCE_ADMITTED')
+          PY
+      - name: Rerun six prior denial and classification tests before production credential
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_oauth_flow_expiry_triage_20261108.py -v
+      - name: Observe only six counts from the three unregistered OAuth flows, no IDs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py
+      - name: No active or invalid-expiry references and never authorize migration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('axiom-oauth-unregistered-flow-expiry-triage-20261108.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='THREE_UNREGISTERED_FLOWS_EXPIRED_NOT_USER_OWNERSHIP'
+          c=x['unregistered_flow_counts']
+          assert c['total']==3 and c['expired']==3 and c['unexpired']==0 and c['invalid_expiry']==0
+          assert x['provider_read_only_queries']==3
+          for k in ('private_flow_ids_read','redirect_uris_read','authorization_codes_read','customer_rows_read','real_identity_qualified','oauth_migration_qualified','delete_or_repair_performed','release_authority'):
+              assert x[k] is False
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(h+'  '+p.name+'\n')
+          print('OAUTH_THREE_UNREGISTERED_FLOWS_EXPIRED_BUT_NOT_REAL_IDENTITY sha256='+h)
+          PY
+      - name: Archive safe age-count receipt even if active, invalid or provider failed
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-oauth-unregistered-flow-expiry-readonly-20261108
+          path: |
+            axiom-oauth-unregistered-flow-expiry-triage-20261108.json
+            axiom-oauth-unregistered-flow-expiry-triage-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
