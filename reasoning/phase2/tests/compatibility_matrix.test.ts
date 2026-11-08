@@ -10,7 +10,7 @@ test("versioned compatibility matrix commits runtime, compiler, registry and pol
  assert.match(a.matrixHash,/^[0-9a-f]{64}$/);
  const {matrixHash,...core}=a;
  assert.equal(matrixHash,hashJson(core));
- for(const id of ["ir","runtime","compiler","operationRegistry","policy","modelProposal","certificate","workerCompletionVerifier","workerControlHttp","workerRequest","workerLease","evidenceAdapter","mcpEvidenceAdapter","fileEvidenceAdapter","objectEvidenceAdapter","postgresViewEvidenceAdapter","musituComputeAdapter","modelAdapter","modelProviderTransport","executionApi","reasoningSigner","workerReceiptStore"]){
+ for(const id of ["ir","runtime","compiler","operationRegistry","policy","modelProposal","certificate","workerCompletionVerifier","workerControlHttp","workerRequest","workerLease","evidenceAdapter","mcpEvidenceAdapter","fileEvidenceAdapter","objectEvidenceAdapter","postgresViewEvidenceAdapter","musituComputeAdapter","modelAdapter","modelProviderTransport","providerUsageBudget","providerUsageBudgetPostgres","executionApi","reasoningSigner","workerReceiptStore"]){
   assert.equal(typeof a.components[id].version,"string");
   assert.match(a.components[id].implementationHash,/^[0-9a-f]{64}$/);
  }
