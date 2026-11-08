@@ -57,7 +57,10 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
     AND NOT EXISTS (
       SELECT 1 FROM pg_catalog.aclexplode(
         COALESCE(p.proacl,pg_catalog.acldefault('f'::"char",p.proowner))) AS acl
-      WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'))
+      WHERE acl.privilege_type='EXECUTE'
+      AND acl.grantee NOT IN (
+        p.proowner,
+        (SELECT oid FROM pg_catalog.pg_roles WHERE rolname=current_user))))
    FROM pg_catalog.pg_proc p
    WHERE p.oid IN (
      pg_catalog.to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)'),
