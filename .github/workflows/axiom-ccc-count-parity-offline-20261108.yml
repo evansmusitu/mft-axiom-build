@@ -1,0 +1,44 @@
+name: AXIOM current D1 count parity offline review 20261108 (NO CREDENTIALS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-count-parity-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-count-parity-offline-20261108
+  cancel-in-progress: false
+jobs:
+  fixed-readonly-negative-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-count-parity-review-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-postrollback-readback-20261108' && github.event.pull_request.base.sha == '0f677d29978820a5178790ced3b2cfb1981234a0' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4e60c47cda67683b48d576ecf32fa18d7bf49a8a
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Pinned source/test blobs, no secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4e60c47cda67683b48d576ecf32fa18d7bf49a8a
+          test "$(git hash-object customer_frontier/qualification/ccc_live_count_preflight.py)" = 32fb1580e323699937efe7d80b573516a584d622
+          test "$(git hash-object customer_frontier/qualification/test_ccc_live_count_preflight.py)" = 2deeb42dcd5e08a0125d467a63b05c3bd4fc7bde
+          python3 -m py_compile customer_frontier/qualification/ccc_live_count_preflight.py customer_frontier/qualification/test_ccc_live_count_preflight.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/ccc_live_count_preflight.py').read_text()
+          assert "DB='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'" in s
+          assert "CATALOG_SHA='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'" in s
+          assert "OLD_BACKUP_SHA='d8fdb7d06f27d3053799ba70eb2c4c12d2b5570eb9c5cf4724e7216908d0b3b3'" in s
+          assert "MAX_REQUESTS=27" in s and "MAX_QUERIES=26" in s
+          assert "full_restore_qualified':False" in s and "release_authority':False" in s
+          assert "SELECT count(*) AS n FROM " in s
+          assert "SELECT * FROM " not in s
+          assert "DELETE FROM " not in s and "DROP TABLE " not in s
+          print('FIXED_AGGREGATE_ONLY_READONLY_ADMITTED')
+          PY
+      - name: Run TDD synthetic parity plus drift/SQL-injection/zero-write denial tests
+        shell: bash
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_ccc_live_count_preflight.py -v
