@@ -1,0 +1,61 @@
+name: AXIOM exact staging identity host CF metadata preflight (GET only / NO RELEASE)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-idp-host-preflight-20261108' &&
+      github.base_ref == 'build/axiom-idp-frontdoor-staging-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout same-repository review source without persistence
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Immutable source admission and credential-free negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          echo 'a6c1ab9b6231c3cff732062827bf0c130754811851dc6db1d88b94659527bc4f  customer_frontier/qualification/staging_route_readonly.py' | sha256sum -c -
+          echo 'ee90ebefc7592974b0c6a378a270a69c1a707cfb143c6c5537681fa4f9cbbf00  customer_frontier/qualification/test_staging_route_readonly.py' | sha256sum -c -
+          python3 -m py_compile customer_frontier/qualification/staging_route_readonly.py customer_frontier/qualification/test_staging_route_readonly.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_staging_route_readonly.py)
+      - name: Observe only exact Cloudflare zone and staging Worker metadata (GET only)
+        id: probe
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/staging_route_readonly.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          test -f axiom-stage-route-readonly-receipt.json || exit 3
+          echo "receipt_exists=true"
+          exit 0
+      - name: Retain non-sensitive digest observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-route-readonly-preflight
+          path: |
+            axiom-stage-route-readonly-receipt.json
+            axiom-stage-route-readonly-receipt.json.sha256
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Fail closed if account metadata cannot be verified
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.probe.outputs.exit_code }}" = 0
