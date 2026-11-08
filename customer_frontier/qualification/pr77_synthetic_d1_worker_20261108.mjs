@@ -66,4 +66,4 @@ export async function handle(req,env,fixed=globalThis.__AXIOM_PR77_SYNTHETIC__){
   return reply(404,{error:'route_denied',release_authority:false});
  }catch{return reply(503,{error:'unexpected_provider_or_synthetic_fixture_failure',release_authority:false});}
 }
-export default {fetch:handle};
+export default {fetch:(request,env)=>handle(request,env)};
