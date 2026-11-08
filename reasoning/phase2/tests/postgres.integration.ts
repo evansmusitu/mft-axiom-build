@@ -853,31 +853,37 @@ test("PostgreSQL vendor-wide cap serializes competing tenant reservations and su
 // Phase 2.10C: a restricted runtime must not own or directly mutate the
 // accounting rows. Only narrow, operator-granted SQL RPCs can spend.
 test('protected PostgreSQL reserve and settle enforce limits without runtime table DML',async()=>{
-  await ready();await initializePostgresSchema(pool);
-  const signatures=await pool.query(`SELECT
+  await ready();
+  await pool.query('CREATE DATABASE axiom_spend_isolated_ci');
+  const admin=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
+    database:'axiom_spend_isolated_ci',user:process.env.PGUSER??'axiom',
+    password:process.env.PGPASSWORD??'axiom-test-password',max:3});
+  try{
+    await initializePostgresSchema(admin);
+  const signatures=await admin.query(`SELECT
     to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)')::text AS reserve_rpc,
     to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')::text AS settle_rpc`);
   assert.ok(signatures.rows[0].reserve_rpc,'protected reserve SQL RPC must exist');
   assert.ok(signatures.rows[0].settle_rpc,'protected settle SQL RPC must exist');
-  const migrationOwner=(await pool.query("SELECT current_user AS name")).rows[0].name;
+  const migrationOwner=(await admin.query("SELECT current_user AS name")).rows[0].name;
   assert.notEqual(migrationOwner,'axiom_spend_runtime_ci');
   const ax:any=await import('../src/index.ts');
-  const operator=new ax.PostgresProviderSpendLedger(pool);
+  const operator=new ax.PostgresProviderSpendLedger(admin);
   const tenant={tenantId:'tenant:pg-protected-rpc'},provider='adapter:protected-rpc',modelId='model:protected-rpc';
-  await pool.query('DELETE FROM public.axiom_provider_spend_requests WHERE tenant_id=$1',[tenant.tenantId]);
-  await pool.query('DELETE FROM public.axiom_provider_spend_budgets WHERE tenant_id=$1',[tenant.tenantId]);
+  await admin.query('DELETE FROM public.axiom_provider_spend_requests WHERE tenant_id=$1',[tenant.tenantId]);
+  await admin.query('DELETE FROM public.axiom_provider_spend_budgets WHERE tenant_id=$1',[tenant.tenantId]);
   await operator.provisionOrganization('openai',100000);
   await operator.provision(tenant,provider,modelId,500,'openai');
   // A temporary CI-only identity: no table ownership, no role inheritance,
   // no schema CREATE, and only explicit RPC execution rights.
-  await pool.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+  await admin.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
   let caller:InstanceType<typeof Pool>|undefined;
   try{
-    await pool.query('GRANT USAGE ON SCHEMA axiom_spend TO axiom_spend_runtime_ci');
-    await pool.query(`GRANT EXECUTE ON FUNCTION axiom_spend.reserve(text,text,text,text,text,bigint,text),
+    await admin.query('GRANT USAGE ON SCHEMA axiom_spend TO axiom_spend_runtime_ci');
+    await admin.query(`GRANT EXECUTE ON FUNCTION axiom_spend.reserve(text,text,text,text,text,bigint,text),
       axiom_spend.settle(text,text,text,text,text,bigint,text,text) TO axiom_spend_runtime_ci`);
     caller=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
-      database:process.env.PGDATABASE??'axiom_test',user:'axiom_spend_runtime_ci',
+      database:'axiom_spend_isolated_ci',user:'axiom_spend_runtime_ci',
       password:'ci-disposable-not-production',max:2,connectionTimeoutMillis:2000});
     const grants=await caller.query(`SELECT
       has_table_privilege(current_user,'public.axiom_provider_spend_budgets','UPDATE,INSERT,DELETE,TRUNCATE') AS budget_dml,
@@ -905,7 +911,11 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     assert.equal(repeat.rows[0].verdict,'BUDGET_ALREADY_SETTLED');
   }finally{
     if(caller)await caller.end();
-    await pool.query('DROP OWNED BY axiom_spend_runtime_ci');
-    await pool.query('DROP ROLE axiom_spend_runtime_ci');
+    await admin.query('DROP OWNED BY axiom_spend_runtime_ci');
+    await admin.query('DROP ROLE axiom_spend_runtime_ci');
+  }
+  }finally{
+    await admin.end();
+    await pool.query('DROP DATABASE axiom_spend_isolated_ci WITH (FORCE)');
   }
 });
