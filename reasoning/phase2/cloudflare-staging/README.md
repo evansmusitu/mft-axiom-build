@@ -37,3 +37,22 @@ Source: [Neon and Hyperdrive](https://developers.cloudflare.com/workers/database
 
 
 **Protected SQL dependency (draft, unmerged):** The SQL-RPC migration is explicit and separate from generic schema initialization. No operator may provision a runtime user with direct accounting table grants as a workaround. Independent function-owner, ACL, Hyperdrive TLS/cache, origin and release evidence must precede any real staging query. Offline success—including simulated protected-SQL function catalog responses—does not establish production spending enforcement, exact privileges or Hyperdrive origin TLS; independent PostgreSQL 17 integration is separately exercised on #104.
+
+## PostgreSQL 17 catalog integration (disposable CI only)
+
+The offline fixture tests cannot catch PostgreSQL catalog SQL syntax or effective role-grant errors. CI therefore runs a **separate** PostgreSQL 17-alpine service and a new `postgres-catalog-gate` job, in addition to the 25-case fake-client `offline-gate`.
+
+Run `node --test tests/hyperdrive_staging.postgres.test.mjs` from `reasoning/phase2` with independently provisioned ephemeral PostgreSQL 17 credentials in the test environment. Never supply production credentials.
+
+The test creates an isolated throwaway database with fake provider-spend tables, two inert SQL function signatures, a separate NOLOGIN definer and a restricted runtime login. It executes the **real** static readiness SQL through a real `pg.Client`. It tests a clean PASS and then each negative permission independently, restoring PASS after each revocation:
+
+- Direct accounting-table `SELECT`.
+- Protected function `EXECUTE` granted to `PUBLIC`.
+- One of the required runtime function execution grants missing.
+- Runtime `CREATE` on the protected schema.
+- A protected function owned by an administrator LOGIN role.
+- **Unrelated third-party role** granted `EXECUTE` to the protected function, even when the runtime's own effective grants are otherwise unchanged.
+
+The protected function ACL permits execution only to its independently reviewed owner and the named current runtime login. This is a **read-only privilege audit**, not tenant authorization inside the functions or a deployed Worker inventory.
+
+The test functions are intentionally inert and separate from the protected budget migration in stacked draft #104. Passing this check does **not** prove that the live SQL bodies are deployed, transaction-safe, tenant-authenticated or invoice-reconciled. No Cloudflare/Neon network is contacted. **Release NO-GO.**
