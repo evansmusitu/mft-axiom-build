@@ -1,0 +1,79 @@
+name: AXIOM PR77 live synthetic crosscustomer strict denial v2 after managed-table TDD 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-synthetic-crosscustomer-live-v2-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-synthetic-crosscustomer-live-v2-20261108, cancel-in-progress: false}
+jobs:
+  exact-one-time-provider-crosscustomer-denial:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-crosscustomer-live-v2-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-cf-managed-catalog-tdd-20261108' && github.event.pull_request.base.sha == '1bab1401f2c41812ce04c723f022c7afcd7d0c58' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 1bab1401f2c41812ce04c723f022c7afcd7d0c58
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit SHA-pinned corrected source and both negative suites before credential injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 1bab1401f2c41812ce04c723f022c7afcd7d0c58
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py)" = 06b87f4944f2604ec23149f08e2f313b630dec5b
+          test "$(git hash-object customer_frontier/qualification/test_pr77_synthetic_crosscustomer_denials_20261108.py)" = 2a4710d840c74eed77fda2a578147431d8dd2b90
+          test "$(git hash-object customer_frontier/qualification/test_pr77_cf_managed_catalog_20261108.py)" = 1caf795e12078f2892d3b279c2cc38552dd4cb1a
+          python3 -m py_compile customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py').read_text()
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'" in s
+          assert "PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "PLAN_SHA='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'" in s
+          assert "row.get('name') not in ('_cf_KV','_cf_METADATA')" in s
+          assert "initial_schema=sha(canonical(original_catalog))" in s
+          assert "CATALOG_CHANGED_AFTER_DENIAL" in s
+          assert "'production_oauth_modified':False" in s and "'release_authority':False" in s
+          assert "DELETE FROM" not in s and "DROP TABLE" not in s
+          print('CORRECTED_CATALOG_GUARDED_SYNTHETIC_ONLY_DENIAL_ADMITTED')
+          PY
+      - name: Re-run green managed-table regressions and seven negative tests, no token
+        shell: bash
+        run: |
+          python3 -m unittest discover -s customer_frontier/qualification -p test_pr77_cf_managed_catalog_20261108.py -v
+          python3 -m unittest discover -s customer_frontier/qualification -p test_pr77_synthetic_crosscustomer_denials_20261108.py -v
+      - name: Actual Cloudflare two fixed fake-user forbidden OAuth link inserts, before-after proof
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: python3 customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py
+      - name: Verify both strict hosted trigger denials and no schema or synthetic row residue
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('axiom-pr77-synthetic-denials-20261108.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='TWO_CROSSCUSTOMER_PR77_TRIGGER_DENIALS_NO_RESIDUE_PASS'
+          assert x['confirmed_denial_types']==['token','code']
+          assert x['synthetic_state_unchanged'] is True and x['provider_zero_write_select_queries']==4
+          assert x['synthetic_database_id']=='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          assert x['reviewed_plan_sha256']=='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'
+          for k in ('real_customer_data_read','production_oauth_modified','real_identity_qualified','production_tenant_isolation_qualified','release_authority'):
+              assert x[k] is False
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(digest+'  '+p.name+'\n')
+          print('PR77_HOSTED_STRICT_CROSSCUSTOMER_DENIAL_NO_RESIDUE_PASS_NOT_RELEASE sha256='+digest)
+          PY
+      - name: Preserve sanitized rejection receipt even on unexpected provider failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-hosted-synthetic-crosscustomer-denial-v2-20261108
+          path: |
+            axiom-pr77-synthetic-denials-20261108.json
+            axiom-pr77-synthetic-denials-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
