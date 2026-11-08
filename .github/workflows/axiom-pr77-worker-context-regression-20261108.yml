@@ -1,0 +1,38 @@
+name: AXIOM PR77 Cloudflare Worker ctx fixture regression red-green (NO SECRETS) 20261108
+on:
+  pull_request:
+    types: [opened, synchronize]
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-cloudflare-worker-context-regression-20261108, cancel-in-progress: false}
+jobs:
+  prove-real-fetch-three-args-uses-fixed-fixture:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-worker-context-v2-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-post503-d1-independent-readback-20261108' && github.event.pull_request.base.sha == '8a49381505288b03436ec513bd6c30379ad1d269' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Simulate real runtime fetch request/env/executionContext third-argument
+        shell: bash
+        run: node --test customer_frontier/tests/pr77_worker_cloudflare_fetch_context_20261108.test.mjs
+      - name: Re-run original eight safety/denial contract tests
+        shell: bash
+        run: node --test customer_frontier/tests/pr77_synthetic_d1_worker_20261108.test.mjs
+      - name: Require default Worker export has no accidental ctx-as-fixture parameter
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs').read_text()
+          assert 'export default {fetch:(request,env)=>handle(request,env)}' in s
+          assert "const EXPECTED_PLAN='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'" in s
+          assert "fixed.seed.length!==41" in s and "fixed.plan.length!==89" in s
+          assert "release_authority:false" in s
+          print('CLOUDFLARE_CONTEXT_NO_LONGER_CONFUSED_WITH_FIXED_SQL_FIXTURE_PASS')
+          PY
