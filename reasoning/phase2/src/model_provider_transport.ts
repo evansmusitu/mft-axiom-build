@@ -47,15 +47,15 @@ function translate(error:unknown):never {
 }
 
 export class BoundedModelProviderTransport {
-  private readonly origin:URL;
-  private readonly path:string;
-  private readonly timeoutMs:number;
-  private readonly maxResponseBytes:number;
-  private readonly allowedStatus:number[];
-  private readonly headers:Record<string,string>;
-  private readonly secretHeaderConfig:Record<string,ModelProviderSecretHeader>;
-  private readonly secretResolver:SecretResolver;
-  private readonly fetchFn:EvidenceFetch;
+  readonly #origin:URL;
+  readonly #path:string;
+  readonly #timeoutMs:number;
+  readonly #maxResponseBytes:number;
+  readonly #allowedStatus:number[];
+  readonly #headers:Record<string,string>;
+  readonly #secretHeaderConfig:Record<string,ModelProviderSecretHeader>;
+  readonly #secretResolver:SecretResolver;
+  readonly #fetchFn:EvidenceFetch;
 
   constructor(config:{
     origin:string;
@@ -68,25 +68,25 @@ export class BoundedModelProviderTransport {
     secretResolver:SecretResolver;
     fetchFn?:EvidenceFetch;
   }){
-    this.origin=validateEvidenceHttpsOrigin(config.origin);
-    this.path=fixedPath(config.path);
+    this.#origin=validateEvidenceHttpsOrigin(config.origin);
+    this.#path=fixedPath(config.path);
     if(!Number.isInteger(config.timeoutMs)||config.timeoutMs<=0)throw new TypeError("timeoutMs must be a positive integer");
     if(!Number.isInteger(config.maxResponseBytes)||config.maxResponseBytes<=0)throw new TypeError("maxResponseBytes must be a positive integer");
     const statuses=config.allowedStatus??[200];
     if(!Array.isArray(statuses)||statuses.length===0||statuses.some(x=>!Number.isInteger(x)||x<200||x>299))throw new TypeError("allowedStatus must contain successful HTTP status codes");
     if(!config.secretResolver||typeof config.secretResolver.resolve!=="function")throw new TypeError("secretResolver is required");
-    this.timeoutMs=config.timeoutMs;this.maxResponseBytes=config.maxResponseBytes;this.allowedStatus=[...new Set(statuses)].sort((a,b)=>a-b);
-    this.headers=fixedHeaders(config.fixedHeaders);this.secretHeaderConfig=secretHeaders(config.secretHeaders);
-    this.secretResolver=config.secretResolver;this.fetchFn=config.fetchFn??fetch;
+    this.#timeoutMs=config.timeoutMs;this.#maxResponseBytes=config.maxResponseBytes;this.#allowedStatus=[...new Set(statuses)].sort((a,b)=>a-b);
+    this.#headers=fixedHeaders(config.fixedHeaders);this.#secretHeaderConfig=secretHeaders(config.secretHeaders);
+    this.#secretResolver=config.secretResolver;this.#fetchFn=config.fetchFn??fetch;
   }
 
   async postJson(bodyInput:string,maxResponseBytes?:number):Promise<string>{
     const body=required(bodyInput,"provider request body");
     try{JSON.parse(body);}catch{throw new TypeError("provider request body must be valid JSON");}
-    const headers:Record<string,string>={...this.headers,accept:"application/json","content-type":"application/json"};
+    const headers:Record<string,string>={...this.#headers,accept:"application/json","content-type":"application/json"};
     const secrets:string[]=[];
-    for(const [name,config] of Object.entries(this.secretHeaderConfig)){
-      const raw=await this.secretResolver.resolve(config.secretRef);
+    for(const [name,config] of Object.entries(this.#secretHeaderConfig)){
+      const raw=await this.#secretResolver.resolve(config.secretRef);
       if(typeof raw!=="string"||!raw)throw new Error("Resolved model provider secret must be a non-empty string");
       const formatted=`${config.prefix??""}${raw}`;
       headers[name]=formatted;
@@ -96,27 +96,27 @@ export class BoundedModelProviderTransport {
     for(const secret of secrets){
       if(secret&&body.includes(secret))throw new ModelAdapterError("MODEL_SECRET_IN_REQUEST","Sanitized model request contains secret material",500);
     }
-    const url=new URL(this.path,this.origin);
-    if(url.origin!==this.origin.origin)throw new Error("Model provider path escaped configured origin");
+    const url=new URL(this.#path,this.#origin);
+    if(url.origin!==this.#origin.origin)throw new Error("Model provider path escaped configured origin");
     const controller=new AbortController();
     let timer:ReturnType<typeof setTimeout>|undefined;
     const timeout=()=>new ModelAdapterError("MODEL_UPSTREAM_TIMEOUT","Model provider request timed out",504);
     // The deadline spans both headers and the entire streamed body.
     const deadline=new Promise<never>((_resolve,reject)=>{
-      timer=setTimeout(()=>{controller.abort();reject(timeout());},this.timeoutMs);
+      timer=setTimeout(()=>{controller.abort();reject(timeout());},this.#timeoutMs);
     });
     const operation=(async()=>{
       let response:Response;
       try{
-        response=await this.fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
+        response=await this.#fetchFn(url,{method:"POST",headers,body,redirect:"manual",signal:controller.signal});
       }catch{
         if(controller.signal.aborted)throw timeout();
         throw new ModelAdapterError("MODEL_UPSTREAM_NETWORK","Model provider request failed",502);
       }
       const cap=Number.isInteger(maxResponseBytes)&&Number(maxResponseBytes)>0
-        ?Math.min(this.maxResponseBytes,Number(maxResponseBytes)):this.maxResponseBytes;
+        ?Math.min(this.#maxResponseBytes,Number(maxResponseBytes)):this.#maxResponseBytes;
       const captured=await captureBoundedJsonResponse({
-        response,allowedStatus:this.allowedStatus,allowedMediaTypes:["application/json"],maxResponseBytes:cap,secrets
+        response,allowedStatus:this.#allowedStatus,allowedMediaTypes:["application/json"],maxResponseBytes:cap,secrets
       });
       return captured.body;
     })();
