@@ -1,0 +1,94 @@
+name: AXIOM zone-config user-token permission read-only adjudication
+
+on:
+  push:
+    branches:
+      - ops/axiom-config-authorization-proof-20261108
+    paths:
+      - .github/workflows/axiom-config-authorization-proof.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-config-authorization-proof-20261108' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET-only user-token verification, exact zone/ruleset, token policy metadata
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          TOKEN=os.environ.get('CF_TOKEN','')
+          if not TOKEN:raise SystemExit('MISSING_SECRET')
+          ZONE='5b56528f03948ff5917a5e0cd9f7109e'
+          R='8e8a2552a8ee4bb383abbe0d748e1da5'
+          A='93f395f5121954671f92fffa453d6b61'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          def inspect(path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,method='GET',
+              headers={'authorization':'Bearer '+TOKEN,'accept':'application/json','user-agent':'AXIOM-CONFIG-AUTH-READONLY'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=20) as f:
+                status=f.status;raw=f.read(80001)
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(80001)
+            except (OSError,ValueError,TimeoutError):
+              return {'http':'TRANSPORT_UNKNOWN','provider_success':False},None
+            if len(raw)>80000:return {'http':'OVERSIZE','provider_success':False},None
+            try:doc=json.loads(raw)
+            except (ValueError,UnicodeError):doc={}
+            errors=doc.get('errors',[])
+            codes=[e.get('code') for e in errors[:5] if isinstance(e,dict) and isinstance(e.get('code'),int)] if isinstance(errors,list) else []
+            messages=[e.get('message','') for e in errors[:5] if isinstance(e,dict)] if isinstance(errors,list) else []
+            return {'http':status,'provider_success':doc.get('success') is True,'codes':codes,
+                    'error_indicates_permission':any('permission' in m.lower() or 'forbidden' in m.lower() for m in messages if isinstance(m,str)),
+                    'error_indicates_auth':any('auth' in m.lower() or 'token' in m.lower() for m in messages if isinstance(m,str))},doc.get('result')
+          out={'schema':'AXIOM_CF_CONFIG_USER_TOKEN_AUTH_GET_ONLY','token_format_user':TOKEN.startswith('cfut_'),
+               'provider_mutations':0,'production_oauth_touched':False}
+          v,d=inspect('/user/tokens/verify');out['verify']=v
+          out['user_token_active']=bool(v.get('provider_success') and isinstance(d,dict) and d.get('status')=='active')
+          z,_=inspect('/zones/'+ZONE);out['zone_read']=z
+          r,_=inspect('/zones/'+ZONE+'/rulesets/'+R);out['exact_config_ruleset_read']=r
+          phase,_=inspect('/zones/'+ZONE+'/rulesets/phases/http_config_settings/entrypoint');out['phase_entrypoint_read']=phase
+          if out['user_token_active'] and isinstance(d.get('id'),str) and re.fullmatch('[0-9a-f]{32}',d['id']):
+            detail,p=inspect('/user/tokens/'+d['id'])
+            out['own_token_details_read']=detail
+            if isinstance(p,dict) and isinstance(p.get('policies'),list):
+              names=[];reskeys=[]
+              for policy in p['policies']:
+                if not isinstance(policy,dict):continue
+                rr=policy.get('resources',{})
+                if isinstance(rr,dict):reskeys.extend(str(k) for k in rr)
+                for group in policy.get('permission_groups',[]):
+                  if isinstance(group,dict) and isinstance(group.get('name'),str):names.append(group['name'])
+              out['permission_labels_config_only']=sorted(set(n for n in names if 'config' in n.lower() or 'ruleset' in n.lower()))[:30]
+              out['specific_zone_scope']=any(ZONE in k for k in reskeys)
+              out['all_zones_scope']=any('zone.*' in k.lower() for k in reskeys)
+              out['policy_count']=len(p['policies'])
+          raw=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          path=Path('axiom-cloudflare-config-auth-get-only.json');path.write_bytes(raw)
+          path.with_name(path.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+path.name+'\n')
+          print('AXIOM_CLOUDFLARE_CONFIG_AUTH_GET_ONLY_COMPLETED')
+          PY
+      - name: Upload sanitized provider status without credentials or response bodies
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cloudflare-config-auth-get-only-20261108
+          path: |
+            axiom-cloudflare-config-auth-get-only.json
+            axiom-cloudflare-config-auth-get-only.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
