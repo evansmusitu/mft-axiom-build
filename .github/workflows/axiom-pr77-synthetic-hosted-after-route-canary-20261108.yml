@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   only-disposable-synthetic-d1-and-temporary-owned-worker:
-    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-hosted-after-route-canary-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-workers-route-canary-20261108' && github.event.pull_request.base.sha == '4b9a72dbb43fa62cbd87637660c5e5e395fad595' && github.run_attempt == 1
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-hosted-after-route-canary-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-workers-dev-routing-canary-20261108' && github.event.pull_request.base.sha == '4b9a72dbb43fa62cbd87637660c5e5e395fad595' && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
