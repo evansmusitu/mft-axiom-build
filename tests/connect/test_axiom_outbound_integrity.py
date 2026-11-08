@@ -57,6 +57,21 @@ class AxiomOutboundIntegrityTests(unittest.TestCase):
                         send.assert_not_called()
 
 
+    def test_bearer_is_never_sent_to_insecure_or_credentialed_endpoint(self):
+        # Client configuration must not weaken authenticated transport.
+        for endpoint in (
+            'http://axiom.example/mcp',
+            'http://127.0.0.1:8787/mcp',
+            'https://operator:password@axiom.example/mcp',
+            'file:///tmp/mcp',
+        ):
+            for executor_class in self.EXECUTORS:
+                with self.subTest(endpoint=endpoint, executor=executor_class.__name__):
+                    with patch('urllib.request.urlopen', side_effect=RuntimeError('NETWORK_SENT')) as send:
+                        with self.assertRaisesRegex(RuntimeError, 'AXIOM_ENDPOINT_INVALID'):
+                            executor_class(endpoint, 'secret')(self.REQUEST)
+                        send.assert_not_called()
+
     def test_bearer_token_is_never_inherited_by_cross_host_http_redirect(self):
         for executor_class in self.EXECUTORS:
             with self.subTest(executor=executor_class.__name__):

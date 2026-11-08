@@ -1,6 +1,7 @@
 import json
 import re
 import urllib.request
+from urllib.parse import urlsplit
 from math import isfinite
 from typing import Any, Callable
 from .core import IntegrationGate
@@ -67,6 +68,21 @@ def _validate_outbound_request(request: dict[str, Any]) -> tuple[str, dict[str, 
         raise RuntimeError("AXIOM_REQUEST_INVALID")
     return request_id, args
 
+def _require_authenticated_https(endpoint: str) -> None:
+    # Bearer credentials must never be transmitted via a plaintext or
+    # ambiguous endpoint, regardless of caller-provided configuration.
+    try:
+        parsed = urlsplit(endpoint)
+        valid = (endpoint.startswith("https://") and
+                 not any(ord(char) < 32 or ord(char) == 127 for char in endpoint) and
+                 parsed.scheme == "https" and parsed.hostname is not None and
+                 parsed.username is None and parsed.password is None)
+    except (TypeError, ValueError, AttributeError):
+        valid = False
+    if not valid:
+        raise RuntimeError("AXIOM_ENDPOINT_INVALID")
+
+
 # Match the existing production Worker response ceiling; never buffer an
 # unbounded remote response while holding an authenticated Axiom connection.
 _MAX_AXIOM_RESPONSE_BYTES = 65_536
@@ -91,6 +107,7 @@ class AxiomComputeExecutor:
 
     def __call__(self, request: dict[str,Any]) -> dict[str,Any]:
         request_id, args = _validate_outbound_request(request)
+        _require_authenticated_https(self.endpoint)
         payload={
             "operation":request["operation"],
             "args":args,
@@ -140,6 +157,7 @@ class AxiomMcpExecutor:
 
     def __call__(self, request: dict[str,Any]) -> dict[str,Any]:
         request_id, args = _validate_outbound_request(request)
+        _require_authenticated_https(self.endpoint)
         payload={
             "jsonrpc":"2.0",
             "id":request_id,

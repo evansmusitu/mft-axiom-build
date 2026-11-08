@@ -18,6 +18,12 @@ customer, D1 changes, methane prediction, or a release-gate promotion.
   bounded ASCII identifier before preparing an authenticated request. Valid
   `arithmetic.evaluate` calls remain permitted; malformed operation values
   are rejected as `AXIOM_REQUEST_INVALID` before transport.
+- Both Python authenticated Axiom executors now reject plaintext HTTP, non-HTTP
+  schemes and HTTPS URLs containing embedded user credentials as
+  `AXIOM_ENDPOINT_INVALID`, before invoking the network transport. Only an
+  unambiguous HTTPS host is eligible to receive a bearer header. This source
+  hardening does not alter the authorized arithmetic operation or runtime
+  enablement, and is not evidence of deployed production behavior.
 - A successful authenticated compute still requires correlated response IDs
   and the pre-existing response-integrity checks. The frozen methane model,
   thresholds, chronological evidence, and all safety gates are untouched.
@@ -29,6 +35,11 @@ node --test tests/connect/test_worker_request_integrity.mjs
 node --test tests/connect/test_production_worker.mjs tests/connect/test_customer_identity.mjs tests/connect/test_customer_admission.mjs tests/connect/test_customer_payload.mjs tests/connect/test_customer_ingress_canary.mjs tests/connect/test_customer_provisioning.mjs tests/connect/test_synthetic_beta_acceptance.mjs tests/connect/test_worker_request_integrity.mjs
 python -m unittest tests.connect.test_axiom_outbound_integrity -v
 ```
+
+An additional mocked-network regression test reproduced eight attempted sends
+from the two authenticated Python executors to four unsafe endpoint types; all
+of these are rejected before transport after the TLS boundary change. The
+existing normal HTTPS arithmetic execution contracts remain green.
 
 The new Worker regression suite first failed for duplicate keys, lossy numbers
 and oversize bodies (200/200/502 instead of 400); after the change, all four
