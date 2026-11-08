@@ -1,0 +1,5 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.7.0 check
+> node scripts/check-syntax.mjs
+
+ALL_MJS_SYNTAX_PASS (71 files)

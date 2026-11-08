@@ -1,0 +1,15 @@
+{
+  "status": "OFFLINE_PRIVATE_STAGE_PASS",
+  "whatsappProviderConnected": false,
+  "providerMessagesSent": 0,
+  "customerPaymentsCaptured": 0,
+  "signedInbound": [
+    "ACCEPTED"
+  ],
+  "offlineDraftCount": 1,
+  "draftDelivery": "NEVER_SUBMITTED",
+  "tenantAInquiries": 1,
+  "tenantBCrossAccessHttp": 403,
+  "adminOidcFormatToken": "EPHEMERAL_RSA_LOCAL_ONLY",
+  "commercialRelease": "BLOCKED"
+}

@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-10-23T06:37:13.209957+00:00",
+  "scope": "SIGNIN_CONTINUATION_LOCAL_VALIDATION",
+  "previousSource": "d21aac1e0aa1963f7276d02daa6c3dcf89fdc557",
+  "previousAppSource": "bf77a1a2a0132ecc6566317c0256655af395fade",
+  "previousDeployment": "dpl_6umGMzg1CuivGuZEmMnKoqKg6Emm",
+  "tests": {
+    "passed": 344,
+    "failed": 0,
+    "skipped": 0,
+    "mjsSyntaxFiles": 159,
+    "manifestEntries": 443,
+    "focused": 19,
+    "initialRegressionsFailed": 2
+  },
+  "build": "PASS after preserving/recreating corrupt generated Turbopack cache",
+  "localStandaloneHttp": "PASS",
+  "releaseGate": "BLOCKED exit2; current bounded evidence integrity PASS",
+  "genuinePhoneLoginConfirmed": false,
+  "specificPhoneErrorProvided": false,
+  "browserReconnectionAttempted": false,
+  "credentialsReset": false,
+  "hostedDataModified": false,
+  "whatsappSent": false,
+  "evidence": [
+    {
+      "path": "evidence/20261023/signin-context-red.log",
+      "sha256": "4332274c4827dfd156e03d474836ce57d630ebb48da38f931d885e3876b9850d"
+    },
+    {
+      "path": "evidence/20261023/signin-context-focused.log",
+      "sha256": "af1424650371e989569ee7234a69dd83f8147d08d7e50f38dfdf8522190da309"
+    },
+    {
+      "path": "evidence/20261023/signin-context-full-verify.log",
+      "sha256": "b95a5f1e67c1b74b027a76ecaa3323e7b0ebc1a7c19b1054c52a1e8ac2dddd99"
+    },
+    {
+      "path": "evidence/20261023/signin-context-build-initial.log",
+      "sha256": "58c93c03ff1b12151312a67d093ad2cf43bd23d473fbfdcaf6b80fed91b81e51"
+    },
+    {
+      "path": "evidence/20261023/signin-context-build.log",
+      "sha256": "46f519392eee7466bca01af0b00cfd17039c76b943283f624225a3d244b961c7"
+    },
+    {
+      "path": "evidence/20261023/signin-context-local-http.json",
+      "sha256": "f7df41edc55cc258e1b003ce015f786b8ef443dad89fec7248e590be4ffc1b39"
+    },
+    {
+      "path": "evidence/20261023/signin-context-release-gate.log",
+      "sha256": "348add5c1055394a188b6f9ce5c6cb5ba1fbfdf97b3777d909b7423529bf4eb3"
+    }
+  ]
+}

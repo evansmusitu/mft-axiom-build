@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+not ok 1 - authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+  ---
+  duration_ms: 5.713751
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-secure-identity/test/postgres-signed-ingress.test.mjs:35:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    approved FAQ lookup uses exact normalized question
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/test/postgres-signed-ingress.test.mjs:44:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+ok 2 - invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+  ---
+  duration_ms: 1.72718
+  type: 'test'
+  ...
+# Subtest: idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+ok 3 - idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+  ---
+  duration_ms: 1.770126
+  type: 'test'
+  ...
+# Subtest: unsupported message type and existing human handover must not create bot drafts
+ok 4 - unsupported message type and existing human handover must not create bot drafts
+  ---
+  duration_ms: 1.923679
+  type: 'test'
+  ...
+# Subtest: database failures roll back and release; no partial inbound commit or provider sends
+ok 5 - database failures roll back and release; no partial inbound commit or provider sends
+  ---
+  duration_ms: 0.507824
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 90.497596

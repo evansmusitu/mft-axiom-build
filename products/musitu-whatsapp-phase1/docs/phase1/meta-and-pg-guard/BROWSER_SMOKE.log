@@ -1,0 +1,1 @@
+BROWSER_SMOKE_PASS: Chromium login, metrics, draft view, unsupported-action blocking, handover, disconnect, cross-tenant 403

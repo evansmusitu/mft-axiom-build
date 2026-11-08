@@ -1,0 +1,96 @@
+TAP version 13
+# (node:1705) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: secure private dashboard serves static shell, denies arbitrary file routes and has no token persistence
+ok 1 - secure private dashboard serves static shell, denies arbitrary file routes and has no token persistence
+  ---
+  duration_ms: 53.980981
+  type: 'test'
+  ...
+# Subtest: authenticated private dashboard APIs isolate conversations and bookings across tenants
+ok 2 - authenticated private dashboard APIs isolate conversations and bookings across tenants
+  ---
+  duration_ms: 32.136404
+  type: 'test'
+  ...
+# Subtest: authenticated booking API enforces tenant membership, conflicts and exact idempotency
+ok 3 - authenticated booking API enforces tenant membership, conflicts and exact idempotency
+  ---
+  duration_ms: 26.641194
+  type: 'test'
+  ...
+# Subtest: model gateway fails closed by default, enforces endpoint and never sends merchant answers
+ok 4 - model gateway fails closed by default, enforces endpoint and never sends merchant answers
+  ---
+  duration_ms: 2.07098
+  type: 'test'
+  ...
+# Subtest: model gateway handles provider errors, malformed results and disallowed FAQ ids as handover
+ok 5 - model gateway handles provider errors, malformed results and disallowed FAQ ids as handover
+  ---
+  duration_ms: 0.956483
+  type: 'test'
+  ...
+# Subtest: AXIOM analytics adapter validates numerical result, allowlist and non-data-changing behavior
+ok 6 - AXIOM analytics adapter validates numerical result, allowlist and non-data-changing behavior
+  ---
+  duration_ms: 0.816066
+  type: 'test'
+  ...
+# Subtest: private human handover endpoint is authenticated, scoped and prevents subsequent bot drafts
+ok 7 - private human handover endpoint is authenticated, scoped and prevents subsequent bot drafts
+  ---
+  duration_ms: 19.478371
+  type: 'test'
+  ...
+# Subtest: model gateway carries an explicit qualified model identifier and refuses accidental unsafe configuration
+ok 8 - model gateway carries an explicit qualified model identifier and refuses accidental unsafe configuration
+  ---
+  duration_ms: 0.799301
+  type: 'test'
+  ...
+# Subtest: real streamed response under 8KiB selects approved FAQ only
+ok 9 - real streamed response under 8KiB selects approved FAQ only
+  ---
+  duration_ms: 24.162732
+  type: 'test'
+  ...
+# Subtest: misleading content-length cannot bypass actual 8KiB streaming limit
+ok 10 - misleading content-length cannot bypass actual 8KiB streaming limit
+  ---
+  duration_ms: 0.866981
+  type: 'test'
+  ...
+# Subtest: fetch implementation ignoring AbortSignal still times out without approving a result
+ok 11 - fetch implementation ignoring AbortSignal still times out without approving a result
+  ---
+  duration_ms: 99.952016
+  type: 'test'
+  ...
+# Subtest: gateway rejects an endpoint not explicitly pinned by an operator allowlist
+ok 12 - gateway rejects an endpoint not explicitly pinned by an operator allowlist
+  ---
+  duration_ms: 1.619944
+  type: 'test'
+  ...
+# Subtest: gateway refuses insecure or malicious allowlist records
+ok 13 - gateway refuses insecure or malicious allowlist records
+  ---
+  duration_ms: 1.182166
+  type: 'test'
+  ...
+# Subtest: gateway permits exactly pinned HTTPS origin without granting sends or tool actions
+ok 14 - gateway permits exactly pinned HTTPS origin without granting sends or tool actions
+  ---
+  duration_ms: 0.220736
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 473.609156

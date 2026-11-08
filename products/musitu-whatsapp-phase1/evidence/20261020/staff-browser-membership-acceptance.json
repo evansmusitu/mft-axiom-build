@@ -1,0 +1,151 @@
+{
+  "observedAt": "2026-10-20T06:07:34.113Z",
+  "scope": "ACTUAL_AUTHENTICATED_CHROMIUM_SAAS_SYNTHETIC_BUSINESSES",
+  "runtimeCommit": "3f7eb7b3be8d65a51e13e09387035c4e8ae5043c",
+  "deploymentId": "dpl_5knoGVDGtSy3PSVxWk2dCFBNm2to",
+  "qaSubject": "395706056631686016",
+  "staffTenant": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+  "qaOwnedControlTenant": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+  "browserResults": [
+    {
+      "check": "assigned_agent_business_overview",
+      "result": "PASS",
+      "visible": "Inquiries 0; Bookings 2; Human handover 0"
+    },
+    {
+      "check": "agent_configuration_read_denied",
+      "result": "PASS",
+      "visible": "Sign in and select a business you belong to."
+    },
+    {
+      "check": "agent_configuration_update_denied",
+      "result": "PASS",
+      "visible": "Action denied or unavailable.",
+      "submittedSyntheticDescription": "DENIED STAFF ACCEPTANCE 20261020"
+    },
+    {
+      "check": "agent_booking_allowed",
+      "result": "PASS",
+      "bookingId": "17c6bdd5-112d-4d91-849d-9b2da4058c15",
+      "resourceId": "3c5bcbb2-0c1c-41a1-87d9-3ec8c3b3815e",
+      "localInput": "2027-01-03 08:00 to 08:30",
+      "persistedUtc": "2027-01-03T06:00:00Z to 06:30:00Z"
+    },
+    {
+      "check": "same_slot_overlap_denied",
+      "result": "PASS",
+      "visible": "This action conflicts with an existing record."
+    },
+    {
+      "check": "agent_team_roster_read_denied",
+      "result": "PASS",
+      "visible": "Sign in and select a business you belong to."
+    },
+    {
+      "check": "foreign_synthetic_tenant_denied",
+      "result": "PASS",
+      "tenant": "00000000-0000-4000-8000-00000000000b",
+      "visible": "Sign in and select a business you belong to."
+    },
+    {
+      "check": "qa_owned_control_business_before_revocation",
+      "result": "PASS",
+      "visible": "Inquiries 0; Bookings 0; Human handover 0"
+    },
+    {
+      "check": "same_existing_session_revoked_business_denied",
+      "result": "PASS",
+      "visible": "Sign in and select a business you belong to.",
+      "newLogin": false
+    },
+    {
+      "check": "same_existing_session_control_business_after_revocation",
+      "result": "PASS",
+      "visible": "Inquiries 0; Bookings 0; Human handover 0",
+      "newLogin": false
+    },
+    {
+      "check": "control_tenant_owner_roster",
+      "result": "PASS",
+      "visible": "395706056631686016 OWNER ACTIVE; Revoke access disabled"
+    }
+  ],
+  "revocationSetup": {
+    "method": "AUTHORIZED_OPERATOR_SQL_SYNTHETIC_FIXTURE_STATE_CHANGE",
+    "roleFilter": "AGENT",
+    "requiredPriorState": "ACTIVE",
+    "newState": "REVOKED",
+    "ownerSaasUiUsed": false,
+    "readback": [
+      {
+        "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+        "actor_id": "395706056631686016",
+        "role": "AGENT",
+        "status": "REVOKED",
+        "revoked_observed_at": "2026-10-20T06:04:40.536Z"
+      }
+    ]
+  },
+  "independentDatabaseReadback": [
+    {
+      "observed_at": "2026-10-20T06:05:22.970Z",
+      "memberships": [
+        {
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "actor_id": "395558180472062118",
+          "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+        },
+        {
+          "role": "AGENT",
+          "status": "REVOKED",
+          "actor_id": "395706056631686016",
+          "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+        },
+        {
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "actor_id": "395706056631686016",
+          "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9"
+        }
+      ],
+      "new_bookings": [
+        {
+          "end_at": "2027-01-03T06:30:00+00:00",
+          "status": "CONFIRMED",
+          "start_at": "2027-01-03T06:00:00+00:00",
+          "booking_id": "17c6bdd5-112d-4d91-849d-9b2da4058c15",
+          "resource_id": "3c5bcbb2-0c1c-41a1-87d9-3ec8c3b3815e"
+        }
+      ],
+      "target_booking_count": "3",
+      "configuration": [
+        {
+          "revision": 2,
+          "updated_at": "2026-10-18T14:41:50.01175+00:00",
+          "business_description": "Synthetic acceptance tenant; no customers or outbound messaging."
+        }
+      ],
+      "active_session_count": "1",
+      "latest_session_expiry": "2026-10-20T06:10:39.465Z"
+    }
+  ],
+  "limitations": {
+    "httpStatusCodesCaptured": false,
+    "providerJwtOrCookieRead": false,
+    "directBearerJwtReplayTest": false,
+    "liveJwksRotationTest": false,
+    "ownerRevokeButtonAcceptance": false,
+    "mobileAcceptance": false,
+    "exposedQaFactorRemediated": false,
+    "phase1Complete": false
+  },
+  "fixtureAfterTest": {
+    "staffMembership": "LEFT_REVOKED",
+    "qaOwnedBusinessMembership": "OWNER_ACTIVE",
+    "newSyntheticBookings": 1,
+    "configurationUpdatePersisted": false,
+    "customerMessagesSent": 0,
+    "modelRequests": 0
+  }
+}

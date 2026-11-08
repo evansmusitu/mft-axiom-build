@@ -1,0 +1,6 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 check
+> node scripts/check-syntax.mjs
+
+ALL_MJS_SYNTAX_PASS (124 files)

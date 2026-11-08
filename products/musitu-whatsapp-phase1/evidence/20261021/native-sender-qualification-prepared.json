@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-10-21T21:27:55.578Z",
+  "scope": "PREPARED_DISPOSABLE_NATIVE_SENDER_QUALIFICATION",
+  "baseCommit": "7832816a35ee7e179c5e716655bb76aa9f296f2c",
+  "implemented": [
+    "Loopback-only disposable native PostgreSQL qualifier using unchanged actual sender and migrations001-015",
+    "Six proposed native checks: runtime write ceiling, ten same-key calls, ten keys/same source, ten-conversation uncertainty gate, durable UNKNOWN after new pool, concurrent daily budget",
+    "In-process fixed-target fake HTTP only; no Meta traffic or IdP qualification",
+    "Eleven unsafe/missing target cases tested through the actual CLI entry point"
+  ],
+  "verified": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "testsPassed": 316,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "syntaxFiles": 139,
+    "sourceManifestEntries": 412
+  },
+  "nativeConcurrency": {
+    "status": "UNVERIFIED_ENVIRONMENT_BLOCKED",
+    "executed": false,
+    "checksPassed": null,
+    "reason": "Only UID/GID0 is mapped; non-root directory creation failed Invalid argument; user namespace mapping failed Operation not permitted. PostgreSQL not started and its root check not altered.",
+    "temporaryTestBinary": "PostgreSQL17.10 via embedded-postgres17.10.0-beta.17 outside product dependencies",
+    "hostedServerVersion": "PostgreSQL17.11",
+    "repositoryRunner": "Only product-contained candidate for a NEW isolated repository; AXIOM/root workflows untouched"
+  },
+  "liveLedger": [
+    {
+      "observed_at": "2026-10-21T21:27:32.036Z",
+      "outbound_attempts": "0",
+      "consent_records": "0",
+      "status_events": "0",
+      "guarded_window_ends_at": "2026-10-22T17:35:36.000Z"
+    }
+  ],
+  "limitations": [
+    "No native database qualification success claimed",
+    "No live database fixtures, consent or reservations created",
+    "No real reply, provider POST, delivery receipt or owner session verified",
+    "No browser retry or workaround for unresolved automatic approval block",
+    "No new deployment, alias change, credentials, charges or merge"
+  ],
+  "phase1Complete": false
+}

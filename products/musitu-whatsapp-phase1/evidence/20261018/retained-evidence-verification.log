@@ -1,0 +1,1 @@
+REAL_NEON_RETAINED_EVIDENCE_PASS: genuine restart, 22 exact table digests, current schema/roles/RLS, restricted tenant probes, disabled recovery compute; snapshot capacity remains blocked.

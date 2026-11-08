@@ -1,0 +1,305 @@
+{
+  "kind": "OWNER_SAVED_CREDENTIAL_APP_MATCH_ACCOUNT_ACCESS_DENIED",
+  "dateUtc": "2026-10-21",
+  "source": "0db8908571ea84d33661f13760da9d6100bc3a95",
+  "deployment": {
+    "id": "dpl_9q2qhLjSXX66aLAkXZiZrvYGLYME",
+    "name": "musitu-whatsapp-phase1-private-20261014",
+    "url": "musitu-whatsapp-phase1-private-20261014-aykwr8igv-evansmusitu.vercel.app",
+    "type": "LAMBDAS",
+    "state": "INITIALIZING",
+    "createdAt": 1792558925717,
+    "creator": {
+      "uid": "28fJc3gJCfQ093CSgWKom7pP",
+      "username": "evansmusitu"
+    },
+    "project": {
+      "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+      "name": "musitu-whatsapp-phase1-private-20261014",
+      "framework": "nextjs"
+    },
+    "meta": {
+      "githubCommitRef": "saas/musitu-whatsapp-phase1-private-20261014",
+      "githubCommitSha": "0db8908571ea84d33661f13760da9d6100bc3a95",
+      "githubCommitMessage": "fix(whatsapp): safely diagnose Meta read authorization failures",
+      "githubRepo": "mft-axiom-build",
+      "githubOrg": "evansmusitu"
+    },
+    "alias": [
+      "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+      "musitu-whatsapp-phase1-private-20261014-git-06e25d-evansmusitu.vercel.app"
+    ],
+    "target": "staging",
+    "regions": [
+      "iad1"
+    ],
+    "buildingAt": 1792558925717,
+    "readyState": "INITIALIZING"
+  },
+  "diagnostic": {
+    "observedAt": "2026-10-21T05:02:21.515Z",
+    "scope": "ACTUAL_SENDER_CONFIG_AND_META_GET_GUARDS_ONLY",
+    "configuration": {
+      "enabled": true,
+      "contentKeyValid": true,
+      "recipientAllowlistValid": true,
+      "tokenFormatValid": true
+    },
+    "operations": [
+      {
+        "operation": "APP_ID",
+        "httpStatus": 200
+      },
+      {
+        "operation": "TEST_PHONE",
+        "httpStatus": 400,
+        "providerErrorCode": 100,
+        "providerErrorSubcode": 33
+      }
+    ],
+    "result": "META_TEST_PHONE_REJECTED",
+    "preflightPassed": false,
+    "identityQualified": false,
+    "databaseQualified": false,
+    "consentRecorded": false,
+    "noSendAttempted": true
+  },
+  "hostedPostgresQualification": {
+    "runId": "d2e25026-6d27-4b57-a949-786cb4e5a6f4",
+    "timestamp": "2026-10-21T05:02:30.621Z",
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+    "passed": 26,
+    "failed": 0,
+    "results": [
+      {
+        "name": "direct_login_nonowner_nobypass",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_rls_policies",
+        "status": "PASS",
+        "detail": {
+          "role": "musitu_runtime",
+          "tablesChecked": 21,
+          "policiesChecked": 21,
+          "qualified": true
+        }
+      },
+      {
+        "name": "runtime_grant_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "tablesChecked": 15,
+          "insertTablesChecked": 4,
+          "mode": "EFFECTIVE_PRIVILEGES"
+        }
+      },
+      {
+        "name": "extension_and_identity_privilege_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "extensionReadOnlyTables": 6,
+          "opaqueSessionRls": true,
+          "temporaryDatabaseObjectsDenied": true
+        }
+      },
+      {
+        "name": "cross_tenant_membership_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_tables_context_isolation",
+        "status": "PASS",
+        "detail": {
+          "tables": 21,
+          "scopes": 3
+        }
+      },
+      {
+        "name": "invalid_context_fails_closed",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "changed_context_and_rollback",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "cross_tenant_write_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "direct_membership_update_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "synthetic_signed_ingress_into_real_pg",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "receipts": [
+            {
+              "tenantId": "00000000-0000-4000-8000-00000000000a",
+              "phoneNumberId": "PHONE_A",
+              "providerMessageId": "wamid.d2e25026-6d27-4b57-a949-786cb4e5a6f4",
+              "conversationId": "f222ed03-ef32-46e0-930b-8c1a5daaeb49",
+              "status": "ACCEPTED",
+              "draftStatus": "DRAFT"
+            }
+          ]
+        }
+      },
+      {
+        "name": "encrypted_message_and_contact_ledger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "second_business_message_ledger_isolation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "private_session_scope_and_logout_revocation",
+        "status": "PASS",
+        "detail": {
+          "scope": "SESSION_DATABASE_NOT_LIVE_KEYCLOAK"
+        }
+      },
+      {
+        "name": "business_configuration_and_approved_knowledge",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "staff_enrollment_and_immediate_revocation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "signed_status_reconciliation_real_pg_synthetic_only",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "monotonicState": "DELIVERED"
+        }
+      },
+      {
+        "name": "ingress_replay_protection",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ingress_forged_signature_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "human_review_and_consent_required",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "stop_suppression_and_no_auto_resubscribe",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "handover_command_and_audit",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "previously_revoked_staff_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ten_simultaneous_booking_requests",
+        "status": "PASS",
+        "detail": {
+          "confirmed": 1,
+          "conflicts": 9
+        }
+      },
+      {
+        "name": "booking_replay_and_content_conflict",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "new_pool_recovery",
+        "status": "PASS",
+        "detail": {
+          "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+        }
+      }
+    ]
+  },
+  "health": {
+    "status": "HEALTHY_PRIVATE_STAGING",
+    "phase1Complete": false,
+    "publicMessaging": false
+  },
+  "afterDatabaseRead": [
+    {
+      "observed_at": "2026-10-21T05:04:11.010Z",
+      "outbound_attempts": "0",
+      "consent_records": "0",
+      "status_events": "0"
+    }
+  ],
+  "stableAlias": {
+    "deploymentId": "dpl_56hZgGSDbb3jW3BsWCJiJWzxdkns",
+    "source": "5a52c8643b53a5626abacde723d0e265ec42baf8",
+    "manuallyPromoted": false
+  },
+  "interpretation": {
+    "confirmed": [
+      "Configured credential passes actual exact MUSITU issuing-app GET with HTTP200",
+      "Existing exact test-WABA phone-list GET returns HTTP400, error100/subcode33",
+      "No DB reservation, consent or provider POST occurs",
+      "Last verified assignment readback had the development app and phone-level WhatsApp asset, but no separate Messaging account assignment"
+    ],
+    "hypothesis": "The separate test Messaging account assignment is missing. This is a concrete gap in the last observed setup and a likely cause of the inaccessible account; it is not independently proven to be the sole cause. New token scopes, subject and expiry remain unverified.",
+    "providerGuidance": {
+      "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/manage-system-users/",
+      "indexedText": "Assign the system user to the WhatsApp account and to the Messaging account explicitly.",
+      "retrieval": "Official search result retrieved; direct page retrieval returned429."
+    }
+  },
+  "nextManualAction": {
+    "systemUser": "61595540345281",
+    "business": "2069296827284277",
+    "navigation": "Assign assets -> Messaging accounts -> Standalone accounts",
+    "target": {
+      "id": "1955690452095441",
+      "name": "Test WhatsApp Business Account"
+    },
+    "constraints": "Keep current credential for now. Grant only the exact test Messaging account access; do not select the Nexus account or portfolio-wide assets. Inspect offered permissions before selecting a broader task than the current approval.",
+    "followup": "Repeat no-send preflight using the already saved credential, then reassess token scope if account access still fails. No live send until both fixed Meta reads pass."
+  },
+  "browserPolicy": {
+    "attempt": "Read existing noncredential test-account tab after owner reported setup complete",
+    "blocked": true,
+    "reason": "Automatic approval review rejected Meta origin re-entry after private credential handoff.",
+    "alternateBrowserOrTokenRouteUsed": false
+  },
+  "localValidation": {
+    "testsPassed": 315,
+    "failed": 0,
+    "skipped": 0,
+    "syntaxPassed": 137,
+    "sourceManifestEntries": 409
+  },
+  "phase1": "INCOMPLETE",
+  "secretsReadOrReplacedByAgent": false,
+  "noSendAttempted": true
+}

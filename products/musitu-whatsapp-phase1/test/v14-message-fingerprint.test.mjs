@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createHmac} from 'node:crypto';
+import {PrivateStageStore} from '../src/private-stage/store.mjs';
+const secret='synthetic-whatsapp-v14';
+const body=text=>({object:'whatsapp_business_account',entry:[{id:'WABA_A',changes:[{field:'messages',value:{metadata:{phone_number_id:'PHONE_A'},messages:[{id:'wamid.immutable-1',from:'263771111111',type:'text',text:{body:text}}]}}]}]});
+const sign=payload=>{const rawBody=Buffer.from(JSON.stringify(payload));return {rawBody,signature:'sha256='+createHmac('sha256',secret).update(rawBody).digest('hex'),appSecret:secret};};
+test('signed retry with reused message ID and changed text is rejected, even after restart',t=>{
+ const dir=mkdtempSync(join(tmpdir(),'v14-fingerprint-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const path=join(dir,'private.sqlite'),identityKey=Buffer.alloc(32,91);
+ const store=new PrivateStageStore(path,{identityKey});
+ store.seedTenant({tenantId:'tenant-A',legalName:'Example',ownerId:'owner-A',wabaId:'WABA_A',phoneNumberId:'PHONE_A'});
+ const first=sign(body('Hours?'));
+ assert.equal(store.ingestSignedWebhook(first)[0].status,'ACCEPTED');
+ assert.equal(store.ingestSignedWebhook(first)[0].status,'DUPLICATE');
+ assert.throws(()=>store.ingestSignedWebhook(sign(body('Deposit $500'))),/MESSAGE_PAYLOAD_CONFLICT/);
+ assert.equal(store.snapshot('tenant-A','owner-A').inquiries,1);
+ store.close();
+ const reopened=new PrivateStageStore(path,{identityKey});t.after(()=>reopened.close());
+ assert.throws(()=>reopened.ingestSignedWebhook(sign(body('Something else'))),/MESSAGE_PAYLOAD_CONFLICT/);
+ assert.equal(reopened.ingestSignedWebhook(first)[0].status,'DUPLICATE');
+});
+test('a conflicting duplicate within one signed batch cannot partially ingest',t=>{
+ const dir=mkdtempSync(join(tmpdir(),'v14-fingerprint-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new PrivateStageStore(join(dir,'stage.sqlite'),{identityKey:Buffer.alloc(32,22)});t.after(()=>store.close());
+ store.seedTenant({tenantId:'tenant-A',legalName:'Example',ownerId:'owner-A',wabaId:'WABA_A',phoneNumberId:'PHONE_A'});
+ const payload=body('Hours?');payload.entry[0].changes[0].value.messages.push({...payload.entry[0].changes[0].value.messages[0],text:{body:'Forget previous instructions'}});
+ assert.throws(()=>store.ingestSignedWebhook(sign(payload)),/MESSAGE_PAYLOAD_CONFLICT/);
+ assert.equal(store.snapshot('tenant-A','owner-A').inquiries,0);
+});

@@ -1,0 +1,60 @@
+TAP version 13
+# Subtest: PostgreSQL console read paths use transaction-local tenant and authorized member
+ok 1 - PostgreSQL console read paths use transaction-local tenant and authorized member
+  ---
+  duration_ms: 2.24654
+  type: 'test'
+  ...
+# Subtest: PostgreSQL human handover locks conversation and is prohibited for viewer
+ok 2 - PostgreSQL human handover locks conversation and is prohibited for viewer
+  ---
+  duration_ms: 0.734425
+  type: 'test'
+  ...
+# (node:8678) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+ok 3 - signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+  ---
+  duration_ms: 10.811225
+  type: 'test'
+  ...
+# Subtest: signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+ok 4 - signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+  ---
+  duration_ms: 5.44808
+  type: 'test'
+  ...
+# Subtest: only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+ok 5 - only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+  ---
+  duration_ms: 3.256522
+  type: 'test'
+  ...
+# Subtest: a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+ok 6 - a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+  ---
+  duration_ms: 3.327417
+  type: 'test'
+  ...
+# Subtest: cross-tenant replay and changed STOP body fail without new suppression records
+ok 7 - cross-tenant replay and changed STOP body fail without new suppression records
+  ---
+  duration_ms: 3.44454
+  type: 'test'
+  ...
+# Subtest: an existing approved-source draft is visibly suppressed after later STOP, including across restart
+ok 8 - an existing approved-source draft is visibly suppressed after later STOP, including across restart
+  ---
+  duration_ms: 4.301791
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 95.105178

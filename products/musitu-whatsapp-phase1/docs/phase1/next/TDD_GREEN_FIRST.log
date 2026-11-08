@@ -1,0 +1,54 @@
+TAP version 13
+# (node:6051) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+ok 1 - FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+  ---
+  duration_ms: 11.008345
+  type: 'test'
+  ...
+# Subtest: unknown FAQ never fabricates a response; handover disables drafts and remains durable
+ok 2 - unknown FAQ never fabricates a response; handover disables drafts and remains durable
+  ---
+  duration_ms: 5.340635
+  type: 'test'
+  ...
+# Subtest: handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+ok 3 - handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+  ---
+  duration_ms: 3.946865
+  type: 'test'
+  ...
+# Subtest: signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+ok 4 - signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+  ---
+  duration_ms: 5.96447
+  type: 'test'
+  ...
+# Subtest: unknown or cross-tenant status and mixed invalid batch roll back completely
+ok 5 - unknown or cross-tenant status and mixed invalid batch roll back completely
+  ---
+  duration_ms: 3.704278
+  type: 'test'
+  ...
+# Subtest: same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+ok 6 - same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+  ---
+  duration_ms: 3.034274
+  type: 'test'
+  ...
+# Subtest: status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+ok 7 - status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+  ---
+  duration_ms: 49.083246
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 187.334584

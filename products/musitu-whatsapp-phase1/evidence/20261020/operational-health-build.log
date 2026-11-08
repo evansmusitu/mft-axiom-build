@@ -1,0 +1,18 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+✓ Running next.config.mjs took 12ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+  Creating an optimized production build ...
+
+thread 'tokio-rt-worker' (1642) panicked at turbopack/crates/turbo-persistence/src/static_sorted_file.rs:949:49:
+range start index 1951747352 out of range for slice of length 8931840
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

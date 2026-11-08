@@ -1,0 +1,61 @@
+{
+  "observedAt": "2026-10-23T03:23:19.290Z",
+  "tenantId": "986eb904-7296-46a9-9e9b-94074db9b547",
+  "database": {
+    "observed_at": "2026-10-23T03:23:19.290Z",
+    "inbound_events": "3",
+    "last_provider_at": "2026-10-21T17:40:36.000Z",
+    "conservative_window_end": "2026-10-22T17:35:36.000Z",
+    "window_currently_open": false,
+    "outbound_attempts": "0",
+    "uncertain_attempts": "0",
+    "consent_records": "0",
+    "signed_status_events": "0",
+    "active_unexpired_sessions": "0",
+    "qa_membership_status": null,
+    "expired_messages": "0",
+    "expired_development_reply_bodies": "0",
+    "qa_membership_status_in_development_tenant": null,
+    "qaSubjectGlobalRoleStatusCounts": [
+      {
+        "role": "AGENT",
+        "status": "REVOKED",
+        "memberships": "1"
+      },
+      {
+        "role": "OWNER",
+        "status": "ACTIVE",
+        "memberships": "1"
+      }
+    ]
+  },
+  "hosting": {
+    "stableDeployment": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+    "stableSource": "3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a",
+    "stableNextVersion": "16.4.0",
+    "stableState": "READY",
+    "live": false,
+    "ssoProtection": "all"
+  },
+  "recovery": {
+    "schedule": [],
+    "preservedSnapshot": "snap-little-smoke-b4sdrjky",
+    "snapshotCreatedAt": "2026-10-14T03:14:23Z"
+  },
+  "independentReview": {
+    "submittedPrReviews": 0,
+    "nomineeHandoffThreadsIncomingReplies": 0,
+    "boundedSeparateIncomingSearchMatches": 0,
+    "recipientAcceptanceEstablished": false
+  },
+  "browser": {
+    "reconnectionAttempted": false,
+    "priorAutomaticApprovalRejectionUnresolved": true
+  },
+  "mutationsInThisReadback": false,
+  "limits": [
+    "Aggregate sessions do not establish owner authentication.",
+    "Zero expired rows do not qualify retention scheduling or deletion.",
+    "No message send, invitation, snapshot creation, restore, membership or credential change."
+  ]
+}

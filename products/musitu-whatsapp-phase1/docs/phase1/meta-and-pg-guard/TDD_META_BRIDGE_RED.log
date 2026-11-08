@@ -1,0 +1,146 @@
+TAP version 13
+# Subtest: Meta GET challenge returns exactly challenge for matching token and noncacheable text
+not ok 1 - Meta GET challenge returns exactly challenge for matching token and noncacheable text
+  ---
+  duration_ms: 1.530775
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    stage (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:10:12)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:18:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+not ok 2 - Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+  ---
+  duration_ms: 0.586938
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:24:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    stage (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:10:12)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:25:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+not ok 3 - signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+  ---
+  duration_ms: 0.467567
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    stage (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:10:12)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:34:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+not ok 4 - unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+  ---
+  duration_ms: 0.256939
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:42:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    stage (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:10:12)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:43:38)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: upstream rejection and uncertain persistence are not acknowledged as success
+not ok 5 - upstream rejection and uncertain persistence are not acknowledged as success
+  ---
+  duration_ms: 0.737094
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:53:1'
+  failureType: 'testCodeFailure'
+  error: 'NOT_IMPLEMENTED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    stage (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:10:12)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:55:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: webhook bridge refuses invalid configuration and binds only loopback
+not ok 6 - webhook bridge refuses invalid configuration and binds only loopback
+  ---
+  duration_ms: 1.816787
+  type: 'test'
+  location: '/mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:63:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /META_WEBHOOK_BRIDGE_CONFIG/. Input:
+    
+    'Error: NOT_IMPLEMENTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'NOT_IMPLEMENTED'
+  stack: |-
+    createMetaWebhookBridge (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/src/adapters/meta-webhook-bridge.mjs:1:49)
+    file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:64:20
+    getActual (node:assert:531:5)
+    Function.throws (node:assert:677:24)
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:64:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/work-v11/musitu-whatsapp-phase1-v11/test/meta-webhook-bridge.test.mjs:64:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 138.605197

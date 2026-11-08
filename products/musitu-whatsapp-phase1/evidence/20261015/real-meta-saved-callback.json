@@ -1,0 +1,39 @@
+{
+  "runId": "c4bcad83-3fd0-4a7d-bd3e-082fdaa749e7",
+  "observedAt": "2026-10-15T18:35:54.238Z",
+  "appId": "1096094346481018",
+  "httpStatus": 200,
+  "subscriptions": [
+    {
+      "object": "whatsapp_business_account",
+      "callbackConfigured": true,
+      "expectedCallbackMatched": false,
+      "callbackSha256": "641c42560e8c124e8983cc9f3af1b35e14a58719aa41cb400533c28bc856e474",
+      "active": true,
+      "fields": [
+        "messages"
+      ]
+    }
+  ],
+  "noChangesMade": true,
+  "scope": "GENUINE_NEW_META_APP_SUBSCRIPTION_READ_ONLY",
+  "expectedCallbackMatchedExplanation": "Old read script compared with the prior pxucdj43x URL. The observed SHA-256 matches the newly configured 5e92j7yrd callback; Chromium independently shows that exact saved URL and messages subscribed.",
+  "observedCallbackUrl": "https://musitu-whatsapp-meta-receiver-20261015-5e92j7yrd-evansmusitu.vercel.app/api/meta/webhook",
+  "observedCallbackSha256": "641c42560e8c124e8983cc9f3af1b35e14a58719aa41cb400533c28bc856e474",
+  "metaVerificationHttp": {
+    "status": 200,
+    "queryCount": 6,
+    "requiredKeyCounts": [
+      1,
+      1,
+      1
+    ],
+    "deployment": "dpl_EpMy9598UnFKmY2rgS3xfq6Cyimd",
+    "timestamp": "2026-10-15T18:35:22.749Z"
+  },
+  "initialPostReadbackFailed": true,
+  "initialReadbackDeployment": "dpl_3XWMsCBUPc8AGZtLu53dkqhvLMsN",
+  "wabaSubscriptionsChanged": false,
+  "appPublished": false,
+  "noMessagesSent": true
+}

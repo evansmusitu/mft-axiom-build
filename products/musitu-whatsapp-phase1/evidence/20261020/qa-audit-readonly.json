@@ -1,0 +1,95 @@
+{
+  "scope": "ACTUAL_READ_ONLY_DATABASE_AUDIT_NOT_BROWSER_OR_OIDC_ACCEPTANCE",
+  "readback": {
+    "observed_at": "2026-10-20T03:26:00.783Z",
+    "qa_audit": [
+      {
+        "action": "BUSINESS_ONBOARDED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:34:39.570915+00:00",
+        "reference_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9"
+      },
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:35:02.775938+00:00",
+        "reference_id": "2"
+      },
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:35:08.951425+00:00",
+        "reference_id": "3"
+      },
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:35:16.545608+00:00",
+        "reference_id": "4"
+      },
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:35:19.159454+00:00",
+        "reference_id": "5"
+      },
+      {
+        "action": "BUSINESS_CONFIGURED",
+        "actor_id": "395706056631686016",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "recorded_at": "2026-10-19T09:35:21.444163+00:00",
+        "reference_id": "6"
+      }
+    ],
+    "new_qa_tenant": [
+      {
+        "status": "ACTIVE",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9"
+      }
+    ],
+    "new_configuration": [
+      {
+        "revision": 6,
+        "timezone": "Africa/Harare",
+        "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+        "updated_at": "2026-10-19T09:35:21.395585+00:00"
+      }
+    ],
+    "session_aggregate": {
+      "total": 17,
+      "latest_expiry": "2026-10-19T10:47:52.367546+00:00",
+      "unrevoked_unexpired": 0
+    }
+  },
+  "classification": "Historical QA onboarding/configuration audit records with provider subject persisted. Cannot independently establish entry surface, all token checks, target-tenant AGENT permissions, revocation or current phone/cloud session.",
+  "runtimeLogCorrelation": {
+    "status": "UNAVAILABLE",
+    "httpStatus": 400,
+    "reason": "Requested historical window outside Hobby runtime-log retention; not zero matching logs.",
+    "window": {
+      "since": "2026-10-19T09:20:00Z",
+      "until": "2026-10-19T10:50:00Z"
+    }
+  },
+  "originalTenantMembership": {
+    "tenant_id": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+    "actor_id": "395706056631686016",
+    "role": "AGENT",
+    "status": "ACTIVE"
+  },
+  "newTenantMembership": {
+    "tenant_id": "08f57387-a249-4d91-8dfb-dc9ccb8062f9",
+    "actor_id": "395706056631686016",
+    "role": "OWNER",
+    "status": "ACTIVE"
+  },
+  "staffAcceptance": false,
+  "revocationAcceptance": false,
+  "phase1Complete": false
+}
+

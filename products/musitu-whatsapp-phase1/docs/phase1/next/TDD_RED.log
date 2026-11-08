@@ -1,0 +1,143 @@
+TAP version 13
+# (node:5952) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+not ok 1 - FAQ reply drafts are durable, source-linked, tenant isolated and never dispatched
+  ---
+  duration_ms: 11.062797
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: 'store.draftApprovedFaqReply is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:23:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: unknown FAQ never fabricates a response; handover disables drafts and remains durable
+not ok 2 - unknown FAQ never fabricates a response; handover disables drafts and remains durable
+  ---
+  duration_ms: 3.308622
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: 'store.draftApprovedFaqReply is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:39:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+not ok 3 - handover prevents first-time FAQ draft; direct API cannot create a draft for missing conversation
+  ---
+  duration_ms: 3.590628
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:48:1'
+  failureType: 'testCodeFailure'
+  error: 'store.draftApprovedFaqReply is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:52:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+not ok 4 - signed Meta delivery statuses are scoped to prior synthetic attempted messages, replay safe and durable
+  ---
+  duration_ms: 2.963498
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:56:1'
+  failureType: 'testCodeFailure'
+  error: 'store.recordSyntheticOutboundAttempt is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:58:8)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unknown or cross-tenant status and mixed invalid batch roll back completely
+not ok 5 - unknown or cross-tenant status and mixed invalid batch roll back completely
+  ---
+  duration_ms: 2.513798
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:70:1'
+  failureType: 'testCodeFailure'
+  error: 'store.recordSyntheticOutboundAttempt is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:72:8)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+not ok 6 - same synthetic provider identifier cannot be claimed by another attempt or altered effect key
+  ---
+  duration_ms: 2.095034
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:85:1'
+  failureType: 'testCodeFailure'
+  error: 'store.recordSyntheticOutboundAttempt is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:88:21)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+not ok 7 - status-bearing HTTP webhook acknowledges only validated, fully persisted batch
+  ---
+  duration_ms: 4.518704
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:95:1'
+  failureType: 'testCodeFailure'
+  error: 'store.recordSyntheticOutboundAttempt is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-next/test/phase1-next.test.mjs:97:8)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 0
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 212.066888

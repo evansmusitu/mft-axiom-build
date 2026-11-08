@@ -1,0 +1,74 @@
+TAP version 13
+# (node:8512) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+ok 1 - signed STOP persists a privacy-preserving suppression, blocks FAQ drafts and is replay-safe
+  ---
+  duration_ms: 14.430164
+  type: 'test'
+  ...
+# Subtest: signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+ok 2 - signed unsubscribe is per tenant and per contact, never permits implicit resubscribe
+  ---
+  duration_ms: 6.068343
+  type: 'test'
+  ...
+# Subtest: only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+ok 3 - only exact opt-out text is accepted and malformed or forged STOP cannot suppress
+  ---
+  duration_ms: 3.336731
+  type: 'test'
+  ...
+# Subtest: a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+ok 4 - a mixed batch with invalid synthetic delivery status rolls back suppression and inbound
+  ---
+  duration_ms: 3.208612
+  type: 'test'
+  ...
+# Subtest: cross-tenant replay and changed STOP body fail without new suppression records
+ok 5 - cross-tenant replay and changed STOP body fail without new suppression records
+  ---
+  duration_ms: 2.445775
+  type: 'test'
+  ...
+# Subtest: an existing approved-source draft is visibly suppressed after later STOP, including across restart
+not ok 6 - an existing approved-source draft is visibly suppressed after later STOP, including across restart
+  ---
+  duration_ms: 4.185795
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v15/test/v15-optout-suppression.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'DRAFT'
+    -   'SUPPRESSED'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'SUPPRESSED'
+  actual:
+    0: 'DRAFT'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v15/test/v15-optout-suppression.test.mjs:104:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 108.894118

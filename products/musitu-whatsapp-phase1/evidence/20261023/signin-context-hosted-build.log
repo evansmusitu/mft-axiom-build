@@ -1,0 +1,58 @@
+Running build in Washington, D.C., USA (East) – iad1
+Build machine configuration: 2 cores, 8 GB
+Cloning github.com/evansmusitu/mft-axiom-build (Branch: b2999b2303004c65e1661b4dfd6809fba7680db7, Commit: b2999b2)
+Previous build caches not available.
+Cloning completed: 621.000ms
+Running "vercel build"
+Vercel CLI 65.1.0
+Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Running "install" command: `npm ci --ignore-scripts --no-audit --no-fund`...
+npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+added 44 packages in 8s
+Detected Next.js version: 16.4.2
+Running "npm run build"
+npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.2 (Turbopack)
+  Applying modifyConfig from Vercel
+✓ Running next.config.mjs took 82ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 8.8s
+  Running TypeScript ...
+  Finished TypeScript in 3ms ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/2) ...
+✓ Generating static pages using 1 worker (2/2) in 222ms
+  Finalizing page optimization ...
+  Running onBuildComplete from Vercel
+Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/health
+├ ƒ /api/meta/webhook
+├ ƒ /api/onboard
+├ ƒ /api/session
+├ ƒ /api/status
+├ ƒ /api/tenants/[tenant]/[...operation]
+├ ƒ /api/tenants/[tenant]/conversations/[conversation]/privacy-review-export
+├ ƒ /auth/[action]
+└ ƒ /sign-in-help
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Build Completed in /vercel/output [20s]
+Deploying outputs...
+Deployment completed
+Creating build cache...
+Created build cache: 11s
+Uploading build cache [150.98 MB]
+Build cache uploaded: 2.180s

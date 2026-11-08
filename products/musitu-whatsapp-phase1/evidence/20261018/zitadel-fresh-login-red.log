@@ -1,0 +1,37 @@
+✔ cryptographic JWT verification precedes online introspection; revoked tokens fail on immediate reuse (17.697867ms)
+✔ wrong issuer, audience, client, expiry, signature and algorithm never reach introspection (35.59226ms)
+✔ provider failure after an earlier successful request cannot reuse cached active status (2.787913ms)
+✔ signed ZITADEL access client_id can identify the exact web client when azp is absent (2.960914ms)
+✔ missing, malformed or conflicting signed client identifiers never reach introspection (5.759793ms)
+✔ ID token must bind nonce, subject and authorized client to the same login flow (4.395656ms)
+✔ code exchange forwards PKCE to pinned token endpoint and uses web credentials only (0.633ms)
+✔ unresponsive HTTP or response stream is bounded even if the transport ignores abort (40.412844ms)
+✔ identity transport rejects redirects, unexpected status/type and oversized JSON (2.380983ms)
+✖ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (7.446805ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 302.366211
+
+✖ failing tests:
+
+test at test/v18-zitadel-provider-transport.test.mjs:66:1
+✖ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (7.446805ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  null !== 'login'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-provider-transport.test.mjs:69:536)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: 'login',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

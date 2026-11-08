@@ -1,0 +1,42 @@
+{
+  "deployment": "dpl_E3UeRmeDpV8hCi65yxjptSryMoBs",
+  "commit": "53ac8f43e39c5483833ce20476ed4f32b587a244",
+  "timestamp": "2026-10-14T18:11:33.072Z",
+  "probes": [
+    {
+      "status": 200,
+      "body": {
+        "phase1": "IN_PROGRESS",
+        "publicMessaging": false,
+        "identityConfigured": false,
+        "databaseConfigured": true,
+        "databaseHealthy": true,
+        "modelConfigured": false,
+        "metaConfigured": false,
+        "axiomConfigured": false
+      },
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY"
+      }
+    },
+    {
+      "status": 403,
+      "body": {
+        "error": "ACCESS_DENIED"
+      },
+      "headers": {
+        "cache-control": "private, no-store",
+        "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY"
+      }
+    }
+  ]
+}

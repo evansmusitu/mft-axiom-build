@@ -1,0 +1,351 @@
+{
+  "deployment": "dpl_mvsj3GfvU7GHXyd727hcsT1cmPQg",
+  "note": "All 16 actual HTTP probes passed against dpl_GRZwA3YYwnJwt1vZBhE6G3H1sQGY. This new deployment still failed because Vercel requires nonempty static output; the build will produce only a harmless robots exclusion, also denied by routing.",
+  "result": {
+    "events": [
+      {
+        "created": 1792035420076,
+        "date": 1792035420076,
+        "type": "stdout",
+        "text": "Running build in Washington, D.C., USA (East) – iad1",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035420077,
+        "date": 1792035420077,
+        "type": "stdout",
+        "text": "Build machine configuration: 2 cores, 8 GB",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035420197,
+        "date": 1792035420197,
+        "type": "stdout",
+        "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: bdddc9b5410b04061a70b968a351e354abcb20bd, Commit: bdddc9b)",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035420743,
+        "date": 1792035420743,
+        "type": "stdout",
+        "text": "Cloning completed: 546.000ms",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035420899,
+        "date": 1792035420899,
+        "type": "stdout",
+        "text": "Restored build cache from previous deployment (GRZwA3YYwnJwt1vZBhE6G3H1sQGY)",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035421287,
+        "date": 1792035421287,
+        "type": "stdout",
+        "text": "Running \"vercel build\"",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035421299,
+        "date": 1792035421299,
+        "type": "stderr",
+        "text": "Vercel CLI 62.7.0",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035422100,
+        "date": 1792035422100,
+        "type": "stdout",
+        "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`...",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035422663,
+        "date": 1792035422663,
+        "type": "stderr",
+        "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035422956,
+        "date": 1792035422956,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035422956,
+        "date": 1792035422956,
+        "type": "stdout",
+        "text": "added 14 packages in 737ms",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423336,
+        "date": 1792035423336,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"unconfigured webhook refuses verification\",\"status\":503,\"body\":\"DEVELOPMENT_CHANNEL_UNAVAILABLE\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423391,
+        "date": 1792035423391,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423426,
+        "date": 1792035423426,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /api/status\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423461,
+        "date": 1792035423461,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /package.json\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423487,
+        "date": 1792035423487,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /package-lock.json\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423514,
+        "date": 1792035423514,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /vercel.json\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423541,
+        "date": 1792035423541,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /runtime/source-digests.json\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423572,
+        "date": 1792035423572,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /runtime/src/staging/meta-ingress.mjs\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423607,
+        "date": 1792035423607,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /api/index.mjs\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423682,
+        "date": 1792035423682,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /node_modules/pg/package.json\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423725,
+        "date": 1792035423725,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"no exposed surface /api/send\",\"status\":404,\"body\":\"NOT_FOUND\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423750,
+        "date": 1792035423750,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"missing signature refused\",\"status\":401,\"body\":\"SIGNATURE_REJECTED\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423776,
+        "date": 1792035423776,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"non-JSON refused\",\"status\":415,\"body\":\"UNSUPPORTED_MEDIA_TYPE\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423801,
+        "date": 1792035423801,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"unsupported method refused\",\"status\":405,\"body\":\"METHOD_NOT_ALLOWED\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423842,
+        "date": 1792035423842,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"malformed signature refused before oversized body\",\"status\":401,\"body\":\"SIGNATURE_REJECTED\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423889,
+        "date": 1792035423889,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_CASE={\"name\":\"oversize with well-formed signature refused\",\"status\":413,\"body\":\"BODY_TOO_LARGE\",\"headers\":{\"cache-control\":\"no-store\",\"content-security-policy\":\"default-src 'none'; frame-ancestors 'none'; base-uri 'none'\",\"x-frame-options\":\"DENY\",\"x-content-type-options\":\"nosniff\",\"x-robots-tag\":\"noindex, nofollow, noarchive\",\"strict-transport-security\":\"max-age=31536000\"}}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423890,
+        "date": 1792035423890,
+        "type": "stdout",
+        "text": "MUSITU_ISOLATED_HTTP_QUALIFICATION={\"runId\":\"5ac79295-dc41-4071-90db-5deafbd133bb\",\"observedAt\":\"2026-10-15T03:37:03.890Z\",\"target\":\"https://musitu-whatsapp-meta-receiver-20261015-i6hu9fvzs-evansmusitu.vercel.app\",\"scope\":\"GENUINE_HOSTED_HTTP_NO_META_PROVIDER_OR_DATABASE_ADMISSION\",\"pass\":16,\"fail\":0,\"requestsCarryCredentials\":false}",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423901,
+        "date": 1792035423901,
+        "type": "stdout",
+        "text": "MUSITU_INGRESS_BUILD: empty static directory; callback function only",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423927,
+        "date": 1792035423927,
+        "type": "stderr",
+        "text": "Error: The Output Directory \"public\" is empty.",
+        "level": "error",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035423927,
+        "date": 1792035423927,
+        "type": "stderr",
+        "text": "Learn More: https://vercel.link/missing-public-directory",
+        "info": {
+          "type": "build",
+          "name": "bld_m1epzhv62",
+          "entrypoint": "."
+        }
+      }
+    ]
+  }
+}

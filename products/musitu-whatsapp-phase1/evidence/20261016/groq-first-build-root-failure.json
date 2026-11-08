@@ -1,0 +1,507 @@
+{
+  "deploymentId": "dpl_6GxtgNUSktgdRmGBGUEmMNXcXAnb",
+  "modelCalls": 0,
+  "cause": "Per-deployment projectSettings override omitted monorepo root; npm ci ran in repository root, without package-lock.json. Corrected rootDirectory on next deployment.",
+  "events": [
+    {
+      "created": 1792128177217,
+      "type": "stdout",
+      "text": "Running build in Washington, D.C., USA (East) – iad1"
+    },
+    {
+      "created": 1792128177218,
+      "type": "stdout",
+      "text": "Build machine configuration: 2 cores, 8 GB"
+    },
+    {
+      "created": 1792128177344,
+      "type": "stdout",
+      "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: 084ff9bd1d0c3a2919dfba93d1f21c810d7bcf61, Commit: 084ff9b)"
+    },
+    {
+      "created": 1792128177345,
+      "type": "stdout",
+      "text": "Previous build caches not available."
+    },
+    {
+      "created": 1792128178077,
+      "type": "stdout",
+      "text": "Cloning completed: 733.000ms"
+    },
+    {
+      "created": 1792128178552,
+      "type": "stdout",
+      "text": "Running \"vercel build\""
+    },
+    {
+      "created": 1792128178564,
+      "type": "stderr",
+      "text": "Vercel CLI 64.0.2"
+    },
+    {
+      "created": 1792128178954,
+      "type": "stdout",
+      "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`..."
+    },
+    {
+      "created": 1792128179538,
+      "type": "stderr",
+      "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options."
+    },
+    {
+      "created": 1792128179589,
+      "type": "stderr",
+      "text": "npm error code EUSAGE"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error The `npm ci` command can only install with an existing package-lock.json or"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error npm-shrinkwrap.json with lockfileVersion >= 1. Run an install with npm@5 or"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error later to generate a package-lock.json file, then try again."
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error Clean install a project"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error Usage:"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error npm ci"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179603,
+      "type": "stderr",
+      "text": "npm error Options:"
+    },
+    {
+      "created": 1792128179604,
+      "type": "stderr",
+      "text": "npm error [--install-strategy <hoisted|nested|shallow|linked>] [--legacy-bundling]"
+    },
+    {
+      "created": 1792128179604,
+      "type": "stderr",
+      "text": "npm error [--global-style] [--omit <dev|optional|peer> [--omit <dev|optional|peer> ...]]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--include <prod|dev|optional|peer> [--include <prod|dev|optional|peer> ...]]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--strict-peer-deps] [--foreground-scripts] [--ignore-scripts]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--allow-directory <all|none|root>] [--allow-file <all|none|root>]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--allow-git <all|none|root>] [--allow-remote <all|none|root>]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--allow-scripts <package-list> [--allow-scripts <package-list> ...]]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--strict-allow-scripts] [--dangerously-allow-all-scripts] [--no-audit]"
+    },
+    {
+      "created": 1792128179605,
+      "type": "stderr",
+      "text": "npm error [--no-bin-links] [--no-fund] [--dry-run]"
+    },
+    {
+      "created": 1792128179606,
+      "type": "stderr",
+      "text": "npm error [-w|--workspace <workspace-name> [-w|--workspace <workspace-name> ...]]"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error [--workspaces] [--include-workspace-root] [--install-links]"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error   --install-strategy"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error     Sets the strategy for installing packages in node_modules."
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error   --legacy-bundling"
+    },
+    {
+      "created": 1792128179607,
+      "type": "stderr",
+      "text": "npm error     Instead of hoisting package installs in `node_modules`, install packages"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error   --global-style"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error     Only install direct dependencies in the top level `node_modules`,"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error   --omit"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error     Dependency types to omit from the installation tree on disk."
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error   --include"
+    },
+    {
+      "created": 1792128179608,
+      "type": "stderr",
+      "text": "npm error     Option that allows for defining which types of dependencies to install."
+    },
+    {
+      "created": 1792128179609,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179609,
+      "type": "stderr",
+      "text": "npm error   --strict-peer-deps"
+    },
+    {
+      "created": 1792128179609,
+      "type": "stderr",
+      "text": "npm error     If set to `true`, and `--legacy-peer-deps` is not set, then _any_"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     Limits the ability for npm to install dependencies from directories."
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --allow-file"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     Limits the ability for npm to install dependencies from tarball files."
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --allow-git"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     Limits the ability for npm to fetch dependencies from git references."
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --allow-remote"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     Limits the ability for npm to fetch dependencies from urls."
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --allow-scripts"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     Comma-separated list of packages whose install-time lifecycle scripts"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --strict-allow-scripts"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     If `true`, turn the install-script policy from a warning into a hard"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --dangerously-allow-all-scripts"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     If `true`, bypass the `allowScripts` policy entirely and run every"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error   --audit"
+    },
+    {
+      "created": 1792128179610,
+      "type": "stderr",
+      "text": "npm error     When \"true\" submit audit reports alongside the current npm command to the"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error   --bin-links"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error     Tells npm to create symlinks (or `.cmd` shims on Windows) for package"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error   --fund"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error     When \"true\" displays the message at the end of each `npm install`"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error   --dry-run"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error     Indicates that you don't want npm to make any changes and that it should"
+    },
+    {
+      "created": 1792128179611,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error   -w|--workspace"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error     Enable running a command in the context of the configured workspaces of the"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error   --workspaces"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error     Set to true to run the command in the context of **all** configured"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179612,
+      "type": "stderr",
+      "text": "npm error   --include-workspace-root"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error     Include the workspace root when workspaces are enabled for a command."
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error   --install-links"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error     When set file: protocol dependencies will be packed and installed as"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179613,
+      "type": "stderr",
+      "text": "npm error aliases: clean-install, ic, install-clean, isntall-clean"
+    },
+    {
+      "created": 1792128179614,
+      "type": "stderr",
+      "text": "npm error"
+    },
+    {
+      "created": 1792128179614,
+      "type": "stderr",
+      "text": "npm error Run \"npm help ci\" for more info"
+    },
+    {
+      "created": 1792128179615,
+      "type": "stderr",
+      "text": "npm error A complete log of this run can be found in: /vercel/.npm/_logs/2026-10-16T05_22_59_085Z-debug-0.log"
+    },
+    {
+      "created": 1792128179649,
+      "type": "stderr",
+      "text": "Error: [BUILD_UTILS_SPAWN_1] Command \"npm ci --ignore-scripts --no-audit --no-fund\" exited with 1"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "database": "musitu_whatsapp_phase1",
+  "project": "jolly-scene-02112141",
+  "branch": "br-jolly-fire-b4klddds",
+  "migration": "014_governed_ai_drafts.sql",
+  "firstAttempt": {
+    "method": "single prepared statement",
+    "applied": false,
+    "error": "cannot insert multiple commands into a prepared statement"
+  },
+  "rollbackRehearsal": {
+    "statements": 24,
+    "finalDeliberateError": "division by zero",
+    "subsequentIndependentRead": {
+      "ai_requests_after_rollback": null,
+      "ai_policy_function_after_rollback": null
+    }
+  },
+  "appliedTransaction": {
+    "statements": 24,
+    "success": true
+  },
+  "runtimeOwnerCredentialsUsed": false,
+  "nonLoginFunctionIdentity": "musitu_commands",
+  "newTenantRlsTables": [
+    "ai_policy",
+    "ai_requests"
+  ],
+  "newSyntheticFixturesOnly": true
+}

@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: Meta GET challenge returns exactly challenge for matching token and noncacheable text
+ok 1 - Meta GET challenge returns exactly challenge for matching token and noncacheable text
+  ---
+  duration_ms: 27.317403
+  type: 'test'
+  ...
+# Subtest: Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+ok 2 - Meta GET verification rejects wrong token, repeated query keys and control-bearing challenge
+  ---
+  duration_ms: 13.532775
+  type: 'test'
+  ...
+# Subtest: signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+ok 3 - signed POST dispatches unmodified raw bytes once and acknowledges only after commit
+  ---
+  duration_ms: 12.024867
+  type: 'test'
+  ...
+# Subtest: unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+ok 4 - unsigned, forged, malformed content type and too-large POSTs are rejected before ingestion
+  ---
+  duration_ms: 14.327208
+  type: 'test'
+  ...
+# Subtest: upstream rejection and uncertain persistence are not acknowledged as success
+ok 5 - upstream rejection and uncertain persistence are not acknowledged as success
+  ---
+  duration_ms: 9.123781
+  type: 'test'
+  ...
+# Subtest: webhook bridge refuses invalid configuration and binds only loopback
+ok 6 - webhook bridge refuses invalid configuration and binds only loopback
+  ---
+  duration_ms: 1.218641
+  type: 'test'
+  ...
+# Subtest: oversized declared Content-Length is rejected before waiting for attacker-supplied body
+ok 7 - oversized declared Content-Length is rejected before waiting for attacker-supplied body
+  ---
+  duration_ms: 16.958086
+  type: 'test'
+  ...
+# Subtest: incomplete signed POST cannot hold a webhook handler indefinitely
+ok 8 - incomplete signed POST cannot hold a webhook handler indefinitely
+  ---
+  duration_ms: 154.696114
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 256.576981

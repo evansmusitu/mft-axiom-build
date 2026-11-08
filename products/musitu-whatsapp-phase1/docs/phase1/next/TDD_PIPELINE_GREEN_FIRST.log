@@ -1,0 +1,36 @@
+TAP version 13
+# (node:6466) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+ok 1 - signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+  ---
+  duration_ms: 14.125144
+  type: 'test'
+  ...
+# Subtest: unknown question and non-text inbound hand over without hallucinating responses
+ok 2 - unknown question and non-text inbound hand over without hallucinating responses
+  ---
+  duration_ms: 5.041544
+  type: 'test'
+  ...
+# Subtest: offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+ok 3 - offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+  ---
+  duration_ms: 3.57823
+  type: 'test'
+  ...
+# Subtest: local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+ok 4 - local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+  ---
+  duration_ms: 59.451764
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 218.927599

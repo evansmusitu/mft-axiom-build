@@ -1,0 +1,117 @@
+{
+  "observedAt": "2026-10-18T15:42:33.973Z",
+  "phase1": "INCOMPLETE",
+  "source": "4ffd3f2163c5eac9998ec5a453963d96c4fb7306",
+  "deployment": "dpl_EXTsUtoBdMdjVDFsoYs1M3ftrw53",
+  "deploymentState": "READY",
+  "target": "staging",
+  "scope": "GENUINE_ZITADEL_OWNER_BROWSER_SYNTHETIC_BUSINESS_RECORDS",
+  "local": {
+    "tests": 278,
+    "failures": 0,
+    "syntaxMjsFiles": 124,
+    "optimizedBuild": "PASS"
+  },
+  "passes": [
+    "Fresh username/password/TOTP login admitted protected business bookings",
+    "Existing named resources loaded through tenant-scoped API",
+    "New synthetic resource created via UI and selected by label without operator lookup",
+    "New future booking confirmed through UI",
+    "Second distinct occupied-slot operation denied",
+    "Full canonical app navigation and fresh business read restored both persisted bookings/resources",
+    "Changing business immediately cleared bookings and resource options and disabled reservation",
+    "Foreign tenant read denied without retaining previous resource choices",
+    "Restoring owned tenant returned both bookings and named resources",
+    "Owner-approved synthetic knowledge persisted and was read back",
+    "Audit displayed matching KNOWLEDGE_APPROVED and resource-added events"
+  ],
+  "ownerTenant": "f7453f47-9790-4ae9-8661-61ea8cad9300",
+  "bookingDatabase": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "resource_id": "3c5bcbb2-0c1c-41a1-87d9-3ec8c3b3815e",
+        "label": "Synthetic selector acceptance resource 20261018",
+        "bookings": "1",
+        "starts_at": "2027-01-02T08:00:00.000Z",
+        "ends_at": "2027-01-02T08:30:00.000Z",
+        "states": [
+          "CONFIRMED"
+        ]
+      }
+    ]
+  ],
+  "knowledgeDatabase": [
+    [
+      {
+        "synthetic_tenant_scope": "f7453f47-9790-4ae9-8661-61ea8cad9300"
+      }
+    ],
+    [
+      {
+        "faq_id": "faf1d623-0afe-4092-a274-c1dfc06a2032",
+        "normalized_question": "what is this private acceptance resource?",
+        "answer": "This resource exists only for synthetic Phase 1 acceptance; no customer service is offered."
+      }
+    ],
+    [
+      {
+        "owner_channel_count": "0"
+      }
+    ]
+  ],
+  "audit": {
+    "knowledgeApprovedAt": "2026-10-18T15:38:36.721Z",
+    "knowledgeSourceId": "faf1d623-0afe-4092-a274-c1dfc06a2032",
+    "resourceAddedAt": "2026-10-18T15:34:13.954Z"
+  },
+  "postgresQualification": {
+    "runId": "aae54dd0-d596-47e7-8f96-3abdd7ed6c39",
+    "passed": 26,
+    "failed": 0,
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP"
+  },
+  "meta": {
+    "readOnly": true,
+    "appId": "1096094346481018",
+    "published": false,
+    "newMessagesSent": 0,
+    "bindingsChanged": false,
+    "subscriptionsChanged": false,
+    "genuineEndToEndQualified": false,
+    "database": [
+      [
+        {
+          "synthetic_meta_tenant_scope": "986eb904-7296-46a9-9e9b-94074db9b547"
+        }
+      ],
+      [
+        {
+          "checked_at": "2026-10-18T15:42:33.973Z",
+          "existing_test_channel": "1",
+          "accepted_inbound_events": "0",
+          "accepted_status_events": "0",
+          "persisted_messages": "0"
+        }
+      ]
+    ]
+  },
+  "releaseGate": {
+    "status": "PHASE1_RELEASE_BLOCKED",
+    "exitCode": 2,
+    "attestationsChanged": false
+  },
+  "limitations": [
+    "Separate staff identity, role/provider revocation, old-JWT reuse and JWKS rotation are unqualified",
+    "Desktop Chromium acceptance only; narrow screenshot of a login page is not mobile product acceptance",
+    "One screenshot observed provider login instead of the expected app; canonical app navigation restored the existing authenticated view; that login screenshot is not acceptance proof",
+    "First independent SQL readback used wrong timestamp-column names, failed without mutation, and was corrected against the repository schema",
+    "No Meta, model, AXIOM service or operational completion claimed"
+  ],
+  "secretsRetained": false,
+  "protectedProductsModified": false
+}

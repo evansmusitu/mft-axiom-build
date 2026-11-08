@@ -1,0 +1,38 @@
+{
+  "scope": "ACTUAL_PRIVATE_STAGING_DEPLOYMENT_AND_CONTROLLED_MISSING_FLOW_CALLBACK_NOT_STAFF_LOGIN",
+  "source_commit": "ba970aa0b6153166192d352e534f7c185064d603",
+  "source_tree": "1dba4c4854c3834762ea137a0943f546c19d1dff",
+  "deployment_id": "dpl_EbKxy5bXQeEfJoKqcLqWF93BxZom",
+  "target": "staging",
+  "ready": true,
+  "project_id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+  "team_id": "team_9iEOhSAcZojn7sEClzc1Y8E6",
+  "node": "24.x",
+  "product_root": "products/musitu-whatsapp-phase1",
+  "live": false,
+  "sso_protection": "all",
+  "runtime_qualification": {
+    "run_id": "83c8e061-419b-4d1b-9414-25becd6cb1cd",
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+    "passed": 26,
+    "failed": 0,
+    "independently_fetched": true
+  },
+  "browser_callback_probe": {
+    "input": "GET /auth/callback without authorization code",
+    "final_url": "https://musitu-whatsapp-phase1-private-20261014-mvrxfwdei-evansmusitu.vercel.app/sign-in-help",
+    "visible_heading": "Sign-in could not finish",
+    "manual_signin_href": "/auth/login",
+    "credential_submission": false,
+    "staff_session_qualified": false
+  },
+  "local_validation": {
+    "tests_passed": 280,
+    "tests_failed": 0,
+    "mjs_syntax": 125,
+    "next_build": "PASS",
+    "manifest_entries": 373
+  },
+  "release_gate": "PHASE1_RELEASE_BLOCKED_EXIT_2",
+  "phase1_complete": false
+}

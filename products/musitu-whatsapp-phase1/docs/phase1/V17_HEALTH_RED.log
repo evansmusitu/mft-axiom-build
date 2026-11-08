@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: process liveness does not imply real provider or database readiness
+not ok 1 - process liveness does not imply real provider or database readiness
+  ---
+  duration_ms: 21.657577
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-private-readiness.test.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-private-readiness.test.mjs:12:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: crafted ready request cannot override an unqualified service state
+not ok 2 - crafted ready request cannot override an unqualified service state
+  ---
+  duration_ms: 7.651965
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-v17/test/v17-private-readiness.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 503
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 503
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-v17/test/v17-private-readiness.test.mjs:22:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 141.296964

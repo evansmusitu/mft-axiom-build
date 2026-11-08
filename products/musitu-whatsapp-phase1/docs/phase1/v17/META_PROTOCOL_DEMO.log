@@ -1,0 +1,5 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.7.0 meta:protocol:demo
+> node scripts/private-meta-webhook-demo.mjs
+
+{"environment":"LOCAL_SIMULATION_ONLY","metaChallenge":200,"signedPost":200,"forgedPost":401,"simulatedStored":1,"providerSends":0,"payments":0}

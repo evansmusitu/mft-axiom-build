@@ -1,0 +1,26 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+✓ Running next.config.mjs took 19ms
+
+  Creating an optimized production build ...
+
+thread 'tokio-rt-worker' (38) panicked at turbopack/crates/turbo-persistence/src/static_sorted_file.rs:951:22:
+range end index 2859729885 out of range for slice of length 11417994
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /tmp/next-panic-9c7e24b6d8bbcddeb8788738ee7f1d19.log.
+
+To help make Turbopack better, report this error by clicking here: https://bugs.nextjs.org/search?category=turbopack-error-report&title=Turbopack%20Error%3A%20range%20end%20index%202859729885%20out%20of%20range%20for%20slice%20of%20length%2011417994&body=Turbopack%20version%3A%20%60e273d5b2%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0Arange%20end%20index%202859729885%20out%20of%20range%20for%20slice%20of%20length%2011417994%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+
+> Build error occurred
+Error [TurbopackInternalError]: range end index 2859729885 out of range for slice of length 11417994
+    at <unknown> (TurbopackInternalError: range end index 2859729885 out of range for slice of length 11417994) {
+  location: 'turbopack/crates/turbo-persistence/src/static_sorted_file.rs:951:22'
+}

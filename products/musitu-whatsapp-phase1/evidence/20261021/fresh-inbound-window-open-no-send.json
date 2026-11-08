@@ -1,0 +1,56 @@
+{
+  "observedAt": "2026-10-21T19:49:00.051Z",
+  "scope": "FRESH_GENUINE_INBOUND_AND_READ_ONLY_SEND_ADMISSION_CHECKS",
+  "sourceHead": "b6ea8095e1578b2eda8dcf82551c11388c88e641",
+  "ledgerAndWindow": [
+    {
+      "observed_at": "2026-10-21T19:48:16.042Z",
+      "outbound_attempts": "0",
+      "consent_records": "0",
+      "status_events": "0",
+      "inbound_count": "3",
+      "latest_provider_sent_at": "2026-10-21T17:40:36.000Z",
+      "latest_received_at": "2026-10-21T17:40:40.488Z",
+      "guarded_window_ends_at": "2026-10-22T17:35:36.000Z",
+      "guarded_window_open": true,
+      "retained_inbound_count": "3"
+    }
+  ],
+  "conversationAndMembership": [
+    {
+      "observed_at": "2026-10-21T19:48:41.365Z",
+      "handling_mode": "HUMAN",
+      "suppressed": false,
+      "test_channel_verified": true,
+      "owner_membership_active": true
+    }
+  ],
+  "browser": {
+    "state": "UNRESOLVED_APPROVAL_REVIEW_BLOCK",
+    "latestKnownRejection": "Reconnection rejected as retry of earlier unresolved usage-limit approval failure",
+    "attemptedThisTurn": false,
+    "ownerBrowserSessionVerified": false
+  },
+  "lastVerifiedDeployment": {
+    "id": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+    "source": "3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a",
+    "metaGetChecksObservedAt": "2026-10-21T06:19:27.457Z",
+    "appHttpStatus": 200,
+    "testPhoneHttpStatus": 200
+  },
+  "authorization": {
+    "specificReplyCount": 1,
+    "recipient": "Previously verified owner ending2008",
+    "exactBody": "MUSITU test reply: your message was received and stored securely. This is a development test.",
+    "automaticRetry": false
+  },
+  "noSendSubmitted": true,
+  "limits": [
+    "Read-only database checks do not qualify the current browser session or identity-provider authentication",
+    "No credential retrieval, Meta browser workaround, session minting or backend send attempted",
+    "No fresh Meta credential request needed based on last successful preflight",
+    "Future guarded send requires approval-review availability, actual current owner session, fresh duplicate/window/suppression checks and exact-text review"
+  ],
+  "next": "Resolve browser approval availability, verify owner session in approved UI and submit at most original one approved reply if all fresh gates pass. Do not request another inbound while this one remains inside guarded window.",
+  "phase1Complete": false
+}

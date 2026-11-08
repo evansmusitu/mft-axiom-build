@@ -1,0 +1,145 @@
+TAP version 13
+# Subtest: a member can approve an exact, current source-grounded draft, with no sending or external action
+not ok 1 - a member can approve an exact, current source-grounded draft, with no sending or external action
+  ---
+  duration_ms: 0.963075
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:38:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:40:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+not ok 2 - same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+  ---
+  duration_ms: 0.3358
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:53:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:55:27)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: viewer and revoked membership cannot approve and no insert runs
+not ok 3 - viewer and revoked membership cannot approve and no insert runs
+  ---
+  duration_ms: 0.200478
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:62:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:65:29)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: missing, stale, changed-source or handed-over drafts require renewed review
+not ok 4 - missing, stale, changed-source or handed-over drafts require renewed review
+  ---
+  duration_ms: 0.279737
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:71:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:74:29)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: invalid IDs and keys are rejected before database access; cross-tenant draft never found
+not ok 5 - invalid IDs and keys are rejected before database access; cross-tenant draft never found
+  ---
+  duration_ms: 0.638061
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:79:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:82:29)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: database failure rolls back, and connection cannot commit partial approval
+not ok 6 - database failure rolls back, and connection cannot commit partial approval
+  ---
+  duration_ms: 0.170354
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:88:1'
+  failureType: 'testCodeFailure'
+  error: 'repo.approveReplyDraft is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:90:28)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: authenticated private review endpoint persists only offline approval and requires exact JSON body
+not ok 7 - authenticated private review endpoint persists only offline approval and requires exact JSON body
+  ---
+  duration_ms: 35.176937
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:107:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    404 !== 401
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 401
+  actual: 404
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:114:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 0
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 584.488178

@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-21T07:01:51.660Z",
+  "scope": "OWNER_SIGN_IN_EXPIRY_AND_NO_SEND",
+  "deploymentId": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+  "sourceCommit": "3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a",
+  "metaPreflightPassed": true,
+  "stableAliasVerified": true,
+  "secureAuthentication": {
+    "loginname": "submitted",
+    "password": "submitted",
+    "authenticatorCode": "submitted",
+    "valuesInspected": false,
+    "applicationResult": "Sign-in could not finish; temporary sign-in window may have expired",
+    "recovery": "One new sign-in opened from the application's visible link; identity provider still requires Loginname",
+    "ownerSessionQualified": false
+  },
+  "database": [
+    {
+      "observed_at": "2026-10-21T07:01:31.226Z",
+      "outbound_attempts": "0",
+      "consent_records": "0",
+      "status_events": "0"
+    }
+  ],
+  "noMetaPostSubmitted": true,
+  "noRetry": true,
+  "next": "Manual secure browser takeover for one uninterrupted owner sign-in. Continue original authorized exact-one self-test only after actual owner session, fresh attempt/window/suppression checks and exact-text review. Do not reset MFA/password or bypass session admission."
+}

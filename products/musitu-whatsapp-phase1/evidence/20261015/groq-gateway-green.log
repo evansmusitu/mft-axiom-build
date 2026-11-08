@@ -1,0 +1,18 @@
+✔ Groq factory requires explicit verified free-plan admission and a separate Groq credential (1.364047ms)
+✔ Groq pins its official endpoint/model, disables tools and accepts only approved source text (10.829458ms)
+✔ Groq refuses foreign-tenant sources and potential credentials before network admission (0.929592ms)
+✔ Groq 429, malformed response and foreign source identifiers fall back without retries (3.185704ms)
+✔ Groq paraphrases require review; returned data never authorizes a send (0.583149ms)
+✔ finite Groq request admission prevents parallel requests and caps total attempts (0.798835ms)
+✔ Groq deadline ends unresponsive transport without admitting another attempt (101.069489ms)
+✔ Groq qualification does not invoke the provider without explicit Free-plan admission (1.342545ms)
+✔ Groq qualification distinguishes five synthetic contract cases and exact token accounting (9.389592ms)
+✔ Groq qualification stops after an actual HTTP failure instead of retrying or reporting a quality pass (1.018656ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 208.984247

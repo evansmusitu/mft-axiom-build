@@ -1,0 +1,15 @@
+{
+  "scope": "REAL_BROWSER_PREPARATION_NOT_CREATED_APP",
+  "app_name": "MUSITU AI Employee Dev",
+  "use_case": "Connect with customers through WhatsApp",
+  "business_portfolio": "MFT Education NEXUS",
+  "business_verified": false,
+  "existing_app": "MFT AI NEXUS",
+  "existing_app_modified": false,
+  "final_action": "Create app",
+  "accepts": "Meta Platform Terms and Developer Policies and other applicable terms",
+  "status": "HELD_FOR_ACTION_TIME_HUMAN_TERMS_ACCEPTANCE",
+  "new_app_id": null,
+  "live_meta_delivery_qualified": false,
+  "screenshot": "browser-evidence/meta-app-creation-terms.jpg"
+}

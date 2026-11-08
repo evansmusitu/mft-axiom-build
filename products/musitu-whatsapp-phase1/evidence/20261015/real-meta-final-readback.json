@@ -1,0 +1,22 @@
+{
+  "runId": "61f00fcd-f681-4a0d-8453-67255cb4f64b",
+  "observedAt": "2026-10-15T18:46:39.644Z",
+  "appId": "1096094346481018",
+  "httpStatus": 200,
+  "subscriptions": [
+    {
+      "object": "whatsapp_business_account",
+      "callbackConfigured": true,
+      "expectedCallbackMatched": true,
+      "callbackSha256": "641c42560e8c124e8983cc9f3af1b35e14a58719aa41cb400533c28bc856e474",
+      "active": true,
+      "fields": [
+        "messages"
+      ]
+    }
+  ],
+  "noChangesMade": true,
+  "scope": "GENUINE_NEW_META_APP_SUBSCRIPTION_READ_ONLY",
+  "evidenceDeployment": "dpl_Azc5jAV6ztQwWF579SoNXx2QzvKg",
+  "evidenceSource": "8323922105380492b883e98be9bdc1dcb13055a7"
+}

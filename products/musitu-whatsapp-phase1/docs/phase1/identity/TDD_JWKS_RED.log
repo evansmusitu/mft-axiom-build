@@ -1,0 +1,90 @@
+TAP version 13
+# Subtest: private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+not ok 1 - private API validates live JWKS only from the trusted issuer endpoint and checks tenant membership
+  ---
+  duration_ms: 1.449308
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:33:1'
+  failureType: 'testCodeFailure'
+  error: 'PRIVATE_IDENTITY_CONFIG_REQUIRED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createPrivateAdminServer (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/src/private-stage/admin-server.mjs:10:78)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:34:34)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: unknown key forces one rotation refresh; removed keys are immediately rejected
+not ok 2 - unknown key forces one rotation refresh; removed keys are immediately rejected
+  ---
+  duration_ms: 0.30721
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'PRIVATE_IDENTITY_CONFIG_REQUIRED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createPrivateAdminServer (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/src/private-stage/admin-server.mjs:10:78)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:46:58)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+not ok 3 - JWKS fetch failures, redirects, malformed responses and oversized documents fail closed
+  ---
+  duration_ms: 0.32685
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:56:1'
+  failureType: 'testCodeFailure'
+  error: 'PRIVATE_IDENTITY_CONFIG_REQUIRED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createPrivateAdminServer (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/src/private-stage/admin-server.mjs:10:78)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:64:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+ok 4 - remote JWKS URL is pinned to the issuer, never caller-selected, and disallows HTTP
+  ---
+  duration_ms: 0.732303
+  type: 'test'
+  ...
+# Subtest: simultaneous valid requests share one JWKS refresh
+not ok 5 - simultaneous valid requests share one JWKS refresh
+  ---
+  duration_ms: 0.293383
+  type: 'test'
+  location: '/mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:78:1'
+  failureType: 'testCodeFailure'
+  error: 'PRIVATE_IDENTITY_CONFIG_REQUIRED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createPrivateAdminServer (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/src/private-stage/admin-server.mjs:10:78)
+    TestContext.<anonymous> (file:///mnt/data/musitu-whatsapp-phase1-secure-identity/test/oidc-jwks-rotation.test.mjs:79:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 663.850982

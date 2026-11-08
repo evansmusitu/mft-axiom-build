@@ -1,0 +1,31 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+✓ Running next.config.mjs took 16ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+  Creating an optimized production build ...
+
+thread 'tokio-rt-worker' (992) panicked at turbopack/crates/turbo-persistence/src/static_sorted_file.rs:949:49:
+range start index 406192128 out of range for slice of length 786944
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /tmp/next-panic-c697fb71eec4ec693498d7bef853332e.log.
+
+To help make Turbopack better, report this error by clicking here: https://bugs.nextjs.org/search?category=turbopack-error-report&title=Turbopack%20Error%3A%20range%20start%20index%20406192128%20out%20of%20range%20for%20slice%20of%20length%20786944&body=Turbopack%20version%3A%20%60e273d5b2%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0Arange%20start%20index%20406192128%20out%20of%20range%20for%20slice%20of%20length%20786944%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+
+> Build error occurred
+Error [TurbopackInternalError]: range start index 406192128 out of range for slice of length 786944
+    at <unknown> (TurbopackInternalError: range start index 406192128 out of range for slice of length 786944) {
+  location: 'turbopack/crates/turbo-persistence/src/static_sorted_file.rs:949:49'
+}

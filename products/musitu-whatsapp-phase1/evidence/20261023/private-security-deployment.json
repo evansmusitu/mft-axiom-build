@@ -1,0 +1,78 @@
+{
+  "observedAt": "2026-10-23T03:38:13.509Z",
+  "scope": "PRIVATE_PHASE1_SECURITY_PATCH_NOT_PHASE1_ACCEPTANCE",
+  "accountPlan": "hobby",
+  "projectId": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+  "deployment": {
+    "id": "dpl_CFPK5a9DAQ6i25Xn56kxB2Ju9kzd",
+    "url": "https://musitu-whatsapp-phase1-private-20261014-9y48m7q7m-evansmusitu.vercel.app",
+    "state": "READY",
+    "source": "7b3360bac3e51235b1036f04e7b7908d054e6724",
+    "nextVersionFromBuildLog": "16.4.2",
+    "buildCommand": "npm run build",
+    "installCommand": "npm ci --ignore-scripts --no-audit --no-fund",
+    "hostedFixtureQualifiersExecuted": false
+  },
+  "stableAlias": {
+    "alias": "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+    "deploymentId": "dpl_CFPK5a9DAQ6i25Xn56kxB2Ju9kzd",
+    "updatedAt": "2026-10-23T03:36:03.510Z",
+    "intentionalAssignment": true,
+    "previousDeploymentRetained": "dpl_3sc6CwbE9kw5P5aHh8PxGr2KVAHe",
+    "previousSource": "3a5ebbb7780f1b9db0dd81cb6fc13390af08e43a"
+  },
+  "protection": {
+    "live": false,
+    "sso": {
+      "enabled": true,
+      "deploymentType": "all"
+    },
+    "anonymousChecks": {
+      "observedAt": "2026-10-23T03:36:56.387205+00:00",
+      "checks": [
+        {
+          "host": "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+          "httpStatus": 302,
+          "redirectOrigin": "https://vercel.com",
+          "requestHadCredentials": false,
+          "retried": false,
+          "responseBodyRead": false
+        },
+        {
+          "host": "musitu-whatsapp-phase1-private-20261014-9y48m7q7m-evansmusitu.vercel.app",
+          "httpStatus": 302,
+          "redirectOrigin": "https://vercel.com",
+          "requestHadCredentials": false,
+          "retried": false,
+          "responseBodyRead": false
+        }
+      ]
+    }
+  },
+  "postDeploymentDatabaseAggregate": {
+    "observed_at": "2026-10-23T03:36:46.617Z",
+    "inbound_events": "3",
+    "outbound_attempts": "0",
+    "consent_records": "0",
+    "signed_status_events": "0",
+    "active_unexpired_sessions": "0"
+  },
+  "comparisonFromPriorStable": {
+    "totalChangedFiles": 30,
+    "authSenderRoutesAndMigrationsChanged": false
+  },
+  "cancellationSafeguard": {
+    "reason": "Creation response included the stable name among anticipated aliases; actual alias was independently verified before intentional assignment.",
+    "attempted": true,
+    "result": "HTTP_400_ALREADY_TERMINAL",
+    "deploymentCompleted": true,
+    "secondDeploymentCreated": false
+  },
+  "limits": [
+    "No interactive browser or owner authentication was exercised.",
+    "Anonymous probes did not follow authentication redirects or read response bodies.",
+    "No provider send, invitation, migration, hosted fixture qualification, credential reset or public launch occurred.",
+    "Project defaults were not changed; only deployment-specific build settings were overridden.",
+    "Version remediation and protected deployment do not certify all security or Phase 1 gates."
+  ]
+}

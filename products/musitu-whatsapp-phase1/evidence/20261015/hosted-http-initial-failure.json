@@ -1,0 +1,474 @@
+{
+  "deployment": "dpl_4stMgwtdvCDMSouaGDh76vB7itsF",
+  "testedDeployment": "dpl_8q2byEFn9xxJWHcjGsKToyvpjVzQ",
+  "scope": "GENUINE_HTTP_ASSERTION_FAILURE_NO_META_CALL",
+  "explanation": "Vercel serves its own root 404 rather than the callback handler's text. The status is correctly 404, but the initial body/header expectation was too strict for the platform root. Other probed paths reach the handler. Evidence is retained; the new probe will distinguish the documented observed root response.",
+  "result": {
+    "events": [
+      {
+        "created": 1792035016618,
+        "date": 1792035016618,
+        "type": "stdout",
+        "text": "Running build in Washington, D.C., USA (East) – iad1",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035016618,
+        "date": 1792035016618,
+        "type": "stdout",
+        "text": "Build machine configuration: 2 cores, 8 GB",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035016768,
+        "date": 1792035016768,
+        "type": "stdout",
+        "text": "Cloning github.com/evansmusitu/mft-axiom-build (Branch: 25c9b08155a02e50493b93594cb184d14b2e71e2, Commit: 25c9b08)",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035017348,
+        "date": 1792035017348,
+        "type": "stdout",
+        "text": "Cloning completed: 579.000ms",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035017442,
+        "date": 1792035017442,
+        "type": "stdout",
+        "text": "Restored build cache from previous deployment (8q2byEFn9xxJWHcjGsKToyvpjVzQ)",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035017840,
+        "date": 1792035017840,
+        "type": "stdout",
+        "text": "Running \"vercel build\"",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035017852,
+        "date": 1792035017852,
+        "type": "stderr",
+        "text": "Vercel CLI 62.7.0",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035018614,
+        "date": 1792035018614,
+        "type": "stdout",
+        "text": "Running \"install\" command: `npm ci --ignore-scripts --no-audit --no-fund`...",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019170,
+        "date": 1792035019170,
+        "type": "stderr",
+        "text": "npm warn Unknown env config \"cache-dir\". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.",
+        "level": "warning",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019476,
+        "date": 1792035019476,
+        "type": "stdout",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019476,
+        "date": 1792035019476,
+        "type": "stdout",
+        "text": "added 14 packages in 729ms",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019852,
+        "date": 1792035019852,
+        "type": "stderr",
+        "text": "node:internal/modules/run_main:107",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "    triggerUncaughtException(",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "    ^",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "AssertionError [ERR_ASSERTION]: no exposed surface /",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+ actual - expected",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+ 'The page could not be found\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+   '\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+   'NOT_FOUND\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+   '\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "+   'iad1::km546-1792035019808-4eb37192fb85\\n'",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019853,
+        "date": 1792035019853,
+        "type": "stderr",
+        "text": "- 'NOT_FOUND'",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    at probe (file:///vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/qualify-receiver.mjs:11:80)",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    at async file:///vercel/path0/products/musitu-whatsapp-phase1/deployments/meta-ingress/scripts/qualify-receiver.mjs:19:98 {",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "  generatedMessage: false,",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "  code: 'ERR_ASSERTION',",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "  actual: 'The page could not be found\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    '\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    'NOT_FOUND\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019854,
+        "date": 1792035019854,
+        "type": "stderr",
+        "text": "    '\\n' +",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "    'iad1::km546-1792035019808-4eb37192fb85\\n',",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "  expected: 'NOT_FOUND',",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "  operator: 'strictEqual',",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "  diff: 'simple'",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "}",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019855,
+        "date": 1792035019855,
+        "type": "stderr",
+        "text": "Node.js v24.21.0",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      },
+      {
+        "created": 1792035019863,
+        "date": 1792035019863,
+        "type": "stderr",
+        "text": "Error: Command \"node scripts/qualify-receiver.mjs https://musitu-whatsapp-dev-ingress-20261015-7sc2uxo7y-evansmusitu.vercel.app\" exited with 1",
+        "level": "error",
+        "info": {
+          "type": "build",
+          "name": "bld_4vkhmjube",
+          "entrypoint": "."
+        }
+      }
+    ]
+  }
+}

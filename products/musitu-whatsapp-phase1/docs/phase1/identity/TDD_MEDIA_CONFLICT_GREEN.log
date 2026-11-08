@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+ok 1 - authentic Meta text is scoped by bound WABA+phone and committed as one tenant-local Postgres transaction
+  ---
+  duration_ms: 3.619233
+  type: 'test'
+  ...
+# Subtest: invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+ok 2 - invalid HMAC, unauthorized WABA mapping, status-only callback, and cross-tenant batch fail before DB
+  ---
+  duration_ms: 1.293049
+  type: 'test'
+  ...
+# Subtest: idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+ok 3 - idempotent replay returns DUPLICATE; sender/payload change rejects even for same message id
+  ---
+  duration_ms: 1.566124
+  type: 'test'
+  ...
+# Subtest: unsupported message type and existing human handover must not create bot drafts
+ok 4 - unsupported message type and existing human handover must not create bot drafts
+  ---
+  duration_ms: 1.805107
+  type: 'test'
+  ...
+# Subtest: database failures roll back and release; no partial inbound commit or provider sends
+ok 5 - database failures roll back and release; no partial inbound commit or provider sends
+  ---
+  duration_ms: 0.59218
+  type: 'test'
+  ...
+# Subtest: private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+ok 6 - private loopback HTTP accepts signed event into PostgreSQL adapter but never sends a reply
+  ---
+  duration_ms: 71.614427
+  type: 'test'
+  ...
+# Subtest: provider message replay cannot silently change an image attachment reference
+ok 7 - provider message replay cannot silently change an image attachment reference
+  ---
+  duration_ms: 0.825339
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 197.111204

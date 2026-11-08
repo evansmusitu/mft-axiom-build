@@ -1,0 +1,55 @@
+2026-10-23T03:34:07.781Z stdout Running build in Washington, D.C., USA (East) – iad1
+2026-10-23T03:34:07.782Z stdout Build machine configuration: 2 cores, 8 GB
+2026-10-23T03:34:07.944Z stdout Cloning github.com/evansmusitu/mft-axiom-build (Branch: 7b3360bac3e51235b1036f04e7b7908d054e6724, Commit: 7b3360b)
+2026-10-23T03:34:07.946Z stdout Previous build caches not available.
+2026-10-23T03:34:08.540Z stdout Cloning completed: 596.000ms
+2026-10-23T03:34:09.035Z stdout Running "vercel build"
+2026-10-23T03:34:09.051Z stderr Vercel CLI 65.1.0
+2026-10-23T03:34:09.488Z stderr Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+2026-10-23T03:34:09.502Z stdout Running "install" command: `npm ci --ignore-scripts --no-audit --no-fund`...
+2026-10-23T03:34:10.301Z stderr npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+2026-10-23T03:34:18.841Z stdout 
+2026-10-23T03:34:18.842Z stdout added 44 packages in 9s
+2026-10-23T03:34:18.909Z stdout Detected Next.js version: 16.4.2
+2026-10-23T03:34:18.910Z stdout Running "npm run build"
+2026-10-23T03:34:19.097Z stderr npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+2026-10-23T03:34:19.127Z stdout 
+2026-10-23T03:34:19.128Z stdout > musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+2026-10-23T03:34:19.128Z stdout > next build
+2026-10-23T03:34:19.128Z stdout 
+2026-10-23T03:34:19.828Z stdout ▲ Next.js 16.4.2 (Turbopack)
+2026-10-23T03:34:20.102Z stdout   Applying modifyConfig from Vercel
+2026-10-23T03:34:20.108Z stdout ✓ Running next.config.mjs took 280ms
+2026-10-23T03:34:20.132Z stdout 
+2026-10-23T03:34:20.176Z stdout   Creating an optimized production build ...
+2026-10-23T03:34:28.320Z stdout ✓ Compiled successfully in 8.1s
+2026-10-23T03:34:28.339Z stdout   Running TypeScript ...
+2026-10-23T03:34:28.347Z stdout   Finished TypeScript in 8ms ...
+2026-10-23T03:34:28.352Z stdout   Collecting page data using 1 worker ...
+2026-10-23T03:34:29.416Z stdout   Generating static pages using 1 worker (0/2) ...
+2026-10-23T03:34:29.592Z stdout ✓ Generating static pages using 1 worker (2/2) in 177ms
+2026-10-23T03:34:29.599Z stdout   Finalizing page optimization ...
+2026-10-23T03:34:29.670Z stdout   Running onBuildComplete from Vercel
+2026-10-23T03:34:29.731Z stderr Warning: Detected "engines": { "node": ">=22" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+2026-10-23T03:34:29.982Z stdout 
+2026-10-23T03:34:29.985Z stdout Route (app)
+2026-10-23T03:34:29.985Z stdout ┌ ƒ /
+2026-10-23T03:34:29.986Z stdout ├ ○ /_not-found
+2026-10-23T03:34:29.986Z stdout ├ ƒ /api/health
+2026-10-23T03:34:29.986Z stdout ├ ƒ /api/meta/webhook
+2026-10-23T03:34:29.986Z stdout ├ ƒ /api/onboard
+2026-10-23T03:34:29.986Z stdout ├ ƒ /api/status
+2026-10-23T03:34:29.987Z stdout ├ ƒ /api/tenants/[tenant]/[...operation]
+2026-10-23T03:34:29.987Z stdout ├ ƒ /auth/[action]
+2026-10-23T03:34:29.987Z stdout └ ƒ /sign-in-help
+2026-10-23T03:34:29.987Z stdout 
+2026-10-23T03:34:29.987Z stdout 
+2026-10-23T03:34:29.987Z stdout ○  (Static)   prerendered as static content
+2026-10-23T03:34:29.987Z stdout ƒ  (Dynamic)  server-rendered on demand
+2026-10-23T03:34:29.987Z stdout 
+2026-10-23T03:34:30.136Z stderr Build Completed in /vercel/output [21s]
+2026-10-23T03:34:30.166Z stdout Deploying outputs...
+2026-10-23T03:34:33.275Z stdout Deployment completed
+2026-10-23T03:34:33.286Z stdout Creating build cache...
+2026-10-23T03:34:47.551Z stdout Created build cache: 14s
+2026-10-23T03:34:47.551Z stdout Uploading build cache [150.25 MB]

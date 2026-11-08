@@ -1,0 +1,13 @@
+{
+  "scope": "LOCAL_BUILT_NEXT_HTTP_SYNTHETIC_MISSING_IDENTITY_NOT_PROVIDER_ACCEPTANCE",
+  "browser_callback_status": 303,
+  "recovery_location": "/sign-in-help",
+  "cache_control": "private, no-store",
+  "query_forwarded": false,
+  "automatic_retry": false,
+  "help_page_status": 200,
+  "manual_same_origin_signin_link": true,
+  "referrer_policy": "no-referrer",
+  "json_callback_status": 503,
+  "phase1_complete": false
+}

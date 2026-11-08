@@ -1,0 +1,57 @@
+{
+  "deployment": "dpl_E33kbx9Zuh4DXggDv3mYy2Kybv9a",
+  "commit": "4dfeb90a4ab186899f3d92ef78f74f3098ad8fdf",
+  "timestamp": "2026-10-14T19:36:30.359Z",
+  "probes": [
+    {
+      "path": "/api/status",
+      "status": 200,
+      "body": {
+        "phase1": "IN_PROGRESS",
+        "publicMessaging": false,
+        "identityConfigured": false,
+        "databaseConfigured": true,
+        "databaseHealthy": true,
+        "modelConfigured": false,
+        "metaConfigured": false,
+        "axiomConfigured": false
+      },
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY"
+      }
+    },
+    {
+      "path": "/api/tenants/00000000-0000-4000-8000-00000000000a/metrics",
+      "status": 403,
+      "body": {
+        "error": "ACCESS_DENIED"
+      },
+      "headers": {
+        "cache-control": "private, no-store",
+        "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY"
+      }
+    },
+    {
+      "path": "/api/meta/webhook",
+      "status": 503,
+      "body": "DEVELOPMENT_CHANNEL_UNAVAILABLE",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY"
+      }
+    }
+  ]
+}

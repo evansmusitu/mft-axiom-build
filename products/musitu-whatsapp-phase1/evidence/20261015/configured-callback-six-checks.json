@@ -1,0 +1,54 @@
+{
+  "runId": "b9106088-9489-4abd-9d31-23b7c1ab2f25",
+  "target": "https://musitu-whatsapp-meta-receiver-20261015-5e92j7yrd-evansmusitu.vercel.app",
+  "observedAt": "2026-10-15T18:34:47.174Z",
+  "scope": "GENUINE_DIRECT_HTTP_VERIFICATION_NO_META_EVENT_OR_DB_WRITE",
+  "pass": 6,
+  "fail": 0,
+  "deployment": "dpl_5PtEaGLrfXGquTksm3uNx6eBJKn6",
+  "source": "0da9c4d48d56887e056e73190e797be8ed1de6fb",
+  "cases": [
+    {
+      "name": "configured verification with exact token",
+      "httpStatus": 200,
+      "body": "EXACT_CHALLENGE",
+      "bodySha256": "9f9e955c987f0c9b01b320fd3641f5b76d8feafcedf3bb9b703f28509e3e3a32",
+      "pass": true
+    },
+    {
+      "name": "wrong verification token denied",
+      "httpStatus": 403,
+      "body": "FORBIDDEN",
+      "bodySha256": "1bf39038d5d0598e1dd06d05a8936bd37df45a5776b227d6016bd83ee1deb97a",
+      "pass": true
+    },
+    {
+      "name": "six query fields with optional metadata accepted",
+      "httpStatus": 200,
+      "body": "EXACT_CHALLENGE",
+      "bodySha256": "fe139f24dabdeb673798f885f9fa0be76f05a080ced9ba3266e3774574a91898",
+      "pass": true
+    },
+    {
+      "name": "wrong token with optional metadata denied",
+      "httpStatus": 403,
+      "body": "FORBIDDEN",
+      "bodySha256": "1bf39038d5d0598e1dd06d05a8936bd37df45a5776b227d6016bd83ee1deb97a",
+      "pass": true
+    },
+    {
+      "name": "duplicate required field denied",
+      "httpStatus": 400,
+      "body": "INVALID_VERIFY_REQUEST",
+      "bodySha256": "e8ab67bf974e145053bd217b23904f1a222fd11b571db751ef1b0c3e8ab0ed2e",
+      "pass": true
+    },
+    {
+      "name": "excessive query fields denied",
+      "httpStatus": 400,
+      "body": "INVALID_VERIFY_REQUEST",
+      "bodySha256": "e8ab67bf974e145053bd217b23904f1a222fd11b571db751ef1b0c3e8ab0ed2e",
+      "pass": true
+    }
+  ]
+}

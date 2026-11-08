@@ -1,0 +1,202 @@
+{
+  "schema": "musitu.whatsapp.feature-evidence.v1",
+  "as_of": "2026-10-13",
+  "project": "new-isolated-musitu-whatsapp-saas",
+  "overall": "PHASE_1_LOCAL_PRIVATE_INTEGRATION_SUBSET_TESTED_NOT_COMPLETE",
+  "provider_qualification": "NOT_STARTED_NO_META_SEND",
+  "public_release": "NOT_AUTHORIZED",
+  "features": [
+    {
+      "id": 1,
+      "name": "Photo AI employee creation",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 2,
+      "name": "Natural language workflow creation",
+      "phase": 1,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 3,
+      "name": "Multilingual voice intelligence",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 4,
+      "name": "End-to-end guarded business actions",
+      "phase": 1,
+      "status": "PARTIAL_LOCAL_ONLY_NOT_PRODUCTION"
+    },
+    {
+      "id": 5,
+      "name": "Approved payment integrations",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 6,
+      "name": "Live inventory",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 7,
+      "name": "Consented lead recovery",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 8,
+      "name": "Negotiation with server-side price floors",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 9,
+      "name": "Appointments and reminders",
+      "phase": 1,
+      "status": "PARTIAL_LOCAL_ONLY_NOT_PRODUCTION"
+    },
+    {
+      "id": 10,
+      "name": "Customer preference memory",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 11,
+      "name": "Verified revenue intelligence",
+      "phase": 1,
+      "status": "LOCAL_TESTED_SUBSET_ONLY"
+    },
+    {
+      "id": 12,
+      "name": "Evidence-backed growth advisor",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 13,
+      "name": "Consented campaign experimentation",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 14,
+      "name": "AI and message cost optimization",
+      "phase": 1,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 15,
+      "name": "Business source grounded safety engine",
+      "phase": 1,
+      "status": "PARTIAL_LOCAL_ONLY_NOT_PRODUCTION"
+    },
+    {
+      "id": 16,
+      "name": "Simulation studio",
+      "phase": 1,
+      "status": "LOCAL_TESTED_SUBSET_ONLY"
+    },
+    {
+      "id": 17,
+      "name": "Conversational agent configuration updates",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 18,
+      "name": "Staff human handover",
+      "phase": 1,
+      "status": "PARTIAL_LOCAL_ONLY_NOT_PRODUCTION"
+    },
+    {
+      "id": 19,
+      "name": "Multi-branch operation",
+      "phase": 2,
+      "status": "SPECIFIED"
+    },
+    {
+      "id": 20,
+      "name": "Connector ecosystem",
+      "phase": 2,
+      "status": "SPECIFIED"
+    }
+  ],
+  "foundation_components_locally_tested": [
+    "RAW_META_HMAC_VERIFICATION",
+    "WABA_PHONE_TENANT_RESOLUTION",
+    "MEMORY_ONLY_MESSAGE_DEDUPLICATION",
+    "MEMORY_ONLY_HUMAN_HANDOVER",
+    "MEMORY_ONLY_CROSS_TENANT_COLLISION_ATOMICITY",
+    "ALL_REAL_EXTERNAL_ACTIONS_DISABLED",
+    "SQLITE_PERSISTENT_WEBHOOK_IDEMPOTENCY",
+    "TWO_TENANT_OWNER_SCOPED_METRICS",
+    "PRIVATE_HTTP_HMAC_WEBHOOK",
+    "SQLITE_BOOKING_OVERLAP_TRIGGER",
+    "BOOKING_EXACT_REPLAY",
+    "PERSISTED_HUMAN_HANDOVER",
+    "TENANT_SCOPED_APPROVED_FAQ",
+    "PROVIDER_MESSAGE_SENDER_CONFLICT_DENIAL",
+    "OIDC_PINNED_ISSUER_REMOTE_JWKS_ROTATION_SIMULATED",
+    "SIGNED_META_ENVELOPE_POSTGRES_INGRESS_CANDIDATE_INJECTED_CLIENT",
+    "SAME_TENANT_ATOMIC_FAQ_DRAFT_TRANSACTIONS_INJECTED_CLIENT",
+    "POSTGRES_ROLE_004_MIGRATION_AUTHORED_UNEXECUTED",
+    "SIGNED_META_STATUS_CALLBACK_INJECTED_POSTGRES_CLIENT",
+    "STATUS_OUTBOUND_TENANT_AND_RECIPIENT_HMAC_CORRELATION",
+    "STATUS_REPLAY_AND_MONOTONIC_STATE_CANDIDATE",
+    "OFFLINE_MODEL_FAQ_SOURCE_ONLY_DRAFT_AND_HUMAN_REVIEW",
+    "TENANT_SCOPED_IMMUTABLE_DRAFT_REVIEW",
+    "OIDC_AUTHENTICATED_LOOPBACK_REVIEW_ENDPOINT",
+    "OFFLINE_APPROVAL_IDEMPOTENCY_CONFLICT_CHECKS",
+    "SOURCE_STALENESS_AND_HUMAN_HANDOVER_REVIEW_EXPIRATION",
+    "SIGNED_META_PROVIDER_SENT_TIMESTAMP_RECORDED_OR_NULL_LEGACY",
+    "OFFLINE_OUTBOUND_STAGE_REQUIRES_APPROVAL_AND_ACTIVE_REVIEWER",
+    "OFFLINE_OUTBOUND_STAGE_REQUIRES_SOURCE_MATCH_AND_ACTIVE_TENANT",
+    "OFFLINE_OUTBOUND_STAGE_REQUIRES_ACTIVE_SIGNED_CUSTOMER_SERVICE_SESSION",
+    "OFFLINE_OUTBOUND_STAGE_REQUIRES_SCOPED_CONSENT_EVIDENCE",
+    "OFFLINE_OUTBOUND_STAGE_IS_IDEMPOTENT_FAIL_CLOSED",
+    "OIDC_PRIVATE_STAGE_OFFLINE_ENDPOINT_NO_SEND",
+    "POSTGRES_007_ADDITIVE_RLS_CANDIDATE_UNEXECUTED"
+  ],
+  "foundation_limitations": [
+    "NO_POSTGRES_RUNTIME_OR_RLS_EXECUTION",
+    "NO_REAL_META_WEBHOOK_OR_SEND",
+    "NO_CONVERSATIONAL_MODEL",
+    "NO_KEYCLOAK_OIDC",
+    "NO_MAIL_FABRIC_DELIVERY_AUTHORITY",
+    "NO_PAYMENT_RELEASE_AUTHORITY",
+    "NO_CUSTOMER_OR_PUBLIC_DEPLOYMENT",
+    "NO_HARDENED_PRIVACY_RECONCILIATION",
+    "EXPERIMENTAL_LOCAL_SQLITE_NOT_PRODUCTION",
+    "NO_TRUE_MULTI_PROCESS_LOAD_TEST",
+    "NO_APPROVED_CUSTOMER_DATA",
+    "POSTGRES_004_NATIVE_ROLE_RLS_NOT_EXECUTED",
+    "NO_LIVE_KEYCLOAK_ISSUER",
+    "NO_NATIVE_POSTGRES_STATUS_RECONCILIATION",
+    "NO_REAL_META_STATUS_CALLBACK_QUALIFICATION",
+    "NO_LIVE_MODEL_PROVIDER_TEST",
+    "NO_REAL_OUTBOUND_ATTEMPT_REGISTRATION",
+    "NO_NATIVE_POSTGRES_APPROVAL_006_QUALIFICATION",
+    "NO_PROVIDER_SENDING_OR_CONSENT_EVIDENCE_FOR_REVIEWED_DRAFTS",
+    "NO_NATIVE_POSTGRES_007_QUALIFICATION",
+    "NO_INDEPENDENT_PROOF_OF_REAL_CUSTOMER_OPTIN",
+    "NO_LIVE_META_SESSION_VERIFICATION",
+    "NO_META_SENDER_CREDENTIAL_OR_SEND_ROUTE",
+    "NO_PROVIDER_TEMPLATE_MESSAGE_QUALIFICATION"
+  ],
+  "phase1_development_evidence": {
+    "runtime": "Node.js 22",
+    "test_count": 87,
+    "test_pass": 87,
+    "test_fail": 0,
+    "test_skip": 0,
+    "evidence_file": "docs/phase1/outbound/FULL_VERIFY.log",
+    "evidence_scope": "SYNTHETIC_LOCAL_STAGE_AND_TIMESTAMP_WITH_INJECTED_POSTGRES_CLIENT_NOT_NATIVE_PG"
+  },
+  "current_build": "v0.8.0 private offline-only reviewed-response preparations; no sends; signed-provider timestamp window and stored consent prerequisites"
+}

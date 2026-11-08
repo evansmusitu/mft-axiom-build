@@ -1,0 +1,20 @@
+{
+  "observed_at_utc": "2026-10-15T03:23:05.966552+00:00",
+  "service": "Meta for Developers",
+  "app_name": "MUSITU AI Employee Dev",
+  "app_id": "1096094346481018",
+  "business_portfolio_id": "2069296827284277",
+  "test_phone_number": "+1 (555) 663-7079",
+  "test_phone_number_id": "1292923853915392",
+  "messaging_account_id": "1955690452095441",
+  "access_token_state": "NOT_GENERATED",
+  "recipient_state": "NO_RECIPIENT_SELECTED",
+  "provider_ui_labels_not_acceptance": [
+    "Claim a WhatsApp test number: Completed",
+    "Send a message from your test number: Completed"
+  ],
+  "actual_send_executed": false,
+  "actual_callback_to_saas": false,
+  "note": "The UI completion badge is not delivery evidence. The displayed test number/account may be portfolio-associated; provisioning a newly unique number is not claimed. Nexus app configuration was not changed.",
+  "browser_screenshot": "musitu-meta-test-setup-1792034548124.jpg"
+}

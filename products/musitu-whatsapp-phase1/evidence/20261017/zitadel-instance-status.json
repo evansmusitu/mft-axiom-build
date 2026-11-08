@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-10-17T20:31:47.288129+00:00",
+  "classification": "REAL_PORTAL_AND_PUBLIC_PROVIDER_OBSERVATION",
+  "baseCommit": "3e876411e9c88ca6b7d0de38afa38ca6ee59e5aa",
+  "instance": {
+    "id": "395558180471472294",
+    "name": "musitu-whatsapp-staging",
+    "state": "Running",
+    "region": "EU",
+    "regionApprovedByUser": true,
+    "portalTeam": "MUSITU",
+    "portalPlan": "FREE",
+    "supportAccess": "Disabled",
+    "issuer": "https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud"
+  },
+  "administratorConsole": {
+    "authenticated": false,
+    "secureLoginNameSubmission": "User not found in the system",
+    "submittedIdentifierRetained": false
+  },
+  "qualification": {
+    "publicDiscoveryRetrieved": true,
+    "pinnedDiscoveryContract": "PASS",
+    "localTestsPassed": 256,
+    "localTestsFailed": 0,
+    "mjsSyntaxChecks": 115,
+    "manifestFiles": 353,
+    "realSaasBrowserLogin": false,
+    "realTokenExchange": false,
+    "realIntrospection": false,
+    "realRevocation": false,
+    "nextBuild": "PASS_CLEAN_BUILD",
+    "initialCachedBuild": "FAIL_TURBOPACK_PERSISTENCE_PANIC_RETAINED"
+  },
+  "runtimeChanges": {
+    "applicationClientsCreated": false,
+    "oidcEnvironmentConfigured": false,
+    "saasRedeployed": false,
+    "paidPlanSelected": false,
+    "paymentDetailsAdded": false,
+    "whatsappSends": 0,
+    "productionSystemsModified": false
+  },
+  "phase1Complete": false
+}

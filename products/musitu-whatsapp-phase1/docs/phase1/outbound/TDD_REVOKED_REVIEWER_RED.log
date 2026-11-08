@@ -1,0 +1,57 @@
+TAP version 13
+# Subtest: offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+ok 1 - offline staging requires a current reviewed draft, active signed inbound session and explicit verified consent
+  ---
+  duration_ms: 2.398103
+  type: 'test'
+  ...
+# Subtest: identical reservation replays are idempotent; changed key and reused key conflict
+ok 2 - identical reservation replays are idempotent; changed key and reused key conflict
+  ---
+  duration_ms: 0.773392
+  type: 'test'
+  ...
+# Subtest: revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+not ok 3 - revoked roles, other tenant, changed knowledge, handover, unapproved draft and inactive channel fail closed
+  ---
+  duration_ms: 2.478614
+  type: 'test'
+  location: '/mnt/data/phase1-v08-development/musitu-whatsapp-phase1-v08/test/postgres-outbound-staging.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///mnt/data/phase1-v08-development/musitu-whatsapp-phase1-v08/test/postgres-outbound-staging.test.mjs:77:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: closed service window, missing verified consent, revoked consent and expired consent are blocked
+ok 4 - closed service window, missing verified consent, revoked consent and expired consent are blocked
+  ---
+  duration_ms: 0.65096
+  type: 'test'
+  ...
+# Subtest: invalid ids/keys and storage fault never cause partial staging
+ok 5 - invalid ids/keys and storage fault never cause partial staging
+  ---
+  duration_ms: 0.460757
+  type: 'test'
+  ...
+# Subtest: issuer-pinned private API allows stage-offline but has no outbound send endpoint
+ok 6 - issuer-pinned private API allows stage-offline but has no outbound send endpoint
+  ---
+  duration_ms: 116.502841
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 214.721339

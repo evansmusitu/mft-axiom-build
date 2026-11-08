@@ -1,0 +1,2 @@
+BLOCKED: PG_ISOLATED_QUALIFICATION must equal YES
+BLOCKED: admin URL must be a loopback postgres database, not a production endpoint

@@ -1,0 +1,24 @@
+✔ signed ZITADEL ID token requires explicit well-formed MFA evidence (18.454271ms)
+✔ fresh explicitly signed MFA proof succeeds with either password or hardware factor evidence (2.475509ms)
+✔ signed MFA cannot substitute for missing, stale, malformed or future authentication time (11.140033ms)
+✔ forged MFA proof fails cryptographic verification even with the expected issuer and nonce (42.829656ms)
+✔ existing Keycloak ID-token contract is unchanged by the explicit ZITADEL MFA policy (2.095999ms)
+✔ old or restored access-token-only ZITADEL sessions are rejected before contacting the provider (0.407241ms)
+✔ each ZITADEL session use rechecks signed MFA, nonce, freshness and online revocation (6.070438ms)
+✔ existing Keycloak encrypted session format continues to use online access-token validation (1.33198ms)
+✔ cryptographic JWT verification precedes online introspection; revoked tokens fail on immediate reuse (16.327106ms)
+✔ wrong issuer, audience, client, expiry, signature and algorithm never reach introspection (93.030124ms)
+✔ provider failure after an earlier successful request cannot reuse cached active status (2.853847ms)
+✔ ID token must bind nonce, subject and authorized client to the same login flow (4.830276ms)
+✔ code exchange forwards PKCE to pinned token endpoint and uses web credentials only (0.690447ms)
+✔ unresponsive HTTP or response stream is bounded even if the transport ignores abort (40.446486ms)
+✔ identity transport rejects redirects, unexpected status/type and oversized JSON (0.924579ms)
+✔ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (4.953931ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 326.392082

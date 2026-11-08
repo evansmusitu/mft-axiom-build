@@ -1,0 +1,112 @@
+TAP version 13
+# (node:2677) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+ok 1 - signed inbound FAQ creates an idempotent stage draft with no real outgoing call
+  ---
+  duration_ms: 8.194204
+  type: 'test'
+  ...
+# Subtest: unknown question and non-text inbound hand over without hallucinating responses
+ok 2 - unknown question and non-text inbound hand over without hallucinating responses
+  ---
+  duration_ms: 4.515209
+  type: 'test'
+  ...
+# Subtest: offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+ok 3 - offline pipeline rejects missing authenticated stage actor without altering inbound ledger
+  ---
+  duration_ms: 2.751324
+  type: 'test'
+  ...
+# Subtest: local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+ok 4 - local webhook can stage the full signed inbound-to-draft flow, never Meta-send
+  ---
+  duration_ms: 35.272321
+  type: 'test'
+  ...
+# (node:2678) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Meta webhook is durable through restart and inbound retry does not duplicate
+ok 5 - signed Meta webhook is durable through restart and inbound retry does not duplicate
+  ---
+  duration_ms: 7.581309
+  type: 'test'
+  ...
+# Subtest: tamper, unknown binding and invalid second message fail without partial ingestion
+ok 6 - tamper, unknown binding and invalid second message fail without partial ingestion
+  ---
+  duration_ms: 2.78206
+  type: 'test'
+  ...
+# Subtest: duplicate batch message is idempotent, and revoked phone cannot ingest
+ok 7 - duplicate batch message is idempotent, and revoked phone cannot ingest
+  ---
+  duration_ms: 3.541842
+  type: 'test'
+  ...
+# Subtest: bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+ok 8 - bookings are tenant-scoped, overlapping requests conflict, exact retry is idempotent
+  ---
+  duration_ms: 3.529113
+  type: 'test'
+  ...
+# Subtest: human handover persists, fences offline bot drafts, and other tenant cannot control it
+ok 9 - human handover persists, fences offline bot drafts, and other tenant cannot control it
+  ---
+  duration_ms: 3.527671
+  type: 'test'
+  ...
+# Subtest: approved FAQ lookup is tenant isolated and refuses guesses
+ok 10 - approved FAQ lookup is tenant isolated and refuses guesses
+  ---
+  duration_ms: 2.500594
+  type: 'test'
+  ...
+# Subtest: private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+ok 11 - private localhost HTTP receiver validates challenge and HMAC, never sends outbound messages
+  ---
+  duration_ms: 38.142671
+  type: 'test'
+  ...
+# Subtest: same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+ok 12 - same provider ID cannot be reassigned to a different sender; no hidden extra conversation
+  ---
+  duration_ms: 2.761159
+  type: 'test'
+  ...
+# Subtest: a second SQLite connection observes booked slots and rejected overlap persists after restart
+ok 13 - a second SQLite connection observes booked slots and rejected overlap persists after restart
+  ---
+  duration_ms: 3.760044
+  type: 'test'
+  ...
+# (node:2679) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: booking is audited exactly once and per-tenant audit is durable across restart
+ok 14 - booking is audited exactly once and per-tenant audit is durable across restart
+  ---
+  duration_ms: 7.459188
+  type: 'test'
+  ...
+# Subtest: independent SQLite write cannot silently change logged business action
+ok 15 - independent SQLite write cannot silently change logged business action
+  ---
+  duration_ms: 4.180445
+  type: 'test'
+  ...
+# Subtest: approved-source updates and channel revocation are audited without storing answer contents
+ok 16 - approved-source updates and channel revocation are audited without storing answer contents
+  ---
+  duration_ms: 3.386573
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 174.697723

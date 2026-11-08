@@ -1,0 +1,65 @@
+{
+  "retrievedAt": "2026-10-23T03:30:24.519Z",
+  "sourceCommit": "66ab1ea8e167bdc57c98c05bae38dedfeb333543",
+  "deploymentId": "dpl_3LZ1ECfp6PxquHzZVNCT8XVuNc2S",
+  "buildLogId": "bld_ntu0ewz4h",
+  "qualificationEventAt": "2026-10-22T12:24:22.316Z",
+  "report": {
+    "kind": "NATIVE_PRIVACY_QUALIFICATION",
+    "status": "PASS",
+    "scope": "NATIVE_SYNTHETIC_SINGLE_CONVERSATION_OPERATOR_EXPORT",
+    "passed": 8,
+    "failed": 0,
+    "results": [
+      {
+        "name": "owner_single_conversation_encrypted_export_preserves_protected_records",
+        "status": "PASS"
+      },
+      {
+        "name": "bundle_rejects_tamper_wrong_key_request_and_scope",
+        "status": "PASS"
+      },
+      {
+        "name": "foreign_conversation_tenant_and_owner_denied",
+        "status": "PASS"
+      },
+      {
+        "name": "agent_viewer_and_revoked_owner_denied",
+        "status": "PASS"
+      },
+      {
+        "name": "revocation_during_export_observed_before_release",
+        "status": "PASS"
+      },
+      {
+        "name": "expired_session_callback_denies_bundle_and_pool_recovers",
+        "status": "PASS"
+      },
+      {
+        "name": "corrupt_ledger_rejects_entire_export_without_sensitive_diagnostics",
+        "status": "PASS"
+      },
+      {
+        "name": "oversized_conversation_denied_without_truncation_and_scope_cleared",
+        "status": "PASS"
+      }
+    ],
+    "realIdentityQualified": false,
+    "hostedDataExported": false,
+    "customerDeliveryQualified": false,
+    "deletionQualified": false,
+    "postgresOsUid": 65534,
+    "fixtureCleanupPassed": true,
+    "serverStopped": true,
+    "temporaryFilesRemoved": true
+  },
+  "terminalBuildExitCode": 78,
+  "noPromotionMarker": true,
+  "executedAgainInThisContinuation": false,
+  "combinedReportLineTruncatedByProvider": true,
+  "privacyReportLineComplete": true,
+  "limits": [
+    "Synthetic fixtures with simulated session callbacks only.",
+    "No hosted export, customer delivery, deletion or genuine owner identity qualification."
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "observedAt": "2026-10-20T05:54:17.076Z",
+  "scope": "ACTUAL_ADMINISTRATOR_CONSOLE_READ_QA_DIAGNOSIS_NOT_STAFF_SAAS_ACCEPTANCE",
+  "user": {
+    "id": "395706056631686016",
+    "preferredLoginName": "musitu-phase1-staff-qa",
+    "displayName": "MUSITU Phase1 QA Staff",
+    "status": "Active",
+    "emailVerified": true
+  },
+  "providerDisplayedActivity": {
+    "date": "19 Oct 2026",
+    "timezone": "NOT_STATED_IN_RENDERED_ACTIVITY",
+    "events": [
+      {
+        "name": "Password check failed",
+        "displayTime": "12:20",
+        "occurrences": 6
+      },
+      {
+        "name": "Multifactor OTP check succeeded",
+        "displayTime": "12:00"
+      },
+      {
+        "name": "Password check succeeded",
+        "displayTime": "11:58"
+      },
+      {
+        "name": "Multifactor OTP verified",
+        "displayTime": "11:33"
+      }
+    ]
+  },
+  "interpretation": "Provider activity confirms historical password-check rejections. It does not prove current password, lockout cause, or an underlying browser defect.",
+  "freshSaasAttempt": {
+    "stage": "LOGINNAME",
+    "secureRequestStatus": "submitted",
+    "visibleResult": "User not found in the system",
+    "enteredLoginName": "REDACTED_NOT_INSPECTED",
+    "passwordSubmitted": false,
+    "staffSaasSessionVerified": false
+  },
+  "unchanged": {
+    "password": true,
+    "authenticator": true,
+    "mfaPolicy": true,
+    "memberships": true
+  },
+  "staffAcceptance": false,
+  "phase1Complete": false
+}

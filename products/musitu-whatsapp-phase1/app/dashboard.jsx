@@ -1,0 +1,140 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {createScopeFence} from '../src/dashboard/scope-fence.mjs';
+import {endBusinessSession} from '../src/dashboard/logout.mjs';
+import {loadBookingView} from '../src/dashboard/booking-view.mjs';
+import DevelopmentReply from './development-reply.jsx';
+import PrivacyReview from './privacy-review.jsx';
+import AiResumption from './ai-resumption.jsx';
+import {publicAiResumptionFailure} from '../src/staging/ai-resumption.mjs';
+import {businessIdentifier,businessSignInPath} from '../src/shared/business-navigation.mjs';
+import {readBusinessSession} from '../src/dashboard/session-status.mjs';
+import {assessAiDraftReadiness} from '../src/dashboard/ai-draft-readiness.mjs';
+const sections=['Overview','Onboarding','Configuration','Conversations','Bookings','Knowledge','Approvals','Channels','Team access','Audit','Operational status'];
+const aiReadinessNotice={UNAVAILABLE:'AI request history is unavailable. Do not request a suggestion.',INCOMPLETE:'AI request history is incomplete. Do not request a suggestion.',UNCERTAIN:'An AI request is RESERVED or UNKNOWN. Investigate it before requesting another suggestion.',ALREADY_REQUESTED:'An AI request already exists for this message. Review its result instead of requesting another suggestion.'};
+export default function Dashboard(){
+ const fence=useRef(null);fence.current??=createScopeFence();
+ const sessionCheck=useRef(0);
+ const aiRequestInFlight=useRef(false),aiAttempted=useRef(new Set());
+ const [conversation,setConversation]=useState(null);
+ const [aiDraftState,setAiDraftState]=useState(null),[aiDraftNotice,setAiDraftNotice]=useState('');
+ const [aiEnabled,setAiEnabled]=useState(null),[savedAiEnabled,setSavedAiEnabled]=useState(null);
+ const [resources,setResources]=useState([]),[selectedResource,setSelectedResource]=useState('');
+ const [section,setSection]=useState('Overview'),[tenant,setTenant]=useState(''),[status,setStatus]=useState(null),[records,setRecords]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const [signedIn,setSignedIn]=useState(undefined);
+ useEffect(()=>()=>fence.current.invalidate(),[]);
+ useEffect(()=>{const requested=businessIdentifier(new URLSearchParams(window.location.search).get('business'));if(requested){setTenant(requested);setSection('Conversations');}},[]);
+ useEffect(()=>{let active=true;const refresh=()=>{const ticket=++sessionCheck.current;return readBusinessSession().then(value=>{if(active&&sessionCheck.current===ticket)setSignedIn(value);});};void refresh();window.addEventListener('focus',refresh);return()=>{active=false;window.removeEventListener('focus',refresh);};},[]);
+ function clearView(){fence.current.invalidate();setRecords(null);setConversation(null);setAiDraftState(null);setAiDraftNotice('');setAiEnabled(null);setSavedAiEnabled(null);setResources([]);setSelectedResource('');setError('');setBusy(false);}
+ async function signOut(event){event.preventDefault();clearView();sessionCheck.current++;setSignedIn(null);setBusy(true);try{await endBusinessSession();}catch{setError('Sign out is unavailable.');setBusy(false);}}
+ useEffect(()=>{fetch('/api/status',{cache:'no-store'}).then(r=>r.json()).then(setStatus).catch(()=>setError('Status is unavailable'));},[]);
+ const kinds={'Configuration':'configuration','Overview':'metrics','Conversations':'conversations','Bookings':'bookings','Knowledge':'knowledge','Approvals':'drafts','Channels':'channels','Team access':'staff','Audit':'audit'};
+ async function load(selected=section){
+  const ticket=fence.current.begin();setBusy(true);setError('');setRecords(null);setConversation(null);setAiDraftState(null);setAiDraftNotice('');setAiEnabled(null);setSavedAiEnabled(null);setResources([]);setSelectedResource('');
+  try{if(selected==='Bookings'){
+    const data=await loadBookingView(tenant);if(!fence.current.current(ticket))return;
+    setRecords(data.bookings);setResources(data.resources);return;
+   }
+   const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${kinds[selected]}`,{cache:'no-store'});
+   if(!fence.current.current(ticket))return;
+   if(!r.ok){
+    if(r.status===403){const session=await readBusinessSession();if(!fence.current.current(ticket))return;setSignedIn(session);throw Error(session===true?'This account does not have access to the selected business.':session===false?'Your business session is unavailable or expired. Sign in again.':'Sign-in status is unavailable. Try checking again.');}
+    throw Error('The business service is unavailable.');
+   }
+   const data=await r.json();if(!fence.current.current(ticket))return;
+   if(data.tenantId!==tenant)throw Error('Business response rejected');
+   if(selected==='Configuration'){
+    const enabled=data.data?.[0]?.aiEnabled;
+    if(data.data?.length!==1||typeof enabled!=='boolean')throw Error('Saved AI permission is unavailable.');
+    setAiEnabled(enabled);setSavedAiEnabled(enabled);
+   }
+   setSignedIn(true);setRecords(data.data);
+  }catch(e){if(fence.current.current(ticket)){setRecords(null);setConversation(null);setAiDraftState(null);setAiEnabled(null);setSavedAiEnabled(null);setResources([]);setSelectedResource('');setError(e.message);}}
+  finally{if(fence.current.current(ticket))setBusy(false);}
+ }
+ async function action(path,body){
+  const ticket=fence.current.begin();setBusy(true);setError('');
+  try{const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/${path}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+   if(!fence.current.current(ticket))return;
+   if(!r.ok){if(r.status===403){setRecords(null);setConversation(null);setResources([]);setSelectedResource('');}if(path.endsWith('/resume-ai')){const failure=await r.json().catch(()=>null);throw Error(publicAiResumptionFailure({message:failure?.error}).body.message);}throw Error(r.status===409?'This action conflicts with an existing record.':'Action denied or unavailable.');}
+   const data=await r.json();if(!fence.current.current(ticket))return;
+   if(data.tenantId!==tenant)throw Error('Business response rejected');await load();
+  }catch(e){if(fence.current.current(ticket))setError(e.message);}
+  finally{if(fence.current.current(ticket))setBusy(false);}
+ }
+ async function readAiDraftState(id){
+  const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/conversations/${encodeURIComponent(id)}/ai-draft-state`,{cache:'no-store'});
+  if(!r.ok)throw Error(aiReadinessNotice.UNAVAILABLE);
+  const data=await r.json();
+  if(data.tenantId!==tenant||assessAiDraftReadiness(data.data,{phoneNumberId:'preflight',messageId:'preflight'})==='UNAVAILABLE')throw Error(aiReadinessNotice.UNAVAILABLE);
+  return data.data;
+ }
+ async function readConversation(id){
+  const ticket=fence.current.begin();setBusy(true);setError('');setConversation(null);setAiDraftState(null);setAiDraftNotice('');
+  try{const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/messages`,{cache:'no-store'});
+   if(!fence.current.current(ticket))return;
+   if(!r.ok){if(r.status===403)setRecords(null);throw Error('Message access denied');}
+   const data=await r.json();if(!fence.current.current(ticket))return;
+   if(data.tenantId!==tenant)throw Error('Business response rejected');
+   setConversation({id,messages:data.data.filter(m=>m.conversationId===id)});
+   try{const state=await readAiDraftState(id);if(fence.current.current(ticket))setAiDraftState(state);}
+   catch{if(fence.current.current(ticket))setError(aiReadinessNotice.UNAVAILABLE);}
+  }catch(e){if(fence.current.current(ticket))setError(e.message);}
+  finally{if(fence.current.current(ticket))setBusy(false);}
+ }
+ async function suggestApprovedAnswer(message){
+  if(aiRequestInFlight.current)return;
+  const key=JSON.stringify([tenant,message.phoneNumberId,message.messageId]);
+  if(aiAttempted.current.has(key)){setError('This suggestion was already attempted in this session. Check its recorded result.');return;}
+  aiRequestInFlight.current=true;
+  const ticket=fence.current.begin();let submitted=false;
+  setBusy(true);setError('');setAiDraftNotice('');setAiDraftState(null);
+  try{
+   const state=await readAiDraftState(conversation.id);
+   if(!fence.current.current(ticket))return;
+   setAiDraftState(state);
+   const readiness=assessAiDraftReadiness(state,message);
+   if(readiness!=='READY')throw Error(aiReadinessNotice[readiness]);
+   aiAttempted.current.add(key);submitted=true;
+   const r=await fetch(`/api/tenants/${encodeURIComponent(tenant)}/conversations/${encodeURIComponent(conversation.id)}/ai-draft`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phoneNumberId:message.phoneNumberId,messageId:message.messageId})});
+   if(!fence.current.current(ticket))return;
+   if(!r.ok)throw Error('Suggestion outcome is not confirmed. Check AI request history before any further action.');
+   const data=await r.json();if(!fence.current.current(ticket))return;
+   if(data.tenantId!==tenant)throw Error('Suggestion response rejected. Check AI request history before any further action.');
+   setAiDraftNotice(data.data?.status==='DRAFT'?'A draft is ready in Approvals. Review its answer before approval.':data.data?.status==='HANDOVER_REQUIRED'?'The request needs human handling. Review AI usage and the conversation.':'An AI request already exists. Review its recorded result.');
+   try{const current=await readAiDraftState(conversation.id);if(fence.current.current(ticket))setAiDraftState(current);}
+   catch{if(fence.current.current(ticket)){setAiDraftState(null);setError('AI request readback is unavailable. Do not request another suggestion.');}}
+  }catch(e){if(fence.current.current(ticket)){setError(submitted?'Suggestion outcome is not confirmed. Check AI request history before any further action.':e.message);if(submitted)setAiDraftState(null);}}
+  finally{aiRequestInFlight.current=false;if(fence.current.current(ticket))setBusy(false);}
+ }
+ async function onboard(event){
+  event.preventDefault();const ticket=fence.current.begin();setBusy(true);setError('');setRecords(null);setConversation(null);
+  const f=new FormData(event.currentTarget);
+  try{const r=await fetch('/api/onboard',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({legalName:f.get('name')})});
+   if(!fence.current.current(ticket))return;
+   if(!r.ok)throw Error('Business onboarding is unavailable or denied');
+   const data=await r.json();if(!fence.current.current(ticket))return;
+   clearView();setTenant(data.tenantId);setSection('Configuration');
+  }catch(e){if(fence.current.current(ticket))setError(e.message);}
+  finally{if(fence.current.current(ticket))setBusy(false);}
+ }
+ return <div className="shell"><aside className="sidebar"><div className="brand"><span className="brandmark">M</span><span>MUSITU <small>WhatsApp AI Employee</small></span></div><nav aria-label="Main navigation">{sections.map(s=><button key={s} className={section===s?'active':'nav-btn'} onClick={()=>{clearView();setSection(s);}}>{s}</button>)}</nav><div className="sidebar-footer">Private staging<p>Customer messaging disabled</p></div></aside>
+ <main className="content"><header><div><div className="eyebrow">BUSINESS OPERATIONS</div><h1>Your business, <em>in control.</em></h1><p className="subtitle">Approved knowledge, reliable appointments and accountable human service.</p></div><span className="badge">PRIVATE DEVELOPMENT</span></header>
+ <section className="connect"><div><h2>Secure business access</h2><p role="status">{!status?.identityConfigured?'Business sign-in is awaiting identity-provider configuration.':signedIn===true?'Signed in. Open your business to continue.':signedIn===false?'You are signed out. Sign in with your business identity.':signedIn===undefined?'Checking your business sign-in status…':'Business sign-in status is unavailable. Use Sign in to continue.'}</p></div><a className="login-btn" href={businessSignInPath(tenant)}>{signedIn===true?'Sign in again':'Sign in'}</a><form action="/auth/logout" method="post" onSubmit={signOut}><button type="submit" disabled={busy||signedIn===false}>Sign out</button></form><form onSubmit={e=>{e.preventDefault();load();}}><label>Business identifier<input aria-label="Business identifier" value={tenant} onChange={e=>{clearView();setTenant(e.target.value);}} placeholder="Business UUID" autoComplete="off" required/></label><button type="submit" disabled={busy||!tenant||!status?.identityConfigured}>Open business</button></form></section>
+ {error&&<p role="alert" className="panel">{error}</p>}
+ <section className="panel"><div className="panel-title"><div><span className="eyebrow">MUSITU EMPLOYEE</span><h2>{section}</h2></div>{kinds[section]&&<button disabled={busy||!tenant||!status?.identityConfigured} onClick={()=>load()}>Refresh</button>}</div>
+ {busy&&<p role="status">Loading business records…</p>}
+ {section==='Onboarding'?<form className="quick-book" onSubmit={onboard}><label>Legal business name<input name="name" required maxLength={200}/></label><button disabled={busy||!status?.identityConfigured}>Create private business</button></form>:section==='Operational status'?<div className="list">{Object.entries(status||{}).map(([k,v])=><div className="item" key={k}>{k}: {String(v)}</div>)}</div>:!records?<p>Sign in and open your business to see its records.</p>:section==='Overview'?<div className="cards">{[['Inquiries',records.inquiries],['Bookings',records.bookings],['Human handover',records.humanConversations],['Verified revenue','Unavailable']].map(([k,v])=><article key={k}><span>{k}</span><strong>{v}</strong></article>)}</div>:<div className="list">{records.length===0?<p>No records yet.</p>:records.map((r,i)=><article className="item" key={r.conversationId||r.bookingId||r.draftId||r.memberId||r.auditId||r.faq_id||i}>
+ {section==='Conversations'?<><strong>{r.conversationId}</strong><button disabled={busy} onClick={()=>readConversation(r.conversationId)}>Read conversation</button><p>{r.mode} {r.suppressed?'· opted out':''}</p>{r.mode==='HUMAN'&&<AiResumption conversationId={r.conversationId} optedOut={r.suppressed} disabled={busy} onResume={id=>action(`conversations/${id}/resume-ai`,{confirmReviewOnly:true})}/>}<button disabled={busy||r.mode==='HUMAN'} onClick={()=>action(`conversations/${r.conversationId}/handover`,{})}>Hand over</button><button disabled={busy||r.suppressed} onClick={()=>action(`conversations/${r.conversationId}/suppress`,{reason:'CUSTOMER_REQUEST'})}>Record customer opt-out</button></>:section==='Approvals'?<><strong>{r.status}</strong><p>{r.body}</p><small>Approved source: {r.sourceId}</small><button disabled={busy||r.status!=='DRAFT'} onClick={()=>action(`drafts/${r.draftId}/approve`,{approvalKey:crypto.randomUUID()})}>Approve response</button></>:section==='Configuration'?<><strong>{r.timezone}</strong><p>{r.business_description}</p><small>Configuration revision {r.revision}</small></>:section==='Knowledge'?<><strong>{r.normalized_question}</strong><p>{r.answer}</p></>:section==='Team access'?<><strong>{r.memberId}</strong><p>{r.role} · {r.status}</p><button disabled={busy||r.role==='OWNER'||r.status!=='ACTIVE'} onClick={()=>action(`staff/${encodeURIComponent(r.memberId)}/revoke`,{})}>Revoke access</button></>:section==='Bookings'?<><strong>{r.resourceId}</strong><p>{r.startAt} — {r.endAt}</p><small>{r.status}</small></>:section==='Audit'?<p>{r.recordedAt} · {r.action} · {r.referenceId}</p>:<p>{r.phone_number_id} · {r.status}</p>}
+ </article>)}</div>}
+ {section==='Conversations'&&conversation&&<section aria-label="Conversation messages" className="panel"><h3>Conversation {conversation.id}</h3><button onClick={()=>{setConversation(null);setAiDraftState(null);setAiDraftNotice('');}}>Close messages</button>{aiDraftState?.blocked&&<p role="status">AI request state {aiDraftState.blockerStates.join(' or ')} requires investigation. Suggestions are paused.</p>}{aiDraftState?.incomplete&&<p role="status">AI request history is incomplete. Suggestions are paused.</p>}{aiDraftNotice&&<p role="status">{aiDraftNotice}</p>}{conversation.messages.length===0?<p>No retained message content.</p>:conversation.messages.map(m=>{const readiness=assessAiDraftReadiness(aiDraftState,m);return <article key={m.messageId}><p>{m.body}</p><button disabled={busy||readiness!=='READY'||aiAttempted.current.has(JSON.stringify([tenant,m.phoneNumberId,m.messageId]))} onClick={()=>suggestApprovedAnswer(m)}>Suggest approved answer</button><small>{readiness==='READY'?'Every suggestion needs human approval.':aiReadinessNotice[readiness]}</small></article>;})}</section>}
+ {section==='Conversations'&&conversation&&tenant==='986eb904-7296-46a9-9e9b-94074db9b547'&&conversation.messages.length>0&&<DevelopmentReply key={`${tenant}:${conversation.id}`} tenant={tenant} conversationId={conversation.id} messageId={conversation.messages[0].messageId}/>}
+ {section==='Conversations'&&conversation&&tenant==='986eb904-7296-46a9-9e9b-94074db9b547'&&status?.privacyReviewEnabled&&<PrivacyReview key={`privacy:${tenant}:${conversation.id}`} tenant={tenant} conversationId={conversation.id}/>}
+ {section==='Configuration'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('configuration',{timezone:f.get('timezone'),description:f.get('description')});}}><label>Business timezone<input name="timezone" defaultValue="Africa/Harare" required/></label><label>Business description<input name="description" required maxLength={2000}/></label><button disabled={busy||!status?.identityConfigured}>Save approved configuration</button></form>}
+ {section==='Configuration'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();if(aiEnabled!==null&&savedAiEnabled!==null)action('ai-policy',{enabled:aiEnabled});}}><label><input type="checkbox" name="enabled" checked={aiEnabled===true} onChange={e=>setAiEnabled(e.target.checked)} disabled={busy||savedAiEnabled===null}/> Allow staff to request AI draft assistance</label><p>{savedAiEnabled===null?'Open your business to load saved AI permission.':`Saved AI permission: ${savedAiEnabled?'ON':'OFF'}.`} Groq processes the selected customer question and approved knowledge questions. Business answers remain in MUSITU. Every draft requires human approval.</p><button disabled={busy||!status?.identityConfigured||savedAiEnabled===null||aiEnabled===savedAiEnabled}>Save AI permission</button></form>}
+ {section==='Knowledge'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('knowledge',{question:f.get('question'),answer:f.get('answer'),approved:f.get('approved')==='on'});}}><label>Customer question<input name="question" required maxLength={1000}/></label><label>Approved answer<input name="answer" required maxLength={4000}/></label><label><input type="checkbox" name="approved" required/> I approve this business fact</label><button disabled={busy||!status?.identityConfigured}>Publish approved source</button></form>}
+ {section==='Team access'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('staff',{memberId:f.get('member'),role:f.get('role')});}}><label>Verified employee identity ID<input name="member" required maxLength={192}/></label><label>Role<select name="role"><option>AGENT</option><option>VIEWER</option><option>ADMIN</option></select></label><button disabled={busy||!status?.identityConfigured}>Grant business membership</button></form>}
+ {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('resources',{label:f.get('label')});}}><label>New appointment resource<input name="label" required maxLength={200}/></label><button disabled={busy||!records||!status?.identityConfigured}>Create resource</button></form>}
+ {section==='Bookings'&&<form className="quick-book" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);action('bookings',{resourceId:f.get('resource'),startAt:new Date(f.get('start')).toISOString(),endAt:new Date(f.get('end')).toISOString(),effectKey:crypto.randomUUID()});}}><label>Appointment resource<select name="resource" value={selectedResource} onChange={e=>setSelectedResource(e.target.value)} disabled={busy||!records||resources.length===0} required><option value="">{resources.length?'Choose a resource':'Open your business and create a resource'}</option>{resources.map(r=><option key={r.resource_id} value={r.resource_id}>{r.label}</option>)}</select></label><label>Start<input name="start" type="datetime-local" required/></label><label>End<input name="end" type="datetime-local" required/></label><button disabled={busy||!selectedResource||!records||!status?.identityConfigured}>Reserve appointment</button></form>}
+ </section><footer>© MUSITU · Private qualification · Phase 1 acceptance remains open</footer></main></div>;
+}

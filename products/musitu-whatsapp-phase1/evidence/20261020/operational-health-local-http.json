@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-10-20T05:32:37.522Z",
+  "scope": "BUILT_NEXT_REAL_LOOPBACK_HTTP_WITHOUT_DATABASE_NOT_HOSTED_ACCEPTANCE",
+  "httpStatus": 503,
+  "body": {
+    "status": "UNHEALTHY_PRIVATE_STAGING",
+    "phase1Complete": false,
+    "publicMessaging": false
+  },
+  "cacheControl": "private, no-store",
+  "referrerPolicy": "no-referrer"
+}

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: every acquired connection must be checked before application SQL
+ok 1 - every acquired connection must be checked before application SQL
+  ---
+  duration_ms: 1.938681
+  type: 'test'
+  ...
+# Subtest: a privileged or changed role on a later lease is never returned to the repository
+ok 2 - a privileged or changed role on a later lease is never returned to the repository
+  ---
+  duration_ms: 0.694743
+  type: 'test'
+  ...
+# Subtest: same expected role with BYPASSRLS or superuser privilege is denied
+ok 3 - same expected role with BYPASSRLS or superuser privilege is denied
+  ---
+  duration_ms: 0.505689
+  type: 'test'
+  ...
+# Subtest: query errors quarantine and release untrusted connections
+ok 4 - query errors quarantine and release untrusted connections
+  ---
+  duration_ms: 0.267522
+  type: 'test'
+  ...
+# Subtest: constructor rejects absent role or pool before acquiring a client
+ok 5 - constructor rejects absent role or pool before acquiring a client
+  ---
+  duration_ms: 0.169124
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.008537

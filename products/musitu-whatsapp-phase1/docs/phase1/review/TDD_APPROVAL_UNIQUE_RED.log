@@ -1,0 +1,92 @@
+TAP version 13
+# Subtest: a member can approve an exact, current source-grounded draft, with no sending or external action
+ok 1 - a member can approve an exact, current source-grounded draft, with no sending or external action
+  ---
+  duration_ms: 2.365425
+  type: 'test'
+  ...
+# Subtest: same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+ok 2 - same actor, source and approval key are idempotent; conflicting reviewer or key rejected
+  ---
+  duration_ms: 0.725371
+  type: 'test'
+  ...
+# Subtest: viewer and revoked membership cannot approve and no insert runs
+ok 3 - viewer and revoked membership cannot approve and no insert runs
+  ---
+  duration_ms: 0.278815
+  type: 'test'
+  ...
+# Subtest: missing, stale, changed-source or handed-over drafts require renewed review
+ok 4 - missing, stale, changed-source or handed-over drafts require renewed review
+  ---
+  duration_ms: 0.573254
+  type: 'test'
+  ...
+# Subtest: invalid IDs and keys are rejected before database access; cross-tenant draft never found
+ok 5 - invalid IDs and keys are rejected before database access; cross-tenant draft never found
+  ---
+  duration_ms: 0.420517
+  type: 'test'
+  ...
+# Subtest: database failure rolls back, and connection cannot commit partial approval
+ok 6 - database failure rolls back, and connection cannot commit partial approval
+  ---
+  duration_ms: 0.325074
+  type: 'test'
+  ...
+# Subtest: authenticated private review endpoint persists only offline approval and requires exact JSON body
+ok 7 - authenticated private review endpoint persists only offline approval and requires exact JSON body
+  ---
+  duration_ms: 47.254583
+  type: 'test'
+  ...
+# Subtest: draft listing reflects immutable offline approval without claiming WhatsApp delivery
+ok 8 - draft listing reflects immutable offline approval without claiming WhatsApp delivery
+  ---
+  duration_ms: 0.65759
+  type: 'test'
+  ...
+# Subtest: a reused approval key for a different draft is a conflict, not a generic server crash
+not ok 9 - a reused approval key for a different draft is a conflict, not a generic server crash
+  ---
+  duration_ms: 0.935814
+  type: 'test'
+  location: '/mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:143:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /APPROVAL_CONFLICT/. Input:
+    
+    'Error: unique violation'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'unique violation'
+  stack: |-
+    Object.query (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:26:38)
+    file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/src/postgres/tenant-repository.mjs:121:32
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async #authorized (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/src/postgres/tenant-repository.mjs:58:16)
+    async waitForActual (node:assert:566:5)
+    async Function.rejects (node:assert:687:25)
+    async TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:145:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (file:///mnt/data/working-phase1/musitu-whatsapp-phase1-v07/test/postgres-draft-approval.test.mjs:145:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 436.13532

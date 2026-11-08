@@ -1,0 +1,21 @@
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.7.0 release:gate
+> node scripts/phase1-release-gate.mjs
+
+{
+  "status": "PHASE1_RELEASE_BLOCKED",
+  "environment": "isolated-local-private-stage",
+  "blocked": [
+    "native_postgresql_17_migrations_rls_concurrency_recovery",
+    "live_keycloak_oidc_and_membership_mfa",
+    "authorized_meta_development_account_end_to_end",
+    "approved_outbound_provider_delivery_reconciliation",
+    "real_ai_model_qualified_quality_cost_privacy",
+    "axiom_application_service_identity_and_gateway",
+    "nextjs_customer_dashboard_prod_build",
+    "chatwoot_human_inbox_prod_integration",
+    "monitoring_alerting_backup_restore",
+    "independent_security_privacy_and_commercial_approval",
+    "customer_consent_optout_external_requests_and_complaints"
+  ]
+}

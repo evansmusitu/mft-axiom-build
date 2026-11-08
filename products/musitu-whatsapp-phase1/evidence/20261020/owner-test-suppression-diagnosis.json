@@ -1,0 +1,22 @@
+{
+  "scope": "READ_ONLY_OWNER_TEST_SUPPRESSION_DIAGNOSIS",
+  "observedAt": "2026-10-20T14:09:05.368Z",
+  "inboundEvents": 2,
+  "outboundAttempts": 0,
+  "consentRecords": 0,
+  "statusEvents": 0,
+  "handlingMode": "HUMAN",
+  "latestInboundReceivedAt": "2026-10-20T10:05:07.712Z",
+  "sourceRetained": true,
+  "sessionWindowOpen": true,
+  "suppressed": true,
+  "suppressionSource": "STAFF_ATTESTATION",
+  "suppressionRecordedAt": "2026-10-20T10:12:18.793Z",
+  "liveRequestErrorUnobserved": true,
+  "confirmedAdmissionBlocker": "CUSTOMER_OPT_OUT",
+  "restorationPreparedOnly": true,
+  "explicitRenewedConsentPending": true,
+  "suppressionChanged": false,
+  "providerSendAttempted": false,
+  "phase1Complete": false
+}

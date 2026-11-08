@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: snapshot starts a transaction, pins transaction-local tenant, authorizes active membership and commits before releasing
+ok 1 - snapshot starts a transaction, pins transaction-local tenant, authorizes active membership and commits before releasing
+  ---
+  duration_ms: 2.198668
+  type: 'test'
+  ...
+# Subtest: missing or revoked membership fails closed, always rolls back and releases
+ok 2 - missing or revoked membership fails closed, always rolls back and releases
+  ---
+  duration_ms: 0.635775
+  type: 'test'
+  ...
+# Subtest: rejects malformed tenant ID and actor ID before acquiring a connection
+ok 3 - rejects malformed tenant ID and actor ID before acquiring a connection
+  ---
+  duration_ms: 0.226258
+  type: 'test'
+  ...
+# Subtest: query failure rolls back; the next pooled request must set its own distinct context
+ok 4 - query failure rolls back; the next pooled request must set its own distinct context
+  ---
+  duration_ms: 0.464654
+  type: 'test'
+  ...
+# Subtest: viewer may inspect metrics but cannot list drafts or reserve a booking
+ok 5 - viewer may inspect metrics but cannot list drafts or reserve a booking
+  ---
+  duration_ms: 1.088965
+  type: 'test'
+  ...
+# Subtest: draft rows are isolated to requested tenant and do not claim delivery
+ok 6 - draft rows are isolated to requested tenant and do not claim delivery
+  ---
+  duration_ms: 1.540229
+  type: 'test'
+  ...
+# Subtest: booking creation uses a parameterized tenant + resource key, preserving half-open time ranges
+ok 7 - booking creation uses a parameterized tenant + resource key, preserving half-open time ranges
+  ---
+  duration_ms: 1.328075
+  type: 'test'
+  ...
+# Subtest: identical effect-key replay returns the existing booking, but mutated request is rejected
+ok 8 - identical effect-key replay returns the existing booking, but mutated request is rejected
+  ---
+  duration_ms: 0.777204
+  type: 'test'
+  ...
+# Subtest: Postgres exclusion errors are surfaced as SLOT_UNAVAILABLE with rollback; other SQL faults are not hidden
+ok 9 - Postgres exclusion errors are surfaced as SLOT_UNAVAILABLE with rollback; other SQL faults are not hidden
+  ---
+  duration_ms: 0.950034
+  type: 'test'
+  ...
+# Subtest: invalid booking interval is rejected before any DB connection
+ok 10 - invalid booking interval is rejected before any DB connection
+  ---
+  duration_ms: 0.834134
+  type: 'test'
+  ...
+# Subtest: failed rollback discards leased connection once rather than releasing it twice
+ok 11 - failed rollback discards leased connection once rather than releasing it twice
+  ---
+  duration_ms: 0.335803
+  type: 'test'
+  ...
+# Subtest: private HTTP control surface awaits asynchronous Postgres store results
+ok 12 - private HTTP control surface awaits asynchronous Postgres store results
+  ---
+  duration_ms: 364.640569
+  type: 'test'
+  ...
+# Subtest: malformed pooled client is discarded rather than leaked
+ok 13 - malformed pooled client is discarded rather than leaked
+  ---
+  duration_ms: 0.256964
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 501.29486

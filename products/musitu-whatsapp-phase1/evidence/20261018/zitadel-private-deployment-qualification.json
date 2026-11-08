@@ -1,0 +1,343 @@
+{
+  "deployment": {
+    "id": "dpl_AU8vyDAkaDU47cUnctgTuL9ao9Az",
+    "name": "musitu-whatsapp-phase1-private-20261014",
+    "url": "musitu-whatsapp-phase1-private-20261014-793ibnkc6-evansmusitu.vercel.app",
+    "type": "LAMBDAS",
+    "state": "READY",
+    "createdAt": 1792330622117,
+    "creator": {
+      "uid": "28fJc3gJCfQ093CSgWKom7pP",
+      "username": "evansmusitu"
+    },
+    "project": {
+      "id": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+      "name": "musitu-whatsapp-phase1-private-20261014",
+      "framework": "nextjs"
+    },
+    "meta": {
+      "githubCommitRef": "bf0e713890766832321181a05d5d54b2b165ac40",
+      "githubCommitSha": "bf0e713890766832321181a05d5d54b2b165ac40",
+      "githubCommitMessage": "Require signed ZITADEL MFA proof for login and existing sessions\n\nRequest bounded authentication freshness, validate signed ID-token MFA/time claims, and retain encrypted proof for every protected session use. Reject legacy access-token-only sessions. Preserve Keycloak behavior and record local c...",
+      "githubRepo": "mft-axiom-build",
+      "githubOrg": "evansmusitu"
+    },
+    "alias": [
+      "musitu-whatsapp-phase1-private-20261014-evansmusitu.vercel.app",
+      "musitu-whatsapp-phase1-private-20261014-git-a0c086-evansmusitu.vercel.app"
+    ],
+    "target": "staging",
+    "regions": [
+      "iad1"
+    ],
+    "buildingAt": 1792330623501,
+    "ready": 1792330647588,
+    "readyState": "READY",
+    "aliasError": null
+  },
+  "protection": {
+    "projectId": "prj_aPCqK8Pt9ZFAKBgkGhRbT4nLZ3CV",
+    "ssoProtection": {
+      "enabled": true,
+      "deploymentType": "all"
+    },
+    "live": false,
+    "nodeVersion": "24.x"
+  },
+  "secrets": [
+    {
+      "key": "OIDC_INTROSPECTION_CLIENT_SECRET",
+      "type": "sensitive",
+      "target": [
+        "preview"
+      ],
+      "updatedAt": 1792330480203
+    },
+    {
+      "key": "OIDC_CLIENT_SECRET",
+      "type": "sensitive",
+      "target": [
+        "preview"
+      ],
+      "updatedAt": 1792330403673
+    }
+  ],
+  "actualPostgres": {
+    "runId": "07ad1aba-1846-43f9-bef9-610c7a3115b7",
+    "timestamp": "2026-10-18T13:37:18.559Z",
+    "scope": "REAL_POSTGRES_SYNTHETIC_MESSAGES_NO_META_NO_IDP",
+    "passed": 26,
+    "failed": 0,
+    "results": [
+      {
+        "name": "direct_login_nonowner_nobypass",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_rls_policies",
+        "status": "PASS",
+        "detail": {
+          "role": "musitu_runtime",
+          "tablesChecked": 21,
+          "policiesChecked": 21,
+          "qualified": true
+        }
+      },
+      {
+        "name": "runtime_grant_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "tablesChecked": 15,
+          "insertTablesChecked": 4,
+          "mode": "EFFECTIVE_PRIVILEGES"
+        }
+      },
+      {
+        "name": "extension_and_identity_privilege_ceiling",
+        "status": "PASS",
+        "detail": {
+          "qualified": true,
+          "extensionReadOnlyTables": 6,
+          "opaqueSessionRls": true,
+          "temporaryDatabaseObjectsDenied": true
+        }
+      },
+      {
+        "name": "cross_tenant_membership_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "all_tables_context_isolation",
+        "status": "PASS",
+        "detail": {
+          "tables": 21,
+          "scopes": 3
+        }
+      },
+      {
+        "name": "invalid_context_fails_closed",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "changed_context_and_rollback",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "cross_tenant_write_denial",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "direct_membership_update_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "synthetic_signed_ingress_into_real_pg",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "receipts": [
+            {
+              "tenantId": "00000000-0000-4000-8000-00000000000a",
+              "phoneNumberId": "PHONE_A",
+              "providerMessageId": "wamid.07ad1aba-1846-43f9-bef9-610c7a3115b7",
+              "conversationId": "63670ae0-9e9c-47a2-983a-275aa3c6f23f",
+              "status": "ACCEPTED",
+              "draftStatus": "DRAFT"
+            }
+          ]
+        }
+      },
+      {
+        "name": "encrypted_message_and_contact_ledger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "second_business_message_ledger_isolation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "private_session_scope_and_logout_revocation",
+        "status": "PASS",
+        "detail": {
+          "scope": "SESSION_DATABASE_NOT_LIVE_KEYCLOAK"
+        }
+      },
+      {
+        "name": "business_configuration_and_approved_knowledge",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "staff_enrollment_and_immediate_revocation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "signed_status_reconciliation_real_pg_synthetic_only",
+        "status": "PASS",
+        "detail": {
+          "eventSource": "SYNTHETIC_NOT_META",
+          "monotonicState": "DELIVERED"
+        }
+      },
+      {
+        "name": "ingress_replay_protection",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ingress_forged_signature_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "human_review_and_consent_required",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "stop_suppression_and_no_auto_resubscribe",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "handover_command_and_audit",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "previously_revoked_staff_denied",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "ten_simultaneous_booking_requests",
+        "status": "PASS",
+        "detail": {
+          "confirmed": 1,
+          "conflicts": 9
+        }
+      },
+      {
+        "name": "booking_replay_and_content_conflict",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "new_pool_recovery",
+        "status": "PASS",
+        "detail": {
+          "scope": "NEW_CONNECTION_POOL_NOT_DATABASE_RESTART"
+        }
+      }
+    ]
+  },
+  "status": {
+    "success": true,
+    "status": 200,
+    "statusText": "OK",
+    "text": "{\"phase1\":\"IN_PROGRESS\",\"publicMessaging\":false,\"identityConfigured\":true,\"databaseConfigured\":true,\"databaseHealthy\":true,\"modelConfigured\":true,\"metaConfigured\":false,\"axiomConfigured\":false}",
+    "headers": {
+      "age": "0",
+      "cache-control": "no-store",
+      "content-encoding": "br",
+      "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+      "content-type": "application/json",
+      "date": "Sun, 18 Oct 2026 13:53:40 GMT",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "referrer-policy": "no-referrer",
+      "server": "Vercel",
+      "strict-transport-security": "max-age=31536000",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-matched-path": "/api/status",
+      "x-robots-tag": "noindex",
+      "x-vercel-cache": "MISS",
+      "x-vercel-id": "syd1:iad1::iad1::rxbmp-1792331619050-c232453dcd5c"
+    }
+  },
+  "callbackWithoutFlow": {
+    "success": true,
+    "status": 503,
+    "statusText": "Service Unavailable",
+    "text": "{\"error\":\"IDENTITY_UNAVAILABLE_OR_DENIED\"}",
+    "headers": {
+      "age": "0",
+      "cache-control": "private, no-store",
+      "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+      "content-type": "application/json",
+      "date": "Sun, 18 Oct 2026 13:53:53 GMT",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "referrer-policy": "no-referrer",
+      "server": "Vercel",
+      "strict-transport-security": "max-age=31536000",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-matched-path": "/auth/[action]",
+      "x-robots-tag": "noindex",
+      "x-vercel-cache": "MISS",
+      "x-vercel-id": "syd1:iad1::iad1::cxhvf-1792331633554-99fb5e2e3bb9"
+    }
+  },
+  "tenantWithoutBusinessSession": {
+    "success": true,
+    "status": 403,
+    "statusText": "Forbidden",
+    "text": "{\"error\":\"ACCESS_DENIED\"}",
+    "headers": {
+      "age": "0",
+      "cache-control": "private, no-store",
+      "content-encoding": "br",
+      "content-security-policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+      "content-type": "application/json",
+      "date": "Sun, 18 Oct 2026 13:53:55 GMT",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "referrer-policy": "no-referrer",
+      "server": "Vercel",
+      "strict-transport-security": "max-age=31536000",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-matched-path": "/api/tenants/[tenant]/[...operation]",
+      "x-robots-tag": "noindex",
+      "x-vercel-cache": "MISS",
+      "x-vercel-id": "syd1:iad1::iad1::4csx4-1792331635771-f184f4a39371"
+    }
+  },
+  "browser": {
+    "classification": "ACTUAL_BROWSER_OBSERVATIONS_NOT_TOKEN_ACCEPTANCE",
+    "vercelMfa": "ACTIVE_TOTP_ENROLLED",
+    "zitadelAdminSignIn": "VERIFIED_AFTER_SECURE_USERNAME_PASSWORD_ENTRY",
+    "privateAppLogin": "ACTUAL_PINNED_PROVIDER_REDIRECT_AND_PASSWORD_STEP",
+    "nextStep": "MANDATORY_SECOND_FACTOR_ENROLLMENT",
+    "availableFactors": [
+      "Authenticator App",
+      "Universal Second Factor"
+    ],
+    "sessionCreated": "UNVERIFIED",
+    "signedClaims": "UNVERIFIED",
+    "factorCheckLifetimes": "Requested 0.16h did not persist; latest readback 18h second factor and 12h multifactor; further policy editing needs MFA.",
+    "policy": "Force MFA effective in genuine application login; console readback update had MFA_REQUIRED; do not claim all policy fields saved."
+  },
+  "credentialIncident": {
+    "description": "One generated web-client secret appeared in a diagnostic response. It was subsequently regenerated at the issuing provider and replaced in sensitive Preview storage. The exposed value is not retained in files.",
+    "replacementStoredAs": "sensitive",
+    "replacementScope": [
+      "preview"
+    ],
+    "noLocalSecretTransferFile": true
+  },
+  "phase1": "INCOMPLETE",
+  "deployedSource": "bf0e713890766832321181a05d5d54b2b165ac40"
+}

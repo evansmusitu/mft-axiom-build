@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "scope": "ACTUAL_RESEND_API_TO_OWNER_GMAIL_NOT_ZITADEL_SMTP",
+  "phase1_complete": false,
+  "source_head": "6dd03d6742fa30af63c68fbd68967f9b01020866",
+  "runtime_source": "4ffd3f2163c5eac9998ec5a453963d96c4fb7306",
+  "authorization": {
+    "approved_at": "2026-10-18T23:54:53+02:00",
+    "single_owner_mailbox_test": true,
+    "dedicated_smtp_setup_approved": true
+  },
+  "sending_domain": {
+    "name": "mftintelligence.com",
+    "status": "verified",
+    "region": "us-east-1",
+    "sending_enabled": true,
+    "configuration_changed": false
+  },
+  "send": {
+    "provider_email_id": "01a15129-3f4a-71bf-b633-117ac3a4f680",
+    "created_at": "2026-10-18T22:37:00.276Z",
+    "from": "MUSITU Phase1 Staging <musitu-auth@mftintelligence.com>",
+    "recipient_count": 1,
+    "recipient_scope": "EXISTING_OWNER_CONTROLLED_GMAIL",
+    "subject": "MUSITU Phase1 \u2014 approved email delivery test",
+    "idempotency_key": "musitu-phase1-approved-gmail-delivery-test-20261018-v1",
+    "status": "delivered",
+    "retry_performed": false
+  },
+  "mailbox_readback": {
+    "method": "GMAIL_METADATA_ONLY",
+    "body_or_authentication_code_read": false,
+    "message_id_matches_provider": true,
+    "sender_matches": true,
+    "recipient_matches": true,
+    "subject_matches": true,
+    "labels": [
+      "UNREAD",
+      "CATEGORY_UPDATES",
+      "INBOX"
+    ],
+    "internal_date_ms": "1792363020000",
+    "spf": "pass",
+    "dkim": "pass",
+    "dmarc": "NOT_REPORTED_IN_INSPECTED_HEADERS"
+  },
+  "allocation": {
+    "before": {
+      "daily": 0,
+      "daily_limit": 100,
+      "monthly": 1,
+      "monthly_limit": 3000
+    },
+    "after": {
+      "daily": 1,
+      "daily_limit": 100,
+      "monthly": 2,
+      "monthly_limit": 3000
+    },
+    "paid_upgrade_performed": false
+  },
+  "zitadel_observation": {
+    "smtp_provider_count": 0,
+    "qa_code_generated_harare": [
+      "2026-10-18T22:54:00+02:00",
+      "2026-10-18T23:00:00+02:00"
+    ],
+    "email_sent_event_visible": false,
+    "smtp_configured": false,
+    "test_proves_zitadel_delivery": false
+  },
+  "credential_boundary": {
+    "browser_account_email_matches_user_selected_email": true,
+    "browser_verified_domain_available": false,
+    "dedicated_key_created": false,
+    "secrets_read_or_recorded": false,
+    "smtp_saved_or_activated": false,
+    "resend_email_signin_session_verified": false
+  },
+  "remaining": [
+    "Complete private Resend browser sign-in for the user-selected account and resolve the absent verified-domain listing.",
+    "Create the approved sending-only/domain-restricted key with user-controlled private credential handling.",
+    "Configure and qualify actual ZITADEL SMTP without reusing production keys or altering existing domain settings.",
+    "Complete QA email verification, MFA, real staff role/revocation tests and all other Phase1 gates."
+  ]
+}

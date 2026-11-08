@@ -1,0 +1,47 @@
+{
+  "buildDeployment": "dpl_5nWo1kUdRMoKEWbKhCZCBkWHmoDv",
+  "sourceCommit": "9f4d901490666faa9d4f1b9e47268178bf1b5598",
+  "runId": "7cd55348-2038-4677-a6a8-ceee5de4c665",
+  "observedAt": "2026-10-15T18:00:29.144Z",
+  "scope": "GENUINE_META_GRAPH_READ_ONLY_NO_SEND_OR_CALLBACK",
+  "appId": "1096094346481018",
+  "graphVersion": "v25.0",
+  "pass": 3,
+  "fail": 0,
+  "results": [
+    {
+      "operation": "GET_TEST_WABA_PHONE_IDS",
+      "httpStatus": 200,
+      "wabaId": "1955690452095441",
+      "expectedPhoneId": "1292923853915392",
+      "pass": true
+    },
+    {
+      "operation": "GET_GRANTED_PERMISSION_NAMES",
+      "httpStatus": 200,
+      "requiredScopes": [
+        "whatsapp_business_management",
+        "whatsapp_business_messaging"
+      ],
+      "pass": true
+    },
+    {
+      "operation": "GET_EXCLUDED_WABA_PHONE_IDS_DENIED",
+      "httpStatus": 400,
+      "providerErrorCode": 100,
+      "wabaId": "2701086983679304",
+      "pass": true
+    }
+  ],
+  "tokenCustody": "Encrypted Preview variable in the protected application project only. Temporary callback-project copy cleared before any receiver redeployment.",
+  "permissionGrant": "Owner authorized final Save in this conversation; existing Test WhatsApp Business Account only, current/future opt-in disabled, other WABA unselected.",
+  "recipient": "Existing verified owner-controlled recipient selected in Meta UI, ending 2008. No recipient contact details are included in this public evidence.",
+  "appIdentityEvidence": "OAuth browser request client_id and selected app; app ID is not independently derived from Graph token-debugging in this run.",
+  "limitations": [
+    "Read-only service qualification; no live callback, send, receipt or conversation admitted",
+    "Phone-number binding confirmed for the single observed test WABA",
+    "HTTP 400/code 100 is the actual denial; no more specific provider cause is inferred",
+    "Development token expiration and long-lived credential operation not qualified",
+    "Password request to reveal new app secret returned submitted but the old confirmation dialog remained; app secret reveal not yet verified"
+  ]
+}

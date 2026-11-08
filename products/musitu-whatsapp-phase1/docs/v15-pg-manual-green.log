@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: least-privilege runtime has only read and four explicit insert tables
+ok 1 - least-privilege runtime has only read and four explicit insert tables
+  ---
+  duration_ms: 1.361592
+  type: 'test'
+  ...
+# Subtest: runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+ok 2 - runtime cannot create schemas, grant membership, insert outbound attempts, or update payments
+  ---
+  duration_ms: 0.546487
+  type: 'test'
+  ...
+# Subtest: column-level UPDATE grant is not mistaken for least privilege
+ok 3 - column-level UPDATE grant is not mistaken for least privilege
+  ---
+  duration_ms: 0.192614
+  type: 'test'
+  ...
+# Subtest: authorized staff records a scoped customer stop in PostgreSQL, idempotently
+ok 4 - authorized staff records a scoped customer stop in PostgreSQL, idempotently
+  ---
+  duration_ms: 2.399174
+  type: 'test'
+  ...
+# Subtest: staff opt-out cannot target another tenant, invalid reason, missing conversation or unauthorized viewer
+ok 5 - staff opt-out cannot target another tenant, invalid reason, missing conversation or unauthorized viewer
+  ---
+  duration_ms: 0.646645
+  type: 'test'
+  ...
+# Subtest: PostgreSQL storage fault rolls back staff suppression
+ok 6 - PostgreSQL storage fault rolls back staff suppression
+  ---
+  duration_ms: 0.402365
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 66.063

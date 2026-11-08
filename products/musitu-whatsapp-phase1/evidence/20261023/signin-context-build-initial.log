@@ -1,0 +1,18 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> musitu-whatsapp-phase1-governed-browser-private-candidate@1.8.0 build
+> next build
+
+▲ Next.js 16.4.2 (Turbopack)
+✓ Running next.config.mjs took 17ms
+
+  Creating an optimized production build ...
+
+> Build error occurred
+[Error: Failed to open database
+
+Caused by:
+    0: Loading persistence directory failed
+    1: invalid digit found in string] {
+  code: 'GenericFailure'
+}

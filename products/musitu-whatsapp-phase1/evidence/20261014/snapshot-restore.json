@@ -1,0 +1,39 @@
+{
+  "snapshot": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"id\": \"snap-little-smoke-b4sdrjky\",\n  \"name\": \"whatsapp-phase1-qualified-20261014\",\n  \"source_branch_id\": \"br-jolly-fire-b4klddds\",\n  \"created_at\": \"2026-10-14T03:14:23Z\",\n  \"expires_at\": \"2026-10-21T03:15:00Z\",\n  \"manual\": true\n}"
+      }
+    ],
+    "isError": false
+  },
+  "restore": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"id\": \"br-ancient-lab-b444t0se\",\n  \"project_id\": \"jolly-scene-02112141\",\n  \"parent_lsn\": \"0/1D6C0C0\",\n  \"name\": \"whatsapp-phase1-restore-drill-20261014\",\n  \"slug\": \"br-ancient-lab-b444t0se\",\n  \"current_state\": \"init\",\n  \"pending_state\": \"ready\",\n  \"state_changed_at\": \"2026-10-14T03:14:56Z\",\n  \"creation_source\": \"console\",\n  \"primary\": false,\n  \"default\": false,\n  \"protected\": false,\n  \"cpu_used_sec\": 0,\n  \"compute_time_seconds\": 0,\n  \"active_time_seconds\": 0,\n  \"written_data_bytes\": 0,\n  \"data_transfer_bytes\": 0,\n  \"created_at\": \"2026-10-14T03:14:56Z\",\n  \"updated_at\": \"2026-10-14T03:14:56Z\",\n  \"init_source\": \"parent-data\",\n  \"restore_status\": \"restored\",\n  \"restored_from\": \"snap-little-smoke-b4sdrjky\",\n  \"restored_as\": \"br-jolly-fire-b4klddds\"\n}"
+      }
+    ],
+    "isError": false
+  },
+  "restoredCounts": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[\n  {\n    \"current_database\": \"musitu_whatsapp_phase1\",\n    \"restored_counts\": {\n      \"audit\": 3,\n      \"inbound\": 4,\n      \"tenants\": 2,\n      \"bookings\": 1,\n      \"approvals\": 1\n    }\n  }\n]"
+      }
+    ],
+    "isError": false
+  },
+  "endpointReturned": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"host\": \"ep-lingering-dream-b4lhzo25.c-6.us-east-2.aws.neon.tech\",\n  \"hosts\": {\n    \"read_write_host\": \"ep-lingering-dream-b4lhzo25.c-6.us-east-2.aws.neon.tech\",\n    \"read_write_pooled_host\": \"ep-lingering-dream-b4lhzo25-pooler.c-6.us-east-2.aws.neon.tech\"\n  },\n  \"id\": \"ep-lingering-dream-b4lhzo25\",\n  \"slug\": \"ep-lingering-dream-b4lhzo25\",\n  \"branch_slug\": \"br-jolly-fire-b4klddds\",\n  \"project_slug\": \"jolly-scene-02112141\",\n  \"project_id\": \"jolly-scene-02112141\",\n  \"branch_id\": \"br-jolly-fire-b4klddds\",\n  \"autoscaling_limit_min_cu\": 0.25,\n  \"autoscaling_limit_max_cu\": 0.25,\n  \"region_id\": \"aws-us-east-2\",\n  \"type\": \"read_write\",\n  \"current_state\": \"active\",\n  \"pending_state\": \"active\",\n  \"group\": {\n    \"size\": {\n      \"min\": 1,\n      \"max\": 1\n    },\n    \"allow_readable_secondaries\": false,\n    \"computes\": [\n      {\n        \"binding_id\": \"wl7\",\n        \"current_state\": \"active\",\n        \"pending_state\": \"active\",\n        \"role\": \"read_write\",\n        \"compute_host\": \"ep-lingering-dream-b4lhzo25-wl7.c-6.us-east-2.aws.neon.tech\",\n        \"compute_pooled_host\": \"ep-lingering-dream-b4lhzo25-wl7-pooler.c-6.us-east-2.aws.neon.tech\",\n        \"created_at\": \"2026-10-13T09:10:27Z\",\n        \"updated_at\": \"2026-10-14T03:16:25Z\",\n        \"started_at\": \"2026-10-14T03:15:22Z\"\n      }\n    ]\n  },\n  \"settings\": {\n    \"pg_settings\": {}\n  },\n  \"pooler_enabled\": false,\n  \"pooler_mode\": \"transaction\",\n  \"disabled\": false,\n  \"passwordless_access\": true,\n  \"last_active\": \"2026-10-14T03:12:15Z\",\n  \"creation_source\": \"console\",\n  \"created_at\": \"2026-10-13T09:10:27Z\",\n  \"updated_at\": \"2026-10-14T03:16:25Z\",\n  \"started_at\": \"2026-10-14T03:15:22Z\",\n  \"proxy_host\": \"c-6.us-east-2.aws.neon.tech\",\n  \"suspend_timeout_seconds\": 0,\n  \"provisioner\": \"k8s-neonvm\"\n}"
+      }
+    ],
+    "isError": false
+  },
+  "note": "Restore API finalize=true moved the source endpoint and default status. Original branch/default/endpoint restored; original data preserved; restored branch retained without compute."
+}

@@ -1,0 +1,36 @@
+TAP version 13
+# (node:3557) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: booking is audited exactly once and per-tenant audit is durable across restart
+ok 1 - booking is audited exactly once and per-tenant audit is durable across restart
+  ---
+  duration_ms: 10.220324
+  type: 'test'
+  ...
+# Subtest: independent SQLite write cannot silently change logged business action
+ok 2 - independent SQLite write cannot silently change logged business action
+  ---
+  duration_ms: 6.689903
+  type: 'test'
+  ...
+# Subtest: approved-source updates and channel revocation are audited without storing answer contents
+ok 3 - approved-source updates and channel revocation are audited without storing answer contents
+  ---
+  duration_ms: 3.442501
+  type: 'test'
+  ...
+# Subtest: HMAC chain detects a forged log record even if local SQLite DDL privileges bypass triggers
+ok 4 - HMAC chain detects a forged log record even if local SQLite DDL privileges bypass triggers
+  ---
+  duration_ms: 4.282631
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 99.75258

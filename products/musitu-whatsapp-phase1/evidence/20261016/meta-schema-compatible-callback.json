@@ -1,0 +1,22 @@
+{
+  "runId": "86cda95a-4337-4f9d-a5e7-c0d975662c4c",
+  "observedAt": "2026-10-16T05:34:22.790Z",
+  "appId": "1096094346481018",
+  "object": "whatsapp_business_account",
+  "callbackUrl": "https://musitu-whatsapp-meta-receiver-20261015-ad7qjgbm7-evansmusitu.vercel.app/api/meta/webhook",
+  "fields": [
+    "messages"
+  ],
+  "active": true,
+  "changed": true,
+  "readbackVerified": true,
+  "otherAppObjectsPreserved": true,
+  "wabaSubscriptionsChanged": false,
+  "appPublished": false,
+  "noMessageSent": true,
+  "scope": "GENUINE_META_APP_WEBHOOK_CONFIGURATION_AND_READBACK",
+  "receiverDeploymentId": "dpl_FZRNPcaRv4GMrmyBqYdfhYBMZT5s",
+  "configurationDeploymentId": "dpl_25wBEMWyoWgAn493DaAJphkE2f4s",
+  "sourceCommit": "cf0fa19f29ec34b77e52a95f53c67b15fac091c6",
+  "reason": "New FORCE-RLS AI tables require an updated audited receiver role-policy matrix; callback moved only from its exact previously verified deployment. No WABA subscriptions, other app objects or app publication changed."
+}

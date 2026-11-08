@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-10-18T04:05:58.716Z",
+  "operation": "arithmetic.evaluate",
+  "args": {
+    "expression": "57+2+2+7+3+0+15+18+8+7+16+44+13+3+40+1+0+23+2+5+5+6"
+  },
+  "expected": 277,
+  "source": "REAL_NEON_22_TABLE_RECOVERY_ROW_COUNTS",
+  "classification": "OPERATOR_CONNECTOR_CALL_NOT_SAAS_RUNTIME",
+  "actual": 277,
+  "equal": true,
+  "capabilitiesResponse": {
+    "content": [
+      {
+        "type": "text",
+        "text": "MUSITU Axiom exposes 74 certified quantitative runtime operations and 30 business-facing quantitative products through this plugin."
+      }
+    ],
+    "structuredContent": {
+      "operation_count": 74,
+      "business_product_count": 30,
+      "commerce_tools_exposed": false
+    },
+    "isError": false
+  },
+  "serviceResponse": {
+    "content": [
+      {
+        "type": "text",
+        "text": "MUSITU Axiom completed arithmetic.evaluate."
+      }
+    ],
+    "structuredContent": {
+      "operation": "arithmetic.evaluate",
+      "result": {
+        "ok": true,
+        "kernel_version": "1.0.0",
+        "operation": "arithmetic.evaluate",
+        "result": "277.00000000000000000000000000000000000000000000000",
+        "verified": null,
+        "elapsed_ms": 1.052,
+        "axiom": {
+          "compute_units": 1,
+          "plan": "developer",
+          "usage": {
+            "ok": true,
+            "used": 4040,
+            "limit": 100000,
+            "month": "2026-10"
+          }
+        }
+      }
+    },
+    "isError": false
+  },
+  "saasRuntimeConnected": false,
+  "productionRuntimeModified": false,
+  "paidPlanChanged": false,
+  "allOperationsQualified": false
+}

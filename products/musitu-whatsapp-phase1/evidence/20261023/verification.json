@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-10-23T03:39:10.389085+00:00",
+  "recoveredSource": "66ab1ea8e167bdc57c98c05bae38dedfeb333543",
+  "testedDeployedSource": "7b3360bac3e51235b1036f04e7b7908d054e6724",
+  "checks": [
+    {
+      "command": "npm run verify",
+      "exitCode": 0,
+      "pass": 320,
+      "fail": 0,
+      "skip": 0,
+      "syntaxFiles": 145,
+      "manifestAtCodeTest": 419
+    },
+    {
+      "command": "NEXT_TELEMETRY_DISABLED=1 npm run build",
+      "exitCode": 0,
+      "next": "16.4.2"
+    },
+    {
+      "command": "npm audit --omit=dev --json",
+      "exitCode": 0,
+      "knownVulnerabilities": 0
+    },
+    {
+      "kind": "HOSTED_PRIVATE_BUILD",
+      "status": "READY",
+      "deployment": "dpl_CFPK5a9DAQ6i25Xn56kxB2Ju9kzd",
+      "source": "7b3360bac3e51235b1036f04e7b7908d054e6724"
+    }
+  ],
+  "documentationRefresh": "Final continuation/deployment records added after code verification. Only source hashes are rechecked for documentation changes.",
+  "finalSourceManifestEntries": 420,
+  "logDigests": {
+    "npm-verify.log": {
+      "sha256": "a9b0a0c60886ac1d6aad8f05b7d1659c99a266ddbe9bc6e428edeca134c19391",
+      "bytes": 33790
+    },
+    "npm-build.log": {
+      "sha256": "e63f0e22b477599de7ae5a4ea012f79cee3f32c752fb440e139ab4443a4c9565",
+      "bytes": 885
+    },
+    "npm-audit-before.json": {
+      "sha256": "8d0392b30c8c5eb30ec2757a7320436b30bc482d75a17ee8160acc167e58d18d",
+      "bytes": 2210
+    },
+    "npm-audit-after.json": {
+      "sha256": "84d80f60d21936dc314ce41dc9e57022d0dc9b5936b3df768219794d9740b750",
+      "bytes": 361
+    },
+    "vercel-build.log": {
+      "sha256": "9a35a0ca3e9af1b65a131cf77cdc0ec11a1e5b0307eb8baac11298814d97ac3e",
+      "bytes": 3947
+    }
+  },
+  "phase1Complete": false,
+  "realOwnerSessionQualified": false,
+  "outboundSendPerformed": false,
+  "publicLaunchPerformed": false
+}

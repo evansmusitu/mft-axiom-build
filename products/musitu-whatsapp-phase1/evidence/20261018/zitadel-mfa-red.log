@@ -1,0 +1,68 @@
+✖ signed ZITADEL ID token requires explicit well-formed MFA evidence (10.672106ms)
+✔ fresh explicitly signed MFA proof succeeds with either password or hardware factor evidence (4.78283ms)
+✖ signed MFA cannot substitute for missing, stale, malformed or future authentication time (1.861792ms)
+✔ forged MFA proof fails cryptographic verification even with the expected issuer and nonce (45.675351ms)
+✔ existing Keycloak ID-token contract is unchanged by the explicit ZITADEL MFA policy (2.147093ms)
+✔ cryptographic JWT verification precedes online introspection; revoked tokens fail on immediate reuse (18.194899ms)
+✔ wrong issuer, audience, client, expiry, signature and algorithm never reach introspection (25.454649ms)
+✔ provider failure after an earlier successful request cannot reuse cached active status (2.47617ms)
+✔ ID token must bind nonce, subject and authorized client to the same login flow (3.574159ms)
+✔ code exchange forwards PKCE to pinned token endpoint and uses web credentials only (0.511843ms)
+✔ unresponsive HTTP or response stream is bounded even if the transport ignores abort (39.47723ms)
+✔ identity transport rejects redirects, unexpected status/type and oversized JSON (0.880821ms)
+✖ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (4.953452ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 10
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 287.785636
+
+✖ failing tests:
+
+test at test/v18-zitadel-mfa-proof.test.mjs:15:1
+✖ signed ZITADEL ID token requires explicit well-formed MFA evidence (10.672106ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-mfa-proof.test.mjs:18:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /OIDC_MFA_REQUIRED/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at test/v18-zitadel-mfa-proof.test.mjs:24:1
+✖ signed MFA cannot substitute for missing, stale, malformed or future authentication time (1.861792ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-mfa-proof.test.mjs:26:73)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /OIDC_AUTH_TIME_REJECTED/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at test/v18-zitadel-provider-transport.test.mjs:54:1
+✖ real login route uses qualified pinned ZITADEL authorization, PKCE/state/nonce and secure flow cookie (4.953452ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  null !== '600'
+  
+      at TestContext.<anonymous> (file:///workspace/scratch/40f324ccb437/work/products/musitu-whatsapp-phase1/test/v18-zitadel-provider-transport.test.mjs:57:484)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: '600',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

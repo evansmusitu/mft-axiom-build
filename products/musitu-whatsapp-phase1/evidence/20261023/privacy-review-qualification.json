@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-10-23T05:49:27.909497+00:00",
+  "baseCommit": "b15cc7032063aa6f5beb5e668d7a2cd5a8c005cf",
+  "scope": "GUARDED_DEVELOPMENT_OWNER_ENCRYPTED_REVIEW_EXPORT",
+  "npmRunVerify": {
+    "exitCode": 0,
+    "pass": 336,
+    "fail": 0,
+    "skip": 0,
+    "syntaxFiles": 154,
+    "manifestAtExecution": 436
+  },
+  "focusedHttpAndBrowserBoundaryTests": {
+    "pass": 7,
+    "fail": 0
+  },
+  "optimizedNextBuild": {
+    "exitCode": 0,
+    "next": "16.4.2",
+    "newDynamicExportRouteCompiled": true
+  },
+  "nativeExportImplementation": "UNCHANGED_LOGIC; previously qualified eight native cases retained, not repeated",
+  "finalOwnerCheckRegression": "The new HTTP test reproduced a 200 after a post-encryption owner revocation; final live membership and session rechecks now deny it. Non-boolean feature flags also fail closed.",
+  "sourceDatabaseWrites": false,
+  "schemaOrRoleGrantChanges": false,
+  "whatsappSends": 0,
+  "customerRequestDelivered": false,
+  "dataErased": false,
+  "genuineOwnerPhoneExecutionQualified": false,
+  "deployed": false,
+  "phase1Complete": false,
+  "logs": {
+    "privacy-review-http-focused.log": {
+      "sha256": "dbfdf95f45edd3d3d1c38c857fbf94358b88bcedab80f913f9446eb0dc9d4d7e",
+      "bytes": 903
+    },
+    "privacy-review-final-owner-red.log": {
+      "sha256": "d6b1328779834d09840cd2feedbf5b28e4222039b1455f9878f186fe80b03593",
+      "bytes": 3039
+    },
+    "privacy-review-next-build.log": {
+      "sha256": "68c9a9823e78fa58fc71672d9860256c1cc98606bb50fe726a0ff45b8366dca4",
+      "bytes": 965
+    },
+    "privacy-review-verify-completion.log": {
+      "sha256": "9a5d968f97427cb1377efc4cb2b00fb338c264bdefb3be78a55f04833d37fb57",
+      "bytes": 3249
+    }
+  },
+  "limits": [
+    "The verification completion log is an excerpt, not the entire test transcript.",
+    "HTTP/session and download boundary tests use injected authentication/export boundaries; actual native exporter role/RLS checks were separately qualified earlier.",
+    "Real owner phone execution, subject disclosure, erasure, contract/retention acceptance, AXIOM service authentication and independent human decisions remain open."
+  ]
+}

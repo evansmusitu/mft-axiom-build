@@ -1,0 +1,57 @@
+{
+  "kind": "DURABLE_META_AUTHORIZATION_PREPARATION",
+  "dateUtc": "2026-10-21",
+  "reviewedHead": "a6e02c8bf2ee6bd2ba1b0aa9b8b84d0475b164bc",
+  "business": {
+    "id": "2069296827284277",
+    "name": "MFT Education NEXUS",
+    "ownershipVerifiedInUi": true
+  },
+  "developmentApp": {
+    "id": "1096094346481018",
+    "name": "MUSITU AI Employee Dev",
+    "ownedByBusiness": true
+  },
+  "testWaba": {
+    "id": "1955690452095441",
+    "name": "Test WhatsApp Business Account",
+    "ownedByBusiness": true,
+    "status": "Approved",
+    "businessVerification": "Unverified",
+    "paymentMethod": "None shown"
+  },
+  "existingSystemUsers": 0,
+  "proposal": {
+    "name": "MUSITU WhatsApp Phase1 Dev",
+    "role": "Employee",
+    "nameFilled": true,
+    "createSubmitted": false,
+    "desiredAssetBoundary": {
+      "app": "1096094346481018",
+      "waba": "1955690452095441"
+    },
+    "assetGrantsPerformed": false,
+    "tokenGenerated": false
+  },
+  "blockingPrompt": {
+    "type": "META_NON_DISCRIMINATION_POLICY_ACCEPTANCE",
+    "appliesToBusiness": "MFT Education NEXUS",
+    "button": "I Accept",
+    "clicked": false,
+    "certification": "People acting as system users have reviewed and will abide by Advertising Policies and applicable laws, and will not use Meta advertising for wrongfully discriminatory practices.",
+    "requiresCurrentUserConfirmation": true,
+    "alsoRequiresConfirmation": "Creation of a new service identity and any constrained asset authorization."
+  },
+  "verifiedSettingsUrl": "https://business.facebook.com/latest/settings/system_users?business_id=2069296827284277",
+  "scopeLimits": {
+    "nexusAppModified": false,
+    "otherWabaModified": false,
+    "newAccessGranted": false,
+    "passwordOrMfaChanged": false,
+    "tokenRetrievedOrLogged": false,
+    "providerMessagesSent": false,
+    "purchase": false
+  },
+  "next": "Obtain action-time confirmation for the shared-portfolio policy and precisely scoped Employee system user before proceeding. Credential creation/entry remains a user handoff. Stop if Meta requires broader privileges or assets than approved.",
+  "phase1": "INCOMPLETE"
+}

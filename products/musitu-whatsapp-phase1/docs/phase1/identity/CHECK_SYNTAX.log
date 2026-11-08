@@ -1,0 +1,5 @@
+
+> musitu-whatsapp-phase1-pg-identity-ingress-candidate@0.5.0 check
+> node scripts/check-syntax.mjs
+
+ALL_MJS_SYNTAX_PASS (27 files)

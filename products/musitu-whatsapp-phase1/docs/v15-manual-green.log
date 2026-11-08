@@ -1,0 +1,30 @@
+TAP version 13
+# (node:9678) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: authenticated staff can record a customer opt-out reported outside WhatsApp; exact retries are idempotent
+ok 1 - authenticated staff can record a customer opt-out reported outside WhatsApp; exact retries are idempotent
+  ---
+  duration_ms: 7.429547
+  type: 'test'
+  ...
+# Subtest: wrong member or tenant and unknown conversation are rejected; no unsuppress operation exists
+ok 2 - wrong member or tenant and unknown conversation are rejected; no unsuppress operation exists
+  ---
+  duration_ms: 3.25835
+  type: 'test'
+  ...
+# Subtest: private HTTP requires pinned JWT and explicit reason; never offers a revoke-suppression endpoint
+ok 3 - private HTTP requires pinned JWT and explicit reason; never offers a revoke-suppression endpoint
+  ---
+  duration_ms: 121.799414
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 234.965375

@@ -1,0 +1,238 @@
+{
+  "buildDeployment": "dpl_5zezDzrUGNpT1xsmpZ5HgLpQcctx",
+  "testedDeployment": "dpl_GRZwA3YYwnJwt1vZBhE6G3H1sQGY",
+  "testedSource": "b848c74f6ca0a95a58af3ddcfa49fa3d14071639",
+  "builtSource": "47ce72ec817747a32318114a37f3fa98bd90fc89",
+  "runId": "349b2248-7235-4afd-91d3-cc736a36af30",
+  "observedAt": "2026-10-15T03:38:14.066Z",
+  "target": "https://musitu-whatsapp-meta-receiver-20261015-i6hu9fvzs-evansmusitu.vercel.app",
+  "scope": "GENUINE_HOSTED_HTTP_NO_META_PROVIDER_OR_DATABASE_ADMISSION",
+  "pass": 17,
+  "fail": 0,
+  "requestsCarryCredentials": false,
+  "results": [
+    {
+      "name": "unconfigured webhook refuses verification",
+      "status": 503,
+      "body": "DEVELOPMENT_CHANNEL_UNAVAILABLE",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /robots.txt",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /api/status",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /package.json",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /package-lock.json",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /vercel.json",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /runtime/source-digests.json",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /runtime/src/staging/meta-ingress.mjs",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /api/index.mjs",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /node_modules/pg/package.json",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "no exposed surface /api/send",
+      "status": 404,
+      "body": "NOT_FOUND",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "missing signature refused",
+      "status": 401,
+      "body": "SIGNATURE_REJECTED",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "non-JSON refused",
+      "status": 415,
+      "body": "UNSUPPORTED_MEDIA_TYPE",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "unsupported method refused",
+      "status": 405,
+      "body": "METHOD_NOT_ALLOWED",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "malformed signature refused before oversized body",
+      "status": 401,
+      "body": "SIGNATURE_REJECTED",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    },
+    {
+      "name": "oversize with well-formed signature refused",
+      "status": 413,
+      "body": "BODY_TOO_LARGE",
+      "headers": {
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "strict-transport-security": "max-age=31536000"
+      }
+    }
+  ],
+  "buildReady": true,
+  "note": "No Meta credentials, provider events, database admission or delivery are exercised. Requests were direct HTTPS fetches from hosted Node, without Vercel bypass cookies or authentication."
+}

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/mnt/data/musitu-whatsapp-phase1-v15/scripts/browser-private-smoke.py", line 64, in <module>
+    assert page.get_by_role('button',name='Record opt-out').count()==1, 'only unsuppressed contact permits owner opt-out'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: only unsuppressed contact permits owner opt-out

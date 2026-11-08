@@ -1,0 +1,14 @@
+✔ missing database returns 503 without configuration or credential disclosure (5.177676ms)
+✔ healthy database lease is read-only, released, and never grants release readiness (0.488935ms)
+✔ query failure discards once and does not leak provider errors (0.493883ms)
+✔ hung acquisition times out, concurrent requests share it, late lease is discarded (16.696945ms)
+✔ hung query discards its lease at deadline and coalesces until settlement (16.32431ms)
+✔ invalid response cannot pass and a later independent probe can recover (1.031972ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 139.674806

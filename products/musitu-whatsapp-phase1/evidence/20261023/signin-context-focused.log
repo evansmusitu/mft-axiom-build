@@ -1,0 +1,27 @@
+✔ identity diagnostics report only bounded stages, error codes and claim names (1.288523ms)
+✔ callback failure stages distinguish flow rejection from actual token transport without exposing flow material (27.170899ms)
+✔ ZITADEL requires explicit provider, canonical generated HTTPS origin and separate API audience credentials (4.268895ms)
+✔ Keycloak remains the default with its original pinned realm paths (0.467221ms)
+✔ ZITADEL uses separately scoped Basic authentication for token exchange and introspection (0.981152ms)
+✔ discovery is an assertion against pinned endpoints, never an instruction to follow an arbitrary URL (1.184938ms)
+✔ ZITADEL online validation requires exact issuer, client, subject, expiration and API audience (0.806981ms)
+✔ ZITADEL logout preserves exact callback and state without exposing tokens or secrets (1.710045ms)
+✔ observed EU1 issuer is accepted without trusting arbitrary nested or regional suffixes (4.915956ms)
+✔ failed browser callback leaves credential-bearing URL for a fixed recovery page (6.128354ms)
+✔ non-browser and POST failures retain the denied JSON contract without navigation (5.873643ms)
+✔ session status authenticates the actual request and returns no identity or credential material (5.03986ms)
+✔ expired, revoked and unverified sessions never appear signed in; provider failure remains unknown (3.79281ms)
+✔ real unauthenticated status route ignores browser identity claims without provider transport (0.615203ms)
+✔ dashboard accepts only explicit validated status contracts and uses same-origin session cookies (1.083656ms)
+✔ selected business survives in the encrypted sign-in flow without changing the registered callback (25.91462ms)
+✔ preview-host sign-in moves to the pinned application host before issuing a flow cookie (1.130235ms)
+✔ business navigation accepts only a UUID and cannot choose an external or credential-bearing destination (0.176745ms)
+✔ untrusted destinations are omitted from the actual encrypted login flow (6.312441ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 285.016645
