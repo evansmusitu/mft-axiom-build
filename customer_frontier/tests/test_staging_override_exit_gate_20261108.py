@@ -49,7 +49,7 @@ class StagingHealthExitGate(unittest.TestCase):
         code, receipt = self.invoke("HOST_RULE_PUBLISHED_HTTPS_PENDING", ("ONE_LIVE_PUT",))
         self.assertEqual(receipt["status"], "HOST_RULE_PUBLISHED_HTTPS_PENDING")
         self.assertNotEqual(code, 0)
-        self.assertTrue(receipt["ambiguous_live_write"])
+        self.assertFalse(receipt["ambiguous_live_write"])
 
     def test_only_full_200_health_and_two_503_auth_denials_can_pass_cli(self):
         code, receipt = self.invoke("EXACT_STAGE_HTTPS_200_AND_AUTH_503_PASS", ("ONE_LIVE_PUT",))
