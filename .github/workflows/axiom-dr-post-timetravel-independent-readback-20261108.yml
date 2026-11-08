@@ -1,0 +1,83 @@
+name: AXIOM post-TimeTravel independent D1 source-restored readback 20261108 (READ ONLY)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-post-timetravel-independent-readback-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-post-timetravel-independent-readback-20261108
+  cancel-in-progress: false
+jobs:
+  independent-provider-parity-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-post-timetravel-independent-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-hosted-timetravel-live-20261108' && github.event.pull_request.base.sha == 'a08529734404e5ad8275e55d8faf07647db213a5' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 1ebfe5729636dd823bcf40ef71e6886992527787
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Exact source and read-only selector admission before credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 1ebfe5729636dd823bcf40ef71e6886992527787
+          test "$(git hash-object customer_frontier/qualification/independent_d1_restore_observer_20261108.py)" = 05b6c60e9947049232d1c354f06090f2671f2e74
+          test "$(git hash-object customer_frontier/qualification/test_independent_d1_restore_observer_20261108.py)" = 2be59fc9e32d54e71e7901f20b0fd8bba6a01d3b
+          python3 -m py_compile customer_frontier/qualification/independent_d1_restore_observer_20261108.py customer_frontier/qualification/test_independent_d1_restore_observer_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/independent_d1_restore_observer_20261108.py').read_text()
+          assert "SOURCE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'" in s
+          assert "TARGET='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "SRC_SCHEMA_SHA='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'" in s
+          assert "if kind=='metadata':" in s and "method='GET';body=None" in s
+          assert "elif kind=='query':" in s and "method='POST';url+='/query'" in s
+          assert "SQL_NOT_ALLOWED" in s
+          assert "READ_ONLY_NOT_ATTESTED" in s
+          assert "INDEPENDENT_HOSTED_SCHEMA_AND_DATA_PARITY_PASS" in s
+          assert "'destructive_recovery_qualified':False" in s and "'release_authority':False" in s
+          assert "'/import'" not in s and "'/export'" not in s
+          assert "DELETE FROM" not in s and "DROP TABLE" not in s
+          print('INDEPENDENT_READ_ONLY_D1_AUDIT_SOURCE_PINNED')
+          PY
+      - name: Five synthetic drift, hash mismatch, FK and evidence-denial tests
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_independent_d1_restore_observer_20261108.py -v
+      - name: Independently compare actual source/restored hosted customer rows in RAM only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: python3 customer_frontier/qualification/independent_d1_restore_observer_20261108.py
+      - name: Gate actual independent readback and produce receipt digest
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('axiom-independent-hosted-restore-readback-20261108.json')
+          r=json.loads(p.read_text())
+          assert r['status']=='INDEPENDENT_HOSTED_SCHEMA_AND_DATA_PARITY_PASS'
+          assert r['source_target_data_identical'] is True and r['foreign_key_checks_pass'] is True
+          assert r['user_tables_equal']==25 and r['user_rows_equal']==25
+          assert r['data_sha256']=='72b27960c718c499f8890d44bccf405c90cef08f56e6149da4583b4b9b85a30a'
+          assert r['user_indexes_equal']==13 and r['user_triggers_equal']==39
+          assert r['zero_write_reads_confirmed']==54 and r['total_provider_requests']==56
+          assert r['customer_row_values_persisted'] is False
+          assert r['production_oauth_changed'] is False
+          assert r['destructive_recovery_qualified'] is False
+          assert r['independent_custody_qualified'] is False
+          assert r['release_authority'] is False
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(h+'  '+p.name+'\n')
+          print('INDEPENDENT_RESTORED_D1_CONTENT_PARITY_PASS_NOT_DESTRUCTIVE_RECOVERY sha256='+h)
+          PY
+      - name: Archive only non-identifying evidence, even on rejection
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-independent-hosted-d1-restored-parity-20261108
+          path: |
+            axiom-independent-hosted-restore-readback-20261108.json
+            axiom-independent-hosted-restore-readback-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
