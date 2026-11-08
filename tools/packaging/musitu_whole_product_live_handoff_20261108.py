@@ -178,7 +178,7 @@ def snap(revision: str, dest: Path) -> dict:
 def main():
     if os.environ.get("GITHUB_REPOSITORY") != REPO:
         raise RuntimeError("WRONG_GITHUB_REPOSITORY")
-    if os.environ.get("GITHUB_REF_NAME") != "handoff/whole-product-20261108-1223":
+    if (os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME")) != "handoff/whole-product-20261108-1223":
         raise RuntimeError("WRONG_ARCHIVE_BUILD_BRANCH")
     if cmd("git", "status", "--porcelain"):
         raise RuntimeError("UNEXPECTED_UNCOMMITTED_SOURCE")
