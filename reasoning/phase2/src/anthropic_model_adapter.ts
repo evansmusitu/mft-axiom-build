@@ -54,7 +54,7 @@ function outputText(raw:string,expectedModel:string):string{
 export class AnthropicMessagesModelAdapter implements ModelAdapter {
   readonly manifest:ModelAdapterManifest;
   readonly #maxTokens:number;
-  private readonly transport:BoundedModelProviderTransport;
+  readonly #transport:BoundedModelProviderTransport;
 
   constructor(config:{
     manifest:ModelAdapterManifest;
@@ -71,7 +71,7 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
     const apiKeySecretRef=required(config.apiKeySecretRef,"apiKeySecretRef");
     const anthropicVersion=required(config.anthropicVersion,"anthropicVersion");
     this.#maxTokens=positiveInteger(config.maxTokens,"maxTokens");
-    this.transport=new BoundedModelProviderTransport({
+    this.#transport=new BoundedModelProviderTransport({
       origin:config.origin??"https://api.anthropic.com",
       path:"/v1/messages",
       timeoutMs:config.timeoutMs,
@@ -94,7 +94,7 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
       model:this.manifest.modelId,
       output_config:{format:{type:"json_schema",schema:modelProviderExplanationWireSchema()}}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.maxResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.maxResponseBytes);
     const normalizedResponseBody=normalizeModelProviderExplanationWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }
@@ -108,7 +108,7 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
       model:this.manifest.modelId,
       output_config:{format:{type:"json_schema",schema:modelProviderProposalWireSchema(input.profile)}}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.profile.maxModelResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.profile.maxModelResponseBytes);
     const normalizedResponseBody=normalizeModelProviderProposalWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }

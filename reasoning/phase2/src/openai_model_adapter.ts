@@ -61,7 +61,7 @@ function outputText(raw:string,expectedModel:string):string{
 export class OpenAiResponsesModelAdapter implements ModelAdapter {
   readonly manifest:ModelAdapterManifest;
   readonly #maxOutputTokens:number;
-  private readonly transport:BoundedModelProviderTransport;
+  readonly #transport:BoundedModelProviderTransport;
 
   constructor(config:{
     manifest:ModelAdapterManifest;
@@ -77,7 +77,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
     this.manifest=manifest(config.manifest);
     const apiKeySecretRef=required(config.apiKeySecretRef,"apiKeySecretRef");
     this.#maxOutputTokens=boundedOutputTokens(config.maxOutputTokens);
-    this.transport=new BoundedModelProviderTransport({
+    this.#transport=new BoundedModelProviderTransport({
       origin:config.origin??"https://api.openai.com",
       path:"/v1/responses",
       timeoutMs:config.timeoutMs,
@@ -103,7 +103,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
         schema:modelProviderExplanationWireSchema()
       }}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.maxResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.maxResponseBytes);
     const normalizedResponseBody=normalizeModelProviderExplanationWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }
@@ -121,7 +121,7 @@ export class OpenAiResponsesModelAdapter implements ModelAdapter {
         schema:modelProviderProposalWireSchema(input.profile)
       }}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.profile.maxModelResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.profile.maxModelResponseBytes);
     const normalizedResponseBody=normalizeModelProviderProposalWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }
