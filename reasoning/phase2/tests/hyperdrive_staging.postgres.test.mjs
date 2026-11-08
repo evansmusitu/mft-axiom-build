@@ -9,6 +9,7 @@ const {Pool,Client}=pg;
 const DB='axiom_hyperdrive_catalog_ci';
 const RUNTIME='axiom_hyperdrive_runtime_ci';
 const DEFINER='axiom_hyperdrive_definer_ci';
+const EXTRA='axiom_hyperdrive_extra_ci';
 const SHAPES=[
   "axiom_spend.reserve(text,text,text,text,text,bigint,text)",
   "axiom_spend.settle(text,text,text,text,text,bigint,text,text)"
@@ -19,13 +20,15 @@ test('PostgreSQL 17 read-only staging probe rejects real unauthorized role and S
   const user=process.env.PGUSER??'axiom',password=process.env.PGPASSWORD??'test-only-ephemeral-password';
   const mainDb=process.env.PGDATABASE??'axiom_test';
   const master=new Pool({host,port,database:mainDb,user,password,max:2,connectionTimeoutMillis:2000});
-  let isolated,createdDb=false,createdRuntime=false,createdDefiner=false;
+  let isolated,createdDb=false,createdRuntime=false,createdDefiner=false,createdExtra=false;
   try{
     await master.query('CREATE DATABASE '+DB);createdDb=true;
     await master.query("CREATE ROLE "+DEFINER+" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
     createdDefiner=true;
     await master.query("CREATE ROLE "+RUNTIME+" LOGIN PASSWORD 'ci-only-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
     createdRuntime=true;
+    await master.query("CREATE ROLE "+EXTRA+" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+    createdExtra=true;
     isolated=new Pool({host,port,database:DB,user,password,max:3});
     await isolated.query("CREATE TABLE public.axiom_provider_spend_budgets(id text)");
     await isolated.query("CREATE TABLE public.axiom_provider_spend_organizations(id text)");
@@ -71,6 +74,13 @@ test('PostgreSQL 17 read-only staging probe rejects real unauthorized role and S
     await isolated.query("GRANT EXECUTE ON FUNCTION "+SHAPES[1]+" TO "+RUNTIME);
     assert.deepEqual(await inspectStagingHyperdrive(env,client),expected);
 
+    // An unrelated role with direct EXECUTE would be able to invoke the
+    // SECURITY DEFINER budget functions. Staging admission must reject it.
+    await isolated.query("GRANT EXECUTE ON FUNCTION "+SHAPES[0]+" TO "+EXTRA);
+    await assert.rejects(()=>inspectStagingHyperdrive(env,client),/STAGING_PROTECTED_RPC_INVALID/);
+    await isolated.query("REVOKE EXECUTE ON FUNCTION "+SHAPES[0]+" FROM "+EXTRA);
+    assert.deepEqual(await inspectStagingHyperdrive(env,client),expected);
+
     await isolated.query("GRANT CREATE ON SCHEMA axiom_spend TO "+RUNTIME);
     await assert.rejects(()=>inspectStagingHyperdrive(env,client),/STAGING_PROTECTED_RPC_INVALID/);
     await isolated.query("REVOKE CREATE ON SCHEMA axiom_spend FROM "+RUNTIME);
@@ -87,6 +97,7 @@ test('PostgreSQL 17 read-only staging probe rejects real unauthorized role and S
     if(isolated)await isolated.end();
     if(createdDb)await master.query('DROP DATABASE '+DB+' WITH (FORCE)');
     if(createdRuntime)await master.query('DROP ROLE '+RUNTIME);
+    if(createdExtra)await master.query('DROP ROLE '+EXTRA);
     if(createdDefiner)await master.query('DROP ROLE '+DEFINER);
     await master.end();
   }
