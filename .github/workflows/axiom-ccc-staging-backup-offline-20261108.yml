@@ -1,0 +1,47 @@
+name: AXIOM current staging encrypted backup offline proof 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-ccc-staging-backup-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-ccc-staging-backup-offline-20261108
+  cancel-in-progress: false
+jobs:
+  verify-private-backup-contract:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-ccc-current-encrypted-backup-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-reuse-current-catalog-20261108' && github.event.pull_request.base.sha == 'f6daffc98219ccb90b179bb00a03b47478d39aef' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a950ba2484d982f57a32891581417e79cd22fda2
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify immutable source, synthetic tests, and fixed public recipient
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a950ba2484d982f57a32891581417e79cd22fda2
+          test "$(git hash-object customer_frontier/recovery/export_ccc_staging_current_backup.mjs)" = d95156158d5bd3aa2c93bef8023cbb86a05a10a5
+          test "$(git hash-object customer_frontier/tests/ccc_staging_current_backup.test.mjs)" = b2d6dc1e4a7337f96be5bcd18a8a7ff9380e0966
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = ec9115c83879290d23cee2eb2932f2f31df5584d
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p=Path('customer_frontier/recovery/export_ccc_staging_current_backup.mjs')
+          s=p.read_text()
+          assert "export const DATABASE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'" in s
+          assert "export const CATALOG_SHA='e0a8f47429b1479d7dd2037633e8ca309645fb65fe345335801fc8653b49b7a1'" in s
+          assert "rows.length!==78" in s and "metadata.file_size>16777216" in s
+          assert "sha(publicKey)!==RECIPIENT_SHA" in s
+          assert "redirect:'error'" in s
+          assert "'backup_saved_to_drive:false'" not in s  # receipt has object flag, not quoted string
+          assert "backup_saved_to_drive:false" in s and "restore_qualified:false" in s
+          assert "const envelope=encryptBackup(sql,publicKey,header);sql.fill(0)" in s
+          assert "request('export',{output_format:'polling'" in s
+          assert "existing-d1-ccc473f1-backup-20261106.json.enc" not in s
+          print('EXACT_CURRENT_STAGING_ENCRYPTED_BACKUP_SOURCE_ADMITTED')
+          PY
+      - name: Verify AEAD secrecy, tamper denial, recipient drift, query drift and export restrictions OFFLINE
+        run: node --test customer_frontier/tests/ccc_staging_current_backup.test.mjs
