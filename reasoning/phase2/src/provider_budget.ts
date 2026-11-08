@@ -210,7 +210,7 @@ export function pricedProviderUsage(responseBody:string,provider:"openai"|"anthr
 
 // Membership is recorded only by the trusted budget decorator constructor.
 // Caller-supplied manifest flags cannot impersonate budget enforcement.
-const trustedMeteredAdapters=new WeakMap<object,{tenantId:string;adapterId:string;modelId:string;provider:string}>();
+const trustedMeteredAdapters=new WeakMap<object,{tenantId:string;adapterId:string;modelId:string;provider:string;protectedPostgres:boolean}>();
 
 /** Reject unmetered first-party paid model adapters at trusted service registration. */
 export function requireMeteredProviderAdapter(adapter:{manifest:ModelAdapterManifest},tenantId?:string):void{
@@ -228,6 +228,19 @@ export function requireMeteredProviderAdapter(adapter:{manifest:ModelAdapterMani
     throw new ProviderBudgetError("BUDGET_TENANT_MISMATCH",
       "Model explanation provider budget tenant mismatch",403);
   }
+}
+
+/** Require a protected SQL-RPC-only PostgreSQL ledger at trusted paid service admission.
+ * Offline fixtures may still use other authenticated ledgers, but cannot cross
+ * this explicit production boundary based on their manifest or an unverified flag.
+ */
+export function requireProtectedPaidProviderAdapter(adapter:{manifest:ModelAdapterManifest},tenantId?:string):void{
+  requireMeteredProviderAdapter(adapter,tenantId);
+  const provider=adapter?.manifest?.provider;
+  if(provider!=="openai"&&provider!=="anthropic")return;
+  if(trustedMeteredAdapters.get(adapter)?.protectedPostgres!==true)
+    throw new ProviderBudgetError("BUDGET_PROTECTED_LEDGER_REQUIRED",
+      "Paid production provider requires an authentic protected PostgreSQL accounting ledger",403);
 }
 
 /** Register this decorator as BOTH compile and explain provider; do not register raw adapters. */
@@ -265,7 +278,8 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     this.ledger=config.ledger;
     trustedMeteredAdapters.set(this,{
       tenantId:this.tenantId,adapterId:this.manifest.adapterId,
-      modelId:this.manifest.modelId,provider:this.provider
+      modelId:this.manifest.modelId,provider:this.provider,
+      protectedPostgres:ProtectedPostgresProviderSpendLedger.isAuthenticLedger(this.ledger)
     });
     // Protect constructor-validated accounting authority and pricing from JS shadow writes.
     Object.freeze(this);
