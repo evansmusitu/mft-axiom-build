@@ -1,0 +1,81 @@
+name: AXIOM alternate D1 post-create independent read-only check 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-created-target-readback-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-created-target-readback-20261108
+  cancel-in-progress: false
+jobs:
+  read-only-reconcile-after-no-retry:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-created-target-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-disposable-target-live-20261108' && github.event.pull_request.base.sha == '26590b2a566b55f9fb9697a5276349fa524dec0e' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reconcile D1 list and exact target metadata using only GET, no POST or retry
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, re, urllib.request, urllib.error
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          TARGET_NAME='axiom-disposable-dr-target-20261108'
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database'
+          out={'schema':'musitu.axiom.disposable_d1_readback_only.v1','account_id':ACCOUNT,'status':'UNQUALIFIED','http_status':None,'reported_count':None,'listed_items':None,'matching_candidate_ids':[],'unknown_dbs_count':None,'target_metadata_http_status':None,'metadata_confirmed':False,'no_cloudflare_writes':True,'customer_data_imported':False,'full_restore_qualified':False,'release_authority':False}
+          code=1
+          class NoRedirects(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          def get(path):
+              token=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+              if not token:raise ValueError('NO_SECRET')
+              req=urllib.request.Request(BASE+path,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-ReadbackOnly/1.0'})
+              with urllib.request.build_opener(NoRedirects()).open(req,timeout=15) as r:
+                  status=r.status
+                  raw=r.read(128001)
+              if len(raw)>128000:raise ValueError('RESPONSE_TOO_LARGE')
+              return status,json.loads(raw)
+          try:
+              status,body=get('?page=1&per_page=100')
+              out['http_status']=status
+              if status!=200 or body.get('success') is not True or not isinstance(body.get('result'),list) or not isinstance(body.get('result_info'),dict):
+                  raise ValueError('LIST_UNQUALIFIED')
+              items=body['result']; inf=body['result_info']
+              out['reported_count']=inf.get('total_count') if type(inf.get('total_count')) is int else None
+              out['listed_items']=len(items)
+              matches=[x for x in items if isinstance(x,dict) and x.get('name')==TARGET_NAME and re.fullmatch(r'[0-9a-f-]{36}',str(x.get('uuid','')))]
+              out['matching_candidate_ids']=[x['uuid'] for x in matches][:2]
+              out['unknown_dbs_count']=len(items)-len(matches)
+              if len(matches)==1:
+                  status2,data=get('/'+matches[0]['uuid'])
+                  out['target_metadata_http_status']=status2
+                  d=data.get('result')
+                  out['metadata_confirmed']=status2==200 and data.get('success') is True and isinstance(d,dict) and d.get('uuid')==matches[0]['uuid'] and d.get('name')==TARGET_NAME
+              if len(matches)==1 and out['metadata_confirmed'] and len(items)==1 and out['reported_count']==1:
+                  out['status']='SINGLE_TARGET_EXISTS_AND_METADATA_CONFIRMED'
+              elif len(matches)==1 and out['metadata_confirmed']:
+                  out['status']='TARGET_PRESENT_BUT_LIST_COUNT_DRIFT'
+              elif len(matches)==0:
+                  out['status']='TARGET_NOT_OBSERVED_IN_LIST'
+              else:
+                  out['status']='AMBIGUOUS_TARGET_LIST'
+              code=0
+          except urllib.error.HTTPError as e:
+              out['status']='PROVIDER_HTTP_'+str(e.code)
+          except Exception:
+              out['status']='READBACK_UNAVAILABLE_OR_UNQUALIFIED'
+          Path('d1-disposable-post-failure-readback-20261108.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          raise SystemExit(code)
+          
+          PY
+      - name: Archive sanitized reconciliation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-d1-disposable-postfailure-readback-20261108
+          path: d1-disposable-post-failure-readback-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
