@@ -37,10 +37,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
 
 class Client:
-    def __init__(self, token):
-        if not token or any(c in token for c in '\n\r'):
-            raise Stop('SECRET_UNAVAILABLE')
-        self.token=token
+    def __init__(self, token, email):
+        if not token or any(c in token for c in '\n\r') or not isinstance(email,str) or '@' not in email or len(email)>240 or any(c in email for c in '\n\r'):
+            raise Stop('GITHUB_GLOBAL_CLOUDFLARE_CREDENTIALS_UNAVAILABLE')
+        self.auth_headers={'X-Auth-Email':email,'X-Auth-Key':token}
         self.attempted=[]
     def req(self,method,path,body=None):
         reads={RULEPATH,RULEPATH+'/versions/25',f'/zones/{ZONE}',f'/zones/{ZONE}/settings/security_level',f'/accounts/{ACCOUNT}/workers/domains',f'/accounts/{ACCOUNT}/workers/scripts/{WORKER}/settings'}
@@ -48,7 +48,7 @@ class Client:
         if method=='PUT' and path not in (RULEPATH+'?dry_run=true',RULEPATH):raise Stop('UNREVIEWED_WRITE')
         if method not in ('GET','PUT'):raise Stop('UNREVIEWED_METHOD')
         if method=='PUT':self.attempted.append('DRY_RUN' if path.endswith('dry_run=true') else 'ONE_LIVE_PUT')
-        headers={'authorization':'Bearer '+self.token,'accept':'application/json','user-agent':'MUSITU-AXIOM-EXACT-STAGING-CONFIG-20261108'}
+        headers={**self.auth_headers,'accept':'application/json','user-agent':'MUSITU-AXIOM-EXACT-STAGING-CONFIG-20261108'}
         payload=None
         if body is not None:
             payload=json.dumps(body,sort_keys=True,separators=(',',':')).encode()
@@ -189,7 +189,7 @@ def run(client,observe=http,sleep=time.sleep):
 def main():
     receipt={'status':'NO_WRITE','production_oauth_touched':False,'customer_identity_qualified':False,'release_qualified':False}
     try:
-        client=Client(os.environ.get('CLOUDFLARE_API_TOKEN'))
+        client=Client(os.environ.get('CLOUDFLARE_GLOBAL_API_KEY'),os.environ.get('CLOUDFLARE_EMAIL'))
         receipt=run(client)
     except Stop as exc:
         receipt['status']='STOPPED'
