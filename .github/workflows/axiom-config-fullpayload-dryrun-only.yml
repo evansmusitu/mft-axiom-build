@@ -1,0 +1,110 @@
+name: AXIOM Cloudflare full Config Rules payload DRY RUN ONLY diagnostics
+
+on:
+  push:
+    branches: [ops/axiom-config-fullpayload-dryrun-only-20261108]
+    paths: [.github/workflows/axiom-config-fullpayload-dryrun-only.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  dryrun:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-config-fullpayload-dryrun-only-20261108' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read exact owner source without persisted GitHub credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin exact candidate and pass 13 tests WITHOUT secrets
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/staging_override_newtoken.py)" = 'cf14c4f4b9e590d8777cdd6b9d1fb881ccb4855d'
+          test "$(git hash-object customer_frontier/qualification/test_staging_override_newtoken.py)" = 'c07eb86601dfe5f707aa420db2951c97c4a85e39'
+          (cd customer_frontier/qualification && python3 -m unittest -q test_staging_override_newtoken.py)
+      - name: Revalidate version-25/10-rule rollback and perform FULL request dry run ONLY
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error,sys
+          from pathlib import Path
+          sys.path.insert(0,'customer_frontier/qualification')
+          import staging_override_newtoken as m
+          client=m.Client(os.environ.get('CLOUDFLARE_API_TOKEN'),os.environ.get('CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN'))
+          account=client.get('/zones/'+m.ZONE)
+          assert account.get('account',{}).get('id')==m.ACCOUNT and account.get('name')=='mftintelligence.com' and account.get('status')=='active' and account.get('plan',{}).get('name')=='Free Website'
+          setting=client.get('/zones/'+m.ZONE+'/settings/security_level')
+          assert setting.get('value')=='under_attack'
+          current=client.get(m.RULEPATH)
+          historical=client.get(m.RULEPATH+'/versions/25')
+          cores,hosts=m.verify_baseline(current,historical)
+          payload=m.create_payload(cores)
+          assert len(payload['rules'])==10 and payload['rules'][-1]['expression']==m.EXPR
+          token=client.config_token
+          url='https://api.cloudflare.com/client/v4'+m.RULEPATH+'?dry_run=true'
+          request=urllib.request.Request(url,method='PUT',data=json.dumps(payload,sort_keys=True,separators=(',',':')).encode(),
+                 headers={'authorization':'Bearer '+token,'accept':'application/json','content-type':'application/json'})
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          try:
+            with urllib.request.build_opener(NoRedirect).open(request,timeout=25) as res:
+              http=res.status;content_type=res.headers.get('Content-Type','');raw=res.read(80001)
+          except urllib.error.HTTPError as e:
+              http=e.code;content_type=e.headers.get('Content-Type','');raw=e.read(80001)
+          except (OSError,TimeoutError,ValueError):
+              raise SystemExit('UNVERIFIABLE_DRYRUN_NO_LIVE_PUT')
+          assert len(raw)<=80000
+          try:doc=json.loads(raw)
+          except ValueError:doc={}
+          errors=doc.get('errors',[]) if isinstance(doc,dict) else []
+          if not isinstance(errors,list):errors=[]
+          safe_errors=[]
+          for e in errors[:6]:
+              if not isinstance(e,dict):continue
+              msg=e.get('message','')
+              if not isinstance(msg,str):msg=''
+              lower=msg.lower()
+              reason='permission' if any(x in lower for x in ('permission','auth','forbidden')) else (
+                'quota' if any(x in lower for x in ('quota','limit','maximum','plan','capacity')) else (
+                'unsupported' if any(x in lower for x in ('not supported','unsupported','not allowed')) else (
+                'configuration' if any(x in lower for x in ('expression','rule','invalid','config')) else 'other')))
+              item={'code':e.get('code') if isinstance(e.get('code'),int) else None,
+                   'class':reason,'message_sha256':hashlib.sha256(msg.encode()).hexdigest()}
+              src=e.get('source',{})
+              if isinstance(src,dict) and isinstance(src.get('pointer'),str):
+                  ptr=src['pointer']
+                  if ptr.startswith('/rules/') and len(ptr)<100:item['source_pointer']=ptr
+              safe_errors.append(item)
+          out={'schema':'AXIOM_FULL_PAYLOAD_NO_LIVE_WRITE_DIAGNOSTIC',
+            'baseline_version':'25','original_rule_count':len(current['rules']),
+            'payload_rule_count':len(payload['rules']),
+            'scope_exact_staging_host':payload['rules'][-1]['expression']==m.EXPR,
+            'dry_run_http':http,'dry_run_success':doc.get('success') is True if isinstance(doc,dict) else False,
+            'content_type_json':'json' in content_type.lower(),
+            'error_count':len(errors),'safe_errors':safe_errors,
+            'provider_writes_persisted':0,'production_oauth_touched':False}
+          body=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-staging-full-config-dryrun-proof.json');p.write_bytes(body)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(body).hexdigest()+'  '+p.name+'\n')
+          print('FULL_CONFIG_RULE_DRY_RUN_RESULT='+str(http)+' NO_LIVE_WRITES')
+          PY
+      - name: Preserve sanitized error codes and independently signed digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-staging-full-config-dryrun-20261108
+          path: |
+            axiom-staging-full-config-dryrun-proof.json
+            axiom-staging-full-config-dryrun-proof.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
