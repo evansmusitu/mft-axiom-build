@@ -1,0 +1,125 @@
+name: AXIOM independent exact-host Cloudflare v26 and fail-closed HTTPS readback
+on:
+  push:
+    branches: [ops/axiom-config-v26-independent-readback-20261108]
+    paths: [.github/workflows/axiom-config-v26-independent-readback.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-config-v26-independent-readback-20261108' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Independent cloud-read API and public HTTPS test — NO provider writes
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,hashlib,re,urllib.request,urllib.error
+          from pathlib import Path
+          Z='5b56528f03948ff5917a5e0cd9f7109e'
+          A='93f395f5121954671f92fffa453d6b61'
+          R='8e8a2552a8ee4bb383abbe0d748e1da5'
+          HOST='axiom-customer-staging.mftintelligence.com'
+          WORKER='musitu-axiom-customer-staging'
+          ROOT='https://api.cloudflare.com/client/v4'
+          token=os.environ.get('TOKEN','')
+          if not token:raise SystemExit('READ_TOKEN_MISSING')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          op=urllib.request.build_opener(NoRedirect)
+          def api(path):
+            req=urllib.request.Request(ROOT+path,headers={'authorization':'Bearer '+token,'accept':'application/json'},method='GET')
+            with op.open(req,timeout=18) as f:
+              raw=f.read(250001)
+              if f.status!=200 or len(raw)>250000:raise ValueError('INVALID_API_RESPONSE')
+            doc=json.loads(raw)
+            if doc.get('success') is not True:raise ValueError('CLOUDFLARE_READ_FAILED')
+            return doc['result']
+          def core(r):
+            return {k:v for k,v in r.items() if k not in ('last_updated','version')}
+          def http(path):
+            req=urllib.request.Request('https://'+HOST+path,headers={'accept':'application/json','user-agent':'AXIOM-EXTERNAL-STAGING-ATTEST/20261108'},method='GET')
+            try:
+              with op.open(req,timeout=14) as f:
+                return f.status, bool(f.headers.get('set-cookie')),f.read(6000)
+            except urllib.error.HTTPError as e:
+              return e.code,bool(e.headers.get('set-cookie')),e.read(6000)
+          receipt={'schema':'AXIOM_CLOUDFLARE_INDEPENDENT_V26_READBACK','provider_mutations':0,
+                   'production_oauth_touched':False,'release_qualified':False,
+                   'status':'NO_GO'}
+          try:
+            zone=api('/zones/'+Z)
+            assert zone.get('account',{}).get('id')==A and zone.get('name')=='mftintelligence.com' and zone.get('status')=='active'
+            global_setting=api('/zones/'+Z+'/settings/security_level')
+            receipt['zone_under_attack_unchanged']=(global_setting.get('value')=='under_attack')
+            assert receipt['zone_under_attack_unchanged']
+            curr=api('/zones/'+Z+'/rulesets/'+R)
+            hist=api('/zones/'+Z+'/rulesets/'+R+'/versions/25')
+            assert curr.get('id')==R and curr.get('version')=='26' and curr.get('phase')=='http_config_settings'
+            assert hist.get('id')==R and hist.get('version')=='25'
+            old=hist.get('rules',[]);new=curr.get('rules',[])
+            assert len(old)==len(new)==10
+            original_pair=old[:2]
+            assert [x.get('id') for x in original_pair]==['15ad7cfa5d20422cb585fee04ea2d574','57f8a7896c0246a0a16b7a4fa018cf13']
+            assert original_pair[0].get('action_parameters')==original_pair[1].get('action_parameters')=={'bic':False,'security_level':'essentially_off'}
+            assert original_pair[0].get('action')==original_pair[1].get('action')=='set_config'
+            assert re.fullmatch(r'\(?http\.host eq "[a-z0-9.-]+"\)?',original_pair[0]['expression'])
+            assert re.fullmatch(r'\(?http\.host eq "[a-z0-9.-]+"\)?',original_pair[1]['expression'])
+            a,b=original_pair
+            assert new[0]['id']==a['id']
+            assert new[0]['expression']=='('+a['expression']+') or ('+b['expression']+')'
+            left=core(new[0]);left['expression']=a['expression']
+            assert left==core(a)
+            receipt['merged_pair_same_behavior']=True
+            assert [x['id'] for x in new[1:9]]==[x['id'] for x in old[2:]]
+            assert all(core(n)==core(o) for n,o in zip(new[1:9],old[2:]))
+            receipt['eight_other_rules_exactly_preserved']=True
+            stage=new[-1]
+            assert stage.get('expression')=='(http.host eq "'+HOST+'")'
+            assert stage.get('action')=='set_config' and stage.get('action_parameters')=={'security_level':'essentially_off'} and stage.get('enabled',True)
+            assert stage.get('ref')=='axiom_customer_stage_uam_override_20261108'
+            receipt['staging_rule_exact_host_only']=True
+            domains=api('/accounts/'+A+'/workers/domains')
+            assert sum(1 for d in domains if d.get('hostname')==HOST and d.get('service')==WORKER and d.get('enabled') is True)==1
+            settings=api('/accounts/'+A+'/workers/scripts/'+WORKER+'/settings')
+            assert settings.get('bindings')==[]
+            s,c,body=http('/_health')
+            assert s==200 and not c
+            health=json.loads(body)
+            assert health.get('ok') is True and health.get('stage')=='host_route_only'
+            assert all(health.get(k) is False for k in ('identity_live_qualified','customer_ownership_qualified','oauth_upgrade_qualified','release_qualified'))
+            receipt['https_health_200']=True
+            auth=http('/auth/start');customer=http('/v1/customer/me')
+            assert auth[0]==503 and customer[0]==503 and not auth[1] and not customer[1]
+            receipt['auth_and_customer_fail_closed_503_no_cookies']=True
+            receipt['rollback_v25_retrievable']=True
+            receipt['version_after']='26'
+            receipt['rule_count']=len(new)
+            receipt['status']='PASS_HOST_SCOPE_ONLY_IDENTITY_NO_GO'
+          except (AssertionError,ValueError,KeyError,urllib.error.HTTPError,OSError,TimeoutError,TypeError) as e:
+            receipt['status']='FAIL_REVIEW_REQUIRED'
+            receipt['error_category']=type(e).__name__
+          raw=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-staging-independent-v26-readback.json');p.write_bytes(raw)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_INDEPENDENT_CLOUDFLARE_V26='+receipt['status']+' MUTATIONS=0')
+          if receipt['status']!='PASS_HOST_SCOPE_ONLY_IDENTITY_NO_GO':raise SystemExit(2)
+          PY
+      - name: Preserve independent immutable v26/HTTPS verification and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cloudflare-v26-independent-20261108
+          path: |
+            axiom-staging-independent-v26-readback.json
+            axiom-staging-independent-v26-readback.json.sha256
+          retention-days: 14
+          if-no-files-found: warn
