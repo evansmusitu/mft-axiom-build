@@ -1,0 +1,55 @@
+name: AXIOM export only safe real PR77 offline OAuth receipt 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-safe-archive-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-pr77-safe-archive-20261108
+  cancel-in-progress: false
+jobs:
+  archive-strictly-nonidentifying-operator-evidence:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-real-oauth-private-evidence-20261108' && github.event.pull_request.base.ref == 'build/axiom-oauth-pr77-realsnapshot-offline-20261108' && github.event.pull_request.base.sha == '68977075a910593556e7375f4a815318ceefb096' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact safe evidence commit only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 68977075a910593556e7375f4a815318ceefb096
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify immutable nonidentifying verdict, commit, checksum and release denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 68977075a910593556e7375f4a815318ceefb096
+          test "$(git hash-object customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/actual-pr77-production-ram-only-verdict.json)" = 2a7ba2764bdc18111d39bdf8bb902dc7b55621d0
+          test "$(git hash-object customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/ACTUAL_PR77_REAL_PRODUCTION_SNAPSHOT_RAM_APPLY_REPEAT_AND_ATOMIC_ROLLBACK_NOT_HOSTED.md)" = 724abbca12a4aa07ea35d4b89056bf149fa70881
+          echo 'ccfb163988ad9f6f045ac0a91d3925008a6c5be20c70e93342f7583ed4bb3c6f  customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/actual-pr77-production-ram-only-verdict.json' | sha256sum --check
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/actual-pr77-production-ram-only-verdict.json')
+          x=json.loads(p.read_text())
+          assert x['candidate_source_commit']=='4bb938d679a384cc2e499c09569a55c6b880a5fb'
+          assert x['reviewed_plan_statements']==89
+          assert x['reviewed_plan_sha256']=='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'
+          assert x['source_sql_sha256']=='c8eb426f629d3ef6d84a88aa5e11603e2d2637b266706288435b710537b3b304'
+          assert x['source_memory_restore']['rows']==4612
+          for flag in ('oauth_identity_version_2_committed','repeat_upgrade_idempotency_pass','repeat_upgrade_version_row_still_single','success_full_row_fingerprint_equal','forced_failure_schema_exact_rollback','forced_failure_full_row_fingerprint_equal','forced_failure_transaction_closed','forced_failure_integrity_ok'):
+              assert x[flag] is True,flag
+          assert x['cloudflare_requests']==0 and x['hosted_d1_mutations']==0
+          assert x['plaintext_sql_artifacts']==0 and x['private_key_artifacts']==0
+          assert x['production_oauth_migration_qualified'] is False and x['release_authority'] is False
+          print('REAL_PR77_SAFE_REPRODUCTION_RECEIPT_SHA_BOUND_NO_DATA_NO_RELEASE_PASS')
+          PY
+      - name: Archive exactly two safe GitHub files and no customer records
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-production-oauth-real-snapshot-offline-verdict-not-release-20261108
+          path: |
+            customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/actual-pr77-production-ram-only-verdict.json
+            customer_frontier/evidence/prod-oauth-real-pr77-offline-20261108/ACTUAL_PR77_REAL_PRODUCTION_SNAPSHOT_RAM_APPLY_REPEAT_AND_ATOMIC_ROLLBACK_NOT_HOSTED.md
+          retention-days: 30
+          if-no-files-found: error
