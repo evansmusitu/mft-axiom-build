@@ -1,0 +1,60 @@
+name: MUSITU AXIOM complete public whole-product chat-shift export (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - handoff/whole-product-20261108-1223
+    paths:
+      - tools/packaging/musitu_whole_product_live_handoff_20261108.py
+      - .github/workflows/axiom-whole-product-20261108-handoff.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+  checks: read
+
+concurrency:
+  group: whole-product-20261108-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sealed-public-handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout authenticated public repository with full Git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build full public Git ref bundle, verified trees and portable handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/packaging/musitu_whole_product_live_handoff_20261108.py
+          python -B tools/packaging/musitu_whole_product_live_handoff_20261108.py
+      - name: Upload verified full source as ONE clean ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_20261108
+          path: ${{ runner.temp }}/musitu-whole-product-20261108/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+      - name: Confirm package contains no deploy steps
+        run: |
+          echo 'FULL_PUBLIC_GIT_HISTORY=BUNDLED'
+          echo 'PRIVATE_GITLAB_HISTORY=EXCLUDED'
+          echo 'PRODUCTION_RELEASE=NO_GO'
+          echo 'NO_NEON_NETWORK_CHANGE=TRUE'
+          echo 'NO_CLOUDFLARE_DEPLOY=TRUE'
+          echo 'NO_PAID_PROVIDER_CALL=TRUE'
