@@ -115,6 +115,20 @@
       "customer_identity_qualified": false,
       "production_upgrade_qualified": false,
       "release_authority": false
+    },
+    "pr83_fullstack_live_adapter_security_veto": {
+      "status": "FAILED_AS_REQUIRED_SECURITY_HOLD",
+      "run_id": 42292436148,
+      "job_id": 128149159182,
+      "failing_step": "Block legacy production-writing live adapter pending isolated staging security gate",
+      "workflow_blob_sha": "0ef374b04e5e8eab788e2c498dfea0a3c1c1538b",
+      "source_ref": "fdc89d48f7aa888c67afc4ece3465328cc2a77f6",
+      "cause": "legacy live adapter accesses sealed D1, can provision customer fixtures and accepts broad Cloudflare credentials",
+      "accepted_no_credentials_stages": "BROWSER_MULTIMODAL_ADVERSARIAL_INDEPENDENT_IMPLEMENTATION_PRIOR_SUCCESS",
+      "isolated_staging_live_adapter_replacement_qualified": false,
+      "independent_security_reviewer_signed": false,
+      "veto_removed": false,
+      "release_authority": false
     }
   },
   "blocking_gates": {
@@ -125,7 +139,7 @@
     "external_execution_cancellation_final_compute_usage": "NOT_QUALIFIED",
     "paynow_true_settlement_invoice_refund_and_real_devices": "NOT_QUALIFIED",
     "custody_antirollback_independent_destructive_recovery": "B27_FAILED_IN_SYNTHETIC_ATTACK",
-    "integration_security_full_stack": "PR83_FAILED_AT_INTENTIONAL_LIVE_ADAPTER_VETO",
+    "integration_security_full_stack": "PR83_CONFIRMED_INTENTIONAL_FAIL_CLOSED_LEGACY_LIVE_ADAPTER_REQUIRES_ISOLATED_STAGING_AND_INDEPENDENT_SECURITY_ATTESTATION",
     "independent_reviewer_and_public_release": "NOT_QUALIFIED"
   },
   "protected_refs": {
