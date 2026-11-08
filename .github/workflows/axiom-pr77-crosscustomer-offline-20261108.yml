@@ -1,0 +1,46 @@
+name: AXIOM PR77 synthetic cross-customer forbidden link tests 20261108 (NO TOKENS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-crosscustomer-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-pr77-crosscustomer-offline-20261108
+  cancel-in-progress: false
+jobs:
+  fixed-synthetic-client-customer-fail-closed:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-hosted-synthetic-crosscustomer-denial-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-hosted-synthetic-independent-readback-20261108' && github.event.pull_request.base.sha == '17d8fd943c65b33b03a8fb7b7d0fd04636b184dd' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 2e1f103f87c1081e8afdff8ccafcd5251e10652c
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Exact synthetic-only source and test provenance, no Cloudflare token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 2e1f103f87c1081e8afdff8ccafcd5251e10652c
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py)" = fdbb9c2c55ad626c70034f8e6902ccd7aa4b4f71
+          test "$(git hash-object customer_frontier/qualification/test_pr77_synthetic_crosscustomer_denials_20261108.py)" = 2a4710d840c74eed77fda2a578147431d8dd2b90
+          test -z "${AXIOM_CUSTOMER_STAGING_CF_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          python3 -m py_compile customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py customer_frontier/qualification/test_pr77_synthetic_crosscustomer_denials_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/pr77_synthetic_crosscustomer_denials_20261108.py').read_text()
+          assert "TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'" in s
+          assert "PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "PLAN_SHA='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'" in s
+          assert "PROVIDER_SELECT_ZERO_WRITES_UNQUALIFIED" in s
+          assert "identity_token_link_not_active" in s and "identity_code_link_not_active" in s
+          assert "CATALOG_CHANGED_AFTER_DENIAL" in s
+          assert "'production_oauth_modified':False" in s
+          assert "'release_authority':False" in s
+          assert "DELETE FROM" not in s and "DROP TABLE" not in s
+          print('FIXED_SYNTHETIC_PR77_LINK_DENIAL_SOURCE_ADMITTED')
+          PY
+      - name: Seven fail-closed tests for denial and schema/row preservation
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_pr77_synthetic_crosscustomer_denials_20261108.py -v
