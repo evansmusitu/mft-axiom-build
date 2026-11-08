@@ -1,0 +1,40 @@
+name: AXIOM OAuth unmatched flow expiry offline review 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-oauth-unregistered-flow-expiry-offline-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-oauth-flow-expiry-offline-20261108, cancel-in-progress: false}
+jobs:
+  fixed-no-identity-expiry-classifier-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-oauth-unregistered-flow-expiry-20261108' && github.event.pull_request.base.ref == 'build/axiom-oauth-structural-links-live-20261108' && github.event.pull_request.base.sha == 'de8f1fdc8b11b1d7113c8ac19f1126cbc56d0aac' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 1c9809717298aa820ab77aebd162047d022a9d73
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Pin exact read-only 12-count base and timing source before credentials
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 1c9809717298aa820ab77aebd162047d022a9d73
+          test "$(git hash-object customer_frontier/qualification/oauth_identity_links_20261108.py)" = c1dab9b2d08a088db63f99568c2a607f28f10a36
+          test "$(git hash-object customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py)" = ef971300174097ecc2b0ccf53306d4db62f880a4
+          test "$(git hash-object customer_frontier/qualification/test_oauth_flow_expiry_triage_20261108.py)" = 4b710fb6b335df45613b189c9ccab1c730be81fd
+          python3 -m py_compile customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py customer_frontier/qualification/test_oauth_flow_expiry_triage_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/oauth_flow_expiry_triage_20261108.py').read_text()
+          assert 'orphan_flow_clients' in s
+          assert "refs.get('orphan_flow_clients')!=3" in s
+          assert "julianday(expires_at)" in s
+          assert "COUNT(DISTINCT client_id)" in s
+          assert "THREE_UNREGISTERED_FLOWS_EXPIRED_NOT_USER_OWNERSHIP" in s
+          assert "'real_identity_qualified':False" in s and "'release_authority':False" in s
+          assert 'SELECT *' not in s and 'DELETE FROM' not in s and 'DROP TABLE' not in s
+          print('FIXED_NON_IDENTIFYING_OAUTH_EXPIRY_TRIAGE_ADMITTED')
+          PY
+      - name: Six expiry, not-expired, malformed and identity-denial tests
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_oauth_flow_expiry_triage_20261108.py -v
