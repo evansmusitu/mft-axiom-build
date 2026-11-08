@@ -1,0 +1,80 @@
+name: AXIOM staging Configuration Rules plan and quota GET-only
+on:
+  pull_request:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  plan:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-stage-rule-quota-20261108' &&
+      github.base_ref == 'build/axiom-staging-config-prerule-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query fixed zone and exact Config Rules only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,re,urllib.request,urllib.error,os
+          from pathlib import Path
+          Z='5b56528f03948ff5917a5e0cd9f7109e'
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token: raise SystemExit('MISSING_GITHUB_SECRET')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          def fetch(suffix):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/zones/'+Z+suffix,method='GET',
+              headers={'authorization':'Bearer '+token,'accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as res:
+                if res.status!=200:raise ValueError('BAD_STATUS')
+                raw=res.read(150001)
+              if len(raw)>150000:raise ValueError('RESPONSE_TOO_LARGE')
+              doc=json.loads(raw)
+              if doc.get('success') is not True:return None
+              return doc.get('result')
+            except (urllib.error.HTTPError,ValueError,OSError,TimeoutError):
+              return None
+          zone=fetch('')
+          rules=fetch('/rulesets/phases/http_config_settings/entrypoint')
+          out={'kind':'AXIOM_CONFIG_RULE_QUOTA_PREWRITE','mutations':0,
+              'status':'UNQUALIFIED','zone_owner_matches':False,'zone_active':False,
+              'plan':None,'config_rule_count':None,'config_ruleset_version':None,'rules':[]}
+          if isinstance(zone,dict):
+            out['zone_owner_matches']=zone.get('account',{}).get('id')==ACCOUNT
+            out['zone_active']=zone.get('status')=='active' and zone.get('name')=='mftintelligence.com'
+            plan=zone.get('plan',{})
+            if isinstance(plan,dict):out['plan']=plan.get('name')
+          if isinstance(rules,dict) and rules.get('phase')=='http_config_settings' and isinstance(rules.get('rules'),list):
+            out['config_rule_count']=len(rules['rules'])
+            out['config_ruleset_version']=rules.get('version')
+            for i,r in enumerate(rules['rules']):
+              expr=r.get('expression','')
+              ap=r.get('action_parameters',{})
+              if not isinstance(expr,str) or not isinstance(ap,dict):continue
+              out['rules'].append({'i':i,'id':r.get('id'),'enabled':r.get('enabled',True),
+                'bic':ap.get('bic'),'security_level':ap.get('security_level'),
+                'simple_exact_single_hostname':bool(re.fullmatch(r'\(?http\.host eq "[a-z0-9.-]+"\)?',expr)),
+                'expression_digest':hashlib.sha256(expr.encode()).hexdigest()})
+          out['status']='PLAN_READ' if out['zone_owner_matches'] and out['zone_active'] and out['plan'] and out['config_rule_count'] is not None else 'UNQUALIFIED'
+          b=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-staging-config-rule-quota.json');p.write_bytes(b);p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_ZONE_PLAN_READ_ONLY='+out['status']+' RULES='+str(out['config_rule_count'])+' MUTATIONS=0')
+          PY
+      - name: Store sanitized plan and rule metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-config-rules-plan-20261108
+          path: |
+            axiom-staging-config-rule-quota.json
+            axiom-staging-config-rule-quota.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
