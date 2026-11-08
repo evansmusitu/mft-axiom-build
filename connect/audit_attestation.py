@@ -28,6 +28,29 @@ def _signature_payload(snapshot):
     return canonical_bytes({"schema": _SCHEMA, "snapshot": snapshot})
 
 
+def _snapshot_in_transaction(store, run_id):
+    if not store.verify_audit_chain(run_id):
+        raise ValueError("AUDIT_INTEGRITY_INVALID")
+    stored = store.load_run(run_id)
+    events = store.audit_events(run_id)
+    if not events:
+        raise ValueError("AUDIT_INTEGRITY_INVALID")
+    return {
+        "run_id": stored.run_id,
+        "connector_name": stored.connector_name,
+        "protocol": stored.protocol,
+        "created_at": stored.created_at,
+        "canonical_sha256": stored.canonical_sha256,
+        "signature_sha256": hashlib.sha256(stored.signature.encode("utf-8")).hexdigest(),
+        "lineage_sha256": hashlib.sha256(canonical_bytes(stored.lineage)).hexdigest(),
+        "envelope_source": stored.envelope.source,
+        "envelope_provenance": stored.envelope.provenance,
+        "audit_count": len(events),
+        "audit_last_index": events[-1].event_index,
+        "audit_last_hash": events[-1].event_hash,
+    }
+
+
 def _snapshot(store, run_id):
     if type(run_id) is not str or not run_id:
         raise ValueError("AUDIT_INTEGRITY_INVALID")
@@ -39,26 +62,7 @@ def _snapshot(store, run_id):
             raise ValueError("AUDIT_INTEGRITY_INVALID")
         store.connection.execute("BEGIN")
         try:
-            if not store.verify_audit_chain(run_id):
-                raise ValueError("AUDIT_INTEGRITY_INVALID")
-            stored = store.load_run(run_id)
-            events = store.audit_events(run_id)
-            if not events:
-                raise ValueError("AUDIT_INTEGRITY_INVALID")
-            return {
-                "run_id": stored.run_id,
-                "connector_name": stored.connector_name,
-                "protocol": stored.protocol,
-                "created_at": stored.created_at,
-                "canonical_sha256": stored.canonical_sha256,
-                "signature_sha256": hashlib.sha256(stored.signature.encode("utf-8")).hexdigest(),
-                "lineage_sha256": hashlib.sha256(canonical_bytes(stored.lineage)).hexdigest(),
-                "envelope_source": stored.envelope.source,
-                "envelope_provenance": stored.envelope.provenance,
-                "audit_count": len(events),
-                "audit_last_index": events[-1].event_index,
-                "audit_last_hash": events[-1].event_hash,
-            }
+            return _snapshot_in_transaction(store, run_id)
         finally:
             store.connection.rollback()
 
@@ -108,6 +112,83 @@ def verify_audit_attestation(store, attestation, secret):
             return False
         live = _snapshot(store, snapshot["run_id"])
         return hmac.compare_digest(canonical_bytes(snapshot), canonical_bytes(live))
+    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError,
+            RuntimeError, OverflowError, sqlite3.Error):
+        return False
+
+
+def _verified_pinned_snapshot(artifact, secret):
+    """Validate the old owner's artifact without requiring the old DB state."""
+    if not _valid_key(secret) or type(artifact) is not bytes:
+        return None
+    if not 2 <= len(artifact) <= _MAX_ARTIFACT_BYTES:
+        return None
+    try:
+        document = json.loads(artifact)
+        if type(document) is not dict or canonical_bytes(document) != artifact:
+            return None
+        if set(document) != {"schema", "snapshot", "hmac_sha256"} or document["schema"] != _SCHEMA:
+            return None
+        snapshot = document["snapshot"]
+        tag = document["hmac_sha256"]
+        if type(snapshot) is not dict or set(snapshot) != _FIELDS:
+            return None
+        if (type(tag) is not str or len(tag) != 64
+                or any(ch not in "0123456789abcdef" for ch in tag)):
+            return None
+        if (type(snapshot["run_id"]) is not str or not snapshot["run_id"]
+                or type(snapshot["audit_count"]) is not int
+                or type(snapshot["audit_last_index"]) is not int
+                or snapshot["audit_count"] < 1
+                or snapshot["audit_last_index"] != snapshot["audit_count"] - 1):
+            return None
+        digest = snapshot["audit_last_hash"]
+        if (type(digest) is not str or len(digest) != 64
+                or any(ch not in "0123456789abcdef" for ch in digest)):
+            return None
+        expected = hmac.new(secret, _DOMAIN + _signature_payload(snapshot), hashlib.sha256).hexdigest()
+        return snapshot if hmac.compare_digest(expected, tag) else None
+    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError, OverflowError):
+        return None
+
+
+def verify_audit_attestation_rotation(store, pinned_previous, proposed_latest, secret):
+    """Verify a new audit tip extends the *externally pinned* old tip.
+
+    Both artifacts must be authentic under an owner-controlled HMAC key. The
+    complete current chain must match proposed_latest, AND the prior indexed
+    hash must still occur at its original position in that same chain. This
+    offers fork/rollback detection only while the earlier pinned bytes and
+    key are held beyond the audited DB. No storage/publishing is performed.
+    """
+    old = _verified_pinned_snapshot(pinned_previous, secret)
+    proposed = _verified_pinned_snapshot(proposed_latest, secret)
+    if old is None or proposed is None:
+        return False
+    # Stable identity cannot be reassigned across different observations.
+    stable_fields = _FIELDS - {"audit_count", "audit_last_index", "audit_last_hash"}
+    if any(old[field] != proposed[field] for field in stable_fields):
+        return False
+    if proposed["audit_count"] < old["audit_count"]:
+        return False
+    try:
+        with store._lock:
+            if store.connection.in_transaction:
+                return False
+            store.connection.execute("BEGIN")
+            try:
+                live = _snapshot_in_transaction(store, old["run_id"])
+                if not hmac.compare_digest(canonical_bytes(proposed), canonical_bytes(live)):
+                    return False
+                anchored = store.connection.execute(
+                    "SELECT event_hash FROM run_audit WHERE run_id=? AND event_index=?",
+                    (old["run_id"], old["audit_last_index"]),
+                ).fetchone()
+                return bool(anchored is not None and hmac.compare_digest(
+                    anchored["event_hash"], old["audit_last_hash"]
+                ))
+            finally:
+                store.connection.rollback()
     except (ValueError, TypeError, KeyError, AttributeError, UnicodeError,
             RuntimeError, OverflowError, sqlite3.Error):
         return False
