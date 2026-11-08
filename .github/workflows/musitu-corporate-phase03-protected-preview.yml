@@ -15,7 +15,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       WRANGLER_SEND_METRICS: 'false'
-      REVIEW_SHA: cedbb4e17c52b80c071ee5b658f2dfbc28b014ff
+      REVIEW_SHA: 0f0685069d8f4aef64894176ac156f7f29c0beae
       REVIEW_BRANCH: phase03-acceptance-20261108
     steps:
       - name: Fail closed unless corporate Pages baseline and restricted Access are verified
@@ -64,7 +64,6 @@ jobs:
         env:
           MUSITU_BUILD_MODE: review
           MUSITU_PROTECTED_STAGING_MEDIA: '1'
-          MUSITU_PUBLISH_PHASE03: '1'
         run: |
           set -euo pipefail
           python -m pip install -q pytest beautifulsoup4
@@ -72,6 +71,7 @@ jobs:
           python -m pytest -q tests/test_site.py tests/test_http.py tests/test_sitemap.py tests/test_studio_and_store.py
           python -m unittest discover -s tests -p 'test_phase03_seo.py'
           python -m unittest discover -s tests -p 'test_phase03_growth.py'
+          MUSITU_PUBLISH_PHASE03=1 python scripts/build.py
           python - <<'PY'
           from pathlib import Path
           import json
