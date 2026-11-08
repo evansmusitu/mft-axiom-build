@@ -6,6 +6,7 @@ import {qualifiedLoginRedirect} from './login_broker.mjs';
 import {getLiveBillingTruth} from './live_billing_truth.mjs';
 import {verifyCustomerSession} from './identity_session.mjs';
 import {canonicalCustomerForPrincipal,activeIdentityMembership} from './canonical_identity.mjs';
+import {stagingIdentityRoute} from './staging_identity_frontdoor.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const error=(code,status=400)=>json({ok:false,error:code},status);
 const valid=(s,max=160)=>typeof s==='string'&&s.trim().length>0&&s.length<=max;
@@ -32,7 +33,11 @@ async function readBody(req){const size=Number(req.headers.get('content-length')
 async function getOwnProject(db,tenant,projectId){const row=await one(db,'SELECT * FROM projects WHERE id=? AND tenant_id=?',projectId,tenant);if(!row)throw new Error('project_not_found');return row;}
 async function getOwnWork(db,tenant,workId){const row=await one(db,'SELECT * FROM work WHERE id=? AND tenant_id=?',workId,tenant);if(!row)throw new Error('work_not_found');return row;}
 export async function handle(request,env){
- const url=new URL(request.url),path=url.pathname,method=request.method;const db=env.CUSTOMER_DB;
+ const url=new URL(request.url),path=url.pathname,method=request.method;
+ // Staging OIDC ingress is delegated only to the separately qualified browser
+ // service. Never use the legacy redirect broker on this pinned origin.
+ const staging=await stagingIdentityRoute(request,env);if(staging)return staging;
+ const db=env.CUSTOMER_DB;
  if(!db)return error('database_unavailable',503);
  if(path==='/auth/start'&&method==='GET'){try{const location=await qualifiedLoginRedirect(env,{intent:url.searchParams.get('intent')||'login'});return new Response(null,{status:302,headers:{location,'cache-control':'no-store','referrer-policy':'no-referrer'}})}catch(e){return error(clean(e),503)}}
  if(path==='/internal/customer/reconcile'&&method==='POST')return error('private_service_binding_only',403);
