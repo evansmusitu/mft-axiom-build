@@ -1,0 +1,80 @@
+name: AXIOM alternate staging D1 account read-only capacity check 20261108 (NO RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-target-account-preflight-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-target-account-preflight-20261108
+  cancel-in-progress: false
+jobs:
+  read-only-d1-list:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-target-account-preflight-20261108' && github.event.pull_request.base.ref == 'build/axiom-ccc-count-parity-live-20261108' && github.event.pull_request.base.sha == 'b036352fedcf274e2a26601e6215627b8b616ea8' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: One fixed account GET, report only totals, no Cloudflare writes
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request,time
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          PREVIOUS='93f395f5121954671f92fffa453d6b61'
+          assert ACCOUNT != PREVIOUS
+          p=Path('axiom-d1-isolated-target-readonly-preflight.json')
+          out=dict(schema='musitu.axiom.d1_isolated_target_readonly_preflight.v1',account_id=ACCOUNT,action='GET_D1_LIST_ONLY',status='UNQUALIFIED',provider_http_status=None,listed_database_count=None,free_plan_assumed_limit=10,free_plan_verified=False,has_spare_capacity_unconfirmed=False,account_ownership_verified=False,api_write_scope_verified=False,independent_restore_qualified=False,production_oauth_changed=False,release_authority=False)
+          code=1
+          try:
+              tok=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+              if not tok or '\\n' in tok or '\\r' in tok:
+                  out['status']='SECRET_NOT_CONFIGURED'
+              else:
+                  uri='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database?page=1&per_page=100'
+                  req=urllib.request.Request(uri,method='GET',headers={'Authorization':'Bearer '+tok,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-TargetReadOnly/1.0'})
+                  class NoRedirects(urllib.request.HTTPRedirectHandler):
+                      def redirect_request(self,*args,**kwargs):return None
+                  try:
+                      with urllib.request.build_opener(NoRedirects()).open(req,timeout=15) as response:
+                          out['provider_http_status']=response.status
+                          raw=response.read(131073)
+                  except urllib.error.HTTPError as exc:
+                      out['provider_http_status']=exc.code
+                      out['status']='D1_LIST_PERMISSION_OR_ACCOUNT_UNQUALIFIED'
+                  else:
+                      if len(raw)>131072:
+                          out['status']='D1_LIST_RESPONSE_TOO_LARGE'
+                      elif out['provider_http_status']!=200:
+                          out['status']='D1_LIST_HTTP_UNQUALIFIED'
+                      else:
+                          data=json.loads(raw)
+                          val=data.get('result') if isinstance(data,dict) else None
+                          inf=data.get('result_info') if isinstance(data,dict) else None
+                          if data.get('success') is not True or not isinstance(val,list) or not isinstance(inf,dict) or type(inf.get('total_count')) is not int or inf['total_count']<0 or len(val)!=inf.get('count'):
+                              out['status']='D1_LIST_ENVELOPE_UNQUALIFIED'
+                          elif inf['total_count']<len(val):
+                              out['status']='D1_LIST_INCONSISTENT_COUNT'
+                          else:
+                              out['listed_database_count']=inf['total_count']
+                              out['has_spare_capacity_unconfirmed']=inf['total_count']<10
+                              out['status']='READ_ONLY_LIST_CONFIRMED_CAPACITY_CANDIDATE' if inf['total_count']<10 else 'READ_ONLY_LIST_CONFIRMED_NO_FREE_CAPACITY'
+                              code=0
+          except (urllib.error.URLError,TimeoutError,OSError):
+              out['status']='D1_LIST_NETWORK_UNAVAILABLE'
+          except Exception:
+              out['status']='D1_LIST_OTHER_UNQUALIFIED'
+          p.write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          raise SystemExit(code)
+          
+          PY
+      - name: Archive sanitized read-only gate result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-dr-target-account-readonly-gate-20261108
+          path: axiom-d1-isolated-target-readonly-preflight.json
+          retention-days: 30
+          if-no-files-found: warn
