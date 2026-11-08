@@ -1,0 +1,46 @@
+name: AXIOM production OAuth current encrypted backup candidate OFFLINE 20261108 (NO CLOUD)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-prod-oauth-private-backup-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-prod-oauth-private-backup-offline-20261108
+  cancel-in-progress: false
+jobs:
+  credential-free-oauth-backup-candidate:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-prod-oauth-private-snapshot-review-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-cross-source-custody-20261108' && github.event.pull_request.base.sha == 'ac31786d75c947238bbaa901833765c188edf0b4' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 42b75cb0c12fcae09758ef593d188717b5900112
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Exact source and protected OAuth data scope with NO credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 42b75cb0c12fcae09758ef593d188717b5900112
+          test "$(git hash-object customer_frontier/recovery/export_prod_oauth_current_backup_20261108.mjs)" = 210c53967c812a1347fb5d2f26fafa3ad4c1e7af
+          test "$(git hash-object customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs)" = d7bc3ffcfbec8e55a818de549c9d7d802ec379c9
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = ec9115c83879290d23cee2eb2932f2f31df5584d
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/recovery/export_prod_oauth_current_backup_20261108.mjs').read_text()
+          assert "export const DATABASE='504029cc-f9a5-495e-818f-63c6144b4ea4'" in s
+          assert "export const NAME_SHA='b0d9b8d70e3736276b018cc196c1ba823a15b43921b6493e63d95941ea199ef6'" in s
+          assert "export const CATALOG_SHA='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'" in s
+          assert "rows.length!==33" in s
+          assert 'sha(JSON.stringify(rows))' in s
+          assert 'encryptBackup(sql,publicKey,header);sql.fill(0)' in s
+          assert "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f" not in s
+          assert "'/import'" not in s and "'/time_travel/restore'" not in s
+          assert "restore_qualified:false" in s and "target_admitted:false" in s and "release_authority:false" in s
+          print('PRODUCTION_OAUTH_FIXED_SOURCE_NO_CLOUD_CREDENTIALS_ADMITTED')
+          PY
+          node --check customer_frontier/recovery/export_prod_oauth_current_backup_20261108.mjs
+          node --check customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs
+      - name: Synthetic encryption and refusal tests (no Cloudflare credentials)
+        run: node --test customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs
