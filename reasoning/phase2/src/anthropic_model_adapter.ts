@@ -82,6 +82,10 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
       secretResolver:config.secretResolver,
       fetchFn:config.fetchFn
     });
+    // Lock the registered paid-provider identity and prevent JS property-shadow
+    // writes from downgrading metering admission after construction.
+    Object.freeze(this.manifest);
+    Object.freeze(this);
   }
 
   async explain(input:ModelExplanationAdapterInput):Promise<CapturedModelExplanationExchange>{
