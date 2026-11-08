@@ -1,0 +1,26 @@
+name: AXIOM staging exact-zone user token source-only verification
+on:
+  push:
+    branches: [ops/axiom-stage-r5-source-tests-20261108]
+permissions:
+  contents: read
+jobs:
+  test:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-stage-r5-source-tests-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Source fingerprints, 13 negative and positive tests, no secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/staging_override_newtoken.py)" = 'cf14c4f4b9e590d8777cdd6b9d1fb881ccb4855d'
+          test "$(git hash-object customer_frontier/qualification/test_staging_override_newtoken.py)" = 'c07eb86601dfe5f707aa420db2951c97c4a85e39'
+          python3 -m py_compile customer_frontier/qualification/staging_override_newtoken.py customer_frontier/qualification/test_staging_override_newtoken.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_staging_override_newtoken.py)
