@@ -223,3 +223,83 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
 // modification of the class prototype must not redefine trust.
 const trustedPostgresReserve=PostgresProviderSpendLedger.prototype.reserve;
 const trustedPostgresSettle=PostgresProviderSpendLedger.prototype.settle;
+
+
+/**
+ * Phase 2.10C draft: application-side SQL-RPC-only reserve and settlement.
+ * The runtime database role may EXECUTE ONLY the two operator-approved SQL
+ * functions; it must not own, SELECT or mutate accounting tables directly.
+ * This is not a production deployment or verification of TLS/Worker topology.
+ */
+export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger {
+  #authenticBudgetLedger=true;
+  readonly #pool:Pool;
+  static isAuthenticLedger(value:unknown):value is ProtectedPostgresProviderSpendLedger {
+    return typeof value==="object"&&value!==null &&
+      #authenticBudgetLedger in value&&
+      (value as ProtectedPostgresProviderSpendLedger).reserve===trustedProtectedReserve &&
+      (value as ProtectedPostgresProviderSpendLedger).settle===trustedProtectedSettle;
+  }
+  constructor(pool:Pool){
+    if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
+    this.#pool=pool;
+    Object.freeze(this);
+  }
+  private async execute(which:"reserve"|"settle",parameters:unknown[]):Promise<void>{
+    if(!trustedPool(this.#pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+      "Trusted PostgreSQL accounting pool unavailable",503);
+    let client:PoolClient;
+    try{client=await this.#pool.connect();}
+    catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
+    let active=false;
+    try{
+      await client.query("BEGIN");active=true;
+      await client.query("SET LOCAL statement_timeout = 5000");
+      await client.query("SET LOCAL lock_timeout = 4000");
+      // Fixed prepared statements; no dynamic SQL identifiers or direct billing DML.
+      const sql=which==="reserve"
+        ?"SELECT axiom_spend.reserve($1::text,$2::text,$3::text,$4::text,$5::text,$6::bigint,$7::text) AS verdict"
+        :"SELECT axiom_spend.settle($1::text,$2::text,$3::text,$4::text,$5::text,$6::bigint,$7::text,$8::text) AS verdict";
+      const result=await client.query(sql,parameters);
+      const verdict=result.rowCount===1?result.rows[0]?.verdict:null;
+      if(typeof verdict!=="string")throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+        "Invalid protected spend response",503);
+      if(verdict!=="OK"&&verdict!=="BUDGET_PROVIDER_OVERAGE"){
+        const denied=new Set([
+          "BUDGET_INVALID_REQUEST","BUDGET_NOT_PROVISIONED","BUDGET_ORGANIZATION_MISMATCH",
+          "BUDGET_ORGANIZATION_NOT_PROVISIONED","BUDGET_ORGANIZATION_SUSPENDED","BUDGET_SUSPENDED",
+          "BUDGET_CORRUPT","BUDGET_IDENTITY_COLLISION","BUDGET_PENDING_RECONCILIATION",
+          "BUDGET_ALREADY_SETTLED","BUDGET_ORGANIZATION_EXCEEDED","BUDGET_EXCEEDED",
+          "BUDGET_SETTLEMENT_FORBIDDEN"
+        ]);
+        if(!denied.has(verdict))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+          "Invalid protected spend verdict",503);
+        throw new ProviderBudgetError(verdict,"Provider spending denied by protected PostgreSQL policy",
+          verdict==="BUDGET_NOT_PROVISIONED"||verdict==="BUDGET_ORGANIZATION_NOT_PROVISIONED"||
+          verdict==="BUDGET_ORGANIZATION_MISMATCH"?403:429);
+      }
+      await client.query("COMMIT");active=false;
+      if(verdict==="BUDGET_PROVIDER_OVERAGE")throw new ProviderBudgetError("BUDGET_PROVIDER_OVERAGE",
+        "Provider usage overage recorded; spending suspended for reconciliation",502);
+    }catch(error){
+      if(active){try{await client.query("ROLLBACK");}catch{}}
+      if(error instanceof ProviderBudgetError||error instanceof TypeError)throw error;
+      throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);
+    }finally{try{client.release();}catch{}}
+  }
+  async reserve(input:ProviderReservation):Promise<void>{
+    context(input);amount(input.reserveMicroUsd,"reserveMicroUsd",true);
+    const vendor=vendorProvider(input.billingProvider);
+    await this.execute("reserve",[input.tenantId,input.provider,input.modelId,input.requestId,
+      input.requestHash,input.reserveMicroUsd,vendor]);
+  }
+  async settle(input:ProviderSettlement):Promise<void>{
+    context(input);amount(input.chargeMicroUsd,"chargeMicroUsd");sha(input.responseHash,"responseHash");
+    const vendor=vendorProvider(input.billingProvider);
+    await this.execute("settle",[input.tenantId,input.provider,input.modelId,input.requestId,
+      input.requestHash,input.chargeMicroUsd,input.responseHash,vendor]);
+  }
+}
+const trustedProtectedReserve=ProtectedPostgresProviderSpendLedger.prototype.reserve;
+const trustedProtectedSettle=ProtectedPostgresProviderSpendLedger.prototype.settle;
+Object.freeze(ProtectedPostgresProviderSpendLedger.prototype);
