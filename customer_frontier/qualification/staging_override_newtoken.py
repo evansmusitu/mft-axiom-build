@@ -209,5 +209,5 @@ def main():
     p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
     print('AXIOM_STAGE_CONFIG_STATUS='+receipt['status'])
     print('PRODUCTION_OAUTH_TOUCHED=false CUSTOMER_IDENTITY_QUALIFIED=false')
-    return 0 if receipt['status'] in ('EXACT_STAGE_HTTPS_200_AND_AUTH_503_PASS','HOST_RULE_PUBLISHED_HTTPS_PENDING') else 2
+    return 0 if receipt['status']=='EXACT_STAGE_HTTPS_200_AND_AUTH_503_PASS' else 2
 if __name__=='__main__':raise SystemExit(main())
