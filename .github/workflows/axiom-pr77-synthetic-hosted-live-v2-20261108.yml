@@ -1,0 +1,99 @@
+name: AXIOM actual v2 fixed-context PR77 48/89 batch isolated synthetic D1 20261108 NOT RELEASE
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-synthetic-hosted-live-v2-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-pr77-synthetic-hosted-live-v2-20261108
+  cancel-in-progress: false
+jobs:
+  only-disposable-synthetic-d1-and-temporary-owned-worker:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-synthetic-hosted-live-v2-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-worker-context-v2-20261108' && github.event.pull_request.base.sha == '6f22dd0a2bfe468246359f3f72f46b538adfb05f' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6f22dd0a2bfe468246359f3f72f46b538adfb05f
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          path: pr77
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Hard pin all code plus reviewed OAuth source and only synthetic D1 before secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 6f22dd0a2bfe468246359f3f72f46b538adfb05f
+          test "$(git -C pr77 rev-parse HEAD)" = 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          test "$(git -C pr77 hash-object auth/oauth_identity_upgrade_v2.py)" = 67887fd5b6d5f97bc07326a04e2038db97f7206c
+          test "$(git -C pr77 hash-object auth/oauth_identity_v1_trigger_manifest.json)" = 2ac6c77d0a35f04ebf278d88b6eeaaa104727d55
+          test "$(git -C pr77 hash-object auth/keyless_customer_link_candidate.sql)" = cb240ee7d7f1069b2a465eadf6ed2c56099d2663
+          test "$(git -C pr77 hash-object auth/keyless_token_revocation_candidate.sql)" = 800087038986382060f4d37c8d79d17db165b839
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs)" = 0e2af275837b5b2839ced9f69ee18563215401cf
+          test "$(git hash-object customer_frontier/tests/pr77_synthetic_d1_worker_20261108.test.mjs)" = 29ce5c8871398890385caeeb67242655ff11a11c
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_hosted_runner_20261108.mjs)" = b3e3e2f59b89f3f6d8be4898599c09aabe71fce1
+          test "$(git hash-object customer_frontier/qualification/pr77_synthetic_fixture_builder_20261108.py)" = ff4b8e81efe7976e71978cee4e983dac40dec14b
+          node --check customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs
+          node --check customer_frontier/qualification/pr77_synthetic_hosted_runner_20261108.mjs
+          python3 -m py_compile customer_frontier/qualification/pr77_synthetic_fixture_builder_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/pr77_synthetic_hosted_runner_20261108.mjs').read_text()
+          assert "const ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "const TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'" in s
+          assert "const OTHER_PROTECTED='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "const PLAN_HASH='6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a'" in s
+          assert "source_customer_data_accessed:false" in s and "production_oauth_changed:false" in s
+          assert "release_authority:false" in s
+          w=Path('customer_frontier/qualification/pr77_synthetic_d1_worker_20261108.mjs').read_text()
+          assert 'export default {fetch:(request,env)=>handle(request,env)}' in w
+          assert "ensure(owned(state),'WORKER_OWNER_NOT_VERIFIED_NO_DELETE')" in s
+          assert "if(!report.worker_deleted||!report.full_89_atomic_batch_qualified)process.exitCode=1" in s
+          print('PR77_HOSTED_SYNTHETIC_ONLY_RESOURCE_AND_REVIEWED_SOURCE_ADMITTED')
+          PY
+      - name: Regenerate only fake PR77 fixture and verify reviewed 89 statement plan in RAM
+        run: python3 customer_frontier/qualification/pr77_synthetic_fixture_builder_20261108.py
+      - name: Repeat eight negative contract tests before scoped alternate token
+        run: node --test customer_frontier/tests/pr77_synthetic_d1_worker_20261108.test.mjs customer_frontier/tests/pr77_worker_cloudflare_fetch_context_20261108.test.mjs
+      - name: One separate synthetic-only D1 Cloudflare hosted 48-statement rollback then 89-statement real plan; delete owned Worker
+        timeout-minutes: 8
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: node customer_frontier/qualification/pr77_synthetic_hosted_runner_20261108.mjs
+      - name: Keep correct host limitations and never promote production on success
+        if: success()
+        run: |
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('axiom-pr77-hosted-synthetic-batch-20261108.json')
+          r=json.loads(p.read_text())
+          assert r['synthetic_only'] is True and r['worker_deleted'] is True
+          assert r['target_database_id']=='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          assert r['expected_d1_ddl_rollback_qualified'] is True
+          assert r['full_89_atomic_batch_qualified'] is True
+          for key in ('source_customer_data_accessed','production_oauth_changed','customer_identity_qualified','independent_custody_qualified','release_authority'):
+              assert r[key] is False
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(h+'  '+p.name+'\n')
+          print('HOSTED_PR77_SYNTHETIC_ONLY_FULL_BATCH_AND_ROLLBACK_NO_RELEASE receipt_sha256='+h)
+          PY
+      - name: Archive no SQL and no real user data even if provider query limit blocks the full plan
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-actual-hosted-synthetic-48-and-89-batch-v2-20261108
+          path: |
+            axiom-pr77-hosted-synthetic-batch-20261108.json
+            axiom-pr77-hosted-synthetic-batch-20261108.json.sha256
+            pr77-synthetic-generator-safe-receipt-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
