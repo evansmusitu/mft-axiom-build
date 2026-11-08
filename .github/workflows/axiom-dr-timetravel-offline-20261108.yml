@@ -1,0 +1,44 @@
+name: AXIOM isolated D1 Time Travel synthetic rollback offline 20261108 (NO CREDENTIALS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-timetravel-offline-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-dr-timetravel-offline-20261108, cancel-in-progress: false}
+jobs:
+  one-time-restore-contract-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-hosted-timetravel-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-hosted-restore-independent-readback-v2-20261108' && github.event.pull_request.base.sha == 'e5cd094d8fffd72090c559aa8d47357938e88ddb' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: f4fa49cef15dbaaf8acc43223069ae71675c4982
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Immutable source admission for target-only Time Travel and exact synthetic SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = f4fa49cef15dbaaf8acc43223069ae71675c4982
+          test "$(git hash-object customer_frontier/qualification/hosted_timetravel_rollback_20261108.py)" = 4ad244248897771d08fe9389ec1ee120fdab849c
+          test "$(git hash-object customer_frontier/qualification/test_hosted_timetravel_rollback_20261108.py)" = 0c686089481052d55b3d4fa712d650c928eb274a
+          test "$(git hash-object customer_frontier/qualification/independent_d1_restore_observer_20261108.py)" = 05b6c60e9947049232d1c354f06090f2671f2e74
+          python3 -m py_compile customer_frontier/qualification/hosted_timetravel_rollback_20261108.py customer_frontier/qualification/test_hosted_timetravel_rollback_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/hosted_timetravel_rollback_20261108.py').read_text()
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "TARGET='e36972b3-850d-4273-b934-2fa67587d9f1'" in s
+          assert "PROBE='axiom_dr_ttravel_probe_20261108'" in s
+          assert "def verify_before_and_after():" in s and "observer.compare()" in s
+          assert "report['time_travel_restore_confirmed']=True" in s
+          assert "if observed_probe_count()!=0:raise Rejected('PROBE_PERSISTED_AFTER_RESTORE')" in s
+          assert "'user_rows_deleted_or_updated':False" in s
+          assert "'destructive_full_database_recovery_qualified':False" in s
+          assert "'release_authority':False" in s
+          assert "DELETE FROM" not in s and "DROP TABLE" not in s
+          print('PINNED_TARGET_ONLY_TIME_TRAVEL_SYNTHETIC_RECOVERY_SOURCE_ADMITTED')
+          PY
+      - name: Five no-secret one-restore, no-retry and rollback-failure checks
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_hosted_timetravel_rollback_20261108.py -v
