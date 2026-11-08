@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as axiom from "../src/index.ts";
+import { modelProfileHash } from "../src/model_compiler.ts";
 
 // Entirely deterministic fake HTTPS transport: NO API keys, bills, or outbound calls.
 const model={
@@ -61,10 +62,10 @@ test("OpenAI compilation sends the same exact generated-token ceiling",async()=>
     maxConstraints:2,maxAssumptions:2,maxObjectiveBytes:1024,maxModelResponseBytes:8192
   };
   const input:any={
-    tenant:{tenantId:"tenant:synthetic"},profile,profileHash:"b".repeat(64),
+    tenant:{tenantId:"tenant:synthetic"},profile,profileHash:modelProfileHash(profile as any),
     compilationRequestHash:"c".repeat(64),attempt:0,mode:"INITIAL",
     objective:"Check bounded synthetic inputs",inputContracts:[],
-    operationRegistryManifest:[],remainingRepairAttempts:0,
+    operationRegistryManifest:[{id:"comparison.lte",version:"1.0.0",implementationHash:"d".repeat(64),moduleHash:"e".repeat(64)}],remainingRepairAttempts:0,
     capturedAt:"2026-11-08T00:00:00.000Z"
   };
   // The mock response is an explanation, not a proposal. Only the outbound
