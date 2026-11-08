@@ -1,0 +1,89 @@
+name: AXIOM one-shot isolated hosted original-snapshot D1 restore 20261108 (NOT RELEASE)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-dr-hosted-snapshot-restore-live-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-dr-hosted-snapshot-restore-live-20261108
+  cancel-in-progress: false
+jobs:
+  exact-archive-sha-and-target-uuid-bound-recovery:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-dr-hosted-snapshot-restore-live-20261108' && github.event.pull_request.base.ref == 'build/axiom-dr-hosted-snapshot-restore-20261108' && github.event.pull_request.base.sha == '012c63098d7ea0c4af2691ab7786e94ed0c75492' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 29a7e03f2b2f3ceb35a1297a9d1a1aae8a4072c6
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Require exact source and FK-enabled restore algorithm before credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 29a7e03f2b2f3ceb35a1297a9d1a1aae8a4072c6
+          test "$(git hash-object customer_frontier/qualification/isolated_hosted_restore_20261108.py)" = a62e1a32edf06ad91e0a56468db6fce7daac233f
+          test "$(git hash-object customer_frontier/qualification/test_isolated_hosted_restore_20261108.py)" = 7ce664c79db1bc7c0fb736e474361c3aa0bb2fa9
+          python3 -m py_compile customer_frontier/qualification/isolated_hosted_restore_20261108.py customer_frontier/qualification/test_isolated_hosted_restore_20261108.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/isolated_hosted_restore_20261108.py').read_text()
+          for v in (
+              "SOURCE_DB='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'",
+              "TARGET_DB='e36972b3-850d-4273-b934-2fa67587d9f1'",
+              "TARGET_ACCOUNT='c954f0c842a486d0388c05b19cd21e47'",
+              "ARCHIVED_SQL_SHA='1daa973a46c012f9c61b36814bf339fe93ae374e418b7938bb86c36f1dcde627'",
+              "ARCHIVED_SQL_SIZE=28985",
+              "REORDERED_SQL_SHA='84fc058d1ae5986b15c996449827b05af962ad0483f47a3b14655be9a90c1d53'",
+              "SOURCE_BACKUP_ENVELOPE_SHA='d8fdb7d06f27d3053799ba70eb2c4c12d2b5570eb9c5cf4724e7216908d0b3b3'",
+              "db.execute('PRAGMA foreign_keys=ON')",
+              "if len(raw)!=ARCHIVED_SQL_SIZE or sha(raw)!=ARCHIVED_SQL_SHA",
+              "checked_target_empty(catalog(TARGET_ACCOUNT,TARGET_DB,target_token))",
+              "source_fingerprint_equal_to_target':False",
+              "customer_row_values_logged':False",
+              "release_authority':False",
+          ):
+              assert v in s,v
+          assert "print(sql)" not in s and "print(rows)" not in s
+          print('PINNED_FULL_HOSTED_RESTORE_SOURCE_UNCHANGED_AND_ADMITTED')
+          PY
+      - name: Repeat seven synthetic safe replay and denial tests before credentials
+        run: python3 -m unittest discover -s customer_frontier/qualification -p test_isolated_hosted_restore_20261108.py -v
+      - name: Single isolated hosted D1 restore only if source SQL matches encrypted archive
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: python3 customer_frontier/qualification/isolated_hosted_restore_20261108.py
+      - name: Reject any unsupported claims even on success
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('axiom-isolated-hosted-restore-receipt-20261108.json')
+          r=json.loads(p.read_text())
+          assert r['status']=='HOSTED_RESTORE_SCHEMA_AND_ROWS_MATCH'
+          assert r['source_fingerprint_equal_to_target'] is True
+          assert r['restored_user_tables']==25 and r['restored_rows']==25
+          assert r['hosted_schema_equality_verified'] is True
+          assert r['hosted_foreign_keys_verified'] is True
+          assert r['customer_row_values_logged'] is False
+          assert r['customer_data_artifact_created'] is False
+          assert r['production_oauth_changed'] is False
+          assert r['full_hosted_restore_qualified'] is False
+          assert r['release_authority'] is False
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path(p.name+'.sha256').write_text(h+'  '+p.name+'\n')
+          print('HOSTED_ISOLATED_SQL_SOURCE_EQUIVALENCE_WITHOUT_RELEASE sha256='+h)
+          PY
+      - name: Archive only sanitized receipts even if import failed or unknown
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-isolated-d1-hosted-original-snapshot-restore-20261108
+          path: |
+            axiom-isolated-hosted-restore-receipt-20261108.json
+            axiom-isolated-hosted-restore-receipt-20261108.json.sha256
+          retention-days: 30
+          if-no-files-found: warn
