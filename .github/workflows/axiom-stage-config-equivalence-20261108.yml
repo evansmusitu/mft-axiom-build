@@ -1,0 +1,160 @@
+name: AXIOM Config Rules exact adjacent-pair semantic consolidation DRY RUN
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-stage-rule-equivalence-20261108' &&
+      github.base_ref == 'build/axiom-stage-rule-quota-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test current ruleset's adjacent same-action combination WITHOUT WRITE
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,json,hashlib,urllib.request,urllib.error
+          from pathlib import Path
+          Z='5b56528f03948ff5917a5e0cd9f7109e'
+          R='8e8a2552a8ee4bb383abbe0d748e1da5'
+          HOST='axiom-customer-staging.mftintelligence.com'
+          OLD=['15ad7cfa5d20422cb585fee04ea2d574','57f8a7896c0246a0a16b7a4fa018cf13']
+          HASHES=['c4914e41508638978e5d2b9b7d8e710f8538b978f7f55ca5c0d0f7bf02611ab2','fd5ef396c99db35b11ec73c56b916ad1ad18cea8fd5d9dabc9c66e6a8a182893']
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token: raise SystemExit('MISSING_GITHUB_SECRET')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          url='https://api.cloudflare.com/client/v4/zones/'+Z+'/rulesets/'+R
+          request=urllib.request.Request(url,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+          result={'kind':'AXIOM_CONFIG_RULE_EQUIVALENCE_DRYRUN','mutations':0,'original_rule_count':None,
+                  'proposed_rule_count':None,'unchanged_existing_rules':None,'same_effects_for_original_two_hosts':False,
+                  'original_rule_id_retention':False,'governance_review_required':True,'qualified':False}
+          try:
+            with urllib.request.build_opener(NoRedirect).open(request,timeout=18) as response:
+              if response.status!=200: raise ValueError('INVALID_STATUS')
+              raw=response.read(250001)
+            if len(raw)>250000:raise ValueError('RESPONSE_TOO_LARGE')
+            doc=json.loads(raw)
+            rules=doc.get('result',{}).get('rules',[])
+            rs=doc['result']
+            result['original_rule_count']=len(rules)
+            result['ruleset_version']=rs.get('version')
+            result['ruleset_id']=rs.get('id')
+            allowed={'id','version','last_updated','ref','description','action','action_parameters','expression','enabled'}
+            if doc.get('success') is not True or rs.get('id')!=R or rs.get('phase')!='http_config_settings' or rs.get('version')!='25' or len(rules)!=10:raise ValueError('RULESET_DRIFT')
+            r0,r1=rules[:2]
+            if any(not isinstance(r,dict) or set(r)-allowed for r in (r0,r1)):raise ValueError('UNKNOWN_RULE_FIELDS')
+            if [r0.get('id'),r1.get('id')]!=OLD:raise ValueError('OLD_RULE_ID_DRIFT')
+            for r,h in zip((r0,r1),HASHES):
+              if hashlib.sha256(r['expression'].encode()).hexdigest()!=h:raise ValueError('OLD_RULE_EXPR_DRIFT')
+            pat=r'^\(?http\.host eq "([a-z0-9.-]+)"\)?
+            matches=[re.fullmatch(pat,r['expression']) for r in (r0,r1)]
+            if not all(matches):raise ValueError('OLD_RULE_NOT_EXACT_HOST')
+            host0,host1=(m.group(1) for m in matches)
+            if host0==host1 or HOST in (host0,host1):raise ValueError('HOST_OVERLAP')
+            if any(r.get('action')!='set_config' or r.get('enabled') is not True for r in (r0,r1)):raise ValueError('ACTION_NOT_MATCHED')
+            if any(r.get('action_parameters')!={'bic':False,'security_level':'essentially_off'} for r in (r0,r1)):raise ValueError('PARAMS_NOT_IDENTICAL')
+            if any(HOST in r.get('expression','') for r in rules):raise ValueError('EXISTING_STAGE_REFERENT')
+            # Two adjacent, idempotent set_config assignments on disjoint exact hostnames.
+            # A single OR predicate with identical action config has equal effects for
+            # the two originals, and no changed effects on any other hostname.
+            after_expression='('+r0['expression']+') or ('+r1['expression']+')'
+            target=[dict(r0,expression=after_expression)]+rules[2:]+[{
+              'action':'set_config','enabled':True,'expression':'(http.host eq "'+HOST+'")',
+              'action_parameters':{'security_level':'essentially_off'},
+              'description':'AXIOM private staging Under Attack override only',
+              'ref':'axiom_customer_staging_20261108'}]
+            result.update({
+              'original_pair_ids':OLD,
+              'original_pair_digest':[hashlib.sha256(x['expression'].encode()).hexdigest() for x in (r0,r1)],
+              'original_pair_actions_equal':True,
+              'original_pair_effect':{'bic':False,'security_level':'essentially_off'},
+              'proposed_rule_count':len(target),
+              'unmodified_original_rule_ids':[x['id'] for x in rules[2:]],
+              'unchanged_existing_rules':8,
+              'combined_rule_retains_id':r0['id'],
+              'retired_rule_id':r1['id'],
+              'original_rule_id_retention':False,
+              'same_effects_for_original_two_hosts':True,
+              'staging_action_only':{'security_level':'essentially_off'},
+              'qualified':True,'status':'PREPARED_NEEDS_OWNER_GOVERNANCE_APPROVAL_NO_WRITE',
+              'note':'Candidate would retire one existing rule ID; original behavior and other 8 rules preserved, rule identity not preserved. No Cloudflare mutation.'})
+          except (ValueError,urllib.error.HTTPError,OSError,TimeoutError,KeyError,TypeError) as e:
+            result['status']='NOT_PROVEN_NO_WRITE'
+            result['reason']=type(e).__name__
+          b=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-config-rule-semantic-equivalence.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_RULE_EQUIVALENCE='+result['status']+' MUTATIONS=0')
+          PY
+      - name: Keep only sanitized proofs with independent SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-config-equivalence-readonly-20261108
+          path: |
+            axiom-config-rule-semantic-equivalence.json
+            axiom-config-rule-semantic-equivalence.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
+
+            matches=[re.fullmatch(pat,r['expression']) for r in (r0,r1)]
+            if not all(matches):raise ValueError('OLD_RULE_NOT_EXACT_HOST')
+            host0,host1=(m.group(1) for m in matches)
+            if host0==host1 or HOST in (host0,host1):raise ValueError('HOST_OVERLAP')
+            if any(r.get('action')!='set_config' or r.get('enabled') is not True for r in (r0,r1)):raise ValueError('ACTION_NOT_MATCHED')
+            if any(r.get('action_parameters')!={'bic':False,'security_level':'essentially_off'} for r in (r0,r1)):raise ValueError('PARAMS_NOT_IDENTICAL')
+            if any(HOST in r.get('expression','') for r in rules):raise ValueError('EXISTING_STAGE_REFERENT')
+            # Two adjacent, idempotent set_config assignments on disjoint exact hostnames.
+            # A single OR predicate with identical action config has equal effects for
+            # the two originals, and no changed effects on any other hostname.
+            after_expression='('+r0['expression']+') or ('+r1['expression']+')'
+            target=[dict(r0,expression=after_expression)]+rules[2:]+[{
+              'action':'set_config','enabled':True,'expression':'(http.host eq "'+HOST+'")',
+              'action_parameters':{'security_level':'essentially_off'},
+              'description':'AXIOM private staging Under Attack override only',
+              'ref':'axiom_customer_staging_20261108'}]
+            result.update({
+              'original_pair_ids':OLD,
+              'original_pair_digest':[hashlib.sha256(x['expression'].encode()).hexdigest() for x in (r0,r1)],
+              'original_pair_actions_equal':True,
+              'original_pair_effect':{'bic':False,'security_level':'essentially_off'},
+              'proposed_rule_count':len(target),
+              'unmodified_original_rule_ids':[x['id'] for x in rules[2:]],
+              'unchanged_existing_rules':8,
+              'combined_rule_retains_id':r0['id'],
+              'retired_rule_id':r1['id'],
+              'original_rule_id_retention':False,
+              'same_effects_for_original_two_hosts':True,
+              'staging_action_only':{'security_level':'essentially_off'},
+              'qualified':True,'status':'PREPARED_NEEDS_OWNER_GOVERNANCE_APPROVAL_NO_WRITE',
+              'note':'Candidate would retire one existing rule ID; original behavior and other 8 rules preserved, rule identity not preserved. No Cloudflare mutation.'})
+          except (ValueError,urllib.error.HTTPError,OSError,TimeoutError,KeyError,TypeError) as e:
+            result['status']='NOT_PROVEN_NO_WRITE'
+            result['reason']=type(e).__name__
+          b=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-config-rule-semantic-equivalence.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_RULE_EQUIVALENCE='+result['status']+' MUTATIONS=0')
+          PY
+      - name: Keep only sanitized proofs with independent SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-config-equivalence-readonly-20261108
+          path: |
+            axiom-config-rule-semantic-equivalence.json
+            axiom-config-rule-semantic-equivalence.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
