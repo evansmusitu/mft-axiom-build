@@ -1,0 +1,68 @@
+name: AXIOM staging hostname one-use fail-closed Worker setup (NO CUSTOMER LOGIN)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-staging-identity-host-first-20261108
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'evansmusitu/mft-axiom-build' &&
+      github.head_ref == 'build/axiom-stage-host-oneuse-20261108' &&
+      github.base_ref == 'build/axiom-idp-host-preflight-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Exact same-repository checkout, no stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify immutable source fingerprints and source-only safety tests BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          echo '3d1b3cdb1f740b970ef736067371548d1e79584196c9c977421a0ac1cf34e451  customer_frontier/qualification/route_worker.mjs' | sha256sum -c -
+          echo '8a83853b60290fceb8b02c95f112864a579e3cc477918ebf0e7e82f2ec6af8c8  customer_frontier/qualification/test_route_worker.mjs' | sha256sum -c -
+          echo 'b9a189f8f6ca6074deda26772ff0ebc43bb5f1fa4e6b76d4194b7e075e6f7b11  customer_frontier/qualification/deploy_stage_only.py' | sha256sum -c -
+          echo '27ad0aa041c106ee7f76a756fa6e6a1bf37b538214d903eaf4494394b1248fe3  customer_frontier/qualification/test_deploy_stage_only.py' | sha256sum -c -
+          python3 -m py_compile customer_frontier/qualification/deploy_stage_only.py customer_frontier/qualification/test_deploy_stage_only.py
+          node --check customer_frontier/qualification/route_worker.mjs
+          node --test customer_frontier/qualification/test_route_worker.mjs
+          (cd customer_frontier/qualification && python3 -m unittest -v test_deploy_stage_only.py)
+      - name: Account-scoped single Worker upload and exact Custom Domain admission, with no fallback
+        id: provider
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/deploy_stage_only.py
+          code=$?
+          echo "result=$code" >> "$GITHUB_OUTPUT"
+          test -f axiom-staging-route-one-shot.json || exit 3
+          exit 0
+      - name: Persist non-secret one-use result with independent digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-host-oneuse-20261108
+          path: |
+            axiom-staging-route-one-shot.json
+            axiom-staging-route-one-shot.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail closed when staging host remains unqualified
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.provider.outputs.result }}" = 0
