@@ -19,7 +19,33 @@ GATE_PATH=ROOT/"qualification"/"musitu_connect_gate.json"
 def fail(message: str) -> None:
     raise SystemExit("MUSITU_CONNECT_PRODUCTION_ADMISSION_GUARD=FAIL: "+message)
 
-gate=json.loads(GATE_PATH.read_text(encoding="utf-8"))
+
+def _unique_properties(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate_authorization_evidence_key")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value):
+    raise ValueError("nonstandard_authorization_evidence_number")
+
+
+def _read_evidence(path):
+    # Authorization is security evidence, never a permissively parsed hint.
+    # Reject nested duplicate keys and nonstandard numeric tokens in both
+    # release-gate and signed-authorization companion documents.
+    try:
+        return json.loads(path.read_text(encoding="utf-8"),
+                          object_pairs_hook=_unique_properties,
+                          parse_constant=_reject_constant)
+    except (OSError, ValueError, UnicodeError) as exc:
+        fail("authorization evidence JSON invalid: " + type(exc).__name__)
+
+
+gate=_read_evidence(GATE_PATH)
 section=gate.get("production_admission")
 if not isinstance(section,dict):
     fail("production_admission section missing")
@@ -42,31 +68,37 @@ if not isinstance(promotion,dict):
     fail("promotion section missing")
 
 authorization=ProductionPromotionAuthorization(
-    approved=bool(promotion.get("authorized",False)),
-    authorization_id=str(promotion.get("authorization_id") or ""),
-    authorized_by=str(promotion.get("authorized_by") or ""),
+    approved=promotion.get("authorized"),
+    authorization_id=promotion.get("authorization_id"),
+    authorized_by=promotion.get("authorized_by"),
 )
 decision=policy.assess(evidence,authorization)
 
-if bool(section.get("technical_ready"))!=decision.technical_ready:
+if section.get("technical_ready") is not decision.technical_ready:
     fail("technical_ready does not match policy")
 if list(section.get("missing_controls") or [])!=list(decision.missing_controls):
     fail("missing_controls do not match policy")
-if bool(promotion.get("authorized",False))!=decision.promotion_authorized:
+if promotion.get("authorized") is not decision.promotion_authorized:
     fail("promotion authorization does not match policy")
 if section.get("state")!=decision.state:
     fail("admission state does not match policy")
-if bool(section.get("enablement_permitted",False))!=decision.enablement_permitted:
+if section.get("enablement_permitted") is not decision.enablement_permitted:
     fail("enablement_permitted does not match policy")
 runtime=gate.get("production_runtime")
-runtime_enabled=isinstance(runtime,dict) and runtime.get("enabled") is True
+if not isinstance(runtime, dict) or type(runtime.get("enabled")) is not bool:
+    fail("production_runtime.enabled must be a literal JSON boolean")
+runtime_enabled=runtime["enabled"]
 
 if runtime_enabled:
     auth_path=ROOT/"qualification"/"evidence"/"musitu_connect_production_runtime_authorization_2026-10-05.json"
     if not auth_path.exists():
         fail("production runtime authorization evidence missing")
-    runtime_auth=json.loads(auth_path.read_text(encoding="utf-8"))
-    constraints=runtime_auth.get("constraints") or {}
+    runtime_auth=_read_evidence(auth_path)
+    if not isinstance(runtime_auth, dict):
+        fail("production runtime authorization must be an object")
+    constraints=runtime_auth.get("constraints")
+    if not isinstance(constraints, dict):
+        fail("production runtime authorization constraints must be an object")
     if (
         runtime_auth.get("schema")!="musitu.connect.production_runtime_authorization.v1"
         or runtime_auth.get("authorization_id")!=runtime.get("authorization_id")
@@ -78,23 +110,21 @@ if runtime_enabled:
         fail("production runtime authorization contract mismatch")
 
     activation=ProductionRuntimeActivationEvidence(
-        authorization_id=str(runtime.get("authorization_id") or ""),
-        gate=str(runtime.get("gate") or ""),
-        endpoint=str(runtime.get("endpoint") or ""),
-        canary_pass=bool(runtime.get("canary_pass",False)),
-        production_pass=bool(runtime.get("production_pass",False)),
-        exact_usage_ledger_request_id_correlation=bool(
-            runtime.get("exact_usage_ledger_request_id_correlation",False)
-        ),
-        pr_9_unmerged=bool(runtime.get("pr_9_unmerged",False)),
-        main_unchanged=bool(runtime.get("main_unchanged",False)),
-        rollback_required=bool(runtime.get("rollback_required",True)),
-        production_axiom_integration_enabled=bool(
-            runtime.get("production_axiom_integration_enabled",False)
-        ),
+        authorization_id=runtime.get("authorization_id"),
+        gate=runtime.get("gate"),
+        endpoint=runtime.get("endpoint"),
+        canary_pass=runtime.get("canary_pass"),
+        production_pass=runtime.get("production_pass"),
+        exact_usage_ledger_request_id_correlation=runtime.get(
+            "exact_usage_ledger_request_id_correlation"),
+        pr_9_unmerged=runtime.get("pr_9_unmerged"),
+        main_unchanged=runtime.get("main_unchanged"),
+        rollback_required=runtime.get("rollback_required"),
+        production_axiom_integration_enabled=runtime.get(
+            "production_axiom_integration_enabled"),
     )
     if not activation.is_valid(
-        expected_authorization_id=str(runtime_auth.get("authorization_id") or "")
+        expected_authorization_id=runtime_auth.get("authorization_id")
     ):
         fail("production runtime activation evidence is not valid")
     if gate.get("axiom",{}).get("production_integration_allowed") is not True:
