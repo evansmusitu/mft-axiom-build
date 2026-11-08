@@ -39,6 +39,11 @@ SOURCE_SNAPSHOTS = (
 SAFE_SHA = re.compile(r"^[a-f0-9]{40}$")
 FORBIDDEN_BASENAME = {".env", ".dev.vars", "credentials.json", "id_rsa", "id_ed25519"}
 FORBIDDEN_SUFFIX = {".pem", ".p12", ".pfx", ".key"}
+# One audited, already-public encryption RECIPIENT key is tracked in a source
+# snapshot. Pin both its Git object and SHA-256 content; no other PEM is safe.
+PUBLIC_RECIPIENT_PATH = "customer_frontier/recovery/recipient-20261106.pem"
+PUBLIC_RECIPIENT_BLOB = "ec9115c83879290d23cee2eb2932f2f31df5584d"
+PUBLIC_RECIPIENT_SHA256 = "d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3"
 MAX_PUBLIC_PRS = 1000
 
 
@@ -116,6 +121,19 @@ def capture_pr(pr):
     }
 
 
+def is_pinned_public_recipient(path: str, object_id: str) -> bool:
+    if path != PUBLIC_RECIPIENT_PATH or object_id != PUBLIC_RECIPIENT_BLOB:
+        return False
+    # Read only the exact previously audited public Git blob. Any changed
+    # content, malformed public-key boundary, or missing object blocks export.
+    raw = subprocess.check_output(("git", "cat-file", "blob", object_id))
+    return (
+        hashlib.sha256(raw).hexdigest() == PUBLIC_RECIPIENT_SHA256
+        and raw.startswith(b"-----BEGIN PUBLIC KEY-----\n")
+        and raw.rstrip().endswith(b"-----END PUBLIC KEY-----")
+    )
+
+
 def tracked_files_at(revision: str):
     raw = subprocess.check_output(("git", "ls-tree", "-rz", "--full-tree", revision))
     files = {}
@@ -129,7 +147,8 @@ def tracked_files_at(revision: str):
         name = path.decode("utf-8")
         if (
             Path(name).name in FORBIDDEN_BASENAME
-            or Path(name).suffix.lower() in FORBIDDEN_SUFFIX
+            or (Path(name).suffix.lower() in FORBIDDEN_SUFFIX
+                and not is_pinned_public_recipient(name, oid.decode("ascii")))
             or ".." in Path(name).parts
             or name.startswith("/")
         ):

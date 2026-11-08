@@ -6,10 +6,12 @@ on:
       - handoff/whole-product-20261108-1223
     paths:
       - tools/packaging/musitu_whole_product_live_handoff_20261108.py
+      - tools/packaging/test_musitu_whole_product_live_handoff_20261108.py
       - .github/workflows/axiom-whole-product-20261108-handoff.yml
   pull_request:
     paths:
       - tools/packaging/musitu_whole_product_live_handoff_20261108.py
+      - tools/packaging/test_musitu_whole_product_live_handoff_20261108.py
       - .github/workflows/axiom-whole-product-20261108-handoff.yml
   workflow_dispatch:
 
@@ -39,6 +41,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Test exact public recipient allowlist and credential-path denials without tokens
+        run: |
+          python -m unittest discover -s tools/packaging -p 'test_musitu_whole_product_live_handoff_20261108.py' -v
       - name: Build full public Git ref bundle, verified trees and portable handoff
         env:
           GH_TOKEN: ${{ github.token }}
