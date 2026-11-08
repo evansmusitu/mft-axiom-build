@@ -12,6 +12,27 @@ from .core import CanonicalEnvelope
 from .security import SignedEnvelope, canonical_bytes, verify
 
 
+def _reject_duplicate_stored_keys(pairs):
+    """Reject ambiguous keys at any object nesting depth in persisted JSON."""
+    unique={}
+    for key, value in pairs:
+        if key in unique:
+            raise ValueError("AMBIGUOUS_STORED_JSON")
+        unique[key]=value
+    return unique
+
+
+def _reject_nonstandard_stored_value(_value):
+    raise ValueError("NONSTANDARD_STORED_JSON")
+
+
+def _parse_stored_json(raw):
+    # The SQL representation is not itself the signed canonical envelope;
+    # preserve ordinary key order while forbidding last-key-wins ambiguity.
+    return json.loads(raw, object_pairs_hook=_reject_duplicate_stored_keys,
+                      parse_constant=_reject_nonstandard_stored_value)
+
+
 def _synchronized(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
@@ -114,7 +135,7 @@ class RunStore:
 
     @staticmethod
     def _json(value: Any) -> str:
-        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
     @staticmethod
     def canonical_sha256(run_id: str, envelope: CanonicalEnvelope) -> str:
@@ -248,7 +269,7 @@ class RunStore:
             "records": [dict(item) for item in envelope.records],
             "source": envelope.source,
             "provenance": envelope.provenance,
-        }, separators=(",", ":"), ensure_ascii=False)
+        }, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
         lineage_json=self._json(lineage)
         self.connection.execute(
             """INSERT INTO connect_runs
@@ -490,7 +511,7 @@ class RunStore:
         return self._stored_run(row)
 
     def _stored_run(self, row: sqlite3.Row) -> StoredRun:
-        decoded=json.loads(row["envelope_json"])
+        decoded=_parse_stored_json(row["envelope_json"])
         envelope=CanonicalEnvelope(
             contract=decoded["contract"],
             domain=decoded["domain"],
@@ -505,7 +526,7 @@ class RunStore:
             connector_name=row["connector_name"],
             protocol=row["protocol"],
             envelope=envelope,
-            lineage=json.loads(row["lineage_json"]),
+            lineage=_parse_stored_json(row["lineage_json"]),
             signature=row["signature"],
             canonical_sha256=row["canonical_sha256"],
             created_at=row["created_at"],
@@ -532,7 +553,7 @@ class RunStore:
             run_id=row["run_id"],
             event_index=row["event_index"],
             event_type=row["event_type"],
-            payload=json.loads(row["payload_json"]),
+            payload=_parse_stored_json(row["payload_json"]),
             previous_hash=row["previous_hash"],
             event_hash=row["event_hash"],
             created_at=row["created_at"],
