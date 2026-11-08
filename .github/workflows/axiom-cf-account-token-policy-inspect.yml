@@ -1,0 +1,82 @@
+name: AXIOM exact scoped account token permissions inventory read only
+on:
+  push:
+    branches: [ops/axiom-cf-account-token-policy-inspect-20261108]
+    paths: [.github/workflows/axiom-cf-account-token-policy-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect signed account token policy labels only, no secrets or token IDs logged
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          ZONE='5b56528f03948ff5917a5e0cd9f7109e'
+          t=os.environ.get('TOKEN','')
+          if not t:raise SystemExit('GITHUB_SECRET_MISSING')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**k):return None
+          def get(path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,method='GET',
+              headers={'authorization':'Bearer '+t,'accept':'application/json'})
+            with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:
+              if r.status!=200:raise ValueError('BAD_STATUS')
+              data=r.read(100001)
+            if len(data)>100000:raise ValueError('OVERSIZED_DATA')
+            d=json.loads(data)
+            if d.get('success') is not True:raise ValueError('PROVIDER_FAILURE')
+            return d['result']
+          v=get('/accounts/'+ACCOUNT+'/tokens/verify')
+          token_id=v.get('id','')
+          if v.get('status')!='active' or not re.fullmatch('[a-f0-9]{32}',token_id):raise SystemExit('ACCOUNT_TOKEN_NOT_ACTIVE')
+          detail=get('/accounts/'+ACCOUNT+'/tokens/'+token_id)
+          if not isinstance(detail,dict) or not isinstance(detail.get('policies'),list):
+            raise SystemExit('TOKEN_POLICY_SCHEMA_INVALID')
+          out={'schema':'AXIOM_EXISTING_ACCOUNT_CONFIG_TOKEN_POLICY_LABELS_READONLY',
+            'token_active':True,'policy_count':len(detail['policies']),
+            'permission_names':[],'permission_labels':[],
+            'zone_exactly_referenced':False,'account_referenced':False,
+            'methods':['GET'],'provider_writes':0,'production_oauth_touched':False}
+          for p in detail['policies'][:20]:
+            if not isinstance(p,dict):continue
+            resources=p.get('resources',{})
+            if isinstance(resources,dict):
+              keys=list(resources)
+              out['zone_exactly_referenced'] |= any(ZONE in str(k) for k in keys)
+              out['account_referenced'] |= any(ACCOUNT in str(k) for k in keys)
+            for g in p.get('permission_groups',[])[:30]:
+              if not isinstance(g,dict):continue
+              name=g.get('name')
+              meta=g.get('meta',{})
+              if isinstance(name,str) and len(name)<120:out['permission_names'].append(name)
+              if isinstance(meta,dict) and isinstance(meta.get('label'),str) and len(meta['label'])<120:
+                out['permission_labels'].append(meta['label'])
+          out['permission_names']=sorted(set(out['permission_names']))
+          out['permission_labels']=sorted(set(out['permission_labels']))
+          b=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-config-token-policy-readonly.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('EXACT_ZONE_TOKEN_POLICY_LABELS_RECORDED_READ_ONLY')
+          PY
+      - name: Archive sanitized account token scopes and detached digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cf-account-token-policy-readonly-20261108
+          path: |
+            axiom-config-token-policy-readonly.json
+            axiom-config-token-policy-readonly.json.sha256
+          if-no-files-found: error
+          retention-days: 7
