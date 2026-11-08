@@ -126,6 +126,7 @@ jobs:
               matched_path=[urllib.parse.urlsplit(str(u)) for u in sitemaps if urllib.parse.urlsplit(str(u)).hostname=="mftintelligence.com" and urllib.parse.urlsplit(str(u)).path=="/sitemap.xml"]
               print("BING feeds inventory accessible: PASS; entries:",len(feeds),"; exact HTTPS sitemap present:",found, "; matching-domain/path record:",bool(matched_path),"; URL schemes:", sorted({x.scheme for x in matched_path}))
               print("BING sitemap status categories:",sorted(set(str(x.get("Status","unknown")) for x in feeds if isinstance(x,dict))))
+              print("BING feed locator classification:",[{"scheme":urllib.parse.urlsplit(str(x.get("Url") or x.get("FeedUrl") or "")).scheme,"apex_host":urllib.parse.urlsplit(str(x.get("Url") or x.get("FeedUrl") or "")).hostname=="mftintelligence.com","www_host":urllib.parse.urlsplit(str(x.get("Url") or x.get("FeedUrl") or "")).hostname=="www.mftintelligence.com","sitemap_xml_path":urllib.parse.urlsplit(str(x.get("Url") or x.get("FeedUrl") or "")).path.rstrip("/")=="/sitemap.xml","url_count":x.get("UrlCount"),"status":x.get("Status")} for x in feeds[:4] if isinstance(x,dict)])
               if feeds and not found:
                   print("BING sitemap entry needs manual provider-console review: provider schema can vary")
           else:
