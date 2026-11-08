@@ -1,0 +1,82 @@
+name: AXIOM independent GET/SELECT-only synthetic D1 and worker readback after HTTP404 20261108
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-post404-d1-readback-20261108.yml']
+permissions: {contents: read}
+concurrency: {group: axiom-pr77-post404-d1-readback-20261108, cancel-in-progress: false}
+jobs:
+  independent-do-not-retry-no-mutation-audit:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-pr77-post404-independent-readback-20261108' && github.event.pull_request.base.ref == 'build/axiom-pr77-synthetic-hosted-live-v2-20261108' && github.event.pull_request.base.sha == 'aef1c084d8984db838fc485e5d936a7420e6ab22' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET original and target metadata, SELECT only synthetic schema and GET deleted worker
+        shell: bash
+        env:
+          AXIOM_CUSTOMER_STAGING_CF_API_TOKEN: ${{ secrets.AXIOM_CUSTOMER_STAGING_CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          TARGET='1eff7a3d-b22b-4264-a0b8-196edf70074f'
+          PRESERVED='e36972b3-850d-4273-b934-2fa67587d9f1'
+          SCRIPT='axiom-pr77-synthetic-20261108'
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          TOKEN=os.environ.get('AXIOM_CUSTOMER_STAGING_CF_API_TOKEN','')
+          SQL="SELECT type,name FROM sqlite_master WHERE name NOT GLOB 'sqlite_*' ORDER BY type,name"
+          r={'schema':'musitu.axiom.pr77_post_worker_404_independent_readback.v1','status':'UNQUALIFIED','synthetic_d1_id':TARGET,'original_recovery_d1_id':PRESERVED,'target_metadata_confirmed':False,'preserved_metadata_confirmed':False,'user_objects_total':None,'provider_query_zero_writes':False,'owned_worker_absent':False,'customer_rows_read':False,'cloudflare_d1_writes':0,'release_authority':False}
+          class Rejected(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*a,**kw):return None
+          OPENER=urllib.request.build_opener(NoRedirect())
+          def request(method,path,body=None,allow404=False):
+           if not TOKEN or '\r' in TOKEN or '\n' in TOKEN:raise Rejected('TOKEN_UNAVAILABLE')
+           d=None if body is None else json.dumps(body,separators=(',',':')).encode()
+           req=urllib.request.Request(BASE+path,method=method,data=d,headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json','User-Agent':'AXIOM-PR77-IndependentPost503GET-20261108',**({'Content-Type':'application/json'} if d else {})})
+           try:
+            with OPENER.open(req,timeout=20) as res:
+             code=res.status;raw=res.read(120001)
+           except urllib.error.HTTPError as e:
+            code=e.code;raw=b''
+           except Exception:raise Rejected('PROVIDER_NETWORK_UNAVAILABLE')
+           if code==404 and allow404:return None
+           if code!=200 or len(raw)>120000:raise Rejected('PROVIDER_STATUS_OR_SIZE_INVALID')
+           try:data=json.loads(raw)
+           except Exception:raise Rejected('PROVIDER_BAD_JSON')
+           if not isinstance(data,dict) or data.get('success') is not True:raise Rejected('PROVIDER_REJECTED')
+           return data['result']
+          try:
+           t=request('GET','/d1/database/'+TARGET)
+           p=request('GET','/d1/database/'+PRESERVED)
+           r['target_metadata_confirmed']=isinstance(t,dict) and t.get('uuid')==TARGET and t.get('name')=='axiom-pr77-synthetic-only-20261108'
+           r['preserved_metadata_confirmed']=isinstance(p,dict) and p.get('uuid')==PRESERVED and p.get('name')=='axiom-disposable-dr-target-20261108'
+           if not r['target_metadata_confirmed'] or not r['preserved_metadata_confirmed']:raise Rejected('METADATA_RESOURCE_DRIFT')
+           a=request('POST','/d1/database/'+TARGET+'/query',{'sql':SQL,'params':[]})
+           if not isinstance(a,list) or len(a)!=1 or a[0].get('success') is not True:raise Rejected('QUERY_RESPONSE_DRIFT')
+           meta=a[0].get('meta');rows=a[0].get('results')
+           r['provider_query_zero_writes']=isinstance(meta,dict) and meta.get('changed_db') is False and meta.get('changes')==0 and meta.get('rows_written')==0
+           if not r['provider_query_zero_writes'] or not isinstance(rows,list):raise Rejected('ZERO_WRITE_QUERY_UNCONFIRMED')
+           unexpected=[x for x in rows if not isinstance(x,dict) or x.get('name') not in ('_cf_KV','_cf_METADATA')]
+           r['user_objects_total']=len(unexpected)
+           if unexpected:raise Rejected('SYNTHETIC_D1_NOT_EMPTY_WORKER_RUN_MAY_HAVE_WRITTEN')
+           worker=request('GET','/workers/scripts/'+SCRIPT+'/settings',allow404=True)
+           r['owned_worker_absent']=worker is None
+           if not r['owned_worker_absent']:raise Rejected('TEMPORARY_WORKER_NOT_GONE')
+           r['status']='EMPTY_SYNTHETIC_D1_AND_TEMP_WORKER_REMOVED_INDEPENDENTLY_CONFIRMED'
+          except Rejected as e:r['reason_code']=str(e)
+          except Exception:r['reason_code']='UNKNOWN_OBSERVER_ERROR'
+          Path('axiom-pr77-post404-independent-readback-20261108.json').write_text(json.dumps(r,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(r,sort_keys=True))
+          if r['status']!='EMPTY_SYNTHETIC_D1_AND_TEMP_WORKER_REMOVED_INDEPENDENTLY_CONFIRMED':raise SystemExit(1)
+          
+          PY
+      - name: Archive independent zero-write clean-slate evidence even if rejected
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-post-worker503-independent-readback-20261108
+          path: axiom-pr77-post404-independent-readback-20261108.json
+          retention-days: 30
+          if-no-files-found: warn
