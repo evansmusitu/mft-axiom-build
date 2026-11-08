@@ -38,6 +38,35 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
  OR pg_catalog.has_table_privilege(current_user,billing.table_oid,'SELECT')
  OR pg_catalog.has_any_column_privilege(current_user,billing.table_oid,'SELECT'))
    AS direct_billing_select_authority,
+ (pg_catalog.to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)') IS NOT NULL
+ AND pg_catalog.to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)') IS NOT NULL) AS protected_rpc_present,
+ (SELECT COUNT(*)=2 AND pg_catalog.bool_and(
+    p.prosecdef AND NOT o.rolcanlogin
+    AND NOT (o.rolsuper OR o.rolcreaterole OR o.rolcreatedb OR o.rolreplication OR o.rolbypassrls)
+    AND NOT pg_catalog.pg_has_role(o.oid,'MEMBER')
+    AND pg_catalog.regexp_replace(pg_catalog.array_to_string(p.proconfig,','),
+      '[[:space:]]+','','g')='search_path=pg_catalog,pg_temp')
+   FROM pg_catalog.pg_proc p
+   JOIN pg_catalog.pg_roles o ON o.oid=p.proowner
+   WHERE p.oid IN (
+     pg_catalog.to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)'),
+     pg_catalog.to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')
+   )) AS protected_rpc_definers_safe,
+ (SELECT COUNT(*)=2 AND pg_catalog.bool_and(
+    pg_catalog.has_function_privilege(current_user,p.oid,'EXECUTE')
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.aclexplode(
+        COALESCE(p.proacl,pg_catalog.acldefault('f'::"char",p.proowner))) AS acl
+      WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'))
+   FROM pg_catalog.pg_proc p
+   WHERE p.oid IN (
+     pg_catalog.to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)'),
+     pg_catalog.to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')
+   )) AS protected_rpc_grants_safe,
+ CASE WHEN pg_catalog.to_regnamespace('axiom_spend') IS NULL THEN FALSE
+   ELSE pg_catalog.has_schema_privilege(current_user,'axiom_spend','USAGE')
+    AND NOT pg_catalog.has_schema_privilege(current_user,'axiom_spend','CREATE')
+ END AS protected_rpc_schema_safe,
  has_database_privilege(current_user,current_database(),'CREATE') AS can_create_database_objects,
  has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects`;
 
@@ -66,10 +95,13 @@ export async function inspectStagingHyperdrive(env, clientFactory){
        row.direct_billing_dml_authority!==false||row.direct_billing_select_authority!==false||
        row.can_create_database_objects!==false||row.can_create_schema_objects!==false)
       throw new Error('STAGING_PRIVILEGED_ROLE_DENIED');
+    if(row.protected_rpc_present!==true||row.protected_rpc_definers_safe!==true||
+       row.protected_rpc_grants_safe!==true||row.protected_rpc_schema_safe!==true)
+      throw new Error('STAGING_PROTECTED_RPC_INVALID');
     // Schema existence is not evidence of budgets, enforced call paths, or invoice reconciliation.
     return {connected:true,identityVerified:true,billingSchemaPresent:true,productionBillingEnforced:false};
   }catch(error){
-    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING|PRIVILEGED_ROLE_DENIED)$/.test(error.message))throw error;
+    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING|PRIVILEGED_ROLE_DENIED|PROTECTED_RPC_INVALID)$/.test(error.message))throw error;
     throw new Error('STAGING_DATABASE_UNAVAILABLE');
   }finally{
     if(client){try{await client.end();}catch{}}
