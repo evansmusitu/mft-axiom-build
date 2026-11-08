@@ -1,0 +1,88 @@
+name: AXIOM account Config Rules permission exact scope read-only
+on:
+  push:
+    branches: [ops/axiom-cf-config-scope-complete-20261108]
+    paths: [.github/workflows/axiom-cf-config-scope-complete.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read exact account token all permission names and zone policy scope without logging secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request
+          from pathlib import Path
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          ZONE='5b56528f03948ff5917a5e0cd9f7109e'
+          token=os.environ.get('TOKEN','')
+          if not token:raise SystemExit('TOKEN_MISSING')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          def get(path):
+            request=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,method='GET',
+              headers={'authorization':'Bearer '+token,'accept':'application/json'})
+            with urllib.request.build_opener(NoRedirect).open(request,timeout=15) as r:
+              if r.status!=200:raise ValueError('PROVIDER_STATUS_NOT_200')
+              body=r.read(100001)
+            if len(body)>100000:raise ValueError('OVERSIZED')
+            doc=json.loads(body)
+            if doc.get('success') is not True:raise ValueError('PROVIDER_DENIED')
+            return doc.get('result')
+          v=get('/accounts/'+ACCOUNT+'/tokens/verify')
+          identifier=v.get('id','') if isinstance(v,dict) else ''
+          if v.get('status')!='active' or not re.fullmatch('[a-f0-9]{32}',identifier):raise SystemExit('NOT_ACTIVE')
+          detail=get('/accounts/'+ACCOUNT+'/tokens/'+identifier)
+          policies=detail.get('policies',[]) if isinstance(detail,dict) else []
+          if not isinstance(policies,list):raise SystemExit('POLICY_INVALID')
+          names=[]
+          keys=[]
+          def traverse_resource(obj):
+            if not isinstance(obj,dict):return
+            for k,value in obj.items():
+              keys.append(str(k))
+              if isinstance(value,dict):traverse_resource(value)
+          for p in policies:
+            if not isinstance(p,dict):continue
+            traverse_resource(p.get('resources',{}))
+            for g in p.get('permission_groups',[]):
+              if not isinstance(g,dict):continue
+              if isinstance(g.get('name'),str):names.append(g['name'])
+              meta=g.get('meta',{})
+              if isinstance(meta,dict) and isinstance(meta.get('label'),str):names.append(meta['label'])
+          matching=sorted(set(n for n in names if re.search(r'config|ruleset|zone',n,re.I) and len(n)<120))
+          out={'kind':'AXIOM_ACCOUNT_TOKEN_CONFIG_SCOPE_COMPLETE_GET_ONLY',
+            'token_active':True,'policy_count':len(policies),'all_permission_group_count':len(names),
+            'config_or_ruleset_permission_names':matching[:80],
+            'has_config_rules_edit':any('config rules' in n.lower() and ('edit' in n.lower() or 'write' in n.lower()) for n in names),
+            'has_select_configuration_write':any('select configuration write' in n.lower() for n in names),
+            'has_config_rules_read':any('config rules' in n.lower() and 'read' in n.lower() for n in names),
+            'has_exact_zone_resource_key':any(ZONE in k for k in keys),
+            'has_account_resource_key':any(ACCOUNT in k for k in keys),
+            'has_zone_wildcard_resource':any('zone.*' in k for k in keys),
+            'has_account_wildcard_resource':any('account.*' in k for k in keys),
+            'methods':['GET'],'provider_writes':0,'production_oauth_touched':False}
+          b=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-account-config-scope-complete.json');p.write_bytes(b)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(b).hexdigest()+'  '+p.name+'\n')
+          print('TOKEN_FULL_PERMISSION_AND_ZONE_SCOPE_READ_ONLY')
+          PY
+      - name: Archive only permission label and resource-scope flags
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-cf-config-exact-permission-scope-readonly-20261108
+          path: |
+            axiom-account-config-scope-complete.json
+            axiom-account-config-scope-complete.json.sha256
+          if-no-files-found: error
+          retention-days: 7
