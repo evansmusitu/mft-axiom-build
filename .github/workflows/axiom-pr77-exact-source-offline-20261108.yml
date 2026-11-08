@@ -1,0 +1,57 @@
+name: AXIOM retrieve exact reviewed PR77 offline OAuth candidate source 20261108 (NO SECRETS)
+on:
+  pull_request:
+    types: [opened]
+    paths: ['.github/workflows/axiom-pr77-exact-source-offline-20261108.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-pr77-exact-source-offline-20261108
+  cancel-in-progress: false
+jobs:
+  exact-source-and-existing-tests:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'build/axiom-oauth-pr77-realsnapshot-offline-20261108' && github.event.pull_request.base.ref == 'build/axiom-prod-oauth-current-backup-live-20261108' && github.event.pull_request.base.sha == '1089a70f7451f2d8a4f878218b25e6aa2e791c2f' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout reviewed source commit only with no persistent GitHub credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Pin exactly four reviewed PR77 files and prohibit any credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4bb938d679a384cc2e499c09569a55c6b880a5fb
+          test "$(git hash-object auth/oauth_identity_upgrade_v2.py)" = 67887fd5b6d5f97bc07326a04e2038db97f7206c
+          test "$(git hash-object auth/oauth_identity_v1_trigger_manifest.json)" = 2ac6c77d0a35f04ebf278d88b6eeaaa104727d55
+          test "$(git hash-object auth/keyless_customer_link_candidate.sql)" = cb240ee7d7f1069b2a465eadf6ed2c56099d2663
+          test "$(git hash-object auth/keyless_token_revocation_candidate.sql)" = 800087038986382060f4d37c8d79d17db165b839
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${AXIOM_CUSTOMER_STAGING_CF_API_TOKEN:-}"
+          python3 -m py_compile auth/oauth_identity_upgrade_v2.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('auth/oauth_identity_upgrade_v2.py').read_text()
+          assert 'No network, credential handling, public route or hosted application' in s
+          assert 'OFFLINE_CANDIDATE_NOT_HOSTED_QUALIFIED' in s
+          assert 'upgrade_requires_foreign_keys' in s and 'upgrade_requires_check_constraints' in s
+          assert 'db.execute(\'BEGIN IMMEDIATE\')' in s
+          assert 'db.execute(\'ROLLBACK\')' in s
+          print('EXACT_AUTHENTIC_PR77_FOUR_SOURCE_FILES_ADMITTED_NO_SECRET')
+          PY
+      - name: Independently rerun PR77 existing SQLite migration negative tests
+        shell: bash
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_oauth_identity_upgrade.py -v
+      - name: Retain only reviewed public source files (NO PRODUCTION DATA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-pr77-four-source-files-not-data-20261108
+          path: |
+            auth/oauth_identity_upgrade_v2.py
+            auth/oauth_identity_v1_trigger_manifest.json
+            auth/keyless_customer_link_candidate.sql
+            auth/keyless_token_revocation_candidate.sql
+          retention-days: 3
+          if-no-files-found: error
