@@ -1,0 +1,141 @@
+name: MUSITU Corporate Readonly Public Crawl and Bing Indexing Audit
+
+on:
+  push:
+    branches: [ops/corporate-seo-contact-audit-20261108]
+
+permissions:
+  contents: read
+
+jobs:
+  public-seo-and-bing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+    steps:
+      - name: Read-only check of live robots, sitemap, pages, Bing feeds and Bing crawl issue API
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          from __future__ import annotations
+          import concurrent.futures
+          import html
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import xml.etree.ElementTree as ET
+
+          ORIGIN = "https://mftintelligence.com"
+          HEADERS = {"User-Agent": "MUSITU-Independent-Public-SEO-ReadOnly-Audit/1.0", "Accept": "text/html,application/xml,text/plain"}
+          def public_get(url, limit=2500000):
+              req=urllib.request.Request(url, headers=HEADERS,method="GET")
+              with urllib.request.urlopen(req,timeout=22) as res:
+                  assert res.status==200, "Unexpected HTTP status"
+                  body=res.read(limit+1)
+                  assert len(body)<=limit, "Response too large"
+                  return body.decode("utf-8","replace"), res.headers
+
+          robots, rh = public_get(ORIGIN+"/robots.txt")
+          low=robots.lower()
+          assert "user-agent:" in low,"Missing robots user agent"
+          assert "disallow: /" not in [s.strip() for s in low.splitlines()],"Global robots block"
+          assert "sitemap:" in low and "/sitemap.xml" in low,"Canonical sitemap missing from robots"
+          print("PUBLIC robots.txt: HTTP 200, crawler directives and sitemap declaration PASS")
+
+          xml, smh=public_get(ORIGIN+"/sitemap.xml")
+          root=ET.fromstring(xml)
+          tags=[e.text.strip() for e in root.iter() if e.tag.endswith("}loc") or e.tag=="loc"]
+          assert root.tag.endswith("urlset"),"Unexpected sitemap root"
+          assert len(tags)==33, "Expected currently published 33 corporate URLs"
+          assert len(set(tags))==len(tags),"Duplicate sitemap location"
+          for url in tags:
+              p=urllib.parse.urlsplit(url)
+              assert p.scheme=="https" and p.netloc=="mftintelligence.com","Sitemap includes noncanonical or external URL"
+              assert not p.query and not p.fragment,"Sitemap query/fragment not canonical"
+          print("PUBLIC sitemap.xml: HTTP 200, 33 unique HTTPS canonical-domain URLs PASS")
+
+          def page_check(url):
+              try:
+                  body, h=public_get(url)
+                  metas=re.findall(r'<meta\b[^>]*>',body,flags=re.I)
+                  canonical=re.findall(r'<link\b[^>]*rel\s*=\s*["\']canonical["\'][^>]*>',body,flags=re.I)
+                  if not canonical:
+                      canonical=re.findall(r'<link\b[^>]*href\s*=\s*["\'][^"\']+["\'][^>]*rel\s*=\s*["\']canonical["\'][^>]*>',body,flags=re.I)
+                  assert len(canonical)==1,"Missing/duplicated canonical tag"
+                  href=re.search(r'href\s*=\s*["\']([^"\']+)["\']',canonical[0],flags=re.I)
+                  assert href,"Missing canonical href"
+                  canon=html.unescape(href.group(1))
+                  assert canon==url,"Canonical conflicts with sitemap"
+                  assert not re.search(r'<meta\b[^>]*\bname\s*=\s*["\']robots["\'][^>]*\bcontent\s*=\s*["\'][^"\']*noindex',body,flags=re.I),"Route noindex"
+                  assert "noindex" not in str(h.get("x-robots-tag","")).lower(),"X-Robots-Tag noindex"
+                  assert "<title>" in body.lower(),"Missing title"
+                  return (url, True,"", "mailto:support@mftintelligence.com" in body.lower())
+              except Exception as exc:
+                  # URL is public; do not disclose private data from any response.
+                  return (url, False,type(exc).__name__+": "+str(exc)[:140],False)
+
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              statuses=list(pool.map(page_check,tags))
+          fails=[(u,err) for u,ok,err,_ in statuses if not ok]
+          print("LIVE canonical/indexable route audits:",len(statuses)-len(fails),"/",len(statuses))
+          print("LIVE support mailto address present on public HTML:",any(hit for _,_,_,hit in statuses))
+          if fails:
+              for url,issue in fails[:10]:print("PUBLIC ROUTE REVIEW:",url,issue)
+              raise SystemExit("HOLD: public sitemap URL/readability/canonical audit failed")
+          print("PUBLIC 33-route HTTP crawl and canonical exclusion check PASS")
+          print("CONTACT: public mailto discovery does NOT prove independently delivered enquiry/reply")
+
+          key=os.environ.get("BING_WEBMASTER_API_KEY","")
+          assert key,"HOLD: secret missing"
+          base="https://ssl.bing.com/webmaster/api.svc/json/"
+          def bing(method,**kwargs):
+              # Deliberately never include this URL in logs/error text.
+              url=base+method+"?"+urllib.parse.urlencode({"apikey":key,**kwargs})
+              request=urllib.request.Request(url,headers={"Accept":"application/json"},method="GET")
+              try:
+                  with urllib.request.urlopen(request,timeout=25) as rsp:
+                      if rsp.status!=200:return None,"HTTP_"+str(rsp.status)
+                      raw=rsp.read(1200000)
+              except urllib.error.HTTPError as e:return None,"HTTP_"+str(e.code)
+              except (urllib.error.URLError,TimeoutError) as e:return None,type(e).__name__
+              try:
+                  item=json.loads(raw)
+                  if "d" not in item:return None,"UnrecognizedPayload"
+                  return item["d"],None
+              except (ValueError,TypeError):return None,"InvalidJSON"
+          sites,error=bing("GetUserSites")
+          assert error is None and isinstance(sites,list),"HOLD: Bing property authorization unavailable"
+          matches=[s.get("Url") or s.get("SiteUrl") for s in sites if isinstance(s,dict) and urllib.parse.urlsplit(str(s.get("Url") or s.get("SiteUrl") or "")).hostname=="mftintelligence.com"]
+          assert matches,"HOLD: Bing site missing"
+          actual=matches[0]
+          print("BING property verified: PASS")
+          feeds,error=bing("GetFeeds",siteUrl=actual)
+          if error:
+              print("BING feeds inspection: UNVERIFIED ("+error+")")
+          elif isinstance(feeds,list):
+              sitemaps=[(x.get("Url") or x.get("FeedUrl") or x.get("Feed") or "") for x in feeds if isinstance(x,dict)]
+              found=any(str(u).rstrip("/")==ORIGIN+"/sitemap.xml" for u in sitemaps)
+              print("BING feeds inventory accessible: PASS; entries:",len(feeds),"; canonical sitemap found:",found)
+              if feeds and not found:
+                  print("BING sitemap entry needs manual provider-console review: provider schema can vary")
+          else:
+              print("BING feeds inspection: UNVERIFIED response type")
+          issues,error=bing("GetCrawlIssues",siteUrl=actual)
+          if error:
+              print("BING crawl issue API: UNVERIFIED ("+error+")")
+          elif isinstance(issues,list):
+              print("BING crawl issue API: PASS; returned rows:",len(issues))
+              print("BING crawl issues are not Google indexing determinations")
+          else:
+              print("BING crawl issue API: UNVERIFIED response type")
+          stats,error=bing("GetRankAndTrafficStats",siteUrl=actual)
+          print("BING daily traffic API:", "PASS" if error is None and isinstance(stats,list) else "UNVERIFIED ("+str(error or "schema")+")")
+          print("GOOGLE indexing six-page validation: provider notice only; URL identities/status require authenticated Google URL Inspection")
+          print("No URLs or sitemaps submitted; no email sent; no production writes; no private traffic printed")
+          PY
