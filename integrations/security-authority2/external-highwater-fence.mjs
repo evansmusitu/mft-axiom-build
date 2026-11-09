@@ -62,12 +62,38 @@ export async function externalHighwaterFence({pin,write_token,read_token,event,f
   const key=await crypto.subtle.importKey('jwk',pin.public_key_jwk,{name:'Ed25519'},false,['verify']);
   const challenge=await crypto.subtle.digest('SHA-256',encoder.encode(nonce()));
   const challengeHex=[...new Uint8Array(challenge)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  const commit=await signedPayload(await request(fetchImpl,pin.origin,'/v1/highwater/append',{schema:SCHEMA,account_id:pin.account_id,key_id:pin.key_id,...event,challenge:challengeHex},write_token,timeoutMs),pin,key,'commit',challengeHex);
+  const commitEnvelope=await request(fetchImpl,pin.origin,'/v1/highwater/append',{schema:SCHEMA,account_id:pin.account_id,key_id:pin.key_id,...event,challenge:challengeHex},write_token,timeoutMs);
+  const commit=await signedPayload(commitEnvelope,pin,key,'commit',challengeHex);
   if(commit.decision!=='ALLOW_ONCE'||Object.keys(event).some(k=>commit[k]!==event[k]))hold('HIGHWATER_COMMIT_MISMATCH_HOLD');
   const nextChallenge=await crypto.subtle.digest('SHA-256',encoder.encode(nonce()));
   const nextHex=[...new Uint8Array(nextChallenge)].map(x=>x.toString(16).padStart(2,'0')).join('');
   if(nextHex===challengeHex)hold('HIGHWATER_CHALLENGE_COLLISION_HOLD');
-  const tip=await signedPayload(await request(fetchImpl,pin.origin,'/v1/highwater/readback',{schema:SCHEMA,account_id:pin.account_id,ledger_id:pin.ledger_id,namespace:pin.namespace,key_id:pin.key_id,challenge:nextHex},read_token,timeoutMs),pin,key,'readback',nextHex);
+  const tipEnvelope=await request(fetchImpl,pin.origin,'/v1/highwater/readback',{schema:SCHEMA,account_id:pin.account_id,ledger_id:pin.ledger_id,namespace:pin.namespace,key_id:pin.key_id,challenge:nextHex},read_token,timeoutMs);
+  const tip=await signedPayload(tipEnvelope,pin,key,'readback',nextHex);
   if(tip.sequence!==event.sequence||tip.head!==event.head)hold('HIGHWATER_POST_COMMIT_READBACK_MISMATCH_HOLD');
-  return Object.freeze({status:'EXTERNAL_CAS_COMMITTED_AND_INDEPENDENTLY_READ_BACK',account_id:pin.account_id,namespace:pin.namespace,sequence:event.sequence,head:event.head,commit_envelope:commit});
+  return Object.freeze({status:'EXTERNAL_CAS_COMMITTED_AND_INDEPENDENTLY_READ_BACK',account_id:pin.account_id,namespace:pin.namespace,sequence:event.sequence,head:event.head,commit_envelope:commitEnvelope,readback_envelope:tipEnvelope});
+}
+
+/** Verify a ledger receipt against a separately signed witness plus a FRESH readback.
+ * No locally retained high-water counter is accepted as independent authority.
+ * Identical tip is intentionally required: concurrent advances fail closed.
+ */
+export async function verifyExternalHighwaterReceipt({pin,ledger_payload,read_token,fetchImpl=fetch,timeoutMs=5000,nonce=()=>crypto.randomUUID()}={}){
+  pin=highwaterPin(pin);
+  if(typeof read_token!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(read_token))hold('HIGHWATER_SEPARATE_READ_CREDENTIAL_REQUIRED_HOLD');
+  if(!ledger_payload||typeof ledger_payload!=='object'||!ledger_payload.highwater)hold('HIGHWATER_RECEIPT_REQUIRED_HOLD');
+  const witness=ledger_payload.highwater;
+  sameKeys(witness,['status','account_id','namespace','sequence','head','commit_envelope','readback_envelope']);
+  if(witness.status!=='EXTERNAL_CAS_COMMITTED_AND_INDEPENDENTLY_READ_BACK'||witness.account_id!==pin.account_id||witness.namespace!==pin.namespace||witness.sequence!==ledger_payload.ledger_sequence||witness.head!==ledger_payload.chain_sha256)hold('HIGHWATER_RECEIPT_TRUST_MISMATCH_HOLD');
+  const key=await crypto.subtle.importKey('jwk',pin.public_key_jwk,{name:'Ed25519'},false,['verify']);
+  const commit=await signedPayload(witness.commit_envelope,pin,key,'commit',witness.commit_envelope?.payload?.challenge);
+  if(commit.decision!=='ALLOW_ONCE'||commit.sequence!==witness.sequence||commit.head!==witness.head||commit.artifact_sha256!==ledger_payload.execution_artifact_sha256&&ledger_payload.execution_artifact_sha256!==undefined)hold('HIGHWATER_COMMIT_BINDING_MISMATCH_HOLD');
+  const {highwater,...beforeWitness}=ledger_payload;
+  const sha=await crypto.subtle.digest('SHA-256',encoder.encode(canonical(beforeWitness)));
+  const digest=[...new Uint8Array(sha)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(commit.event_digest!==digest)hold('HIGHWATER_COMMIT_LEDGER_DIGEST_MISMATCH_HOLD');
+  const challenge=[...new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(nonce())))].map(x=>x.toString(16).padStart(2,'0')).join('');
+  const current=await signedPayload(await request(fetchImpl,pin.origin,'/v1/highwater/readback',{schema:SCHEMA,account_id:pin.account_id,ledger_id:pin.ledger_id,namespace:pin.namespace,key_id:pin.key_id,challenge},read_token,timeoutMs),pin,key,'readback',challenge);
+  if(current.sequence!==witness.sequence||current.head!==witness.head)hold('HIGHWATER_FRESH_READBACK_MISMATCH_HOLD');
+  return true;
 }
