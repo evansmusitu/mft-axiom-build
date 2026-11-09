@@ -130,9 +130,25 @@ jobs:
           # Local test image only. No production credentials or host bind mounts.
           PYTHONPATH=. python frontier_v5/scripts/build_isolated_python_rootfs.py --output /tmp/axiom-frontier-rootfs --python /usr/bin/python3
           export AXIOM_SANDBOX_ROOTFS=/tmp/axiom-frontier-rootfs
-          PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
+          # The hosted Ubuntu policy cannot run the old unprivileged namespace
+          # fixture. First verify fullstack against the separately tested OCI
+          # isolation driver. Then retain (do not waive) namespace negative tests.
+          context="$RUNNER_TEMP/axiom-frontier-fullstack-oci-context"
+          mkdir -p "$context"
+          cp -a /tmp/axiom-frontier-rootfs "$context/rootfs"
+          cat > "$context/Dockerfile" <<'DOCKERFILE'
+          FROM scratch
+          COPY rootfs/ /
+          USER 65534:65534
+          WORKDIR /
+          DOCKERFILE
+          docker build --network=none --pull=false -f "$context/Dockerfile" -t axiom-frontier-fullstack-oci "$context"
+          export AXIOM_SANDBOX_IMAGE_ID="$(docker image inspect --format '{{.Id}}' axiom-frontier-fullstack-oci)"
+          case "$AXIOM_SANDBOX_IMAGE_ID" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1;; esac
           PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/fullstack-local.log
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/fullstack-local.log
+          # The separate namespace job/runner qualification remains mandatory.
+          PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
 
       - name: Verify browser network preflight fails closed
         shell: bash
