@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 8
     outputs:
       signed_checkpoint_b64: ${{ steps.produce.outputs.signed_checkpoint_b64 }}
+      producer_public_key_sha256: ${{ steps.produce.outputs.producer_public_key_sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -41,6 +42,10 @@ jobs:
           # checkpoint proof only. Never export private signing key material.
           test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
           printf 'signed_checkpoint_b64=%s\n' "$(base64 -w0 "$RUNNER_TEMP/b27-witness/checkpoint.json")" >> "$GITHUB_OUTPUT"
+          # Separate output pins the producer's public key independently of
+          # the transferred checkpoint payload (both remain synthetic).
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/public-key-pin.txt")" -eq 65
+          printf 'producer_public_key_sha256=%s\n' "$(tr -d '\n' < "$RUNNER_TEMP/b27-witness/public-key-pin.txt")" >> "$GITHUB_OUTPUT"
 
   host-b-destructive-replay:
     name: Host B verifies witness and destroys stale-state fixture
@@ -67,6 +72,8 @@ jobs:
           test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
       - name: Require signature, deny stale-state replay and missing external checkpoint
         shell: bash
+        env:
+          B27_PRODUCER_PUBLIC_KEY_SHA256: ${{ needs.host-a-checkpoint.outputs.producer_public_key_sha256 }}
         run: |
           set -euo pipefail
           node integrations/security-authority2/b27-crosshost-checkpoint.mjs verify "$RUNNER_TEMP/b27-witness"
