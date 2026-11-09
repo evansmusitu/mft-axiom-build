@@ -1,0 +1,73 @@
+name: AXIOM one-use current OAuth snapshot isolated D1 import parity and rollback (NOT RELEASE)
+on:
+  push:
+    branches: [ops/axiom-oauth-restore-owner-once-20261109]
+    paths:
+      - .github/workflows/axiom-oauth-restore-owner-once-20261109.yml
+      - customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py
+      - customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+permissions:
+  contents: read
+concurrency:
+  group: axiom-oauth-restore-owner-once-20261109
+  cancel-in-progress: false
+jobs:
+  isolated-rehearsal:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-oauth-restore-owner-once-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.event.head_commit.message == 'ops(dr): owner-only current OAuth snapshot isolated restore parity and rollback NOT RELEASE' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Checkout owner-only parent-pinned source without retained GitHub token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Enforce exact source and test objects plus negative suites BEFORE any credential available
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+          test "$(git hash-object customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py)" = '31c67bae1b8e6dfb048cc0082622d92dc666b6ed'
+          test "$(git hash-object customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py)" = '91f245cefd7a949ab905a3c5af58511c9a3f88c3'
+          python3 -m py_compile customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_production_oauth_oneuse_restore_20261109.py)
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py').read_text()
+          assert "SOURCE_DB='504029cc-f9a5-495e-818f-63c6144b4ea4'" in src
+          assert "TARGET_DB='c023a0a0-472a-4178-ad07-02f1d6b2e122'" in src
+          assert "CURRENT_SQL_SHA='22f770cbdf551eda71a9c3005450809ea266d23f577a053ba9c7b26da116e0be'" in src
+          assert "ORIGINAL_8NOV_SQL_SHA='c8eb426f629d3ef6d84a88aa5e11603e2d2637b266706288435b710537b3b304'" in src
+          assert "raise Stop('PRODUCTION_MUTATION_PROHIBITED')" in src
+          assert "raise Stop('CURRENT_AUTHENTICATED_SNAPSHOT_CHANGED_NO_IMPORT')" in src
+          assert "receipt['import_attempts']=1" in src and "receipt['rollback_attempts']=1" in src
+          print('EXACT_PINNED_ONEUSE_SOURCE_SECURITY_CONTRACT_ADMITTED')
+          PY
+      - name: Bounded one-import one-Time-Travel rollback in exact isolated DR account ONLY
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AXIOM_DR_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+          MUSITU_CLOUDFLARE_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py
+          code=$?
+          echo "AXIOM_ISOLATED_RECOVERY_EXIT=$code"
+          exit "$code"
+      - name: Upload ONLY sanitized source/target digest, parity and rollback status with SHA256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-current-oauth-isolated-hosted-parity-rollback-20261109
+          path: |
+            axiom-oauth-isolated-restore-rollback-receipt.json
+            axiom-oauth-isolated-restore-rollback-receipt.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
