@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 from frontier_v5.runtime.fabric import AuthorizationError, FrontierError
 from frontier_v5.runtime.docker_isolated_sandbox import DockerIsolatedSandbox
+from frontier_v5.runtime.fullstack_base import SandboxedComputerAdapter
 
 IMAGE=os.environ.get('AXIOM_SANDBOX_IMAGE_ID','')
 PYTHON='/usr/bin/python3'
@@ -24,6 +25,19 @@ class DockerSecurity(unittest.TestCase):
         with self.assertRaises(ValueError):DockerIsolatedSandbox('python:latest',{PYTHON})
         with self.assertRaises(ValueError):DockerIsolatedSandbox(IMAGE,{'python3'})
         with self.assertRaises(AuthorizationError):self.sandbox().run(['/bin/sh','-c','env'])
+
+    def test_fullstack_adapter_requires_explicit_oci_pin_and_denies_host_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            unconfigured=SandboxedComputerAdapter(root,{PYTHON})
+            with self.assertRaises(AuthorizationError):
+                unconfigured.run([PYTHON,'-I','-S','-c','print(1)'])
+            with self.assertRaises(AuthorizationError):
+                SandboxedComputerAdapter(root,{PYTHON},oci_image_id=IMAGE,
+                    sandbox_rootfs='/tmp/ambiguous',rootfs_sha256='0'*64)
+            adapter=SandboxedComputerAdapter(root,{PYTHON},oci_image_id=IMAGE)
+            result=adapter.run([PYTHON,'-I','-S','-c',"print('OCI_ADAPTER_CONNECTED')"],timeout=15)
+            self.assertEqual(result['stdout'].strip(),'OCI_ADAPTER_CONNECTED')
+            self.assertTrue(result['execution_boundary'].startswith('OCI_'))
 
     def test_network_and_host_workspace_hidden(self):
         code=("import os,socket;print('HOST_HIDDEN',not os.path.exists('/home/runner/work'));"
