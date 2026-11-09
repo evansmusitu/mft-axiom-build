@@ -1,0 +1,79 @@
+name: MUSITU Corporate Pages Deployment Inventory GET-Only
+
+on:
+  push:
+    branches:
+      - ops/corporate-bing-sitemap-readonly-20261109
+    paths:
+      - .github/workflows/musitu-corporate-pages-inventory-readonly-20261109.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deployment-inventory:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Exact-account Pages production and rollback inventory, GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          """No writes, customer data, token output, or public deployment URLs."""
+          import json,os,urllib.error,urllib.request
+          account=os.environ.get("CLOUDFLARE_ACCOUNT_ID","").strip()
+          key=os.environ.get("CLOUDFLARE_API_TOKEN","").strip()
+          if not account or not key:
+              raise SystemExit("HOLD: isolated Cloudflare account identity or token not configured")
+          if len(account)!=32 or any(c not in "0123456789abcdef" for c in account.lower()):
+              raise SystemExit("HOLD: invalid Cloudflare account identifier")
+          path="/accounts/"+account+"/pages/projects/musitu-corporate"
+          allow={path,path+"/deployments?per_page=100"}
+          def get(p):
+              if p not in allow:raise SystemExit("HOLD: non-allowlisted Cloudflare operation")
+              request=urllib.request.Request(
+                  "https://api.cloudflare.com/client/v4"+p,
+                  method="GET",
+                  headers={"Authorization":"Bearer "+key,"Accept":"application/json","User-Agent":"MUSITU-Corporate-Pages-Inventory-ReadOnly"})
+              try:
+                  with urllib.request.urlopen(request,timeout=25) as r:
+                      data=r.read(1000001)
+                      if r.status!=200:raise SystemExit("HOLD: Cloudflare HTTP status is not 200")
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit("HOLD: Cloudflare rejected GET (HTTP "+str(exc.code)+")") from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: Cloudflare GET failed") from None
+              if len(data)>1000000:raise SystemExit("HOLD: Cloudflare response too large")
+              try:o=json.loads(data)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: invalid Cloudflare JSON") from None
+              if not isinstance(o,dict) or o.get("success") is not True:
+                  raise SystemExit("HOLD: Cloudflare did not return verified success")
+              return o.get("result")
+          project=get(path)
+          if not isinstance(project,dict) or project.get("name")!="musitu-corporate":
+              raise SystemExit("HOLD: unexpected Cloudflare Pages project")
+          if project.get("production_branch")!="main" or "mftintelligence.com" not in project.get("domains",[]):
+              raise SystemExit("HOLD: corporate domain/branch mismatch")
+          if (project.get("source") or {}).get("type"):
+              raise SystemExit("HOLD: unexpected Git-controlled Pages deployment source")
+          deployments=get(path+"/deployments?per_page=100")
+          if not isinstance(deployments,list):
+              raise SystemExit("HOLD: Cloudflare deployment inventory malformed")
+          expected_live="a2426a81-b0cb-4a46-a90c-493f871c9775"
+          expected_rollback="69ee853a-f0b4-432e-b069-7d6e180fdb4c"
+          prod=[d for d in deployments if isinstance(d,dict) and d.get("environment")=="production"]
+          ids={d.get("id") for d in prod}
+          print("Exact corporate Pages project, production branch and domain: PASS")
+          print("Prior qualified production deployment still in inventory:",expected_live in ids)
+          print("Previously verified rollback snapshot still in inventory:",expected_rollback in ids)
+          print("Deployment inventory count (first bounded page):",len(prod))
+          print("PHASE03_PRODUCTION_CUTOVER: NOT_PERFORMED")
+          print("ACTUAL_PRODUCTION_ROLLBACK: NOT_PERFORMED")
+          print("Provider operations: 2 GET, 0 writes")
+          PY
