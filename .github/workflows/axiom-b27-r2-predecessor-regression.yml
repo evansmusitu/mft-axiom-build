@@ -1,0 +1,39 @@
+name: AXIOM B27 R2 predecessor-link regression (offline, NO RELEASE)
+on:
+  push:
+    branches:
+      - fix/b27-worm-predecessor-integrity-20261109
+    paths:
+      - integrations/security-authority2/authority2-r2-worm.mjs
+      - integrations/security-authority2/authority2-highwater-worker.test.mjs
+      - .github/workflows/axiom-b27-r2-predecessor-regression.yml
+permissions:
+  contents: read
+concurrency:
+  group: axiom-b27-r2-predecessor-offline-20261109
+  cancel-in-progress: false
+jobs:
+  tdd:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu' && github.ref == 'refs/heads/fix/b27-worm-predecessor-integrity-20261109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Syntax checks including existing ledger and consumer
+        run: |
+          set -euo pipefail
+          node --check integrations/security-authority2/authority2-r2-worm.mjs
+          node --check integrations/security-authority2/authority2-highwater-worker.mjs
+          node --check integrations/security-authority2/authority2-highwater-worker.test.mjs
+      - name: Run complete existing B27 service suite and the new adversarial test
+        run: node --test integrations/security-authority2/*.test.mjs
+      - name: Preserve independent custody and release vetoes
+        if: always()
+        run: |
+          echo 'B27_GLOBAL_ANTIROLLBACK_STILL_NO_GO'
+          echo 'NO_PROVIDER_CREDENTIALS_OR_LIVE_WRITES'

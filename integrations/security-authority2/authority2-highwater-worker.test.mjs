@@ -64,3 +64,23 @@ test('lost R2 acknowledgement holds pending transaction permanently; no retry',a
   await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
   await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
 });
+test('B27 denial: current R2 event head matches DO but predecessor link is forged',async()=>{
+  const x=await setup();await x.seed();
+  await externalHighwaterFence(x.args);
+  const original=x.r2.snapshot(),key=wormKey(PIN,1);
+  const item=JSON.parse(original.get(key));
+  assert.equal(item.previous_head,sha('0'));
+  item.previous_head=sha('f');
+  original.set(key,canonical(item));
+  x.r2.restore(original);
+  const challenge=sha('a');
+  const req=new Request(x.root+'/v1/highwater/readback',{
+    method:'POST',
+    headers:{authorization:'Bearer '+x.args.read_token,'content-type':'application/json'},
+    body:canonical({...PIN,schema:'musitu.axiom.external-highwater.v1',challenge})
+  });
+  const response=await x.server.fetch(req);
+  assert.equal(response.status,503,'forged R2 predecessor must never produce signed positive readback');
+  const denial=await response.json();
+  assert.equal(denial.dispatch_allowed,false);
+});
