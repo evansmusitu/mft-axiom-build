@@ -1,5 +1,4 @@
-name: MUSITU Corporate Public 33-URL Bing Coverage Readonly
-
+name: MUSITU Corporate Bing Crawl and Index Stats Readonly
 on:
   push:
     branches:
@@ -11,123 +10,105 @@ permissions:
   contents: read
 
 concurrency:
-  group: musitu-corporate-public33-urlcoverage-once-readonly
+  group: musitu-corporate-bing-crawlstats-once-readonly
   cancel-in-progress: false
 
 jobs:
-  read-only-url-coverage:
+  read-only-crawlstats:
     if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
     env:
       BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
     steps:
-      - name: Read 33 current public sitemap URLs and Bing per-URL records without publishing anything
+      - name: Read verified Bing site-level crawl/index statistics after public sitemap validation
         shell: bash
         run: |
           set -euo pipefail
           set +x
           python3 - <<'PY'
-          """Privacy-safe, no-write baseline; Bing UrlInfo is not an indexing guarantee."""
-          import collections, json, os, time, urllib.error, urllib.parse, urllib.request
+          """Read-only current sitemap/verified property and site-level CrawlStats; never claims URL-level indexation."""
+          import datetime,json,os,re,urllib.error,urllib.parse,urllib.request
           import xml.etree.ElementTree as ET
 
           key=os.environ.get("BING_WEBMASTER_API_KEY","").strip()
-          if not key: raise SystemExit("HOLD: authorized Bing Webmaster secret unavailable")
+          if not key:raise SystemExit("HOLD: Bing Webmaster secret unavailable")
           origin="https://mftintelligence.com"
-          sitemap=origin+"/sitemap.xml"
-          bing="https://ssl.bing.com/webmaster/api.svc/json/"
-          agent="MUSITU-Corporate-URLCoverage-GETOnly/1.0"
-
-          def fetch(url):
-              request=urllib.request.Request(url,method="GET",headers={"Accept":"application/json,application/xml,text/plain","User-Agent":agent})
+          feed=origin+"/sitemap.xml"
+          base="https://ssl.bing.com/webmaster/api.svc/json/"
+          def request(url):
+              req=urllib.request.Request(url,method="GET",headers={"Accept":"application/json,application/xml","User-Agent":"MUSITU-Corporate-CrawlStats-GETOnly/1.0"})
               try:
-                  with urllib.request.urlopen(request,timeout=22) as response:
+                  with urllib.request.urlopen(req,timeout=25) as response:
                       if response.status!=200:raise SystemExit("HOLD: unexpected HTTP response")
                       body=response.read(500001)
               except urllib.error.HTTPError as exc:
-                  # Never disclose full request URL: it embeds the API key.
-                  raise SystemExit("HOLD: upstream GET rejected HTTP "+str(exc.code)) from None
+                  # Provider URL may include API key; never log it or its body.
+                  raise SystemExit("HOLD: upstream read-only HTTP "+str(exc.code)) from None
               except (urllib.error.URLError,TimeoutError):
-                  raise SystemExit("HOLD: read-only GET transport failed") from None
-              if len(body)>500000:raise SystemExit("HOLD: response exceeded read budget")
+                  raise SystemExit("HOLD: upstream GET transport error") from None
+              if len(body)>500000:raise SystemExit("HOLD: oversized upstream response")
               return body
-
-          body=fetch(sitemap)
-          try: root=ET.fromstring(body)
-          except ET.ParseError: raise SystemExit("HOLD: malformed live sitemap") from None
+          try:root=ET.fromstring(request(feed))
+          except ET.ParseError:raise SystemExit("HOLD: malformed current sitemap XML") from None
           ns="{http://www.sitemaps.org/schemas/sitemap/0.9}"
-          urls=[n.text for n in root.findall(ns+"url/"+ns+"loc")]
+          urls=[e.text for e in root.findall(ns+"url/"+ns+"loc")]
           if (len(urls)!=33 or len(set(urls))!=33 or origin+"/" not in urls or
-                any(not isinstance(u,str) or not u.startswith(origin+"/") or
-                    u.startswith(origin+"/fr/") or u.startswith(origin+"/research/articles/") or
-                    u==origin+"/404/" for u in urls)):
-              raise SystemExit("HOLD: live sitemap must contain exactly the older approved 33 routes")
-          print("Public sitemap exact 33 existing URLs: PASS")
-
-          def provider(method,**params):
-              if method not in ("GetUserSites","GetFeeds","GetUrlInfo"):
-                  raise SystemExit("HOLD: unexpected provider method")
-              url=bing+method+"?"+urllib.parse.urlencode({"apikey":key,**params})
-              try: obj=json.loads(fetch(url))
-              except (ValueError,UnicodeError):
-                  raise SystemExit("HOLD: unrecognized Bing provider JSON") from None
-              if not isinstance(obj,dict) or "d" not in obj:
-                  raise SystemExit("HOLD: Bing response lacks documented d object")
-              return obj["d"]
-
-          matching=[]
-          for item in provider("GetUserSites"):
+              any(not isinstance(u,str) or not u.startswith(origin+"/") or
+                  u.startswith(origin+"/fr/") or u.startswith(origin+"/research/articles/") or
+                  u==origin+"/404/" for u in urls)):
+              raise SystemExit("HOLD: public sitemap not the current approved 33-URL cohort")
+          print("Public corporate sitemap: 33 existing URLs, no Phase 03 additions: PASS")
+          def get(method,**params):
+              if method not in ("GetUserSites","GetFeeds","GetCrawlStats"):
+                  raise SystemExit("HOLD: non-allowlisted read method")
+              url=base+method+"?"+urllib.parse.urlencode({"apikey":key,**params})
+              try: data=json.loads(request(url))
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: invalid Bing JSON") from None
+              if not isinstance(data,dict) or not isinstance(data.get("d"),list):
+                  raise SystemExit("HOLD: expected a Bing array response")
+              return data["d"]
+          matches=[]
+          for item in get("GetUserSites"):
               if not isinstance(item,dict):continue
-              raw=item.get("Url") or item.get("SiteUrl")
-              if not isinstance(raw,str):continue
-              loc=urllib.parse.urlsplit(raw)
-              if loc.scheme in ("http","https") and loc.hostname=="mftintelligence.com" and not loc.path.strip("/") and item.get("IsVerified",True) is not False:
-                  matching.append(raw)
-          if len(matching)!=1: raise SystemExit("HOLD: exact verified corporate Bing property not unique")
-
-          feeds=provider("GetFeeds",siteUrl=matching[0])
-          matched=[f for f in feeds if isinstance(f,dict) and f.get("Url")==sitemap]
-          if len(matched)!=1 or matched[0].get("Status")!="Success":
-              raise SystemExit("HOLD: current sitemap not confirmed successfully processed by Bing")
-          print("Bing verified property and accepted current sitemap: PASS")
-
-          counts=collections.Counter()
-          http=collections.Counter()
-          for url in sorted(urls):
-              # Bing's documented GetUrlInfo examples pass a hostname/path,
-              # not the fully-qualified sitemap loc; keep the requested path exact.
-              parsed_url=urllib.parse.urlsplit(url)
-              bing_url=parsed_url.netloc+parsed_url.path
-              record=provider("GetUrlInfo",siteUrl=matching[0],url=bing_url)
-              if record is None:
-                  counts["no_record"]+=1
-              elif not isinstance(record,dict):
-                  raise SystemExit("HOLD: unexpected Bing UrlInfo data shape")
-              else:
-                  counts["detail_record"]+=1
-                  page=record.get("IsPage")
-                  if page is True: counts["ispage_true"]+=1
-                  elif page is False: counts["ispage_false"]+=1
-                  else: counts["ispage_unknown"]+=1
-                  crawled=record.get("LastCrawledDate")
-                  if isinstance(crawled,str) and crawled:counts["has_crawl_timestamp"]+=1
-                  status=record.get("HttpStatus")
-                  if type(status) is int and 100<=status<=599:http[status//100]+=1
-                  else:http["not_a_standard_http_status"]+=1
-              time.sleep(0.08)
-
-          if sum(counts[k] for k in ("detail_record","no_record"))!=33:
-              raise SystemExit("HOLD: not all 33 existing public pages were inspected")
-          print("Bing URLInfo public pages checked:",33)
-          print("Bing per-URL detail records:",counts["detail_record"])
-          print("Bing URLs without a detail record:",counts["no_record"])
-          print("Bing UrlInfo IsPage=true:",counts["ispage_true"])
-          print("Bing UrlInfo IsPage=false:",counts["ispage_false"])
-          print("Bing UrlInfo IsPage unknown:",counts["ispage_unknown"])
-          print("Bing URLs with recorded crawl timestamp:",counts["has_crawl_timestamp"])
-          print("Bing provider recorded HTTP status classes:",dict(sorted(http.items(),key=lambda x:str(x[0]))))
-          print("Bing actual search-result inclusion: NOT_ESTABLISHED_BY_THIS_URLINFO_API")
-          print("Phase 03 unpublished URLs indexed: NOT_CLAIMED")
-          print("Provider operations: 36 GET, 0 writes; URL inventory, credentials and per-page metrics not logged")
+              value=item.get("Url") or item.get("SiteUrl")
+              if not isinstance(value,str):continue
+              u=urllib.parse.urlsplit(value)
+              if u.hostname=="mftintelligence.com" and u.scheme in ("http","https") and not u.path.strip("/") and item.get("IsVerified",True) is not False:
+                  matches.append(value)
+          if len(matches)!=1:raise SystemExit("HOLD: verified apex property not unique")
+          feeds=[f for f in get("GetFeeds",siteUrl=matches[0]) if isinstance(f,dict) and f.get("Url")==feed]
+          if len(feeds)!=1 or feeds[0].get("Status")!="Success":
+              raise SystemExit("HOLD: Bing has not successfully processed the current sitemap")
+          print("Bing exact corporate sitemap accepted and processed: PASS")
+          rows=get("GetCrawlStats",siteUrl=matches[0])
+          if not rows:
+              print("Bing crawl statistics: NO_DAILY_ROWS_RETURNED")
+              print("Individual 33-page URL indexing: NOT_ESTABLISHED")
+          else:
+              values=[]
+              for record in rows:
+                  if not isinstance(record,dict):raise SystemExit("HOLD: malformed Bing crawl statistics row")
+                  datestr=record.get("Date")
+                  m=re.fullmatch(r"/Date\((\d+)(?:[+-]\d+)?\)/",str(datestr))
+                  if not m:raise SystemExit("HOLD: Bing daily crawl date not in documented format")
+                  date=datetime.datetime.fromtimestamp(int(m.group(1))/1000,datetime.timezone.utc).date()
+                  metrics={}
+                  for field in ("InIndex","CrawledPages","CrawlErrors","BlockedByRobotsTxt"):
+                      v=record.get(field)
+                      if type(v) is not int or v<0:raise SystemExit("HOLD: Bing crawl stats invalid count")
+                      metrics[field]=v
+                  values.append((date,metrics))
+              values.sort(key=lambda item:item[0])
+              latest_date,latest=values[-1]
+              print("Bing crawl daily statistic rows (site-level):",len(values))
+              print("Bing latest reported daily statistics date (UTC):",str(latest_date))
+              print("Bing latest site-wide InIndex count:",latest["InIndex"])
+              print("Bing latest site-wide CrawledPages count:",latest["CrawledPages"])
+              print("Bing latest site-wide CrawlErrors count:",latest["CrawlErrors"])
+              print("Bing latest site-wide BlockedByRobotsTxt count:",latest["BlockedByRobotsTxt"])
+              print("Bing site-wide InIndex range across returned days:",min(v["InIndex"] for _,v in values),"to",max(v["InIndex"] for _,v in values))
+              print("Individual 33-page URL indexing: NOT_ESTABLISHED by site-level statistics")
+          print("Phase 03 15 unpublished URLs indexed: NOT_CLAIMED")
+          print("Provider calls: 4 GET, 0 writes; no sensitive response or per-page URL details logged")
           PY
