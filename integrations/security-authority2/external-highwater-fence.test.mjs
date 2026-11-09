@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {webcrypto} from 'node:crypto';
-import {externalHighwaterFence,HighwaterHold} from './external-highwater-fence.mjs';
+import {externalHighwaterFence,highwaterPin,HighwaterHold} from './external-highwater-fence.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const encoder=new TextEncoder();
 const canon=x=>JSON.stringify(x,Object.keys(x).sort());
@@ -44,3 +44,4 @@ test('negative counterexample: if independently held witness is also reset, an o
   const replay=await externalHighwaterFence(x.args);
   assert.equal(replay.sequence,1,'REPRODUCED: restorable witness cannot satisfy global nonrollback');
 });
+test('rejects substitution of a different valid account even with valid signer/origin',async()=>{const x=await scenario();assert.throws(()=>highwaterPin({...x.args.pin,account_id:'e'.repeat(32)}),/HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD/);});
