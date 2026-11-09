@@ -1,0 +1,65 @@
+name: AXIOM B27 Two-Host Destructive Replay Witness (SYNTHETIC NOT RELEASE)
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/security-authority2/**'
+      - '.github/workflows/axiom-b27-two-host-replay.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-b27-twohost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-a-checkpoint:
+    name: Host A creates signed cross-host checkpoint (no secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Produce ephemeral signed checkpoint on isolated runner A
+        shell: bash
+        run: |
+          set -euo pipefail
+          node integrations/security-authority2/b27-crosshost-checkpoint.mjs produce "$RUNNER_TEMP/b27-witness"
+          test -s "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          ! grep -Eq '"d":|"private_key"' "$RUNNER_TEMP/b27-witness/checkpoint.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-b27-synthetic-witness-${{ github.run_id }}
+          path: ${{ runner.temp }}/b27-witness/checkpoint.json
+          retention-days: 1
+          if-no-files-found: error
+
+  host-b-destructive-replay:
+    name: Host B verifies witness and destroys stale-state fixture
+    needs: host-a-checkpoint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: axiom-b27-synthetic-witness-${{ github.run_id }}
+          path: ${{ runner.temp }}/b27-witness
+      - name: Require signature, deny stale-state replay and missing external checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node integrations/security-authority2/b27-crosshost-checkpoint.mjs verify "$RUNNER_TEMP/b27-witness"
+          echo 'B27_TWO_DISTINCT_RUNNERS_SYNTHETIC_ONLY_NOT_CLOUDFLARE_ATTESTATION'
+          echo 'B27_GLOBAL_NONROLLBACK_AND_INDEPENDENT_CUSTODY_NOT_PROVEN'
