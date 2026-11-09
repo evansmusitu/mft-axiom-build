@@ -1,0 +1,108 @@
+name: AXIOM B27 A2 R2 exact bucket reuse inventory GET only
+on:
+  push:
+    branches: [audit/axiom-a2-r2-reuse-inventory-20261109]
+    paths: [.github/workflows/axiom-a2-r2-reuse-inventory-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-a2-r2-reuse-inventory-20261109
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-r2-reuse-inventory-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET exact R2 account bucket inventory plus existing lock metadata, no writes
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.MUSITU_AXIOM_AUTHORITY2_R2_READ_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error,urllib.parse
+          from pathlib import Path
+          account='67469478aa9349fa0a57fe3a72da200a'
+          root='https://api.cloudflare.com/client/v4/accounts/'+account
+          token=os.getenv('TOKEN','')
+          output={'schema':'musitu.b27.a2_r2_reuse_inventory.v1','account':account,
+              'provider_writes':0,'object_content_reads':0,'customer_data_accessed':False,
+              'pages':[],'buckets':[],'inventory_complete':False,
+              'independently_controlled':False,'global_b27_pass':False,
+              'result':'NO_AUTHORIZED_READBACK'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def get(path):
+            if not path.startswith('/r2/buckets'):raise RuntimeError('PATH_DENIED')
+            req=urllib.request.Request(root+path,method='GET',
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=18) as r:status=r.status;raw=r.read(100001)
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(100001)
+            except Exception:return 'TRANSPORT',None
+            if len(raw)>100000:return 'OVERSIZE',None
+            try:return status,json.loads(raw)
+            except Exception:return status,None
+          try:
+            if not token or any(x in token for x in '\r\n'):raise RuntimeError('SECRET_UNAVAILABLE')
+            cursor=''
+            for page in range(4):
+              status,doc=get('/r2/buckets'+('?cursor='+urllib.parse.quote(cursor,safe='') if cursor else ''))
+              valid=status==200 and isinstance(doc,dict) and doc.get('success') is True
+              output['pages'].append({'index':page+1,'http':status,'success':valid})
+              if not valid:raise RuntimeError('INVENTORY_READ_DENIED')
+              data=doc.get('result')
+              buckets=data.get('buckets') if isinstance(data,dict) else None
+              if not isinstance(buckets,list):raise RuntimeError('INVENTORY_RESPONSE_INVALID')
+              for item in buckets:
+                name=item.get('name') if isinstance(item,dict) else None
+                if not isinstance(name,str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{1,62}',name):
+                  raise RuntimeError('BUCKET_NAME_INVALID')
+                if len(output['buckets'])>=60:raise RuntimeError('BUCKET_LIMIT_EXCEEDED')
+                code,lock=get('/r2/buckets/'+name+'/lock')
+                rules=lock.get('result',{}).get('rules',[]) if isinstance(lock,dict) and isinstance(lock.get('result'),dict) else []
+                if not isinstance(rules,list):rules=[]
+                covers=[rule for rule in rules if isinstance(rule,dict) and rule.get('enabled') is True
+                  and isinstance(rule.get('condition'),dict)
+                  and rule['condition'].get('type')=='Indefinite'
+                  and (not rule.get('prefix') or 'b27/'.startswith(rule['prefix']))]
+                output['buckets'].append({'name':name,'lock_http':code,
+                  'lock_success':isinstance(lock,dict) and lock.get('success') is True,
+                  'enabled_indefinite_b27_rules':len(covers),
+                  'total_lock_rules':len(rules)})
+              info=doc.get('result_info') if isinstance(doc.get('result_info'),dict) else {}
+              nextcursor=info.get('cursor') or (data.get('cursor') if isinstance(data,dict) else None)
+              if not nextcursor:
+                output['inventory_complete']=True;break
+              if not isinstance(nextcursor,str) or len(nextcursor)>1024:raise RuntimeError('INVALID_CURSOR')
+              cursor=nextcursor
+            if not output['inventory_complete']:raise RuntimeError('UNFINISHED_PAGINATION')
+            output['result']='READONLY_COMPLETE'
+          except Exception as e:
+            output['result']='READONLY_DENIED_OR_INCOMPLETE'
+            output['reason']=str(e) if str(e) in (
+              'SECRET_UNAVAILABLE','INVENTORY_READ_DENIED','INVENTORY_RESPONSE_INVALID','BUCKET_NAME_INVALID',
+              'BUCKET_LIMIT_EXCEEDED','INVALID_CURSOR','UNFINISHED_PAGINATION') else 'UNKNOWN'
+          raw=(json.dumps(output,sort_keys=True,indent=2)+'\n').encode()
+          path=Path('axiom-a2-r2-reuse-inventory.json');path.write_bytes(raw)
+          path.with_suffix('.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+path.name+'\n')
+          print('RESULT='+output['result'],'BUCKET_COUNT='+str(len(output['buckets'])))
+          if output['result']!='READONLY_COMPLETE':raise SystemExit(2)
+          PY
+      - name: Upload only metadata and detached hash
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-r2-reuse-inventory-20261109
+          path: |
+            axiom-a2-r2-reuse-inventory.json
+            axiom-a2-r2-reuse-inventory.sha256
+          retention-days: 7
+          if-no-files-found: warn
