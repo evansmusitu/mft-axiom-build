@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = 'ad69a63658dccb586406521081fac48f0c7bf628'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = '7cb0b4e1286b24264370f027af4a22e26b67d549'
           test "$(git hash-object reasoning/phase2/cloudflare-staging/test_vpc_service_filter_triage.py)" = '3c581486a816f43fe218acf17c5e688c478c3913'
           cd reasoning/phase2/cloudflare-staging
           python3 -m py_compile vpc_service_filter_triage.py test_vpc_service_filter_triage.py
@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = 'ad69a63658dccb586406521081fac48f0c7bf628'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = '7cb0b4e1286b24264370f027af4a22e26b67d549'
       - name: Exactly three Cloudflare GET requests; sanitized classification only
         working-directory: reasoning/phase2/cloudflare-staging
         shell: bash
