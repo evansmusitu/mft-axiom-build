@@ -1,0 +1,53 @@
+name: AXIOM independent live current OAuth D1 target FULL record digest parity READ ONLY
+on:
+  push:
+    branches: [ops/axiom-oauth-independent-parity-live-20261109]
+    paths:
+      - .github/workflows/axiom-oauth-independent-parity-live-20261109.yml
+      - customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py
+      - customer_frontier/qualification/test_current_oauth_d1_independent_parity_20261109.py
+permissions:
+  contents: read
+concurrency:
+  group: axiom-oauth-independent-parity-live-20261109
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-oauth-independent-parity-live-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Immutable source denial tests before any Cloudflare token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350"
+          test "$(git hash-object customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py)" = "af54e60d790b220e6886858578d2eec98582b395"
+          test "$(git hash-object customer_frontier/qualification/test_current_oauth_d1_independent_parity_20261109.py)" = "371e160904e59c25bd2ad94a1e2d6129495a9b6b"
+          python3 -m py_compile customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py customer_frontier/qualification/test_current_oauth_d1_independent_parity_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_current_oauth_d1_independent_parity_20261109.py)
+      - name: Read only exact production source and isolated target, compare 17 tables all 4764 row digests in RAM
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AXIOM_DR_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py
+      - name: Preserve only SHA256/count/equality receipt, no customer rows
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-independent-prod-oauth-data-parity-20261109
+          path: axiom-independent-hosted-restore-readback-20261108.json
+          if-no-files-found: warn
+          retention-days: 14
