@@ -143,14 +143,10 @@ export class MonotonicLedger{
         // No external effects inside a retryable storage transaction. Never retry publication.
         // An unknown result retains the durable pending record and blocks ALL transitions.
         const proof=await publishGithubCheckpoint({pin:this.anchor,token:this.env.LEDGER_GITHUB_ANCHOR_TOKEN,payload});
-        await this.ctx.storage.transaction(async txn=>{
-          const pending=await txn.get('checkpoint/pending');
-          if(pending?.commitment!==transition.pending.commitment)deny('ANCHOR_PENDING_CHANGED_HOLD',503);
-          for(const [key,value]of pending.writes)await txn.put(key,value);
-          await txn.delete('checkpoint/pending');
-        });
-        // Anchor publication is irreversible. A lost witness acknowledgement
-        // retains checkpoint/pending: no retries, refunds, or local permits.
+        // The immutable publication is irreversible, but neither locally
+        // committing staged writes nor deleting checkpoint/pending is permitted
+        // until the separate high-water CAS AND fresh readback have succeeded.
+        // Any ambiguous/failed external operation retains pending indefinitely.
         const anchoredPayload={...payload,anchor:proof};
         if(this.highwaterRequired){
           const state=transition.pending.writes.find(([k])=>k==='meta')?.[1];
@@ -175,7 +171,17 @@ export class MonotonicLedger{
           });
           payload={...anchoredPayload,highwater};
         }else payload=anchoredPayload;
-        // Apply staged authority writes only after independent signed CAS.
+        // Commit staged local writes exactly once AFTER both external fences.
+        // A failure before this point leaves checkpoint/pending intact; all
+        // later admissions HOLD rather than encountering a prematurely
+        // advanced ledger sequence or issuing a duplicate permission.
+        await this.ctx.storage.transaction(async txn=>{
+          const pending=await txn.get('checkpoint/pending');
+          if(pending?.commitment!==transition.pending.commitment)deny('ANCHOR_PENDING_CHANGED_HOLD',503);
+          for(const [key,value]of pending.writes)await txn.put(key,value);
+          await txn.delete('checkpoint/pending');
+        });
+        await this.ctx.storage.sync();
         // Signing failures never roll back or reissue consumed action slots.
       }
       // Signing/response failure never refunds consumption or reissues a permit.
