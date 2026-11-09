@@ -1,0 +1,115 @@
+name: MUSITU Corporate 404 Postrelease Independent GET-Only Acceptance
+
+on:
+  push:
+    branches:
+      - ops/corporate-bing-sitemap-readonly-20261109
+    paths:
+      - .github/workflows/musitu-corporate-404-live-independent-readback-20261109.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify-postrelease:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Independently check exact live hotfix and 33-route public negative controls without mutating providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.request,xml.etree.ElementTree as ET
+          from html.parser import HTMLParser
+
+          root="https://mftintelligence.com"
+          api="https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/pages/projects/musitu-corporate"
+          ref="6b1643ab2d3b03628104b617435db1d364076aa9"
+          token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not token:raise SystemExit("HOLD: Pages token unavailable")
+          def cf(path):
+              if path not in ("","/deployments/a2426a81-b0cb-4a46-a90c-493f871c9775"):
+                  raise SystemExit("HOLD: non-allowlisted provider read")
+              req=urllib.request.Request(api+path,headers={"Authorization":"Bearer "+token,"Accept":"application/json"},method="GET")
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:data=json.loads(r.read(500001))
+              except urllib.error.HTTPError as e:raise SystemExit("HOLD: provider read HTTP "+str(e.code)) from None
+              if not isinstance(data,dict) or data.get("success") is not True:
+                  raise SystemExit("HOLD: Cloudflare read not verified")
+              return data.get("result")
+          project=cf("")
+          current=(project.get("canonical_deployment") or {})
+          md=((current.get("deployment_trigger") or {}).get("metadata") or {})
+          if (project.get("name")!="musitu-corporate" or project.get("production_branch")!="main" or
+              "mftintelligence.com" not in project.get("domains",[]) or
+              current.get("environment")!="production" or
+              (current.get("latest_stage") or {}).get("status")!="success" or
+              md.get("commit_hash")!=ref):
+              raise SystemExit("HOLD: active corporate Pages deployment/source identity differs from exact maintenance")
+          prev=cf("/deployments/a2426a81-b0cb-4a46-a90c-493f871c9775")
+          if prev.get("environment")!="production" or (prev.get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: previous production recovery target is not eligible")
+          print("INDEPENDENT PAGES: exact successful 404 maintenance is active; prior successful rollback target retained: PASS")
+
+          def get(path,budget=2000000):
+              url=root+path
+              req=urllib.request.Request(url,headers={"User-Agent":"MUSITU-Independent-404-Postrelease/1.0"},method="GET")
+              try:
+                  with urllib.request.urlopen(req,timeout=22) as r:
+                      status=r.status;url_actual=r.url; headers={k.lower():v for k,v in r.headers.items()}; body=r.read(budget+1)
+              except urllib.error.HTTPError as e:
+                  status=e.code;url_actual=e.url;headers={k.lower():v for k,v in e.headers.items()};body=e.read(budget+1)
+              if len(body)>budget or url.rstrip("/")!=url_actual.rstrip("/"):
+                  raise SystemExit("HOLD: out-of-scope redirect or oversized response")
+              return status,headers,body
+
+          class Head(HTMLParser):
+              def __init__(self):super().__init__();self.robots=[];self.canonical=[]
+              def handle_starttag(self,tag,attrs):
+                  d=dict(attrs)
+                  if tag=="meta" and d.get("name")=="robots":self.robots.append(d.get("content"))
+                  if tag=="link" and d.get("rel")=="canonical":self.canonical.append(d.get("href"))
+
+          for path in ("/fr/","/fr/products/axiom/","/research/articles/backtesting-overfitting/","/__musitu-independent-unknown-20261109/"):
+              status,headers,body=get(path)
+              p=Head();p.feed(body.decode("utf-8","replace"))
+              if (status!=404 or p.robots!=["noindex,nofollow"] or p.canonical or
+                  not headers.get("content-security-policy") or
+                  headers.get("x-content-type-options","").lower()!="nosniff"):
+                  raise SystemExit("HOLD: live unknown route not correctly 404/noindex/secure")
+          print("INDEPENDENT PUBLIC UNKNOWN ROUTES: 4 true HTTP 404 + noindex + no canonical + security headers: PASS")
+
+          status,headers,body=get("/sitemap.xml")
+          if status!=200:raise SystemExit("HOLD: sitemap not HTTP 200")
+          ns="{http://www.sitemaps.org/schemas/sitemap/0.9}"
+          locs=[x.text for x in ET.fromstring(body).findall(ns+"url/"+ns+"loc")]
+          if (len(locs)!=33 or len(set(locs))!=33 or root+"/" not in locs or
+              any("/fr/" in u or "/research/articles/" in u for u in locs)):
+              raise SystemExit("HOLD: public sitemap drift")
+          for u in locs:
+              route=u.removeprefix(root)
+              if u!=root+route:raise SystemExit("HOLD: unexpected sitemap origin")
+              status,headers,body=get(route)
+              p=Head();p.feed(body.decode("utf-8","replace"))
+              if (status!=200 or p.robots!=["index,follow"] or p.canonical!=[u] or
+                  not headers.get("content-security-policy") or headers.get("x-content-type-options","").lower()!="nosniff"):
+                  raise SystemExit("HOLD: sitemap route HTTP/canonical/security mismatch")
+          print("INDEPENDENT PUBLIC SITEMAP: all 33 previously published URLs HTTP 200 and canonical/security contract: PASS")
+
+          for path,sha in (("/assets/studio-demo-82s.mp4","afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0"),
+                           ("/assets/studio-poster.png","0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0")):
+              status,_,body=get(path)
+              if status!=200 or hashlib.sha256(body).hexdigest()!=sha:
+                  raise SystemExit("HOLD: approved public media checksum mismatch")
+          with urllib.request.urlopen(urllib.request.Request("https://evansmusitu.github.io/",headers={"User-Agent":"MUSITU-Independent-404-Postrelease/1.0"}),timeout=20) as resp:
+              if resp.status!=200 or b"MUSITU" not in resp.read(150000):
+                  raise SystemExit("HOLD: unrelated Intelligence origin not healthy")
+          print("INDEPENDENT MEDIA + INTELLIGENCE ISOLATION: PASS")
+          print("PUBLICATION SCOPE: existing 33-URL corporate site only; Phase 03 15 routes NOT PUBLISHED")
+          print("CLOUDFLARE MUTATIONS: 0; PUBLIC HTTP REQUESTS: GET only")
+          PY

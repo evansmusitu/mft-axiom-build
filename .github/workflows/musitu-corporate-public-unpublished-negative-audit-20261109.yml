@@ -1,0 +1,58 @@
+name: MUSITU Corporate Unpublished Routes Read-Only Negative Audit
+on:
+  push:
+    branches: [ops/corporate-bing-sitemap-readonly-20261109]
+    paths: [.github/workflows/musitu-corporate-public-unpublished-negative-audit-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  negative-route-audit:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Inspect only known corporate public URLs, never preview or login
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import html.parser, urllib.request, urllib.error
+          root="https://mftintelligence.com"
+          paths=("/", "/fr/", "/fr/products/axiom/", "/research/articles/backtesting-overfitting/")
+          class Metadata(html.parser.HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.lang=None
+                  self.canonical=None
+                  self.robots=None
+              def handle_starttag(self,tag,attrs):
+                  a=dict(attrs)
+                  if tag=="html":self.lang=a.get("lang")
+                  if tag=="link" and "canonical" in a.get("rel","").lower().split():self.canonical=a.get("href")
+                  if tag=="meta" and a.get("name","").lower()=="robots":self.robots=a.get("content")
+          def get(path):
+              req=urllib.request.Request(root+path,headers={"User-Agent":"MUSITU-Corporate-Public-RouteAudit-GETOnly"})
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as res:
+                      status=res.status
+                      final=res.url
+                      body=res.read(120001)
+              except urllib.error.HTTPError as exc:
+                  status=exc.code
+                  final=exc.url
+                  body=exc.read(120001)
+              if len(body)>120000:raise SystemExit("HOLD: bounded route body exceeded")
+              parser=Metadata()
+              parser.feed(body.decode("utf-8","replace"))
+              return status,final,parser
+          home=get("/")
+          if home[0]!=200 or home[2].canonical!=root+"/":
+              raise SystemExit("HOLD: expected existing homepage was not observed")
+          print("Existing corporate root status: 200")
+          for path in paths[1:]:
+              status,final,p=get(path)
+              soft=status==200 and p.canonical==root+"/" and p.lang=="en"
+              is_published=status==200 and p.canonical==root+path and p.lang in ("fr","en")
+              print("Unpublished route",path,"HTTP status",status,"English-homepage soft-404",soft,"intended canonical available",is_published)
+          print("Provider operations: 4 GET, 0 writes; unpublished routes only")
+          PY

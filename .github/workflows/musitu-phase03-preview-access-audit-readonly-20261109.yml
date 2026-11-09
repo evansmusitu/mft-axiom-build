@@ -1,0 +1,95 @@
+name: MUSITU Phase 03 Protected Preview Access Preflight (GET ONLY)
+on:
+  push:
+    branches: [ops/corporate-bing-sitemap-readonly-20261109]
+    paths: [.github/workflows/musitu-phase03-preview-access-audit-readonly-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  access-control-preflight:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Verify Pages production identity and effective Access wildcard policy before uploading any gated review content
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          """No writes, preview uploads, content fetches or disclosure of private policy details."""
+          import json,os,urllib.error,urllib.request
+          account="93f395f5121954671f92fffa453d6b61"
+          site="musitu-corporate"
+          key=os.getenv("CLOUDFLARE_API_TOKEN","").strip()
+          if not key:raise SystemExit("HOLD: Cloudflare token not available for preview preflight")
+          base="https://api.cloudflare.com/client/v4/accounts/"+account
+          def read(path):
+              if path not in ("/pages/projects/"+site,"/access/apps?per_page=100") and not (
+                 path.startswith("/access/apps/") and path.endswith("/policies")):
+                  raise SystemExit("HOLD: unexpected access-audit path")
+              req=urllib.request.Request(base+path,method="GET",
+                headers={"Authorization":"Bearer "+key,"Accept":"application/json","User-Agent":"MUSITU-Phase03-Access-GETOnly/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as response:
+                      body=response.read(500001)
+                      if response.status!=200:raise SystemExit("HOLD: invalid Cloudflare HTTP response")
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit("HOLD: protected preview policy cannot be read with current token (HTTP "+str(exc.code)+")") from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: protected preview policy read unavailable") from None
+              if len(body)>500000:raise SystemExit("HOLD: provider response exceeds budget")
+              try:record=json.loads(body)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: invalid provider JSON") from None
+              if not isinstance(record,dict) or record.get("success") is not True:
+                  raise SystemExit("HOLD: Cloudflare Access read did not succeed")
+              return record.get("result")
+          project=read("/pages/projects/"+site)
+          if (not isinstance(project,dict) or project.get("name")!=site or
+              project.get("production_branch")!="main" or
+              "mftintelligence.com" not in project.get("domains",[]) or
+              (project.get("source") or {}).get("type")):
+              raise SystemExit("HOLD: corporate Pages identity drift")
+          canonical=project.get("canonical_deployment") or {}
+          if (canonical.get("environment")!="production" or
+              (canonical.get("latest_stage") or {}).get("status")!="success" or
+              ((canonical.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9"):
+              raise SystemExit("HOLD: exact live corporate 404 maintenance baseline unavailable")
+          print("Active production is exact qualified 404 maintenance source: PASS")
+          apps=read("/access/apps?per_page=100")
+          if not isinstance(apps,list):raise SystemExit("HOLD: Access application listing unexpected")
+          preview="*.musitu-corporate.pages.dev"
+          matches=[]
+          for app in apps:
+              if not isinstance(app,dict) or app.get("type")!="self_hosted":continue
+              domains={app.get("domain")}
+              for d in (app.get("self_hosted_domains") or []):
+                  if isinstance(d,dict):domains.add(d.get("domain"))
+                  if isinstance(d,str):domains.add(d)
+              for d in (app.get("destinations") or []):
+                  if isinstance(d,dict) and isinstance(d.get("uri"),str):
+                      uri=d["uri"].split("://")[-1].split("/")[0]
+                      domains.add(uri)
+                      if any((x.get("behavior")=="public") for x in d.get("overrides",[]) if isinstance(x,dict)):
+                          raise SystemExit("HOLD: Access public override permitted")
+              if preview in domains:matches.append(app)
+          if len(matches)!=1:
+              raise SystemExit("HOLD: exactly one self-hosted wildcard Access application for all corporate Pages previews not established")
+          app=matches[0]
+          if not isinstance(app.get("id"),str) or len(app["id"]) not in (32,36):
+              raise SystemExit("HOLD: Access application ID malformed")
+          policies=read("/access/apps/"+app["id"]+"/policies")
+          if not isinstance(policies,list) or not policies:
+              raise SystemExit("HOLD: no Access restrictions proven")
+          actions={p.get("decision") or p.get("action") for p in policies if isinstance(p,dict)}
+          if "bypass" in actions or "non_identity" in actions:
+              raise SystemExit("HOLD: policy bypass present")
+          if not actions.intersection({"allow","deny"}):
+              raise SystemExit("HOLD: Access restrictions missing")
+          print("Corporate wildcard preview Access application: PASS")
+          print("Access policy readback: HAS ACCESS RESTRICTIONS; NO BYPASS")
+          print("Phase 03 hosted content upload: NOT PERFORMED")
+          print("Cloudflare API calls: 3 GET, 0 writes; app/policy identifiers and recipients NOT LOGGED")
+          PY

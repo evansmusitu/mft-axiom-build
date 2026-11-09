@@ -1,0 +1,94 @@
+name: MUSITU Corporate Email Routing Exact GET-Only Inspection
+on:
+  push:
+    branches: [ops/corporate-bing-sitemap-readonly-20261109]
+    paths: [.github/workflows/musitu-corporate-email-routing-readonly-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  inspect-routing:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Inspect exact support routing and verified destination without logging personal addresses
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse
+          key=os.getenv("CLOUDFLARE_API_TOKEN","")
+          if not key:
+              raise SystemExit("HOLD: scoped Cloudflare token unavailable")
+          root="https://api.cloudflare.com/client/v4"
+          domain="mftintelligence.com"
+          address="support@"+domain
+          def get(path):
+              if not (path.startswith("/zones?name=") or
+                      (path.startswith("/zones/") and path.endswith("/email/routing")) or
+                      (path.startswith("/zones/") and path.endswith("/email/routing/rules?per_page=50")) or
+                      (path.startswith("/accounts/") and path.endswith("/email/routing/addresses?per_page=50"))):
+                  raise SystemExit("HOLD: non-allowlisted Cloudflare GET")
+              req=urllib.request.Request(root+path,method="GET",headers={"Authorization":"Bearer "+key,"Accept":"application/json","User-Agent":"MUSITU-ReadOnly-SupportRoute-Inspector"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      data=r.read(1000001)
+                      if r.status!=200:raise SystemExit("HOLD: unexpected Cloudflare response status")
+              except urllib.error.HTTPError as exc:
+                  code="unknown"
+                  try:
+                      obj=json.loads(exc.read(4096))
+                      arr=obj.get("errors") if isinstance(obj,dict) else None
+                      if isinstance(arr,list) and arr and type(arr[0].get("code")) is int:
+                          code=str(arr[0]["code"])
+                  except (ValueError,TypeError,AttributeError,UnicodeError):pass
+                  raise SystemExit("HOLD: Cloudflare GET status "+str(exc.code)+" provider code "+code) from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: Cloudflare read-only transport failed") from None
+              if len(data)>1000000:raise SystemExit("HOLD: oversized response")
+              try:obj=json.loads(data)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: invalid JSON") from None
+              if not isinstance(obj,dict) or obj.get("success") is not True:
+                  raise SystemExit("HOLD: provider success not established")
+              return obj.get("result")
+          zones=get("/zones?name="+domain)
+          if not isinstance(zones,list) or len(zones)!=1 or zones[0].get("name")!=domain:
+              raise SystemExit("HOLD: exact corporate DNS zone not uniquely returned")
+          zone=zones[0]
+          zone_id=zone.get("id")
+          account_id=(zone.get("account") or {}).get("id")
+          if not isinstance(zone_id,str) or len(zone_id)!=32:
+              raise SystemExit("HOLD: invalid zone identifier")
+          settings=get("/zones/"+zone_id+"/email/routing")
+          if not isinstance(settings,dict):
+              raise SystemExit("HOLD: email routing settings unavailable")
+          rules=get("/zones/"+zone_id+"/email/routing/rules?per_page=50")
+          if not isinstance(rules,list):
+              raise SystemExit("HOLD: email routing rule list unavailable")
+          exact=[]
+          for rule in rules:
+              if not isinstance(rule,dict) or rule.get("enabled") is not True:continue
+              match=rule.get("matchers") or []
+              acts=rule.get("actions") or []
+              if any(isinstance(m,dict) and m.get("type")=="literal" and m.get("field")=="to" and m.get("value")==address for m in match):
+                  for act in acts:
+                      if isinstance(act,dict) and act.get("type")=="forward":
+                          exact.extend(act.get("value") or [])
+          if not account_id or not isinstance(account_id,str) or len(account_id)!=32:
+              raise SystemExit("HOLD: account identity missing for verified destination check")
+          destinations=get("/accounts/"+account_id+"/email/routing/addresses?per_page=50")
+          if not isinstance(destinations,list):
+              raise SystemExit("HOLD: destination verification inventory unavailable")
+          eligible={x.get("email") for x in destinations if isinstance(x,dict) and x.get("verified")}
+          print("Exact corporate Cloudflare zone readback: PASS")
+          print("Email Routing enabled:",settings.get("enabled") is True)
+          print("Email Routing operational status:",settings.get("status") if settings.get("status") in ("ready","unconfigured","misconfigured","misconfigured/locked","unlocked") else "UNKNOWN")
+          print("Enabled exact support mailbox forward rule:",len(exact)==1)
+          print("Support forward target is independently verified:",len(exact)==1 and exact[0] in eligible)
+          print("EXTERNAL_INBOUND_RECEIPT: NOT_ESTABLISHED_BY_CONFIGURATION")
+          print("AUTHENTIC_CORPORATE_REPLY: NOT_ESTABLISHED_BY_CONFIGURATION")
+          print("Provider operations: 4 GET, 0 writes; private routing destinations: NOT_LOGGED")
+          PY
