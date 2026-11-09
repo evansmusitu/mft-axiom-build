@@ -77,7 +77,7 @@ class LinuxNamespaceSandbox:
             args=[UNSHARE,'--user','--map-root-user','--mount','--pid','--fork','--net','--kill-child','--root',str(jail),'--wd','/',*argv]
             env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':'/'}
             def limits():
-                resource.setrlimit(resource.RLIMIT_CPU,(max(1,timeout),max(2,timeout+1)))
+                resource.setrlimit(resource.RLIMIT_CPU,(timeout+2,timeout+3))
                 resource.setrlimit(resource.RLIMIT_FSIZE,(1048576,1048576))
                 resource.setrlimit(resource.RLIMIT_CORE,(0,0))
                 resource.setrlimit(resource.RLIMIT_NOFILE,(64,64))
@@ -104,6 +104,11 @@ class LinuxNamespaceSandbox:
                             raise FrontierError('sandbox output exceeded limit')
                 rc=proc.wait(timeout=max(0.1,deadline-time.monotonic()))
                 if rc!=0:
+                    # Never expose untrusted process stderr or runtime secrets in CI.
+                    if b'unshare failed: Operation not permitted' in errors:
+                        raise AuthorizationError('linux namespace blocked by host kernel policy')
+                    if b'error while loading shared libraries' in errors:
+                        raise AuthorizationError('sandbox root filesystem missing runtime libraries')
                     raise FrontierError('sandbox process denied or exited nonzero')
                 return {'argv_sha256':hashlib.sha256(repr(list(argv)).encode()).hexdigest(),
                         'stdout':output.decode('utf-8','replace'),
