@@ -1,0 +1,56 @@
+name: AXIOM Phase2 private network inventory (GET-only, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - ops/axiom-private-path-inventory-20261109
+    paths:
+      - .github/workflows/axiom-private-path-inventory-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-private-path-inventory-once-20261109
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-private-path-inventory-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Checkout without retained GitHub token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact source blobs and nine security regressions BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_path_inventory.py)" = '53d2fd1c748206def479b4931997a9cb17e48206'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_path_inventory.py)" = 'd9b68e5a594635752c9c4e8297485b6bfcb869fd'
+          cd reasoning/phase2/cloudflare-staging
+          python3 -m py_compile private_path_inventory.py test_private_path_inventory.py
+          python3 -m unittest -v test_private_path_inventory.py
+      - name: GET only Workers VPC service catalog and Tunnel catalog
+        working-directory: reasoning/phase2/cloudflare-staging
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 private_path_inventory.py
+      - name: Preserve sanitized counts/status and detached hash only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-phase2-private-network-readonly-20261109
+          path: |
+            reasoning/phase2/cloudflare-staging/axiom-phase2-private-network-readonly.json
+            reasoning/phase2/cloudflare-staging/axiom-phase2-private-network-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
