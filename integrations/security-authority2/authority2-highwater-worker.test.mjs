@@ -50,8 +50,14 @@ test('customer client independently checks witness signature, ledger digest and 
   const event={...x.args.event,event_digest:hash(canonical(base))};
   const witness=await externalHighwaterFence({...x.args,event});
   const ledger={...base,highwater:witness};
-  assert.equal(await verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:ledger,read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),true);
-  await assert.rejects(verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:{...ledger,anchor:{tag:'swapped'}},read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),/HIGHWATER_COMMIT_LEDGER_DIGEST_MISMATCH_HOLD/);
+  assert.equal(await verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:ledger,expected_artifact_sha256:x.args.event.artifact_sha256,read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),true);
+  await assert.rejects(
+    verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:ledger,
+      expected_artifact_sha256:'f'.repeat(64),read_token:x.args.read_token,
+      fetchImpl:x.args.fetchImpl}),
+    /HIGHWATER_COMMIT_ARTIFACT_MISMATCH_HOLD/);
+
+  await assert.rejects(verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:{...ledger,anchor:{tag:'swapped'}},expected_artifact_sha256:x.args.event.artifact_sha256,read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),/HIGHWATER_COMMIT_LEDGER_DIGEST_MISMATCH_HOLD/);
 });
 
 test('negative B27: restoring DO, independent R2 checkpoints AND controls reissues a permit',async()=>{
