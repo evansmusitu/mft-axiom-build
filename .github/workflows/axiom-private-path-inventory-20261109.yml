@@ -31,8 +31,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_path_inventory.py)" = '53d2fd1c748206def479b4931997a9cb17e48206'
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_path_inventory.py)" = 'd9b68e5a594635752c9c4e8297485b6bfcb869fd'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_path_inventory.py)" = '3a64d4086589d5fda873c80da5c70db38abbe10c'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_path_inventory.py)" = 'ed940340ce1cc20820ca85f5dc4fd17ac4a5e60a'
           cd reasoning/phase2/cloudflare-staging
           python3 -m py_compile private_path_inventory.py test_private_path_inventory.py
           python3 -m unittest -v test_private_path_inventory.py
