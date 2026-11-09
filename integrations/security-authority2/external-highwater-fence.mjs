@@ -24,6 +24,10 @@ function decodeB64(s){if(typeof s!=='string'||!(/^[A-Za-z0-9_-]{86}$/).test(s))h
 export function highwaterPin(v){
   sameKeys(v,['account_id','ledger_id','namespace','key_id','origin','public_key_jwk']);
   if(!/^[0-9a-f]{32}$/.test(v.account_id)||!ID.test(v.ledger_id)||!ID.test(v.key_id)||!/^ax-[a-z0-9-]{1,60}$/.test(v.namespace))hold('HIGHWATER_TRUST_PIN_INVALID_HOLD');
+  // Binding the operator-confirmed account prevents silent substitution of
+  // a second, attacker-administered Cloudflare account with a valid signer.
+  // This is an identity guard, NOT proof of independent account custody.
+  if(v.account_id!=='67469478aa9349fa0a57fe3a72da200a')hold('HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD');
   let u;try {u=new URL(v.origin);}catch{hold('HIGHWATER_ORIGIN_INVALID_HOLD');}
   if(u.protocol!=='https:'||u.origin!==v.origin||u.username||u.password||u.hostname==='localhost'||u.hostname.endsWith('.local')||!u.hostname.includes('.'))hold('HIGHWATER_ORIGIN_INVALID_HOLD');
   const jwk=v.public_key_jwk;sameKeys(jwk,['kty','crv','x']);
