@@ -1,0 +1,56 @@
+name: AXIOM Phase2 Cloudflare Hyperdrive binding inventory (GET-only, no release)
+
+on:
+  push:
+    branches:
+      - ops/axiom-phase2-hyperdrive-readonly-20261109
+    paths:
+      - .github/workflows/axiom-phase2-hyperdrive-readonly-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-phase2-hyperdrive-readonly-20261109
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-phase2-hyperdrive-readonly-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Checkout with no retained GitHub credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin source exactly, test all eleven negative controls BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/hyperdrive_inventory_readonly.py)" = '15e1a09fdae0e89a682337d759e65ea71b2a26ef'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_hyperdrive_inventory_readonly.py)" = 'cd7351346b82f40d0226ece1963fe84d12fdb457'
+          cd reasoning/phase2/cloudflare-staging
+          python3 -m py_compile hyperdrive_inventory_readonly.py test_hyperdrive_inventory_readonly.py
+          python3 -m unittest -v test_hyperdrive_inventory_readonly.py
+      - name: Read four fixed Cloudflare metadata resources; never expose secrets or raw bodies
+        working-directory: reasoning/phase2/cloudflare-staging
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 hyperdrive_inventory_readonly.py
+      - name: Retain only sanitized classification and detached SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-phase2-hyperdrive-binding-readonly-20261109
+          path: |
+            reasoning/phase2/cloudflare-staging/axiom-phase2-hyperdrive-binding-readonly.json
+            reasoning/phase2/cloudflare-staging/axiom-phase2-hyperdrive-binding-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
