@@ -19,6 +19,8 @@ jobs:
     name: Host A creates signed cross-host checkpoint (no secrets)
     runs-on: ubuntu-24.04
     timeout-minutes: 8
+    outputs:
+      signed_checkpoint_b64: ${{ steps.produce.outputs.signed_checkpoint_b64 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -27,18 +29,18 @@ jobs:
         with:
           node-version: '24.12.0'
       - name: Produce ephemeral signed checkpoint on isolated runner A
+        id: produce
         shell: bash
         run: |
           set -euo pipefail
           node integrations/security-authority2/b27-crosshost-checkpoint.mjs produce "$RUNNER_TEMP/b27-witness"
           test -s "$RUNNER_TEMP/b27-witness/checkpoint.json"
           ! grep -Eq '"d":|"private_key"' "$RUNNER_TEMP/b27-witness/checkpoint.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: axiom-b27-synthetic-witness-${{ github.run_id }}
-          path: ${{ runner.temp }}/b27-witness/checkpoint.json
-          retention-days: 1
-          if-no-files-found: error
+          # The repository is at its Actions artifact storage quota.
+          # Job outputs are server-mediated and contain PUBLIC synthetic
+          # checkpoint proof only. Never export private signing key material.
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
+          printf 'signed_checkpoint_b64=%s\n' "$(base64 -w0 "$RUNNER_TEMP/b27-witness/checkpoint.json")" >> "$GITHUB_OUTPUT"
 
   host-b-destructive-replay:
     name: Host B verifies witness and destroys stale-state fixture
@@ -52,10 +54,17 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.12.0'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: axiom-b27-synthetic-witness-${{ github.run_id }}
-          path: ${{ runner.temp }}/b27-witness
+      - name: Receive signed PUBLIC synthetic checkpoint through GitHub job outputs
+        shell: bash
+        env:
+          B27_PUBLIC_SIGNED_CHECKPOINT_BASE64: ${{ needs.host-a-checkpoint.outputs.signed_checkpoint_b64 }}
+        run: |
+          set -euo pipefail
+          test -n "$B27_PUBLIC_SIGNED_CHECKPOINT_BASE64"
+          mkdir -p "$RUNNER_TEMP/b27-witness"
+          printf '%s' "$B27_PUBLIC_SIGNED_CHECKPOINT_BASE64" | base64 --decode > "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          test -s "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
       - name: Require signature, deny stale-state replay and missing external checkpoint
         shell: bash
         run: |
