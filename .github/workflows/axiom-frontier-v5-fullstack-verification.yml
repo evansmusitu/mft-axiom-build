@@ -127,6 +127,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Local test image only. No production credentials or host bind mounts.
+          PYTHONPATH=. python frontier_v5/scripts/build_isolated_python_rootfs.py --output /tmp/axiom-frontier-rootfs --python /usr/bin/python3
+          export AXIOM_SANDBOX_ROOTFS=/tmp/axiom-frontier-rootfs
+          PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
           PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/fullstack-local.log
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/fullstack-local.log
 
