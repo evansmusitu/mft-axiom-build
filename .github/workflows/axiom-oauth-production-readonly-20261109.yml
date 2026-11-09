@@ -1,0 +1,104 @@
+name: AXIOM production OAuth fresh fixed-source read-only consistency 20261109
+on:
+  push:
+    branches: [ops/axiom-oauth-production-readonly-20261109]
+    paths: [.github/workflows/axiom-oauth-production-readonly-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-prod-oauth-fixed-readonly-20261109
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-oauth-production-readonly-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.event.head_commit.message == 'audit(oauth): pinned real production D1 read-only drift check, no release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ad07f467268b2b322e6afb491567b7ede751591a
+          persist-credentials: false
+      - name: Verify exact previously reviewed reader, recipient and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 'ad07f467268b2b322e6afb491567b7ede751591a'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected={
+            'customer_frontier/qualification/oauth_existing_component_preflight.mjs':'039612399edbce1c592a285e95232a43b5c32cbaeba88e835d16dd017abcfd24',
+            'customer_frontier/tests/oauth_existing_component_preflight.test.mjs':'0721defbc3db6dd8bb581351f06988363fe8b65fbfac696447c33698187728da',
+            'customer_frontier/recovery/export_existing_d1_backup.mjs':'35ef35223df6a459ce3ec9fd7eedaf04e64544642c985f618f3d740aea0d148c',
+            'customer_frontier/recovery/recipient-20261106.pem':'d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3',
+          }
+          for name,sha in expected.items():
+            assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==sha,name
+          print('PINNED_READONLY_SOURCE_HASHES_PASS')
+          PY
+      - name: Run original fail-closed zero-write test suite BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test customer_frontier/tests/oauth_existing_component_preflight.test.mjs
+      - name: Fresh production OAuth binding, catalog fingerprint and 6 bounded parent counters only
+        id: check
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          node --input-type=module <<'JS'
+          import {readFile,writeFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {observe} from './customer_frontier/qualification/oauth_existing_component_preflight.mjs';
+          const publicKey=await readFile('customer_frontier/recovery/recipient-20261106.pem');
+          const {out,encrypted}=await observe({
+            token:process.env.CLOUDFLARE_API_TOKEN,
+            publicKey,
+            sourceSha:'ad07f467268b2b322e6afb491567b7ede751591a'});
+          if(encrypted)encrypted.fill(0);
+          const safe={
+            schema:'musitu.axiom.prod_oauth_fresh_readonly_20261109.v1',
+            underlying_source:'ad07f467268b2b322e6afb491567b7ede751591a',
+            prior_catalog_sha256:'56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1',
+            provider_status:out.status,
+            provider_error:out.error||null,
+            provider_transport:out.transport,
+            observed_catalog_sha256:out.catalog_sha256||null,
+            observed_catalog_objects:out.catalog_objects||null,
+            required_parent_tables_count:out.required_tables_present?.length||0,
+            aggregate_consistency:out.counts||null,
+            live_oauth_mutations:0,
+            customer_records_retained_in_artifact:false,
+            private_catalog_retained_in_artifact:false,
+            production_migration_qualified:false,
+            recovery_qualified:false,
+            release_qualified:false,
+            matches_prior_snapshot_catalog:out.catalog_sha256==='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'
+          };
+          const body=JSON.stringify(safe,null,2)+'\n';
+          await writeFile('axiom-real-prod-oauth-fresh-readonly.json',body);
+          await writeFile('axiom-real-prod-oauth-fresh-readonly.sha256',
+            createHash('sha256').update(body).digest('hex')+'  axiom-real-prod-oauth-fresh-readonly.json\n');
+          console.log('AXIOM_PROD_OAUTH_READ_ONLY_STATUS='+safe.provider_status);
+          if(!safe.matches_prior_snapshot_catalog||
+             out.status!=='BASE_CONSISTENCY_OBSERVED_NOT_MIGRATION'||
+             out.zero_write_queries!==2||out.provider_query_mutations!==0)
+            process.exitCode=2;
+          JS
+      - name: Archive only safe aggregate statuses and digest, including denial
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-real-prod-oauth-readonly-check-20261109
+          path: |
+            axiom-real-prod-oauth-fresh-readonly.json
+            axiom-real-prod-oauth-fresh-readonly.sha256
+          retention-days: 14
+          if-no-files-found: warn
