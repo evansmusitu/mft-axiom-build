@@ -2,6 +2,7 @@
 import {LEDGER_SCHEMA,LedgerDenied,deny,exact,id,digest,integer,publicKey,descriptor,canonicalJson,sha256Json,actionId,validateConsume,verifyEnvelope,fromB64,bytes} from './protocol.mjs';
 
 import {anchorPin,anchorCredential,verifyGithubCheckpoint} from './github-anchor.mjs';
+import {highwaterPin,verifyExternalHighwaterReceipt} from '../security-authority2/external-highwater-fence.mjs';
 
 function originOnly(value){
   let url;try{url=new URL(value);}catch{deny('INVALID_LEDGER_ORIGIN',400);}
@@ -16,13 +17,18 @@ async function boundedReply(response,deadline){
   finally{if(!done)void reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 
-export async function createExternalLedgerClient({origin,ledger_id,genesis_id,key_id,grant_id,epoch,execution_artifact_sha256,public_key_jwk,token,readToken,fetchImpl=fetch,timeoutMs=5000,github_anchor,anchorReadToken,anchorFetchImpl=fetch}={}){
+export async function createExternalLedgerClient({origin,ledger_id,genesis_id,key_id,grant_id,epoch,execution_artifact_sha256,public_key_jwk,token,readToken,fetchImpl=fetch,timeoutMs=5000,github_anchor,anchorReadToken,anchorFetchImpl=fetch,highwater_pin,highwaterReadToken,highwaterFetchImpl=fetch}={}){
   origin=originOnly(origin);publicKey(public_key_jwk);
   const anchor=github_anchor===undefined?null:anchorPin(github_anchor);
+  const highwater=highwater_pin===undefined?null:highwaterPin(highwater_pin);
   if(anchor)anchorCredential(anchorReadToken,'ANCHOR_READ_CREDENTIAL_REQUIRED',400);
+  if(highwater){
+    if(!anchor)deny('HIGHWATER_ANCHOR_REQUIRED_HOLD');
+    if(typeof highwaterReadToken!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(highwaterReadToken))deny('HIGHWATER_SEPARATE_READ_CREDENTIAL_REQUIRED_HOLD');
+  }else if(highwaterReadToken)deny('UNPINNED_HIGHWATER_CONFIG_HOLD');
   if(typeof token!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(token))deny('CONSUMER_CREDENTIAL_REQUIRED',400);
   if(!Number.isInteger(timeoutMs)||timeoutMs<100||timeoutMs>10000)deny('BOUNDED_LEDGER_TIMEOUT_REQUIRED',400);
-  const reference=descriptor({ledger_id,genesis_id,key_id,grant_id,epoch,execution_artifact_sha256,authority_sha256:await sha256Json({origin,ledger_id,genesis_id,key_id,public_key_jwk,...(anchor?{github_anchor:anchor}:{})})});
+  const reference=descriptor({ledger_id,genesis_id,key_id,grant_id,epoch,execution_artifact_sha256,authority_sha256:await sha256Json({origin,ledger_id,genesis_id,key_id,public_key_jwk,...(anchor?{github_anchor:anchor}:{}),...(highwater?{highwater_pin:highwater}:{})})});
   const jwk=structuredClone(public_key_jwk),prepared=new Set();
   async function post(path,input,credential){
     const body=canonicalJson(input);if(new TextEncoder().encode(body).length>16384)deny('LEDGER_REQUEST_TOO_LARGE',400);
@@ -47,9 +53,11 @@ export async function createExternalLedgerClient({origin,ledger_id,genesis_id,ke
       await verifyEnvelope(envelope,{jwk,reference,request});
       if(anchor){await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});await verifyEnvelope(envelope,{jwk,reference,request});}
       else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');
+      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
+      else if(envelope.payload.highwater)deny('UNPINNED_HIGHWATER_PROOF');
       return structuredClone(envelope);
     },
-    async verifyStored(request,envelope){await validateConsume(request);await verifyEnvelope(envelope,{jwk,reference,request,historical:true});if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');return true;},
+    async verifyStored(request,envelope){await validateConsume(request);await verifyEnvelope(envelope,{jwk,reference,request,historical:true});if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});else if(envelope.payload.highwater)deny('UNPINNED_HIGHWATER_PROOF');return true;},
     async inspect({tenant_id,action_id=null}){
       if(typeof readToken!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(readToken))deny('SEPARATE_READBACK_CREDENTIAL_REQUIRED');
       id(tenant_id,'TENANT');if(action_id!==null)digest(action_id,'ACTION');
@@ -64,6 +72,8 @@ export async function createExternalLedgerClient({origin,ledger_id,genesis_id,ke
       const at=Date.parse(p.observed_at);if(!Number.isFinite(at)||Math.abs(Date.now()-at)>15000)deny('READBACK_NOT_FRESH');
       if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:p,fetchImpl:anchorFetchImpl});
       else if(p.anchor)deny('UNPINNED_ANCHOR_PROOF');
+      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:p,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
+      else if(p.highwater)deny('UNPINNED_HIGHWATER_PROOF');
       return envelope;
     },
   });
@@ -79,12 +89,16 @@ export async function configuredExternalLedger(env,{tenant_id,work_id}={}){
   if(flag!=='true')deny('INVALID_LEDGER_REQUIRED_POLICY');
   id(tenant_id,'TENANT');id(work_id,'WORK');
   let config,consumers;try{config=JSON.parse(env.AXIOM_EXTERNAL_LEDGER_CONFIG_JSON);consumers=JSON.parse(env.AXIOM_EXTERNAL_LEDGER_CONSUMERS_JSON);}catch{deny('REQUIRED_EXTERNAL_LEDGER_CONFIGURATION_MISSING');}
-  exact(config,['origin','ledger_id','genesis_id','key_id','execution_artifact_sha256','public_key_jwk',...(Object.hasOwn(config,'github_anchor')?['github_anchor']:[])],'SERVER_CONFIG');
+  exact(config,['origin','ledger_id','genesis_id','key_id','execution_artifact_sha256','public_key_jwk',...(Object.hasOwn(config,'github_anchor')?['github_anchor']:[]),...(Object.hasOwn(config,'highwater_pin')?['highwater_pin']:[])],'SERVER_CONFIG');
+  const hwMode=env.AXIOM_HIGHWATER_REQUIRED;
+  if(hwMode!==undefined&&!['true','false'].includes(hwMode))deny('INVALID_HIGHWATER_POLICY_HOLD');
+  if(hwMode==='true'&&!config.highwater_pin)deny('REQUIRED_HIGHWATER_NOT_CONFIGURED_HOLD');
+  if(config.highwater_pin&&hwMode!=='true')deny('HIGHWATER_CONFIG_CANNOT_BE_SILENTLY_IGNORED');
   const consumer=Object.hasOwn(consumers??{},tenant_id)?consumers[tenant_id]:null;
   const grant=Object.hasOwn(consumer?.grants??{},work_id)?consumer.grants[work_id]:null;
   if(!consumer||!grant)deny('NO_OPERATOR_APPROVED_WORK_GRANT');
   exact(consumer,['token','read_token','grants'],'CONSUMER');
   exact(grant,['grant_id','epoch'],'WORK_GRANT');
-  const client=await createExternalLedgerClient({...config,...grant,token:consumer.token,readToken:consumer.read_token,anchorReadToken:env.AXIOM_GITHUB_ANCHOR_READ_TOKEN});
+  const client=await createExternalLedgerClient({...config,...grant,token:consumer.token,readToken:consumer.read_token,anchorReadToken:env.AXIOM_GITHUB_ANCHOR_READ_TOKEN,highwaterReadToken:env.AXIOM_HIGHWATER_READ_TOKEN});
   return {required:true,client};
 }
