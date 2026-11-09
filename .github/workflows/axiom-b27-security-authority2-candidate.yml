@@ -35,6 +35,10 @@ jobs:
         run: |
           set -euo pipefail
           node --test integrations/security-authority2/*.test.mjs
+      - name: Install isolated workerd and esbuild regression dependencies
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0 esbuild@0.25.9
+      - name: Run existing real workerd SQLite + immutable-checkpoint restoration tests
+        run: node --test qualification/whole-system-20261029/github-anchor.test.mjs
       - name: Record safety veto (no host-custody certification)
         run: |
           echo 'AXIOM_AUTHORITY2_LOCAL_SYNTHETIC_TESTS_ONLY_NOT_RELEASE'
