@@ -1,0 +1,50 @@
+name: AXIOM primary Workers subscription GET-only readback 20261110 (NO RESOURCE CREATION)
+on:
+  push:
+    branches: [audit/axiom-primary-workers-subscription-readonly-20261110]
+    paths: [.github/workflows/axiom-primary-workers-entitlement-readonly-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-workers-entitlement-one-use-20261110
+  cancel-in-progress: false
+jobs:
+  only-read-existing-subscription:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-primary-workers-subscription-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Authenticate exact reviewed read-only source and tests before token use
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/primary_workers_entitlement_readonly.py)" = 'a483e5d5ad26ee06ca3a6993ed1570bebf84cf34'
+          test "$(git hash-object customer_frontier/tests/test_primary_workers_entitlement_readonly.py)" = 'ddc7e690c93743cff8524766b119e0908926a177'
+          python3 -m py_compile customer_frontier/qualification/primary_workers_entitlement_readonly.py customer_frontier/tests/test_primary_workers_entitlement_readonly.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_primary_workers_entitlement_readonly.py -v
+      - name: Existing subscription GET only, no paid plan changes or D1 mutations
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/primary_workers_entitlement_readonly.py
+          code=$?
+          test -f axiom-primary-workers-entitlement-readonly.json || exit 4
+          exit "$code"
+      - name: Preserve only sanitized no-create receipt even if billing-read permission absent
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-primary-workers-entitlement-readonly-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-primary-workers-entitlement-readonly.json
+            axiom-primary-workers-entitlement-readonly.json.sha256
