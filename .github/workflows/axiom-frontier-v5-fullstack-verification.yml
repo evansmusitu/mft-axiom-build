@@ -253,6 +253,13 @@ jobs:
           PYTHONPATH=. python -m unittest frontier_v5.tests.test_legacy_live_adapter_veto -v
           echo 'MUSITU_AXIOM_FRONTIER_LEGACY_DIRECT_INVOCATION_DENIED'
 
+      - name: Prove legacy Cloudflare D1 class cannot bypass disabled live verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest frontier_v5.tests.test_legacy_d1_adapter_veto -v
+          echo 'MUSITU_AXIOM_FRONTIER_LEGACY_D1_DIRECT_ACCESS_DENIED'
+
       - name: Block legacy production-writing live adapter pending isolated staging security gate
         shell: bash
         run: |
