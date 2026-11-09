@@ -1,0 +1,41 @@
+name: AXIOM source-only original snapshot SQL hash workflow preflight (NO SECRET)
+on:
+  push:
+    branches: [ops/axiom-prod-oauth-fingerprint-static-20261109]
+permissions:
+  contents: read
+jobs:
+  static:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate exact no-customer-output workflow, Python SHA-only code and immutable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object .github/workflows/axiom-prod-oauth-fingerprint-once-20261109.yml)" = "531bf855bde77be4fb843202adcd9ac9da611f1d"
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('.github/workflows/axiom-prod-oauth-fingerprint-once-20261109.yml').read_text()
+          token="          python3 - <<'PY'\n"
+          start=text.rfind(token)+len(token)
+          assert start>=len(token)
+          end=text.index("\n          PY\n",start)
+          code='\n'.join(line[10:] for line in text[start:end].split('\n'))
+          compile(code,'axiom-real-oauth-backup-fingerprint.py','exec')
+          assert "prod-oauth-current-20261108.json.enc" in code
+          assert "source_database_id" in code
+          assert "EXACT_ORIGINAL_SQL_MATCH_NO_RESTORE" in code
+          assert "LIVE_SQL_DRIFT_NO_RESTORE" in code
+          assert "p.unlink(missing_ok=True)" in code
+          assert "customer_data_in_artifacts':False" in code
+          assert "expected_sql='c8eb426f629d3ef6d84a88aa5e11603e2d2637b266706288435b710537b3b304'" in code
+          assert "ref: 31f4d41e8bafd1cf146adb30676cded91d4cf529" in text
+          assert "persist-credentials: false" in text
+          assert "github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'" in text
+          print('PRODUCTION_OAUTH_SOURCE_ONLY_FINGERPRINT_WORKFLOW_STATIC_PASS')
+          PY

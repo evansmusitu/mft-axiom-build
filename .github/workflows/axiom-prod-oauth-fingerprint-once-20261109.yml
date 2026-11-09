@@ -1,0 +1,131 @@
+name: AXIOM owner-only same-SQL SHA fingerprint check against original 8Nov backup
+on:
+  push:
+    branches: [ops/axiom-prod-oauth-fingerprint-once-20261109]
+    paths: ['.github/workflows/axiom-prod-oauth-fingerprint-once-20261109.yml']
+permissions: {contents: read}
+concurrency:
+  group: axiom-prod-oauth-fingerprint-once-20261109
+  cancel-in-progress: false
+jobs:
+  one-shot-private-oauth-snapshot:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu' && github.ref == 'refs/heads/ops/axiom-prod-oauth-fingerprint-once-20261109' && github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' && github.event.head_commit.message == 'audit(oauth): owner-once SHA comparison of production snapshot, NO RESTORE' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 31f4d41e8bafd1cf146adb30676cded91d4cf529
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit exact schema + owner public recipient and encrypted-only source before credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 31f4d41e8bafd1cf146adb30676cded91d4cf529
+          test "$(git hash-object customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs)" = 2c28fbb5da3dd7ac706ff68c78d2291adfc6135c
+          test "$(git hash-object customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs)" = 8ddc06d2f7e1ca34fb61e1e1288ea53b28e9c093
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = ec9115c83879290d23cee2eb2932f2f31df5584d
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs').read_text()
+          assert "DATABASE='504029cc-f9a5-495e-818f-63c6144b4ea4'" in s
+          assert "NAME_SHA='b0d9b8d70e3736276b018cc196c1ba823a15b43921b6493e63d95941ea199ef6'" in s
+          assert "CATALOG_SHA='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'" in s
+          assert "rows.length!==33" in s and "return sha(JSON.stringify(rows))" in s
+          assert "sha(publicKey)!==RECIPIENT_SHA" in s
+          assert "encryptBackup(sql,publicKey,header);sql.fill(0)" in s
+          assert "envelope_sha256" in s
+          assert "restore_qualified:false" in s and "release_authority:false" in s
+          assert "'/import'" not in s and "'/delete'" not in s
+          print('EXACT_AUDITED_OAUTH_PRODUCTION_ENCRYPTED_ONLY_EXPORTER_ADMITTED')
+          PY
+      - name: Repeat encryption, source drift and URL/privacy denial tests before token
+        run: node --test customer_frontier/tests/prod_oauth_current_backup_20261108.test.mjs
+      - name: Bounded actual production OAuth logical export encrypted in memory only
+        env:
+          AXIOM_CHECKOUT_SHA: 31f4d41e8bafd1cf146adb30676cded91d4cf529
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs
+      - name: Require full ciphertext and deny restore or publication claims
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('prod-oauth-current-20261108.json.enc')
+          q=Path('prod-oauth-backup-receipt.json')
+          envelope=p.read_bytes();receipt=json.loads(q.read_text())
+          outer=json.loads(envelope)
+          assert receipt['export_complete'] is True and receipt['catalog_read_zero_writes'] is True
+          assert receipt['catalog_sha256']=='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'
+          assert receipt['database_id']=='504029cc-f9a5-495e-818f-63c6144b4ea4'
+          assert hashlib.sha256(envelope).hexdigest()==receipt['envelope_sha256']
+          assert outer['schema']=='musitu.axiom.encrypted_d1_backup.v1'
+          assert outer['algorithm']=='RSA-OAEP-SHA256+AES-256-GCM'
+          for label in ('backup_saved_to_drive','restore_qualified','hosted_migration_qualified','target_admitted','release_authority'):
+              assert receipt[label] is False
+          print('CURRENT_PRODUCTION_OAUTH_ENCRYPTED_BACKUP_PASS_NO_MIGRATION sha256='+receipt['envelope_sha256'])
+          PY
+      - name: One-use ciphertext AAD comparison to verified 8-Nov private backup; preserve status only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json
+          from pathlib import Path
+          expected_sql='c8eb426f629d3ef6d84a88aa5e11603e2d2637b266706288435b710537b3b304'
+          expected_catalog='56c70460aecf66af4eab25d4c7e363efb0a76866f788bcd5ae70f52a0f3e7ee1'
+          expected_recipient='d97bd50654cd7a02c55d25ebce421e1fc31642f1c4a57d2a24eafe9f5e328fd3'
+          expected_database='504029cc-f9a5-495e-818f-63c6144b4ea4'
+          expected_size=2453521
+          report={'schema':'AXIOM_PROD_OAUTH_ORIGINAL_BACKUP_SQL_FINGERPRINT_20261109',
+                  'source_database_id':expected_database,'original_sql_sha256':expected_sql,
+                  'original_sql_bytes':expected_size,
+                  'matched_live_source':False,'production_oauth_written':False,
+                  'customer_data_in_artifacts':False,'isolated_restore_qualified':False,
+                  'release_qualified':False,'status':'UNKNOWN_STOPPED'}
+          p=Path('prod-oauth-current-20261108.json.enc')
+          q=Path('prod-oauth-backup-receipt.json')
+          try:
+              if not p.is_file() or not q.is_file():raise ValueError('ENCRYPTED_EXPORT_NOT_AVAILABLE')
+              b=p.read_bytes()
+              d=json.loads(b)
+              receipt=json.loads(q.read_text())
+              if d.get('schema')!='musitu.axiom.encrypted_d1_backup.v1' or d.get('algorithm')!='RSA-OAEP-SHA256+AES-256-GCM':
+                  raise ValueError('ENVELOPE_SCHEMA_INVALID')
+              aad=json.loads(base64.b64decode(d['aad_b64'],validate=True))
+              if (aad.get('database_id')!=expected_database or
+                  aad.get('catalog_sha256')!=expected_catalog or
+                  aad.get('recipient_public_sha256')!=expected_recipient or
+                  hashlib.sha256(b).hexdigest()!=receipt.get('envelope_sha256')):
+                  raise ValueError('PROVENANCE_MISMATCH')
+              if (receipt.get('export_complete') is not True or
+                  receipt.get('catalog_read_zero_writes') is not True or
+                  any(receipt.get(k) is not False for k in ('restore_qualified','hosted_migration_qualified','release_authority'))):
+                  raise ValueError('EXPORT_NOT_ATTESTED')
+              report['live_sql_sha256']=aad.get('sql_sha256')
+              report['live_sql_bytes']=aad.get('sql_bytes')
+              report['matched_live_source']=(aad.get('sql_sha256')==expected_sql and type(aad.get('sql_bytes')) is int and aad['sql_bytes']==expected_size)
+              report['status']='EXACT_ORIGINAL_SQL_MATCH_NO_RESTORE' if report['matched_live_source'] else 'LIVE_SQL_DRIFT_NO_RESTORE'
+          except (ValueError,KeyError,TypeError,UnicodeError) as e:
+              codes={'ENCRYPTED_EXPORT_NOT_AVAILABLE','ENVELOPE_SCHEMA_INVALID','PROVENANCE_MISMATCH','EXPORT_NOT_ATTESTED'}
+              report['reason']=str(e) if str(e) in codes else 'ENVELOPE_PARSE_FAILED'
+          data=(json.dumps(report,sort_keys=True,indent=2)+'\n').encode()
+          x=Path('axiom-prod-oauth-sql-fingerprint-readonly.json')
+          x.write_bytes(data)
+          x.with_name(x.name+'.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+x.name+'\n')
+          p.unlink(missing_ok=True)
+          q.unlink(missing_ok=True)
+          print('AXIOM_SNAPSHOT_SHA_COMPARISON='+report['status']+' NO_CUSTOMER_DATA_EXPOSED')
+          if report['status']!='EXACT_ORIGINAL_SQL_MATCH_NO_RESTORE':raise SystemExit(2)
+          PY
+      - name: Upload only anonymous hash-equivalence receipt and detached digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-prod-oauth-snapshot-equivalence-20261109
+          path: |
+            axiom-prod-oauth-sql-fingerprint-readonly.json
+            axiom-prod-oauth-sql-fingerprint-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
