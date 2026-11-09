@@ -53,11 +53,11 @@ export async function createExternalLedgerClient({origin,ledger_id,genesis_id,ke
       await verifyEnvelope(envelope,{jwk,reference,request});
       if(anchor){await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});await verifyEnvelope(envelope,{jwk,reference,request});}
       else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');
-      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
+      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,expected_artifact_sha256:reference.execution_artifact_sha256,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
       else if(envelope.payload.highwater)deny('UNPINNED_HIGHWATER_PROOF');
       return structuredClone(envelope);
     },
-    async verifyStored(request,envelope){await validateConsume(request);await verifyEnvelope(envelope,{jwk,reference,request,historical:true});if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});else if(envelope.payload.highwater)deny('UNPINNED_HIGHWATER_PROOF');return true;},
+    async verifyStored(request,envelope){await validateConsume(request);await verifyEnvelope(envelope,{jwk,reference,request,historical:true});if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:envelope.payload,fetchImpl:anchorFetchImpl});else if(envelope.payload.anchor)deny('UNPINNED_ANCHOR_PROOF');if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:envelope.payload,expected_artifact_sha256:reference.execution_artifact_sha256,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});else if(envelope.payload.highwater)deny('UNPINNED_HIGHWATER_PROOF');return true;},
     async inspect({tenant_id,action_id=null}){
       if(typeof readToken!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(readToken))deny('SEPARATE_READBACK_CREDENTIAL_REQUIRED');
       id(tenant_id,'TENANT');if(action_id!==null)digest(action_id,'ACTION');
@@ -72,7 +72,7 @@ export async function createExternalLedgerClient({origin,ledger_id,genesis_id,ke
       const at=Date.parse(p.observed_at);if(!Number.isFinite(at)||Math.abs(Date.now()-at)>15000)deny('READBACK_NOT_FRESH');
       if(anchor)await verifyGithubCheckpoint({pin:anchor,token:anchorReadToken,payload:p,fetchImpl:anchorFetchImpl});
       else if(p.anchor)deny('UNPINNED_ANCHOR_PROOF');
-      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:p,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
+      if(highwater)await verifyExternalHighwaterReceipt({pin:highwater,ledger_payload:p,expected_artifact_sha256:reference.execution_artifact_sha256,read_token:highwaterReadToken,fetchImpl:highwaterFetchImpl});
       else if(p.highwater)deny('UNPINNED_HIGHWATER_PROOF');
       return envelope;
     },
