@@ -15,7 +15,7 @@ async function witnessFixture(){
   const pub=await crypto.subtle.exportKey('jwk',keys.publicKey);
   const cfg={account_id:'67469478aa9349fa0a57fe3a72da200a',ledger_id:'fixture-ledger',namespace:'ax-authority2-isolated',key_id:'authority2-fixture'};
   const writeToken='w'.repeat(40),readToken='r'.repeat(40);
-  let witnessOffline=false;
+  let witnessOffline=false,readbackOffline=false;
   let db=new Map(),queue=Promise.resolve();
   const storage={
     get:key=>Promise.resolve(db.get(key)),
@@ -47,8 +47,14 @@ async function witnessFixture(){
   return {
     pin:{...cfg,origin:'https://custody.example.com',public_key_jwk:{kty:'OKP',crv:'Ed25519',x:pub.x}},
     writeToken,readToken,
-    fetchImpl:(req,init)=>witnessOffline?Promise.reject(Error('synthetic independent witness offline')):server.fetch(typeof req==='string'?new Request(req,init):req),
+    fetchImpl:(req,init)=>{
+      const request=typeof req==='string'?new Request(req,init):req;
+      if(witnessOffline||readbackOffline&&new URL(request.url).pathname==='/v1/highwater/readback')
+        return Promise.reject(Error('synthetic independent witness readback offline'));
+      return server.fetch(request);
+    },
     offline:()=>{witnessOffline=true;},
+    offlineReadback:()=>{readbackOffline=true;},
     tip:()=>structuredClone(db.get('highwater/tip')),
     r2,
     snapshot:()=>new Map([...db].map(([k,v])=>[k,structuredClone(v)])),
@@ -108,4 +114,18 @@ test('B27: failed external witness preserves pending and blocks all later admiss
   assert.equal(second.status,503,'unresolved external CAS must block the entire authority');
   assert.equal(body.error,'ANCHOR_PENDING_RECONCILIATION_HOLD',
     'pending must survive witness failure; ledger must not commit or clear it early');
+});
+
+test('B27: lost fresh readback after successful CAS persists pending without local grant',{timeout:90000},async t=>{
+  const anchor=githubFixture('ax-authority2-readback-failure'),witness=await witnessFixture();
+  const f=await fixture(t,{persist:true,anchor,highwater:witness});
+  await f.bootstrap();
+  witness.offlineReadback();
+  const first=await f.request('/v1/operator/grants',f.grantInput());
+  assert.equal(first.status,503,'fresh readback outage must deny grant');
+  assert.equal(witness.tip().sequence,1,'independent witness commit already advanced');
+  const second=await f.request('/v1/operator/grants',f.grantInput());
+  assert.equal(second.status,503);
+  assert.equal((await second.json()).error,'ANCHOR_PENDING_RECONCILIATION_HOLD',
+    'no completed local commit or reissue after lost readback acknowledgement');
 });
