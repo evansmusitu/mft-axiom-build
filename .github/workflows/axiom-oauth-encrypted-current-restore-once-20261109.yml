@@ -1,0 +1,83 @@
+name: AXIOM owner-once production OAuth current export encrypted and isolated DR rollback (NO RELEASE)
+on:
+  push:
+    branches: [ops/axiom-oauth-encrypted-current-restore-once-20261109]
+    paths:
+      - .github/workflows/axiom-oauth-encrypted-current-restore-once-20261109.yml
+      - customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py
+      - customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+      - customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs
+      - customer_frontier/recovery/recipient-20261106.pem
+permissions:
+  contents: read
+concurrency:
+  group: axiom-oauth-encrypted-current-restore-once-20261109
+  cancel-in-progress: false
+jobs:
+  once:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-oauth-encrypted-current-restore-once-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.event.head_commit.message == 'ops(dr): one-use exact-current-encrypted OAuth isolated restore and rollback NOT RELEASE' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Checkout pinned original parent without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Exact-reviewed Git blobs and 9 synthetic tests BEFORE secret access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+          test "$(git hash-object customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py)" = '8750ce91c327d6ebe29b35fb6a9f8303310bf110'
+          test "$(git hash-object customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py)" = 'edadfa4b7fffbecfc52fed11015a2d49eedd38ec'
+          test "$(git hash-object customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs)" = '2c28fbb5da3dd7ac706ff68c78d2291adfc6135c'
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = 'ec9115c83879290d23cee2eb2932f2f31df5584d'
+          python3 -m py_compile customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_production_oauth_oneuse_restore_20261109.py)
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py').read_text()
+          assert "SOURCE_ACCOUNT='93f395f5121954671f92fffa453d6b61'" in s
+          assert "SOURCE_DB='504029cc-f9a5-495e-818f-63c6144b4ea4'" in s
+          assert "TARGET_ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in s
+          assert "TARGET_DB='c023a0a0-472a-4178-ad07-02f1d6b2e122'" in s
+          assert "SOURCE_ACCOUNT and action not in ('meta','query','export')" in s
+          assert "CURRENT_SQL_SHA='DYNAMIC_OWNER_ENCRYPTED_IN_SAME_RUN'" in s
+          assert "encrypted=encrypt_to_owner(raw)" in s
+          assert s.index("encrypted=encrypt_to_owner(raw)")<s.index("restore_import_once(admin,ordered)")
+          assert "raise Stop('TARGET_NOT_EMPTY_OR_FOREIGN_SCHEMA')" in s
+          assert "receipt['import_attempts']=1" in s
+          assert "receipt['rollback_attempts']=1" in s
+          assert "release_qualified':False" in s
+          print('GOVERNED_CURRENT_SNAPSHOT_PINNED_AND_FAIL_CLOSED')
+          PY
+      - name: Same-export owner RSA4096 encrypted backup, one isolated target import and rollback; NEVER prod mutate
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AXIOM_DR_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+          MUSITU_CLOUDFLARE_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py
+          code=$?
+          echo "AXIOM_CURRENT_SNAPSHOT_ISOLATED_REHEARSAL_EXIT=$code"
+          exit "$code"
+      - name: Preserve ONLY owner-encrypted source and non-identifying hash/acceptance receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-oauth-same-export-encrypted-restore-rollback-20261109
+          path: |
+            axiom-20261109-exact-import-source.json.enc
+            axiom-oauth-isolated-restore-rollback-receipt.json
+            axiom-oauth-isolated-restore-rollback-receipt.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
