@@ -2,6 +2,7 @@
  * The provider cannot serve traffic without a separately provisioned genesis barrier.
  * This DO is RESTORABLE: independent nonrollbackable witness remains a RELEASE BLOCKER.
  */
+import {wormReadback,wormAppend} from './authority2-r2-worm.mjs';
 const SCHEMA='musitu.axiom.external-highwater.v1';
 const H64=/^[a-f0-9]{64}$/;
 const ID=/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,179}$/;
@@ -42,7 +43,7 @@ async function signed(env,payload){let jwk;try{jwk=JSON.parse(env.HW_SIGNING_JWK
   return {payload,signature:base64(await crypto.subtle.sign('Ed25519',key,enc.encode(canonical(payload))))};
 }
 export class Authority2Highwater {
-  constructor(ctx,env){this.ctx=ctx;this.env=env;this.pin=config(env);}
+  constructor(ctx,env){this.ctx=ctx;this.env=env;this.pin=config(env);if(!env.HIGHWATER_WORM)deny('HIGHWATER_WORM_BINDING_REQUIRED_HOLD',503);this.worm=env.HIGHWATER_WORM;}
   async fetch(r){try{
     if(r.method!=='POST')return reply(404,{error:'HIGHWATER_ROUTE_NOT_FOUND_HOLD'});
     const path=new URL(r.url).pathname;if(!['/v1/highwater/append','/v1/highwater/readback'].includes(path))return reply(404,{error:'HIGHWATER_ROUTE_NOT_FOUND_HOLD'});
@@ -51,20 +52,33 @@ export class Authority2Highwater {
     if(path.endsWith('append')){
       event(input);
       const transition=await this.ctx.storage.transaction(async s=>{
+        if(await s.get('highwater/pending'))deny('HIGHWATER_PENDING_RECONCILIATION_HOLD',503);
         const tip=await s.get('highwater/tip');
         // Never silently initialize or reinitialize a lost/restored authority.
         if(!tip||tip.ledger_id!==c.ledger_id||tip.namespace!==c.namespace||tip.account_id!==c.account_id||tip.key_id!==c.key_id)deny('HIGHWATER_GENESIS_OR_CONTINUITY_MISSING_HOLD',503);
         if(tip.sequence!==input.previous_sequence||tip.head!==input.previous_head||input.sequence!==tip.sequence+1)deny('HIGHWATER_CAS_REPLAY_DENIED_HOLD',409);
         const record={...input,decision:'ALLOW_ONCE'};
-        await s.put('highwater/event/'+String(input.sequence).padStart(12,'0'),record);
-        await s.put('highwater/tip',{...tip,sequence:input.sequence,head:input.head});
+        await s.put('highwater/pending',{record,next:{...tip,sequence:input.sequence,head:input.head}});
         return record;
+      });
+      await this.ctx.storage.sync();
+      // External R2 is never mutated inside a retryable DO transaction.
+      // Failed or ambiguous put persists pending and stops all admissions.
+      await wormAppend(this.worm,c,transition);
+      await this.ctx.storage.transaction(async s=>{
+        const pending=await s.get('highwater/pending');
+        if(!pending||canonical(pending.record)!==canonical(transition))deny('HIGHWATER_PENDING_CHANGED_HOLD',503);
+        await s.put('highwater/event/'+String(input.sequence).padStart(12,'0'),transition);
+        await s.put('highwater/tip',pending.next);
+        await s.delete('highwater/pending');
       });
       await this.ctx.storage.sync();
       return reply(200,await signed(this.env,{...transition,kind:'commit'}));
     }
+    if(await this.ctx.storage.get('highwater/pending'))deny('HIGHWATER_PENDING_RECONCILIATION_HOLD',503);
     const tip=await this.ctx.storage.get('highwater/tip');
     if(!tip||tip.ledger_id!==c.ledger_id||tip.namespace!==c.namespace||tip.account_id!==c.account_id||tip.key_id!==c.key_id)deny('HIGHWATER_GENESIS_OR_CONTINUITY_MISSING_HOLD',503);
+    await wormReadback(this.worm,c,tip);
     return reply(200,await signed(this.env,{schema:SCHEMA,...c,challenge:input.challenge,kind:'readback',sequence:tip.sequence,head:tip.head}));
   }catch(e){return reply(e instanceof Denied?e.status:503,{error:e instanceof Denied?e.code:'HIGHWATER_UNAVAILABLE_HOLD',dispatch_allowed:false});}}
 }
