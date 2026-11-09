@@ -1,0 +1,49 @@
+name: AXIOM primary D1 identity table-name GET and zero-write SELECT 20261110
+on:
+  push:
+    branches: [audit/axiom-primary-workers-subscription-readonly-20261110]
+    paths: [.github/workflows/axiom-primary-idp-schema-readonly-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-primary-idp-schema-readonly-20261110
+  cancel-in-progress: false
+jobs:
+  read-existing-catalog-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-primary-workers-subscription-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Pin and run three full-inventory/zero-write tests BEFORE privileged token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/primary_d1_idp_schema_readonly.py)" = '6498f12fe2e75e77ed33f64020aeee74ec783f5b'
+          test "$(git hash-object customer_frontier/tests/test_primary_d1_idp_schema_readonly.py)" = 'c1b8e613fc0abad206e8c5b02fef37a22f80b5a3'
+          python3 -m py_compile customer_frontier/qualification/primary_d1_idp_schema_readonly.py customer_frontier/tests/test_primary_d1_idp_schema_readonly.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_primary_d1_idp_schema_readonly.py -v
+      - name: Current primary D1 schemas — 1 GET plus 11 POST SELECT schema names, no DML
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/primary_d1_idp_schema_readonly.py
+          code=$?
+          test -s axiom-primary-idp-d1-schema-readonly.json || exit 4
+          exit "$code"
+      - name: Preserve sanitized D1 table-name presence and detached hash only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-primary-idp-d1-schema-readonly-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-primary-idp-d1-schema-readonly.json
+            axiom-primary-idp-d1-schema-readonly.json.sha256
