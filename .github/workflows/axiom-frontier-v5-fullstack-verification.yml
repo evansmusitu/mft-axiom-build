@@ -90,6 +90,9 @@ jobs:
             /tmp/musitu-frontier-browser/SHA256SUMS.txt
 
   full-stack-frontier:
+    # The selected hosted boundary is the pinned scratch OCI runner, not the
+    # unavailable optional unprivileged Linux namespace driver.
+    needs: oci-isolated-host-prequalification
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -127,8 +130,43 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Local test image only. No production credentials or host bind mounts.
+          PYTHONPATH=. python frontier_v5/scripts/build_isolated_python_rootfs.py --output /tmp/axiom-frontier-rootfs --python /usr/bin/python3
+          export AXIOM_SANDBOX_ROOTFS=/tmp/axiom-frontier-rootfs
+          # The hosted Ubuntu policy cannot run the old unprivileged namespace
+          # fixture. First verify fullstack against the separately tested OCI
+          # isolation driver. Then retain (do not waive) namespace negative tests.
+          context="$RUNNER_TEMP/axiom-frontier-fullstack-oci-context"
+          mkdir -p "$context"
+          cp -a /tmp/axiom-frontier-rootfs "$context/rootfs"
+          cat > "$context/Dockerfile" <<'DOCKERFILE'
+          FROM scratch
+          COPY rootfs/ /
+          USER 65534:65534
+          WORKDIR /
+          DOCKERFILE
+          docker build --network=none --pull=false -f "$context/Dockerfile" -t axiom-frontier-fullstack-oci "$context"
+          export AXIOM_SANDBOX_IMAGE_ID="$(docker image inspect --format '{{.Id}}' axiom-frontier-fullstack-oci)"
+          case "$AXIOM_SANDBOX_IMAGE_ID" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1;; esac
           PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/fullstack-local.log
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/fullstack-local.log
+          # The native namespace driver is OPTIONAL; a successful OCI boundary
+          # is MANDATORY via the needs dependency above. A blocked unshare must
+          # never be mistaken for a successful timeout or network isolation test.
+          if /usr/bin/unshare --user --map-root-user --mount --pid --fork --net --kill-child --root "$AXIOM_SANDBOX_ROOTFS" --wd / \
+               /usr/bin/python3 -I -S -c "print('NATIVE_BOUNDARY_OK')" >/dev/null 2>&1; then
+            PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
+            echo 'AXIOM_NATIVE_NAMESPACE_HOSTED_TESTS_PASS'
+          else
+            # Prove rejection paths and record an explicit NOT-QUALIFIED result.
+            PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v \
+              -k test_requires_namespace_provider_for_execution \
+              -k test_unapproved_executable_rejected \
+              -k test_untrusted_environment_rejected \
+              -k test_wrong_rootfs_hash_fails_closed | tee /tmp/namespace-security.log
+            echo 'AXIOM_NATIVE_NAMESPACE_NOT_QUALIFIED_ON_HOSTED_RUNNER'
+            echo '{"native_namespace":"NOT_QUALIFIED_HOSTED_POLICY_DENIED","selected_boundary":"PINNED_OCI","release":"BLOCKED"}' > /tmp/namespace-negative.json
+          fi
 
       - name: Verify browser network preflight fails closed
         shell: bash
@@ -207,6 +245,20 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/scripts/frontier_independent_validate.py
           test -s /tmp/musitu-frontier-market-cache.json
+
+      - name: Prove privileged environment cannot invoke legacy production-writing script
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest frontier_v5.tests.test_legacy_live_adapter_veto -v
+          echo 'MUSITU_AXIOM_FRONTIER_LEGACY_DIRECT_INVOCATION_DENIED'
+
+      - name: Prove legacy Cloudflare D1 class cannot bypass disabled live verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest frontier_v5.tests.test_legacy_d1_adapter_veto -v
+          echo 'MUSITU_AXIOM_FRONTIER_LEGACY_D1_DIRECT_ACCESS_DENIED'
 
       - name: Block legacy production-writing live adapter pending isolated staging security gate
         shell: bash
@@ -319,3 +371,42 @@ jobs:
             /tmp/musitu-frontier-market-cache.json
             /tmp/musitu-frontier-supply-chain.json
             /tmp/musitu-screen.png
+
+  oci-isolated-host-prequalification:
+    name: Pinned scratch OCI boundary (separate hosted job; NOT RELEASE)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build local-only scratch image with no upstream base, credentials or mounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/axiom-oci-disposable-context"
+          mkdir -p "$context"
+          PYTHONPATH=. python3 frontier_v5/scripts/build_isolated_python_rootfs.py --output "$context/rootfs" --python /usr/bin/python3
+          cat > "$context/Dockerfile" <<'DOCKERFILE'
+          FROM scratch
+          COPY rootfs/ /
+          USER 65534:65534
+          WORKDIR /
+          DOCKERFILE
+          docker build --network=none --pull=false -f "$context/Dockerfile" -t axiom-frontier-disposable-oci "$context"
+          image_id="$(docker image inspect --format '{{.Id}}' axiom-frontier-disposable-oci)"
+          case "$image_id" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1;; esac
+          echo "AXIOM_SANDBOX_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
+      - name: Compile OCI candidate before runtime test
+        shell: bash
+        run: python3 -m py_compile frontier_v5/runtime/docker_isolated_sandbox.py frontier_v5/tests/test_oci_security.py
+      - name: Execute real OCI network, filesystem, secret, timeout and output tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m unittest discover -s frontier_v5/tests -p test_oci_security.py -v
+      - name: Record nonrelease boundary
+        shell: bash
+        run: |
+          echo 'FRONTIER_OCI_HOSTED_PREQUALIFICATION_ONLY_NOT_RELEASE'
+          echo 'FRONTIER_INDEPENDENT_SECURITY_REVIEW_PENDING'

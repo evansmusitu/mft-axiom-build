@@ -98,10 +98,21 @@ def main():
             br=browser.run(base+"/app.html",out/"browser.png",click_selector="#run",expect_text="42")
             assert br.screenshot_sha256 and Path(out/"browser.png").exists()
 
-        # Sandboxed computer/application adapter: no shell, strict executable allowlist.
-        comp=SandboxedComputerAdapter(root/"computer",{"python"})
-        r=comp.run(["python","-c","from pathlib import Path;Path('verified.txt').write_text('MUSITU');print('ok')"])
-        assert "ok" in r["stdout"] and (root/"computer"/"verified.txt").read_text()=="MUSITU"
+        # Explicit pinned OCI or namespace; no host subprocess fallback.
+        from frontier_v5.runtime.linux_namespace_sandbox import rootfs_digest
+        jail_path=os.environ.get("AXIOM_SANDBOX_ROOTFS")
+        oci_image=os.environ.get("AXIOM_SANDBOX_IMAGE_ID")
+        if oci_image:
+            comp=SandboxedComputerAdapter(root/"computer",{"/usr/bin/python3"},
+                oci_image_id=oci_image)
+        elif jail_path:
+            comp=SandboxedComputerAdapter(root/"computer",{"/usr/bin/python3"},
+                sandbox_rootfs=jail_path,rootfs_sha256=rootfs_digest(Path(jail_path)))
+        else:
+            raise AuthorizationError("explicit OS sandbox pin required")
+        r=comp.run(["/usr/bin/python3","-I","-S","-c","print('MUSITU')"])
+        assert r["stdout"].strip()=="MUSITU" and r["execution_boundary"].startswith(("LINUX_USER_MOUNT_PID_NET_NS","OCI_"))
+        assert not (root/"computer"/"verified.txt").exists()
         expect_error(lambda: comp.run(["sh","-c","echo unsafe"]),AuthorizationError)
 
         # Image and audio/video multimodal adapters.

@@ -31,9 +31,11 @@ jobs:
           set -euo pipefail
           git fetch origin main
           SEALED='d6a846f6bbe0bccac1758713eb4de167caf07113'
-          CURRENT_MAIN='b10a74b435feb25654d4cf67ba67d09602698a3e'
+          CURRENT_MAIN='c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
           test "$(git merge-base "$SEALED" refs/remotes/origin/main)" = "$SEALED"
-          # Reconcile against a freshly known live authority, not a stale PR base.
+          # Reconciled: main moved by one existing read-only corporate monitor.
+          # Monitor blob 755b89b54b0683c064b907c140a141d33b98b834
+          # is copied verbatim; all protected source/diff guards remain enforced.
           test "$(git rev-parse refs/remotes/origin/main)" = "$CURRENT_MAIN"
           # No protected production-facing source may change, including files once
           # excepted by PR1's old gate. This is stricter, never a gate waiver.
