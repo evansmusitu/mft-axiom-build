@@ -1,0 +1,73 @@
+name: AXIOM Workers VPC filtered service-list crosscheck (GET only, NOT RELEASE)
+
+on:
+  push:
+    branches:
+      - ops/axiom-workers-vpc-filtered-inventory-20261109
+    paths:
+      - .github/workflows/axiom-workers-vpc-filtered-inventory-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-vpc-service-filter-20261109
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-workers-vpc-filtered-inventory-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin source and thirteen negative/positive contract cases before secret use
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = '4a97d957f7d1b15f8c91dc4d7e33f13df4d28edf'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_vpc_service_filter_triage.py)" = '7d4a29554f1c864983b60043be38597bbfd5b557'
+          cd reasoning/phase2/cloudflare-staging
+          python3 -m py_compile vpc_service_filter_triage.py test_vpc_service_filter_triage.py
+          python3 -m unittest -v test_vpc_service_filter_triage.py
+  live:
+    needs: contract
+    if: >-
+      needs.contract.result == 'success' &&
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-workers-vpc-filtered-inventory-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify source hash before Cloudflare secret is exposed to process
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = '4a97d957f7d1b15f8c91dc4d7e33f13df4d28edf'
+      - name: Exactly three Cloudflare GET requests; sanitized classification only
+        working-directory: reasoning/phase2/cloudflare-staging
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 vpc_service_filter_triage.py
+      - name: Retain redacted classification and SHA-256 only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-workers-vpc-filtered-service-list-20261109
+          path: |
+            reasoning/phase2/cloudflare-staging/axiom-vpc-filtered-services-readonly.json
+            reasoning/phase2/cloudflare-staging/axiom-vpc-filtered-services-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
