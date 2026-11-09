@@ -1,0 +1,141 @@
+name: MUSITU Corporate Soft404 Protected Preview (No Production Change)
+
+on:
+  push:
+    branches:
+      - ops/corporate-soft404-protected-preview-20261109
+    paths:
+      - .github/workflows/musitu-corporate-soft404-protected-preview-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-soft404-preview-20261109
+  cancel-in-progress: false
+
+jobs:
+  exact-preview:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-soft404-protected-preview-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm corporate Pages canonical production ID and retained recovery before touching preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/pages/projects/musitu-corporate"
+          token=os.environ.get("CLOUDFLARE_API_TOKEN","").strip()
+          if not token:raise SystemExit("HOLD: Cloudflare Pages token not available")
+          def read(url):
+              req=urllib.request.Request(url,method="GET",headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as resp:
+                      if resp.status!=200:raise SystemExit("HOLD: Cloudflare status not 200")
+                      b=resp.read(500001)
+              except urllib.error.HTTPError as e:
+                  raise SystemExit("HOLD: Cloudflare GET status "+str(e.code)) from None
+              if len(b)>500000:raise SystemExit("HOLD: oversized Cloudflare result")
+              data=json.loads(b)
+              if not isinstance(data,dict) or data.get("success") is not True:
+                  raise SystemExit("HOLD: Cloudflare GET did not succeed")
+              return data.get("result")
+          p=read(root)
+          if not isinstance(p,dict) or p.get("name")!="musitu-corporate" or p.get("production_branch")!="main" or "mftintelligence.com" not in p.get("domains",[]):
+              raise SystemExit("HOLD: wrong corporate Pages project, branch or domain")
+          if (p.get("source") or {}).get("type"):
+              raise SystemExit("HOLD: Pages project unexpectedly git-integrated")
+          baseline="a2426a81-b0cb-4a46-a90c-493f871c9775"
+          rollback="69ee853a-f0b4-432e-b069-7d6e180fdb4c"
+          if (p.get("canonical_deployment") or {}).get("id")!=baseline:
+              raise SystemExit("HOLD: canonical production drift before preview")
+          for deployment in (baseline,rollback):
+              d=read(root+"/deployments/"+deployment)
+              if d.get("id")!=deployment or d.get("environment")!="production" or (d.get("latest_stage") or {}).get("status")!="success":
+                  raise SystemExit("HOLD: required successful production rollback evidence missing")
+          print("EXACT-PROJECT+PRODUCTION+RETENTION PREVIEW PREFLIGHT: PASS")
+          print("Production mutation: NONE")
+          PY
+      - name: Retrieve exact hotfix source and verified public media
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --branch hotfix/corporate-soft404-20261109 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-soft404
+          test "$(git -C /tmp/musitu-soft404 rev-parse HEAD)" = "6b1643ab2d3b03628104b617435db1d364076aa9"
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-soft404/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-soft404/corporate/assets/studio-poster.png
+          printf '%s  %s\n' 'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-soft404/corporate/assets/studio-demo-82s.mp4' | sha256sum --check
+          printf '%s  %s\n' '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-soft404/corporate/assets/studio-poster.png' | sha256sum --check
+          python3 -m pip install --disable-pip-version-check pytest beautifulsoup4
+          (
+            cd /tmp/musitu-soft404
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 python3 corporate/scripts/build.py
+            python3 -m pytest -q corporate/tests/test_production_build.py
+            test "$(find corporate/dist -type f | wc -l)" -eq 46
+            cmp corporate/dist/404.html corporate/dist/404/index.html
+          )
+          echo "EXACT-SHA production candidate and approved media: PASS; NOT YET DEPLOYED"
+      - name: Upload ONLY the candidate as a nonproduction Cloudflare Pages preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 pages deploy /tmp/musitu-soft404/corporate/dist --project-name=musitu-corporate --branch=hotfix-soft404-20261109 --commit-hash=6b1643ab2d3b03628104b617435db1d364076aa9 --commit-message="MUSITU protected 404 maintenance qualification only"
+      - name: Confirm exact preview deployment and production remains original; verify no anonymous exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse
+          root="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/pages/projects/musitu-corporate"
+          key=os.environ["CLOUDFLARE_API_TOKEN"]
+          def get(url):
+              req=urllib.request.Request(url,method="GET",headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=25) as response:
+                  obj=json.loads(response.read(500001))
+              if obj.get("success") is not True:raise SystemExit("HOLD: Cloudflare readback failure")
+              return obj.get("result")
+          project=get(root)
+          if (project.get("canonical_deployment") or {}).get("id")!="a2426a81-b0cb-4a46-a90c-493f871c9775":
+              raise SystemExit("HOLD: production changed during preview test")
+          deployments=get(root+"/deployments?per_page=10")
+          matches=[d for d in deployments if isinstance(d,dict) and d.get("environment")=="preview" and
+              ((d.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")=="6b1643ab2d3b03628104b617435db1d364076aa9"]
+          if len(matches)!=1 or (matches[0].get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: exact-source successful preview deployment not proven")
+          u=matches[0].get("url","")
+          parsed=urllib.parse.urlsplit(u)
+          if parsed.scheme!="https" or not parsed.hostname or not parsed.hostname.endswith(".musitu-corporate.pages.dev"):
+              raise SystemExit("HOLD: unexpected preview host")
+          req=urllib.request.Request(u,method="GET",headers={"User-Agent":"MUSITU-Anonymous-Preview-Security/1.0"})
+          try:
+              with urllib.request.urlopen(req,timeout=25) as response:
+                  status=response.status
+                  body=response.read(150001)
+          except urllib.error.HTTPError as err:
+              status=err.code
+              body=err.read(150001)
+          if status not in (200,401,403):raise SystemExit("HOLD: unexpected anonymous preview status")
+          if status==200:
+              low=body.lower()
+              if b'intelligence with evidence' in low or not (b'cloudflare access' in low or b'login' in low):
+                  raise SystemExit("HOLD: anonymous preview exposed or lacked Access interstitial")
+          print("EXACT-SHA protected Pages preview: PASS")
+          print("Anonymous access: DENIED or Access interstitial only")
+          print("Active production canonical deployment unchanged: PASS")
+          print("MUSITU Phase 03 unpublished 48-URL cohort: NOT_DEPLOYED")
+          print("Production writes: 0; preview deployment: 1")
+          PY
