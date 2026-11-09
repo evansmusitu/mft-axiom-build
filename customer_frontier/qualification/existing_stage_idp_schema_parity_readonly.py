@@ -10,7 +10,14 @@ DATABASE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
 NAME_SHA='7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36'
 BASE='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database/'+DATABASE
 CATALOG="SELECT type,name,sql FROM sqlite_schema WHERE name GLOB 'customer_idp_*' ORDER BY type,name"
-COUNTS="SELECT (SELECT COUNT(*) FROM customer_idp_flows_v1) AS flows, (SELECT COUNT(*) FROM customer_idp_sessions_v1) AS sessions"
+COUNTS=("SELECT (SELECT COUNT(*) FROM customer_idp_flows_v1) AS flows,"
+" (SELECT COUNT(*) FROM customer_idp_sessions_v1) AS sessions,"
+" (SELECT COUNT(*) FROM customer_idp_flows_v1 WHERE status='pending') AS pending_flows,"
+" (SELECT COUNT(*) FROM customer_idp_flows_v1 WHERE status='processing') AS processing_flows,"
+" (SELECT COUNT(*) FROM customer_idp_sessions_v1 WHERE status='active') AS active_sessions,"
+" (SELECT COUNT(*) FROM customer_idp_sessions_v1 WHERE status='active'"
+" AND expires_at_ms > unixepoch('now')*1000) AS unexpired_active_sessions")
+COUNT_KEYS=frozenset(('flows','sessions','pending_flows','processing_flows','active_sessions','unexpired_active_sessions'))
 ALLOWED=frozenset((CATALOG,COUNTS))
 SCHEMA=Path(__file__).resolve().parents[1]/'customer_control_plane/zitadel_session_broker_candidate.sql'
 EXPECTED_SOURCE_BLOB='8ee3d092d2634e7fc44fc65db4b44e9fce2058fc'
@@ -38,7 +45,9 @@ def parse_sql(result,kind):
  if kind=='catalog':
   if len(rows)>30 or any(not isinstance(x,dict) or set(x)!={'type','name','sql'} or not x['name'].startswith('customer_idp_') for x in rows):raise Reject('D1_CATALOG_BOUNDS_INVALID')
  else:
-  if len(rows)!=1 or set(rows[0])!={'flows','sessions'} or any(type(rows[0][k]) is not int or rows[0][k]<0 for k in ('flows','sessions')):raise Reject('D1_ROW_COUNTS_INVALID')
+  if len(rows)!=1 or not isinstance(rows[0],dict) or set(rows[0])!=COUNT_KEYS or any(type(rows[0][k]) is not int or rows[0][k]<0 for k in COUNT_KEYS):raise Reject('D1_ROW_COUNTS_INVALID')
+  c=rows[0]
+  if c['pending_flows']+c['processing_flows']>c['flows'] or c['unexpired_active_sessions']>c['active_sessions'] or c['active_sessions']>c['sessions']:raise Reject('D1_ROW_COUNTS_INCONSISTENT')
  return rows
 
 def run():
@@ -75,6 +84,9 @@ def run():
    'schema_exact_match':same,'expected_schema_sha256':sha(canonical(expected)),
    'observed_schema_sha256':sha(canonical(actual)),
    'flows_rows_observed':counts['flows'],'sessions_rows_observed':counts['sessions'],
+   'pending_flow_count':counts['pending_flows'],'processing_flow_count':counts['processing_flows'],
+   'active_session_count':counts['active_sessions'],
+   'unexpired_active_session_count':counts['unexpired_active_sessions'],
    'provider_operations':['GET','POST_SELECT_ONLY'],'provider_writes':0,
    'customer_row_values_read':0,'no_bindings_or_grants_changed':True,
    'cross_service_custody_qualified':False,'database_reuse_qualified':False,
