@@ -41,7 +41,8 @@ function makeEvidence(){
   // Private key object is deliberately not serialized or transferred.
   return {payload,signature,public_key_jwk:publicJwk};
 }
-function verifyEnvelope(obj){
+function verifyEnvelope(obj,expectedPublicKeySha256){
+  assert.ok(H64.test(expectedPublicKeySha256),'separate producer-key pin required');
   exact(obj,['payload','signature','public_key_jwk']);
   exact(obj.payload,['schema','run_id','source_sha','account_id','producer_role',
     'record0','record1','staleTip','retention','real_provider_custody_verified']);
@@ -56,6 +57,7 @@ function verifyEnvelope(obj){
   exact(jwk,['crv','kty','x']);
   assert.equal(jwk.kty,'OKP');assert.equal(jwk.crv,'Ed25519');
   assert.ok(typeof jwk.x==='string'&&jwk.x.length===43);
+  assert.equal(digest(jwk),expectedPublicKeySha256,'public signer key was substituted');
   assert.ok(typeof obj.signature==='string'&&/^[a-zA-Z0-9_-]{86}$/.test(obj.signature));
   assert.equal(verify(null,Buffer.from(canon(obj.payload)),
     createPublicKey({key:jwk,format:'jwk'}),Buffer.from(obj.signature,'base64url')),true);
@@ -75,6 +77,7 @@ async function producer(dir){
   await mkdir(dir,{recursive:true});
   const evidence=makeEvidence();
   await writeFile(join(dir,'checkpoint.json'),canon(evidence)+'\n',{encoding:'utf8',mode:0o600,flag:'wx'});
+  await writeFile(join(dir,'public-key-pin.txt'),digest(evidence.public_key_jwk)+'\n',{encoding:'utf8',mode:0o600,flag:'wx'});
   console.log('B27_HOST_A_SIGNED_CHECKPOINT_CREATED_NO_PRIVATE_KEY_EXPORT');
 }
 async function verifier(dir){
@@ -82,12 +85,20 @@ async function verifier(dir){
   const bytes=await readFile(path);
   assert.ok(bytes.byteLength>100&&bytes.byteLength<=8192,'bounded checkpoint artifact required');
   const obj=JSON.parse(bytes.toString('utf8'));
-  const payload=verifyEnvelope(obj);
+  // The expected public key arrives as an independent producer job output.
+  // Never accept a signer solely because it signed the same transferred blob.
+  const expectedPin=process.env.B27_PRODUCER_PUBLIC_KEY_SHA256;
+  const payload=verifyEnvelope(obj,expectedPin);
   // Validate signature tests before trusting any restored state or metadata.
-  assert.throws(()=>verifyEnvelope({...obj,payload:{...obj.payload,staleTip:{sequence:1,head:obj.payload.record1.head}}}),
+  assert.throws(()=>verifyEnvelope({...obj,payload:{...obj.payload,staleTip:{sequence:1,head:obj.payload.record1.head}}},expectedPin),
     /AssertionError|ERR_ASSERTION/,'tampered state must fail signature');
-  assert.throws(()=>verifyEnvelope({...obj,signature:'a'.repeat(86)}),
+  assert.throws(()=>verifyEnvelope({...obj,signature:'a'.repeat(86)},expectedPin),
     /AssertionError|ERR_ASSERTION/,'forged signature must fail');
+  const impostor=generateKeyPairSync('ed25519');
+  const impostorJwk=impostor.publicKey.export({format:'jwk'});
+  const impostorSignature=sign(null,Buffer.from(canon(obj.payload)),impostor.privateKey).toString('base64url');
+  assert.throws(()=>verifyEnvelope({...obj,public_key_jwk:impostorJwk,signature:impostorSignature},expectedPin),
+    /AssertionError|ERR_ASSERTION/,'replacing both evidence and signer must fail independent pin');
   const store=new Map([[wormKey(pin,0),canon(payload.record0)],[wormKey(pin,1),canon(payload.record1)]]);
   const r2={
     head:async key=>store.has(key)?{key}:null,
