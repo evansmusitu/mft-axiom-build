@@ -55,6 +55,11 @@ def raw(url,method="GET",headers=None,body=None,follow=True,timeout=45):
 
 
 def main():
+    # This historical verifier may provision databases and execute D1 writes
+    # against hard-coded production targets. It is NOT staging-qualified.
+    # A direct/manual invocation must fail before inspecting credentials or
+    # reaching any outbound connector. No flag, secret or admin token bypasses it.
+    raise SystemExit("MUSITU_AXIOM_FRONTIER_LEGACY_PRODUCTION_WRITE_ADAPTER_DISABLED_NOT_RELEASE")
     email=os.environ.get("CLOUDFLARE_EMAIL",""); key=os.environ.get("CLOUDFLARE_GLOBAL_API_KEY",""); token=os.environ.get("CLOUDFLARE_API_TOKEN","")
     if not token and (not email or not key): raise SystemExit("Cloudflare credentials required")
     cfh=({"Authorization":"Bearer "+token,"Accept":"application/json","User-Agent":"MUSITU-Axiom-Frontier-Live-Verify/5.0"} if token
