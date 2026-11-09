@@ -34,7 +34,7 @@ jobs:
           if len(account)!=32 or any(c not in "0123456789abcdef" for c in account.lower()):
               raise SystemExit("HOLD: invalid Cloudflare account identifier")
           path="/accounts/"+account+"/pages/projects/musitu-corporate"
-          allow={path,path+"/deployments?per_page=100"}
+          allow={path,path+"/deployments?per_page=10"}
           def get(p):
               if p not in allow:raise SystemExit("HOLD: non-allowlisted Cloudflare operation")
               request=urllib.request.Request(
@@ -70,7 +70,7 @@ jobs:
               raise SystemExit("HOLD: corporate domain/branch mismatch")
           if (project.get("source") or {}).get("type"):
               raise SystemExit("HOLD: unexpected Git-controlled Pages deployment source")
-          deployments=get(path+"/deployments?per_page=100")
+          deployments=get(path+"/deployments?per_page=10")
           if not isinstance(deployments,list):
               raise SystemExit("HOLD: Cloudflare deployment inventory malformed")
           expected_live="a2426a81-b0cb-4a46-a90c-493f871c9775"
