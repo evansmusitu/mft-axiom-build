@@ -1,0 +1,55 @@
+name: AXIOM 10 November staging identity exact-source read-only requalification (NOT RELEASE)
+on:
+  push:
+    branches: [review/axiom-idp-live-readonly-requalification-20261110]
+    paths:
+      - .github/workflows/axiom-idp-live-readonly-20261110.yml
+permissions:
+  contents: read
+concurrency:
+  group: axiom-idp-live-readonly-20261110
+  cancel-in-progress: false
+jobs:
+  inspect-current-staging:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-idp-live-readonly-requalification-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout candidate without credential persistence
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify exact reviewed GET-only source and tests before secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/hosted_idp_prerequisites_readonly.py)" = '4a0341bbc239e15db065931efd1e9b49bed60868'
+          test "$(git hash-object customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py)" = 'e9ad70d43335e7456e991c7778210ff1aaca4f3b'
+          python3 -m py_compile customer_frontier/qualification/hosted_idp_prerequisites_readonly.py customer_frontier/qualification/test_hosted_idp_prerequisites_readonly.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_hosted_idp_prerequisites_readonly.py)
+          echo 'PINNED_IDP_GET_ONLY_SOURCE_PASS'
+      - name: GET-only Cloudflare configuration and public ZITADEL/staging HTTP readback
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/hosted_idp_prerequisites_readonly.py
+          result=$?
+          test -s axiom-identity-staging-hosted-readonly.json || exit 4
+          echo "READ_ONLY_STAGE_CLASSIFICATION_EXIT=$result"
+          exit "$result"
+      - name: Keep bounded sanitized current-state receipt even if live configuration changed
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-idp-live-readonly-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-identity-staging-hosted-readonly.json
+            axiom-identity-staging-hosted-readonly.json.sha256
