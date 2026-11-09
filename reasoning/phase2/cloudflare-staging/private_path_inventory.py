@@ -70,6 +70,27 @@ def complete_page(observation):
     return True
 
 
+def incomplete_reason(observation):
+    if observation.get('http') != 200:
+        return 'HTTP_NOT_200'
+    rows = observation.get('data')
+    if not isinstance(rows, list):
+        return 'RESULT_NOT_LIST'
+    if not all(isinstance(r, dict) for r in rows):
+        return 'ROW_NOT_OBJECT'
+    info = observation.get('info')
+    if not isinstance(info, dict) or not all(type(info.get(k)) is int for k in ('page', 'count', 'total_count')):
+        return 'PAGINATION_MISSING'
+    if info['page'] != 1:
+        return 'UNEXPECTED_PAGE'
+    if info['count'] != len(rows) or info['total_count'] != len(rows):
+        return 'MULTIPAGE_OR_TOTAL_MISMATCH'
+    pages = info.get('total_pages')
+    if pages is not None and (type(pages) is not int or pages not in (0, 1)):
+        return 'MULTIPAGE_OR_TOTAL_MISMATCH'
+    return 'ROW_TYPE_UNRECOGNIZED'
+
+
 def summarize(observed):
     status = {k: observed[k].get('http') for k in PATHS}
     services_ok = complete_page(observed['services']) and all(
@@ -91,6 +112,9 @@ def summarize(observed):
         'neon_sql_queries': 0, 'database_network_change': False,
         'private_path_verified': False, 'real_database_connection_verified': False,
         'services_complete': services_ok, 'tunnels_complete': tunnels_ok,
+        'services_incomplete_reason': None if services_ok else incomplete_reason(observed['services']),
+        'tunnels_incomplete_reason': None if tunnels_ok else incomplete_reason(observed['tunnels']),
+        'services_first_page_rows': (len(observed['services']['data']) if isinstance(observed['services'].get('data'), list) else None),
         'service_count': len(services) if services_ok else None,
         'postgres_vpc_service_count': len(pg_services) if services_ok else None,
         'insecure_tls_postgres_service_count': insecure if services_ok else None,
