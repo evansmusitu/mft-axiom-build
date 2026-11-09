@@ -29,6 +29,16 @@ class PrivateRestore(unittest.TestCase):
  def test_catalog_drift_cannot_qualify(self):
   with tempfile.TemporaryDirectory() as f:
    with self.assertRaisesRegex(ValueError,'RESTORED_CATALOG_MISMATCH'):subject.restore(SQL.encode(),Path(f)/'drift.sqlite',{})
+ def test_failed_restore_leaves_no_new_decrypted_database_or_sqlite_sidecars(self):
+  dirty=SQL.replace("(1,'PRIVATE_PARENT'","(1,'MISSING_PARENT'")
+  with tempfile.TemporaryDirectory() as folder:
+   for name,sql,catalog in [('catalog',SQL.encode(),{}),('foreign-key',dirty.encode(),expected())]:
+    target=Path(folder)/(name+'.sqlite')
+    with self.subTest(name=name):
+     with self.assertRaises((sqlite3.Error,ValueError)):
+      subject.restore(sql,target,catalog)
+     self.assertEqual(list(Path(folder).glob(target.name+'*')),[],
+      'a failed restore must not retain decrypted SQLite data or journal sidecars')
  def test_overwrite_never_changes_existing_file(self):
   with tempfile.TemporaryDirectory() as f:
    p=Path(f)/'existing.sqlite';p.write_bytes(b'ORIGINAL')
