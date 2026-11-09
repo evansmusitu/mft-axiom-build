@@ -6,6 +6,7 @@ private networking, TLS handshakes, database permissions or ledger enforcement.
 import hashlib
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -31,7 +32,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def fetch_fixed(path, token):
-    if path not in PATHS.values() or not isinstance(token, str) or not token or any(x in token for x in '\r\n'):
+    dynamic = re.fullmatch(
+        rf'/accounts/{ACCOUNT}/workers/scripts/[a-z0-9][a-z0-9_-]{{0,79}}/settings', path)
+    if (path not in PATHS.values() and not dynamic) or not isinstance(token, str) or not token or any(x in token for x in '\r\n'):
         raise ValueError('INVALID_FIXED_GET')
     req = urllib.request.Request(API + path, method='GET', headers={
         'Authorization': 'Bearer ' + token,
@@ -69,13 +72,28 @@ def safe_binding_counts(status):
     return len(bindings), hyperdrive_count, refs
 
 
+def exact_attached_worker_path(domains):
+    if domains.get('http') != 200 or not isinstance(domains.get('data'), list):
+        return None
+    rows = domains['data']
+    if not all(isinstance(x, dict) for x in rows):
+        return None
+    matches = [x for x in rows if x.get('hostname') == STAGE_HOST]
+    if len(matches) != 1:
+        return None
+    name = matches[0].get('service')
+    if not isinstance(name, str) or not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,79}', name):
+        return None
+    return f'/accounts/{ACCOUNT}/workers/scripts/{name}/settings'
+
+
 def summarize(observed):
     """Only permit exact whitelisted fields to leave the runner. No raw JSON."""
     statuses = {k: observed[k].get('http') for k in PATHS}
     out = {
         'schema': 'AXIOM_PHASE2_HYPERDRIVE_METADATA_READONLY_V1',
         'scope': 'AXIOM_PHASE2_STAGE_KNOWN_ACCOUNT_AND_TWO_KNOWN_WORKERS',
-        'methods': ['GET'], 'api_requests': len(PATHS), 'cloudflare_writes': 0,
+        'methods': ['GET'], 'api_requests': len(PATHS) + int(observed.get('_attached_extra_read', False)), 'cloudflare_writes': 0,
         'neon_sql_queries': 0, 'provider_paid_calls': 0, 'secrets_exposed': False,
         'staging_connection_qualified': False, 'private_network_verified': False,
         'provider_http_status': statuses,
@@ -94,12 +112,25 @@ def summarize(observed):
         out[key + '_hyperdrive_binding_count'] = hyper
         # Only non-secret IDs are compared in memory; they never enter the report.
         observed[key]['_hyperdrive_references'] = refs
+    attached = observed.get('attached_worker')
+    if attached is None and out['stage_domain_maps_to_expected_worker'] is True:
+        attached = observed['stage_worker']
+    if attached is None:
+        attached = {'http': 'NOT_PROBED', 'data': None}
+    count, hyper, refs = safe_binding_counts(attached)
+    out['attached_worker_http'] = attached.get('http')
+    out['attached_worker_binding_count'] = count
+    out['attached_worker_hyperdrive_binding_count'] = hyper
+    out['attached_worker_hyperdrive_references_resolved'] = None
     configs = observed['hyperdrive'].get('data')
     info = observed['hyperdrive'].get('info')
-    complete = (statuses['hyperdrive'] == 200 and isinstance(configs, list)
+    first_page_valid = statuses['hyperdrive'] == 200 and isinstance(configs, list) and all(isinstance(x, dict) for x in configs)
+    out['hyperdrive_first_page_count'] = len(configs) if first_page_valid else None
+    complete = (first_page_valid
                 and all(isinstance(x, dict) for x in configs)
                 and isinstance(info, dict) and type(info.get('page')) is int
-                and info.get('page') == 1 and info.get('total_pages') == 1
+                and info.get('page') == 1 and
+                ((info.get('total_pages') == 1) or (type(info.get('total_count')) is int and info.get('total_count') == len(configs)))
                 and type(info.get('count')) is int and info.get('count') == len(configs))
     out['hyperdrive_inventory_complete'] = complete
     out['hyperdrive_config_count'] = len(configs) if complete else None
@@ -112,11 +143,14 @@ def summarize(observed):
             out[worker + '_binding_refs_resolved_in_account'] = all(x in ids for x in refs)
         else:
             out[worker + '_binding_refs_resolved_in_account'] = None
-    if (out['stage_domain_maps_to_expected_worker'] is True
-        and out['stage_worker_hyperdrive_binding_count'] == 0
+    if complete and hyper is not None:
+        ids = {x.get('id') for x in configs if isinstance(x.get('id'), str)}
+        out['attached_worker_hyperdrive_references_resolved'] = len(refs) == hyper and all(ref in ids for ref in refs)
+    if (out['exact_stage_domain_matches_on_page'] == 1
+        and out['attached_worker_hyperdrive_binding_count'] == 0
         and (statuses['phase2_worker'] == 404 or out['phase2_worker_hyperdrive_binding_count'] == 0)):
-        out['classification'] = 'NO_HYPERDRIVE_BINDING_ON_OBSERVED_STAGE_AND_PHASE2_WORKERS'
-    elif (out['stage_worker_hyperdrive_binding_count'] or out['phase2_worker_hyperdrive_binding_count']):
+        out['classification'] = 'NO_HYPERDRIVE_BINDING_ON_LIVE_DOMAIN_AND_PHASE2_WORKERS'
+    elif (out['attached_worker_hyperdrive_binding_count'] or out['phase2_worker_hyperdrive_binding_count']):
         out['classification'] = 'HYPERDRIVE_BINDING_PRESENT_BUT_CONNECTIVITY_UNQUALIFIED'
     else:
         out['classification'] = 'INSUFFICIENT_METADATA_TO_CLASSIFY_BINDINGS'
@@ -127,6 +161,15 @@ def run(token, fetch=fetch_fixed):
     if not isinstance(token, str) or not token or '\r' in token or '\n' in token:
         raise RuntimeError('SCOPED_READ_TOKEN_MISSING_OR_INVALID')
     observed = {label: fetch(path, token) for label, path in PATHS.items()}
+    attached_path = exact_attached_worker_path(observed['domains'])
+    observed['_attached_extra_read'] = False
+    if attached_path:
+        if attached_path in PATHS.values():
+            label = next(k for k, v in PATHS.items() if v == attached_path)
+            observed['attached_worker'] = observed[label]
+        else:
+            observed['attached_worker'] = fetch(attached_path, token)
+            observed['_attached_extra_read'] = True
     return summarize(observed)
 
 
