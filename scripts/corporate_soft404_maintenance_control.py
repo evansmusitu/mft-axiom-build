@@ -291,8 +291,8 @@ def rehearsal():
     if len(d)!=1 or d[0].get("environment")!="production" or (d[0].get("latest_stage") or {}).get("status")!="success":
         raise RuntimeError("HOLD: exact new deployment no longer qualifies for restoration")
     # Restore newer known-good release (Cloudflare permits rollback to a newer successful target).
-    result=cloudflare("/deployments/"+new+"/rollback",method="POST") if False else None
-    # The mutation below is deliberately permitted only for the already verified new target.
+    # The only other allowed write is restoring the exact new target whose
+    # ID and successful production status were verified above.
     token_value=token()
     request=urllib.request.Request(API+"/deployments/"+new+"/rollback",method="POST",
         headers={"Authorization":"Bearer "+token_value,"Accept":"application/json","User-Agent":AGENT})
