@@ -1,0 +1,94 @@
+name: AXIOM B27 Authority 2 live provider inventory GET only 20261109
+on:
+  push:
+    branches: [audit/axiom-b27-authority2-live-readonly-20261109]
+    paths: [.github/workflows/axiom-b27-authority2-live-readonly-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-b27-a2-readonly-20261109
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-b27-authority2-live-readonly-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Query only exact independent account Worker and Durable Object metadata
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+          from pathlib import Path
+          ID='67469478aa9349fa0a57fe3a72da200a'
+          URL='https://api.cloudflare.com/client/v4/accounts/'+ID
+          token=os.environ.get('CF_TOKEN','')
+          result={'schema':'MUSITU_AXIOM_B27_A2_PROVIDER_READONLY_20261109',
+                  'account_id':ID,'writes':0,'production_customer_data_accessed':False,
+                  'read_only_requests':[],'highwater_worker_present':False,
+                  'matching_durable_object_namespaces':[],
+                  'provider_environment_verified':False,
+                  'independent_custody_verified':False,
+                  'B27_global_antirollback_verified':False,'release_authority':False}
+          paths=['/workers/scripts','/workers/durable_objects/namespaces']
+          opener=urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{
+              'redirect_request':lambda self,*a,**kw:None})())
+          def read(path):
+            if path not in paths:raise RuntimeError('UNAUTHORIZED_PATH')
+            req=urllib.request.Request(URL+path,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=20) as r:
+                return r.status,json.loads(r.read(100001))
+            except urllib.error.HTTPError as e:
+              return e.code,None
+            except (OSError,ValueError,TimeoutError):
+              return 'TRANSPORT_UNKNOWN',None
+          if not token or any(c in token for c in '\r\n'):
+            result['status']='TOKEN_MISSING_NO_PROVIDER_CALL'
+          else:
+            for path in paths:
+              status,doc=read(path)
+              audit={'operation':'GET','endpoint':'workers/scripts' if 'scripts' in path else 'durable_objects/namespaces',
+                     'status':status,'provider_success':isinstance(doc,dict) and doc.get('success') is True}
+              result['read_only_requests'].append(audit)
+              if status!=200 or not isinstance(doc,dict) or doc.get('success') is not True:
+                continue
+              items=doc.get('result')
+              if not isinstance(items,list):continue
+              if 'scripts' in path:
+                result['highwater_worker_present']=any(
+                  isinstance(x,dict) and isinstance(x.get('id'),str) and
+                  bool(re.search(r'(^|[-_])(b27|authority2|highwater)([-_]|$)',x['id'],re.I))
+                  for x in items)
+              else:
+                result['matching_durable_object_namespaces']=[
+                  {'name':x['name']} for x in items if isinstance(x,dict)
+                  and isinstance(x.get('name'),str) and
+                  bool(re.search(r'(^|[-_])(b27|authority2|highwater)([-_]|$)',x['name'],re.I))
+                ][:20]
+            result['provider_environment_verified']=all(
+              x['status']==200 and x['provider_success'] for x in result['read_only_requests'])
+            result['status']='GET_ONLY_INVENTORY_COMPLETE' if result['provider_environment_verified'] else 'GET_ONLY_INVENTORY_INCOMPLETE'
+          data=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-b27-a2-provider-readonly.json');p.write_bytes(data)
+          p.with_suffix('.json.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+p.name+'\n')
+          print('B27_AUTHORITY2_METADATA_ONLY='+result['status'])
+          if not result.get('provider_environment_verified'):raise SystemExit(2)
+          PY
+      - name: Archive restricted safe metadata and digest including failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-b27-a2-provider-readonly-20261109
+          path: |
+            axiom-b27-a2-provider-readonly.json
+            axiom-b27-a2-provider-readonly.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
