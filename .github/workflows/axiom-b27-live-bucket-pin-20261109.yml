@@ -1,0 +1,30 @@
+name: AXIOM B27 live bucket pin red green (offline, NO RELEASE)
+on:
+  push:
+    branches: [fix/b27-live-r2-bucket-pin-20261109]
+    paths:
+      - 'integrations/security-authority2/**'
+      - '.github/workflows/axiom-b27-live-bucket-pin-20261109.yml'
+permissions: {contents: read}
+concurrency:
+  group: axiom-b27-live-bucket-pin-redgreen-20261109
+  cancel-in-progress: false
+jobs:
+  pin:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu' && github.ref == 'refs/heads/fix/b27-live-r2-bucket-pin-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '24.12.0'}
+      - name: Test existing independent authority2 module suite and exact audited bucket pin
+        run: |
+          set -euo pipefail
+          node --check integrations/security-authority2/authority2-lock-policy.mjs
+          node --check integrations/security-authority2/authority2-provider-readonly-check.mjs
+          node --test integrations/security-authority2/*.test.mjs
+      - name: Preserve global B27 veto
+        if: always()
+        run: echo 'B27_GLOBAL_CUSTODY_AND_NONROLLBACK_STILL_NO_GO'

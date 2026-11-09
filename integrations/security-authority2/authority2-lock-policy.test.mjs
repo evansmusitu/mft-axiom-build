@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {verifyAuthority2R2LockPolicy,LockPolicyHold} from './authority2-lock-policy.mjs';
-const account_id='67469478aa9349fa0a57fe3a72da200a',bucket_name='musitu-axiom-authority2-worm',token='T'.repeat(40);
+const account_id='67469478aa9349fa0a57fe3a72da200a',bucket_name='musitu-axiom-b27-highwater-a2',token='T'.repeat(40);
 const good={success:true,errors:[],result:{rules:[{id:'permanent-b27',enabled:true,prefix:'b27/',condition:{type:'Indefinite'}}]}};
-function fake(data, status=200){return async(url,init)=>{assert.equal(new URL(url).host,'api.cloudflare.com');assert.equal(init.method,'GET');assert.equal(init.redirect,'manual');assert.equal(init.credentials,'omit');assert.equal(init.headers.authorization,'Bearer '+token);return {status,text:async()=>JSON.stringify(data)};};}
+function fake(data, status=200){return async(url,init)=>{assert.equal(new URL(url).host,'api.cloudflare.com');assert.equal(new URL(url).pathname,'/client/v4/accounts/'+account_id+'/r2/buckets/'+bucket_name+'/lock');assert.equal(init.method,'GET');assert.equal(init.redirect,'manual');assert.equal(init.credentials,'omit');assert.equal(init.headers.authorization,'Bearer '+token);return {status,text:async()=>JSON.stringify(data)};};}
 const args={account_id,bucket_name,token};
 test('Cloudflare-origin policy readback accepts a genuine enabled indefinite b27-prefix rule',async()=>{
  const result=await verifyAuthority2R2LockPolicy({...args,fetchImpl:fake(good)});
