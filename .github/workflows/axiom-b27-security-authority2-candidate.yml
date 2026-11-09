@@ -1,0 +1,41 @@
+name: AXIOM B27 Security Authority 2 synthetic CAS gate (NOT RELEASE)
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/security-authority2/**'
+      - 'integrations/independent-ledger/**'
+      - '.github/workflows/axiom-b27-security-authority2-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Verify candidate source parses and forbids production credentials
+        run: |
+          set -euo pipefail
+          node --check integrations/security-authority2/authority2-highwater-worker.mjs
+          node --check integrations/security-authority2/external-highwater-fence.mjs
+          node --check integrations/independent-ledger/worker.mjs
+          node --check integrations/independent-ledger/client.mjs
+      - name: Run synthetic CAS and destructive replay regressions
+        run: |
+          set -euo pipefail
+          node --test integrations/security-authority2/*.test.mjs
+      - name: Record safety veto (no host-custody certification)
+        run: |
+          echo 'AXIOM_AUTHORITY2_LOCAL_SYNTHETIC_TESTS_ONLY_NOT_RELEASE'
+          echo 'B27_GLOBAL_NONROLLBACK_NOT_YET_PROVEN'
