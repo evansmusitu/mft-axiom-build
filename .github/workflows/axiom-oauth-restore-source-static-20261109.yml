@@ -1,0 +1,23 @@
+name: AXIOM OAuth current snapshot isolated-recovery source-only review
+on:
+  push:
+    branches: [ops/axiom-oauth-restore-source-static-20261109]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin source/test, compile and run eight purely synthetic fail-closed cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py)" = '31c67bae1b8e6dfb048cc0082622d92dc666b6ed'
+          test "$(git hash-object customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py)" = '91f245cefd7a949ab905a3c5af58511c9a3f88c3'
+          python3 -m py_compile customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_production_oauth_oneuse_restore_20261109.py)
