@@ -35,7 +35,7 @@ function makeEvidence(){
   const publicJwk=publicKey.export({format:'jwk'});
   const payload={schema:SCHEMA,run_id:process.env.GITHUB_RUN_ID,
     source_sha:process.env.GITHUB_SHA,account_id:ACCOUNT,
-    producer_role:'ephemeral-synthetic-host-A',record0,record1,staleTip,
+    producer_role:'ephemeral-synthetic-host-A',record0,record1,event,staleTip,
     retention:'GITHUB_JOB_ARTIFACT_DELETABLE_NOT_WORM',
     real_provider_custody_verified:false};
   const signature=sign(null,Buffer.from(canon(payload)),privateKey).toString('base64url');
@@ -46,7 +46,7 @@ function verifyEnvelope(obj,expectedPublicKeySha256){
   assert.ok(H64.test(expectedPublicKeySha256),'separate producer-key pin required');
   exact(obj,['payload','signature','public_key_jwk']);
   exact(obj.payload,['schema','run_id','source_sha','account_id','producer_role',
-    'record0','record1','staleTip','retention','real_provider_custody_verified']);
+    'record0','record1','event','staleTip','retention','real_provider_custody_verified']);
   assert.equal(obj.payload.schema,SCHEMA);
   assert.equal(obj.payload.run_id,process.env.GITHUB_RUN_ID);
   assert.equal(obj.payload.source_sha,process.env.GITHUB_SHA);
