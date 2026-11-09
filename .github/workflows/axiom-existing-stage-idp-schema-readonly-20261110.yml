@@ -1,0 +1,50 @@
+name: AXIOM existing staging identity D1 exact-schema readback 20261110 (NO ADOPTION)
+on:
+  push:
+    branches: [audit/axiom-primary-workers-subscription-readonly-20261110]
+    paths: [.github/workflows/axiom-existing-stage-idp-schema-readonly-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-existing-stage-idp-schema-20261110
+  cancel-in-progress: false
+jobs:
+  read-only-schema-parity:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-primary-workers-subscription-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Pin reviewed code and execute 4 negative tests BEFORE credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql)" = '8ee3d092d2634e7fc44fc65db4b44e9fce2058fc'
+          test "$(git hash-object customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py)" = '60e47ee107bc6eca9db94916ecbf37e61bfaec1e'
+          test "$(git hash-object customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py)" = '266903d560ec7dc9c59b03a395388b49b7d467ac'
+          python3 -m py_compile customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_existing_stage_idp_schema_parity_readonly.py -v
+      - name: Exact existing D1 identity DDL plus aggregate session counts with zero writes
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py
+          code=$?
+          test -s axiom-existing-staging-idp-schema-parity.json || exit 4
+          exit "$code"
+      - name: Preserve safe schema digest and row-count aggregate receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-existing-staging-idp-schema-parity-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-existing-staging-idp-schema-parity.json
+            axiom-existing-staging-idp-schema-parity.json.sha256
