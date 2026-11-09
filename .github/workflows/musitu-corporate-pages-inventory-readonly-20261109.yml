@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 5
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
     steps:
       - name: Exact-account Pages production and rollback inventory, GET only
         shell: bash
