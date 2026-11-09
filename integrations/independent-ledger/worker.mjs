@@ -1,6 +1,7 @@
 /** Deploy only under the accepted independent operator. No remote deployment is performed here. */
 import {LEDGER_SCHEMA,LedgerDenied,deny,exact,id,digest,integer,bytes,b64,sha256Json,canonicalJson,validateConsume} from './protocol.mjs';
 import {anchorPin,publishGithubCheckpoint} from './github-anchor.mjs';
+import {highwaterPin,externalHighwaterFence} from '../security-authority2/external-highwater-fence.mjs';
 const headers={'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'};
 const json=(status,value)=>new Response(JSON.stringify(value),{status,headers});
 const roles=['bootstrap','grant','consume','read','revoke'];
@@ -37,7 +38,20 @@ async function append(txn,meta,event){
   await txn.put('meta',meta);return meta;
 }
 export class MonotonicLedger{
-  constructor(ctx,env){this.ctx=ctx;this.env=env;this.config=config(env);this.anchor=env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON?anchorPin(JSON.parse(env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON)):null;}
+  constructor(ctx,env){
+    this.ctx=ctx;this.env=env;this.config=config(env);
+    this.anchor=env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON?anchorPin(JSON.parse(env.LEDGER_GITHUB_ANCHOR_CONFIG_JSON)):null;
+    const mode=env.LEDGER_EXTERNAL_HIGHWATER_REQUIRED;
+    if(mode!==undefined&&!['true','false'].includes(mode))deny('INVALID_HIGHWATER_POLICY_HOLD',503);
+    this.highwaterRequired=mode==='true';
+    if(this.highwaterRequired){
+      if(!this.anchor)deny('HIGHWATER_REQUIRES_IMMUTABLE_ANCHOR_HOLD',503);
+      let pin;try{pin=JSON.parse(env.LEDGER_HIGHWATER_PIN_JSON);}catch{deny('HIGHWATER_TRUST_PIN_MISSING_HOLD',503);}
+      this.highwater=highwaterPin(pin);
+    }else if(env.LEDGER_HIGHWATER_PIN_JSON||env.LEDGER_HIGHWATER_WRITE_TOKEN||env.LEDGER_HIGHWATER_READ_TOKEN){
+      deny('HIGHWATER_CONFIG_CANNOT_BE_SILENTLY_IGNORED',503);
+    }
+  }
   async signed(payload){
     const jwk=JSON.parse(this.env.LEDGER_SIGNING_JWK||'null');
     if(jwk?.kty!=='OKP'||jwk?.crv!=='Ed25519'||typeof jwk.d!=='string'||jwk.alg&&!['EdDSA','Ed25519'].includes(jwk.alg))deny('SIGNER_UNAVAILABLE',503);
@@ -135,7 +149,34 @@ export class MonotonicLedger{
           for(const [key,value]of pending.writes)await txn.put(key,value);
           await txn.delete('checkpoint/pending');
         });
-        await this.ctx.storage.sync();payload={...payload,anchor:proof};
+        // Anchor publication is irreversible. A lost witness acknowledgement
+        // retains checkpoint/pending: no retries, refunds, or local permits.
+        const anchoredPayload={...payload,anchor:proof};
+        if(this.highwaterRequired){
+          const state=transition.pending.writes.find(([k])=>k==='meta')?.[1];
+          const sequence=state?.sequence;
+          if(!Number.isSafeInteger(sequence)||sequence<0)deny('HIGHWATER_PENDING_SEQUENCE_INVALID_HOLD',503);
+          const entry=transition.pending.writes.find(([k])=>k==='event/'+String(sequence).padStart(12,'0'))?.[1];
+          if(sequence>0&&!entry)deny('HIGHWATER_EVENT_UNAVAILABLE_HOLD',503);
+          const event={
+            ledger_id:this.config.ledger_id,namespace:this.highwater.namespace,
+            sequence,previous_sequence:sequence-1,
+            previous_head:sequence===0?'0'.repeat(64):entry.previous_sha256,
+            head:state.head_sha256,
+            event_digest:await sha256Json(anchoredPayload),
+            artifact_sha256:this.config.execution_artifact_sha256,
+            action_sha256:transition.pending.commitment,
+          };
+          const highwater=await externalHighwaterFence({
+            pin:this.highwater,
+            write_token:this.env.LEDGER_HIGHWATER_WRITE_TOKEN,
+            read_token:this.env.LEDGER_HIGHWATER_READ_TOKEN,
+            event,
+          });
+          payload={...anchoredPayload,highwater};
+        }else payload=anchoredPayload;
+        // Apply staged authority writes only after independent signed CAS.
+        // Signing failures never roll back or reissue consumed action slots.
       }
       // Signing/response failure never refunds consumption or reissues a permit.
       return json(200,await this.signed(payload));
