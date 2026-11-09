@@ -1,0 +1,70 @@
+name: AXIOM Phase2 single Hyperdrive admission (offline, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - review/axiom-private-origin-single-hyperdrive-20261109
+    paths:
+      - '.github/workflows/axiom-single-hyperdrive-offline-20261109.yml'
+      - 'reasoning/phase2/cloudflare-staging/private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_hostname_guard.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_encoded_ip_guard.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_single_hyperdrive.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-single-hyperdrive-offline
+  cancel-in-progress: false
+
+jobs:
+  offline-hyperdrive-identity:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-private-origin-single-hyperdrive-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin exact source and four offline test blobs
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          test "$(git hash-object private_origin_admission.py)" = "71180d35f0fb37905b53cba7f64f6d5541c6f271"
+          test "$(git hash-object test_private_origin_admission.py)" = "67e1231c5aa480148b95bea772e9bd4fb1bfea64"
+          test "$(git hash-object test_private_origin_hostname_guard.py)" = "2413cedbadff5b5eac1494bbce424fe3420d9ed6"
+          test "$(git hash-object test_private_origin_encoded_ip_guard.py)" = "5dc83aabc3f9e20210960d0606c4ccc16616bbee"
+          test "$(git hash-object test_private_origin_single_hyperdrive.py)" = "797e1ef9a0c952034057fe6700bade492981bc8d"
+      - name: Run all 25 pure-metadata regression methods without network
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 -m py_compile private_origin_admission.py test_private_origin_admission.py test_private_origin_hostname_guard.py test_private_origin_encoded_ip_guard.py test_private_origin_single_hyperdrive.py
+          python3 -m unittest -v test_private_origin_admission.py test_private_origin_hostname_guard.py test_private_origin_encoded_ip_guard.py test_private_origin_single_hyperdrive.py
+      - name: Reject non-private shadow route and all forged release assertions
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from private_origin_admission import evaluate
+          from test_private_origin_hostname_guard import candidate
+          shadow = candidate()
+          shadow['worker']['bindings'].append({'name': 'SECONDARY', 'type': 'hyperdrive', 'id': 'synthetic-public-origin'})
+          for metadata in ({}, {'authorized_to_deploy': True, 'network_verified': True}, shadow):
+              result = evaluate(metadata)
+              assert result['status'] == 'METADATA_SECURITY_GATE_BLOCKED'
+              assert result['network_verified'] is False
+              assert result['authorized_to_deploy'] is False
+              assert result['production_release_qualified'] is False
+              assert result['cloudflare_writes'] == 0
+              assert result['neon_sql_queries'] == 0
+          print('AXIOM_OFFLINE_HYPERDRIVE_NO_DEPLOY_NO_RELEASE')
+          PY

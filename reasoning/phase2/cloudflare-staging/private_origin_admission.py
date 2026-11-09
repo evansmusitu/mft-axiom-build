@@ -111,7 +111,12 @@ def _has_exact_worker_binding(worker, hyperdrive):
         return False
     matching = [x for x in bindings if isinstance(x, dict) and
                 x.get('name') == BINDING]
-    return (len(matching) == 1 and matching[0].get('type') == 'hyperdrive'
+    hyperdrive_bindings = [x for x in bindings if isinstance(x, dict) and
+                           x.get('type') == 'hyperdrive']
+    # A second, differently named Hyperdrive route could bypass private
+    # ledger preflight, even when the expected HYPERDRIVE binding is present.
+    return (len(matching) == 1 and len(hyperdrive_bindings) == 1
+            and matching[0] is hyperdrive_bindings[0]
             and _string(hyperdrive.get('id')) and matching[0].get('id') == hyperdrive['id'])
 
 
