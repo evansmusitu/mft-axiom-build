@@ -1,0 +1,60 @@
+name: AXIOM Phase2 VPC hostname metadata security (offline, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - review/axiom-private-origin-hostname-guard-20261109
+    paths:
+      - 'reasoning/phase2/cloudflare-staging/private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_hostname_guard.py'
+      - '.github/workflows/axiom-private-origin-hostname-offline-20261109.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-phase2-vpc-hostname-offline-20261109
+  cancel-in-progress: false
+
+jobs:
+  offline-hostname-admission:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-private-origin-hostname-guard-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin admitted source and TDD fixtures to exact Git blob identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_origin_admission.py)" = '1b6093273a9af3d99ab4d6aeee84c0be266adca5'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_admission.py)" = '67e1231c5aa480148b95bea772e9bd4fb1bfea64'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_hostname_guard.py)" = '2413cedbadff5b5eac1494bbce424fe3420d9ed6'
+      - name: Run existing sixteen and new three synthetic deny-only regressions
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 -m py_compile private_origin_admission.py test_private_origin_admission.py test_private_origin_hostname_guard.py
+          python3 -m unittest -v test_private_origin_admission.py test_private_origin_hostname_guard.py
+      - name: Assert metadata is never authority for deployment or network trust
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from private_origin_admission import evaluate
+          outcome=evaluate({})
+          assert outcome['status']=='METADATA_SECURITY_GATE_BLOCKED'
+          assert outcome['network_verified'] is False
+          assert outcome['authorized_to_deploy'] is False
+          assert outcome['production_release_qualified'] is False
+          assert outcome['cloudflare_writes']==0 and outcome['neon_sql_queries']==0
+          print('AXIOM_VPC_HOSTNAME_METADATA_DENY_ONLY; NO_NETWORK; NO_DEPLOY; NO_RELEASE')
+          PY

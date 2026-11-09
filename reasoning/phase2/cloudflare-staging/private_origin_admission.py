@@ -10,6 +10,10 @@ Hyperdrive's public-origin mtls setting. Omitted service TLS settings mean
 verify_full under Cloudflare's documented default as of 2026-11-09.
 """
 
+import re
+
+_DNS_LABEL = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+
 PROJECT = 'royal-grass-27046609'
 REGION = 'aws-us-east-2'
 DATABASE = 'axiom_phase2_stage'
@@ -44,13 +48,23 @@ def _has_valid_tunnel(tunnel):
             tunnel.get('tun_type') == 'cfd_tunnel' and _string(tunnel.get('id')))
 
 
+def _valid_dns_hostname(value):
+    """Check DNS *syntax* only; never infer a trusted/private TLS route."""
+    if not isinstance(value, str) or len(value) > 253:
+        return False
+    labels = value.split('.')
+    return (len(labels) >= 2
+            and not all(label.isdecimal() for label in labels)
+            and all(_DNS_LABEL.fullmatch(label) is not None for label in labels))
+
+
 def _has_valid_service(service):
     host = _mapping(service.get('host'))
     return (service.get('type') == 'tcp'
             and service.get('app_protocol') == 'postgresql'
             and type(service.get('tcp_port')) is int and service['tcp_port'] == 5432
             and _string(service.get('service_id'))
-            and _string(host.get('hostname'))
+            and _valid_dns_hostname(host.get('hostname'))
             and isinstance(host.get('resolver_network'), dict))
 
 
