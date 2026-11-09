@@ -1,0 +1,112 @@
+name: MUSITU Corporate 404 Exact Maintenance and A-B-A Rollback (ONE USE)
+
+on:
+  push:
+    branches:
+      - ops/corporate-soft404-production-20261109
+    paths:
+      - .github/workflows/musitu-corporate-soft404-production-rollback-oneuse.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-404-production-oneuse-20261109
+  cancel-in-progress: false
+
+jobs:
+  controlled-production-and-real-rollback:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-soft404-production-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile and test the exact production recovery controller without any writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/corporate_soft404_maintenance_control.py
+          python3 -m unittest -q tests/test_corporate_soft404_maintenance_control.py
+      - name: Independently preflight original production 33 routes, 200 soft-404, approved media, and recovery target
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 scripts/corporate_soft404_maintenance_control.py preflight
+      - name: Reproduce full exact-source production candidate and verify only root 404.html differs from last live artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --branch hotfix/corporate-soft404-20261109 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-soft404-maintenance
+          test "$(git -C /tmp/musitu-soft404-maintenance rev-parse HEAD)" = "6b1643ab2d3b03628104b617435db1d364076aa9"
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-soft404-maintenance/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-soft404-maintenance/corporate/assets/studio-poster.png
+          printf '%s  %s\n' 'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-soft404-maintenance/corporate/assets/studio-demo-82s.mp4' | sha256sum --check
+          printf '%s  %s\n' '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-soft404-maintenance/corporate/assets/studio-poster.png' | sha256sum --check
+          python3 -m pip install --disable-pip-version-check pytest beautifulsoup4
+          (
+            cd /tmp/musitu-soft404-maintenance
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 python3 corporate/scripts/build.py
+            python3 -m pytest -q corporate/tests/test_production_build.py
+            test -f corporate/dist/404.html
+            cmp corporate/dist/404.html corporate/dist/404/index.html
+            test "$(find corporate/dist -type f | wc -l)" -eq 46
+          )
+          git clone -q --depth=1 --branch main https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-corporate-original
+          test "$(git -C /tmp/musitu-corporate-original rev-parse HEAD)" = "a728cb9eb0cbd27a1f6f11b6fbe2856cac921db3"
+          cp /tmp/musitu-soft404-maintenance/corporate/assets/studio-demo-82s.mp4 /tmp/musitu-corporate-original/corporate/assets/studio-demo-82s.mp4
+          cp /tmp/musitu-soft404-maintenance/corporate/assets/studio-poster.png /tmp/musitu-corporate-original/corporate/assets/studio-poster.png
+          (
+            cd /tmp/musitu-corporate-original
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 python3 corporate/scripts/build.py
+            printf '%s  %s\n' '979cb418d6e974d46d4901898f547e574c486a7b348b5f501f7242a4fc987e76' 'corporate/dist/manifest.json' | sha256sum --check
+          )
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          new=json.loads(Path("/tmp/musitu-soft404-maintenance/corporate/dist/manifest.json").read_text())
+          old=json.loads(Path("/tmp/musitu-corporate-original/corporate/dist/manifest.json").read_text())
+          assert len(old["files"])==44 and len(new["files"])==45
+          assert set(new["files"])-set(old["files"])=={"404.html"}
+          assert not (set(old["files"])-set(new["files"]))
+          assert all(v==new["files"][k] for k,v in old["files"].items())
+          assert old["route_count"]==new["route_count"]==34
+          assert old["indexing_enabled"]==new["indexing_enabled"]==True
+          print("FROZEN PUBLIC DIFF: exactly 1 added 404.html; all prior 44 production files remain byte-identical")
+          PY
+      - name: Publish only qualified maintenance artifact to the existing corporate Pages production branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 pages deploy /tmp/musitu-soft404-maintenance/corporate/dist --project-name=musitu-corporate --branch=main --commit-hash=6b1643ab2d3b03628104b617435db1d364076aa9 --commit-message="MUSITU corporate true 404 SEO maintenance, unchanged 33 pages"
+      - name: Independently accept all live public routes, root 404, security headers and media
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 scripts/corporate_soft404_maintenance_control.py verify-new
+      - name: Witness actual A-B-A production rollback and restore the qualified fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 scripts/corporate_soft404_maintenance_control.py rehearse
+      - name: On failure after any attempted deployment, restore qualified previous production only if exact hotfix source is active
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 scripts/corporate_soft404_maintenance_control.py recover-on-failure
