@@ -13,8 +13,16 @@ class_name = "Authority2Highwater"
 tag = "authority2-highwater-v1"
 new_sqlite_classes = ["Authority2Highwater"]
 
+[[r2_buckets]]
+binding = "HIGHWATER_WORM"
+bucket_name = "musitu-axiom-authority2-worm" # operator-created, NOT provisioned here
+
 [observability]
 enabled = false
+
+# Before activation independently verify an INDEFINITE R2 Bucket Lock
+# covering prefix b27/ and record its provider-origin configuration.
+# No billing/R2 activation authorized by this file.
 
 # All signing JWKs and raw credentials are operator-generated secrets.
 # Mandatory secret names: HW_CONFIG_JSON, HW_ROLE_TOKEN_SHA256_JSON, HW_SIGNING_JWK
