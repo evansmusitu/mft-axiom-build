@@ -39,6 +39,7 @@ async function verifiedEvent(req,env){
     typeof value[k]==='string'&&/\b(?:test|testing|sandbox|demo)\b|faked[ -]success/i.test(value[k]));
  };
  if(isTestMarked(receipt)||isTestMarked(receipt.evidence))throw new Error('provider_test_mode_denied');
+ if(receipt.evidence?.provider!=='paynow')throw new Error('provider_identity_denied');
  return receipt.evidence;
 }
 async function readBody(req){const size=Number(req.headers.get('content-length')||0);if(size>16000)throw new Error('payload_too_large');const raw=await req.text();if(raw.length>16000)throw new Error('payload_too_large');try{return JSON.parse(raw)}catch{throw new Error('invalid_json')}}
