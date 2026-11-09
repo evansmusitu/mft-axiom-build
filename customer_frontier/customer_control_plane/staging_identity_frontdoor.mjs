@@ -58,8 +58,16 @@ export async function stagingIdentityRoute(request,env){
   const location=result.headers.get('location');
   if(u.pathname==='/auth/start'?!validAuthorizationRedirect(location):location!==ORIGIN+'/')return failure(502);
   if(!validHostOnlyCookies(result.headers,u.pathname))return failure(502);
-  return result;
+  // The private service is not allowed to add CORS, Refresh, debug headers
+  // or a response body to the public browser contract. Only the validated
+  // redirect and host-only cookies cross this boundary.
+  const headers=new Headers({'location':location,'cache-control':'no-store',
+   'referrer-policy':'no-referrer','x-content-type-options':'nosniff'});
+  const cookies=result.headers.getSetCookie?.()||[result.headers.get('set-cookie')].filter(Boolean);
+  for(const cookie of cookies)headers.append('set-cookie',cookie);
+  return new Response(null,{status:303,headers});
  }
  if(![400,401,503].includes(result.status))return failure(502);
- return result;
+ // Never forward private provider error cookies, redirects, or token details.
+ return failure(result.status);
 }
