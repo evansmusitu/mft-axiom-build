@@ -1,0 +1,25 @@
+name: AXIOM current snapshot restore and encryption credential-free qualification
+on:
+  push:
+    branches: [ops/axiom-20261109-current-snapshot-source-tests]
+permissions:
+  contents: read
+jobs:
+  qa:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin exact provider client, public recipient, single target and synthetic tests; no secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py)" = "8750ce91c327d6ebe29b35fb6a9f8303310bf110"
+          test "$(git hash-object customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py)" = "edadfa4b7fffbecfc52fed11015a2d49eedd38ec"
+          test "$(git hash-object customer_frontier/recovery/export_prod_oauth_current_encrypted_20261108.mjs)" = "2c28fbb5da3dd7ac706ff68c78d2291adfc6135c"
+          test "$(git hash-object customer_frontier/recovery/recipient-20261106.pem)" = "ec9115c83879290d23cee2eb2932f2f31df5584d"
+          python3 -m py_compile customer_frontier/qualification/production_oauth_oneuse_restore_20261109.py customer_frontier/qualification/test_production_oauth_oneuse_restore_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_production_oauth_oneuse_restore_20261109.py)
