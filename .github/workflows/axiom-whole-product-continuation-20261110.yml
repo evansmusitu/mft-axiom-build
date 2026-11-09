@@ -1,0 +1,80 @@
+name: AXIOM public whole-product continuation export (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - handoff/whole-product-20261110-readonly
+    paths:
+      - 'tools/axiom_whole_product_handoff_builder.py'
+      - '.github/workflows/axiom-whole-product-continuation-20261110.yml'
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: axiom-whole-product-20261110
+  cancel-in-progress: false
+
+jobs:
+  public-only-frozen-handoff:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/handoff/whole-product-20261110-readonly'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout public GitHub source without stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch public branches, tags and ALL pull request head refs (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --no-recurse-submodules origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*' \
+            '+refs/pull/*/head:refs/remotes/pull/*/head'
+          test "$(git rev-parse --is-shallow-repository)" = "false"
+          git fsck --full --no-reflogs
+      - name: Capture live open PRs and exact-head evidence; bundle full public Git history
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/axiom_whole_product_handoff_builder.py
+          python3 tools/axiom_whole_product_handoff_builder.py --repo . --output handoff_build
+          test -s handoff_build/SOURCE_HISTORY/public-github-all-refs.bundle
+          test -s handoff_build/HANDOFF/SHA256SUMS.txt
+          test -s handoff_build/HANDOFF/OPEN_PULL_REQUESTS.json
+          test -s handoff_build/HANDOFF/NEW_CHAT_COMMAND.txt
+      - name: Verify every handoff SHA256 and no secrets in source-only archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd handoff_build
+          sha256sum --check HANDOFF/SHA256SUMS.txt --status
+          git -C .. bundle verify "$PWD/SOURCE_HISTORY/public-github-all-refs.bundle"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('HANDOFF/CONTINUATION_STATE.json').read_text())
+          assert d['production_release']=='NO-GO'
+          assert d['no_infra_writes_from_this_packaging_job'] is True
+          assert d['private_gitlab_archive'].startswith('SEPARATE')
+          assert d['pr_count'] >= 160
+          assert Path('PRODUCT/main').is_dir()
+          print('PUBLIC_SOURCE_ONLY_NO_DEPLOY_NO_RELEASE_AND_INTEGRITY_VERIFIED')
+          PY
+      - name: Upload immutable handoff files as a clean ZIP archive (source only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_20261110
+          path: handoff_build/
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 6
+          retention-days: 7
