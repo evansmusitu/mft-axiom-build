@@ -1,0 +1,150 @@
+name: AXIOM owner-once clean DR D1 create — no restores or release
+on:
+  push:
+    branches: [ops/axiom-dr-clean-create-owner-once-20261109]
+    paths: [.github/workflows/axiom-dr-clean-create-owner-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-dr-clean-create-owner-once-20261109
+  cancel-in-progress: false
+jobs:
+  once:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-clean-create-owner-once-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350' &&
+      github.event.head_commit.message == 'ops(dr): owner-only one-use empty D1 creation, exact account/name'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Exact account D1 catalog / owner-only one create with no retry
+        id: apply
+        shell: bash
+        env:
+          ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+          DR_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          A='c954f0c842a486d0388c05b19cd21e47'
+          OLD='e36972b3-850d-4273-b934-2fa67587d9f1'
+          OLDNAME='axiom-disposable-dr-target-20261108'
+          NAME='axiom-dr-clean-restore-20261109'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+A
+          PATH='/d1/database?per_page=100&page=1'
+          ADMIN=os.environ.get('ADMIN_TOKEN','')
+          READER=os.environ.get('DR_READ_TOKEN','')
+          report={'schema':'AXIOM_D1_ONE_CREATE_ONE_SHOT','target_account':A,
+            'new_name':NAME,'create_attempts':0,'methods':[],
+            'oauth_production_touched':False,'existing_d1_modified':False,
+            'worker_bindings_modified':False,'customer_rows_accessed':False,
+            'release_qualified':False,'restore_qualified':False,
+            'status':'STOPPED_BEFORE_CREATE'}
+          class Guard(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def call(path,method,token,body=None):
+            if (path,method) not in ((PATH,'GET'),('/d1/database/'+OLD,'GET'),('/d1/database','POST')):
+              raise Guard('UNREVIEWED_PATH')
+            if method=='POST' and body!={'name':NAME}:raise Guard('UNREVIEWED_PAYLOAD')
+            if not token or any(ch in token for ch in '\r\n'):raise Guard('SECRET_MISSING_OR_INVALID')
+            req=urllib.request.Request(ROOT+path,method=method,
+              data=json.dumps(body,separators=(',',':')).encode() if body else None,
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'})
+            try:
+              with opener.open(req,timeout=18) as res:
+                status=res.status;raw=res.read(100001)
+            except urllib.error.HTTPError as e:
+              return e.code,None
+            except (OSError,TimeoutError,ValueError):
+              return 'TRANSPORT_UNKNOWN',None
+            if len(raw)>100000:return 'OVERSIZED',None
+            try:data=json.loads(raw)
+            except (ValueError,UnicodeError):data=None
+            return status,data
+          def inventory(token):
+            code,doc=call(PATH,'GET',token)
+            if code!=200 or not isinstance(doc,dict) or doc.get('success') is not True:
+              raise Guard('CATALOG_DENIED_'+str(code))
+            rows=doc.get('result');info=doc.get('result_info')
+            if not (isinstance(rows,list) and len(rows)==2 and isinstance(info,dict)
+              and type(info.get('count')) is int and info['count']==2
+              and type(info.get('total_count')) is int and info['total_count']==2
+              and type(info.get('page')) is int and info['page']==1
+              and all(isinstance(x,dict) and isinstance(x.get('name'),str)
+                and isinstance(x.get('uuid'),str)
+                and re.fullmatch('[0-9a-f]{8}-[0-9a-f-]{27}',x['uuid']) for x in rows)
+              and sum(x['uuid']==OLD and x['name']==OLDNAME for x in rows)==1
+              and all('axiom' in x['name'].lower() for x in rows)
+              and all(x['name']!=NAME for x in rows)):
+              raise Guard('CATALOG_NOT_EXACT_EXPECTED_TWO')
+            return {x['uuid']:x['name'] for x in rows}
+          try:
+            if not ADMIN or not READER or ADMIN==READER or any(x in ADMIN+READER for x in '\r\n'):
+              raise Guard('DISTINCT_ADMIN_AND_READ_ONLY_SECRETS_REQUIRED')
+            read_baseline=inventory(READER);report['methods'].append('GET_DR_READ')
+            admin_baseline=inventory(ADMIN);report['methods'].append('GET_ADMIN')
+            if read_baseline!=admin_baseline:raise Guard('CROSS_TOKEN_ACCOUNT_MISMATCH')
+            code,detail=call('/d1/database/'+OLD,'GET',READER)
+            report['methods'].append('GET_OLD_TARGET')
+            if code!=200 or not isinstance(detail,dict) or detail.get('success') is not True:
+              raise Guard('HISTORICAL_TARGET_NOT_READABLE')
+            d=detail.get('result')
+            if not isinstance(d,dict) or d.get('uuid')!=OLD or d.get('name')!=OLDNAME:
+              raise Guard('HISTORICAL_TARGET_NOT_MATCHED')
+            report['baseline_confirmed']=True
+            report['create_attempts']=1
+            report['methods'].append('POST_CREATE_EXACT_NAME_ONCE')
+            code,created=call('/d1/database','POST',ADMIN,{'name':NAME})
+            report['create_http']=code
+            if code not in (200,201) or not isinstance(created,dict) or created.get('success') is not True:
+              raise Guard('CREATE_REJECTED_OR_UNKNOWN_NO_RETRY')
+            d=created.get('result')
+            uid=d.get('uuid') if isinstance(d,dict) else None
+            if not isinstance(uid,str) or not re.fullmatch('[0-9a-f]{8}-[0-9a-f-]{27}',uid) or uid in read_baseline or d.get('name')!=NAME:
+              raise Guard('CREATE_RESULT_INVALID_NO_RETRY')
+            report['new_database_uuid']=uid
+            # Fresh reader-token readback, no second POST even on uncertainty.
+            code,after=call(PATH,'GET',READER)
+            report['methods'].append('GET_READBACK_USING_DR_READ')
+            report['postcreate_http']=code
+            rows=after.get('result') if isinstance(after,dict) else None
+            pagination=after.get('result_info') if isinstance(after,dict) else None
+            if not (code==200 and isinstance(after,dict) and after.get('success') is True
+                and isinstance(rows,list) and len(rows)==3 and isinstance(pagination,dict)
+                and type(pagination.get('count')) is int and pagination['count']==3
+                and type(pagination.get('total_count')) is int and pagination['total_count']==3
+                and type(pagination.get('page')) is int and pagination['page']==1
+                and all(isinstance(x,dict) and isinstance(x.get('uuid'),str) and isinstance(x.get('name'),str) for x in rows)):
+              raise Guard('READBACK_NOT_COMPLETE_NO_RETRY')
+            received={x['uuid']:x['name'] for x in rows}
+            if len(received)!=3 or any(received.get(k)!=v for k,v in read_baseline.items()) or received.get(uid)!=NAME:
+              raise Guard('READBACK_MISMATCH_NO_RETRY')
+            report['status']='CREATED_ONE_EMPTY_CANDIDATE_METADATA_ONLY'
+          except Guard as failure:
+            report['reason']=str(failure)
+            report['status']='STOPPED_OR_UNCERTAIN_NO_RETRY'
+          except Exception as failure:
+            report['reason_type']=type(failure).__name__
+            report['status']='UNEXPECTED_NO_RETRY'
+          data=(json.dumps(report,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-dr-create-oneuse-receipt.json');p.write_bytes(data)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_D1_CREATE='+report['status']+' SINGLE_POST_ATTEMPTS='+str(report['create_attempts']))
+          if report['status']!='CREATED_ONE_EMPTY_CANDIDATE_METADATA_ONLY':raise SystemExit(2)
+          PY
+      - name: Preserve sanitized exact-once write receipt and detached hash
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-dr-clean-create-owner-once-20261109
+          path: |
+            axiom-dr-create-oneuse-receipt.json
+            axiom-dr-create-oneuse-receipt.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
