@@ -26,12 +26,12 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Pin source and ten negative/positive contract cases before secret use
+      - name: Pin source and thirteen negative/positive contract cases before secret use
         shell: bash
         run: |
           set -euo pipefail
           test "$(git hash-object reasoning/phase2/cloudflare-staging/vpc_service_filter_triage.py)" = '7cb0b4e1286b24264370f027af4a22e26b67d549'
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_vpc_service_filter_triage.py)" = '3c581486a816f43fe218acf17c5e688c478c3913'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_vpc_service_filter_triage.py)" = '7d4a29554f1c864983b60043be38597bbfd5b557'
           cd reasoning/phase2/cloudflare-staging
           python3 -m py_compile vpc_service_filter_triage.py test_vpc_service_filter_triage.py
           python3 -m unittest -v test_vpc_service_filter_triage.py
