@@ -1,0 +1,139 @@
+name: MUSITU Corporate Public 33-URL Bing Sitemap One-Use Submission
+
+on:
+  push:
+    branches:
+      - ops/corporate-bing-current-sitemap-once-20261109
+    paths:
+      - .github/workflows/musitu-corporate-public33-bing-submit-once-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-public33-bing-submit-20261109
+  cancel-in-progress: false
+
+jobs:
+  exact-current-public-only:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-current-sitemap-once-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+    steps:
+      - name: Verify current live 33 URLs and submit ONLY its canonical sitemap if absent at Bing
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          """One-use owner-directed submission of the CURRENT public corporate sitemap only.
+
+          Never publish/submit unreleased Phase 03 (48 URL) content. Abort
+          on preflight or provider ambiguity. Don't log API keys, site
+          inventories, request URLs or raw provider responses.
+          """
+          import json, os, urllib.request, urllib.error, urllib.parse
+          import xml.etree.ElementTree as ET
+
+          key=os.environ.get("BING_WEBMASTER_API_KEY","").strip()
+          if not key:raise SystemExit("HOLD: authorized Bing Webmaster secret unavailable")
+          origin="https://mftintelligence.com"
+          site=origin+"/"
+          feed=origin+"/sitemap.xml"
+          api="https://ssl.bing.com/webmaster/api.svc/json/"
+
+          def request(url, method="GET", data=None, headers=None):
+              opts={"Accept":"application/json","User-Agent":"MUSITU-Corporate-Current33-Bing-Once/1.0"}
+              opts.update(headers or {})
+              req=urllib.request.Request(url,method=method,data=data,headers=opts)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as resp:
+                      if resp.status!=200:raise SystemExit("HOLD: unexpected upstream HTTP status")
+                      payload=resp.read(350001)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit("HOLD: upstream request rejected (HTTP "+str(exc.code)+", method "+method+")") from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: upstream request transport failed; do NOT retry ambiguous write") from None
+              if len(payload)>350000:raise SystemExit("HOLD: response exceeded bounded size")
+              return payload
+
+          # Independent public preflight: only the existing 33 production URLs.
+          xml=request(feed,headers={"Accept":"application/xml,text/xml"})
+          try:
+              root=ET.fromstring(xml)
+          except ET.ParseError:raise SystemExit("HOLD: public sitemap is not valid XML") from None
+          namespace="{http://www.sitemaps.org/schemas/sitemap/0.9}"
+          urls=[node.text for node in root.findall(namespace+"url/"+namespace+"loc")]
+          if (len(urls)!=33 or len(set(urls))!=33 or
+              origin+"/" not in urls or
+              any(not isinstance(u,str) or
+                  not u.startswith(origin+"/") or
+                  u.startswith(origin+"/fr/") or
+                  u.startswith(origin+"/research/articles/") or
+                  u==origin+"/404/" for u in urls)):
+              raise SystemExit("HOLD: published sitemap is no longer the approved 33 URL cohort; no provider write")
+          robots=request(origin+"/robots.txt",headers={"Accept":"text/plain"}).decode("utf-8","replace")
+          if "Disallow: /" in robots or ("Sitemap: "+feed) not in robots or "Allow: /" not in robots:
+              raise SystemExit("HOLD: public robots does not authorize current sitemap")
+          print("Preflight: exact existing 33 public URLs and robots: PASS")
+
+          def endpoint(method,**params):
+              return api+method+"?"+urllib.parse.urlencode({"apikey":key,**params})
+          def get(method,**params):
+              if method not in ("GetUserSites","GetFeeds"):
+                  raise SystemExit("HOLD: non-allowlisted authenticated GET")
+              payload=request(endpoint(method,**params))
+              try:obj=json.loads(payload)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: provider GET JSON unrecognized") from None
+              if not isinstance(obj,dict) or not isinstance(obj.get("d"),list):
+                  raise SystemExit("HOLD: provider GET result not a list")
+              return obj["d"]
+
+          matching=[]
+          for item in get("GetUserSites"):
+              if not isinstance(item,dict):continue
+              raw=item.get("Url") or item.get("SiteUrl")
+              if not isinstance(raw,str):continue
+              parsed=urllib.parse.urlsplit(raw)
+              if (parsed.scheme in ("http","https") and
+                  parsed.hostname=="mftintelligence.com" and
+                  not parsed.path.strip("/") and
+                  item.get("IsVerified",True) is not False):
+                  matching.append(raw)
+          if len(matching)!=1:
+              raise SystemExit("HOLD: exact verified Bing apex account not uniquely observed")
+
+          def exact_feeds():
+              result=[]
+              for item in get("GetFeeds",siteUrl=matching[0]):
+                  if not isinstance(item,dict):raise SystemExit("HOLD: invalid Bing feed inventory")
+                  if item.get("Url")==feed:result.append(item)
+              if len(result)>1:raise SystemExit("HOLD: duplicate canonical feed entries")
+              return result
+
+          if exact_feeds():
+              print("Bing exact current corporate sitemap: ALREADY_PRESENT; no duplicate submission")
+              print("Bing API write count: 0")
+          else:
+              # Strict one-time POST documented by Microsoft's SubmitFeed API.
+              # No retry on status/transport ambiguity: a later GET can be
+              # used to reconcile rather than accidentally submitting twice.
+              data=json.dumps({"siteUrl":matching[0],"feedUrl":feed},separators=(",",":")).encode("utf-8")
+              payload=request(endpoint("SubmitFeed"),method="POST",data=data,
+                              headers={"Content-Type":"application/json; charset=utf-8"})
+              try:obj=json.loads(payload)
+              except (ValueError,UnicodeError):
+                  raise SystemExit("HOLD: POST returned ambiguous JSON; no retry") from None
+              if not isinstance(obj,dict) or set(obj)!={"d"} or obj["d"] is not None:
+                  raise SystemExit("HOLD: POST acknowledgement was not documented d:null; no retry")
+              print("Bing SubmitFeed: HTTP 200 with expected d:null acknowledgment (CURRENT 33 public URL sitemap)")
+              found=bool(exact_feeds())
+              print("Bing exact canonical sitemap GET readback immediately after submission:", "PRESENT" if found else "PENDING_PROVIDER_PROPAGATION")
+              print("Bing API write count: exactly 1 POST; no retries")
+
+          print("Phase 03 48 URL sitemap submission: NOT_PERFORMED")
+          print("Phase 03 indexed URLs: NOT_CLAIMED")
+          print("Credentials, site inventory and provider response bodies: NOT_LOGGED")
+          PY
