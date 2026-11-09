@@ -81,6 +81,12 @@ jobs:
               raise SystemExit("HOLD: exact historic rollback deployment does not exist")
           prod=[d for d in deployments if isinstance(d,dict) and d.get("environment")=="production"]
           ids={d.get("id") for d in prod}
+          current=[d for d in prod if d.get("id")==expected_live]
+          if len(current)!=1 or (current[0].get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: qualified live production deployment not successful")
+          if restored.get("environment")!="production" or (restored.get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: historic target is not an eligible successful production deployment")
+          print("Current production and historic rollback are successful production deployments: PASS")
           print("Exact corporate Pages project, production branch and domain: PASS")
           print("Prior qualified production deployment still in inventory:",expected_live in ids)
           print("Historic rollback candidate exact GET: PASS")
