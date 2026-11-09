@@ -64,4 +64,45 @@ class TestReadOnlyPath(unittest.TestCase):
         self.assertEqual(x['classification'],'PRIVATE_NETWORK_INVENTORY_INCOMPLETE')
         self.assertEqual(x['services_incomplete_reason'],'PAGINATION_MISSING')
 
+
+    def test_no_healthy_tunnel_with_incomplete_service_catalog_denies_qualification(self):
+        tunnels = [{'tun_type':'cfd_tunnel','status':'inactive'},
+                   {'tun_type':'cfd_tunnel','status':'down'}]
+        summary = m.summarize({'services':{'http':200,'data':[],'info':None},
+                               'tunnels':response(tunnels)})
+        self.assertEqual(summary.get('blocking_reasons'), [
+            'VPC_SERVICE_INVENTORY_UNVERIFIED',
+            'NO_HEALTHY_TUNNEL_REPORTED',
+            'PRIVATE_ORIGIN_REACHABILITY_UNVERIFIED'])
+        self.assertFalse(summary['private_path_verified'])
+
+    def test_weak_and_unknown_tls_modes_are_denied_not_accepted_as_safe(self):
+        services = [{'type':'tcp','tcp_port':5432,'app_protocol':'postgresql',
+                     'tls_settings':{'cert_verification_mode':'disabled'}},
+                    {'type':'tcp','tcp_port':5432,'app_protocol':'postgresql',
+                     'tls_settings':{'cert_verification_mode':'unrecognized'}}]
+        summary=m.summarize({'services':response(services),'tunnels':response([
+            {'tun_type':'cfd_tunnel','status':'healthy'}])})
+        self.assertEqual(summary.get('postgres_vpc_service_non_strict_tls_count'), 2)
+        self.assertIn('POSTGRES_VPC_TLS_NOT_STRICT',summary.get('blocking_reasons',[]))
+        self.assertFalse(summary['private_path_verified'])
+
+    def test_documented_omitted_tls_defaults_to_verify_full_but_requires_live_evidence(self):
+        services=[{'type':'tcp','tcp_port':5432,'app_protocol':'postgresql'}]
+        summary=m.summarize({'services':response(services),'tunnels':response([
+            {'tun_type':'cfd_tunnel','status':'healthy'}])})
+        self.assertEqual(summary.get('postgres_vpc_service_non_strict_tls_count'), 0)
+        self.assertIn('PRIVATE_ORIGIN_REACHABILITY_UNVERIFIED',summary.get('blocking_reasons',[]))
+        self.assertFalse(summary['private_path_verified'])
+
+    def test_missing_postgres_service_and_tunnel_inventory_get_explicit_blockers(self):
+        services=[{'type':'http','http_port':443}]
+        summary=m.summarize({'services':response(services),
+                             'tunnels':{'http':403,'data':None,'info':None}})
+        self.assertEqual(summary.get('blocking_reasons'), [
+            'TUNNEL_INVENTORY_UNVERIFIED',
+            'NO_POSTGRES_VPC_SERVICE_IN_CHECKED_ACCOUNT',
+            'PRIVATE_ORIGIN_REACHABILITY_UNVERIFIED'])
+        self.assertFalse(summary['private_path_verified'])
+
 if __name__=='__main__': unittest.main()
