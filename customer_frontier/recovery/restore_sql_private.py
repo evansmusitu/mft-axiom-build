@@ -21,8 +21,9 @@ def restore(sql,output,expected=EXPECTED):
  if not isinstance(sql,bytes) or not 0<len(sql)<=8_000_000:raise ValueError('INVALID_EXPORT_SIZE')
  text=sql.decode('utf-8');path=Path(output)
  fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);os.close(fd)
- db=sqlite3.connect(path);deadline=time.monotonic()+10
+ db=None;completed=False
  try:
+  db=sqlite3.connect(path);deadline=time.monotonic()+10
   db.enable_load_extension(False);db.execute('PRAGMA foreign_keys=ON')
   def authorize(action,arg1,arg2,*_):
    if action in (sqlite3.SQLITE_ATTACH,sqlite3.SQLITE_DETACH):return sqlite3.SQLITE_DENY
@@ -46,10 +47,21 @@ def restore(sql,output,expected=EXPECTED):
     rows.append(json.dumps(values,sort_keys=True,separators=(',',':'),allow_nan=False))
    canonical=json.dumps({'columns':columns,'rows':sorted(rows)},sort_keys=True,separators=(',',':')).encode()
    tables.append({'table_name_sha256':sha(name.encode()),'rows':len(rows),'data_sha256':sha(canonical)})
+  completed=True
   return {'status':'LOCAL_USER_SQL_RESTORE_VERIFIED','user_objects':len(objects),'tables':sorted(tables,key=lambda v:v['table_name_sha256']),
    'user_data_sha256':sha(json.dumps(sorted(tables,key=lambda v:v['table_name_sha256']),sort_keys=True,separators=(',',':')).encode()),
    'scope':'fresh local SQLite user SQL only; not hosted D1 or internal metadata recovery','hosted_restore_qualified':False,'target_admitted':False,'release_authority':False}
- finally:db.close()
+ finally:
+  try:
+   if db is not None:db.close()
+  finally:
+   if not completed:
+    # Never retain a decrypted database from a failed integrity/DDL check.
+    # The output was created exclusively (O_EXCL), so it was not an existing
+    # operator database. Remove SQLite sidecars after closing the connection.
+    for suffix in ('','-journal','-wal','-shm'):
+     try:Path(str(path)+suffix).unlink(missing_ok=True)
+     except OSError as exc:raise RuntimeError('PRIVATE_RESTORE_CLEANUP_UNCONFIRMED') from exc
 
 if __name__=='__main__':
  parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);args=parser.parse_args()
