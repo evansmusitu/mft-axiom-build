@@ -46,7 +46,15 @@ jobs:
                       data=r.read(1000001)
                       if r.status!=200:raise SystemExit("HOLD: Cloudflare HTTP status is not 200")
               except urllib.error.HTTPError as exc:
-                  raise SystemExit("HOLD: Cloudflare rejected GET (HTTP "+str(exc.code)+")") from None
+                  provider_code="unknown"
+                  try:
+                      body=json.loads(exc.read(4096))
+                      errors=body.get("errors",[]) if isinstance(body,dict) else []
+                      if errors and isinstance(errors[0],dict) and isinstance(errors[0].get("code"),int):
+                          provider_code=str(errors[0]["code"])
+                  except (ValueError,UnicodeError,TypeError):
+                      pass
+                  raise SystemExit("HOLD: Cloudflare GET rejected HTTP "+str(exc.code)+", provider error code "+provider_code) from None
               except (urllib.error.URLError,TimeoutError):
                   raise SystemExit("HOLD: Cloudflare GET failed") from None
               if len(data)>1000000:raise SystemExit("HOLD: Cloudflare response too large")
