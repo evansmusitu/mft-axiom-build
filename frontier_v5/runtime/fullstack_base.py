@@ -279,6 +279,10 @@ class CloudflareD1ProductionStore:
     def __init__(self, account_id: str, database_id: str, email: str = "", global_api_key: str = "", api_token: str = "") -> None:
         if database_id == self.SEALED_AXIOM_DB:
             raise AuthorizationError("frontier persistence must not use the sealed Axiom production DB")
+        # Legacy D1 adapter is unsafe even when the target is not the
+        # specifically known sealed UUID. No live/staging provider write is
+        # allowed until an independently reviewed replacement is admitted.
+        raise AuthorizationError("MUSITU_AXIOM_FRONTIER_LEGACY_D1_WRITES_DISABLED_NOT_RELEASE")
         if not account_id or not database_id or not (api_token or (email and global_api_key)):
             raise ValueError("Cloudflare D1 credentials and IDs required")
         self.account_id = account_id
@@ -296,6 +300,9 @@ class CloudflareD1ProductionStore:
             self.headers["X-Auth-Key"] = global_api_key
 
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
+        # Defence in depth: object.__new__ or deserialization must not bypass
+        # the constructor veto and reach the production Cloudflare endpoint.
+        raise AuthorizationError("MUSITU_AXIOM_FRONTIER_LEGACY_D1_WRITES_DISABLED_NOT_RELEASE")
         obj: dict[str, Any] = {"sql": sql}
         if params is not None:
             obj["params"] = list(params)
@@ -317,6 +324,7 @@ class CloudflareD1ProductionStore:
         return rows
 
     def migrate(self) -> None:
+        raise AuthorizationError("MUSITU_AXIOM_FRONTIER_LEGACY_D1_WRITES_DISABLED_NOT_RELEASE")
         for sql in (
             "CREATE TABLE IF NOT EXISTS frontier_memory(tenant TEXT NOT NULL, namespace TEXT NOT NULL, k TEXT NOT NULL, record_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, observed_at TEXT NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_frontier_memory_lookup ON frontier_memory(tenant,namespace,k,observed_at)",
