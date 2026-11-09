@@ -380,31 +380,33 @@ class PlaywrightBrowserAdapter:
 
 
 class SandboxedComputerAdapter:
-    """Non-shell application/computer adapter constrained to a working root."""
+    """Fail closed until an actual isolated namespace runner is pinned.
 
-    def __init__(self, root: str | Path, allowed_executables: Iterable[str]) -> None:
+    No host subprocess fallback. This is a local candidate, not an external
+    production security attestation.
+    """
+
+    def __init__(self, root: str | Path, allowed_executables: Iterable[str], *,
+                 sandbox_rootfs: str | Path | None = None, rootfs_sha256: str | None = None) -> None:
+        from .linux_namespace_sandbox import LinuxNamespaceSandbox
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.allowed = frozenset(str(x) for x in allowed_executables)
-        if not self.allowed:
-            raise ValueError("allowed executables required")
+        allowed = tuple(str(x) for x in allowed_executables)
+        if not allowed or any(not x.startswith('/') for x in allowed):
+            raise ValueError('absolute sandbox executable allowlist required')
+        if sandbox_rootfs is None or rootfs_sha256 is None:
+            self._runner = None
+        else:
+            self._runner = LinuxNamespaceSandbox(sandbox_rootfs, rootfs_sha256, allowed)
 
     def run(self, argv: Sequence[str], timeout: int = 30, env: Mapping[str, str] | None = None) -> dict[str, Any]:
         if not argv:
-            raise ValueError("argv required")
-        exe = Path(argv[0]).name
-        if exe not in self.allowed:
-            raise AuthorizationError("computer executable not allowlisted")
-        proc = subprocess.run(list(argv), cwd=self.root, env=dict(os.environ, **(dict(env or {}))),
-                              capture_output=True, text=True, timeout=timeout, shell=False)
-        if proc.returncode != 0:
-            raise FrontierError(f"computer action failed: {exe} rc={proc.returncode}")
-        return {
-            "argv_sha256": _sha(list(argv)),
-            "stdout": proc.stdout,
-            "stderr_sha256": _sha_bytes(proc.stderr.encode()),
-            "returncode": proc.returncode,
-        }
+            raise ValueError('argv required')
+        if env:
+            raise AuthorizationError('unreviewed child environment denied')
+        if self._runner is None:
+            raise AuthorizationError('OS sandbox is mandatory, no host subprocess fallback')
+        return self._runner.run(argv, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
