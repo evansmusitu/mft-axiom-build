@@ -71,11 +71,11 @@ class NamespaceSecurity(unittest.TestCase):
     def test_unbounded_output_denied(self):
         with tempfile.TemporaryDirectory() as work:
             a=self.adapter(work)
-            with self.assertRaises(FrontierError):a.run(['/usr/bin/python3','-I','-S','-c','print("X"*150000)'])
+            with self.assertRaisesRegex(FrontierError,'sandbox output exceeded limit'):a.run(['/usr/bin/python3','-I','-S','-c','print("X"*150000)'])
 
     def test_timeout_denied(self):
         with tempfile.TemporaryDirectory() as work:
             a=self.adapter(work)
-            with self.assertRaises(FrontierError):a.run(['/usr/bin/python3','-I','-S','-c','while True: pass'],timeout=1)
+            with self.assertRaisesRegex(FrontierError,'sandbox time limit exceeded'):a.run(['/usr/bin/python3','-I','-S','-c','while True: pass'],timeout=1)
 
 if __name__=='__main__':unittest.main()
