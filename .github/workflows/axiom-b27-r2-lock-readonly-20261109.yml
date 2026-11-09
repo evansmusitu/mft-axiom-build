@@ -1,0 +1,107 @@
+name: AXIOM B27 independent R2 lock provider readback — NO RELEASE
+on:
+  push:
+    branches: [audit/axiom-b27-r2-lock-readonly-20261109]
+    paths: [.github/workflows/axiom-b27-r2-lock-readonly-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-b27-r2-lock-readonly-20261109
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-b27-r2-lock-readonly-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Exact-account GET-only R2 inventory and irreversible-policy evidence
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error,urllib.parse
+          from pathlib import Path
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          tok=os.getenv('TOKEN','')
+          report={'schema':'axiom.b27.a2.r2_lock_readonly_20261109.v1',
+                  'account':ACCOUNT,'provider_writes':0,'content_reads':0,
+                  'customer_data_accessed':False,'public_release':False,
+                  'independent_custody_certified':False,'b27_global_antirollback_certified':False,
+                  'bucket_inventory_pages':[],'candidate_buckets':[],
+                  'status':'NO_AUTHORIZED_READBACK'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def get(path):
+            if not path.startswith('/r2/buckets'):raise ValueError('PATH_REFUSED')
+            headers={'authorization':'Bearer '+tok,'accept':'application/json'}
+            try:
+              with opener.open(urllib.request.Request(ROOT+path,method='GET',headers=headers),timeout=18) as r:
+                status=r.status;raw=r.read(200001)
+            except urllib.error.HTTPError as e:
+              return e.code,None
+            except Exception:return 'TRANSPORT_UNKNOWN',None
+            if len(raw)>200000:return 'OVERSIZE',None
+            try:d=json.loads(raw)
+            except Exception:return 'INVALID_JSON',None
+            return status,d
+          try:
+            if not tok or '\r' in tok or '\n' in tok:raise ValueError('TOKEN_NOT_CONFIGURED')
+            cursor=''
+            for page in range(3):
+              path='/r2/buckets'+('?cursor='+urllib.parse.quote(cursor,safe='') if cursor else '')
+              status,doc=get(path)
+              good=status==200 and isinstance(doc,dict) and doc.get('success') is True
+              report['bucket_inventory_pages'].append({'page':page+1,'http':status,'success':good})
+              if not good:raise ValueError('R2_BUCKET_INVENTORY_NOT_READABLE')
+              result=doc.get('result')
+              items=result.get('buckets') if isinstance(result,dict) else None
+              if not isinstance(items,list):raise ValueError('R2_BUCKET_LIST_SHAPE_UNKNOWN')
+              for item in items:
+                if not isinstance(item,dict) or not isinstance(item.get('name'),str):raise ValueError('R2_BUCKET_METADATA_DRIFT')
+                name=item['name']
+                if re.search(r'(axiom.*(b27|highwater|authority)|(?:b27|highwater|authority).*axiom)',name,re.I):
+                  if not re.fullmatch(r'[a-z0-9][a-z0-9-]{1,62}',name):raise ValueError('R2_CANDIDATE_NAME_INVALID')
+                  lock_http,lock=get('/r2/buckets/'+name+'/lock')
+                  rules=lock.get('result',{}).get('rules') if isinstance(lock,dict) else None
+                  if not isinstance(rules,list):rules=[]
+                  indefinite=[rule for rule in rules if isinstance(rule,dict) and rule.get('enabled') is True
+                    and isinstance(rule.get('condition'),dict)
+                    and rule['condition'].get('type')=='Indefinite'
+                    and (not rule.get('prefix') or 'b27/'.startswith(rule['prefix']))]
+                  report['candidate_buckets'].append({'name':name,'lock_http':lock_http,
+                    'lock_success':isinstance(lock,dict) and lock.get('success') is True,
+                    'indefinite_b27_coverage':bool(indefinite),'rule_count':len(rules)})
+              info=doc.get('result_info') if isinstance(doc.get('result_info'),dict) else {}
+              next_cursor=info.get('cursor') or (result.get('cursor') if isinstance(result,dict) else None)
+              if not next_cursor:cursor='';break
+              if not isinstance(next_cursor,str) or len(next_cursor)>1024:raise ValueError('R2_CURSOR_INVALID')
+              cursor=next_cursor
+            if cursor:raise ValueError('R2_PAGINATION_NOT_EXHAUSTIVE')
+            report['status']='R2_ACCOUNT_INVENTORY_READ_ONLY_PASS'
+          except Exception as e:
+            report['status']='R2_READBACK_BLOCKED'
+            report['reason']=str(e) if str(e) in ('TOKEN_NOT_CONFIGURED','R2_BUCKET_INVENTORY_NOT_READABLE','R2_BUCKET_LIST_SHAPE_UNKNOWN','R2_BUCKET_METADATA_DRIFT','R2_CANDIDATE_NAME_INVALID','R2_CURSOR_INVALID','R2_PAGINATION_NOT_EXHAUSTIVE') else 'UNEXPECTED_OR_TRANSPORT'
+          raw=(json.dumps(report,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-b27-r2-readonly-20261109.json');p.write_bytes(raw)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
+          print('B27_R2_STATUS='+report['status']+' CANDIDATES='+str(len(report['candidate_buckets'])))
+          if report['status']!='R2_ACCOUNT_INVENTORY_READ_ONLY_PASS':raise SystemExit(2)
+          PY
+      - name: Archive safe status and checksum even on denial
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-b27-r2-lock-readonly-20261109
+          path: |
+            axiom-b27-r2-readonly-20261109.json
+            axiom-b27-r2-readonly-20261109.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
