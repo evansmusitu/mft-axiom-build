@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import {createHash,generateKeyPairSync,sign,verify,createPublicKey} from 'node:crypto';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {wormAppend,wormReadback,wormKey} from './authority2-r2-worm.mjs';
 
 const SCHEMA='musitu.axiom.b27.crosshost.synthetic.v1';
@@ -119,7 +120,13 @@ async function verifier(dir){
   console.log('AXIOM_B27_TWO_HOST_DESTRUCTIVE_REPLAY_DENIED_SYNTHETIC_NOT_RELEASE');
   console.log('B27_CLOUDFLARE_PROVIDER_INDEPENDENCE_AND_ADMIN_NONROLLBACK_NOT_PROVEN');
 }
-const [mode,dirArg]=process.argv.slice(2);
-if(!['produce','verify'].includes(mode)||!dirArg)throw Error('usage: node b27-crosshost-checkpoint.mjs produce|verify OUTPUT_DIR');
-const dir=resolve(dirArg);
-if(mode==='produce')await producer(dir);else await verifier(dir);
+// Export only the pure proof verifier/fixture to run hostile signed-evidence
+// regressions without triggering CLI mode or filesystem writes on import.
+export {verifyEnvelope,makeEvidence,digest,canon};
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  const [mode,dirArg]=process.argv.slice(2);
+  if(!['produce','verify'].includes(mode)||!dirArg)
+    throw Error('usage: node b27-crosshost-checkpoint.mjs produce|verify OUTPUT_DIR');
+  const dir=resolve(dirArg);
+  if(mode==='produce')await producer(dir);else await verifier(dir);
+}
