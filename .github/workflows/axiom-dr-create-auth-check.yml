@@ -1,0 +1,115 @@
+name: AXIOM DR D1 credential authorization inventory (GET only, NO RELEASE)
+on:
+  push:
+    branches: [ops/axiom-dr-create-auth-check-20261109]
+    paths: [.github/workflows/axiom-dr-create-auth-check.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-create-auth-check-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact account with secret candidates by GET and attest only name presence, access and token scope
+        shell: bash
+        env:
+          DR_READ: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+          MAIN_SCOPED: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          STAGE_RULE: ${{ secrets.CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN }}
+          D1_WRITE: ${{ secrets.CLOUDFLARE_D1_WRITE_TOKEN }}
+          D1_API: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_API_TOKEN }}
+          DR_WRITE: ${{ secrets.CLOUDFLARE_AXIOM_DR_WRITE_TOKEN }}
+          CF_GLOBAL: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          A='c954f0c842a486d0388c05b19cd21e47'
+          ROOT='https://api.cloudflare.com/client/v4'
+          NAMES={'DR_READ':'CLOUDFLARE_AXIOM_DR_READ_TOKEN',
+                 'MAIN_SCOPED':'CLOUDFLARE_API_TOKEN',
+                 'STAGE_RULE':'CLOUDFLARE_STAGING_CONFIG_RULES_TOKEN',
+                 'D1_WRITE':'CLOUDFLARE_D1_WRITE_TOKEN',
+                 'D1_API':'CLOUDFLARE_D1_API_TOKEN',
+                 'CF_ACCOUNT':'CLOUDFLARE_ACCOUNT_API_TOKEN',
+                 'DR_WRITE':'CLOUDFLARE_AXIOM_DR_WRITE_TOKEN'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**kw):return None
+          op=urllib.request.build_opener(NoRedirect)
+          def get(path,token=None,key=None,email=None):
+              headers={'accept':'application/json'}
+              if token:headers['authorization']='Bearer '+token
+              if key and email:headers.update({'x-auth-key':key,'x-auth-email':email})
+              if not path.startswith(('/accounts/'+A+'/','/user/tokens/')):return 0,None
+              req=urllib.request.Request(ROOT+path,headers=headers,method='GET')
+              try:
+                  with op.open(req,timeout=14) as res:status=res.status;raw=res.read(100001)
+              except urllib.error.HTTPError as exc:
+                  status=exc.code;raw=b''
+              except (OSError,TimeoutError,ValueError):return 'TRANSPORT',None
+              try:d=json.loads(raw)
+              except (ValueError,UnicodeError):d=None
+              return status,d if isinstance(d,dict) and d.get('success') is True else None
+          out={'schema':'AXIOM_DR_D1_WRITE_CREDENTIAL_DISCOVERY_GET_ONLY_V1',
+               'target_account':A,'db_create_permission_required':'D1 Write',
+               'provider_mutations':0,'sql_queries':0,'production_oauth_touched':False,'credentials':{}}
+          for env,name in NAMES.items():
+              value=os.environ.get(env,'')
+              info={'present':bool(value),'prefix_type':'account_token' if value.startswith('cfat_') else
+                    ('user_token' if value.startswith('cfut_') else 'unknown'),
+                    'account_d1_list_http':None,'token_active':None,'scope_proven':False,
+                    'explicit_d1_write':False}
+              if value and not any(c in value for c in '\r\n'):
+                  code,body=get('/accounts/'+A+'/d1/database?per_page=100&page=1',token=value)
+                  info['account_d1_list_http']=code
+                  path=('/accounts/'+A+'/tokens/verify' if value.startswith('cfat_') else '/user/tokens/verify')
+                  # A user-token endpoint is under /user/tokens, account is pinned to target A
+                  vcode,v=get(path,token=value)
+                  result=v.get('result') if isinstance(v,dict) else None
+                  info['token_active']=bool(vcode==200 and isinstance(result,dict) and result.get('status')=='active')
+                  tokenid=result.get('id') if isinstance(result,dict) else None
+                  if info['token_active'] and isinstance(tokenid,str) and re.fullmatch(r'[a-f0-9]{32}',tokenid):
+                      p='/accounts/'+A+'/tokens/'+tokenid if value.startswith('cfat_') else '/user/tokens/'+tokenid
+                      dcode,details=get(p,token=value)
+                      data=details.get('result') if isinstance(details,dict) else None
+                      if dcode==200 and isinstance(data,dict) and isinstance(data.get('policies'),list):
+                          for policy in data['policies']:
+                              if not isinstance(policy,dict):continue
+                              resource=policy.get('resources',{})
+                              groups=policy.get('permission_groups',[])
+                              account_ok=isinstance(resource,dict) and any(A in str(k) for k in resource)
+                              perms=[str(g.get('name','')) for g in groups if isinstance(g,dict)]
+                              if account_ok and any('D1 Write' in n or n.lower()=='d1:write' for n in perms):
+                                  info['explicit_d1_write']=True;info['scope_proven']=True
+              out['credentials'][name]=info
+          key=os.environ.get('CF_GLOBAL','')
+          email=os.environ.get('CF_EMAIL','')
+          out['legacy_global_key']={'present':bool(key),'email_present':bool(email),
+                                   'account_d1_list_http':None,
+                                   'not_authorized_for_automatic_creation':True}
+          if key and email and not any(c in key+email for c in '\r\n'):
+              code,_=get('/accounts/'+A+'/d1/database?per_page=100&page=1',key=key,email=email)
+              out['legacy_global_key']['account_d1_list_http']=code
+          payload=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-dr-create-credential-readonly.json');p.write_bytes(payload)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(payload).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_DR_CREATE_CREDENTIAL_GET_ONLY_COMPLETE; provider_mutations=0')
+          PY
+      - name: Archive sanitized credential capability matrix and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-dr-create-credential-readonly-20261109
+          path: |
+            axiom-dr-create-credential-readonly.json
+            axiom-dr-create-credential-readonly.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
