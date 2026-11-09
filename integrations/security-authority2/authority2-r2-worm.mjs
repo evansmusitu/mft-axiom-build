@@ -23,7 +23,17 @@ export async function wormReadback(bucket,pin,tip){
   if(!bucket||typeof bucket.head!=='function'||typeof bucket.get!=='function'||typeof bucket.put!=='function')hold('HIGHWATER_WORM_BINDING_MISSING_HOLD');
   if(!Number.isSafeInteger(tip?.sequence)||tip.sequence< -1||tip.sequence>1000000||!H64.test(tip?.head))hold('HIGHWATER_WORM_TIP_INVALID_HOLD');
   if(await bucket.head(wormKey(pin,tip.sequence+1)))hold('HIGHWATER_WORM_ROLLBACK_DETECTED_HOLD');
-  if(tip.sequence>=0){const record=await readRecord(bucket,pin,tip.sequence);if(record.head!==tip.head)hold('HIGHWATER_WORM_HEAD_MISMATCH_HOLD');}
+  if(tip.sequence>=0){
+    const record=await readRecord(bucket,pin,tip.sequence);
+    if(record.head!==tip.head)hold('HIGHWATER_WORM_HEAD_MISMATCH_HOLD');
+    if(tip.sequence>=1){
+      // Check the R2 record's predecessor independently of the restorable DO tip.
+      if(record.previous_sequence!==tip.sequence-1)hold('HIGHWATER_WORM_PREDECESSOR_SEQUENCE_MISMATCH_HOLD');
+      if(!H64.test(record.previous_head))hold('HIGHWATER_WORM_PREDECESSOR_HASH_MISMATCH_HOLD');
+      const predecessor=await readRecord(bucket,pin,tip.sequence-1);
+      if(record.previous_head!==predecessor.head)hold('HIGHWATER_WORM_PREDECESSOR_HASH_MISMATCH_HOLD');
+    }
+  }
   return true;
 }
 export async function wormAppend(bucket,pin,record){
