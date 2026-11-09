@@ -1,0 +1,211 @@
+name: MUSITU Phase 03 Protected 49-Route Review Preview (NO INDEXING)
+
+on:
+  push:
+    branches: [ops/corporate-bing-sitemap-readonly-20261109]
+    paths: [.github/workflows/musitu-phase03-review-only-protected-preview-20261109.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-phase03-review-only-preview-20261109
+  cancel-in-progress: false
+
+jobs:
+  exact-source-private-review:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Before any upload, prove exact production identity and wildcard Access restrictions
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request
+          account=os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          key=os.getenv("CLOUDFLARE_API_TOKEN","").strip()
+          if not key:raise SystemExit("HOLD: Cloudflare token missing")
+          base="https://api.cloudflare.com/client/v4/accounts/"+account
+          def get(path):
+              if not (path=="/pages/projects/musitu-corporate" or path=="/access/apps?per_page=100" or
+                      (path.startswith("/access/apps/") and path.endswith("/policies"))):
+                  raise SystemExit("HOLD: unauthorized provider preflight path")
+              req=urllib.request.Request(base+path,method="GET",
+                  headers={"Authorization":"Bearer "+key,"Accept":"application/json","User-Agent":"MUSITU-Phase03-ProtectedReview/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      if r.status!=200:raise SystemExit("HOLD: non-200 provider response")
+                      body=r.read(500001)
+              except urllib.error.HTTPError as e:
+                  raise SystemExit("HOLD: provider verification refused HTTP "+str(e.code)) from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: provider verification transport unavailable") from None
+              if len(body)>500000:raise SystemExit("HOLD: provider read oversized")
+              try:obj=json.loads(body)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: provider JSON malformed") from None
+              if not isinstance(obj,dict) or obj.get("success") is not True:
+                  raise SystemExit("HOLD: provider success missing")
+              return obj.get("result")
+          p=get("/pages/projects/musitu-corporate")
+          if not isinstance(p,dict) or p.get("name")!="musitu-corporate" or p.get("production_branch")!="main" or (
+              "mftintelligence.com" not in p.get("domains",[])) or ((p.get("source") or {}).get("type")):
+              raise SystemExit("HOLD: corporate Pages identity mismatch")
+          current=p.get("canonical_deployment") or {}
+          if current.get("environment")!="production" or (current.get("latest_stage") or {}).get("status")!="success" or (
+              ((current.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9"):
+              raise SystemExit("HOLD: corporate live baseline drift")
+          apps=get("/access/apps?per_page=100")
+          if not isinstance(apps,list):raise SystemExit("HOLD: Access inventory not a list")
+          matched=[]
+          for app in apps:
+              if not isinstance(app,dict) or app.get("type")!="self_hosted":continue
+              domains={app.get("domain")}
+              for d in app.get("self_hosted_domains") or []:
+                  if isinstance(d,dict):domains.add(d.get("domain"))
+                  elif isinstance(d,str):domains.add(d)
+              for destination in app.get("destinations") or []:
+                  if isinstance(destination,dict):
+                      uri=destination.get("uri","")
+                      if isinstance(uri,str):domains.add(uri.split("://")[-1].split("/")[0])
+                      if any(isinstance(o,dict) and o.get("behavior")=="public" for o in (destination.get("overrides") or [])):
+                          raise SystemExit("HOLD: public Access override")
+              if "*.musitu-corporate.pages.dev" in domains:matched.append(app)
+          if len(matched)!=1 or not isinstance(matched[0].get("id"),str):
+              raise SystemExit("HOLD: exact protected corporate wildcard is not uniquely confirmed")
+          rules=get("/access/apps/"+matched[0]["id"]+"/policies")
+          if not isinstance(rules,list) or not rules:raise SystemExit("HOLD: preview Access policies absent")
+          decisions={r.get("decision") or r.get("action") for r in rules if isinstance(r,dict)}
+          if "bypass" in decisions or "non_identity" in decisions or not ({"allow","deny"}&decisions):
+              raise SystemExit("HOLD: anonymous/public Access bypass or no restriction")
+          print("Exact live corporate baseline and wildcard Access restrictions: PASS")
+          print("Production mutations: 0; reviewer content not yet uploaded")
+          PY
+      - name: Build exact Phase 03 49-route NONINDEXABLE review artifact with approved Studio media
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-phase03-restricted-review
+          test "$(git -C /tmp/musitu-phase03-restricted-review rev-parse HEAD)" = "4c4489e569a4abbef97cf16614439478f756667b"
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-phase03-restricted-review/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-phase03-restricted-review/corporate/assets/studio-poster.png
+          printf '%s  %s\n' 'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-phase03-restricted-review/corporate/assets/studio-demo-82s.mp4' | sha256sum --check
+          printf '%s  %s\n' '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-phase03-restricted-review/corporate/assets/studio-poster.png' | sha256sum --check
+          (
+            cd /tmp/musitu-phase03-restricted-review/corporate
+            MUSITU_BUILD_MODE=review MUSITU_PUBLISH_PHASE03=1 MUSITU_PROTECTED_STAGING_MEDIA=1 python3 scripts/build.py
+          )
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          from html.parser import HTMLParser
+          d=Path("/tmp/musitu-phase03-restricted-review/corporate/dist")
+          m=json.loads((d/"manifest.json").read_text())
+          if not (m.get("build_mode")=="review" and m.get("route_count")==49 and
+              len(m.get("phase03_publication_routes",[]))==15 and
+              m.get("phase03_publication_indexable") is False and
+              m.get("indexing_enabled") is False and
+              m.get("production_approved") is False and
+              m.get("studio_media_included") is True):
+              raise SystemExit("HOLD: unexpected nonpublic Phase 03 manifest")
+          if (d/"robots.txt").read_text().splitlines()!=["User-agent: *","Disallow: /"]:
+              raise SystemExit("HOLD: review robots is not deny-all")
+          if (d/"sitemap.xml").exists():
+              raise SystemExit("HOLD: review artifact unexpectedly has a public sitemap")
+          pages=list(d.rglob("index.html"))
+          if len(pages)!=49:raise SystemExit("HOLD: wrong Phase 03 review page count")
+          class IndexSignals(HTMLParser):
+              def __init__(self):super().__init__();self.robots=[];self.canonical=[];self.jsonld=[]
+              def handle_starttag(self,tag,attrs):
+                  a=dict(attrs)
+                  if tag=="meta" and a.get("name")=="robots":self.robots.append(a.get("content"))
+                  if tag=="link" and a.get("rel")=="canonical":self.canonical.append(a.get("href"))
+                  if tag=="script" and a.get("type")=="application/ld+json":self.jsonld.append("JSONLD")
+          for page in pages+[d/"404.html"]:
+              p=IndexSignals()
+              p.feed(page.read_text())
+              if p.robots!=["noindex,nofollow"] or p.canonical or p.jsonld:
+                  raise SystemExit("HOLD: a review HTML page exposes indexable SEO metadata")
+          if (d/"404.html").read_bytes()!=(d/"404"/"index.html").read_bytes():
+              raise SystemExit("HOLD: top-level Pages 404 bytes mismatch")
+          print("REVIEW ARTIFACT PASS: 49 HTML routes, 12 articles, 3 French pilots, all noindex")
+          print("REVIEW ROBOTS: disallow all; sitemap absent; 404 correct; production approval FALSE")
+          print("SOURCE: exact CI-qualified 4c4489e; no production date asserted")
+          PY
+      - name: Deploy review-only nonindexable content to Access-protected preview branch, never production
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 pages deploy /tmp/musitu-phase03-restricted-review/corporate/dist --project-name=musitu-corporate --branch=phase03-restricted-owner-review-20261109 --commit-hash=4c4489e569a4abbef97cf16614439478f756667b --commit-message="MUSITU Phase03 owner-only 49-page noindex review; not production"
+      - name: Independently verify exact preview, deny anonymous access, and unchanged production
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.parse,urllib.request
+          root="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/pages/projects/musitu-corporate"
+          key=os.environ["CLOUDFLARE_API_TOKEN"]
+          def get(path):
+              if path not in ("","/deployments?per_page=10"):raise SystemExit("HOLD: unexpected Cloudflare read")
+              req=urllib.request.Request(root+path,method="GET",
+                  headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as res:
+                      obj=json.loads(res.read(500001))
+              except urllib.error.HTTPError as e:
+                  raise SystemExit("HOLD: Cloudflare deployment readback HTTP "+str(e.code)) from None
+              if not isinstance(obj,dict) or obj.get("success") is not True:
+                  raise SystemExit("HOLD: provider did not verify deployment")
+              return obj.get("result")
+          project=get("")
+          if ((project.get("canonical_deployment") or {}).get("deployment_trigger") or {}).get("metadata",{}).get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9":
+              raise SystemExit("HOLD: production has changed during private preview")
+          deployments=get("/deployments?per_page=10")
+          exact=[d for d in deployments if isinstance(d,dict) and d.get("environment")=="preview" and (
+              ((d.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")=="4c4489e569a4abbef97cf16614439478f756667b")]
+          if len(exact)!=1 or (exact[0].get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: exact successful restricted preview deployment not proved")
+          uri=exact[0].get("url","")
+          parts=urllib.parse.urlsplit(uri)
+          if parts.scheme!="https" or not parts.hostname or not parts.hostname.endswith(".musitu-corporate.pages.dev"):
+              raise SystemExit("HOLD: unexpected protected preview host")
+          for path in ("/","/fr/","/research/articles/model-risk-governance-2026/"):
+              u=uri.rstrip("/")+path
+              req=urllib.request.Request(u,method="GET",
+                  headers={"User-Agent":"MUSITU-Anonymous-Access-Denial-Test/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      status=r.status
+                      final=r.url
+                      body=r.read(150001)
+              except urllib.error.HTTPError as e:
+                  status=e.code
+                  final=e.url
+                  body=e.read(150001)
+              if status in (401,403):continue
+              if status!=200:raise SystemExit("HOLD: anonymous preview unrecognized response")
+              low=body.lower()
+              if (b'<main id="main"' in low or b'<article class="section shell phase03-article"' in low or
+                  not (b'cloudflare access' in low or b'login' in low or
+                       urllib.parse.urlsplit(final).hostname and urllib.parse.urlsplit(final).hostname.endswith(".cloudflareaccess.com"))):
+                  raise SystemExit("HOLD: anonymous user could retrieve private preview content")
+          print("EXACT-SHA 49-PAGE NOINDEX PREVIEW: deployed to nonproduction and verified")
+          print("ANONYMOUS ACCESS: DENIED or Cloudflare Access sign-in for homepage/French/article")
+          print("PRODUCTION: prior 404 maintenance remains active; unchanged")
+          print("PHASE03 PUBLICATION: NOT PERFORMED")
+          print("PROVIDER WRITES: one nonproduction preview upload, zero production/SEO changes")
+          print("PRIVATE PREVIEW URL AND CONTENT: NOT LOGGED")
+          PY
