@@ -380,23 +380,29 @@ class PlaywrightBrowserAdapter:
 
 
 class SandboxedComputerAdapter:
-    """Fail closed until an actual isolated namespace runner is pinned.
+    """Fail closed until one explicitly pinned OS isolation driver is configured.
 
     No host subprocess fallback. This is a local candidate, not an external
     production security attestation.
     """
 
     def __init__(self, root: str | Path, allowed_executables: Iterable[str], *,
-                 sandbox_rootfs: str | Path | None = None, rootfs_sha256: str | None = None) -> None:
-        from .linux_namespace_sandbox import LinuxNamespaceSandbox
+                 sandbox_rootfs: str | Path | None = None, rootfs_sha256: str | None = None,
+                 oci_image_id: str | None = None) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         allowed = tuple(str(x) for x in allowed_executables)
         if not allowed or any(not x.startswith('/') for x in allowed):
             raise ValueError('absolute sandbox executable allowlist required')
-        if sandbox_rootfs is None or rootfs_sha256 is None:
+        if oci_image_id is not None and (sandbox_rootfs is not None or rootfs_sha256 is not None):
+            raise AuthorizationError('multiple sandbox drivers are forbidden')
+        if oci_image_id is not None:
+            from .docker_isolated_sandbox import DockerIsolatedSandbox
+            self._runner = DockerIsolatedSandbox(oci_image_id, allowed)
+        elif sandbox_rootfs is None or rootfs_sha256 is None:
             self._runner = None
         else:
+            from .linux_namespace_sandbox import LinuxNamespaceSandbox
             self._runner = LinuxNamespaceSandbox(sandbox_rootfs, rootfs_sha256, allowed)
 
     def run(self, argv: Sequence[str], timeout: int = 30, env: Mapping[str, str] | None = None) -> dict[str, Any]:
