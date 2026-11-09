@@ -1,0 +1,22 @@
+name: AXIOM historical empty-state rollback credential-free 9 denial tests
+on:
+  push:
+    branches: [ops/axiom-historical-rollback-static-20261109]
+permissions:
+  contents: read
+jobs:
+  test:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Pin exact target-only source and run 9 denial/rollback contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/axiom_isolated_historical_rollback_20261109.py)" = '69ac78737776dec38d3fe028e0d422a96b6c0c63'
+          test "$(git hash-object customer_frontier/qualification/test_axiom_isolated_historical_rollback_20261109.py)" = '22b771dfded40d401d83a1a017b40810037b4a54'
+          python3 -m py_compile customer_frontier/qualification/axiom_isolated_historical_rollback_20261109.py customer_frontier/qualification/test_axiom_isolated_historical_rollback_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_axiom_isolated_historical_rollback_20261109.py)
