@@ -1,0 +1,37 @@
+name: AXIOM Phase2 single Hyperdrive admission (offline, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - review/axiom-private-origin-single-hyperdrive-20261109
+    paths:
+      - '.github/workflows/axiom-single-hyperdrive-offline-20261109.yml'
+      - 'reasoning/phase2/cloudflare-staging/private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_single_hyperdrive.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-single-hyperdrive-offline
+  cancel-in-progress: false
+
+jobs:
+  offline-hyperdrive-identity:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-private-origin-single-hyperdrive-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Deny shadow Hyperdrive route in untrusted Worker metadata
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 -m py_compile private_origin_admission.py test_private_origin_single_hyperdrive.py
+          python3 -m unittest -v test_private_origin_single_hyperdrive.py
