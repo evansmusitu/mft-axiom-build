@@ -20,7 +20,7 @@ def fake_rows(**updates):
 class QualificationTests(unittest.TestCase):
     def test_zero_deployed_bindings_is_not_private_or_database_proof(self):
         row = m.summarize(fake_rows())
-        self.assertEqual(row['classification'], 'NO_HYPERDRIVE_BINDING_ON_OBSERVED_STAGE_AND_PHASE2_WORKERS')
+        self.assertEqual(row['classification'], 'NO_HYPERDRIVE_BINDING_ON_LIVE_DOMAIN_AND_PHASE2_WORKERS')
         self.assertFalse(row['private_network_verified'])
         self.assertFalse(row['staging_connection_qualified'])
         self.assertEqual(row['hyperdrive_config_count'], 0)
@@ -73,6 +73,34 @@ class QualificationTests(unittest.TestCase):
             raise AssertionError('network should never be called')
         with self.assertRaises(RuntimeError):
             m.run('', fetch=should_not_fetch)
+
+    def test_actual_domain_attached_worker_must_be_checked_even_when_legacy_name_drifts(self):
+        name = 'observed-stage-service'
+        path = f'/accounts/{m.ACCOUNT}/workers/scripts/{name}/settings'
+        rows = fake_rows(domains={'http': 200, 'data': [{'hostname': m.STAGE_HOST, 'service': name}]})
+        rows[path] = {'http': 200, 'data': {'bindings': []}}
+        labels = {p: label for label, p in m.PATHS.items()}
+        seen = []
+        def fetch(p, token):
+            seen.append(p)
+            return rows[p] if p == path else rows[labels[p]]
+        row = m.run('fake-test-token', fetch=fetch)
+        self.assertIn(path, seen)
+        self.assertEqual(row['attached_worker_binding_count'], 0)
+        self.assertEqual(row['classification'], 'NO_HYPERDRIVE_BINDING_ON_LIVE_DOMAIN_AND_PHASE2_WORKERS')
+
+    def test_malicious_attached_worker_service_is_not_queried(self):
+        rows = fake_rows(domains={'http': 200, 'data': [
+            {'hostname': m.STAGE_HOST, 'service': '../secrets'}]})
+        labels = {p: label for label, p in m.PATHS.items()}
+        seen = []
+        def fetch(p, token):
+            seen.append(p)
+            return rows[labels[p]]
+        row = m.run('fake-test-token', fetch=fetch)
+        self.assertEqual(len(seen), 4)
+        self.assertIsNone(row['attached_worker_binding_count'])
+        self.assertEqual(row['classification'], 'INSUFFICIENT_METADATA_TO_CLASSIFY_BINDINGS')
 
     def test_unknown_token_or_network_status_is_not_ok(self):
         row = m.summarize(fake_rows(stage_worker={'http': 'NETWORK_ERROR', 'data': None},
