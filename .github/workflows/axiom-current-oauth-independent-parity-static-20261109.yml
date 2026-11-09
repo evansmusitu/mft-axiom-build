@@ -1,0 +1,23 @@
+name: AXIOM independent prod OAuth vs isolated D1 data parity source-only QA
+on:
+  push:
+    branches: [ops/axiom-oauth-independent-parity-static-20261109]
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin independent observer and run five denial tests WITHOUT Cloudflare secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py)" = 'af54e60d790b220e6886858578d2eec98582b395'
+          test "$(git hash-object customer_frontier/qualification/test_current_oauth_d1_independent_parity_20261109.py)" = '371e160904e59c25bd2ad94a1e2d6129495a9b6b'
+          python3 -m py_compile customer_frontier/qualification/current_oauth_d1_independent_parity_20261109.py customer_frontier/qualification/test_current_oauth_d1_independent_parity_20261109.py
+          (cd customer_frontier/qualification && python3 -m unittest -v test_current_oauth_d1_independent_parity_20261109.py)
