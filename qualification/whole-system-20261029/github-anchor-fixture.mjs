@@ -30,5 +30,5 @@ export function githubFixture(namespace='ax-offline'){
     }
     throw Error('unexpected fixture operation');
   };
-  return {pin,token,readToken,fetchImpl,releases,tags,get calls(){return calls;},dropNextPublish(){dropPublish=true;},partition(value=true){partition=value;}};
+  return {pin,token,readToken,fetchImpl,releases,tags,get calls(){return calls;},dropNextPublish(){dropPublish=true;},partition(value=true){partition=value;},wipeSyntheticProvider(){releases.clear();used.clear();tags.clear();next=100;}};
 }
