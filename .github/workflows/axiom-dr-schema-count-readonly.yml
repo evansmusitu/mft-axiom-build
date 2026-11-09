@@ -1,0 +1,121 @@
+name: AXIOM independent D1 schema aggregate read-only verification — NEVER RESTORE
+on:
+  push:
+    branches: [ops/axiom-dr-schema-count-readonly-20261109]
+    paths: [.github/workflows/axiom-dr-schema-count-readonly.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-dr-schema-aggregate-single-readonly-20261109
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-schema-count-readonly-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pinned read-only SQLite schema aggregate for only two exact-account D1 databases; zero customer rows
+        env:
+          D1_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          TARGET='e36972b3-850d-4273-b934-2fa67587d9f1'
+          EXPECTED_TARGET_NAME='axiom-disposable-dr-target-20261108'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          TOKEN=os.environ.get('D1_READ_TOKEN','')
+          if not TOKEN or any(c in TOKEN for c in '\r\n'):raise SystemExit('SCOPED_D1_READ_TOKEN_MISSING')
+          # Static single SELECT, no dynamic identifiers, no PRAGMA, no BEGIN/COMMIT,
+          # no SELECT from customer tables and no write-capable statement.
+          SQL="SELECT COUNT(*) AS n FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+          assert SQL.upper().startswith('SELECT COUNT(*) AS N FROM SQLITE_SCHEMA WHERE ')
+          assert ';' not in SQL
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**k):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          hdr={'authorization':'Bearer '+TOKEN,'accept':'application/json','content-type':'application/json',
+               'user-agent':'AXIOM-DR-D1-SCHEMA-AGGREGATE-ONLY'}
+          def call(path,method,body=None):
+            if path!='/d1/database?per_page=100&page=1' and not (
+              re.fullmatch(r'/d1/database/[0-9a-f]{8}-[0-9a-f-]{27}/query',path) and method=='POST'):
+              raise ValueError('UNREVIEWED_PATH_OR_METHOD')
+            if method=='POST' and body!={'sql':SQL}:raise ValueError('UNREVIEWED_SQL')
+            if method=='GET' and body is not None:raise ValueError('GET_BODY_DENIED')
+            raw_body=json.dumps(body,separators=(',',':')).encode() if body else None
+            req=urllib.request.Request(ROOT+path,method=method,headers=hdr,data=raw_body)
+            try:
+              with opener.open(req,timeout=18) as f:
+                status=f.status;raw=f.read(35001)
+            except urllib.error.HTTPError as e:
+              return {'http':e.code,'success':False},None
+            except (OSError,TimeoutError,ValueError):
+              return {'http':'TRANSPORT','success':False},None
+            if status!=200 or len(raw)>35000:return {'http':status,'success':False},None
+            try:doc=json.loads(raw)
+            except (ValueError,UnicodeError):return {'http':status,'success':False},None
+            return {'http':status,'success':isinstance(doc,dict) and doc.get('success') is True},doc
+          status,raw=call('/d1/database?per_page=100&page=1','GET')
+          if not status['success']:raise SystemExit('CROSSACCOUNT_D1_CATALOG_NOT_ACCESSIBLE')
+          rows=raw.get('result')
+          info=raw.get('result_info')
+          if not (isinstance(rows,list) and len(rows)==2 and isinstance(info,dict)
+            and info.get('page')==1 and info.get('count')==2 and info.get('total_count')==2
+            and all(isinstance(x,dict) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f-]{27}',str(x.get('uuid','')))
+                    and isinstance(x.get('name'),str) for x in rows)
+            and sum(x['uuid']==TARGET and x['name']==EXPECTED_TARGET_NAME for x in rows)==1):
+            raise SystemExit('CATALOG_CHANGED_FAIL_CLOSED')
+          out={'schema':'AXIOM_DR_ACTUAL_SCHEMA_AGGREGATES_READONLY_V1',
+               'catalog_size':2,'target_identity_verified':True,'sql_sha256':hashlib.sha256(SQL.encode()).hexdigest(),
+               'sql_statement_type':'SELECT_SQLITE_SCHEMA_COUNT_ONLY',
+               'sql_queries':0,'provider_post_select_requests':0,
+               'application_rows_read':0,'provider_mutations':0,
+               'database_schema_counts':[],
+               'backup_restore_qualified':False,'identity_live_qualified':False,
+               'production_oauth_touched':False,'release_qualified':False}
+          for x in rows:
+            s,d=call('/d1/database/'+x['uuid']+'/query','POST',{'sql':SQL})
+            out['provider_post_select_requests']+=1
+            out['sql_queries']+=1
+            item={'matches_historical_target':x['uuid']==TARGET,'http':s['http'],'schema_count_valid':False}
+            if s['success'] and isinstance(d,dict):
+              result=d.get('result')
+              if isinstance(result,dict):result=[result]
+              if isinstance(result,list) and len(result)==1 and isinstance(result[0],dict):
+                info=result[0]
+                aggregates=info.get('results')
+                metadata=info.get('meta',{})
+                zero_changes=not isinstance(metadata,dict) or metadata.get('changes',0)==0
+                if (info.get('success') is True and zero_changes and
+                    isinstance(aggregates,list) and len(aggregates)==1 and
+                    isinstance(aggregates[0],dict) and type(aggregates[0].get('n')) is int):
+                  item['schema_count_valid']=True
+                  item['actual_noninternal_table_count']=aggregates[0]['n']
+            out['database_schema_counts'].append(item)
+          out['actual_schema_verification_complete']=all(x['schema_count_valid'] for x in out['database_schema_counts'])
+          out['any_empty_database_confirmed']=any(x.get('actual_noninternal_table_count')==0 for x in out['database_schema_counts']) if out['actual_schema_verification_complete'] else None
+          out['status']='SCHEMA_COUNTS_VERIFIED_NOT_RESTORE_APPROVED' if out['actual_schema_verification_complete'] else 'SCHEMA_QUERY_INCOMPLETE_NO_GO'
+          data=(json.dumps(out,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-dr-actual-sqlite-schema-counts.json')
+          p.write_bytes(data)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+p.name+'\n')
+          print('D1_READONLY_SCHEMA_STATUS='+out['status']+' CUSTOMER_ROWS=0 MUTATIONS=0')
+          if not out['actual_schema_verification_complete']:raise SystemExit(2)
+          PY
+      - name: Preserve bounded SQL aggregate (zero customer content) and detached SHA256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-dr-schema-count-readonly-20261109
+          path: |
+            axiom-dr-actual-sqlite-schema-counts.json
+            axiom-dr-actual-sqlite-schema-counts.json.sha256
+          retention-days: 14
+          if-no-files-found: warn
