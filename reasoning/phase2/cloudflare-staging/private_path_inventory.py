@@ -104,6 +104,13 @@ def summarize(observed):
                    and r.get('app_protocol') == 'postgresql' and r.get('tcp_port') == 5432]
     insecure = sum((r.get('tls_settings') or {}).get('cert_verification_mode') in ('disabled', 'verify_ca')
                    for r in pg_services if isinstance(r.get('tls_settings') or {}, dict))
+    # Cloudflare documents verify_full as the default only when TLS settings are omitted.
+    # Unknown/invalid or partially configured modes must not be treated as strict TLS.
+    non_strict_tls = sum(
+        ('tls_settings' in r and
+         (not isinstance(r['tls_settings'], dict) or
+          r['tls_settings'].get('cert_verification_mode') != 'verify_full'))
+        for r in pg_services)
     out = {
         'schema': 'AXIOM_PHASE2_PRIVATE_NETWORK_READONLY_V1',
         'scope': 'EXACT_SINGLE_OWNER_CLOUDFLARE_ACCOUNT',
@@ -118,9 +125,25 @@ def summarize(observed):
         'service_count': len(services) if services_ok else None,
         'postgres_vpc_service_count': len(pg_services) if services_ok else None,
         'insecure_tls_postgres_service_count': insecure if services_ok else None,
+        'postgres_vpc_service_non_strict_tls_count': non_strict_tls if services_ok else None,
         'tunnel_count': len(tunnels) if tunnels_ok else None,
         'healthy_tunnel_count': sum(r.get('status') == 'healthy' for r in tunnels) if tunnels_ok else None,
     }
+    # Evidence can justify a negative gate, never a network qualification: metadata
+    # alone cannot prove private origin reachability or a successful TLS connection.
+    blockers = []
+    if not services_ok:
+        blockers.append('VPC_SERVICE_INVENTORY_UNVERIFIED')
+    if not tunnels_ok:
+        blockers.append('TUNNEL_INVENTORY_UNVERIFIED')
+    elif out['healthy_tunnel_count'] == 0:
+        blockers.append('NO_HEALTHY_TUNNEL_REPORTED')
+    if services_ok and not pg_services:
+        blockers.append('NO_POSTGRES_VPC_SERVICE_IN_CHECKED_ACCOUNT')
+    if services_ok and non_strict_tls:
+        blockers.append('POSTGRES_VPC_TLS_NOT_STRICT')
+    blockers.append('PRIVATE_ORIGIN_REACHABILITY_UNVERIFIED')
+    out['blocking_reasons'] = blockers
     if not services_ok or not tunnels_ok:
         out['classification'] = 'PRIVATE_NETWORK_INVENTORY_INCOMPLETE'
     elif not services and not tunnels:
