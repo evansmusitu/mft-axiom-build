@@ -68,6 +68,15 @@ export async function stagingIdentityRoute(request,env){
   return new Response(null,{status:303,headers});
  }
  if(![400,401,503].includes(result.status))return failure(502);
+ // On a failed callback the private broker deliberately expires the one-use
+ // login cookie. Permit only that exact deletion, never a new session cookie.
+ if(result.status===400&&u.pathname==='/auth/callback'){
+  const cookies=result.headers.getSetCookie?.()||[result.headers.get('set-cookie')].filter(Boolean);
+  const clear='__Host-axiom_login=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0';
+  if(cookies.length===1&&cookies[0]===clear){
+   const response=failure(400);response.headers.append('set-cookie',clear);return response;
+  }
+ }
  // Never forward private provider error cookies, redirects, or token details.
  return failure(result.status);
 }
