@@ -31,6 +31,23 @@ class LegacyD1AdapterVeto(unittest.TestCase):
                     email="synthetic@example.invalid",global_api_key="SYNTHETIC_KEY")
             outbound.assert_not_called()
 
+    def test_query_and_migration_cannot_bypass_constructor_veto(self):
+        # Python can create instances without __init__; check every dangerous
+        # method independently before constructing a Cloudflare HTTP request.
+        obj=object.__new__(CloudflareD1ProductionStore)
+        obj.account_id="93f395f5121954671f92fffa453d6b61"
+        obj.database_id="11111111-1111-4111-8111-111111111111"
+        obj.base="https://api.cloudflare.com/client/v4"
+        obj.headers={"Authorization":"Bearer SYNTHETIC_DO_NOT_USE"}
+        with patch("urllib.request.urlopen") as outbound:
+            with self.assertRaisesRegex(AuthorizationError,
+                "MUSITU_AXIOM_FRONTIER_LEGACY_D1_WRITES_DISABLED_NOT_RELEASE"):
+                obj.query("DELETE FROM frontier_eval_events")
+            with self.assertRaisesRegex(AuthorizationError,
+                "MUSITU_AXIOM_FRONTIER_LEGACY_D1_WRITES_DISABLED_NOT_RELEASE"):
+                obj.migrate()
+            outbound.assert_not_called()
+
     def test_sealed_d1_still_forbidden(self):
         with patch("urllib.request.urlopen") as outbound:
             with self.assertRaises(AuthorizationError):
