@@ -27,12 +27,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Pin source exactly, test all nine negative controls BEFORE secrets
+      - name: Pin source exactly, test all eleven negative controls BEFORE secrets
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/hyperdrive_inventory_readonly.py)" = '8d66d1228ce293d75ff69cc6a625580c7931f15f'
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_hyperdrive_inventory_readonly.py)" = '62068de1061ce2f512564bbb0b77afa0d0cf9901'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/hyperdrive_inventory_readonly.py)" = '15e1a09fdae0e89a682337d759e65ea71b2a26ef'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_hyperdrive_inventory_readonly.py)" = 'cd7351346b82f40d0226ece1963fe84d12fdb457'
           cd reasoning/phase2/cloudflare-staging
           python3 -m py_compile hyperdrive_inventory_readonly.py test_hyperdrive_inventory_readonly.py
           python3 -m unittest -v test_hyperdrive_inventory_readonly.py
