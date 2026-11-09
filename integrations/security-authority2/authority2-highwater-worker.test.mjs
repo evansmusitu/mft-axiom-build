@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,webcrypto} from 'node:crypto';
 import {Authority2Highwater} from './authority2-highwater-worker.mjs';
+import {wormKey} from './authority2-r2-worm.mjs';
 import {externalHighwaterFence,verifyExternalHighwaterReceipt} from './external-highwater-fence.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const hash=x=>createHash('sha256').update(x).digest('hex');
@@ -9,15 +10,24 @@ const canonical=x=>Array.isArray(x)?'['+x.map(canonical).join(',')+']':x&&typeof
 const PIN={account_id:'67469478aa9349fa0a57fe3a72da200a',ledger_id:'test-ledger',namespace:'ax-security-authority2',key_id:'operator-key'};
 const sha=c=>c.repeat(64);
 async function setup(){const keys=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']), jwk=await crypto.subtle.exportKey('jwk',keys.privateKey),publicJwk={kty:'OKP',crv:'Ed25519',x:jwk.x};
-  let values=new Map();let queue=Promise.resolve();const storage={get:k=>Promise.resolve(values.get(k)),put:(k,v)=>{values.set(k,v);return Promise.resolve();},sync:async()=>{},transaction:async fn=>{let release;const next=new Promise(res=>release=res);const prev=queue;queue=next;await prev;try{return await fn(storage)}finally{release()}}};
-  const env={HW_CONFIG_JSON:JSON.stringify(PIN),HW_SIGNING_JWK:JSON.stringify(jwk),HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({read:hash('r'.repeat(40)),write:hash('w'.repeat(40))})};
+  let values=new Map();let queue=Promise.resolve();const storage={get:k=>Promise.resolve(values.get(k)),put:(k,v)=>{values.set(k,v);return Promise.resolve();},delete:k=>{values.delete(k);return Promise.resolve();},sync:async()=>{},transaction:async fn=>{let release;const next=new Promise(res=>release=res);const prev=queue;queue=next;await prev;try{return await fn(storage)}finally{release()}}};
+  let r2objects=new Map();let failAck=false;
+  const r2={
+    get:async key=>r2objects.has(key)?{size:Buffer.byteLength(r2objects.get(key)),text:async()=>r2objects.get(key)}:null,
+    head:async key=>r2objects.has(key)?{key}:null,
+    put:async(key,body,options)=>{if(!options?.onlyIf?.get('if-none-match')||options.onlyIf.get('if-none-match')!=='*')throw Error('conditional R2 PUT required');if(r2objects.has(key))return null;r2objects.set(key,body);if(failAck){failAck=false;throw Error('lost provider ACK')}return {key};},
+    snapshot:()=>new Map(r2objects),restore:snapshot=>{r2objects=new Map(snapshot)},
+    loseNextAck:()=>{failAck=true},
+    seedZero:()=>{const record={schema:'musitu.axiom.external-highwater.v1',...PIN,sequence:0,head:sha('0')};r2objects.set(wormKey(PIN,0),canonical(record));},
+  };
+  const env={HW_CONFIG_JSON:JSON.stringify(PIN),HW_SIGNING_JWK:JSON.stringify(jwk),HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({read:hash('r'.repeat(40)),write:hash('w'.repeat(40))}),HIGHWATER_WORM:r2};
   const server=new Authority2Highwater({storage},env),root='https://custody.example.com';
   const fetchImpl=(url,init)=>server.fetch(new Request(url,init));
   const pin={...PIN,origin:root,public_key_jwk:publicJwk};
   const event={ledger_id:PIN.ledger_id,namespace:PIN.namespace,sequence:1,previous_sequence:0,previous_head:sha('0'),head:sha('1'),event_digest:sha('2'),artifact_sha256:sha('3'),action_sha256:sha('4')};
   const args={pin,event,write_token:'w'.repeat(40),read_token:'r'.repeat(40),fetchImpl};
-  const seed=async()=>storage.put('highwater/tip',{...PIN,sequence:0,head:sha('0')});
-  return {args,storage,seed,server,values,reset:()=>{values=new Map()},restore:snapshot=>{values=new Map(snapshot)},snapshot:()=>new Map(values),root};
+  const seed=async()=>{await storage.put('highwater/tip',{...PIN,sequence:0,head:sha('0')});r2.seedZero()};
+  return {args,storage,seed,server,values,reset:()=>{values=new Map()},restore:snapshot=>{values=new Map(snapshot)},snapshot:()=>new Map(values),r2,root};
 }
 test('service denies unauthenticated and unprovisioned authority',async()=>{const x=await setup();const noauth=await x.server.fetch(new Request(x.root+'/v1/highwater/readback',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}));assert.equal(noauth.status,401);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
 test('valid independent seeded CAS issues single signed receipt',async()=>{const x=await setup();await x.seed();const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);assert.equal((await x.storage.get('highwater/tip')).sequence,1);});
@@ -25,7 +35,7 @@ test('replay after builder-only restore denied while authority retains tip',asyn
 test('different caller role not accepted for write',async()=>{const x=await setup();await x.seed();await assert.rejects(externalHighwaterFence({...x.args,write_token:'z'.repeat(40)}),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
 test('eight simultaneous writers obtain exactly one CAS',async()=>{const x=await setup();await x.seed();const rs=await Promise.allSettled(Array.from({length:8},()=>externalHighwaterFence(x.args)));assert.equal(rs.filter(q=>q.status==='fulfilled').length,1);});
 test('missing state after deletion holds without self-reinitializing',async()=>{const x=await setup();await x.seed();await externalHighwaterFence(x.args);x.reset();await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
-test('negative B27: witness snapshot restore still permits replay — external immutable custody required',async()=>{const x=await setup();await x.seed();const snapshot=x.snapshot();await externalHighwaterFence(x.args);x.restore(snapshot);const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);});
+test('R2 continuity survives witness DO snapshot restore and blocks reissue',async()=>{const x=await setup();await x.seed();const snapshot=x.snapshot();await externalHighwaterFence(x.args);x.restore(snapshot);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
 
 test('sequence-zero external genesis commitment requires explicitly preseeded -1 tip',async()=>{
   const x=await setup();
@@ -42,4 +52,15 @@ test('customer client independently checks witness signature, ledger digest and 
   const ledger={...base,highwater:witness};
   assert.equal(await verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:ledger,read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),true);
   await assert.rejects(verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:{...ledger,anchor:{tag:'swapped'}},read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),/HIGHWATER_COMMIT_LEDGER_DIGEST_MISMATCH_HOLD/);
+});
+
+test('negative B27: restoring DO, independent R2 checkpoints AND controls reissues a permit',async()=>{
+  const x=await setup();await x.seed();const doSnapshot=x.snapshot(),r2Snapshot=x.r2.snapshot();
+  await externalHighwaterFence(x.args);x.restore(doSnapshot);x.r2.restore(r2Snapshot);
+  const replay=await externalHighwaterFence(x.args);assert.equal(replay.sequence,1,'R2 lock deletion + all-state rollback is still an attack');
+});
+test('lost R2 acknowledgement holds pending transaction permanently; no retry',async()=>{
+  const x=await setup();await x.seed();x.r2.loseNextAck();
+  await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
+  await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
 });
