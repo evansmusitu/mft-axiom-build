@@ -1,0 +1,94 @@
+name: MUSITU Corporate Exact Bing Sitemap GET-Only Readback
+
+on:
+  push:
+    branches:
+      - ops/corporate-bing-sitemap-readonly-20261109
+    paths:
+      - .github/workflows/musitu-corporate-sitemap-exact-readback-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-bing-sitemap-one-use-readonly
+  cancel-in-progress: false
+
+jobs:
+  exact-sitemap-readback:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-bing-sitemap-readonly-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+    steps:
+      - name: Verify provider site and exact corporate sitemap without any writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          """GET-only readback; never log credentials, query URLs, response bodies, traffic, or site inventory."""
+          import json, os, urllib.error, urllib.parse, urllib.request
+          key=os.environ.get("BING_WEBMASTER_API_KEY","")
+          if not key.strip():
+              raise SystemExit("HOLD: authorized Bing secret unavailable")
+          site="https://mftintelligence.com/"
+          canonical="https://mftintelligence.com/sitemap.xml"
+          base="https://ssl.bing.com/webmaster/api.svc/json/"
+          def get(method, **params):
+              if method not in ("GetUserSites","GetFeeds"):
+                  raise SystemExit("HOLD: non-allowlisted Bing operation")
+              url=base+method+"?"+urllib.parse.urlencode({"apikey":key,**params})
+              req=urllib.request.Request(url,headers={"Accept":"application/json","User-Agent":"MUSITU-Corporate-Bing-ReadOnly/1.0"},method="GET")
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as resp:
+                      if resp.status!=200:
+                          raise SystemExit("HOLD: Bing did not return HTTP 200")
+                      data=resp.read(1000001)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit("HOLD: Bing rejected an authenticated read (HTTP "+str(exc.code)+")") from None
+              except (urllib.error.URLError,TimeoutError):
+                  raise SystemExit("HOLD: Bing GET connectivity failed") from None
+              if len(data)>1000000:
+                  raise SystemExit("HOLD: Bing read exceeded the bounded response size")
+              try:
+                  parsed=json.loads(data)
+              except (ValueError, UnicodeError):
+                  raise SystemExit("HOLD: unrecognized Bing JSON reply") from None
+              if not isinstance(parsed,dict) or not isinstance(parsed.get("d"),list):
+                  raise SystemExit("HOLD: provider list response not observed")
+              return parsed["d"]
+          matches=[]
+          for item in get("GetUserSites"):
+              if not isinstance(item,dict):
+                  continue
+              raw=item.get("Url") or item.get("SiteUrl")
+              if not isinstance(raw,str):
+                  continue
+              url=urllib.parse.urlsplit(raw)
+              if url.scheme in ("http","https") and url.hostname=="mftintelligence.com" and not url.path.strip("/") and item.get("IsVerified",True) is not False:
+                  matches.append(raw)
+          if len(matches)!=1:
+              raise SystemExit("HOLD: exactly one verified corporate apex site not established")
+          matching=[]
+          for feed in get("GetFeeds",siteUrl=matches[0]):
+              if not isinstance(feed,dict):
+                  raise SystemExit("HOLD: invalid Bing feed shape")
+              if feed.get("Url")==canonical:
+                  matching.append(feed)
+          if len(matching)>1:
+              raise SystemExit("HOLD: duplicate canonical feed records")
+          print("Bing verified corporate apex property: PASS")
+          if not matching:
+              print("Exact corporate canonical sitemap in Bing feed inventory: NOT_REPORTED")
+          else:
+              allowed={"Success","Pending","Failed","Warning","Error","Processing"}
+              status=matching[0].get("Status")
+              state=status if status in allowed else "UNKNOWN"
+              print("Exact corporate canonical sitemap in Bing feed inventory: PRESENT")
+              print("Bing corporate feed processing status:",state)
+          print("Phase 03 expanded 48-URL sitemap submitted: NOT_CLAIMED")
+          print("Bing indexing of unpublished Phase 03 URLs: NOT_CLAIMED")
+          print("Provider requests: 2 GET, 0 writes. Private traffic, keys and raw provider records: NOT_LOGGED")
+          PY
