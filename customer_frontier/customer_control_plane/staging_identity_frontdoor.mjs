@@ -58,8 +58,25 @@ export async function stagingIdentityRoute(request,env){
   const location=result.headers.get('location');
   if(u.pathname==='/auth/start'?!validAuthorizationRedirect(location):location!==ORIGIN+'/')return failure(502);
   if(!validHostOnlyCookies(result.headers,u.pathname))return failure(502);
-  return result;
+  // The private service is not allowed to add CORS, Refresh, debug headers
+  // or a response body to the public browser contract. Only the validated
+  // redirect and host-only cookies cross this boundary.
+  const headers=new Headers({'location':location,'cache-control':'no-store',
+   'referrer-policy':'no-referrer','x-content-type-options':'nosniff'});
+  const cookies=result.headers.getSetCookie?.()||[result.headers.get('set-cookie')].filter(Boolean);
+  for(const cookie of cookies)headers.append('set-cookie',cookie);
+  return new Response(null,{status:303,headers});
  }
  if(![400,401,503].includes(result.status))return failure(502);
- return result;
+ // On a failed callback the private broker deliberately expires the one-use
+ // login cookie. Permit only that exact deletion, never a new session cookie.
+ if(result.status===400&&u.pathname==='/auth/callback'){
+  const cookies=result.headers.getSetCookie?.()||[result.headers.get('set-cookie')].filter(Boolean);
+  const clear='__Host-axiom_login=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0';
+  if(cookies.length===1&&cookies[0]===clear){
+   const response=failure(400);response.headers.append('set-cookie',clear);return response;
+  }
+ }
+ // Never forward private provider error cookies, redirects, or token details.
+ return failure(result.status);
 }
