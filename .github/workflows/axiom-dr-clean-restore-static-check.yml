@@ -1,0 +1,42 @@
+name: AXIOM fresh disposable restore target verifier source-only validation
+on:
+  push:
+    branches: [ops/axiom-dr-clean-restore-static-check-20261109]
+permissions:
+  contents: read
+jobs:
+  static:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-clean-restore-static-check-20261109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Compile exact source and assert immutable no-write schema-only API gate without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object .github/workflows/axiom-dr-clean-restore-verify-20261109.yml)" = '42918a628f416f23a7a04c95950fff69e0d955d7'
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/axiom-dr-clean-restore-verify-20261109.yml')
+          data=p.read_text()
+          start=data.index("          python3 - <<'PY'\n")+len("          python3 - <<'PY'\n")
+          stop=data.index("\n          PY\n",start)
+          code='\n'.join(line[10:] for line in data[start:stop].split('\n'))
+          compile(code,'axiom-oneuse-new-dr-readonly-verifier.py','exec')
+          assert code.count('urllib.request.Request(')==1
+          assert 'method=method' in code
+          assert "method='POST',body={'sql':SQL}" in code
+          assert "SELECT COUNT(*) AS n FROM sqlite_schema" in code
+          assert 'if not token' in code
+          assert 'new_database_uuid' in code
+          assert "ACCOUNT='c954f0c842a486d0388c05b19cd21e47'" in code
+          assert "NEWNAME='axiom-dr-clean-restore-20261109'" in code
+          assert "provider_writes':0" in code
+          print('AXIOM_NEW_DR_READONLY_SOURCE_STATIC_PASS')
+          PY
