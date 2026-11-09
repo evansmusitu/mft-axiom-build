@@ -1,0 +1,34 @@
+name: LIFELINE MT5 Owner Readiness Contract — No Deploy
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/index.mjs'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/backend_readiness.mjs'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/test.mjs'
+      - 'products/lifeline-mt5-ai-studio/infra/cloudflare/test_readiness.mjs'
+      - '.github/workflows/lifeline-mt5-owner-readiness-ci.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify-readiness-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Unit and signed JWT owner integration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --check backend_readiness.mjs
+          node --test test_readiness.mjs test.mjs
+          echo 'only_local_contract_tests_executed=true'
+          echo 'no_worker_deployed=true'
+          echo 'no_provider_credentials_used=true'
+          echo 'trading_enabled=false'

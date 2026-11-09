@@ -1,0 +1,50 @@
+name: LIFELINE Reviewed On-Demand Native EX5 Build
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Reviewed repository source only (reviewed/Name.mq5)"
+        required: true
+        type: string
+        default: reviewed/ExampleSafeEA.mq5
+      sha256:
+        description: "Exact lowercase SHA256 of the selected reviewed source"
+        required: true
+        type: string
+        default: f86164f62333736f22f7a4bea73f3fdb49f9870de36b9370c10ff03e640e6026
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/windows/reviewed/ExampleSafeEA.mq5'
+      - 'products/lifeline-mt5-ai-studio/windows/Invoke-LifelineReviewedCompile.ps1'
+      - '.github/workflows/lifeline-mt5-reviewed-compile.yml'
+permissions:
+  contents: read
+jobs:
+  vendor-signed-reviewed-compile:
+    runs-on: windows-2022
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile SHA256-pinned reviewed source in disposable Windows sandbox
+        shell: pwsh
+        env:
+          REVIEWED_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.source || 'reviewed/ExampleSafeEA.mq5' }}
+          REVIEWED_SHA256: ${{ github.event_name == 'workflow_dispatch' && inputs.sha256 || 'f86164f62333736f22f7a4bea73f3fdb49f9870de36b9370c10ff03e640e6026' }}
+        run: |
+          $ErrorActionPreference='Stop'
+          & ./products/lifeline-mt5-ai-studio/windows/Invoke-LifelineReviewedCompile.ps1 `
+            -SourceRelative "$env:REVIEWED_SOURCE" `
+            -ExpectedSha256 "$env:REVIEWED_SHA256" `
+            -ResultDir "$env:RUNNER_TEMP/lifeline-reviewed-proof"
+          if($LASTEXITCODE -ne 0){exit 1}
+      - name: Save verified native EX5, compile log and proof only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeline-reviewed-native-ex5-proof
+          path: ${{ runner.temp }}/lifeline-reviewed-proof
+          retention-days: 3
+          if-no-files-found: error

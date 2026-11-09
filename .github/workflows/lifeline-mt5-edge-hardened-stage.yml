@@ -1,0 +1,79 @@
+name: LIFELINE Safe Edge Hardening Deployment — Existing Stage Only
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths: [.github/workflows/lifeline-mt5-edge-hardened-stage.yml]
+permissions: {contents: read}
+jobs:
+  deploy-existing-isolated-worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify exact isolated scope and MFA; backend must remain disconnected
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py > /tmp/lifeline-verified-scope.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          config=Path('products/lifeline-mt5-ai-studio/infra/cloudflare/wrangler.toml').read_text()
+          expected=['name = "lifeline-mt5-edge-isolated"',
+            'account_id = "93f395f5121954671f92fffa453d6b61"',
+            'workers_dev = false','preview_urls = false']
+          if not all(x in config for x in expected) or any(x in config for x in ('[[routes]]','routes =','route =')):
+              raise SystemExit('scope or route mismatch')
+          p=json.loads(Path('lifeline-backend-cutover-readiness.json').read_text())
+          if (not p['account_verified'] or not p['owner_only_independent_mfa_policy'] or
+              p['worker_secret_bindings_present']!=3 or
+              p['worker_required_binding_count']!=10 or
+              p['backend_cutover_allowed'] or
+              set(p['worker_required_binding_names_missing'])!={'MODAL_ORIGIN','MODAL_PROXY_KEY',
+                  'MODAL_PROXY_SECRET','EDGE_SHARED_SECRET','AGENT_ID','AGENT_TENANT','AGENT_HMAC_KEY'}):
+              raise SystemExit('backend cutover scope changed')
+          print('exact_lifeline_stage_only=true')
+          print('existing_cloudflare_identity_only=true')
+          PY
+      - name: Pass all owner JWT and private upstream hardening regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --check index.mjs
+          node --check backend_readiness.mjs
+          node --test test.mjs test_readiness.mjs
+      - name: Deploy ONLY existing isolated Worker code; secrets and Access unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd products/lifeline-mt5-ai-studio/infra/cloudflare
+          npx --yes wrangler@4.129.0 deploy --config wrangler.toml > /tmp/lifeline-private-stage-deploy.log 2>&1 || {
+            echo 'safe_worker_update_failed=true'
+            sed -E 's/[A-Za-z0-9_-]{24,}/[redacted]/g' /tmp/lifeline-private-stage-deploy.log | tail -12
+            exit 1
+          }
+          echo 'existing_lifeline_worker_code_updated=true'
+          echo 'no_private_backend_cutover_attempted=true'
+          echo 'trading_enabled=false'
+      - name: Read back persistent owner-only scope and confirm seven secrets still absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          python products/lifeline-mt5-ai-studio/infra/cloudflare/backend_gate_readonly.py
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=json.loads(Path('lifeline-backend-cutover-readiness.json').read_text())
+          if p['worker_secret_bindings_present']!=3 or p['backend_cutover_allowed']:
+              raise SystemExit('unexpected secret cutover')
+          print('no_extra_worker_bindings_installed=true')
+          print('sensitive_values_not_printed=true')
+          PY

@@ -1,0 +1,24 @@
+name: LIFELINE AWS Free Plan Read-only Gate Unit Tests
+on:
+  push:
+    branches: [product/lifeline-mt5-fivecloud-isolated-20261020]
+    paths:
+      - 'products/lifeline-mt5-ai-studio/infra/aws/**'
+      - '.github/workflows/lifeline-mt5-aws-readonly-gate-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mock-only-no-cloud-credentials:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify fail-closed AWS qualification with synthetic data only
+        working-directory: products/lifeline-mt5-ai-studio/infra/aws
+        run: python -m unittest -v test_read_only_host_gate.py

@@ -1,0 +1,7 @@
+name = "lifeline-mt5-edge-isolated"
+main = "index.mjs"
+compatibility_date = "2026-10-20"
+account_id = "93f395f5121954671f92fffa453d6b61"
+workers_dev = false
+preview_urls = false
+# Deliberately no routes, no DNS, no deploy trigger.

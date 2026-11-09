@@ -1,0 +1,20 @@
+# This file is deliberately NOT a deployed environment.
+# Private no-public-route Worker; D1 binding is OMITTED until a real isolated
+# Free-tier database ID is verified. DO NOT use a paid plan or unknown account.
+name = "lifeline-mt5-d1-private-isolated"
+main = "private_worker.mjs"
+compatibility_date = "2026-10-24"
+account_id = "93f395f5121954671f92fffa453d6b61"
+workers_dev = false
+preview_urls = false
+# No routes. No custom domains. No public HTTP listener.
+#
+# After actual Free-tier entitlement + D1 DB are provider-verified, add
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "lifeline-mt5-d1-isolated"
+# database_id = "<ACTUAL_REAL_PROVIDER_ASSIGNED_ID>"
+#
+# Configure SERVICE_HMAC_KEY as a new LIFELINE-only Worker Secret shared with
+# the pinned owner gateway, and STAGE_TENANT as a nonsecret binding.
+# Service binding goes on the existing owner Worker, NOT this target.
