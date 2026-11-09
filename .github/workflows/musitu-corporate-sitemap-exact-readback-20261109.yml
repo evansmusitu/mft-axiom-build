@@ -81,13 +81,12 @@ jobs:
               raise SystemExit("HOLD: duplicate canonical feed records")
           print("Bing verified corporate apex property: PASS")
           if not matching:
-              print("Exact corporate canonical sitemap in Bing feed inventory: NOT_REPORTED")
-          else:
-              allowed={"Success","Pending","Failed","Warning","Error","Processing"}
-              status=matching[0].get("Status")
-              state=status if status in allowed else "UNKNOWN"
-              print("Exact corporate canonical sitemap in Bing feed inventory: PRESENT")
-              print("Bing corporate feed processing status:",state)
+              raise SystemExit("HOLD: exact current corporate sitemap missing after authenticated successful submission")
+          allowed={"Success","Pending","Failed","Warning","Error","Processing"}
+          status=matching[0].get("Status")
+          state=status if status in allowed else "UNKNOWN"
+          print("Exact corporate canonical sitemap in Bing feed inventory: PRESENT (independent later GET)")
+          print("Bing corporate feed processing status:",state)
           print("Phase 03 expanded 48-URL sitemap submitted: NOT_CLAIMED")
           print("Bing indexing of unpublished Phase 03 URLs: NOT_CLAIMED")
           print("Provider requests: 2 GET, 0 writes. Private traffic, keys and raw provider records: NOT_LOGGED")
