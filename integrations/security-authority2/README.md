@@ -72,3 +72,7 @@ Builder-held Cloudflare credentials still had account lock-policy write power,
 so a separate custodian must establish and attest the administrative isolation.
 Do not run any signer, genesis, high-water append, or public deployment based
 only on this read-only test. Global B27 remains NO-GO.
+
+### Fail-closed Wrangler candidate routing
+
+The candidate `wrangler.example.toml` binds `HIGHWATER_WORM` to the exact provider-audited bucket and specifies `workers_dev = false` and `preview_urls = false`. Do not add a route or deploy the Worker until an independent operator has approved the signer, genesis, administrative separation and external destructive acceptance. These settings restrict the sample configuration, not any existing deployed provider service.
