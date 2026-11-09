@@ -27,6 +27,18 @@ async function verifiedEvent(req,env){
  const attested=await env.PROVIDER_VERIFIER.fetch(new Request('https://axiom-internal/verify-settlement',{method:'POST',body:raw,headers:{'content-type':'application/json','x-axiom-purpose':'commercial-reconciliation'},redirect:'manual'}));
  if(attested.status!==200)throw new Error('provider_not_verified');
  const receipt=await attested.json();if(receipt.verified!==true||receipt.production_qualified!==true||receipt.source!=='provider_verifier')throw new Error('provider_not_qualified');
+ // An externally qualified verifier is still not allowed to promote an
+ // explicitly synthetic Paynow success to a live customer credit. This is
+ // defense in depth, NOT proof that an unmarked receipt actually settled.
+ const isTestMarked=value=>{
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  if(['test_mode','is_test','sandbox','faked_success'].some(k=>value[k]===true)||
+     value.live_money_certified===false)return true;
+  return ['mode','provider_mode','environment','provider_status','status_message',
+   'status','transaction_status','payment_status'].some(k=>
+    typeof value[k]==='string'&&/\b(?:test|testing|sandbox|demo)\b|faked[ -]success/i.test(value[k]));
+ };
+ if(isTestMarked(receipt)||isTestMarked(receipt.evidence))throw new Error('provider_test_mode_denied');
  return receipt.evidence;
 }
 async function readBody(req){const size=Number(req.headers.get('content-length')||0);if(size>16000)throw new Error('payload_too_large');const raw=await req.text();if(raw.length>16000)throw new Error('payload_too_large');try{return JSON.parse(raw)}catch{throw new Error('invalid_json')}}
