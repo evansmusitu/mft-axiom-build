@@ -52,3 +52,10 @@ test('private reconciliation cannot substitute a different payment provider for 
    'only the existing Paynow PSP is an admitted transaction authority');
  }
 });
+
+test('synthetic Paynow fixture cannot manufacture settlement even if named provider is Paynow',async()=>{
+ for(const evidence of [{synthetic:true},{live_payment:false}]){
+  const {promise}=await attempt(liveEnvelope({provider:'paynow',...evidence}));
+  await assert.rejects(promise,/provider_test_mode_denied|provider_not_verified/);
+ }
+});
