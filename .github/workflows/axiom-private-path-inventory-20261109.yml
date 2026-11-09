@@ -27,12 +27,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify exact source blobs and nine security regressions BEFORE secrets
+      - name: Verify exact source blobs and thirteen security regressions BEFORE secrets
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_path_inventory.py)" = '3a64d4086589d5fda873c80da5c70db38abbe10c'
-          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_path_inventory.py)" = 'ed940340ce1cc20820ca85f5dc4fd17ac4a5e60a'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_path_inventory.py)" = '6aa72822d8662d0ddedd3da47fa60e6b07b16c7d'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_path_inventory.py)" = 'babe1e88bea91ebdcc4727dbaedbedb8245baa7e'
           cd reasoning/phase2/cloudflare-staging
           python3 -m py_compile private_path_inventory.py test_private_path_inventory.py
           python3 -m unittest -v test_private_path_inventory.py
