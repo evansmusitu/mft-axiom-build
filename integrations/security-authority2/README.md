@@ -23,6 +23,12 @@ This isolated candidate is based on the existing PR #55 external ledger and GitH
 
 Only for approved staging: enable `LEDGER_EXTERNAL_HIGHWATER_REQUIRED=true` on the independent ledger AND `AXIOM_HIGHWATER_REQUIRED=true` on the customer server with a matching pinned configuration; both require the existing immutable GitHub checkpoint pin. Production remains blocked.
 
+## Independently retained R2 sequence barrier (still NOT production-qualified)
+
+The high-water service now requires a separate R2 binding `HIGHWATER_WORM`, not just a restorable Durable Object. For each consecutive global sequence it stages a durable pending record, issues R2 `PUT` to a deterministic key under `b27/` using `If-None-Match: *`, verifies object bytes by readback, and only then promotes the local tip. Readbacks reject a missing immutable predecessor or any *next* checkpoint beyond a restored SQLite tip. Lost or ambiguous R2 acknowledgements HOLD indefinitely. This closes the **disposable DO-restore** test when R2 history survives.
+
+Provider documentation supports R2 conditional writes and an independently configured indefinite bucket-lock retention rule. Neither a Cloudflare Free account nor this code proves that such a rule is configured. A Cloudflare administrator can remove lock rules; an attacker controlling **both** the R2 retention policy and every other authority can erase the history and replay. The test intentionally reproduces this full-administrator counterexample. Independent custody and provider-origin lock-policy readback remain mandatory. R2 has a free usage allowance, but charges can accrue above it; no bucket, billing service, lock rule or deployment is created by this PR.
+
 ## Evidence and veto
 
 Local test suite: `node --test integrations/security-authority2/*.test.mjs`. This is synthetic serialized-transaction simulation. It is NOT real workerd, remote Cloudflare, independent custodian or separate-host qualification.
