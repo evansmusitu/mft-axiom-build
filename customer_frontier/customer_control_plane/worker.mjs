@@ -32,8 +32,8 @@ async function verifiedEvent(req,env){
  // defense in depth, NOT proof that an unmarked receipt actually settled.
  const isTestMarked=value=>{
   if(!value||typeof value!=='object'||Array.isArray(value))return false;
-  if(['test_mode','is_test','sandbox','faked_success'].some(k=>value[k]===true)||
-     value.live_money_certified===false)return true;
+  if(['test_mode','is_test','sandbox','faked_success','synthetic'].some(k=>value[k]===true)||
+     value.live_money_certified===false||value.live_payment===false)return true;
   return ['mode','provider_mode','environment','provider_status','status_message',
    'status','transaction_status','payment_status'].some(k=>
     typeof value[k]==='string'&&/\b(?:test|testing|sandbox|demo)\b|faked[ -]success/i.test(value[k]));
