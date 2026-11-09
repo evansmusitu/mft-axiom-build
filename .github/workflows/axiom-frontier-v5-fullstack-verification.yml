@@ -90,6 +90,9 @@ jobs:
             /tmp/musitu-frontier-browser/SHA256SUMS.txt
 
   full-stack-frontier:
+    # The selected hosted boundary is the pinned scratch OCI runner, not the
+    # unavailable optional unprivileged Linux namespace driver.
+    needs: oci-isolated-host-prequalification
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -147,8 +150,23 @@ jobs:
           case "$AXIOM_SANDBOX_IMAGE_ID" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1;; esac
           PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/fullstack-local.log
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/fullstack-local.log
-          # The separate namespace job/runner qualification remains mandatory.
-          PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
+          # The native namespace driver is OPTIONAL; a successful OCI boundary
+          # is MANDATORY via the needs dependency above. A blocked unshare must
+          # never be mistaken for a successful timeout or network isolation test.
+          if /usr/bin/unshare --user --map-root-user --mount --pid --fork --net --kill-child --root "$AXIOM_SANDBOX_ROOTFS" --wd / \
+               /usr/bin/python3 -I -S -c "print('NATIVE_BOUNDARY_OK')" >/dev/null 2>&1; then
+            PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v | tee /tmp/namespace-security.log
+            echo 'AXIOM_NATIVE_NAMESPACE_HOSTED_TESTS_PASS'
+          else
+            # Prove rejection paths and record an explicit NOT-QUALIFIED result.
+            PYTHONPATH=. python -m unittest discover -s frontier_v5/tests -p test_namespace_security.py -v \
+              -k test_requires_namespace_provider_for_execution \
+              -k test_unapproved_executable_rejected \
+              -k test_untrusted_environment_rejected \
+              -k test_wrong_rootfs_hash_fails_closed | tee /tmp/namespace-security.log
+            echo 'AXIOM_NATIVE_NAMESPACE_NOT_QUALIFIED_ON_HOSTED_RUNNER'
+            echo '{"native_namespace":"NOT_QUALIFIED_HOSTED_POLICY_DENIED","selected_boundary":"PINNED_OCI","release":"BLOCKED"}' > /tmp/namespace-negative.json
+          fi
 
       - name: Verify browser network preflight fails closed
         shell: bash
