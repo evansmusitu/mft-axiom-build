@@ -27,6 +27,7 @@ class TestReadOnlyPath(unittest.TestCase):
     def test_multipage_is_unknown_not_complete(self):
         x=m.summarize({'services':response([{'type':'tcp','app_protocol':'postgresql'}],pages=2), 'tunnels':response([])})
         self.assertFalse(x['services_complete'])
+        self.assertEqual(x['services_incomplete_reason'],'MULTIPAGE_OR_TOTAL_MISMATCH')
         self.assertIsNone(x['service_count'])
         self.assertEqual(x['classification'],'PRIVATE_NETWORK_INVENTORY_INCOMPLETE')
     def test_present_tunnel_and_postgres_service_not_proof(self):
@@ -61,5 +62,6 @@ class TestReadOnlyPath(unittest.TestCase):
         x=m.summarize({'services':{'http':200,'data':[],'info':None},'tunnels':response([])})
         self.assertIsNone(x['service_count'])
         self.assertEqual(x['classification'],'PRIVATE_NETWORK_INVENTORY_INCOMPLETE')
+        self.assertEqual(x['services_incomplete_reason'],'PAGINATION_MISSING')
 
 if __name__=='__main__': unittest.main()
