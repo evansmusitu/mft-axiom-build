@@ -1,0 +1,124 @@
+name: B27 A2 one-use R2 bucket and indefinite b27 lock provisioning - NO RELEASE
+on:
+  push:
+    branches: [provision/a2-b27-r2-once-20261109]
+    paths: [.github/workflows/axiom-a2-b27-r2-once-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-a2-b27-r2-one-use-20261109
+  cancel-in-progress: false
+jobs:
+  provision:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/provision/a2-b27-r2-once-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Exactly scoped Cloudflare B27 R2 bucket create and lock with fail-closed readbacks
+        shell: bash
+        env:
+          ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          BUCKET='musitu-axiom-b27-highwater-a2'
+          RULE={'id':'b27-indefinite','enabled':True,'prefix':'b27/','condition':{'type':'Indefinite'}}
+          TOKEN=os.getenv('ADMIN_TOKEN','')
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/r2/buckets'
+          allowed={('GET',''),('POST',''),('GET','/'+BUCKET),('GET','/'+BUCKET+'/lock'),('PUT','/'+BUCKET+'/lock')}
+          result={'schema':'axiom.a2.r2_create_and_lock_20261109.v1',
+              'account':ACCOUNT,'bucket':BUCKET,'rule':RULE,
+              'provider_write_attempts':0,'objects_written':0,'customer_data_accessed':False,
+              'customer_mutations':0,'release_authority':False,
+              'independent_custody_verified':False,'b27_global_antirollback_verified':False,
+              'steps':[],'result':'NOT_STARTED'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def call(method,suffix,body=None):
+            if (method,suffix) not in allowed:raise RuntimeError('METHOD_PATH_REFUSED')
+            if (method in ('POST','PUT')):result['provider_write_attempts']+=1
+            data=json.dumps(body,separators=(',',':')).encode() if body is not None else None
+            req=urllib.request.Request(ROOT+suffix,method=method,data=data,headers={
+               'Authorization':'Bearer '+TOKEN,'Accept':'application/json',
+               **({'Content-Type':'application/json'} if data is not None else {})})
+            try:
+              with opener.open(req,timeout=20) as r:
+                status=r.status;raw=r.read(100001)
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(100001)
+            except Exception:return 'NETWORK_UNCERTAIN',None
+            if len(raw)>100000:return 'RESPONSE_OVERSIZE',None
+            try:parsed=json.loads(raw)
+            except (UnicodeError,ValueError):return status,None
+            return status,parsed
+          def checked(method,suffix,body,label):
+            status,reply=call(method,suffix,body)
+            success=status in (200,201) and isinstance(reply,dict) and reply.get('success') is True
+            codes=[x.get('code') for x in reply.get('errors',[]) if isinstance(x,dict) and type(x.get('code')) is int] if isinstance(reply,dict) else []
+            result['steps'].append({'step':label,'http':status,'success':success,'error_codes':codes[:5]})
+            if not success:raise RuntimeError('PROVIDER_DENIAL_OR_UNCERTAINTY_'+label)
+            return reply.get('result')
+          try:
+            if not TOKEN or any(c in TOKEN for c in '\r\n'):raise RuntimeError('ADMIN_TOKEN_NOT_AVAILABLE')
+            # Preflight: account must still be empty; do not modify existing buckets.
+            pre=checked('GET','',None,'preflight_list')
+            if not isinstance(pre,dict) or pre.get('buckets')!=[] or pre.get('cursor'):
+              raise RuntimeError('ACCOUNT_NOT_EMPTY_OR_PAGINATION_UNKNOWN')
+            # A write is only attempted on the exact separate account and name.
+            created=checked('POST','',{'name':BUCKET,'storageClass':'Standard'},'create_bucket')
+            if not isinstance(created,dict) or created.get('name')!=BUCKET:
+              raise RuntimeError('BUCKET_CREATION_RESPONSE_DRIFT_HOLD')
+            if created.get('storage_class') not in ('Standard',None):
+              raise RuntimeError('BUCKET_NOT_STANDARD_HOLD')
+            exact=checked('GET','/'+BUCKET,None,'new_bucket_provider_readback')
+            if not isinstance(exact,dict) or exact.get('name')!=BUCKET:
+              raise RuntimeError('NEW_BUCKET_READBACK_MISMATCH_HOLD')
+            if exact.get('storage_class') not in ('Standard',None):
+              raise RuntimeError('BUCKET_STORAGE_CLASS_DRIFT_HOLD')
+            locks=checked('GET','/'+BUCKET+'/lock',None,'preflight_new_bucket_lock')
+            if not isinstance(locks,dict) or locks.get('rules') not in ([],None):
+              raise RuntimeError('EXISTING_LOCKS_MUST_NOT_BE_REPLACED')
+            # Setting locks replaces all rules. Safe only after verifying this exact
+            # new bucket has zero existing rules and was created by this run.
+            checked('PUT','/'+BUCKET+'/lock',{'rules':[RULE]},'install_indefinite_b27_lock')
+            locks=checked('GET','/'+BUCKET+'/lock',None,'lock_provider_readback')
+            rules=locks.get('rules') if isinstance(locks,dict) else None
+            if rules != [RULE]:
+              raise RuntimeError('BUCKET_LOCK_RULE_NOT_EXACT_HOLD')
+            result['result']='BUCKET_AND_B27_LOCK_PROVIDER_READBACK_PASS'
+          except Exception as exc:
+            result['result']='PROVISION_NOT_CERTIFIED_HOLD'
+            msg=str(exc)
+            known=(
+              'ADMIN_TOKEN_NOT_AVAILABLE','ACCOUNT_NOT_EMPTY_OR_PAGINATION_UNKNOWN',
+              'BUCKET_CREATION_RESPONSE_DRIFT_HOLD','BUCKET_NOT_STANDARD_HOLD',
+              'NEW_BUCKET_READBACK_MISMATCH_HOLD','BUCKET_STORAGE_CLASS_DRIFT_HOLD',
+              'EXISTING_LOCKS_MUST_NOT_BE_REPLACED','BUCKET_LOCK_RULE_NOT_EXACT_HOLD')
+            result['reason']=msg if msg in known or msg.startswith('PROVIDER_DENIAL_OR_UNCERTAINTY_') else 'OTHER_SAFE_FAILURE'
+          data=(json.dumps(result,sort_keys=True,indent=2)+'\n').encode()
+          out=Path('axiom-a2-b27-r2-create-lock-receipt.json');out.write_bytes(data)
+          out.with_suffix('.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+out.name+'\n')
+          print('PROVISION_STATUS='+result['result'],
+                'SAFE_PROVIDER_WRITE_ATTEMPTS='+str(result['provider_write_attempts']))
+          for step in result['steps']:
+            print(step['step'],'http',step['http'],'success',step['success'],'error_codes',step['error_codes'])
+          if result['result']!='BUCKET_AND_B27_LOCK_PROVIDER_READBACK_PASS':raise SystemExit(2)
+          PY
+      - name: Archive provider-derived signed-off receipt including failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-b27-r2-create-lock-20261109
+          path: |
+            axiom-a2-b27-r2-create-lock-receipt.json
+            axiom-a2-b27-r2-create-lock-receipt.sha256
+          retention-days: 7
+          if-no-files-found: warn
