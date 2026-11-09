@@ -88,6 +88,29 @@ class FilteredInventoryTests(unittest.TestCase):
         self.assertEqual(result['cloudflare_writes'],0)
         self.assertEqual(result['neon_sql'],0)
 
+
+    def test_paginated_full_page_subsets_must_not_report_false_count_conflict(self):
+        tcp=[{'type':'tcp','service_id':'tcp-'+str(i)} for i in range(100)]
+        http=[{'type':'http','service_id':'http-0'}]
+        result=m.classify(triple(page(tcp,total=101),page(tcp),page(http)))
+        self.assertEqual(result['classification'],'PAGINATION_UNVERIFIED')
+        self.assertIsNone(result['account_service_count'])
+
+    def test_same_counts_different_service_ids_are_not_a_consistent_catalog(self):
+        result=m.classify(triple(page([{'type':'tcp','service_id':'ALPHA'}]),
+                                 page([{'type':'tcp','service_id':'BETA'}]),page([])))
+        self.assertEqual(result['classification'],'CATALOG_QUERY_CONFLICT')
+        self.assertIsNone(result['account_service_count'])
+        self.assertNotIn('ALPHA',json.dumps(result))
+        self.assertNotIn('BETA',json.dumps(result))
+
+    def test_duplicate_service_ids_in_complete_list_are_denied(self):
+        repeated={'type':'tcp','service_id':'SAME-PRIVATE-ID'}
+        result=m.classify(triple(page([repeated,repeated]),
+                                 page([repeated,repeated]),page([])))
+        self.assertEqual(result['classification'],'CATALOG_QUERY_CONFLICT')
+        self.assertIsNone(result['account_service_count'])
+
     def test_missing_token_avoids_all_requests(self):
         with self.assertRaises(ValueError):
             m.run('',lambda *args: self.fail('unexpected request'))
