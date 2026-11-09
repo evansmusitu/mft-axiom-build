@@ -102,8 +102,7 @@ class DockerIsolatedSandbox:
                     subprocess.run([DOCKER,'rm','-f',name],env=env,cwd='/',
                         stdin=subprocess.DEVNULL,capture_output=True,timeout=10,check=False)
                     audit=subprocess.run([DOCKER,'container','ls','--all',
-                        '--filter',f'name=^/{name}
-,'--format','{{.ID}}'],
+                        '--filter','name='+name,'--format','{{.ID}}'],
                         env=env,cwd='/',stdin=subprocess.DEVNULL,
                         capture_output=True,timeout=10,check=False)
                     if audit.returncode!=0 or audit.stdout.strip():
