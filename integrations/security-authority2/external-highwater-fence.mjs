@@ -82,8 +82,9 @@ export async function externalHighwaterFence({pin,write_token,read_token,event,f
  * No locally retained high-water counter is accepted as independent authority.
  * Identical tip is intentionally required: concurrent advances fail closed.
  */
-export async function verifyExternalHighwaterReceipt({pin,ledger_payload,read_token,fetchImpl=fetch,timeoutMs=5000,nonce=()=>crypto.randomUUID()}={}){
+export async function verifyExternalHighwaterReceipt({pin,ledger_payload,expected_artifact_sha256,read_token,fetchImpl=fetch,timeoutMs=5000,nonce=()=>crypto.randomUUID()}={}){
   pin=highwaterPin(pin);
+  if(!H64.test(expected_artifact_sha256))hold('HIGHWATER_APPROVED_ARTIFACT_PIN_REQUIRED_HOLD');
   if(typeof read_token!=='string'||!/^[A-Za-z0-9_-]{32,200}$/.test(read_token))hold('HIGHWATER_SEPARATE_READ_CREDENTIAL_REQUIRED_HOLD');
   if(!ledger_payload||typeof ledger_payload!=='object'||!ledger_payload.highwater)hold('HIGHWATER_RECEIPT_REQUIRED_HOLD');
   const witness=ledger_payload.highwater;
@@ -91,7 +92,15 @@ export async function verifyExternalHighwaterReceipt({pin,ledger_payload,read_to
   if(witness.status!=='EXTERNAL_CAS_COMMITTED_AND_INDEPENDENTLY_READ_BACK'||witness.account_id!==pin.account_id||witness.namespace!==pin.namespace||witness.sequence!==ledger_payload.ledger_sequence||witness.head!==ledger_payload.chain_sha256)hold('HIGHWATER_RECEIPT_TRUST_MISMATCH_HOLD');
   const key=await crypto.subtle.importKey('jwk',pin.public_key_jwk,{name:'Ed25519'},false,['verify']);
   const commit=await signedPayload(witness.commit_envelope,pin,key,'commit',witness.commit_envelope?.payload?.challenge);
-  if(commit.decision!=='ALLOW_ONCE'||commit.sequence!==witness.sequence||commit.head!==witness.head||commit.artifact_sha256!==ledger_payload.execution_artifact_sha256&&ledger_payload.execution_artifact_sha256!==undefined)hold('HIGHWATER_COMMIT_BINDING_MISMATCH_HOLD');
+  if(commit.decision!=='ALLOW_ONCE'||commit.sequence!==witness.sequence||commit.head!==witness.head)
+    hold('HIGHWATER_COMMIT_BINDING_MISMATCH_HOLD');
+  // The signed ledger receipt may omit execution_artifact_sha256; the server-
+  // pinned descriptor is mandatory and must independently match the witness.
+  if(commit.artifact_sha256!==expected_artifact_sha256)
+    hold('HIGHWATER_COMMIT_ARTIFACT_MISMATCH_HOLD');
+  if(ledger_payload.execution_artifact_sha256!==undefined&&
+     ledger_payload.execution_artifact_sha256!==expected_artifact_sha256)
+    hold('HIGHWATER_LEDGER_ARTIFACT_MISMATCH_HOLD');
   const {highwater,...beforeWitness}=ledger_payload;
   const sha=await crypto.subtle.digest('SHA-256',encoder.encode(canonical(beforeWitness)));
   const digest=[...new Uint8Array(sha)].map(x=>x.toString(16).padStart(2,'0')).join('');
