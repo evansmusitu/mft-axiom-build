@@ -1,0 +1,63 @@
+name: AXIOM Phase2 encoded IPv4 origin guard (offline, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - review/axiom-vpc-encoded-ip-rejection-20261109
+    paths:
+      - '.github/workflows/axiom-encoded-ip-guard-offline-20261109.yml'
+      - 'reasoning/phase2/cloudflare-staging/private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_admission.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_hostname_guard.py'
+      - 'reasoning/phase2/cloudflare-staging/test_private_origin_encoded_ip_guard.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-vpc-encoded-ip-offline-20261109
+  cancel-in-progress: false
+
+jobs:
+  offline-ip-alias-denial:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-vpc-encoded-ip-rejection-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact source and three offline test Git blob identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_origin_admission.py)" = '00a1ba593f11da2544b1d35105113da0e4f98134'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_admission.py)" = '67e1231c5aa480148b95bea772e9bd4fb1bfea64'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_hostname_guard.py)" = '2413cedbadff5b5eac1494bbce424fe3420d9ed6'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_encoded_ip_guard.py)" = '5dc83aabc3f9e20210960d0606c4ccc16616bbee'
+      - name: Run all twenty-two private-origin offline regression methods
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 -m py_compile private_origin_admission.py test_private_origin_admission.py test_private_origin_hostname_guard.py test_private_origin_encoded_ip_guard.py
+          python3 -m unittest -v test_private_origin_admission.py test_private_origin_hostname_guard.py test_private_origin_encoded_ip_guard.py
+      - name: Never promote synthetic metadata into live network or release authority
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from private_origin_admission import evaluate
+          for metadata in ({}, {'authorized_to_deploy': True, 'network_verified': True}):
+              result = evaluate(metadata)
+              assert result['status'] == 'METADATA_SECURITY_GATE_BLOCKED'
+              assert result['authorized_to_deploy'] is False
+              assert result['network_verified'] is False
+              assert result['production_release_qualified'] is False
+              assert result['cloudflare_writes'] == 0 and result['neon_sql_queries'] == 0
+          print('AXIOM_OFFLINE_PRIVATE_ORIGIN_NO_DEPLOY_NO_RELEASE')
+          PY

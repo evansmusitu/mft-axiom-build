@@ -13,6 +13,7 @@ verify_full under Cloudflare's documented default as of 2026-11-09.
 import re
 
 _DNS_LABEL = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+_NUMERIC_ADDRESS_LABEL = re.compile(r'^(?:0[xX][0-9A-Fa-f]+|[0-9]+)$')
 
 PROJECT = 'royal-grass-27046609'
 REGION = 'aws-us-east-2'
@@ -55,6 +56,7 @@ def _valid_dns_hostname(value):
     labels = value.split('.')
     return (len(labels) >= 2
             and not all(label.isdecimal() for label in labels)
+            and not all(_NUMERIC_ADDRESS_LABEL.fullmatch(label) is not None for label in labels)
             and all(_DNS_LABEL.fullmatch(label) is not None for label in labels))
 
 
