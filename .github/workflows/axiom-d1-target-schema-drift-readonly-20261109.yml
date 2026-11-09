@@ -1,0 +1,177 @@
+name: AXIOM exact D1 post-import-init schema drift diagnosis READ ONLY
+on:
+  push:
+    branches: [ops/axiom-d1-target-schema-drift-readonly-20261109]
+    paths: [.github/workflows/axiom-d1-target-schema-drift-readonly-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-d1-target-schema-drift-readonly-20261109
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-d1-target-schema-drift-readonly-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Credential-free exact SQL schema diagnostic Python syntax and provider path admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/axiom-d1-target-schema-drift-readonly-20261109.yml').read_text()
+          marker=s.index("      - name: Exact production")
+          line="          python3 - <<'PY'\n"
+          pos=s.index(line,marker)+len(line)
+          end=s.index("\n          PY\n",pos)
+          code='\n'.join(x[10:] for x in s[pos:end].split('\n'))
+          compile(code,'axiom-get-only-catalog.py','exec')
+          assert "GET" in code and "POST_READ_ONLY_SELECT" in code
+          assert "customer_rows_read':0" in code
+          assert "DST_DB='c023a0a0-472a-4178-ad07-02f1d6b2e122'" in code
+          print('READONLY_DIAGNOSTIC_SOURCE_COMPILES')
+          PY
+      - name: Exact production and isolated D1 metadata / schema / COUNT ONLY; never log table names, SQL or customer values
+        env:
+          SRC_READ: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DR_READ: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          SRC_ACC='93f395f5121954671f92fffa453d6b61'
+          SRC_DB='504029cc-f9a5-495e-818f-63c6144b4ea4'
+          DST_ACC='c954f0c842a486d0388c05b19cd21e47'
+          DST_DB='c023a0a0-472a-4178-ad07-02f1d6b2e122'
+          DST_NAME='axiom-dr-clean-restore-20261109'
+          CATALOG="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('table','index','trigger','view') AND name NOT GLOB 'sqlite_*' ORDER BY type,name"
+          RESERVED={'_cf_KV','_cf_METADATA'}
+          NAME=re.compile(r'[A-Za-z0-9_]{1,128}\Z',re.ASCII)
+          class Reject(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          requests=[]
+          def read(acc,db,token,mode,sql=None):
+            if (acc,db,token) not in ((SRC_ACC,SRC_DB,os.environ.get('SRC_READ','')),
+                                       (DST_ACC,DST_DB,os.environ.get('DR_READ',''))):
+              raise Reject('OTHER_ACCOUNT_OR_TOKEN_DENIED')
+            if not token or '\n' in token or '\r' in token:raise Reject('READ_TOKEN_INVALID')
+            if mode=='meta':
+              if sql is not None:raise Reject('METADATA_SQL_DENIED')
+              path='';method='GET';body=None
+            elif mode=='query':
+              if sql!=CATALOG and not (isinstance(sql,str) and re.fullmatch(r'SELECT COUNT\(\*\) AS n FROM "[A-Za-z0-9_]{1,128}"',sql)):
+                raise Reject('SQL_NOT_ALLOWLISTED')
+              path='/query';method='POST';body=json.dumps({'sql':sql,'params':[]}).encode()
+            else:raise Reject('MODE_DENIED')
+            url='https://api.cloudflare.com/client/v4/accounts/'+acc+'/d1/database/'+db+path
+            req=urllib.request.Request(url,method=method,data=body,headers={
+                'Authorization':'Bearer '+token,'Accept':'application/json',
+                'Content-Type':'application/json','User-Agent':'AXIOM-SCHEMA-DRIFT-READ-ONLY'})
+            requests.append({'account':'source' if acc==SRC_ACC else 'target','method':'GET' if mode=='meta' else 'POST_READ_ONLY_SELECT'})
+            try:
+              with opener.open(req,timeout=19) as response:
+                code=response.status;payload=response.read(900001)
+            except urllib.error.HTTPError as e:
+              raise Reject('PROVIDER_HTTP_'+str(e.code)) from None
+            except (OSError,TimeoutError,ValueError):
+              raise Reject('PROVIDER_TRANSPORT_UNKNOWN') from None
+            if code!=200 or len(payload)>900000:raise Reject('PROVIDER_BODY_UNQUALIFIED')
+            try:data=json.loads(payload)
+            except (ValueError,UnicodeError):raise Reject('PROVIDER_JSON_INVALID')
+            if not isinstance(data,dict) or data.get('success') is not True:
+              raise Reject('PROVIDER_UNSUCCESSFUL')
+            if mode=='meta':return data.get('result')
+            result=data.get('result')
+            if not isinstance(result,list) or len(result)!=1 or not isinstance(result[0],dict):
+              raise Reject('QUERY_WRAPPER_INVALID')
+            obj=result[0];meta=obj.get('meta')
+            if not (obj.get('success') is True and isinstance(meta,dict) and meta.get('changed_db') is False
+                 and meta.get('changes')==0 and meta.get('rows_written')==0):
+              raise Reject('NONZERO_QUERY_WRITES')
+            if not isinstance(obj.get('results'),list):raise Reject('QUERY_RESULTS_INVALID')
+            return obj['results']
+          def user_schema_and_aggregate(acc,db,token):
+            rows=read(acc,db,token,'query',CATALOG)
+            if len(rows)>100 or any(not isinstance(row,dict) or set(row)!={'type','name','tbl_name','sql'} for row in rows):
+              raise Reject('CATALOG_MALFORMED')
+            reserved=[r for r in rows if r['name'] in RESERVED]
+            app=[r for r in rows if r['name'] not in RESERVED]
+            tables=[r['name'] for r in app if r['type']=='table']
+            if len(tables)>26 or any(not NAME.fullmatch(x) for x in tables):
+              raise Reject('UNQUALIFIED_TABLE_NAME')
+            counts={}
+            for name in sorted(tables):
+              n=read(acc,db,token,'query','SELECT COUNT(*) AS n FROM "'+name+'"')
+              if len(n)!=1 or type(n[0].get('n')) is not int or n[0]['n']<0:
+                raise Reject('AGGREGATE_INVALID')
+              counts[name]=n[0]['n']
+            return {'app':app,'reserved':reserved,'tables':tables,'counts':counts}
+          report={'schema':'AXIOM_READONLY_POSTINIT_TARGET_CATALOG_AND_ROW_COUNTS_20261109',
+                  'source_id':SRC_DB,'target_id':DST_DB,
+                  'provider_mutations':0,'customer_rows_read':0,
+                  'sql_statement_type':'SCHEMA_AND_COUNT_AGGREGATES_ONLY',
+                  'production_oauth_touched':False,'identity_live_qualified':False,
+                  'full_restore_qualified':False,'release_qualified':False,
+                  'status':'UNQUALIFIED'}
+          try:
+            source_token=os.environ.get('SRC_READ','')
+            target_token=os.environ.get('DR_READ','')
+            if not source_token or not target_token or source_token==target_token:
+              raise Reject('DISTINCT_READ_CREDENTIALS_REQUIRED')
+            sm=read(SRC_ACC,SRC_DB,source_token,'meta')
+            tm=read(DST_ACC,DST_DB,target_token,'meta')
+            if not (isinstance(sm,dict) and sm.get('uuid')==SRC_DB and
+                isinstance(tm,dict) and tm.get('uuid')==DST_DB and tm.get('name')==DST_NAME):
+              raise Reject('SOURCE_OR_TARGET_METADATA_MISMATCH')
+            src=user_schema_and_aggregate(SRC_ACC,SRC_DB,source_token)
+            dst=user_schema_and_aggregate(DST_ACC,DST_DB,target_token)
+            report.update({
+              'source_application_schema_objects':len(src['app']),
+              'target_application_schema_objects':len(dst['app']),
+              'source_application_tables':len(src['tables']),
+              'target_application_tables':len(dst['tables']),
+              'source_total_application_rows':sum(src['counts'].values()),
+              'target_total_application_rows':sum(dst['counts'].values()),
+              'source_reserved_cf_KV':any(x['name']=='_cf_KV' for x in src['reserved']),
+              'target_reserved_cf_KV':any(x['name']=='_cf_KV' for x in dst['reserved']),
+              'target_reserved_cf_METADATA':any(x['name']=='_cf_METADATA' for x in dst['reserved']),
+              'source_target_application_schema_equal':src['app']==dst['app'],
+              'source_target_app_table_counts_equal':src['counts']==dst['counts'],
+              'target_has_no_application_tables':len(dst['app'])==0,
+              'target_nonidentifying_schema_sha256':hashlib.sha256(json.dumps(dst['app'],sort_keys=True).encode()).hexdigest()
+            })
+            report['status']='TARGET_APPLICATION_SCHEMA_EMPTY' if len(dst['app'])==0 else 'TARGET_APPLICATION_SCHEMA_PRESENT_NO_WRITES'
+          except Reject as e:
+            report['reason_code']=str(e)
+          except Exception as e:
+            report['reason_type']=type(e).__name__
+          report['get_select_requests']=len(requests)
+          data=(json.dumps(report,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-target-schema-drift-readonly-20261109.json')
+          p.write_bytes(data)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(data).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_TARGET_SCHEMA_DIAGNOSTIC='+report['status']+' WRITES=0')
+          if report['status']=='UNQUALIFIED':raise SystemExit(2)
+          PY
+      - name: Preserve only schema counts and non-identifying digests
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-d1-target-schema-drift-readonly-20261109
+          path: |
+            axiom-target-schema-drift-readonly-20261109.json
+            axiom-target-schema-drift-readonly-20261109.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
