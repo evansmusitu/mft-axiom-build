@@ -36,3 +36,24 @@ Local test suite: `node --test integrations/security-authority2/*.test.mjs`. Thi
 **Known falsifier:** A destructive restore of the witness's *own* pre-commit snapshot allows the old sequence to be issued again. The test intentionally demonstrates this flaw and must remain. An external operator-controlled non-rollbackable/WORM checkpoint is still needed to prevent all-state restoration. Two independent provider-runner hosts and reviewer-signed destructive reports are not yet available.
 
 No user account, broker, payment, customer data, Cloudflare secrets, live provider dispatch, production D1 or release is changed by this branch. Do not merge or deploy until the external B27 failure is resolved and a separate reviewer approves.
+
+
+## Operator-only provider readback (NO AUTOMATED AUTHENTICATION)
+
+`node integrations/security-authority2/authority2-provider-readonly-check.mjs`
+must be run only by the independent Security Authority 2 operator in an
+operator-controlled shell with a **read-only**, separately issued
+`AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN` environment variable.
+Never pass a token as a CLI argument, chat text, checked-in file, CI
+secret or builder-owned action credential. Missing token or CI execution
+fails closed without a provider call. Successful output is a redacted,
+SHA-256-identified policy readback with `release_eligible:false` and
+`independently_verified:false`; it is **not** a reviewer approval,
+an administrator-proof retention policy or a destructive replay pass.
+
+The command only issues an authenticated Cloudflare GET for
+`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-authority2-worm/lock`.
+It performs no account mutation, billing, R2 provision or credential export.
+An independently retained reviewer transcript and signed custody evidence
+remain required. The external repo-side GitHub immutable anchor does not,
+by itself, qualify operator/admin independence.
