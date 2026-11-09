@@ -1,0 +1,23 @@
+{
+ "program":"MUSITU_AXIOM_CUSTOMER_FRONTIER_V1",
+ "as_of":"2026-10-31",
+ "status":"NOT_CERTIFIED",
+ "release_gate":"FAIL_CLOSED",
+ "no_fabrication":true,
+ "independent_verification_required":true,
+ "measurement_requirements":{
+  "same_tasks":true,"same_available_data_and_licensing":true,"same_currency_and_cost_basis":true,"record_hardware_and_network":true,"document_baseline_version":true,"minimum_real_user_trials_per_cohort":30,"evidence_sha256_required":true,"licensed_baseline_access_not_assumed":true
+ },
+ "dimensions":[
+  {"id":"onboarding_p90_seconds","unit":"seconds","direction":"lower","baselines":["ChatGPT-native best comparable finance plugin","Wolfram experience"],"target":120,"notes":"From fresh user discovery to first independently verified result; include eligibility and auth failures."},
+  {"id":"first_eligible_result_success_rate","unit":"proportion","direction":"higher","baselines":["ChatGPT-native best comparable finance plugin"],"target":0.99,"notes":"Denominator includes errors and failed connections."},
+  {"id":"accuracy","unit":"verified_task_accuracy","direction":"higher","baselines":["Wolfram","SymPy/SciPy reference"],"target":1.0,"notes":"Independently correct on fixed adversarial finance/statistics/optimization suite, not just arithmetic."},
+  {"id":"finance_risk_accuracy","unit":"reproducible_correct_task_rate","direction":"higher","baselines":["FactSet matched licensed workflows","independent statistical references"],"target":1.0,"notes":"Matched licensed data and math definitions; no fabricated FactSet access."},
+  {"id":"tenant_isolation_attack_success","unit":"rate","direction":"lower","baselines":["Secure institutional enterprise control plane"],"target":0.0,"notes":"Independent hostile test and destructive rollback attack; zero unauthorized access."},
+  {"id":"accessibility_success_rate","unit":"proportion","direction":"higher","baselines":["WCAG 2.2 AA normative criteria"],"target":1.0,"notes":"Real assistive technology and device matrix, not automated scan alone."},
+  {"id":"p95_latency_seconds","unit":"seconds","direction":"lower","baselines":["Comparable financial computational product"],"target":3.0,"notes":"Equal workload, network, tools, warm/cold starts, and concurrency."},
+  {"id":"availability_rate","unit":"proportion","direction":"higher","baselines":["Institutional SaaS SLO"],"target":0.9995,"notes":"Real observed time period and audited maintenance policy."},
+  {"id":"verified_customer_outcome_rate","unit":"proportion","direction":"higher","baselines":["Research and analysis enterprise products"],"target":0.95,"notes":"Independent customer sample and post-work acceptance; not marketing surveys."},
+  {"id":"payment_reconciliation_error_rate","unit":"rate","direction":"lower","baselines":["Stripe-class billing/settlement reliability"],"target":0,"notes":"Real PSP captures/reversals/ambiguous retries/independently witnessed reconciliation, not fixture-only tests."}
+ ]
+}
