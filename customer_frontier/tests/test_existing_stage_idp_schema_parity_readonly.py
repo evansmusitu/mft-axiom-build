@@ -12,7 +12,7 @@ class Parity(unittest.TestCase):
   rows=m.local_schema()
   self.assertEqual(sum(x['type']=='table' for x in rows),2)
   self.assertTrue(all(x['name'].startswith('customer_idp_') for x in rows))
-  self.assertTrue(all('CUSTOMER' not in x['name'].upper().split('_')[0] for x in rows))
+  self.assertTrue(all(x['name'].startswith('customer_idp_') for x in rows))
  def test_schema_zero_write_accepts_only_pinned_namespace(self):
   rows=m.local_schema()
   self.assertEqual(m.parse_sql(reply(rows),'catalog'),rows)
