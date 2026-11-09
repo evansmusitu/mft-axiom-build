@@ -44,3 +44,11 @@ test('boundary still accepts mock separately qualified opaque live evidence with
  assert.deepEqual(returned,evidence);
  // No customer credit ledger is used or mutated by this boundary-level test.
 });
+
+test('private reconciliation cannot substitute a different payment provider for Paynow',async()=>{
+ for(const provider of ['sandbox-provider','psp','PAYNOW','paynow-test']){
+  const {promise}=await attempt(liveEnvelope({provider}));
+  await assert.rejects(promise,/provider_identity_denied|provider_not_verified/,
+   'only the existing Paynow PSP is an admitted transaction authority');
+ }
+});
