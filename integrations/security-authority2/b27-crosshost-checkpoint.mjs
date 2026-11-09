@@ -62,12 +62,32 @@ function verifyEnvelope(obj,expectedPublicKeySha256){
   assert.ok(typeof obj.signature==='string'&&/^[a-zA-Z0-9_-]{86}$/.test(obj.signature));
   assert.equal(verify(null,Buffer.from(canon(obj.payload)),
     createPublicKey({key:jwk,format:'jwk'}),Buffer.from(obj.signature,'base64url')),true);
-  const {record0:r0,record1:r1,staleTip:stale}=obj.payload;
+  const {record0:r0,record1:r1,staleTip:stale,event:evt}=obj.payload;
+  exact(r0,['account_id','ledger_id','namespace','key_id','sequence','head']);
+  exact(r1,['schema','account_id','ledger_id','namespace','key_id',
+    'sequence','previous_sequence','previous_head','head','event_digest',
+    'artifact_sha256','action_sha256','challenge','decision']);
+  exact(evt,['schema','action','source']);
+  assert.equal(evt.schema,'synthetic-admission');
+  assert.equal(evt.source,'host-a');
   assert.equal(r0.account_id,ACCOUNT);assert.equal(r1.account_id,ACCOUNT);
+  assert.equal(r0.ledger_id,pin.ledger_id);assert.equal(r0.namespace,pin.namespace);
+  assert.equal(r0.key_id,pin.key_id);
   assert.equal(r1.ledger_id,pin.ledger_id);assert.equal(r1.namespace,pin.namespace);
   assert.equal(r1.key_id,pin.key_id);assert.equal(r0.sequence,0);
+  assert.equal(r1.schema,'musitu.axiom.external-highwater.v1');
+  assert.equal(r1.decision,'ALLOW_ONCE');
   assert.equal(r1.sequence,1);assert.equal(r1.previous_sequence,0);
-  assert.equal(r1.previous_head,r0.head);assert.ok(H64.test(r1.head));
+  assert.ok(H64.test(r0.head)&&H64.test(r1.head));
+  assert.equal(r1.previous_head,r0.head,'B27_CROSSHOST_PREDECESSOR_MISMATCH');
+  // A valid signer can still sign an incoherent checkpoint. Verify the
+  // FULL event/predecessor/action commitment independently on host B.
+  assert.equal(r1.event_digest,digest(evt),'B27_CROSSHOST_EVENT_DIGEST_MISMATCH');
+  assert.equal(r1.action_sha256,digest({action:evt.action}),
+    'B27_CROSSHOST_ACTION_COMMITMENT_MISMATCH');
+  assert.equal(r1.head,digest({previous_sha256:r0.head,event:evt}),
+    'B27_CROSSHOST_CHAIN_HEAD_MISMATCH');
+  for(const field of ['artifact_sha256','challenge'])assert.ok(H64.test(r1[field]));
   assert.equal(stale.sequence,0);assert.equal(stale.head,r0.head);
   assert.notEqual(stale.head,r1.head);
   return obj.payload;
