@@ -1,0 +1,97 @@
+name: AXIOM A2 new R2 token verify and permission diagnosis GET only
+on:
+  push:
+    branches: [audit/axiom-a2-r2-token-diagnostic-20261109]
+    paths: [.github/workflows/axiom-a2-r2-token-diagnostic-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-a2-r2-token-diagnostic-20261109
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-r2-token-diagnostic-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Bounded sanitized Cloudflare token verify + R2 read diagnosis
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.MUSITU_AXIOM_AUTHORITY2_R2_READ_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          account='67469478aa9349fa0a57fe3a72da200a'
+          token=os.environ.get('TOKEN','')
+          root='https://api.cloudflare.com/client/v4'
+          names={
+           'user_token_verify':'/user/tokens/verify',
+           'account_token_verify':'/accounts/'+account+'/tokens/verify',
+           'r2_bucket_inventory':'/accounts/'+account+'/r2/buckets'
+          }
+          def request(path):
+            req=urllib.request.Request(root+path,method='GET',headers={
+              'Authorization':'Bearer '+token,
+              'Accept':'application/json'
+            })
+            opener=urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{
+                'redirect_request':lambda self,*args,**kwargs:None})())
+            status=None;blob=b''
+            try:
+              with opener.open(req,timeout=18) as resp:
+                status=resp.status;blob=resp.read(100001)
+            except urllib.error.HTTPError as e:
+              status=e.code
+              blob=e.read(100001)
+            except (OSError,TimeoutError):
+              return {'http_status':'TRANSPORT_UNKNOWN','success':False,'error_codes':[],'token_status':None}
+            if len(blob)>100000:
+              return {'http_status':status,'success':False,'error_codes':[],'token_status':None,'response_oversize':True}
+            try:
+              obj=json.loads(blob)
+            except (UnicodeError,ValueError):
+              return {'http_status':status,'success':False,'error_codes':[],'token_status':None,'unparsed':True}
+            codes=[e.get('code') for e in obj.get('errors',[]) if isinstance(e,dict) and type(e.get('code'))==int]
+            v=obj.get('result')
+            tokstatus=v.get('status') if isinstance(v,dict) and v.get('status') in ('active','disabled','expired') else None
+            return {'http_status':status,
+                    'success':obj.get('success') is True,
+                    'error_codes':codes[:10],
+                    'token_status':tokstatus}
+          res={'schema':'musitu.axiom.a2_r2_token_diagnostic.v1',
+               'account':account,'GET_only':True,'queries':{},'secrets_disclosed':False,
+               'customer_data_accessed':False,'provider_mutations':0,
+               'R2_permission_admitted':False,'B27_qualified':False,'release_authority':False}
+          if not token or any(c in token for c in '\r\n'):
+            res['result']='SECRET_MISSING_OR_INVALID'
+          else:
+            for label,path in names.items():
+              res['queries'][label]=request(path)
+            r2=res['queries']['r2_bucket_inventory']
+            res['R2_permission_admitted']=r2['http_status']==200 and r2['success']
+            res['result']='R2_READ_VERIFIED' if res['R2_permission_admitted'] else 'R2_READ_DENIED_DIAGNOSED'
+          raw=(json.dumps(res,indent=2,sort_keys=True)+'\n').encode()
+          path=Path('axiom-a2-r2-token-diagnostic.json');path.write_bytes(raw)
+          path.with_name('axiom-a2-r2-token-diagnostic.sha256').write_text(
+            hashlib.sha256(raw).hexdigest()+'  '+path.name+'\n')
+          print('TOKEN_DIAGNOSIS='+res['result'])
+          for label,row in res['queries'].items():
+            print(label, 'HTTP',row['http_status'],'codes',row['error_codes'],'token_status',row['token_status'])
+          if not res['R2_permission_admitted']:raise SystemExit(2)
+          PY
+      - name: Preserve safe diagnosis without token or provider identifiers
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-r2-token-diagnostic-20261109
+          path: |
+            axiom-a2-r2-token-diagnostic.json
+            axiom-a2-r2-token-diagnostic.sha256
+          retention-days: 7
+          if-no-files-found: warn
