@@ -1,0 +1,45 @@
+name: AXIOM DR exact-once creation workflow static validation NO SECRETS
+on:
+  push:
+    branches: [ops/axiom-dr-create-static-preflight-20261109]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-create-static-preflight-20261109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Compile pinned source and assert only exact database one-create path
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object .github/workflows/axiom-dr-clean-create-owner-once.yml)" = '8380109fa747c4dbb1caa92b135d071cfad2b17f'
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('.github/workflows/axiom-dr-clean-create-owner-once.yml').read_text()
+          head="          python3 - <<'PY'\n"
+          assert source.count(head)==1
+          first=source.index(head)+len(head)
+          last=source.index("\n          PY\n",first)
+          code='\n'.join(x[10:] for x in source[first:last].split('\n'))
+          compile(code,'axiom-dr-clean-create-oneuse.py','exec')
+          assert code.count("method=method")==1
+          assert "method=='POST' and body!={'name':NAME}" in code
+          assert "report['create_attempts']=1" in code
+          assert "CREATED_ONE_EMPTY_CANDIDATE_METADATA_ONLY" in code
+          assert "c954f0c842a486d0388c05b19cd21e47" in code
+          assert "axiom-dr-clean-restore-20261109" in code
+          assert "e36972b3-850d-4273-b934-2fa67587d9f1" in code
+          assert "POST_CREATE_EXACT_NAME_ONCE" in code
+          assert "CLOUDFLARE_AXIOM_DR_READ_TOKEN" in source
+          assert "MUSITU_CLOUDFLARE_ADMIN_TOKEN" in source
+          assert 'on:\n  push:' in source
+          print('ONE_SHOT_SCRIPT_STATIC_SAFE_AND_PYTHON_COMPILES')
+          PY
