@@ -96,9 +96,17 @@ class DockerIsolatedSandbox:
             proc.stderr.close()
             if abnormal:
                 try:
-                    cleanup=subprocess.run([DOCKER,'rm','-f',name],env=env,cwd='/',
+                    # Docker --rm may already have removed a finished container.
+                    # Always verify through the daemon that NO named container
+                    # survives; never interpret a failed rm as sufficient proof.
+                    subprocess.run([DOCKER,'rm','-f',name],env=env,cwd='/',
                         stdin=subprocess.DEVNULL,capture_output=True,timeout=10,check=False)
-                    if cleanup.returncode!=0 and b'No such container' not in cleanup.stderr:
+                    audit=subprocess.run([DOCKER,'container','ls','--all',
+                        '--filter',f'name=^/{name}
+,'--format','{{.ID}}'],
+                        env=env,cwd='/',stdin=subprocess.DEVNULL,
+                        capture_output=True,timeout=10,check=False)
+                    if audit.returncode!=0 or audit.stdout.strip():
                         raise FrontierError('OCI sandbox cleanup unconfirmed')
                 except (OSError,subprocess.TimeoutExpired):
                     raise FrontierError('OCI sandbox cleanup unconfirmed') from None
