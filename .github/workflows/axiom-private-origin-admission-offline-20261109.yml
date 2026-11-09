@@ -1,0 +1,57 @@
+name: AXIOM private-origin metadata admission (offline, NO RELEASE)
+
+on:
+  push:
+    branches:
+      - ops/axiom-private-origin-admission-20261109
+    paths:
+      - .github/workflows/axiom-private-origin-admission-offline-20261109.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-phase2-private-origin-offline-20261109
+  cancel-in-progress: false
+
+jobs:
+  deny-only-contract:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-private-origin-admission-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout no credentials persisted
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Require exact approved source and synthetic test blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/private_origin_admission.py)" = '85d22f2e14dd4dd9f406cb4244b81dea4ac7bdcc'
+          test "$(git hash-object reasoning/phase2/cloudflare-staging/test_private_origin_admission.py)" = '67e1231c5aa480148b95bea772e9bd4fb1bfea64'
+      - name: Sixteen deny-only security regressions no network or secrets
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 -m py_compile private_origin_admission.py test_private_origin_admission.py
+          python3 -m unittest -v test_private_origin_admission.py
+      - name: Assert no offline fixture grants deployment authority
+        shell: bash
+        working-directory: reasoning/phase2/cloudflare-staging
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from private_origin_admission import evaluate
+          out=evaluate({})
+          assert out['status']=='METADATA_SECURITY_GATE_BLOCKED'
+          assert out['authorized_to_deploy'] is False
+          assert out['network_verified'] is False
+          assert out['production_release_qualified'] is False
+          assert out['cloudflare_writes']==0 and out['neon_sql_queries']==0
+          print('AXIOM_PRIVATE_ORIGIN_METADATA_GATE_FAIL_CLOSED; NO_DEPLOY; NO_RELEASE')
+          PY
