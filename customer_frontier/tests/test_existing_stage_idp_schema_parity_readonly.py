@@ -20,9 +20,13 @@ class Parity(unittest.TestCase):
   with self.assertRaisesRegex(m.Reject,'ZERO_WRITE'):m.parse_sql(reply(rows,changes=1),'catalog')
   with self.assertRaisesRegex(m.Reject,'ZERO_WRITE'):m.parse_sql(reply(rows,written=1),'catalog')
  def test_row_counts_are_aggregate_only_and_bounded(self):
-  self.assertEqual(m.parse_sql(reply([{'flows':0,'sessions':0}]),'counts'),[{'flows':0,'sessions':0}])
-  for bad in ([{'flows':'PRIVATE','sessions':0}],[{'flows':0,'sessions':-1}],
-              [{'flows':0,'sessions':0,'email':'PRIVATE'}]):
+  clean={'flows':0,'sessions':0,'pending_flows':0,'processing_flows':0,
+   'active_sessions':0,'unexpired_active_sessions':0}
+  self.assertEqual(m.parse_sql(reply([clean]),'counts'),[clean])
+  for bad in ([{**clean,'flows':'PRIVATE'}],[{**clean,'sessions':-1}],
+              [{**clean,'email':'PRIVATE'}],[{**clean,'unexpired_active_sessions':1}],
+              [{**clean,'pending_flows':1}]):
+
    with self.assertRaises(m.Reject):m.parse_sql(reply(bad),'counts')
  def test_expected_schema_stays_source_bound(self):
   self.assertRegex(m.EXPECTED_SOURCE_BLOB,r'^[a-f0-9]{40}$')
