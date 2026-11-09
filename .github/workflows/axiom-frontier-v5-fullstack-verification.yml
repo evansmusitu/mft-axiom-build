@@ -246,6 +246,13 @@ jobs:
           PYTHONPATH=. python frontier_v5/scripts/frontier_independent_validate.py
           test -s /tmp/musitu-frontier-market-cache.json
 
+      - name: Prove privileged environment cannot invoke legacy production-writing script
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest frontier_v5.tests.test_legacy_live_adapter_veto -v
+          echo 'MUSITU_AXIOM_FRONTIER_LEGACY_DIRECT_INVOCATION_DENIED'
+
       - name: Block legacy production-writing live adapter pending isolated staging security gate
         shell: bash
         run: |
