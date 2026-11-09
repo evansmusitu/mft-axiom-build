@@ -11,7 +11,7 @@ export function anchorPin(value){
   return Object.freeze(structuredClone(value));
 }
 export function checkpointTag(pin,payload){integer(payload.ledger_sequence??payload.sequence);return pin.namespace+'-'+String(payload.ledger_sequence??payload.sequence).padStart(12,'0');}
-function content(pin,payload){const {anchor,...unanchored}=payload;return canonicalJson({schema:SCHEMA,pin,payload:unanchored});}
+function content(pin,payload){const {anchor,highwater,...unanchored}=payload;return canonicalJson({schema:SCHEMA,pin,payload:unanchored});}
 async function contentDigest(pin,payload){return 'sha256:'+await sha256Json(JSON.parse(content(pin,payload)));}
 function transport(pin,token,fetchImpl){
   anchorCredential(token);
