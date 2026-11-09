@@ -1,0 +1,129 @@
+name: AXIOM newly-created disposable DR D1 empty/unbound acceptance GET and schema SELECT only
+on:
+  push:
+    branches: [ops/axiom-dr-clean-restore-postrollback-20261109]
+    paths: [.github/workflows/axiom-dr-clean-restore-verify-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/ops/axiom-dr-clean-restore-postrollback-20261109' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Pinned owner account and exact-name new D1 metadata plus safe aggregate schema SELECT; NO WRITES
+        env:
+          D1_READ_TOKEN: ${{ secrets.CLOUDFLARE_AXIOM_DR_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from pathlib import Path
+          ACCOUNT='c954f0c842a486d0388c05b19cd21e47'
+          NEWNAME='axiom-dr-clean-restore-20261109'
+          OLDUUID='e36972b3-850d-4273-b934-2fa67587d9f1'
+          OLDNAME='axiom-disposable-dr-target-20261108'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          SQL="SELECT COUNT(*) AS n FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> '_cf_KV'"
+          token=os.environ.get('D1_READ_TOKEN','')
+          if not token or any(c in token for c in '\r\n'):raise SystemExit('OWNER_READ_TOKEN_MISSING')
+          assert not re.search(r';|UPDATE|DELETE|INSERT|DROP|ALTER|CREATE|PRAGMA|REPLACE|ATTACH|DETACH',SQL,re.I)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*a,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          headers={'authorization':'Bearer '+token,'accept':'application/json','content-type':'application/json'}
+          def req(path,method='GET',body=None):
+            approved=('/d1/database?per_page=100&page=1','/workers/scripts')
+            approvedpath=(path in approved or re.fullmatch(r'/d1/database/[a-f0-9-]{36}',path)
+              or re.fullmatch(r'/workers/scripts/[A-Za-z0-9_-]{1,128}/settings',path)
+              or (re.fullmatch(r'/d1/database/[a-f0-9-]{36}/query',path) and method=='POST' and body=={'sql':SQL}))
+            if not approvedpath or method not in ('GET','POST') or (method=='POST' and body!={'sql':SQL}):
+              raise SystemExit('NONALLOWLISTED_API_CALL')
+            payload=json.dumps(body,separators=(',',':')).encode() if body else None
+            request=urllib.request.Request(ROOT+path,method=method,data=payload,headers=headers)
+            try:
+              with opener.open(request,timeout=17) as res:
+                status=res.status;raw=res.read(40001)
+            except urllib.error.HTTPError as e:
+              raise SystemExit('PROVIDER_HTTP_'+str(e.code))
+            except (OSError,TimeoutError,ValueError):
+              raise SystemExit('PROVIDER_TRANSPORT_FAILURE')
+            if status!=200 or len(raw)>40000:raise SystemExit('PROVIDER_RESPONSE_INVALID')
+            obj=json.loads(raw)
+            if not isinstance(obj,dict) or obj.get('success') is not True:raise SystemExit('PROVIDER_FAILURE')
+            return obj if path=='/d1/database?per_page=100&page=1' else obj['result']
+          # Require the original two-resource baseline plus the one manually created new database.
+          envelope=req('/d1/database?per_page=100&page=1')
+          doc=envelope.get('result') if isinstance(envelope,dict) else None
+          paging=envelope.get('result_info') if isinstance(envelope,dict) else None
+          if not (isinstance(doc,list) and len(doc)==3 and isinstance(paging,dict) and
+            type(paging.get('count')) is int and paging['count']==3 and
+            type(paging.get('total_count')) is int and paging['total_count']==3 and
+            type(paging.get('page')) is int and paging['page']==1):
+            raise SystemExit('EXPECTED_THIRD_DB_NOT_IN_INVENTORY')
+          if not all(isinstance(x,dict) and isinstance(x.get('name'),str) and
+             re.fullmatch('[a-f0-9-]{36}',str(x.get('uuid',''))) for x in doc):
+            raise SystemExit('INVENTORY_SCHEMA_INVALID')
+          if sum(x.get('name')==NEWNAME for x in doc)!=1:raise SystemExit('NEW_NAME_NOT_UNIQUE')
+          if sum(x.get('uuid')==OLDUUID and x.get('name')==OLDNAME for x in doc)!=1:
+            raise SystemExit('ORIGINAL_TARGET_MISMATCH')
+          new=next(x for x in doc if x['name']==NEWNAME)
+          new_id=new['uuid']
+          detail=req('/d1/database/'+new_id)
+          if not isinstance(detail,dict) or detail.get('uuid')!=new_id or detail.get('name')!=NEWNAME:
+            raise SystemExit('NEW_DATABASE_IDENTITY_MISMATCH')
+          scripts=req('/workers/scripts')
+          if not isinstance(scripts,list) or len(scripts)>30 or not all(isinstance(s,dict) and
+              re.fullmatch(r'[a-zA-Z0-9_-]{1,128}',str(s.get('id',''))) for s in scripts):
+            raise SystemExit('WORKER_CATALOG_INVALID')
+          bound_count=0
+          for s in scripts:
+            settings=req('/workers/scripts/'+s['id']+'/settings')
+            if not isinstance(settings,dict) or not isinstance(settings.get('bindings'),list):
+              raise SystemExit('WORKER_BINDINGS_INCOMPLETE')
+            for b in settings['bindings']:
+              if isinstance(b,dict) and (b.get('database_id')==new_id or b.get('id')==new_id):
+                bound_count+=1
+          if bound_count!=0:raise SystemExit('NEW_DATABASE_ALREADY_BOUND')
+          results=req('/d1/database/'+new_id+'/query',method='POST',body={'sql':SQL})
+          if isinstance(results,dict):results=[results]
+          if not isinstance(results,list) or len(results)!=1 or not isinstance(results[0],dict):
+            raise SystemExit('SCHEMA_COUNT_RESPONSE_INVALID')
+          r=results[0];values=r.get('results')
+          if r.get('success') is not True or not isinstance(values,list) or len(values)!=1 or not isinstance(values[0],dict):
+            raise SystemExit('SCHEMA_COUNT_RESPONSE_INVALID')
+          count=values[0].get('n')
+          if type(count) is not int or count!=0:raise SystemExit('NEW_DATABASE_NOT_EMPTY')
+          if isinstance(r.get('meta'),dict) and r['meta'].get('changes',0)!=0:
+            raise SystemExit('UNEXPECTED_SCHEMA_QUERY_CHANGES')
+          receipt={'schema':'AXIOM_NEW_DISPOSABLE_D1_EMPTY_UNBOUND_READONLY_V1',
+            'separate_account_checked':True,'historical_target_preserved':True,
+            'new_database_name':NEWNAME,'new_database_uuid':new_id,
+            'catalog_now_contains_three_dbs':True,
+            'new_db_actual_noninternal_table_count':count,
+            'worker_binding_count':bound_count,
+            'sql_hash':hashlib.sha256(SQL.encode()).hexdigest(),
+            'provider_methods':['GET','POST_SELECT_ONLY'],
+            'customer_rows_read':0,'provider_writes':0,'production_oauth_touched':False,
+            'restore_qualified':False,'identity_live_qualified':False,'release_qualified':False,
+            'status':'PASS_NEW_EMPTY_UNBOUND_ONLY_RESTORE_NO_GO'}
+          raw=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+          p=Path('axiom-new-clean-dr-target-acceptance.json');p.write_bytes(raw)
+          p.with_name(p.name+'.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  '+p.name+'\n')
+          print('AXIOM_NEW_DR_TARGET='+receipt['status']+' WRITES=0')
+          PY
+      - name: Archive metadata/SQL-aggregate evidence and independent hash
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-new-clean-dr-target-20261109
+          path: |
+            axiom-new-clean-dr-target-acceptance.json
+            axiom-new-clean-dr-target-acceptance.json.sha256
+          if-no-files-found: warn
+          retention-days: 14
