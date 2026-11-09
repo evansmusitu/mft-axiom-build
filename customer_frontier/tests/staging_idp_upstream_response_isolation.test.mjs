@@ -57,3 +57,19 @@ test('admitted login redirects forward only validated location and host-only coo
  assert.equal(result.headers.get('cache-control'),'no-store');
  assert.equal(await result.text(),'');
 });
+
+test('failed callback may clear only its own transient login cookie, never grant a session',async()=>{
+ const cleared='__Host-axiom_login=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0';
+ const upstream=new Response('provider rejection details',{status:400,headers:{
+  'set-cookie':cleared,location:'https://evil.invalid','x-private-provider':'hidden'
+ }});
+ const request=new Request(origin+'/auth/callback?state='+('s'.repeat(43))+'&code=opaque',{
+  headers:{cookie:'__Host-axiom_login='+('a'.repeat(43))}
+ });
+ const result=await stagingIdentityRoute(request,admitted(upstream));
+ assert.equal(result.status,400);
+ assert.equal(result.headers.get('set-cookie'),cleared);
+ assert.equal(result.headers.get('location'),null);
+ assert.equal(result.headers.get('x-private-provider'),null);
+ assert.deepEqual(await result.json(),{ok:false,error:'identity_not_qualified'});
+});
