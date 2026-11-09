@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,webcrypto} from 'node:crypto';
 import {Authority2Highwater} from './authority2-highwater-worker.mjs';
-import {externalHighwaterFence} from './external-highwater-fence.mjs';
+import {externalHighwaterFence,verifyExternalHighwaterReceipt} from './external-highwater-fence.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const canonical=x=>Array.isArray(x)?'['+x.map(canonical).join(',')+']':x&&typeof x==='object'?'{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}':JSON.stringify(x);
@@ -26,3 +26,20 @@ test('different caller role not accepted for write',async()=>{const x=await setu
 test('eight simultaneous writers obtain exactly one CAS',async()=>{const x=await setup();await x.seed();const rs=await Promise.allSettled(Array.from({length:8},()=>externalHighwaterFence(x.args)));assert.equal(rs.filter(q=>q.status==='fulfilled').length,1);});
 test('missing state after deletion holds without self-reinitializing',async()=>{const x=await setup();await x.seed();await externalHighwaterFence(x.args);x.reset();await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
 test('negative B27: witness snapshot restore still permits replay — external immutable custody required',async()=>{const x=await setup();await x.seed();const snapshot=x.snapshot();await externalHighwaterFence(x.args);x.restore(snapshot);const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);});
+
+test('sequence-zero external genesis commitment requires explicitly preseeded -1 tip',async()=>{
+  const x=await setup();
+  await x.storage.put('highwater/tip',{...PIN,sequence:-1,head:sha('0')});
+  const p=await externalHighwaterFence({...x.args,event:{...x.args.event,sequence:0,previous_sequence:-1}});
+  assert.equal(p.sequence,0);
+});
+
+test('customer client independently checks witness signature, ledger digest and FRESH readback',async()=>{
+  const x=await setup();await x.seed();
+  const base={schema:'synthetic-ledger',ledger_sequence:1,chain_sha256:sha('1'),anchor:{tag:'synthetic-only'}};
+  const event={...x.args.event,event_digest:hash(canonical(base))};
+  const witness=await externalHighwaterFence({...x.args,event});
+  const ledger={...base,highwater:witness};
+  assert.equal(await verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:ledger,read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),true);
+  await assert.rejects(verifyExternalHighwaterReceipt({pin:x.args.pin,ledger_payload:{...ledger,anchor:{tag:'swapped'}},read_token:x.args.read_token,fetchImpl:x.args.fetchImpl}),/HIGHWATER_COMMIT_LEDGER_DIGEST_MISMATCH_HOLD/);
+});
