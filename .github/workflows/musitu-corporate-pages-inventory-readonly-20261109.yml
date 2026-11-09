@@ -34,7 +34,8 @@ jobs:
           if len(account)!=32 or any(c not in "0123456789abcdef" for c in account.lower()):
               raise SystemExit("HOLD: invalid Cloudflare account identifier")
           path="/accounts/"+account+"/pages/projects/musitu-corporate"
-          allow={path,path+"/deployments?per_page=10"}
+          rollback_id="69ee853a-f0b4-432e-b069-7d6e180fdb4c"
+          allow={path,path+"/deployments?per_page=10",path+"/deployments/"+rollback_id}
           def get(p):
               if p not in allow:raise SystemExit("HOLD: non-allowlisted Cloudflare operation")
               request=urllib.request.Request(
@@ -74,14 +75,19 @@ jobs:
           if not isinstance(deployments,list):
               raise SystemExit("HOLD: Cloudflare deployment inventory malformed")
           expected_live="a2426a81-b0cb-4a46-a90c-493f871c9775"
-          expected_rollback="69ee853a-f0b4-432e-b069-7d6e180fdb4c"
+          expected_rollback=rollback_id
+          restored=get(path+"/deployments/"+expected_rollback)
+          if not isinstance(restored,dict) or restored.get("id")!=expected_rollback:
+              raise SystemExit("HOLD: exact historic rollback deployment does not exist")
           prod=[d for d in deployments if isinstance(d,dict) and d.get("environment")=="production"]
           ids={d.get("id") for d in prod}
           print("Exact corporate Pages project, production branch and domain: PASS")
           print("Prior qualified production deployment still in inventory:",expected_live in ids)
-          print("Previously verified rollback snapshot still in inventory:",expected_rollback in ids)
+          print("Historic rollback candidate exact GET: PASS")
+          print("Historic rollback candidate environment:",restored.get("environment") if restored.get("environment") in ("production","preview") else "UNKNOWN")
+          print("Historic rollback candidate listed in first bounded production page:",expected_rollback in ids)
           print("Deployment inventory count (first bounded page):",len(prod))
           print("PHASE03_PRODUCTION_CUTOVER: NOT_PERFORMED")
           print("ACTUAL_PRODUCTION_ROLLBACK: NOT_PERFORMED")
-          print("Provider operations: 2 GET, 0 writes")
+          print("Provider operations: 3 GET, 0 writes")
           PY
