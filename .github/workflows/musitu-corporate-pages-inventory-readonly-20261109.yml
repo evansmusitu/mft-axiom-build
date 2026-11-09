@@ -75,6 +75,10 @@ jobs:
           if not isinstance(deployments,list):
               raise SystemExit("HOLD: Cloudflare deployment inventory malformed")
           expected_live="a2426a81-b0cb-4a46-a90c-493f871c9775"
+          canonical=(project.get("canonical_deployment") or {}).get("id")
+          if canonical != expected_live:
+              raise SystemExit("HOLD: active canonical corporate Pages deployment has drifted from qualified baseline")
+          print("Active canonical production deployment matches qualified baseline: PASS")
           expected_rollback=rollback_id
           restored=get(path+"/deployments/"+expected_rollback)
           if not isinstance(restored,dict) or restored.get("id")!=expected_rollback:
