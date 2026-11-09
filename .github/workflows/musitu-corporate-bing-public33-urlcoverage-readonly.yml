@@ -95,7 +95,11 @@ jobs:
           counts=collections.Counter()
           http=collections.Counter()
           for url in sorted(urls):
-              record=provider("GetUrlInfo",siteUrl=matching[0],url=url)
+              # Bing's documented GetUrlInfo examples pass a hostname/path,
+              # not the fully-qualified sitemap loc; keep the requested path exact.
+              parsed_url=urllib.parse.urlsplit(url)
+              bing_url=parsed_url.netloc+parsed_url.path
+              record=provider("GetUrlInfo",siteUrl=matching[0],url=bing_url)
               if record is None:
                   counts["no_record"]+=1
               elif not isinstance(record,dict):
