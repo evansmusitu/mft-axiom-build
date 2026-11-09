@@ -98,10 +98,16 @@ def main():
             br=browser.run(base+"/app.html",out/"browser.png",click_selector="#run",expect_text="42")
             assert br.screenshot_sha256 and Path(out/"browser.png").exists()
 
-        # Sandboxed computer/application adapter: no shell, strict executable allowlist.
-        comp=SandboxedComputerAdapter(root/"computer",{"python"})
-        r=comp.run(["python","-c","from pathlib import Path;Path('verified.txt').write_text('MUSITU');print('ok')"])
-        assert "ok" in r["stdout"] and (root/"computer"/"verified.txt").read_text()=="MUSITU"
+        # Actual disposable Linux namespace boundary; no host workspace writes.
+        from frontier_v5.runtime.linux_namespace_sandbox import rootfs_digest
+        jail_path=os.environ.get("AXIOM_SANDBOX_ROOTFS")
+        if not jail_path:
+            raise AuthorizationError("explicit namespace rootfs required")
+        comp=SandboxedComputerAdapter(root/"computer",{"/usr/bin/python3"},
+            sandbox_rootfs=jail_path,rootfs_sha256=rootfs_digest(Path(jail_path)))
+        r=comp.run(["/usr/bin/python3","-I","-S","-c","print('MUSITU')"])
+        assert r["stdout"].strip()=="MUSITU" and r["execution_boundary"].startswith("LINUX_USER_MOUNT_PID_NET_NS")
+        assert not (root/"computer"/"verified.txt").exists()
         expect_error(lambda: comp.run(["sh","-c","echo unsafe"]),AuthorizationError)
 
         # Image and audio/video multimodal adapters.
