@@ -1,0 +1,34 @@
+name: MUSITU Corporate 404 Release Controller Safety (NO SECRETS)
+on:
+  push:
+    branches:
+      - ops/corporate-soft404-production-20261109
+    paths:
+      - scripts/corporate_soft404_maintenance_control.py
+      - tests/test_corporate_soft404_maintenance_control.py
+      - .github/workflows/musitu-corporate-soft404-controller-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test-controller:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-soft404-production-20261109' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile and run all independent provider-free fail-closed release tests
+        run: |
+          python3 -m py_compile scripts/corporate_soft404_maintenance_control.py
+          python3 -m unittest -q tests/test_corporate_soft404_maintenance_control.py
+      - name: Keep release controller distinct from unrelated product sources
+        run: |
+          test -f scripts/corporate_soft404_maintenance_control.py
+          test -f tests/test_corporate_soft404_maintenance_control.py
+          echo "Source-only release safety tests, no secrets, no provider operations"
