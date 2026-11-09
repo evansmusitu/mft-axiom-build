@@ -323,3 +323,39 @@ jobs:
             /tmp/musitu-frontier-market-cache.json
             /tmp/musitu-frontier-supply-chain.json
             /tmp/musitu-screen.png
+
+  oci-isolated-host-prequalification:
+    name: Pinned scratch OCI boundary (separate hosted job; NOT RELEASE)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build local-only scratch image with no upstream base, credentials or mounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/axiom-oci-disposable-context"
+          mkdir -p "$context"
+          PYTHONPATH=. python3 frontier_v5/scripts/build_isolated_python_rootfs.py --output "$context/rootfs" --python /usr/bin/python3
+          cat > "$context/Dockerfile" <<'DOCKERFILE'
+          FROM scratch
+          COPY rootfs/ /
+          USER 65534:65534
+          WORKDIR /
+          DOCKERFILE
+          docker build --network=none --pull=false -f "$context/Dockerfile" -t axiom-frontier-disposable-oci "$context"
+          image_id="$(docker image inspect --format '{{.Id}}' axiom-frontier-disposable-oci)"
+          case "$image_id" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1;; esac
+          echo "AXIOM_SANDBOX_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
+      - name: Execute real OCI network, filesystem, secret, timeout and output tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m unittest discover -s frontier_v5/tests -p test_oci_security.py -v
+      - name: Record nonrelease boundary
+        shell: bash
+        run: |
+          echo 'FRONTIER_OCI_HOSTED_PREQUALIFICATION_ONLY_NOT_RELEASE'
+          echo 'FRONTIER_INDEPENDENT_SECURITY_REVIEW_PENDING'
