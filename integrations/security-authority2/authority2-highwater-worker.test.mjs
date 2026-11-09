@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash,webcrypto} from 'node:crypto';
+import {Authority2Highwater} from './authority2-highwater-worker.mjs';
+import {externalHighwaterFence} from './external-highwater-fence.mjs';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const hash=x=>createHash('sha256').update(x).digest('hex');
+const canonical=x=>Array.isArray(x)?'['+x.map(canonical).join(',')+']':x&&typeof x==='object'?'{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}':JSON.stringify(x);
+const PIN={account_id:'67469478aa9349fa0a57fe3a72da200a',ledger_id:'test-ledger',namespace:'ax-security-authority2',key_id:'operator-key'};
+const sha=c=>c.repeat(64);
+async function setup(){const keys=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']), jwk=await crypto.subtle.exportKey('jwk',keys.privateKey),publicJwk={kty:'OKP',crv:'Ed25519',x:jwk.x};
+  let values=new Map();let queue=Promise.resolve();const storage={get:k=>Promise.resolve(values.get(k)),put:(k,v)=>{values.set(k,v);return Promise.resolve();},sync:async()=>{},transaction:async fn=>{let release;const next=new Promise(res=>release=res);const prev=queue;queue=next;await prev;try{return await fn(storage)}finally{release()}}};
+  const env={HW_CONFIG_JSON:JSON.stringify(PIN),HW_SIGNING_JWK:JSON.stringify(jwk),HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({read:hash('r'.repeat(40)),write:hash('w'.repeat(40))})};
+  const server=new Authority2Highwater({storage},env),root='https://custody.example.com';
+  const fetchImpl=(url,init)=>server.fetch(new Request(url,init));
+  const pin={...PIN,origin:root,public_key_jwk:publicJwk};
+  const event={ledger_id:PIN.ledger_id,namespace:PIN.namespace,sequence:1,previous_sequence:0,previous_head:sha('0'),head:sha('1'),event_digest:sha('2'),artifact_sha256:sha('3'),action_sha256:sha('4')};
+  const args={pin,event,write_token:'w'.repeat(40),read_token:'r'.repeat(40),fetchImpl};
+  const seed=async()=>storage.put('highwater/tip',{...PIN,sequence:0,head:sha('0')});
+  return {args,storage,seed,server,values,reset:()=>{values=new Map()},restore:snapshot=>{values=new Map(snapshot)},snapshot:()=>new Map(values),root};
+}
+test('service denies unauthenticated and unprovisioned authority',async()=>{const x=await setup();const noauth=await x.server.fetch(new Request(x.root+'/v1/highwater/readback',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}));assert.equal(noauth.status,401);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
+test('valid independent seeded CAS issues single signed receipt',async()=>{const x=await setup();await x.seed();const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);assert.equal((await x.storage.get('highwater/tip')).sequence,1);});
+test('replay after builder-only restore denied while authority retains tip',async()=>{const x=await setup();await x.seed();await externalHighwaterFence(x.args);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
+test('different caller role not accepted for write',async()=>{const x=await setup();await x.seed();await assert.rejects(externalHighwaterFence({...x.args,write_token:'z'.repeat(40)}),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
+test('eight simultaneous writers obtain exactly one CAS',async()=>{const x=await setup();await x.seed();const rs=await Promise.allSettled(Array.from({length:8},()=>externalHighwaterFence(x.args)));assert.equal(rs.filter(q=>q.status==='fulfilled').length,1);});
+test('missing state after deletion holds without self-reinitializing',async()=>{const x=await setup();await x.seed();await externalHighwaterFence(x.args);x.reset();await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);});
+test('negative B27: witness snapshot restore still permits replay — external immutable custody required',async()=>{const x=await setup();await x.seed();const snapshot=x.snapshot();await externalHighwaterFence(x.args);x.restore(snapshot);const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);});
