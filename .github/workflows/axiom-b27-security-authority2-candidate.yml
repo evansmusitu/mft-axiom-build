@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.12.0'
@@ -43,3 +45,20 @@ jobs:
         run: |
           echo 'AXIOM_AUTHORITY2_LOCAL_SYNTHETIC_TESTS_ONLY_NOT_RELEASE'
           echo 'B27_GLOBAL_NONROLLBACK_NOT_YET_PROVEN'
+
+  independent-custody-release-veto:
+    name: B27 independent custody and global rollback release veto (MUST FAIL)
+    needs: candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Block global B27 release until provider-origin and destructive acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'B27_GLOBAL_NONROLLBACK_NOT_YET_PROVEN' >&2
+          echo 'INDEPENDENT_CUSTODY_AND_SEPARATE_HOST_PROVIDER_ACCEPTANCE_PENDING' >&2
+          echo 'SYNTHETIC_TWO_HOST_JOB_SUCCESS_DOES_NOT_AUTHORIZE_RELEASE' >&2
+          exit 1
