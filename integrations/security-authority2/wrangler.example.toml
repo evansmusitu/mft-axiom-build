@@ -1,0 +1,23 @@
+# REVIEW CANDIDATE ONLY — do not deploy until independent reviewer approves.
+name = "axiom-security-authority2-highwater"
+main = "./authority2-highwater-worker.mjs"
+compatibility_date = "2026-07-01"
+account_id = "67469478aa9349fa0a57fe3a72da200a"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "HIGHWATER_STATE"
+class_name = "Authority2Highwater"
+
+[[migrations]]
+tag = "authority2-highwater-v1"
+new_sqlite_classes = ["Authority2Highwater"]
+
+[observability]
+enabled = false
+
+# All signing JWKs and raw credentials are operator-generated secrets.
+# Mandatory secret names: HW_CONFIG_JSON, HW_ROLE_TOKEN_SHA256_JSON, HW_SIGNING_JWK
+# Never copy these secrets to GitHub Actions, the builder, or this repository.
+# NO activation/bootstrap endpoint: unseeded authority must reject all requests.
+# A Durable Object alone is restorable: global B27 qualification is NOT satisfied.
