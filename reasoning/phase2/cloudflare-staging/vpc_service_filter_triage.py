@@ -110,15 +110,34 @@ def classify(results):
             any(row.get('type') != 'http' for row in http_rows)):
         out['classification'] = 'FILTER_QUERY_MISMATCH'
         return out
-    if (any(row.get('type') not in ('tcp', 'http') for row in all_rows) or
-            len(tcp_rows) + len(http_rows) != len(all_rows)):
+    if any(row.get('type') not in ('tcp', 'http') for row in all_rows):
         out['classification'] = 'CATALOG_QUERY_CONFLICT'
         return out
     complete = all(complete_page(results[kind]) for kind in PATHS)
     out['pagination_confirmed_all'] = complete
     if not complete:
-        out['classification'] = ('EMPTY_PAGES_PAGINATION_UNVERIFIED'
-                                 if not all_rows else 'PAGINATION_UNVERIFIED')
+        if not all_rows and (tcp_rows or http_rows):
+            out['classification'] = 'CATALOG_QUERY_CONFLICT'
+        else:
+            out['classification'] = ('EMPTY_PAGES_PAGINATION_UNVERIFIED'
+                                     if not all_rows else 'PAGINATION_UNVERIFIED')
+        return out
+    if len(tcp_rows) + len(http_rows) != len(all_rows):
+        out['classification'] = 'CATALOG_QUERY_CONFLICT'
+        return out
+    # Only complete catalog snapshots can be compared by identity; never
+    # mistake two distinct services with matching counts for the same service.
+    def ids(rows):
+        values = [r.get('service_id') for r in rows]
+        return values if all(isinstance(value, str) and value for value in values) else None
+    unfiltered_ids = ids(all_rows)
+    tcp_ids = ids(tcp_rows)
+    http_ids = ids(http_rows)
+    if (unfiltered_ids is not None and tcp_ids is not None and http_ids is not None and
+            (len(set(unfiltered_ids)) != len(unfiltered_ids) or
+             set(unfiltered_ids) != set(tcp_ids) | set(http_ids) or
+             set(tcp_ids) & set(http_ids))):
+        out['classification'] = 'CATALOG_QUERY_CONFLICT'
         return out
     out['account_service_count'] = len(all_rows)
     out['classification'] = ('EMPTY_SERVICE_CATALOG_OBSERVED' if not all_rows
