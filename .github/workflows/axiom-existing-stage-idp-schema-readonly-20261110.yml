@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           test "$(git hash-object customer_frontier/customer_control_plane/zitadel_session_broker_candidate.sql)" = '8ee3d092d2634e7fc44fc65db4b44e9fce2058fc'
           test "$(git hash-object customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py)" = '60e47ee107bc6eca9db94916ecbf37e61bfaec1e'
-          test "$(git hash-object customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py)" = '266903d560ec7dc9c59b03a395388b49b7d467ac'
+          test "$(git hash-object customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py)" = 'd93bdf87c6cf777ec82876b0d8f78647b5ec151d'
           python3 -m py_compile customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py
           python3 -m unittest discover -s customer_frontier/tests -p test_existing_stage_idp_schema_parity_readonly.py -v
       - name: Exact existing D1 identity DDL plus aggregate session counts with zero writes
