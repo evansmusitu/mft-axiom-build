@@ -124,14 +124,14 @@ test('actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public
  const response=await f.browser.fetch(origin+'/session/verify',{method:'POST'});
  assert.equal(response.status,404);assert.equal(f.requests.length,0);
 });
-test('server login, read-only Paynow truth and private verifier transports run without real grants',{timeout:30000},async t=>{
+test('server login and Paynow catalog read work, but synthetic PSP settlement is denied',{timeout:30000},async t=>{
  const f=await runtime(t);
  const login=await f.transports.fetch(origin+'/login');assert.equal(login.status,200,await login.clone().text());
  assert.equal(new URL((await login.json()).authorization_url).origin,'https://auth.mftintelligence.com');
  const billing=await f.transports.fetch(origin+'/billing');assert.equal(billing.status,200,await billing.clone().text());
  assert.equal((await billing.json()).real_settlement_verified,false);
- const verified=await f.transports.fetch(origin+'/reconcile',{method:'POST',body:'{}'});assert.equal(verified.status,200,await verified.clone().text());
- assert.equal((await verified.json()).synthetic,true);assert.equal(f.requests.length,0);
+ const verified=await f.transports.fetch(origin+'/reconcile',{method:'POST',body:'{}'});assert.equal(verified.status,503,await verified.clone().text());
+ assert.equal((await verified.json()).error,'provider_test_mode_denied');assert.equal(f.requests.length,0);
 });
 test('test process denies external network even if a client accidentally follows a redirect',async()=>{
  await assert.rejects(fetch(ZITADEL_STAGING.issuer+'/'),/fetch failed/);
