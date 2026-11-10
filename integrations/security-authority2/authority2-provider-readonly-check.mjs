@@ -12,6 +12,7 @@ import {verifyAuthority2ActiveDeployment} from './authority2-active-deployment.m
 const ACCOUNT='67469478aa9349fa0a57fe3a72da200a';
 const BUCKET='musitu-axiom-b27-highwater-a2';
 const KEY='AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN';
+const WORKERS_KEY='AXIOM_AUTHORITY2_CLOUDFLARE_WORKERS_READ_TOKEN';
 
 export async function operatorReadOnlyPreflight({
   env=process.env,argv=process.argv,
@@ -27,6 +28,10 @@ export async function operatorReadOnlyPreflight({
   }
   if(argv.length!==2){error('AUTHORITY2_NO_CREDENTIAL_ARGUMENTS_ALLOWED_HOLD');return 2;}
   const token=env[KEY];
+  // Optional distinct operator-owned Workers read credential. This permits
+  // a least-privilege R2 token to remain R2-only; never request broader
+  // privileges or access tokens from builder CI.
+  const workersReadToken=Object.hasOwn(env,WORKERS_KEY)?env[WORKERS_KEY]:token;
   if(!token){error('AUTHORITY2_READ_ONLY_CREDENTIAL_MISSING_HOLD');return 2;}
   try{
     const result=await verify({account_id:ACCOUNT,bucket_name:BUCKET,token});
@@ -35,14 +40,14 @@ export async function operatorReadOnlyPreflight({
       typeof result.rule_id!=='string'||result.rule_id.length===0){
       error('AUTHORITY2_POLICY_EVIDENCE_INCONSISTENT_HOLD');return 2;
     }
-    const worker=await verifyWorker({account_id:ACCOUNT,token});
+    const worker=await verifyWorker({account_id:ACCOUNT,token:workersReadToken});
     if(worker?.account_id!==ACCOUNT||worker.script_name!=='axiom-security-authority2-highwater'||
       worker.bucket_name!==BUCKET||worker.checked_binding_count!==5||
       worker.active_deployment_verified!==false||worker.signer_custody_verified!==false||
       worker.release_eligible!==false){
       error('AUTHORITY2_WORKER_EVIDENCE_INCONSISTENT_HOLD');return 2;
     }
-    const deployment=await verifyDeployment({account_id:ACCOUNT,token});
+    const deployment=await verifyDeployment({account_id:ACCOUNT,token:workersReadToken});
     if(deployment?.account_id!==ACCOUNT||
       deployment.script_name!=='axiom-security-authority2-highwater'||
       deployment.active_deployment_metadata_observed!==true||
