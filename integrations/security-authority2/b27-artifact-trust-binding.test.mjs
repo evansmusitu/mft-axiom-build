@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {verifyExternalHighwaterReceipt} from './external-highwater-fence.mjs';
+import {configuredExternalLedger} from '../independent-ledger/client.mjs';
 
 const account_id='67469478aa9349fa0a57fe3a72da200a';
 const canon=x=>Array.isArray(x)?'['+x.map(canon).join(',')+']':
@@ -54,4 +55,16 @@ test('accepts validly signed artifact commitment matching independent trusted co
  const args=await scenario(h('a'));
  assert.equal(await verifyExternalHighwaterReceipt({
    ...args,expected_artifact_sha256:h('a')}),true);
+});
+
+test('B27 explicitly required highwater cannot be silently disabled by optional ledger flag',async()=>{
+  await assert.rejects(
+    configuredExternalLedger({AXIOM_EXTERNAL_LEDGER_REQUIRED:'false',AXIOM_HIGHWATER_REQUIRED:'true'}),
+    /HIGHWATER_REQUIRES_EXTERNAL_LEDGER_HOLD/,
+    'server required independent highwater but no ledger is enabled');
+});
+test('B27 explicitly required highwater also vetoes undefined ledger flag',async()=>{
+  await assert.rejects(
+    configuredExternalLedger({AXIOM_HIGHWATER_REQUIRED:'true'}),
+    /HIGHWATER_REQUIRES_EXTERNAL_LEDGER_HOLD/);
 });
