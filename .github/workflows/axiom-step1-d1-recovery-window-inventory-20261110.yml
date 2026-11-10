@@ -1,0 +1,111 @@
+name: AXIOM Step1 D1 recovery window and spare target inventory (GET only; NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-recovery-window-inventory-20261110.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Inventory exact existing D1 recovery bookmarks and spare databases WITHOUT writes
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, hashlib, json, os, urllib.error, urllib.parse, urllib.request
+          ACCOUNT="93f395f5121954671f92fffa453d6b61"
+          DATABASE="ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+          NAME_SHA="7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36"
+          token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not token or any(c in token for c in "\r\n"):raise SystemExit("CREDENTIAL_NOT_AVAILABLE")
+          ROOT="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**k):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          def sha(s):return hashlib.sha256(s.encode()).hexdigest()
+          def get(path):
+              req=urllib.request.Request(ROOT+path,method="GET",headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+              try:
+                  with opener.open(req,timeout=16) as r:
+                      raw=r.read(500001)
+                      if len(raw)>500000:raise ValueError("OVERSIZE")
+                      return r.status,json.loads(raw)
+              except urllib.error.HTTPError as e:return e.code,None
+              except (OSError,ValueError,TimeoutError):return "UNAVAILABLE",None
+          receipt={"schema":"AXIOM_STEP1_D1_RECOVERY_WINDOW_AND_SPARE_INVENTORY_READONLY_V1",
+           "target_database_uuid":DATABASE,"status":"READ_ONLY_RECOVERY_INVENTORY_NO_GO",
+           "methods_used":["GET"],"current_live_bookmark_present":False,
+           "current_live_bookmark_sha256":None,"point_in_time":[],
+           "database_list_status":None,"database_count":None,
+           "databases":[],"zero_table_existing_candidate_count":None,
+           "cross_worker_binding_check_performed":False,
+           "isolated_recovery_qualified":False,"current_state_backup_exported":False,
+           "current_backup_qualified":False,"historical_owner_qualified":False,
+           "target_database_write_count":0,"other_database_write_count":0,
+           "customer_records_read":0,"source_reuse_authorized":False,
+           "step_2_authorized":False,"release_authority":False}
+          meta_code,meta=get("/d1/database/"+DATABASE)
+          receipt["target_metadata_status"]=meta_code
+          if meta_code==200 and isinstance(meta,dict) and meta.get("success") is True and isinstance(meta.get("result"),dict):
+              obj=meta["result"];name=obj.get("name")
+              receipt["target_uuid_and_name_pinned"]=(obj.get("uuid")==DATABASE and isinstance(name,str) and sha(name)==NAME_SHA)
+              receipt["target_engine_version"]=obj.get("version") if obj.get("version") in ("alpha","production") else "UNCLASSIFIED"
+              for k in ("num_tables","file_size"):
+                  if isinstance(obj.get(k),int) and not isinstance(obj.get(k),bool):receipt["target_"+k]=obj[k]
+          code,curr=get("/d1/database/"+DATABASE+"/time_travel/bookmark")
+          receipt["current_bookmark_status"]=code
+          if code==200 and isinstance(curr,dict) and curr.get("success") is True:
+              b=(curr.get("result") or {}).get("bookmark")
+              if isinstance(b,str) and 8<len(b)<512:
+                  receipt["current_live_bookmark_present"]=True
+                  receipt["current_live_bookmark_sha256"]=sha(b)
+          now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+          for age in (1,3,7,14,28):
+              timestamp=(now-dt.timedelta(days=age)).isoformat().replace("+00:00","Z")
+              code,data=get("/d1/database/"+DATABASE+"/time_travel/bookmark?"+urllib.parse.urlencode({"timestamp":timestamp}))
+              p={"age_days":age,"provider_http_status":code,"valid_bookmark_present":False}
+              if code==200 and isinstance(data,dict) and data.get("success") is True:
+                  val=(data.get("result") or {}).get("bookmark")
+                  if isinstance(val,str) and 8<len(val)<512:
+                      p["valid_bookmark_present"]=True;p["bookmark_sha256"]=sha(val)
+              receipt["point_in_time"].append(p)
+          code,found=get("/d1/database?"+urllib.parse.urlencode({"per_page":100,"page":1}))
+          receipt["database_list_status"]=code
+          if code==200 and isinstance(found,dict) and found.get("success") is True and isinstance(found.get("result"),list):
+              info=found.get("result_info") or {}
+              receipt["database_list_reported_total"]=info.get("total_count") if isinstance(info.get("total_count"),int) else None
+              items=found["result"];receipt["database_count"]=len(items)
+              for d in items:
+                  if not isinstance(d,dict) or not isinstance(d.get("uuid"),str):continue
+                  row={"database_uuid_sha256":sha(d["uuid"]),"target":d["uuid"]==DATABASE,
+                       "name_sha256":sha(d["name"]) if isinstance(d.get("name"),str) else None,
+                       "num_tables":d.get("num_tables") if isinstance(d.get("num_tables"),int) else None,
+                       "file_size":d.get("file_size") if isinstance(d.get("file_size"),int) else None,
+                       "version":d.get("version") if d.get("version") in ("alpha","production") else "UNCLASSIFIED"}
+                  receipt["databases"].append(row)
+              receipt["zero_table_existing_candidate_count"]=sum(1 for x in receipt["databases"] if x["target"] is False and x["num_tables"]==0)
+              receipt["database_listing_complete"]=(receipt["database_list_reported_total"]==len(receipt["databases"]))
+          raw=(json.dumps(receipt,indent=2,sort_keys=True)+"\n").encode()
+          filename="axiom_step1_d1_recovery_window_inventory_20261110.json"
+          open(filename,"wb").write(raw)
+          open(filename+".sha256","w").write(sha(raw.decode())+"  "+filename+"\n")
+          print("AXIOM_STEP1_D1_RECOVERY_AND_INVENTORY_READ_ONLY_NO_GO")
+          
+          PY
+      - name: Preserve only bookmark digests and schema metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-d1-recovery-window-inventory-20261110
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_d1_recovery_window_inventory_20261110.json
+            axiom_step1_d1_recovery_window_inventory_20261110.json.sha256
