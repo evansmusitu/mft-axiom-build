@@ -93,4 +93,34 @@ class AuditQualification(unittest.TestCase):
         with self.assertRaisesRegex(audit.NoGo,"PAGE_COUNT"):
             audit.inspect_logs(responses + [page([])])
 
+    def test_bounded_monthly_windows_no_owner_from_partial_evidence(self):
+        self.assertEqual(len(audit.WINDOWS),18)
+        self.assertEqual(audit.WINDOWS[0][0],"2025-05-11")
+        self.assertEqual(audit.WINDOWS[-1][1],"2026-11-11")
+        pages=[[page([])] for _ in audit.WINDOWS]
+        self.assertFalse(audit.inspect_windows(pages)["step_2_authorized"])
+        with self.assertRaisesRegex(audit.NoGo,"COVERAGE_INCOMPLETE"):
+            audit.inspect_windows(pages[:-1])
+        pages[-1]=[page([event(date="2026-10-20T12:00:00Z")])]
+        out=audit.inspect_windows(pages)
+        self.assertEqual(out["successful_create_events"],1)
+        self.assertFalse(out["historical_ownership_qualified"])
+        self.assertFalse(out["source_reuse_authorized"])
+    def test_bounded_window_rejects_out_of_range_event_and_conflicting_overlap(self):
+        pages=[[page([])] for _ in audit.WINDOWS]
+        pages[0]=[page([event(date="2026-10-20T12:00:00Z")])]
+        with self.assertRaisesRegex(audit.NoGo,"OUTSIDE_BOUNDED_PROVIDER_WINDOW"):
+            audit.inspect_windows(pages)
+        # Overlap around 10-11 October 2026 is intentional; exact duplicate
+        # provider events are deduplicated, contradictory records are denied.
+        pages=[[page([])] for _ in audit.WINDOWS]
+        e=event(date="2026-10-11T12:00:00Z")
+        pages[-2]=[page([e])]
+        pages[-1]=[page([e])]
+        self.assertEqual(audit.inspect_windows(pages)["event_count"],1)
+        different=event(actor="another-actor",date="2026-10-11T12:00:00Z")
+        pages[-1]=[page([different])]
+        with self.assertRaisesRegex(audit.NoGo,"OVERLAP_EVENT_CONFLICT"):
+            audit.inspect_windows(pages)
+
 if __name__ == "__main__":unittest.main()
