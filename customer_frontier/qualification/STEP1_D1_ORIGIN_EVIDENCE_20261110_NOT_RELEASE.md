@@ -19,18 +19,32 @@
 - Provider check uses documented Audit v2 GET, exact D1 metadata, bounded month windows, checked pagination, no redirects, UTC-normalized timestamps, no raw events or customer rows retained.
 - Even if one database origin event is found, it NEVER certifies owner-of-record, D1 reuse, private Worker wiring or Step 2.
 
-## Genuine provider readbacks, not synthetic acceptance
-- Read-only HTTP-only probe run 42816220117: exact D1 metadata 200; narrow dated audit resource query 200; default and 18-month single-span queries HTTP 400. No provider body retained.
-- Historical range probes 42816445952, 42816774988 and 42817390045: 18-month range rejected, short ranges accepted, earliest 2025-05-10 rejected but 2025-05-11 accepted.
-- Aggregate-only scope test run 42818923094: sampled windows 200, no mismatched UUID/account and no out-of-window records on FIRST page; busiest recent sample returned 100 rows and a pagination cursor. No raw record persisted.
-- Strict complete hosted origin checks: 42818102179, 42818578285, 42819181911, 42819499145 and 42819776766 all correctly FAIL CLOSED. Latest sanitized signed-hash receipt has reason AUDIT_WINDOW_16__EVENT_OUTSIDE_BOUNDED_PROVIDER_WINDOW. Raising page limit to 1000 and UTC normalization did not remove the contradictory event.
-- Therefore the provider's current query/pagination scope is NOT a qualified complete audit history. This is not evidence of an owner, a completed restore or permission to attach staging D1.
+## Genuine hosted provider readbacks, with historical failures preserved
 
-## Outstanding Step 1 gates (all mandatory)
-1. Independently resolve provider Audit v2 historical window-16 filtering/cursor semantics and obtain complete authenticated creation/deletion/actor provenance for this exact D1 UUID, without keeping actor PII in CI.
-2. Independently verify origin actor's authorization and current owner-of-record against Cloudflare control-plane and AXIOM custodian records. Do not use a browser-supplied identity or environment flag.
-3. Prove an EXACT current-state backup, independently restore and compare the full current state in an approved disposable isolated target, without altering original D1 records.
-4. Prove least-privilege execution and data separation, including account/tenant isolation, no Mail Fabric reuse, and precise future binding custody.
+### Initial fail-closed investigation
+- Source-pinned original audit and its 13 adversarial tests were deployed to isolated PR216. The original Cloudflare v2 aggregate audit failed to qualify scope and historic creator; historical runs 42818102179, 42818578285, 42819181911, 42819499145, 42819776766 failed closed. These FAIL receipts are retained, NOT erased.
+- Source correction: Cloudflare's date-only `before` includes the boundary calendar day; the exact UTC RFC3339 midnight is exclusive. Status-only probe 42843937389 established 1,056 vs 1,048 events with eight boundary-day events. The reviewed implementation now uses 18 bounded overlapping windows with RFC3339 exact-exclusive `before`, schema tests, UTC normalization and duplicate detection.
+- Corrected hosted execution 42844330692: 18 months fully paginated, 1,344 exact D1 related events, no successful delete event and zero event tagged as this D1's database-creation resource. This **does NOT establish absence of origin**: the Cloudflare v2 D1-creation event is indexed under a different resource identifier, so the prior resource-filtered no-creation conclusion was incomplete.
+
+### Independent Cloudflare account-level source correlation
+- D1 metadata authenticated GET: target uuid/name digest match; creation timestamp **2026-09-06T16:47:39.419Z**, production storage subsystem; 25 tables according to per-resource detail.
+- Historical v1 query around creation (run 42845805645): 14 events/2 pages; no exact D1 UUID resource match, though two potential create actions exist. This route was independently shown insufficient to decide origin.
+- Unfiltered exact-time Cloudflare v2 account audit (run 42846766842) found 68 events and two POST database-creation actions. Exactly one has pinned original database name in request, exact D1 UUID in response and matching creation time, **2026-09-06T16:47:38.532Z**. The other database creation in that window is unrelated. Source event SHA-256 `583662942d60f5bd5866f1652ca48462e162d8c152f7050f7523567840ceba4f`. The actor's ID is retained as one-way SHA-256 `40cd67e22edf1059aefcaa2e0df059b8dc95cedec8ff114b9d33ad4a7758a9e5`, not raw identity.
+- Independently executed pinned re-read of exact original event and GET /members in GitHub workflow run **42848584108**: exact name and UUID fields match, event time within three seconds of D1 creation metadata, actor SHA matches the *same currently accepted Cloudflare account member*, with Cloudflare account 2FA enabled and one role. The origin used an API key. This is **strong historical provider provenance, not independent administrator/custodian approval**. Only one account member was visible.
+- All origin queries were GET only and persisted hashed, sanitized summaries. No identity/session records or customer rows were fetched.
+
+### Existing D1 recoverability and inventory
+- Current D1 Time Travel bookmark GET returned 200 and a hashed bookmark. Additional isolated CI run **42847954039** confirmed historical provider bookmarks available for 1, 3, 7, 14 and 28 days. Time Travel availability and a bookmark do not prove an independently restored current-state backup. Cloudflare's restore API is destructive and overwrites its specified database; NEVER call it on the existing staging D1.
+- Independent consistency check run **42848205719** read all 11 D1 per-database detail endpoints. Cloudflare LIST misleadingly gave `num_tables=0` on every entry, whereas individual GET metadata gives nonzero counts for all 11, including **25** objects for this D1. All 11 detailed GETs passed, and all 11 LIST counts mismatch. **Zero empty existing database candidates** exist. Prior inference that 10 other DBs might be disposable was REJECTED by this check. Do not repurpose any other database or Mail Fabric resource.
+- Historical 8 November isolated recovery of 25 rows remains valid as historical evidence, but is **not** a current-state independent DR witness. No original DB records were modified, no new D1 was created, no staged Worker bindings were changed.
+
+## Outstanding Step 1 conditions (all still mandatory)
+1. Obtain independent human owner/custodian authorization of D1 reuse and privacy/retention policy. Cloudflare self-controlled account membership and signed origin do not replace independent authorization.
+2. Establish owner-approved **isolated disposable recovery target**, because all 11 existing D1s have nonempty schema. Do not wipe a populated DB, create a new cloud D1 without its owner's approval, or use Mail Fabric.
+3. Produce an encrypted, independently verifiable **current-state** backup with chain of custody, restore into that isolated target and independently prove row/schema parity, repeatability and rollback **without restoring/overwriting the original**. No plaintext customer data in CI logs, artifacts or messages.
+4. Prove scoped least-privilege API/Worker bindings and tenant/data separation for this exact AXIOM D1 (including current customer data ownership, session/key isolation, privacy retention and no unrelated consumers).
+
+**Approval is not inferred from successful CI, possession of an API key, creation event, one accepted member or an isolated historical backup. Steps 2–3 remain blocked.**
 
 **HARD VETO**: source_reuse_authorized=false; historical_ownership_qualified=false; current_backup_qualified=false; independent_restore_qualified=false; least_privilege_qualified=false; step_2_authorized=false; release_authority=false.
 
