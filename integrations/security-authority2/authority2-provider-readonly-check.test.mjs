@@ -117,3 +117,17 @@ test('B27 operator must check currently active deployment before producing evide
  assert.equal(record.active_deployment_source_qualified,false);
  assert.equal(record.release_eligible,false);
 });
+
+test('B27 split-read-token: narrow R2 and Workers credentials are not interchanged',async()=>{
+ const workersRead='W'.repeat(40);
+ const observed=[];
+ const r=await invoke({
+  env:{AXIOM_AUTHORITY2_CLOUDFLARE_WORKERS_READ_TOKEN:workersRead},
+  verify:async({token})=>{observed.push(['r2',token]);return good;},
+  verifyWorker:async({token})=>{observed.push(['worker',token]);return goodWorker;},
+  verifyDeployment:async({token})=>{observed.push(['deployment',token]);return goodDeployment;}
+ });
+ assert.equal(r.status,0);
+ assert.deepEqual(observed,[['r2',secret],['worker',workersRead],['deployment',workersRead]]);
+ assert.doesNotMatch(JSON.stringify(r),/SYNTHETIC_NEVER_LOG_THIS_SECRET|W{20,}/);
+});
