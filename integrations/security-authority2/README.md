@@ -66,6 +66,16 @@ token only in the independent operator environment, not GitHub Actions or
 user-visible transcripts. It performs no account mutation, billing, R2
 provision, Worker deployment, secret export or credential creation.
 
+For least privilege, the independent operator may optionally set
+`AXIOM_AUTHORITY2_CLOUDFLARE_WORKERS_READ_TOKEN` separately from the existing
+`AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN`. The R2 token is then used only
+for the lock policy GET; the Workers token for settings and active deployment
+GETs. An explicitly supplied invalid Workers token fails closed; the command
+never broadens a token's permissions or moves credentials into builder CI.
+When no second token exists, all three readbacks use the original operator
+read token and may correctly fail with a provider 403 if that token is R2-only.
+A pass still emits `release_eligible:false`.
+
 The readback confirms **binding metadata only**, not an active deployed
 version, SHA-256 of the deployed Worker source, nonexportable signer custody,
 operator membership/MFA isolation, or successful destructive provider recovery.
