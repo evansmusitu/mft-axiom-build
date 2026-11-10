@@ -1,0 +1,121 @@
+name: MUSITU Phase03 Production-Mode Protected Preview All-Route Denial Audit
+
+on:
+  push:
+    branches: [ops/corporate-phase03-release-candidate-protected-20261110]
+    paths: [.github/workflows/musitu-phase03-prodmode-anonymous-allroutes-20261110.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  independent-protected-release-candidate-audit:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-phase03-release-candidate-protected-20261110' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Prove no anonymous access to ALL 49 indexable-metadata staging pages and critical assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          git clone -q --depth=1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-phase03-prodmode-anonymous-check
+          test "$(git -C /tmp/musitu-phase03-prodmode-anonymous-check rev-parse HEAD)" = "875b1018d3dfe00ac462d71edd1dff6451fb30e2"
+          python3 - <<'PY'
+          import os,json,sys,urllib.error,urllib.request,urllib.parse
+          from concurrent.futures import ThreadPoolExecutor
+          sys.path.insert(0,"/tmp/musitu-phase03-prodmode-anonymous-check/corporate/scripts")
+          from seo import read_catalog
+          from phase03_publication import approved_sources,article_routes,FR_EN
+
+          routes=set(read_catalog()["routes"])|set(FR_EN)|set(article_routes(approved_sources()))|{"/404/"}
+          if len(routes)!=49:raise SystemExit("HOLD: unexpected frozen Phase03 route cohort")
+          additions={"/sitemap.xml","/robots.txt","/manifest.json",
+                     "/assets/site-data.js","/assets/studio-demo-82s.mp4","/assets/studio-poster.png",
+                     "/__musitu-protected-prodmode-unknown-20261110/"}
+          all_paths=sorted(routes|additions)
+          project="https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/pages/projects/musitu-corporate"
+          key=os.environ.get("CLOUDFLARE_API_TOKEN","").strip()
+          if not key:raise SystemExit("HOLD: Cloudflare read-only credential absent")
+          def cf(path):
+              if path not in ("","/deployments?per_page=10"):
+                  raise SystemExit("HOLD: unauthorized Cloudflare API call")
+              r=urllib.request.Request(project+path,headers={"Authorization":"Bearer "+key,"Accept":"application/json"},method="GET")
+              try:
+                  with urllib.request.urlopen(r,timeout=25) as response:
+                      b=response.read(500001)
+              except urllib.error.HTTPError as e:
+                  raise SystemExit("HOLD: provider read status "+str(e.code)) from None
+              if len(b)>500000:raise SystemExit("HOLD: Cloudflare response too large")
+              obj=json.loads(b)
+              if not isinstance(obj,dict) or obj.get("success") is not True:
+                  raise SystemExit("HOLD: Cloudflare returned unverified result")
+              return obj.get("result")
+          p=cf("")
+          live=(p.get("canonical_deployment") or {}) if isinstance(p,dict) else {}
+          if (p.get("name")!="musitu-corporate" or p.get("production_branch")!="main" or
+              "mftintelligence.com" not in p.get("domains",[]) or
+              live.get("environment")!="production" or
+              ((live.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9"):
+              raise SystemExit("HOLD: public production unexpectedly changed")
+          entries=cf("/deployments?per_page=10")
+          exact=[d for d in entries if isinstance(d,dict) and d.get("environment")=="preview" and
+              ((d.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")=="875b1018d3dfe00ac462d71edd1dff6451fb30e2"]
+          if len(exact)!=1 or (exact[0].get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: exact protected production-mode candidate absent")
+          hosts=[]
+          for value in [exact[0].get("url"),*(exact[0].get("aliases") or [])]:
+              if not isinstance(value,str) or not value:continue
+              u=urllib.parse.urlsplit(value if "://" in value else "https://"+value)
+              if u.scheme!="https" or not u.hostname or not u.hostname.endswith(".musitu-corporate.pages.dev") or u.username or u.password or u.query or u.path not in ("","/"):
+                  raise SystemExit("HOLD: unexpected Cloudflare preview host")
+              hosts.append("https://"+u.hostname)
+          hosts=sorted(set(hosts))
+          if not hosts:raise SystemExit("HOLD: no expected preview hostname")
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,url):return None
+          client=urllib.request.build_opener(NoRedirect)
+          def test(host_path):
+              host,path=host_path
+              r=urllib.request.Request(host+path,method="GET",headers={"User-Agent":"MUSITU-Phase03-Anonymous-Protection/1.0"})
+              try:
+                  with client.open(r,timeout=20) as res:
+                      status=res.status;headers=res.headers;content=res.read(150001)
+              except urllib.error.HTTPError as e:
+                  status=e.code;headers=e.headers;content=e.read(150001)
+              if len(content)>150000:raise RuntimeError("Anonymous preview response size too large")
+              if status in (401,403):return True
+              if status in (301,302,303,307,308):
+                  target=headers.get("Location","")
+                  parsed=urllib.parse.urlsplit(target)
+                  if (parsed.scheme=="https" and parsed.hostname and parsed.hostname.endswith(".cloudflareaccess.com")) or target.startswith("/cdn-cgi/access/"):
+                      return True
+                  raise RuntimeError("Unexpected redirection instead of Access denial")
+              if status==200:
+                  body=content.lower()
+                  if (b"cloudflare access" in body and
+                      b"<main id=\"main\"" not in body and
+                      b"<urlset" not in body and
+                      b"user-agent: *" not in body and
+                      b"phase03-article" not in body):
+                      return True
+                  raise RuntimeError("Anonymous visitor can retrieve protected production-mode candidate content")
+              raise RuntimeError("Unrecognized anonymous preview response")
+          work=[(host,path) for host in hosts for path in all_paths]
+          with ThreadPoolExecutor(max_workers=10) as pool:
+              result=list(pool.map(test,work))
+          if not all(result) or len(result)!=len(work):
+              raise SystemExit("HOLD: incomplete anonymous route coverage")
+          print("PHASE 03 PRODUCTION-MODE PROTECTED CANDIDATE: verified exact source")
+          print("STAGING ROUTES:",len(routes))
+          print("INDEXING-ASSET AND NEGATIVE PATHS:",len(additions))
+          print("PREVIEW HOSTNAMES:",len(hosts))
+          print("TOTAL ANONYMOUS ACCESS CHECKS:",len(work))
+          print("CLOUDFLARE ACCESS DENIAL OR LOGIN:",len(result))
+          print("ANONYMOUS CONTENT EXPOSURES: 0")
+          print("PRODUCTION PHASE 03 DEPLOYMENTS: 0")
+          print("PROVIDER OPERATIONS: 2 GET, 0 writes")
+          print("HOSTNAMES, ACCOUNTS AND PROTECTED CONTENT: NOT LOGGED")
+          PY

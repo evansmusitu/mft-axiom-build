@@ -1,0 +1,188 @@
+name: MUSITU Phase 03 Exact Production-Mode Candidate on Protected Preview (NO RELEASE)
+on:
+  push:
+    branches: [ops/corporate-phase03-release-candidate-protected-20261110]
+    paths: [.github/workflows/musitu-phase03-protected-production-candidate-20261110.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-phase03-protected-production-candidate-20261110
+  cancel-in-progress: false
+
+jobs:
+  protected-release-candidate:
+    if: ${{ github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/ops/corporate-phase03-release-candidate-protected-20261110' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: "false"
+      MUSITU_RELEASE_SOURCE: 875b1018d3dfe00ac462d71edd1dff6451fb30e2
+      MUSITU_CANDIDATE_DATE: "2026-11-10"
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Fail-closed Pages production identity and Access wildcard security preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          account=os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          key=os.environ.get("CLOUDFLARE_API_TOKEN","").strip()
+          if not key:raise SystemExit("HOLD: Cloudflare Pages authentication unavailable")
+          root="https://api.cloudflare.com/client/v4/accounts/"+account
+          allowed={"/pages/projects/musitu-corporate","/access/apps?per_page=100",
+                   "/pages/projects/musitu-corporate/deployments/a2426a81-b0cb-4a46-a90c-493f871c9775"}
+          def read(path):
+              if path not in allowed and not (path.startswith("/access/apps/") and path.endswith("/policies")):
+                  raise SystemExit("HOLD: provider read not allowlisted")
+              req=urllib.request.Request(root+path,method="GET",headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r: data=r.read(500001)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit("HOLD: protected provider preflight HTTP "+str(exc.code)) from None
+              if len(data)>500000:raise SystemExit("HOLD: provider oversized response")
+              try:rec=json.loads(data)
+              except (ValueError,UnicodeError):raise SystemExit("HOLD: provider invalid JSON") from None
+              if not isinstance(rec,dict) or rec.get("success") is not True:
+                  raise SystemExit("HOLD: provider success not verified")
+              return rec.get("result")
+          p=read("/pages/projects/musitu-corporate")
+          if not isinstance(p,dict) or p.get("name")!="musitu-corporate" or p.get("production_branch")!="main" or "mftintelligence.com" not in p.get("domains",[]) or (p.get("source") or {}).get("type"):
+              raise SystemExit("HOLD: Pages project identity mismatch")
+          live=p.get("canonical_deployment") or {}
+          md=((live.get("deployment_trigger") or {}).get("metadata") or {})
+          if live.get("environment")!="production" or (live.get("latest_stage") or {}).get("status")!="success" or md.get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9":
+              raise SystemExit("HOLD: public production has changed; cannot run candidate")
+          previous=read("/pages/projects/musitu-corporate/deployments/a2426a81-b0cb-4a46-a90c-493f871c9775")
+          if previous.get("environment")!="production" or (previous.get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: old production recovery deployment not retained")
+          apps=read("/access/apps?per_page=100")
+          if not isinstance(apps,list):raise SystemExit("HOLD: missing Cloudflare Access inventory")
+          matched=[]
+          for app in apps:
+              if not isinstance(app,dict) or app.get("type")!="self_hosted":continue
+              domains={app.get("domain")}
+              for d in app.get("self_hosted_domains") or []:
+                  if isinstance(d,dict):domains.add(d.get("domain"))
+                  elif isinstance(d,str):domains.add(d)
+              for d in app.get("destinations") or []:
+                  if isinstance(d,dict):
+                      uri=d.get("uri","")
+                      if isinstance(uri,str):domains.add(uri.split("://")[-1].split("/")[0])
+                      if any(x.get("behavior")=="public" for x in (d.get("overrides") or []) if isinstance(x,dict)):
+                          raise SystemExit("HOLD: preview Access public override")
+              if "*.musitu-corporate.pages.dev" in domains:matched.append(app)
+          if len(matched)!=1 or not isinstance(matched[0].get("id"),str):
+              raise SystemExit("HOLD: wildcard corporate preview Access app not unique")
+          policies=read("/access/apps/"+matched[0]["id"]+"/policies")
+          if not isinstance(policies,list) or not policies:raise SystemExit("HOLD: Access policies unavailable")
+          decisions={x.get("decision") or x.get("action") for x in policies if isinstance(x,dict)}
+          if "bypass" in decisions or "non_identity" in decisions or not ({"allow","deny"}&decisions):
+              raise SystemExit("HOLD: Access bypass or no restrictions")
+          print("PROTECTED-CANDIDATE PREFLIGHT: exact live 404 production + retained recovery + wildcard Access restrictions PASS")
+          print("PUBLIC MUTATIONS: 0")
+          PY
+      - name: Build exact production-mode 49-route candidate with review-date fixture and checksum-approved media
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --branch phase03-global-discovery-20261107 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-phase03-publication-candidate
+          test "$(git -C /tmp/musitu-phase03-publication-candidate rev-parse HEAD)" = "$MUSITU_RELEASE_SOURCE"
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-phase03-publication-candidate/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 2 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-phase03-publication-candidate/corporate/assets/studio-poster.png
+          printf '%s  %s\n' 'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-phase03-publication-candidate/corporate/assets/studio-demo-82s.mp4' | sha256sum --check
+          printf '%s  %s\n' '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-phase03-publication-candidate/corporate/assets/studio-poster.png' | sha256sum --check
+          python3 -m pip install --disable-pip-version-check pytest beautifulsoup4
+          (
+            cd /tmp/musitu-phase03-publication-candidate/corporate
+            # These tests create their own temporary dist fixture. Run them FIRST,
+            # then produce the exact locked-date candidate LAST.
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 MUSITU_PHASE03_PUBLICATION_DATE="$MUSITU_CANDIDATE_DATE" python3 -m unittest discover -s tests -p 'test_phase03_publication.py' -q
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 MUSITU_PHASE03_PUBLICATION_DATE="$MUSITU_CANDIDATE_DATE" python3 scripts/build.py
+          )
+          python3 - <<'PY'
+          import os,json,xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path("/tmp/musitu-phase03-publication-candidate/corporate/dist")
+          m=json.loads((root/"manifest.json").read_text())
+          expected=os.environ["MUSITU_CANDIDATE_DATE"]
+          assert m["build_mode"]=="production" and m["route_count"]==49 and m["indexing_enabled"] is True
+          assert m["production_approved"] is False
+          assert len(m["phase03_publication_routes"])==15 and m["phase03_publication_indexable"] is True
+          assert m["phase03_article_publication_date"]==expected
+          assert (root/"404.html").read_bytes()==(root/"404/index.html").read_bytes()
+          assert (root/"robots.txt").read_text().splitlines()==["User-agent: *","Allow: /","Sitemap: https://mftintelligence.com/sitemap.xml"]
+          ns="{http://www.sitemaps.org/schemas/sitemap/0.9}"
+          locs=[n.text for n in ET.parse(root/"sitemap.xml").findall(ns+"url/"+ns+"loc")]
+          assert len(locs)==48 and len(set(locs))==48 and len([x for x in locs if "/fr/" in x])==3 and len([x for x in locs if "/research/articles/" in x])==12
+          for loc in locs:
+              html_path=root/loc.removeprefix("https://mftintelligence.com/")/"index.html"
+              assert html_path.is_file(),loc
+          for loc in locs:
+              if "/research/articles/" not in loc:continue
+              page=(root/loc.removeprefix("https://mftintelligence.com/")/"index.html").read_text()
+              assert expected in page and "datePublished" in page,loc
+          print("PRODUCTION-MODE EXACT-CANDIDATE PASS: 49 HTML, 48 distinct canonicals, 12 article dates and three French routes")
+          print("RELEASE DATE: controlled TEST FIXTURE ONLY, not actual publication")
+          print("PRODUCTION APPROVED: FALSE; no Pages release has been performed")
+          PY
+      - name: Upload only into wildcard-Access-protected Pages preview branch (never main)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.158.0 pages deploy /tmp/musitu-phase03-publication-candidate/corporate/dist --project-name=musitu-corporate --branch=phase03-prodmode-qualification-20261110 --commit-hash="$MUSITU_RELEASE_SOURCE" --commit-message="MUSITU Phase03 protected production-mode technical review only; NOT PUBLICATION"
+      - name: Confirm protected candidate and actual public prod unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import os,json,urllib.error,urllib.request,urllib.parse,xml.etree.ElementTree as ET
+          project="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/pages/projects/musitu-corporate"
+          key=os.environ["CLOUDFLARE_API_TOKEN"]
+          def read(path):
+              if path not in ("","/deployments?per_page=10"):raise SystemExit("HOLD: nonallowlisted provider read")
+              req=urllib.request.Request(project+path,method="GET",headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=25) as r:o=json.loads(r.read(500001))
+              if not isinstance(o,dict) or o.get("success") is not True:raise SystemExit("HOLD: Cloudflare inventory failure")
+              return o.get("result")
+          p=read("")
+          live=(p.get("canonical_deployment") or {})
+          if ((live.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")!="6b1643ab2d3b03628104b617435db1d364076aa9":
+              raise SystemExit("HOLD: unexpected change to public production")
+          d=read("/deployments?per_page=10")
+          matches=[x for x in d if isinstance(x,dict) and x.get("environment")=="preview" and
+              ((x.get("deployment_trigger") or {}).get("metadata") or {}).get("commit_hash")==os.environ["MUSITU_RELEASE_SOURCE"]]
+          if len(matches)!=1 or (matches[0].get("latest_stage") or {}).get("status")!="success":
+              raise SystemExit("HOLD: exact-source protected preview not verified")
+          u=matches[0].get("url","")
+          parsed=urllib.parse.urlsplit(u)
+          if parsed.scheme!="https" or not parsed.hostname or not parsed.hostname.endswith(".musitu-corporate.pages.dev"):
+              raise SystemExit("HOLD: noncorporate or unprotected preview hostname")
+          for path in ("/","/fr/","/fr/products/axiom/","/research/articles/backtesting-overfitting/","/sitemap.xml","/robots.txt"):
+              req=urllib.request.Request(u.rstrip("/")+path,headers={"User-Agent":"MUSITU-Anonymous-Prodmode-Preview/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:status=r.status;final=r.url;body=r.read(150001)
+              except urllib.error.HTTPError as e:
+                  status=e.code;final=e.url;body=e.read(150001)
+              if status in (401,403):continue
+              if status!=200:raise SystemExit("HOLD: unexpected anonymous access result")
+              host=urllib.parse.urlsplit(final).hostname or ""
+              if (not host.endswith(".cloudflareaccess.com") and
+                  not (b"cloudflare access" in body.lower() or b"login" in body.lower())):
+                  raise SystemExit("HOLD: protected production-mode content exposed to anonymous visitor")
+          print("PRODUCTION-MODE REVIEW DEPLOYMENT: 1 protected preview, exact checked SHA")
+          print("ANONYMOUS PROBES: protected across homepage, French, research and indexing files")
+          print("PUBLIC PRODUCTION: same 404 maintenance release, still 33 public sitemap entries")
+          print("PHASE03 PUBLICATION: NOT AUTHORIZED OR PERFORMED")
+          print("GOOGLE/BING 48-URL SUBMISSION: NOT PERFORMED")
+          print("PRIVATE PREVIEW HOSTNAMES, PROVIDER DATA AND KEYS: NOT LOGGED")
+          PY
