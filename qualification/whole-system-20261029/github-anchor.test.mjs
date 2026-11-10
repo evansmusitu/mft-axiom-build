@@ -5,7 +5,7 @@ import {fixture} from './external-ledger-fixture.mjs';
 import {githubFixture} from './github-anchor-fixture.mjs';
 import {bytes,b64} from '../../integrations/independent-ledger/protocol.mjs';
 import {anchoredRestoreCase} from './anchored-restore-case.mjs';
-import {anchorCredential} from '../../integrations/independent-ledger/github-anchor.mjs';
+import {anchorCredential,verifyGithubCheckpoint} from '../../integrations/independent-ledger/github-anchor.mjs';
 import {forwardGithubRequest} from './github-anchor-forward.mjs';
 import {createServer} from 'node:http';
 const anchorFailure=e=>/ANCHOR_/.test(e.remote_code??e.code??e.message);
@@ -70,4 +70,26 @@ test('provider readback independently rejects substituted digest, mutable proof,
   anchor.tags.set(release.tag_name,'f'.repeat(40));await assert.rejects(()=>client.verifyStored(request,envelope),anchorFailure);anchor.tags.set(release.tag_name,anchor.pin.target_commitish);
   anchor.partition();await assert.rejects(()=>client.verifyStored(request,envelope),anchorFailure);anchor.partition(false);
   assert.equal(await client.verifyStored(request,envelope),true);
+});
+
+test('repository identity cannot change between initial lookup and immutable checkpoint readback',{timeout:30000},async t=>{
+  const anchor=githubFixture('ax-identity-rebind'),f=await fixture(t,{anchor});
+  await f.bootstrap();await f.grant();
+  const client=await f.makeClient(),request=await f.prepare(client),envelope=await client.consume(request);
+  let identityReads=0;
+  const fetchImpl=async(url,options)=>{
+    if(new URL(url).pathname==='/repos/'+anchor.pin.repository && options?.method==='GET'){
+      identityReads+=1;
+      if(identityReads>1)return new Response(JSON.stringify({
+        id:anchor.pin.repository_id+1,full_name:anchor.pin.repository,private:true,archived:false
+      }),{status:200,headers:{'content-type':'application/json'}});
+    }
+    return anchor.fetchImpl(url,options);
+  };
+  await assert.rejects(
+    verifyGithubCheckpoint({pin:anchor.pin,token:anchor.readToken,
+      payload:envelope.payload,fetchImpl}),
+    /ANCHOR_REPOSITORY_IDENTITY_CHANGED_HOLD/,
+    'a replaced same-name repository must not be accepted after the first identity lookup');
+  assert.equal(identityReads,2,'provider repo identity must be re-read after checkpoint proof');
 });
