@@ -113,3 +113,25 @@ test('B27: incomplete authenticated stream times out with explicit HOLD',async()
   assert.equal(outcome.payload.dispatch_allowed,false);
   assert.equal(cancelled,true,'timed-out input must be cancelled');
 });
+
+
+test('B27: unresponsive R2 append must HOLD with pending, never retry or sign',async()=>{
+  const x=await setup();await x.seed();
+  x.r2.put=async()=>new Promise(()=>{}); // provider never acknowledges conditional write
+  const event={...x.args.event,schema:'musitu.axiom.external-highwater.v1',
+    account_id:PIN.account_id,key_id:PIN.key_id,challenge:sha('c')};
+  const request=()=>new Request(x.root+'/v1/highwater/append',{
+    method:'POST',headers:{authorization:'Bearer '+'w'.repeat(40),
+      'content-type':'application/json'},body:canonical(event)
+  });
+  const result=await Promise.race([
+    x.server.fetch(request()).then(async r=>({status:r.status,data:await r.json()})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:'R2_UNBOUNDED'}),4100))
+  ]);
+  assert.equal(result.status,503,'unacknowledged R2 append must reach finite HOLD');
+  assert.equal(result.data.error,'HIGHWATER_WORM_TIMEOUT_HOLD');
+  assert.ok(await x.storage.get('highwater/pending'),'uncertain append must remain pending');
+  const next=await x.server.fetch(request());
+  assert.equal(next.status,503,'second attempt must not retry pending R2 PUT');
+  assert.equal((await next.json()).error,'HIGHWATER_PENDING_RECONCILIATION_HOLD');
+});
