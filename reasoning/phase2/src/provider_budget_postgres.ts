@@ -63,6 +63,10 @@ const trustedPoolConnect=pg.Pool.prototype.connect;
 // already admitted protected spending ledger.
 const trustedPoolClient=pg.Client;
 const trustedPoolNewClient=(pg.Pool.prototype as unknown as {newClient:unknown}).newClient;
+// A canonical client class is insufficient if its SQL or connect implementation
+// is monkeypatched after accounting admission.
+const trustedClientQuery=pg.Client.prototype.query;
+const trustedClientConnect=pg.Client.prototype.connect;
 function trustedPool(pool:unknown):pool is Pool{
   return pool instanceof pg.Pool &&
     Object.getPrototypeOf(pool)===pg.Pool.prototype &&
@@ -72,6 +76,8 @@ function trustedPool(pool:unknown):pool is Pool{
     Object.getOwnPropertyDescriptor(pool,"Client")?.value===trustedPoolClient &&
     !Object.hasOwn(pool,"newClient") &&
     (pool as Pool&{newClient:unknown}).newClient===trustedPoolNewClient &&
+    pg.Client.prototype.query===trustedClientQuery &&
+    pg.Client.prototype.connect===trustedClientConnect &&
     pool.connect===trustedPoolConnect;
 }
 type Key={tenantId:string;provider:string;modelId:string};
