@@ -114,7 +114,11 @@ jobs:
                   ids=[item.get("id"),user.get("id") if isinstance(user,dict) else None]
                   if any(isinstance(i,str) and sha(i)==ACTOR_SHA for i in ids):
                       out["matched_member_count"]+=1
-                      if item.get("status")=="member":out["matched_member_active_count"]+=1
+                      status=item.get("status")
+            if status in ("accepted","member"):out["matched_member_active_count"]+=1
+            out["matched_member_status"]=status if status in ("accepted","pending","member","invited") else "UNCLASSIFIED"
+            twofa=user.get("two_factor_authentication_enabled") if isinstance(user,dict) else None
+            out["matched_member_cloudflare_2fa_enabled"] = twofa if type(twofa) is bool else None
                       roles=item.get("roles") or []
                       if isinstance(roles,list):
                           out["matched_member_role_count"]+=len(roles)
