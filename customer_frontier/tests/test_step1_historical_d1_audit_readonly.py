@@ -78,8 +78,10 @@ class AuditQualification(unittest.TestCase):
 
     def test_unrelated_d1_create_uri_or_unauthenticated_actor_no_go(self):
         e=event();e["raw"]["uri"]="/accounts/"+audit.ACCOUNT+"/workers/scripts"
-        with self.assertRaisesRegex(audit.NoGo,"CREATION_RAW_URI_WRONG_RESOURCE"):
-            audit.inspect_logs([page([e])])
+        out=audit.inspect_logs([page([e])])
+        self.assertEqual(out["successful_create_events"],0)
+        self.assertEqual(out["status"],"HISTORICAL_PROVENANCE_INCOMPLETE_NO_GO")
+        self.assertFalse(out["source_reuse_authorized"])
         e=event();e["actor"]["context"]="unknown"
         with self.assertRaisesRegex(audit.NoGo,"ACTOR_CONTEXT_UNQUALIFIED"):
             audit.inspect_logs([page([e])])
