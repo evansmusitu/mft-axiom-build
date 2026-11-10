@@ -62,6 +62,44 @@ test('pinned client refuses an authority downgrade even with a valid signature',
   }});
   await assert.rejects(async()=>client.consume(await f.prepare(client)),anchorFailure);
 });
+
+test('B27: publicly visible GitHub repository cannot satisfy independent checkpoint proof',{timeout:30000},async t=>{
+ const anchor=githubFixture('ax-private-visibility'),f=await fixture(t,{anchor});
+ await f.bootstrap();await f.grant();
+ const c=await f.makeClient(),req=await f.prepare(c),receipt=await c.consume(req);
+ const fetchImpl=async(url,init)=>{
+   const path=new URL(url).pathname;
+   if(path==='/repos/'+anchor.pin.repository){
+     return new Response(JSON.stringify({id:anchor.pin.repository_id,
+       full_name:anchor.pin.repository,private:false,archived:false}),
+       {status:200,headers:{'content-type':'application/json'}});
+   }
+   return anchor.fetchImpl(url,init);
+ };
+ await assert.rejects(
+   verifyGithubCheckpoint({pin:anchor.pin,token:anchor.readToken,
+     payload:receipt.payload,fetchImpl}),
+   /ANCHOR_REPOSITORY_PRIVACY_HOLD/,
+   'a previously private repo must not continue trusted checkpoints when public');
+});
+test('B27: missing repo visibility is not accepted as private',{timeout:30000},async t=>{
+ const anchor=githubFixture('ax-visibility-omitted'),f=await fixture(t,{anchor});
+ await f.bootstrap();await f.grant();
+ const c=await f.makeClient(),req=await f.prepare(c),receipt=await c.consume(req);
+ const fetchImpl=async(url,init)=>{
+   const path=new URL(url).pathname;
+   if(path==='/repos/'+anchor.pin.repository){
+     return new Response(JSON.stringify({id:anchor.pin.repository_id,
+       full_name:anchor.pin.repository,archived:false}),
+       {status:200,headers:{'content-type':'application/json'}});
+   }
+   return anchor.fetchImpl(url,init);
+ };
+ await assert.rejects(
+   verifyGithubCheckpoint({pin:anchor.pin,token:anchor.readToken,
+     payload:receipt.payload,fetchImpl}),
+   /ANCHOR_REPOSITORY_PRIVACY_HOLD/);
+});
 test('provider readback independently rejects substituted digest, mutable proof, target and partition',{timeout:30000},async t=>{
   const anchor=githubFixture(),f=await fixture(t,{anchor});await f.bootstrap();await f.grant();const client=await f.makeClient(),request=await f.prepare(client),envelope=await client.consume(request);
   const release=anchor.releases.get(envelope.payload.anchor.release_id),asset=release.assets[0],digest=asset.digest;
