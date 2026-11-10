@@ -91,3 +91,25 @@ test('B27: highwater authority rejects unbounded streaming body without Content-
   assert.equal(outcome.status,413,'stream must be rejected at 4096 bytes, not awaited');
   assert.equal(cancelled,true,'request stream must be cancelled on input overflow');
 });
+
+
+test('B27: incomplete authenticated stream times out with explicit HOLD',async()=>{
+  const x=await setup();await x.seed();
+  let cancelled=false;
+  const stream=new ReadableStream({
+    start(controller){controller.enqueue(new TextEncoder().encode('{"schema":'));},
+    cancel(){cancelled=true;}
+  });
+  const req=new Request(x.root+'/v1/highwater/readback',{
+    method:'POST',duplex:'half',
+    headers:{authorization:'Bearer '+'r'.repeat(40),'content-type':'application/json'},body:stream
+  });
+  const outcome=await Promise.race([
+    x.server.fetch(req).then(async r=>({status:r.status,payload:await r.json()})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:'UNBOUNDED_BODY'}),2950))
+  ]);
+  assert.equal(outcome.status,503,'incomplete stream must HOLD before consumer timeout');
+  assert.equal(outcome.payload.error,'HIGHWATER_BODY_TIMEOUT_HOLD');
+  assert.equal(outcome.payload.dispatch_allowed,false);
+  assert.equal(cancelled,true,'timed-out input must be cancelled');
+});
