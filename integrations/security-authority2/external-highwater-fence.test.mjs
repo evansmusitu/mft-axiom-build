@@ -45,3 +45,23 @@ test('negative counterexample: if independently held witness is also reset, an o
   assert.equal(replay.sequence,1,'REPRODUCED: restorable witness cannot satisfy global nonrollback');
 });
 test('rejects substitution of a different valid account even with valid signer/origin',async()=>{const x=await scenario();assert.throws(()=>highwaterPin({...x.args.pin,account_id:'e'.repeat(32)}),/HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD/);});
+
+test('B27: uncooperative external fetch cannot hold authorization indefinitely',async()=>{
+ const x=await scenario();
+ const pending=new Promise(()=>{}); // ignores AbortSignal: model broken provider
+ const result=externalHighwaterFence({...x.args,fetchImpl:async()=>pending,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_REMOTE_FETCH_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: uncooperative response body cannot hold authorization indefinitely',async()=>{
+ const x=await scenario();
+ const fetchImpl=async()=>({status:200,text:async()=>new Promise(()=>{})});
+ const result=externalHighwaterFence({...x.args,fetchImpl,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_REMOTE_BODY_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: ambiguous readback after committed append must deny consumer permission',async()=>{
+ const x=await scenario(), real=x.args.fetchImpl;
+ const fetchImpl=async(url,opts)=>url.endsWith('/readback')?new Promise(()=>{}):real(url,opts);
+ const result=externalHighwaterFence({...x.args,fetchImpl,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_READBACK_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+ assert.equal(x.peek().sequence,1,'external CAS may have advanced; caller must HOLD and never retry automatically');
+});
