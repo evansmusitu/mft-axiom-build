@@ -73,3 +73,30 @@ test('B27 operator readback includes pinned Worker binding proof before returnin
  assert.equal(record.signer_custody_verified,false);
  assert.equal(record.release_eligible,false);
 });
+
+
+test('B27 operator must reject substituted Worker metadata before emitting evidence',async()=>{
+ for(const bad of [
+   {...goodWorker,script_name:'untrusted-worker'},
+   {...goodWorker,account_id:'f'.repeat(32)},
+   {...goodWorker,bucket_name:'other'},
+   {...goodWorker,checked_binding_count:4},
+   {...goodWorker,active_deployment_verified:true},
+   {...goodWorker,release_eligible:true}
+ ]){
+   const r=await invoke({verifyWorker:async()=>bad});
+   assert.equal(r.status,2);
+   assert.deepEqual(r.stdout,[]);
+   assert.deepEqual(r.stderr,['AUTHORITY2_WORKER_EVIDENCE_INCONSISTENT_HOLD']);
+ }
+});
+test('B27 operator cannot leak Worker-provider errors or invoke Workers in builder CI',async()=>{
+ const fail=await invoke({verifyWorker:async()=>{throw Error('Bearer '+secret)}});
+ assert.equal(fail.status,2);
+ assert.deepEqual(fail.stdout,[]);
+ assert.doesNotMatch(JSON.stringify(fail),/SYNTHETIC_NEVER_LOG_THIS_SECRET/);
+ let calls=0;
+ const noCall=await invoke({env:{GITHUB_ACTIONS:'true'},verifyWorker:async()=>{calls++;return goodWorker;}});
+ assert.equal(noCall.status,2);
+ assert.equal(calls,0);
+});
