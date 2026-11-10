@@ -71,6 +71,18 @@ async function signed(env,payload){let jwk;try{jwk=JSON.parse(env.HW_SIGNING_JWK
   const key=await crypto.subtle.importKey('jwk',{kty:'OKP',crv:'Ed25519',x:jwk.x,d:jwk.d},{name:'Ed25519'},false,['sign']);
   return {payload,signature:base64(await crypto.subtle.sign('Ed25519',key,enc.encode(canonical(payload))))};
 }
+// R2 provider calls have no guaranteed cancellation contract. A bounded
+// observation window is essential because an ambiguous PUT may finish late.
+// Caller has durably written highwater/pending BEFORE issuing the PUT. Timeout
+// means HOLD forever, no resend or local tip commit.
+async function boundedWorm(operation){
+  let timer;
+  const deadline=new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Denied('HIGHWATER_WORM_TIMEOUT_HOLD',503)),3000);
+  });
+  try{return await Promise.race([operation(),deadline]);}
+  finally{clearTimeout(timer);}
+}
 export class Authority2Highwater {
   constructor(ctx,env){this.ctx=ctx;this.env=env;this.pin=config(env);if(!env.HIGHWATER_WORM)deny('HIGHWATER_WORM_BINDING_REQUIRED_HOLD',503);this.worm=env.HIGHWATER_WORM;}
   async fetch(r){try{
@@ -93,7 +105,7 @@ export class Authority2Highwater {
       await this.ctx.storage.sync();
       // External R2 is never mutated inside a retryable DO transaction.
       // Failed or ambiguous put persists pending and stops all admissions.
-      await wormAppend(this.worm,c,transition);
+      await boundedWorm(()=>wormAppend(this.worm,c,transition));
       await this.ctx.storage.transaction(async s=>{
         const pending=await s.get('highwater/pending');
         if(!pending||canonical(pending.record)!==canonical(transition))deny('HIGHWATER_PENDING_CHANGED_HOLD',503);
@@ -107,7 +119,7 @@ export class Authority2Highwater {
     if(await this.ctx.storage.get('highwater/pending'))deny('HIGHWATER_PENDING_RECONCILIATION_HOLD',503);
     const tip=await this.ctx.storage.get('highwater/tip');
     if(!tip||tip.ledger_id!==c.ledger_id||tip.namespace!==c.namespace||tip.account_id!==c.account_id||tip.key_id!==c.key_id)deny('HIGHWATER_GENESIS_OR_CONTINUITY_MISSING_HOLD',503);
-    await wormReadback(this.worm,c,tip);
+    await boundedWorm(()=>wormReadback(this.worm,c,tip));
     return reply(200,await signed(this.env,{schema:SCHEMA,...c,challenge:input.challenge,kind:'readback',sequence:tip.sequence,head:tip.head}));
   }catch(e){return reply(e instanceof Denied?e.status:503,{error:e instanceof Denied?e.code:'HIGHWATER_UNAVAILABLE_HOLD',dispatch_allowed:false});}}
 }
