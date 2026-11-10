@@ -80,6 +80,20 @@ function trustedPool(pool:unknown):pool is Pool{
     pg.Client.prototype.connect===trustedClientConnect &&
     pool.connect===trustedPoolConnect;
 }
+// A trusted Pool may still contain a replaced/modified idle client. Attest
+// the actual checkout before issuing BEGIN or any other accounting SQL.
+function trustedAcquiredClient(client:unknown):client is PoolClient {
+  try {
+    if(!(client instanceof pg.Client) ||
+       Object.getPrototypeOf(client)!==pg.Client.prototype ||
+       Object.hasOwn(client,"query") ||
+       Object.hasOwn(client,"connect") ||
+       client.query!==trustedClientQuery ||
+       client.connect!==trustedClientConnect)return false;
+    const release=Object.getOwnPropertyDescriptor(client,"release");
+    return !!release && "value" in release && typeof release.value==="function";
+  }catch{return false;}
+}
 type Key={tenantId:string;provider:string;modelId:string};
 const budgetWhere="tenant_id=$1 AND provider=$2 AND model_id=$3";
 const budgetValues=(input:Key)=>[input.tenantId,input.provider,input.modelId];
@@ -107,6 +121,9 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
     let client:PoolClient;
     try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
+    // Do not invoke the acquired client's query or release hooks if untrusted.
+    if(!trustedAcquiredClient(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+      "Untrusted acquired PostgreSQL accounting client",503);
     try{
       await client.query("BEGIN");
       await client.query("SET LOCAL statement_timeout = 5000");
@@ -276,6 +293,9 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
     let client:PoolClient;
     try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
+    // Do not invoke the acquired client's query or release hooks if untrusted.
+    if(!trustedAcquiredClient(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+      "Untrusted acquired PostgreSQL accounting client",503);
     let active=false;
     try{
       await client.query("BEGIN");active=true;
