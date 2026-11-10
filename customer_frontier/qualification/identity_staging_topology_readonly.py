@@ -137,8 +137,10 @@ def run():
              hashlib.sha256(d1["name"].encode()).hexdigest()!=SOURCE_NAME_SHA):
             raise Reject("HISTORICAL_DATABASE_METADATA_DRIFT")
         scripts=provider_get("/workers/scripts",token,opener);request_count+=1
-        if not isinstance(scripts,list) or len(scripts)>40:
-            raise Reject("WORKER_INVENTORY_INVALID")
+        if not isinstance(scripts,list):
+            raise Reject("WORKER_INVENTORY_TYPE_INVALID")
+        if len(scripts)>40:
+            raise Reject("WORKER_INVENTORY_COUNT_EXCEEDS_40_OBSERVED_"+str(len(scripts)))
         names=[s.get("id") for s in scripts if isinstance(s,dict)]
         if len(names)!=len(scripts) or len(set(names))!=len(names) or STAGING_WORKER not in names:
             raise Reject("WORKER_NAMES_MISSING_OR_DUPLICATED")
