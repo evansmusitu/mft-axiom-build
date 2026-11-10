@@ -82,15 +82,33 @@ jobs:
               info=found.get("result_info") or {}
               receipt["database_list_reported_total"]=info.get("total_count") if isinstance(info.get("total_count"),int) else None
               items=found["result"];receipt["database_count"]=len(items)
+              receipt["detail_fetch_all_succeeded"]=True
+              receipt["list_detail_table_count_mismatch"]=0
               for d in items:
                   if not isinstance(d,dict) or not isinstance(d.get("uuid"),str):continue
-                  row={"database_uuid_sha256":sha(d["uuid"]),"target":d["uuid"]==DATABASE,
+                  uuid=d["uuid"]
+                  code,detail=get("/d1/database/"+urllib.parse.quote(uuid,safe=""))
+                  valid=code==200 and isinstance(detail,dict) and detail.get("success") is True and isinstance(detail.get("result"),dict) and detail["result"].get("uuid")==uuid
+                  if not valid:receipt["detail_fetch_all_succeeded"]=False
+                  obj=detail["result"] if valid else {}
+                  listed_count=d.get("num_tables") if type(d.get("num_tables")) is int else None
+                  detail_count=obj.get("num_tables") if type(obj.get("num_tables")) is int else None
+                  if listed_count is not None and detail_count is not None and listed_count!=detail_count:
+                      receipt["list_detail_table_count_mismatch"]+=1
+                  row={"database_uuid_sha256":sha(uuid),"target":uuid==DATABASE,
                        "name_sha256":sha(d["name"]) if isinstance(d.get("name"),str) else None,
-                       "num_tables":d.get("num_tables") if isinstance(d.get("num_tables"),int) else None,
-                       "file_size":d.get("file_size") if isinstance(d.get("file_size"),int) else None,
-                       "version":d.get("version") if d.get("version") in ("alpha","production") else "UNCLASSIFIED"}
+                       "list_num_tables_untrusted":listed_count,
+                       "detail_http_status":code,
+                       "detail_num_tables":detail_count,
+                       "file_size":obj.get("file_size") if type(obj.get("file_size")) is int else None,
+                       "version":obj.get("version") if obj.get("version") in ("alpha","production") else "UNCLASSIFIED"}
                   receipt["databases"].append(row)
-              receipt["zero_table_existing_candidate_count"]=sum(1 for x in receipt["databases"] if x["target"] is False and x["num_tables"]==0)
+              receipt["zero_table_existing_candidate_count"]=(
+                  sum(1 for x in receipt["databases"] if not x["target"] and x["detail_num_tables"]==0)
+                  if receipt["detail_fetch_all_succeeded"] else None)
+              # A count of zero tables alone does NOT prove orphan/unused storage.
+              receipt["spare_restore_target_qualified"]=False
+              receipt["worker_binding_check_performed"]=False
               receipt["database_listing_complete"]=(receipt["database_list_reported_total"]==len(receipt["databases"]))
           raw=(json.dumps(receipt,indent=2,sort_keys=True)+"\n").encode()
           filename="axiom_step1_d1_recovery_window_inventory_20261110.json"
