@@ -23,8 +23,16 @@ ACCOUNT = "93f395f5121954671f92fffa453d6b61"
 DATABASE = "ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
 NAME_SHA = "7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36"
 ROOT = "https://api.cloudflare.com/client/v4/accounts/" + ACCOUNT
-SINCE = "2025-05-10"  # 18-month provider retention at 10 November 2026
+SINCE = "2025-05-11"  # Verified earliest accepted date after 18-month retention edge
 BEFORE = "2026-11-11"
+# Bound every request to ~one month. Overlap one day to prevent missing
+# events exactly on a slice boundary; deduplicate by provider event ID hash.
+BOUNDS = tuple(dt.date(year, month, 11) for year in (2025, 2026)
+               for month in range(5 if year == 2025 else 1,
+                                  13 if year == 2025 else 12))
+WINDOWS = tuple(((BOUNDS[i] - dt.timedelta(days=1 if i else 0)).isoformat(),
+                 (BOUNDS[i + 1] + dt.timedelta(days=1 if i < len(BOUNDS)-2 else 0)).isoformat())
+                for i in range(len(BOUNDS)-1))
 MAX_PAGES = 12
 PAGE_LIMIT = 100
 HEX_SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -127,7 +135,7 @@ def parse_event(event):
     }
 
 
-def inspect_logs(responses):
+def inspect_logs(responses, *, _events=False):
     """Fail closed unless server-side resource pagination is completed exactly."""
     if not isinstance(responses, list) or not responses or len(responses) > MAX_PAGES:
         raise NoGo("AUDIT_HISTORY_PAGE_COUNT_UNQUALIFIED")
@@ -161,6 +169,12 @@ def inspect_logs(responses):
                 raise NoGo("AUDIT_EVENT_DUPLICATED")
             seen_events.add(event["event_id_sha256"])
             observed.append(event)
+    if _events:
+        return observed
+    return summarize_events(observed)
+
+
+def summarize_events(observed):
     creates = [e for e in observed if e["action"] == "create" and e["result"] == "success" and e["method"] == "POST"]
     destructive = [e for e in observed if e["action"] == "delete" and e["result"] == "success"]
     # Presence of a create event is *not* ownership admission. An independent
@@ -193,6 +207,34 @@ def inspect_logs(responses):
     }
 
 
+def inspect_windows(window_pages):
+    """Review complete bounded time windows, rejecting contradictory overlaps."""
+    if not isinstance(window_pages, list) or len(window_pages) != len(WINDOWS):
+        raise NoGo("HISTORICAL_WINDOW_COVERAGE_INCOMPLETE")
+    merged = {}
+    for (start, end), pages in zip(WINDOWS, window_pages):
+        for event in inspect_logs(pages, _events=True):
+            if not start <= event["date"] < end:
+                raise NoGo("AUDIT_EVENT_OUTSIDE_BOUNDED_PROVIDER_WINDOW")
+            event_id = event["event_id_sha256"]
+            if event_id in merged and merged[event_id] != event:
+                raise NoGo("HISTORICAL_OVERLAP_EVENT_CONFLICT")
+            merged[event_id] = event
+    receipt = summarize_events(list(merged.values()))
+    receipt.update({
+        "audited_window_count": len(window_pages),
+        "provider_retention_start": SINCE,
+        "audited_end_exclusive": BEFORE,
+        "audit_window_strategy": "BOUNDED_MONTHLY_ONE_DAY_OVERLAP",
+        "raw_overlap_events_retained": 0,
+        "historical_ownership_qualified": False,
+        "source_reuse_authorized": False,
+        "step_2_authorized": False,
+        "release_authority": False,
+    })
+    return receipt
+
+
 def get(path, token, opener):
     # Caller only ever constructs pinned metadata or audit URL with bounded
     # pagination. Never follow redirects (token must not leave Cloudflare).
@@ -201,10 +243,11 @@ def get(path, token, opener):
         if parsed.path != "/logs/audit" or parsed.fragment or not parsed.query:
             raise NoGo("PATH_NOT_ALLOWLISTED")
         pairs = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-        fixed = {"since": [SINCE], "before": [BEFORE], "resource_id": [DATABASE],
-                 "direction": ["asc"], "limit": [str(PAGE_LIMIT)]}
+        allowed = [{"since": [a], "before": [b], "resource_id": [DATABASE],
+                    "direction": ["asc"], "limit": [str(PAGE_LIMIT)]}
+                   for a, b in WINDOWS]
         cursor = pairs.pop("cursor", None)
-        if pairs != fixed or (cursor is not None and (len(cursor) != 1 or not CURSOR.fullmatch(cursor[0]))):
+        if pairs not in allowed or (cursor is not None and (len(cursor) != 1 or not CURSOR.fullmatch(cursor[0]))):
             raise NoGo("AUDIT_QUERY_NOT_ALLOWLISTED")
     req = urllib.request.Request(ROOT+path, method="GET", headers={
         "Authorization": "Bearer " + token, "Accept": "application/json"})
@@ -230,27 +273,35 @@ def run():
     if not token or any(x in token for x in "\r\n"):
         raise NoGo("CLOUDFLARE_READ_SCOPED_TOKEN_MISSING")
     opener = urllib.request.build_opener(NeverRedirect())
-    pages = []
+    window_pages = []
     try:
         check_metadata(get("/d1/database/" + DATABASE, token, opener))
-        cursor = None
-        seen = set()
-        for _ in range(MAX_PAGES):
-            args = {"since": SINCE, "before": BEFORE, "resource_id": DATABASE,
-                    "direction": "asc", "limit": str(PAGE_LIMIT)}
-            if cursor:
-                args["cursor"] = cursor
-            response = get("/logs/audit?" + urllib.parse.urlencode(args), token, opener)
-            pages.append(response)
-            info = response.get("result_info") if isinstance(response, dict) else None
-            cursor = info.get("cursor") if isinstance(info, dict) else None
-            if not cursor:
-                break
-            if not isinstance(cursor, str) or not CURSOR.fullmatch(cursor) or cursor in seen:
-                raise NoGo("AUDIT_CURSOR_REUSED_OR_INVALID")
-            seen.add(cursor)
-        result = inspect_logs(pages)
-        code = 0
+        for window_index, (since, before) in enumerate(WINDOWS):
+            pages = []
+            cursor = None
+            seen = set()
+            for _ in range(MAX_PAGES):
+                args = {"since": since, "before": before, "resource_id": DATABASE,
+                        "direction": "asc", "limit": str(PAGE_LIMIT)}
+                if cursor:
+                    args["cursor"] = cursor
+                try:
+                    response = get("/logs/audit?" + urllib.parse.urlencode(args), token, opener)
+                except NoGo as exc:
+                    raise NoGo("AUDIT_WINDOW_" + str(window_index+1) + "__" + str(exc)) from None
+                pages.append(response)
+                info = response.get("result_info") if isinstance(response, dict) else None
+                cursor = info.get("cursor") if isinstance(info, dict) else None
+                if not cursor:
+                    break
+                if not isinstance(cursor, str) or not CURSOR.fullmatch(cursor) or cursor in seen:
+                    raise NoGo("AUDIT_CURSOR_REUSED_OR_INVALID")
+                seen.add(cursor)
+            # Each window MUST prove all pages before the next window starts.
+            inspect_logs(pages, _events=True)
+            window_pages.append(pages)
+        result = inspect_windows(window_pages)
+        code = 0 if result["status"] == "HISTORICAL_PROVIDER_EVENT_OBSERVED_NOT_OWNER_ADMITTED" else 2
     except NoGo as exc:
         result = {"schema": "AXIOM_STEP1_D1_HISTORICAL_PROVIDER_PROVENANCE_READONLY_V1",
                   "status": "INCOMPLETE_NO_GO", "reason_code": str(exc)[:96],
