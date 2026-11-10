@@ -10,7 +10,7 @@ import {verifyAuthority2WorkerBindings} from './authority2-worker-bindings.mjs';
 import {verifyAuthority2ActiveDeployment} from './authority2-active-deployment.mjs';
 
 const ACCOUNT='67469478aa9349fa0a57fe3a72da200a';
-const BUCKET='musitu-axiom-authority2-worm';
+const BUCKET='musitu-axiom-b27-highwater-a2';
 const KEY='AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN';
 
 export async function operatorReadOnlyPreflight({
