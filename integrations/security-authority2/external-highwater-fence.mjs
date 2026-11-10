@@ -44,11 +44,44 @@ async function envelope(p,signature,key){
   if(!ok)hold('HIGHWATER_SIGNATURE_INVALID_HOLD');
 }
 async function request(fetchImpl,origin,path,body,token,timeoutMs){
-  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  // AbortSignal alone is advisory: an injected/provider fetch or body reader
+  // can ignore it. A single absolute deadline bounds both operations.
+  const controller=new AbortController();
+  let timer;
+  const deadline=new Promise((_,reject)=>{
+    timer=setTimeout(()=>{
+      controller.abort();
+      reject(new HighwaterHold('HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD'));
+    },timeoutMs);
+  });
   try {
-    const r=await fetchImpl(origin+path,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json','cache-control':'no-store'},body:canonical(body),redirect:'manual',credentials:'omit',cache:'no-store',signal:controller.signal});
-    if(r.status!==200)hold('HIGHWATER_REMOTE_DENIAL_HOLD');
-    const raw=await r.text();if(raw.length>16384)hold('HIGHWATER_RESPONSE_OVERSIZE_HOLD');
+    const r=await Promise.race([fetchImpl(origin+path,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json','cache-control':'no-store'},body:canonical(body),redirect:'manual',credentials:'omit',cache:'no-store',signal:controller.signal}),deadline]);
+    if(r?.status!==200)hold('HIGHWATER_REMOTE_DENIAL_HOLD');
+    let raw='';
+    // Real fetch responses use a stream. Refuse oversized data BEFORE
+    // materializing it into a string; no unbounded response.text().
+    if(r.body&&typeof r.body.getReader==='function'){
+      const reader=r.body.getReader(),decoder=new TextDecoder();
+      let total=0,done=false;
+      try{
+        for(;;){
+          const next=await Promise.race([reader.read(),deadline]);
+          if(next.done){done=true;break;}
+          total+=next.value.byteLength;
+          if(total>16384)hold('HIGHWATER_RESPONSE_OVERSIZE_HOLD');
+          raw+=decoder.decode(next.value,{stream:true});
+        }
+        raw+=decoder.decode();
+      }finally{
+        if(!done)try{void reader.cancel().catch(()=>{});}catch{}
+        try{reader.releaseLock();}catch{}
+      }
+    }else{
+      // Synthetic fetch responses used by isolated tests only.
+      raw=await Promise.race([r.text(),deadline]);
+      if(typeof raw!=='string'||encoder.encode(raw).byteLength>16384)
+        hold('HIGHWATER_RESPONSE_OVERSIZE_HOLD');
+    }
     try{return JSON.parse(raw);}catch{hold('HIGHWATER_RESPONSE_INVALID_HOLD');}
   }catch(e){if(e instanceof HighwaterHold)throw e;hold('HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD');}
   finally{clearTimeout(timer);}
