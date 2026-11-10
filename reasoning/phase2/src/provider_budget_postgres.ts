@@ -58,12 +58,26 @@ function report(row:any):ProviderSpendStatus{
 // supply central spending authority. Structural connect() fakes must not
 // grant a trusted budget decorator the appearance of durable accounting.
 const trustedPoolConnect=pg.Pool.prototype.connect;
+// pg-pool calls its mutable Pool.Client constructor through Pool.newClient
+// to create the SQL client. Neither can be allowed to change underneath an
+// already admitted protected spending ledger.
+const trustedPoolClient=pg.Client;
+const trustedPoolNewClient=(pg.Pool.prototype as unknown as {newClient:unknown}).newClient;
+// A canonical client class is insufficient if its SQL or connect implementation
+// is monkeypatched after accounting admission.
+const trustedClientQuery=pg.Client.prototype.query;
+const trustedClientConnect=pg.Client.prototype.connect;
 function trustedPool(pool:unknown):pool is Pool{
   return pool instanceof pg.Pool &&
     Object.getPrototypeOf(pool)===pg.Pool.prototype &&
     Object.hasOwn(pool,"options") &&
     Object.hasOwn(pool,"_clients") &&
     Array.isArray((pool as {_clients:unknown})._clients) &&
+    Object.getOwnPropertyDescriptor(pool,"Client")?.value===trustedPoolClient &&
+    !Object.hasOwn(pool,"newClient") &&
+    (pool as Pool&{newClient:unknown}).newClient===trustedPoolNewClient &&
+    pg.Client.prototype.query===trustedClientQuery &&
+    pg.Client.prototype.connect===trustedClientConnect &&
     pool.connect===trustedPoolConnect;
 }
 type Key={tenantId:string;provider:string;modelId:string};
@@ -80,6 +94,7 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
       #authenticBudgetLedger in value&&
       (value as PostgresProviderSpendLedger).reserve===trustedPostgresReserve&&
       (value as PostgresProviderSpendLedger).settle===trustedPostgresSettle &&
+      trustedPool((value as PostgresProviderSpendLedger).#pool) &&
       (value as PostgresProviderSpendLedger).#poolOptionsUnchanged();
   }
   constructor(pool:Pool){
@@ -246,6 +261,7 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
       #authenticBudgetLedger in value&&
       (value as ProtectedPostgresProviderSpendLedger).reserve===trustedProtectedReserve &&
       (value as ProtectedPostgresProviderSpendLedger).settle===trustedProtectedSettle &&
+      trustedPool((value as ProtectedPostgresProviderSpendLedger).#pool) &&
       (value as ProtectedPostgresProviderSpendLedger).#poolOptionsUnchanged();
   }
   constructor(pool:Pool){
