@@ -56,7 +56,12 @@ jobs:
             ('audit_old_sep_2025_30d', '/logs/audit?'+query({'since':'2025-09-01','before':'2025-10-01','resource_id':database,'limit':1})),
             ('audit_old_oct_2025_31d', '/logs/audit?'+query({'since':'2025-10-01','before':'2025-11-01','resource_id':database,'limit':1})),
             ('audit_old_nov_2025_30d', '/logs/audit?'+query({'since':'2025-11-01','before':'2025-12-01','resource_id':database,'limit':1})),
-            ('audit_old_window_from_june', '/logs/audit?'+query({'since':'2025-06-10','before':'2025-11-10','resource_id':database,'limit':1}))
+            ('audit_old_window_from_june', '/logs/audit?'+query({'since':'2025-06-10','before':'2025-11-10','resource_id':database,'limit':1})),
+            ('audit_2025_05_11_30d', '/logs/audit?'+query({'since':'2025-05-11','before':'2025-06-10','resource_id':database,'limit':1})),
+            ('audit_2025_05_12_29d', '/logs/audit?'+query({'since':'2025-05-12','before':'2025-06-10','resource_id':database,'limit':1})),
+            ('audit_2025_05_15_26d', '/logs/audit?'+query({'since':'2025-05-15','before':'2025-06-10','resource_id':database,'limit':1})),
+            ('audit_2025_05_20_21d', '/logs/audit?'+query({'since':'2025-05-20','before':'2025-06-10','resource_id':database,'limit':1})),
+            ('audit_2025_06_01_09d', '/logs/audit?'+query({'since':'2025-06-01','before':'2025-06-10','resource_id':database,'limit':1}))
           ]
           statuses={}
           for tag,path in cases:
