@@ -4,7 +4,7 @@ import {verifyAuthority2WorkerBindings} from './authority2-worker-bindings.mjs';
 const account_id='67469478aa9349fa0a57fe3a72da200a',token='R'.repeat(40);
 const settings={success:true,errors:[],result:{bindings:[
  {name:'HIGHWATER_STATE',type:'durable_object_namespace',class_name:'Authority2Highwater'},
- {name:'HIGHWATER_WORM',type:'r2_bucket',bucket_name:'musitu-axiom-authority2-worm'},
+ {name:'HIGHWATER_WORM',type:'r2_bucket',bucket_name:'musitu-axiom-b27-highwater-a2'},
  {name:'HW_CONFIG_JSON',type:'secret_text'},
  {name:'HW_ROLE_TOKEN_SHA256_JSON',type:'secret_text'},
  {name:'HW_SIGNING_JWK',type:'secret_text'}]}};
