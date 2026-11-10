@@ -6,10 +6,15 @@ const key='AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN',secret='SYNTHETIC_NEVER_LO
 const good={account_id:'67469478aa9349fa0a57fe3a72da200a',
   bucket_name:'musitu-axiom-authority2-worm',rule_id:'sensitive-provider-rule-label',
   scope:'b27/',retention:'Indefinite',admin_removable:true};
-async function invoke({env={},verify=async()=>good,argv=['node','operator-script']}={}){
+const goodWorker={status:'WORKER_METADATA_READBACK_NOT_RELEASE',
+  account_id:good.account_id,script_name:'axiom-security-authority2-highwater',
+  bucket_name:good.bucket_name,checked_binding_count:5,secret_values_exposed:false,
+  active_deployment_verified:false,signer_custody_verified:false,release_eligible:false};
+async function invoke({env={},verify=async()=>good,verifyWorker=async()=>goodWorker,
+  argv=['node','operator-script']}={}){
   const stdout=[],stderr=[];
   const status=await operatorReadOnlyPreflight({env:{[key]:secret,...env},
-    argv,verify,output:s=>stdout.push(s),error:s=>stderr.push(s)});
+    argv,verify,verifyWorker,output:s=>stdout.push(s),error:s=>stderr.push(s)});
   return {status,stdout,stderr};
 }
 test('operator-only policy proof emits only redacted nonrelease evidence',async()=>{
@@ -56,4 +61,15 @@ test('synthetic provider evidence cannot claim independent custody or suppress b
   assert.equal(r.status,2);
   assert.deepEqual(r.stderr,['AUTHORITY2_POLICY_EVIDENCE_INCONSISTENT_HOLD']);
  }
+});
+
+test('B27 operator readback includes pinned Worker binding proof before returning evidence',async()=>{
+ const r=await invoke();
+ assert.equal(r.status,0);
+ const record=JSON.parse(r.stdout[0]);
+ assert.equal(record.worker_script_name,'axiom-security-authority2-highwater');
+ assert.equal(record.worker_binding_count,5);
+ assert.equal(record.active_deployment_verified,false);
+ assert.equal(record.signer_custody_verified,false);
+ assert.equal(record.release_eligible,false);
 });
