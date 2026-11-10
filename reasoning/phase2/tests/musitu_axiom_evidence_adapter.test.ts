@@ -86,3 +86,25 @@ test("MUSITU Axiom evidence adapter validates operation parameters before secret
   assert.equal(secretCalls,0);
   assert.equal(fetchCalls,0);
 });
+
+
+test("MUSITU compute deadline covers an HTTP 200 response body that never finishes",async()=>{
+  const ax:any=await import("../src/index.ts");
+  const opManifest={...op("finance.npv"),timeoutMs:25};
+  const stream=new ReadableStream<Uint8Array>({
+    start(controller){controller.enqueue(new TextEncoder().encode('{"partial":'));}
+  });
+  const adapter=new ax.MusituAxiomEvidenceAdapter({
+    adapterId:"musitu-axiom",version:"1.0.0",implementationHash:H("b"),
+    computeBase:"https://axiom.internal.example",operations:[opManifest],
+    parameterValidators:{"finance.npv":()=>{}},
+    secretResolver:new ax.StaticSecretResolver({}),
+    fetchFn:async()=>new Response(stream,{status:200,headers:{"content-type":"application/json"}})
+  });
+  const result=await Promise.race([
+    adapter.acquire({tenant:{tenantId:"tenant:a"},operation:opManifest,parameters:{rate:0.1}})
+      .then(()=>({status:"unexpected-success"}),e=>({status:"error",code:e?.code,httpStatus:e?.httpStatus})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:"stalled"}),300))
+  ]) as any;
+  assert.deepEqual(result,{status:"error",code:"UPSTREAM_TIMEOUT",httpStatus:504});
+});

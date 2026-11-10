@@ -4,6 +4,7 @@ import type {
   AuthorizedTenantContext, ModelAdapterManifest, ModelExplainRequest, ModelExplainResult,
   ModelExplanationContent, ModelExplanationProfile, ModelExplanationRecord, TenantScope
 } from "./types.ts";
+import { requireMeteredProviderAdapter, requireProtectedPaidProviderAdapter } from "./provider_budget.ts";
 
 const HEX64=/^[0-9a-f]{64}$/;
 const MAX_EXPLANATION_ITEMS=8;
@@ -156,7 +157,11 @@ export class ModelExplanationService {
     tenant:TenantScope;profiles:ModelExplanationRegistry;repository:ModelExplanationRepository;
     executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
     adapters:ModelExplanationAdapter[];now?:()=>Date|string;
+    /** Trusted deployment gate; offline fixtures must explicitly opt out. */
+    productionBillingRequired?:boolean;
   }){
+    if(deps.productionBillingRequired!==undefined&&typeof deps.productionBillingRequired!=="boolean")
+      throw new TypeError("productionBillingRequired must be boolean");
     this.tenant={tenantId:required(deps.tenant?.tenantId,"tenantId")};
     this.profiles=deps.profiles;this.repository=deps.repository;this.executions=deps.executions;this.plane=deps.plane;this.now=deps.now??(()=>new Date());
     this.adapters=new Map();
@@ -164,6 +169,9 @@ export class ModelExplanationService {
     for(const adapter of deps.adapters){
       const manifest=cloneManifest(adapter?.manifest);
       if(typeof adapter?.explain!=="function")throw new TypeError("Model explanation adapter must implement explain");
+      if(deps.productionBillingRequired===true)
+        requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+      else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
       if(this.adapters.has(manifest.adapterId))throw new TypeError(`Duplicate model explanation adapter: ${manifest.adapterId}`);
       this.adapters.set(manifest.adapterId,adapter);
     }

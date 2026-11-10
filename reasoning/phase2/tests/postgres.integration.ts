@@ -718,3 +718,300 @@ test("PostgreSQL remote worker HTTP control preserves signed durable claim recei
   await pool.query("TRUNCATE axiom_distributed_execution_jobs, axiom_worker_operation_receipts");
  }
 });
+
+
+test("PostgreSQL provider spend reservations serialize across competing workers and isolate tenants",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ assert.equal(typeof ax.PostgresProviderSpendLedger,"function");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-cost-concurrent"},other={tenantId:"tenant:pg-cost-other"};
+ const provider="model:pg-cost",modelId="billing:test-model";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE provider=$1 AND model_id=$2",[provider,modelId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE provider=$1 AND model_id=$2",[provider,modelId]);
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ await ledger.provision(other,provider,modelId,1000,"openai");
+ const reservation=(id:string,tenantId=tenant.tenantId)=>({
+  tenantId,provider,modelId,billingProvider:"openai",requestId:id,requestHash:"a".repeat(64),reserveMicroUsd:700
+ });
+ const [first,second]=await Promise.allSettled([
+  ledger.reserve(reservation("pg-cost-1")),ledger.reserve(reservation("pg-cost-2"))
+ ]);
+ assert.equal([first,second].filter(x=>x.status==="fulfilled").length,1);
+ assert.equal([first,second].filter(x=>x.status==="rejected").length,1);
+ const winner=first.status==="fulfilled"?"pg-cost-1":"pg-cost-2";
+ const loser=winner==="pg-cost-1"?"pg-cost-2":"pg-cost-1";
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+ });
+ assert.deepEqual(await ledger.status(other,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
+ });
+ await assert.rejects(()=>ledger.reserve(reservation(winner)),/reserved|duplicate|reconciliation/i);
+ await assert.rejects(()=>ledger.reserve(reservation(loser)),/budget|limit/i);
+ await ledger.reserve(reservation("pg-cost-other",other.tenantId));
+ await ledger.settle({...reservation(winner),chargeMicroUsd:200,responseHash:"b".repeat(64)});
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:800
+ });
+ await assert.rejects(()=>ledger.settle({...reservation(winner),chargeMicroUsd:200,responseHash:"b".repeat(64)}),/already|settle|reservation|matching/i);
+ await ledger.reserve(reservation(loser));
+ assert.equal((await ledger.status(tenant,provider,modelId)).reservedMicroUsd,700);
+});
+
+test("PostgreSQL billing records overages, suspends further calls and fails closed on unknown receipts",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-cost-overage"},provider="model:pg-cost",modelId="billing:test-model";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
+ await ledger.provisionOrganization("openai",100000);
+ await ledger.provision(tenant,provider,modelId,1000,"openai");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,billingProvider:"openai",requestId:"pg-overage",
+  requestHash:"e".repeat(64),reserveMicroUsd:100};
+ await ledger.reserve(reservation);
+ await assert.rejects(()=>ledger.settle({...reservation,requestHash:"f".repeat(64),chargeMicroUsd:600,responseHash:"b".repeat(64)}),/matching|reservation|forbidden/i);
+ assert.equal((await ledger.status(tenant,provider,modelId)).reservedMicroUsd,100);
+ await assert.rejects(()=>ledger.settle({...reservation,chargeMicroUsd:600,responseHash:"c".repeat(64)}),/overage|reserved/i);
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:600,reservedMicroUsd:0,availableMicroUsd:400
+ });
+ await assert.rejects(()=>ledger.reserve({...reservation,requestId:"pg-new",requestHash:"d".repeat(64)}),/suspended|overage/i);
+ await assert.rejects(()=>ledger.provision(tenant,provider,modelId,999,"openai"),/immutable|existing|differs/i);
+});
+
+
+test("PostgreSQL denies vendor reservations when the shared organization spending cap is not provisioned",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool);
+ const tenant={tenantId:"tenant:pg-organization-unprovisioned"};
+ const provider="adapter:pg-organization-unprovisioned",modelId="billing:model-unprovisioned";
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=$1",[tenant.tenantId]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=$1",[tenant.tenantId]);
+ // The operator may provision a tenant limit without having approved the
+ // separate upstream vendor's aggregate organization spending authority.
+ await ledger.provision(tenant,provider,modelId,1000,"anthropic");
+ const reservation={tenantId:tenant.tenantId,provider,modelId,
+  billingProvider:"anthropic",requestId:"org-not-provisioned",
+  requestHash:"7".repeat(64),reserveMicroUsd:700};
+ await assert.rejects(()=>ledger.reserve(reservation),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_NOT_PROVISIONED");
+ assert.deepEqual(await ledger.status(tenant,provider,modelId),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:1000
+ });
+});
+
+
+test("PostgreSQL vendor-wide cap serializes competing tenant reservations and suspends after overage",async()=>{
+ await ready();await initializePostgresSchema(pool);
+ const ax:any=await import("../src/index.ts");
+ const ledger=new ax.PostgresProviderSpendLedger(pool),vendor="anthropic";
+ const tenantA={tenantId:"tenant:pg-organization-a"},tenantB={tenantId:"tenant:pg-organization-b"};
+ const first={tenantId:tenantA.tenantId,provider:"adapter:org-a",modelId:"org:model-a",
+  billingProvider:vendor,requestId:"org-a-1",requestHash:"8".repeat(64),reserveMicroUsd:700};
+ const second={tenantId:tenantB.tenantId,provider:"adapter:org-b",modelId:"org:model-b",
+  billingProvider:vendor,requestId:"org-b-1",requestHash:"9".repeat(64),reserveMicroUsd:700};
+ await pool.query("DELETE FROM axiom_provider_spend_requests WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await pool.query("DELETE FROM axiom_provider_spend_budgets WHERE tenant_id=ANY($1::text[])",[[tenantA.tenantId,tenantB.tenantId]]);
+ await ledger.provisionOrganization(vendor,1000);
+ await ledger.provision(tenantA,first.provider,first.modelId,1000,vendor);
+ await ledger.provision(tenantB,second.provider,second.modelId,1000,vendor);
+ // Simulate two independent workers with separate TCP pools. This verifies
+ // database row locking, not just scheduling inside a single Node.js pg Pool.
+ const workerPool=new Pool({host:process.env.PGHOST??"postgres",
+  port:Number(process.env.PGPORT??5432),database:process.env.PGDATABASE??"axiom_test",
+  user:process.env.PGUSER??"axiom",password:process.env.PGPASSWORD??"axiom-test-password",
+  max:2,connectionTimeoutMillis:2000});
+ let a:PromiseSettledResult<void>,b:PromiseSettledResult<void>;
+ try{
+  const otherWorker=new ax.PostgresProviderSpendLedger(workerPool);
+  [a,b]=await Promise.allSettled([ledger.reserve(first),otherWorker.reserve(second)]);
+ }finally{await workerPool.end();}
+ assert.equal([a,b].filter(result=>result.status==="fulfilled").length,1);
+ const winner=a.status==="fulfilled"?first:second,loser=winner===first?second:first;
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:0,reservedMicroUsd:700,availableMicroUsd:300
+ });
+ await ledger.settle({...winner,chargeMicroUsd:200,responseHash:"a".repeat(64)});
+ await ledger.reserve(loser);
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:200,reservedMicroUsd:700,availableMicroUsd:100
+ });
+ await assert.rejects(()=>ledger.settle({...loser,chargeMicroUsd:900,responseHash:"b".repeat(64)}),
+  (error:any)=>error?.code==="BUDGET_PROVIDER_OVERAGE");
+ assert.deepEqual(await ledger.organizationStatus(vendor),{
+  limitMicroUsd:1000,chargedMicroUsd:1100,reservedMicroUsd:0,availableMicroUsd:0
+ });
+ await assert.rejects(()=>ledger.reserve({...winner,requestId:"after-org-overage",requestHash:"c".repeat(64),reserveMicroUsd:100}),
+  (error:any)=>error?.code==="BUDGET_ORGANIZATION_SUSPENDED");
+});
+
+
+// Phase 2.10C: a restricted runtime must not own or directly mutate the
+// accounting rows. Only narrow, operator-granted SQL RPCs can spend.
+test('protected PostgreSQL reserve and settle enforce limits without runtime table DML',async()=>{
+  await ready();
+  await pool.query('CREATE DATABASE axiom_spend_isolated_ci');
+  const admin=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
+    database:'axiom_spend_isolated_ci',user:process.env.PGUSER??'axiom',
+    password:process.env.PGPASSWORD??'axiom-test-password',max:3});
+  try{
+    await initializePostgresSchema(admin);
+    // Privileged SQL functions are a separate, explicit migration; ordinary
+    // schema initialization must not implicitly create SECURITY DEFINER code.
+    await admin.query(readFileSync(new URL('../sql/provider_spend_protected.sql',import.meta.url),'utf8'));
+    // Separate approved-owner handoff, exercised only in ephemeral PostgreSQL CI.
+    await admin.query(readFileSync(new URL('../sql/provider_spend_definer_handoff.sql',import.meta.url),'utf8'));
+  const signatures=await admin.query(`SELECT
+    to_regprocedure('axiom_spend.reserve(text,text,text,text,text,bigint,text)')::text AS reserve_rpc,
+    to_regprocedure('axiom_spend.settle(text,text,text,text,text,bigint,text,text)')::text AS settle_rpc`);
+  assert.ok(signatures.rows[0].reserve_rpc,'protected reserve SQL RPC must exist');
+  assert.ok(signatures.rows[0].settle_rpc,'protected settle SQL RPC must exist');
+  const migrationOwner=(await admin.query("SELECT current_user AS name")).rows[0].name;
+  assert.notEqual(migrationOwner,'axiom_spend_runtime_ci');
+  const ax:any=await import('../src/index.ts');
+  const operator=new ax.PostgresProviderSpendLedger(admin);
+  const tenant={tenantId:'tenant:pg-protected-rpc'},provider='adapter:protected-rpc',modelId='model:protected-rpc';
+  await admin.query('DELETE FROM public.axiom_provider_spend_requests WHERE tenant_id=$1',[tenant.tenantId]);
+  await admin.query('DELETE FROM public.axiom_provider_spend_budgets WHERE tenant_id=$1',[tenant.tenantId]);
+  await operator.provisionOrganization('openai',100000);
+  await operator.provision(tenant,provider,modelId,500,'openai');
+  // A temporary CI-only identity: no table ownership, no role inheritance,
+  // no schema CREATE, and only explicit RPC execution rights.
+  await admin.query("CREATE ROLE axiom_spend_runtime_ci LOGIN PASSWORD 'ci-disposable-not-production' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+  const functions=await admin.query(`SELECT p.proname,p.prosecdef,p.proconfig,
+      o.rolname AS definer_name,o.rolcanlogin,o.rolsuper,o.rolcreaterole,o.rolcreatedb,o.rolreplication,o.rolbypassrls
+    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace=n.oid
+    JOIN pg_catalog.pg_roles o ON o.oid=p.proowner
+    WHERE n.nspname='axiom_spend' AND p.proname IN ('reserve','settle')
+    ORDER BY p.proname`);
+  assert.deepEqual(functions.rows.map((x:any)=>x.proname),['reserve','settle']);
+  assert.ok(functions.rows.every((x:any)=>x.definer_name==='axiom_spend_definer' &&
+    x.rolcanlogin===false && x.rolsuper===false && x.rolcreaterole===false &&
+    x.rolcreatedb===false && x.rolreplication===false && x.rolbypassrls===false),
+    'both protected SQL functions require an independently owned, non-login, non-admin definer');
+  assert.ok(functions.rows.every((x:any)=>x.prosecdef===true &&
+    String(x.proconfig).replace(/\s+/g,'').includes('search_path=pg_catalog,pg_temp')));
+  const deniedPublic=await admin.query(`SELECT
+    has_function_privilege('axiom_spend_runtime_ci',
+      'axiom_spend.reserve(text,text,text,text,text,bigint,text)','EXECUTE') AS reserve_execution,
+    has_function_privilege('axiom_spend_runtime_ci',
+      'axiom_spend.settle(text,text,text,text,text,bigint,text,text)','EXECUTE') AS settle_execution`);
+  assert.deepEqual(deniedPublic.rows,[{reserve_execution:false,settle_execution:false}],
+    'the ungranted runtime must not inherit PUBLIC function execution');
+  let caller:InstanceType<typeof Pool>|undefined;
+  try{
+    await admin.query('GRANT USAGE ON SCHEMA axiom_spend TO axiom_spend_runtime_ci');
+    await admin.query(`GRANT EXECUTE ON FUNCTION axiom_spend.reserve(text,text,text,text,text,bigint,text),
+      axiom_spend.settle(text,text,text,text,text,bigint,text,text) TO axiom_spend_runtime_ci`);
+    caller=new Pool({host:process.env.PGHOST??'postgres',port:Number(process.env.PGPORT??5432),
+      database:'axiom_spend_isolated_ci',user:'axiom_spend_runtime_ci',
+      password:'ci-disposable-not-production',max:2,connectionTimeoutMillis:2000});
+    assert.equal(typeof ax.ProtectedPostgresProviderSpendLedger,'function',
+      'restricted runtime must have a trusted SQL-RPC-only ledger implementation');
+    const protectedLedger=new ax.ProtectedPostgresProviderSpendLedger(caller);
+    assert.equal(ax.ProtectedPostgresProviderSpendLedger.isAuthenticLedger(protectedLedger),true);
+    assert.throws(()=>new ax.ProtectedPostgresProviderSpendLedger({connect:async()=>{}}),/PostgreSQL Pool/i);
+    const grants=await caller.query(`SELECT
+      has_table_privilege(current_user,'public.axiom_provider_spend_budgets','UPDATE,INSERT,DELETE,TRUNCATE') AS budget_dml,
+      has_table_privilege(current_user,'public.axiom_provider_spend_organizations','UPDATE,INSERT,DELETE,TRUNCATE') AS org_dml,
+      has_table_privilege(current_user,'public.axiom_provider_spend_requests','UPDATE,INSERT,DELETE,TRUNCATE') AS receipt_dml,
+      has_schema_privilege(current_user,'public','CREATE') AS can_create_public,
+      has_schema_privilege(current_user,'axiom_spend','CREATE') AS can_create_rpc`);
+    assert.deepEqual(grants.rows,[{budget_dml:false,org_dml:false,receipt_dml:false,can_create_public:false,can_create_rpc:false}]);
+    await assert.rejects(()=>caller!.query('UPDATE public.axiom_provider_spend_budgets SET limit_micro_usd=1000000 WHERE tenant_id=$1',[tenant.tenantId]),(e:any)=>e.code==='42501');
+    await assert.rejects(()=>caller!.query('SET ROLE '+migrationOwner),(e:any)=>e.code==='42501');
+    await assert.rejects(()=>caller!.query('SET ROLE axiom_spend_definer'),(e:any)=>e.code==='42501');
+    const fnOwner=await caller.query("SELECT pg_catalog.pg_has_role('axiom_spend_definer'::regrole,'MEMBER') AS owner_member");
+    assert.deepEqual(fnOwner.rows,[{owner_member:false}]);
+    const args=[tenant.tenantId,provider,modelId,'protected-1','a'.repeat(64),350,'openai'];
+    const reserve=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
+    assert.equal(reserve.rows[0].verdict,'OK');
+    const denied=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',
+      [tenant.tenantId,provider,modelId,'protected-2','b'.repeat(64),350,'openai']);
+    assert.equal(denied.rows[0].verdict,'BUDGET_EXCEEDED');
+    assert.equal((await operator.status(tenant,provider,modelId)).reservedMicroUsd,350);
+    const settle=await caller.query('SELECT axiom_spend.settle($1,$2,$3,$4,$5,$6::bigint,$7,$8) AS verdict',
+      [tenant.tenantId,provider,modelId,'protected-1','a'.repeat(64),200,'b'.repeat(64),'openai']);
+    assert.equal(settle.rows[0].verdict,'OK');
+    assert.deepEqual(await operator.status(tenant,provider,modelId),{
+      limitMicroUsd:500,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:300
+    });
+    const repeat=await caller.query('SELECT axiom_spend.reserve($1,$2,$3,$4,$5,$6::bigint,$7) AS verdict',args);
+    assert.equal(repeat.rows[0].verdict,'BUDGET_ALREADY_SETTLED');
+    await protectedLedger.reserve({tenantId:tenant.tenantId,provider,modelId,
+      billingProvider:'openai',requestId:'protected-ledger',requestHash:'c'.repeat(64),reserveMicroUsd:100});
+    await protectedLedger.settle({tenantId:tenant.tenantId,provider,modelId,
+      billingProvider:'openai',requestId:'protected-ledger',requestHash:'c'.repeat(64),
+      chargeMicroUsd:25,responseHash:'d'.repeat(64)});
+    assert.equal((await operator.status(tenant,provider,modelId)).chargedMicroUsd,225);
+    // Exercise the real trusted decorator with a synthetic provider: no vendor or
+    // credential is contacted, and the runtime database role still has no DML.
+    let providerCalls=0;
+    const fakeAdapter={
+      manifest:{adapterId:provider,modelId,provider:'openai',version:'1.0.0',
+        implementationHash:'f'.repeat(64)},
+      async invoke(){
+        providerCalls++;
+        return {capturedAt:'2026-11-08T00:00:00.000Z',requestBody:'{}',
+          responseBody:JSON.stringify({id:'test-response',usage:{
+            input_tokens:100,output_tokens:50,total_tokens:150}}),
+          normalizedResponseBody:'{}'};
+      },
+      async explain(){throw new Error('explanation not requested');}
+    };
+    const priced={inputMicrosPerMillionTokens:1000000,outputMicrosPerMillionTokens:2000000,
+      cacheReadMicrosPerMillionTokens:0,cacheWriteMicrosPerMillionTokens:0};
+    const budgeted=new ax.BudgetedModelProviderAdapter({
+      adapter:fakeAdapter,ledger:protectedLedger,tenantId:tenant.tenantId,
+      prices:priced,requestReserveMicroUsd:260});
+    await budgeted.invoke({tenant,compilationRequestHash:'e'.repeat(64),attempt:0,mode:'INITIAL'});
+    assert.equal(providerCalls,1);
+    assert.equal((await operator.status(tenant,provider,modelId)).chargedMicroUsd,425);
+    await assert.rejects(
+      ()=>budgeted.invoke({tenant,compilationRequestHash:'f'.repeat(64),attempt:0,mode:'INITIAL'}),
+      (e:any)=>e?.code==='BUDGET_EXCEEDED');
+    assert.equal(providerCalls,1,'an exhausted budget must deny before provider network access');
+    await assert.rejects(()=>caller!.query(
+      'SELECT charged_micro_usd FROM public.axiom_provider_spend_budgets LIMIT 1'),
+      (e:any)=>e.code==='42501');
+    // Two independent restricted PostgreSQL pools contend on the SAME vendor/
+    // tenant rows. This is stronger than concurrent calls through one pool.
+    const contenderPool=new Pool({host:process.env.PGHOST??'postgres',
+      port:Number(process.env.PGPORT??5432),database:'axiom_spend_isolated_ci',
+      user:'axiom_spend_runtime_ci',password:'ci-disposable-not-production',
+      max:2,connectionTimeoutMillis:2000});
+    try{
+      const contender=new ax.ProtectedPostgresProviderSpendLedger(contenderPool);
+      const a={tenantId:tenant.tenantId,provider,modelId,billingProvider:'openai',
+        requestId:'protected-race-a',requestHash:'1'.repeat(64),reserveMicroUsd:60};
+      const b={...a,requestId:'protected-race-b',requestHash:'2'.repeat(64)};
+      const outcomes=await Promise.allSettled([protectedLedger.reserve(a),contender.reserve(b)]);
+      assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);
+      const failure=outcomes.find(x=>x.status==='rejected') as PromiseRejectedResult|undefined;
+      assert.equal(failure?.reason?.code,'BUDGET_EXCEEDED');
+      assert.equal((await operator.status(tenant,provider,modelId)).reservedMicroUsd,60);
+      const winner=outcomes[0].status==='fulfilled'?a:b;
+      await assert.rejects(()=>protectedLedger.settle({...winner,chargeMicroUsd:100,
+        responseHash:'3'.repeat(64)}),(e:any)=>e?.code==='BUDGET_PROVIDER_OVERAGE');
+      assert.deepEqual(await operator.status(tenant,provider,modelId),{
+        limitMicroUsd:500,chargedMicroUsd:525,reservedMicroUsd:0,availableMicroUsd:0
+      });
+      await assert.rejects(()=>contender.reserve({...winner,requestId:'after-overage',
+        requestHash:'4'.repeat(64),reserveMicroUsd:1}),
+        (e:any)=>e?.code==='BUDGET_ORGANIZATION_SUSPENDED');
+    }finally{await contenderPool.end();}
+  }finally{
+    if(caller)await caller.end();
+    await admin.query('DROP OWNED BY axiom_spend_runtime_ci');
+    await admin.query('DROP ROLE axiom_spend_runtime_ci');
+  }
+  }finally{
+    await admin.end();
+    await pool.query('DROP DATABASE axiom_spend_isolated_ci WITH (FORCE)');
+    await pool.query('DROP ROLE IF EXISTS axiom_spend_definer');
+  }
+});
