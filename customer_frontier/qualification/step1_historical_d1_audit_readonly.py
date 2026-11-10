@@ -136,7 +136,7 @@ def parse_event(event):
         "action": kind,
         "result": action["result"],
         "method": raw["method"],
-        "date": time.date().isoformat(),
+        "date": time.astimezone(UTC).date().isoformat(),
     }
 
 
