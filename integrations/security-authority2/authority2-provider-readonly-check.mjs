@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {verifyAuthority2R2LockPolicy} from './authority2-lock-policy.mjs';
+import {verifyAuthority2WorkerBindings} from './authority2-worker-bindings.mjs';
 
 const ACCOUNT='67469478aa9349fa0a57fe3a72da200a';
 const BUCKET='musitu-axiom-authority2-worm';
@@ -14,6 +15,7 @@ const KEY='AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN';
 export async function operatorReadOnlyPreflight({
   env=process.env,argv=process.argv,
   verify=verifyAuthority2R2LockPolicy,
+  verifyWorker=verifyAuthority2WorkerBindings,
   output=message=>process.stdout.write(message+'\n'),
   error=message=>process.stderr.write(message+'\n')
 }={}){
@@ -31,12 +33,21 @@ export async function operatorReadOnlyPreflight({
       typeof result.rule_id!=='string'||result.rule_id.length===0){
       error('AUTHORITY2_POLICY_EVIDENCE_INCONSISTENT_HOLD');return 2;
     }
+    const worker=await verifyWorker({account_id:ACCOUNT,token});
+    if(worker?.account_id!==ACCOUNT||worker.script_name!=='axiom-security-authority2-highwater'||
+      worker.bucket_name!==BUCKET||worker.checked_binding_count!==5||
+      worker.active_deployment_verified!==false||worker.signer_custody_verified!==false||
+      worker.release_eligible!==false){
+      error('AUTHORITY2_WORKER_EVIDENCE_INCONSISTENT_HOLD');return 2;
+    }
     // No raw HTTP body, bearer value, usernames, or account permissions.
     output(JSON.stringify({
       schema:'musitu.axiom.authority2.operator-policy-readback.v1',
       account_id:ACCOUNT,bucket_name:BUCKET,
       rule_id_sha256:createHash('sha256').update(result.rule_id).digest('hex'),
-      scope:result.scope,retention:'Indefinite',provider:'Cloudflare R2',
+      scope:result.scope,retention:'Indefinite',provider:'Cloudflare R2 + Workers',
+      worker_script_name:worker.script_name,worker_binding_count:worker.checked_binding_count,
+      active_deployment_verified:false,signer_custody_verified:false,
       checked_at:new Date().toISOString(),credential_exposed:false,
       independently_verified:false,admin_rollback_resistance:'NOT_PROVEN',
       release_eligible:false,status:'PROVIDER_POLICY_READBACK_ONLY_NOT_RELEASE'
