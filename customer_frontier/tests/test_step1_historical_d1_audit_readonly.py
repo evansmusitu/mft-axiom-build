@@ -95,6 +95,15 @@ class AuditQualification(unittest.TestCase):
         with self.assertRaisesRegex(audit.NoGo,"PAGE_COUNT"):
             audit.inspect_logs(responses + [page([])])
 
+    def test_provider_offset_timestamp_normalized_to_utc_boundary(self):
+        e=event(date="2026-09-12T00:30:00+02:00")
+        parsed=audit.parse_event(e)
+        self.assertEqual(parsed["date"],"2026-09-11")
+        # A local 12 September timestamp is still within the UTC window
+        # ending 12 September, and must not become a false scope failure.
+        pages=[[page([])] for _ in audit.WINDOWS]
+        pages[15]=[page([e])]
+        self.assertEqual(audit.inspect_windows(pages)["event_count"],1)
     def test_bounded_monthly_windows_no_owner_from_partial_evidence(self):
         self.assertEqual(len(audit.WINDOWS),18)
         self.assertEqual(audit.WINDOWS[0][0],"2025-05-11")
