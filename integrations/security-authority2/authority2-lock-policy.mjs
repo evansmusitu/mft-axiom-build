@@ -2,7 +2,7 @@
  * No setup, mutation, deployment, or claim of administrator-proof retention.
  */
 const EXPECTED_ACCOUNT='67469478aa9349fa0a57fe3a72da200a';
-const EXPECTED_BUCKET='musitu-axiom-authority2-worm';
+const EXPECTED_BUCKET='musitu-axiom-b27-highwater-a2';
 const TOKEN=/^[A-Za-z0-9_-]{32,200}$/;
 export class LockPolicyHold extends Error {constructor(code){super(code);this.name='LockPolicyHold';this.code=code;}}
 const hold=code=>{throw new LockPolicyHold(code);};
