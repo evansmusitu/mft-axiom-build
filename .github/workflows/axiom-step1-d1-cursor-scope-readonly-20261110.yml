@@ -40,8 +40,8 @@ jobs:
               ("window16_descending_limit100","2026-08-10","2026-09-12","desc",100),
               ("window16_ascending_limit1000","2026-08-10","2026-09-12","asc",1000),
               ("window18_ascending_limit100","2026-10-10","2026-11-11","asc",100),
-    ("window16_before_timestamp_utc","2026-08-10","2026-09-12T00:00:00Z","asc",1000),
-    ("window16_before_previous_date","2026-08-10","2026-09-11","asc",1000),
+              ("window16_before_timestamp_utc","2026-08-10","2026-09-12T00:00:00Z","asc",1000),
+              ("window16_before_previous_date","2026-08-10","2026-09-11","asc",1000),
           ]
           receipt={"schema":"AXIOM_D1_PROVIDER_CURSOR_SCOPE_DIAGNOSTICS_V1",
            "database_uuid":database,"query_scope":"PINNED_D1_READONLY",
