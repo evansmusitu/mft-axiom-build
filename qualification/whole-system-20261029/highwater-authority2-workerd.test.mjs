@@ -116,6 +116,41 @@ test('B27: GitHub immutable history survives full authority plus R2 rollback and
   assert.equal((await second.json()).error,'ANCHOR_PENDING_RECONCILIATION_HOLD');
 });
 
+
+test('B27: GitHub tag tombstone persists even when release is deleted by admin',{timeout:90000},async t=>{
+  const anchor=githubFixture('ax-authority2-release-delete'),witness=await witnessFixture();
+  const f=await fixture(t,{persist:true,anchor,highwater:witness});
+  await f.bootstrap();await f.grant();await f.snapshotStore();
+  const snapshot=witness.snapshot(),r2Snapshot=witness.r2.snapshot();
+  const client=await f.makeClient(),first=await client.consume(await f.prepare(client));
+  assert.equal(first.payload.dispatch_allowed,true);
+  anchor.simulateAdminReleaseDeletion();
+  await f.restoreStore();witness.restore(snapshot);witness.r2.restore(r2Snapshot);
+  const rebuilt=await f.makeClient();
+  await assert.rejects(async()=>rebuilt.consume(await f.prepare(rebuilt)),
+    /ANCHOR_|LEDGER_REMOTE_DENIED_HOLD/);
+  const subsequent=await f.request('/v1/operator/grants',f.grantInput());
+  assert.equal(subsequent.status,503);
+  assert.equal((await subsequent.json()).error,'ANCHOR_PENDING_RECONCILIATION_HOLD');
+});
+
+test('B27: deleted and recreated same-name GitHub repo cannot inherit original repo ID',{timeout:90000},async t=>{
+  const anchor=githubFixture('ax-authority2-repo-resurrection'),witness=await witnessFixture();
+  const f=await fixture(t,{persist:true,anchor,highwater:witness});
+  await f.bootstrap();await f.grant();await f.snapshotStore();
+  const snapshot=witness.snapshot(),r2Snapshot=witness.r2.snapshot();
+  const client=await f.makeClient(),first=await client.consume(await f.prepare(client));
+  assert.equal(first.payload.dispatch_allowed,true);
+  anchor.simulateRepositoryResurrection();
+  await f.restoreStore();witness.restore(snapshot);witness.r2.restore(r2Snapshot);
+  const rebuilt=await f.makeClient();
+  await assert.rejects(async()=>rebuilt.consume(await f.prepare(rebuilt)),
+    /ANCHOR_|LEDGER_REMOTE_DENIED_HOLD/);
+  const subsequent=await f.request('/v1/operator/grants',f.grantInput());
+  assert.equal(subsequent.status,503);
+  assert.equal((await subsequent.json()).error,'ANCHOR_PENDING_RECONCILIATION_HOLD');
+});
+
 test('negative B27 workerd: only deleting R2 history TOO permits full global rollback',{timeout:90000},async t=>{
   const anchor=githubFixture('ax-authority2-r2-negative'),witness=await witnessFixture();
   const f=await fixture(t,{persist:true,anchor,highwater:witness});
