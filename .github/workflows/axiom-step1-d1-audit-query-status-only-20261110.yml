@@ -1,0 +1,80 @@
+name: AXIOM Step1 D1 historical audit query code-only differential (GET ONLY; NO RELEASE)
+on:
+  push:
+    branches: [review/axiom-step1-d1-origin-provider-audit-readonly-20261110]
+    paths: [.github/workflows/axiom-step1-d1-audit-query-status-only-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-step1-d1-audit-query-status-only-20261110
+  cancel-in-progress: false
+jobs:
+  inspect-status-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact account Audit Logs API by GET, discard all response bodies
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, urllib.parse, urllib.request, urllib.error
+          account='93f395f5121954671f92fffa453d6b61'
+          database='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
+          root='https://api.cloudflare.com/client/v4/accounts/'+account
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token or '\n' in token or '\r' in token:
+              print('READ_ONLY_CREDENTIAL_UNAVAILABLE')
+              raise SystemExit(2)
+          class NeverRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          opener=urllib.request.build_opener(NeverRedirect())
+          query=urllib.parse.urlencode
+          cases=[
+            ('d1_metadata', '/d1/database/'+database),
+            ('audit_default', '/logs/audit'),
+            ('audit_narrow_resource', '/logs/audit?'+query({'since':'2026-11-01','before':'2026-11-10','resource_id':database,'limit':1})),
+            ('audit_narrow_unfiltered', '/logs/audit?'+query({'since':'2026-11-01','before':'2026-11-10','limit':1})),
+            ('audit_full_old_window', '/logs/audit?'+query({'since':'2025-05-10','before':'2026-11-11','resource_id':database,'direction':'asc','limit':100})),
+            ('audit_full_past_before', '/logs/audit?'+query({'since':'2025-05-10','before':'2026-11-10','resource_id':database,'direction':'asc','limit':100}))
+          ]
+          statuses={}
+          for tag,path in cases:
+              request=urllib.request.Request(root+path,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                  with opener.open(request,timeout=12) as r:
+                      status=r.status
+                      # Do not read any body bytes, even when the response is 200.
+              except urllib.error.HTTPError as e:
+                  status=e.code
+              except (urllib.error.URLError, OSError,TimeoutError):
+                  status='NETWORK_ERROR'
+              statuses[tag]=status
+          receipt={'schema':'AXIOM_STEP1_GET_ONLY_AUDIT_ENDPOINT_CODES_V1',
+                   'database_uuid':database,'http_status_codes_only':statuses,
+                   'response_bodies_read':0,'raw_log_events_retained':0,
+                   'database_writes':0,'reuse_authorized':False,
+                   'step_2_authorized':False,'release_authority':False,
+                   'status':'DIAGNOSTICS_ONLY_NO_GO'}
+          data=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+          name='axiom-step1-audit-query-status-only.json'
+          open(name,'wb').write(data)
+          open(name+'.sha256','w').write(hashlib.sha256(data).hexdigest()+'  '+name+'\n')
+          print('AXIOM_STEP1_QUERY_DIAGNOSTIC_STATUS_ONLY NO_GO; writes=0')
+          PY
+      - name: Retain ONLY HTTP status codes; do not upload logs or provider responses
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-audit-query-status-only-20261110
+          retention-days: 5
+          if-no-files-found: warn
+          path: |
+            axiom-step1-audit-query-status-only.json
+            axiom-step1-audit-query-status-only.json.sha256
