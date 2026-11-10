@@ -51,9 +51,25 @@ SHA-256-identified policy readback with `release_eligible:false` and
 `independently_verified:false`; it is **not** a reviewer approval,
 an administrator-proof retention policy or a destructive replay pass.
 
-The command only issues an authenticated Cloudflare GET for
-`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-authority2-worm/lock`.
-It performs no account mutation, billing, R2 provision or credential export.
+The command makes **two separately bounded, authenticated read-only Cloudflare GETs**:
+`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-authority2-worm/lock`
+and
+`/accounts/67469478aa9349fa0a57fe3a72da200a/workers/scripts/axiom-security-authority2-highwater/settings`.
+The second read verifies the exact Durable Object class `HIGHWATER_STATE / Authority2Highwater`,
+R2 binding `HIGHWATER_WORM / musitu-axiom-authority2-worm`, and existence
+of the three named Worker secrets **without revealing their values**. It rejects
+extra/duplicated bindings. A Cloudflare token restricted to R2 configuration
+read and Workers metadata read may be used when supported by the provider.
+If either GET is denied, the combined preflight emits **HOLD**, never partial
+success or an assertion that additional privileges were obtained. Keep any
+token only in the independent operator environment, not GitHub Actions or
+user-visible transcripts. It performs no account mutation, billing, R2
+provision, Worker deployment, secret export or credential creation.
+
+The readback confirms **binding metadata only**, not an active deployed
+version, SHA-256 of the deployed Worker source, nonexportable signer custody,
+operator membership/MFA isolation, or successful destructive provider recovery.
+All remain independent release gates.
 An independently retained reviewer transcript and signed custody evidence
 remain required. The external repo-side GitHub immutable anchor does not,
 by itself, qualify operator/admin independence.
